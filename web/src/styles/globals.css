@@ -1,0 +1,96 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700;800;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* White Background Design Tokens */
+    --bg-page: #ffffff;
+    --bg-surface: #ffffff;
+    --bg-card: #ffffff;
+    --brand-primary: #FF6A00;
+    --brand-primary-dark: #D94F00;
+    --brand-accent: #2563EB;
+    --text-primary: #0F172A;
+    --text-secondary: #6B7280;
+    --text-muted: #9CA3AF;
+    --border-subtle: #E5E7EB;
+    
+    /* shadcn/ui theme tokens with white backgrounds */
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 24 100% 50%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222.2 84% 4.9%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96%;
+    --accent-foreground: 222.2 84% 4.9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 24 100% 50%;
+    --radius: 0.5rem;
+    
+    /* Additional required theme variables */
+    --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+    --font-mono: 'Courier New', monospace;
+  }
+
+  * {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+  }
+  
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+  
+  body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background-color: var(--bg-page);
+    color: var(--text-primary);
+  }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white rounded-full px-6 py-3 font-semibold transition-all duration-200 hover:shadow-lg;
+  }
+  
+  .btn-ghost {
+    @apply bg-transparent border border-[var(--border-subtle)] text-[var(--text-primary)] rounded-full px-6 py-3 font-semibold hover:bg-gray-50 transition-all duration-200;
+  }
+
+  .chip-orange {
+    @apply bg-[var(--brand-primary)] text-white px-3 py-1 rounded-full text-sm font-medium;
+  }
+
+  .chip-subtle {
+    @apply bg-gray-50 text-[var(--text-secondary)] px-3 py-1 rounded-full text-sm font-medium hover:bg-gray-100 transition-colors;
+  }
+}

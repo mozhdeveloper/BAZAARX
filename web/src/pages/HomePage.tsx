@@ -1,0 +1,120 @@
+import React from 'react';
+import { BazaarHero } from '../components/ui/bazaar-hero';
+import ScrollMorphHero from '../components/ui/scroll-morph-hero';
+import { SectionTransition } from '../components/ui/section-transition';
+import { BazaarProductTrailDemo } from '../components/ui/bazaar-product-trail';
+import { MobileAppShowcase } from '../components/ui/mobile-app-showcase';
+import BazaarSellerDashboardHero from '../components/ui/bazaar-seller-dashboard-hero';
+import { BazaarFooter } from '../components/ui/bazaar-footer';
+import { SmoothScrollProvider } from '../components/ui/smooth-scroll-provider';
+import FeaturedCollections from '../components/FeaturedCollections';
+import ProductRail from '../components/sections/ProductRail';
+import FeatureStrip from '../components/sections/FeatureStrip';
+import StoreRail from '../components/sections/StoreRail';
+import CategoriesFooterStrip from '../components/CategoriesFooterStrip';
+
+// Data imports
+import { trendingProducts, bestSellerProducts, newArrivals } from '../data/products';
+import { featuredStores } from '../data/stores';
+
+const HomePage: React.FC = () => {
+  return (
+    <SmoothScrollProvider>
+      <div className="min-h-screen bg-white">
+        
+        {/* New Bazaar Hero with integrated header */}
+        <BazaarHero />
+
+        {/* Scroll Morph Hero - Categories Explorer */}
+        <div className="h-[120vh] w-full">
+          <ScrollMorphHero />
+        </div>
+
+        {/* Transition Section */}
+        <SectionTransition />
+
+        {/* Immersive Product Explorer with Mouse Trail */}
+        <BazaarProductTrailDemo />
+
+        {/* Mobile App Showcase */}
+        <MobileAppShowcase />
+
+        {/* Seller Dashboard Preview */}
+        <BazaarSellerDashboardHero />
+
+      {/* Featured Collections */}
+      <FeaturedCollections />
+
+      {/* Trending Products Rail */}
+      <ProductRail 
+        title="Trending Now"
+        subtitle="Discover what's popular among Filipino shoppers"
+        products={trendingProducts}
+        actionLabel="View All Trending"
+      />
+
+      {/* Feature Strip 1 - Support Local */}
+      <FeatureStrip 
+        title="Support Local Filipino Businesses"
+        description="Every purchase helps strengthen Filipino communities and preserves traditional craftsmanship while supporting local entrepreneurs."
+        image="https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=600&h=400&fit=crop"
+        features={[
+          "Verified local sellers from across the Philippines",
+          "Direct support to Filipino entrepreneurs and artisans",
+          "Authentic products with cultural heritage",
+          "Sustainable business practices"
+        ]}
+        buttonText="Discover Local Sellers"
+      />
+
+      {/* Best Sellers Rail */}
+      <ProductRail 
+        title="Best Sellers"
+        subtitle="Top-rated products loved by thousands of customers"
+        products={bestSellerProducts}
+        actionLabel="View All Best Sellers"
+      />
+
+      {/* Featured Stores Rail */}
+      <StoreRail 
+        title="Featured Stores"
+        subtitle="Trusted sellers with verified quality and excellent service"
+        stores={featuredStores}
+        actionLabel="Explore All Stores"
+      />
+
+      {/* Feature Strip 2 - Secure Shopping */}
+      <FeatureStrip 
+        title="Shop with Complete Confidence"
+        description="Experience worry-free shopping with our comprehensive buyer protection, secure payments, and dedicated customer support."
+        image="https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=600&h=400&fit=crop"
+        features={[
+          "100% secure payment processing",
+          "Buyer protection guarantee",
+          "24/7 customer support",
+          "Easy returns and refunds"
+        ]}
+        buttonText="Learn About Protection"
+        reverse={true}
+      />
+
+      {/* New Arrivals Rail */}
+      <ProductRail 
+        title="New Arrivals"
+        subtitle="Fresh finds from our newest sellers and latest collections"
+        products={newArrivals}
+        actionLabel="Explore New Products"
+      />
+
+      {/* Categories Footer Strip */}
+      <CategoriesFooterStrip />
+
+      {/* Bazaar Footer */}
+      <BazaarFooter />
+
+    </div>
+    </SmoothScrollProvider>
+  );
+};
+
+export default HomePage;
