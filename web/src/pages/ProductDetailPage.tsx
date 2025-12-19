@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Minus, Plus, ShoppingCart, Star, ChevronRight, MessageCircle, User } from 'lucide-react';
 import { trendingProducts, bestSellerProducts, newArrivals } from '../data/products';
-import { useCartStore } from '../stores/cartStore';
+import { useBuyerStore } from '../stores/buyerStore';
 import { Button } from '../components/ui/button';
 import Header from '../components/Header';
 import { BazaarFooter } from '../components/ui/bazaar-footer';
@@ -478,7 +478,7 @@ const reviewsData: Record<string, any[]> = {
 export default function ProductDetailPage({}: ProductDetailPageProps) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { addToCart } = useCartStore();
+  const { addToCart } = useBuyerStore();
   
   const [quantity, setQuantity] = useState(1);
   const [selectedImage, setSelectedImage] = useState(0);
@@ -511,13 +511,80 @@ export default function ProductDetailPage({}: ProductDetailPageProps) {
   }
 
   const handleAddToCart = () => {
-    for (let i = 0; i < quantity; i++) {
-      addToCart({
-        ...baseProduct,
-        name: productData.name,
-        price: productData.price / 100
-      });
-    }
+    // Create proper product object for buyerStore
+    const productForCart = {
+      id: baseProduct.id,
+      name: productData.name,
+      price: productData.price / 100,
+      originalPrice: baseProduct.originalPrice,
+      image: baseProduct.image,
+      images: productData.images || [baseProduct.image],
+      seller: {
+        id: 'seller-1',
+        name: baseProduct.seller,
+        avatar: 'https://api.dicebear.com/7.x/initials/svg?seed=' + baseProduct.seller,
+        rating: 4.8,
+        totalReviews: 234,
+        followers: 1523,
+        isVerified: baseProduct.isVerified || true,
+        description: 'Trusted seller on BazaarPH',
+        location: baseProduct.location || 'Metro Manila',
+        established: '2020',
+        products: [],
+        badges: ['Verified', 'Fast Shipper'],
+        responseTime: '< 1 hour',
+        categories: [baseProduct.category]
+      },
+      sellerId: 'seller-1',
+      rating: baseProduct.rating,
+      totalReviews: 234,
+      category: baseProduct.category,
+      sold: baseProduct.sold || 0,
+      isFreeShipping: baseProduct.isFreeShipping || false,
+      location: baseProduct.location || 'Metro Manila',
+      description: productData.description || '',
+      specifications: {},
+      variants: []
+    };
+    
+    addToCart(productForCart, quantity);
+    
+    // Show success notification and guide to cart
+    const notification = document.createElement('div');
+    notification.className = 'fixed top-20 right-4 bg-white border-2 border-green-500 rounded-lg shadow-2xl p-4 z-[100] animate-slide-in-right';
+    notification.innerHTML = `
+      <div class="flex items-start gap-3 max-w-sm">
+        <div class="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
+          <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+          </svg>
+        </div>
+        <div class="flex-1">
+          <p class="font-semibold text-gray-900">Added to cart!</p>
+          <p class="text-sm text-gray-600">${quantity} item(s) added</p>
+          <div class="mt-2 flex gap-2">
+            <button onclick="window.location.href='/enhanced-cart'" class="text-xs font-medium text-orange-600 hover:text-orange-700 hover:underline">
+              View Cart →
+            </button>
+            <button onclick="this.closest('.fixed').remove()" class="text-xs font-medium text-gray-500 hover:text-gray-700">
+              Continue Shopping
+            </button>
+          </div>
+        </div>
+        <button onclick="this.closest('.fixed').remove()" class="text-gray-400 hover:text-gray-600">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
+    `;
+    document.body.appendChild(notification);
+    
+    // Auto remove after 5 seconds
+    setTimeout(() => {
+      notification.style.animation = 'slide-out-right 0.3s ease-out';
+      setTimeout(() => notification.remove(), 300);
+    }, 5000);
   };
 
   const handleBuyNow = () => {

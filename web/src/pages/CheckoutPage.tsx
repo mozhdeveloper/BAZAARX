@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, MapPin, CreditCard, Smartphone, Banknote, Shield, Check } from 'lucide-react';
 import { useCartStore } from '../stores/cartStore';
+import { useBuyerStore } from '../stores/buyerStore';
 import { Button } from '../components/ui/button';
 import Header from '../components/Header';
 import { BazaarFooter } from '../components/ui/bazaar-footer';
@@ -57,7 +58,8 @@ const paymentMethods = [
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
-  const { items, getTotalPrice, createOrder } = useCartStore();
+  const { createOrder } = useCartStore();
+  const { cartItems, getCartTotal, clearCart } = useBuyerStore();
   
   const [formData, setFormData] = useState<CheckoutFormData>({
     fullName: '',
@@ -72,8 +74,8 @@ export default function CheckoutPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Partial<CheckoutFormData>>({});
 
-  const totalPrice = getTotalPrice();
-  const shippingFee = items.length > 0 && !items.every(item => item.isFreeShipping) ? 50 : 0;
+  const totalPrice = getCartTotal();
+  const shippingFee = cartItems.length > 0 && !cartItems.every(item => item.isFreeShipping) ? 50 : 0;
   const finalTotal = totalPrice + shippingFee;
 
   const validateForm = () => {
@@ -107,6 +109,13 @@ export default function CheckoutPage() {
     }
   };
 
+  // Check if cart is empty on initial load only
+  useEffect(() => {
+    if (cartItems.length === 0) {
+      navigate('/enhanced-cart', { replace: true });
+    }
+  }, []); // Empty dependency array - only runs once on mount
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -116,8 +125,34 @@ export default function CheckoutPage() {
 
     try {
       // Simulate payment processing
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 1500));
 
+      // Sync buyerStore items to cartStore for order creation
+      const cartStoreState = useCartStore.getState();
+      
+      // Clear cart store first to ensure fresh order
+      cartStoreState.clearCart();
+      
+      // Add items from buyer cart to cart store
+      cartItems.forEach(item => {
+        cartStoreState.addToCart({
+          id: item.id,
+          name: item.name,
+          price: item.price,
+          image: item.image,
+          seller: item.seller.name,
+          rating: item.rating,
+          category: item.category,
+          isFreeShipping: item.isFreeShipping,
+          isVerified: item.seller.isVerified,
+          location: item.location
+        });
+        if (item.quantity > 1) {
+          cartStoreState.updateQuantity(item.id, item.quantity);
+        }
+      });
+
+      // Create the order
       const orderId = createOrder({
         shippingAddress: {
           fullName: formData.fullName || 'John Doe',
@@ -130,27 +165,34 @@ export default function CheckoutPage() {
         paymentMethod: {
           type: formData.paymentMethod || 'cod',
           details: formData.paymentMethod === 'card' ? 
-            '****1234' : 
-            formData.paymentMethod === 'gcash' ? '09123456789' : 
-            formData.paymentMethod === 'paymaya' ? '09123456789' : 
+            `**** ${formData.cardNumber?.slice(-4) || '1234'}` : 
+            formData.paymentMethod === 'gcash' ? formData.gcashNumber || '09123456789' : 
+            formData.paymentMethod === 'paymaya' ? formData.paymayaNumber || '09123456789' : 
             'Cash on Delivery'
         },
         status: 'pending'
       });
 
-      // Use setTimeout to avoid render navigation issue
-      setTimeout(() => {
-        navigate(`/delivery-tracking/${orderId}`);
-      }, 0);
+      // Clear buyer cart after successful order
+      clearCart();
+      
+      // Navigate to orders page with the new order ID
+      navigate('/orders', { 
+        state: { 
+          newOrderId: orderId,
+          fromCheckout: true
+        },
+        replace: true 
+      });
     } catch (error) {
       console.error('Order creation failed:', error);
+      alert('Failed to place order. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  if (items.length === 0) {
-    navigate('/cart');
+  if (cartItems.length === 0) {
     return null;
   }
 
@@ -166,7 +208,7 @@ export default function CheckoutPage() {
           className="flex items-center gap-4 mb-8"
         >
           <button
-            onClick={() => navigate('/cart')}
+            onClick={() => navigate('/enhanced-cart')}
             className="p-2 rounded-full hover:bg-gray-100 transition-colors"
           >
             <ArrowLeft className="w-5 h-5 text-gray-600" />
@@ -460,7 +502,7 @@ export default function CheckoutPage() {
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Order Summary</h3>
                 
                 <div className="space-y-3 mb-6">
-                  {items.map(item => (
+                  {cartItems.map(item => (
                     <div key={item.id} className="flex justify-between text-sm">
                       <div className="flex-1">
                         <p className="text-gray-900 font-medium line-clamp-1">{item.name}</p>
@@ -498,9 +540,19 @@ export default function CheckoutPage() {
                 <Button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full bg-[var(--brand-primary)] hover:bg-[var(--brand-secondary)] text-white"
+                  className="w-full bg-[var(--brand-primary)] hover:bg-[var(--brand-secondary)] text-white disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {isLoading ? 'Processing...' : 'Place Order'}
+                  {isLoading ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Processing Payment...
+                    </span>
+                  ) : (
+                    <span className="flex items-center justify-center gap-2">
+                      <Check className="w-5 h-5" />
+                      Place Order
+                    </span>
+                  )}
                 </Button>
 
                 <div className="mt-4 flex items-center justify-center gap-2 text-xs text-gray-500">

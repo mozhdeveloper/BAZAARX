@@ -1,6 +1,7 @@
 "use client";
 
-import { ArrowUpRight, Menu, Search, ShoppingBasket } from "lucide-react";
+import { useState } from "react";
+import { ArrowUpRight, Menu, Search, MessageCircle } from "lucide-react";
 import { Link } from "react-router-dom";
 import {
   Sheet,
@@ -13,38 +14,18 @@ import BazaarProductGallery3D from "./bazaar-product-gallery-3d";
 import { Button } from "./button";
 import { Separator } from "./separator";
 import { motion } from "framer-motion";
-
-const categories = [
-  {
-    title: "Electronics",
-    image: "https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=200&h=200&fit=crop",
-    href: "/shop",
-  },
-  {
-    title: "Filipino Crafts",
-    image: "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=200&h=200&fit=crop",
-    href: "/shop",
-  },
-  {
-    title: "Food & Beverages",
-    image: "https://images.unsplash.com/photo-1559496417-e7f25cb247cd?w=200&h=200&fit=crop",
-    href: "/shop",
-  },
-  {
-    title: "Fashion",
-    image: "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=200&h=200&fit=crop",
-    href: "/shop",
-  },
-];
+import AIChatModal from "../AIChatModal";
 
 const navigation = [
   { name: "Home", href: "/" },
   { name: "Shop", href: "/shop" },
-  { name: "Collections", href: "/shop" },
-  { name: "Stores", href: "/shop" },
+  { name: "Collections", href: "/collections" },
+  { name: "Stores", href: "/stores" },
 ];
 
 export function BazaarHero() {
+  const [isAIChatOpen, setIsAIChatOpen] = useState(false);
+
   return (
     <div className="w-full relative container px-2 mx-auto max-w-7xl min-h-screen">
 
@@ -69,14 +50,19 @@ export function BazaarHero() {
                     {item.name}
                   </Link>
                 ))}
-                <Button variant="ghost" size="icon" className="cursor-pointer relative group hover:text-[var(--brand-primary)] transition-colors">
-                  <Search className="w-5 h-5" />
-                </Button>
-                <Link to="/cart">
+                <Link to="/search">
                   <Button variant="ghost" size="icon" className="cursor-pointer relative group hover:text-[var(--brand-primary)] transition-colors">
-                    <ShoppingBasket className="w-5 h-5" />
+                    <Search className="w-5 h-5" />
                   </Button>
                 </Link>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  onClick={() => setIsAIChatOpen(true)}
+                  className="cursor-pointer relative group hover:text-[var(--brand-primary)] transition-colors"
+                >
+                  <MessageCircle className="w-5 h-5" />
+                </Button>
               </nav>
 
               <Sheet>
@@ -113,39 +99,46 @@ export function BazaarHero() {
                   </nav>
                   <Separator className="mx-6" />
                   <div className="p-6 flex flex-col gap-4">
-                    <Button variant="outline" className="justify-start gap-2 h-12 hover:bg-accent transition-colors">
-                      <Search className="w-4 h-4" />
-                      Search Products
-                    </Button>
-                    <Button variant="outline" className="justify-start gap-2 h-12 hover:bg-accent transition-colors relative">
-                      <ShoppingBasket className="w-4 h-4" />
-                      Cart
-                      <span className="absolute right-3 w-5 h-5 bg-[var(--brand-primary)] text-white text-xs rounded-full flex items-center justify-center">
-                        3
-                      </span>
+                    <Link to="/search">
+                      <Button variant="outline" className="w-full justify-start gap-2 h-12 hover:bg-accent transition-colors">
+                        <Search className="w-4 h-4" />
+                        Search Products
+                      </Button>
+                    </Link>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => setIsAIChatOpen(true)}
+                      className="w-full justify-start gap-2 h-12 hover:bg-accent transition-colors"
+                    >
+                      <MessageCircle className="w-4 h-4" />
+                      AI Assistant
                     </Button>
                   </div>
                   <Separator className="mx-6" />
                   <div className="p-6">
-                    <Button className="w-full h-12 bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-dark)] hover:from-[var(--brand-primary)]/90 hover:to-[var(--brand-primary-dark)]/90 transition-all duration-300 shadow-lg hover:shadow-xl">
-                      Start Selling
-                      <ArrowUpRight className="w-4 h-4 ml-2" />
-                    </Button>
+                    <Link to="/seller/auth">
+                      <Button className="w-full h-12 bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-dark)] hover:from-[var(--brand-primary)]/90 hover:to-[var(--brand-primary-dark)]/90 transition-all duration-300 shadow-lg hover:shadow-xl">
+                        Start Selling
+                        <ArrowUpRight className="w-4 h-4 ml-2" />
+                      </Button>
+                    </Link>
                   </div>
                 </SheetContent>
               </Sheet>
             </div>
 
             <div className="hidden md:flex w-1/2 justify-end items-center pr-4 gap-4 ml-auto">
-              <Button
-                variant="secondary"
-                className="cursor-pointer bg-white p-0 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 group"
-              >
-                <span className="pl-4 py-2 text-sm font-medium text-[var(--text-primary)]">Start Selling</span>
-                <div className="rounded-full flex items-center justify-center m-auto bg-[var(--brand-primary)] w-10 h-10 ml-2 group-hover:scale-110 transition-transform duration-300">
-                  <ArrowUpRight className="w-5 h-5 text-white" />
-                </div>
-              </Button>
+              <Link to="/seller/auth">
+                <Button
+                  variant="secondary"
+                  className="cursor-pointer bg-white p-0 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 group"
+                >
+                  <span className="pl-4 py-2 text-sm font-medium text-[var(--text-primary)]">Start Selling</span>
+                  <div className="rounded-full flex items-center justify-center m-auto bg-[var(--brand-primary)] w-10 h-10 ml-2 group-hover:scale-110 transition-transform duration-300">
+                    <ArrowUpRight className="w-5 h-5 text-white" />
+                  </div>
+                </Button>
+              </Link>
             </div>
           </header>
 
@@ -204,35 +197,8 @@ export function BazaarHero() {
           <BazaarProductGallery3D />
         </motion.div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 max-w-7xl mx-auto mt-16">
-          {categories.map((category, index) => (
-            <motion.div
-              key={category.title}
-              className="group relative bg-white backdrop-blur-sm rounded-3xl p-4 sm:p-6 min-h-[250px] sm:min-h-[300px] w-full overflow-hidden transition-all duration-500 shadow-sm hover:shadow-md"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: index * 0.1, ease: "easeOut" }}
-            >
-              <a href={category.href} className="absolute inset-0 z-20">
-                <h2 className="text-center text-2xl sm:text-3xl md:text-4xl lg:text-[clamp(1.5rem,4vw,2.5rem)] font-bold relative z-10 text-[var(--brand-primary)] my-2 sm:my-4 group-hover:text-[var(--brand-primary-dark)] transition-colors duration-300">
-                  {category.title}
-                </h2>
-                <div className="absolute inset-0 flex items-center justify-center p-4">
-                  <img
-                    src={category.image}
-                    alt={category.title}
-                    className="w-full max-w-[min(40vw,200px)] sm:max-w-[min(30vw,180px)] md:max-w-[min(25vw,160px)] lg:max-w-[min(20vw,140px)] h-auto object-cover rounded-lg opacity-90 group-hover:scale-110 group-hover:opacity-100 transition-all duration-500"
-                  />
-                </div>
-                <div className="absolute bottom-0 right-0 w-16 h-16 md:w-20 md:h-20 bg-white backdrop-blur-sm rounded-tl-xl flex items-center justify-center z-10">
-                  <div className="absolute bottom-2 right-2 md:bottom-3 md:right-3 w-10 h-10 md:w-12 md:h-12 bg-[var(--bg-surface)] rounded-full flex items-center justify-center group-hover:bg-[var(--brand-primary)] group-hover:text-white group-hover:scale-110 transition-all duration-300 shadow-lg">
-                    <ArrowUpRight className="w-5 h-5" />
-                  </div>
-                </div>
-              </a>
-            </motion.div>
-          ))}
-        </div>
+      {/* AI Chat Modal */}
+      <AIChatModal isOpen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} />
     </div>
   );
 }

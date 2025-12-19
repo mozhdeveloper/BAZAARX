@@ -1,6 +1,14 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 
 const Footer: React.FC = () => {
+  // Map of link names to their routes
+  const linkRoutes: Record<string, string> = {
+    'How to Sell': '/seller/auth',
+    'Seller Center': '/seller/auth',
+    'Become a Seller': '/seller/auth',
+  };
+
   const footerLinks = {
     'Customer Care': [
       'Help Center',
@@ -86,12 +94,21 @@ const Footer: React.FC = () => {
               <ul className="space-y-3">
                 {links.map((link) => (
                   <li key={link}>
-                    <a 
-                      href="#" 
-                      className="text-gray-300 hover:text-[var(--brand-primary)] transition-colors text-sm"
-                    >
-                      {link}
-                    </a>
+                    {linkRoutes[link] ? (
+                      <Link 
+                        to={linkRoutes[link]}
+                        className="text-gray-300 hover:text-[var(--brand-primary)] transition-colors text-sm"
+                      >
+                        {link}
+                      </Link>
+                    ) : (
+                      <a 
+                        href="#" 
+                        className="text-gray-300 hover:text-[var(--brand-primary)] transition-colors text-sm"
+                      >
+                        {link}
+                      </a>
+                    )}
                   </li>
                 ))}
               </ul>

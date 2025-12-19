@@ -4,13 +4,37 @@ import { persist } from 'zustand/middleware';
 // Types
 interface Seller {
   id: string;
+  
+  // Personal Info
   name: string;
+  ownerName: string;
   email: string;
   phone: string;
+  
+  // Business Info
+  businessName: string;
   storeName: string;
   storeDescription: string;
-  storeAddress: string;
+  storeCategory: string[];
+  businessType: string;
+  businessRegistrationNumber: string;
+  taxIdNumber: string;
+  
+  // Address
+  businessAddress: string;
+  city: string;
+  province: string;
+  postalCode: string;
+  storeAddress: string; // Combined address
+  
+  // Banking
+  bankName: string;
+  accountName: string;
+  accountNumber: string;
+  
+  // Status
   isVerified: boolean;
+  approvalStatus: 'pending' | 'approved' | 'rejected';
   rating: number;
   totalSales: number;
   joinDate: string;
@@ -83,6 +107,8 @@ interface AuthStore {
   register: (sellerData: Partial<Seller> & { email: string; password: string }) => Promise<boolean>;
   logout: () => void;
   updateProfile: (updates: Partial<Seller>) => void;
+  updateSellerDetails: (details: Partial<Seller>) => void;
+  authenticateSeller: () => void;
 }
 
 interface ProductStore {
@@ -110,12 +136,26 @@ interface StatsStore {
 const dummySeller: Seller = {
   id: 'seller-1',
   name: 'Juan Cruz',
-  email: 'juan@example.com',
+  ownerName: 'Juan Cruz',
+  email: 'seller@bazaarph.com',
   phone: '+63 912 345 6789',
+  businessName: 'Cruz Electronics Corp.',
   storeName: 'Cruz Electronics',
   storeDescription: 'Premium electronics and gadgets for the modern Filipino family',
-  storeAddress: 'Makati City, Metro Manila',
+  storeCategory: ['Electronics', 'Gadgets'],
+  businessType: 'corporation',
+  businessRegistrationNumber: 'SEC-2023-001234',
+  taxIdNumber: '123-456-789-000',
+  businessAddress: '123 Ayala Avenue, Brgy. Poblacion',
+  city: 'Makati City',
+  province: 'Metro Manila',
+  postalCode: '1200',
+  storeAddress: '123 Ayala Avenue, Makati City, Metro Manila 1200',
+  bankName: 'BDO',
+  accountName: 'Cruz Electronics Corp.',
+  accountNumber: '1234567890',
   isVerified: true,
+  approvalStatus: 'approved',
   rating: 4.8,
   totalSales: 1580000,
   joinDate: '2023-01-15',
@@ -241,29 +281,62 @@ export const useAuthStore = create<AuthStore>()(
       login: async (email: string, password: string) => {
         // Simulate API call
         await new Promise(resolve => setTimeout(resolve, 1000));
-        if (email === 'seller@bazaarph.com' && password === 'password') {
+        if ((email === 'seller@bazaarph.com' || email === 'juan@example.com') && (password === 'password' || password === 'password123')) {
           set({ seller: dummySeller, isAuthenticated: true });
           return true;
         }
         return false;
       },
       register: async (sellerData) => {
-        // Simulate API call
+        // Simulate API call - in real app, this would submit to admin approval
         await new Promise(resolve => setTimeout(resolve, 1500));
+        
+        // Create full address
+        const fullAddress = `${sellerData.businessAddress}, ${sellerData.city}, ${sellerData.province} ${sellerData.postalCode}`;
+        
         const newSeller: Seller = {
           id: `seller-${Date.now()}`,
-          name: sellerData.email?.split('@')[0] || 'New Seller',
+          
+          // Personal Info
+          name: sellerData.ownerName || sellerData.email?.split('@')[0] || 'New Seller',
+          ownerName: sellerData.ownerName || '',
           email: sellerData.email!,
           phone: sellerData.phone || '',
+          
+          // Business Info
+          businessName: sellerData.businessName || '',
           storeName: sellerData.storeName || 'My Store',
           storeDescription: sellerData.storeDescription || '',
-          storeAddress: sellerData.storeAddress || '',
+          storeCategory: sellerData.storeCategory || [],
+          businessType: sellerData.businessType || '',
+          businessRegistrationNumber: sellerData.businessRegistrationNumber || '',
+          taxIdNumber: sellerData.taxIdNumber || '',
+          
+          // Address
+          businessAddress: sellerData.businessAddress || '',
+          city: sellerData.city || '',
+          province: sellerData.province || '',
+          postalCode: sellerData.postalCode || '',
+          storeAddress: fullAddress,
+          
+          // Banking
+          bankName: sellerData.bankName || '',
+          accountName: sellerData.accountName || '',
+          accountNumber: sellerData.accountNumber || '',
+          
+          // Status
           isVerified: false,
+          approvalStatus: 'pending',  // Awaiting admin approval
           rating: 0,
           totalSales: 0,
           joinDate: new Date().toISOString().split('T')[0]
         };
-        set({ seller: newSeller, isAuthenticated: true });
+        
+        // In real app, seller would NOT be authenticated immediately
+        // They would need to wait for admin approval
+        // For demo purposes, we'll show a pending status message
+        set({ seller: newSeller, isAuthenticated: false });
+        
         return true;
       },
       logout: () => {
@@ -273,6 +346,18 @@ export const useAuthStore = create<AuthStore>()(
         const { seller } = get();
         if (seller) {
           set({ seller: { ...seller, ...updates } });
+        }
+      },
+      updateSellerDetails: (details) => {
+        const { seller } = get();
+        if (seller) {
+          set({ seller: { ...seller, ...details } });
+        }
+      },
+      authenticateSeller: () => {
+        const { seller } = get();
+        if (seller && seller.isVerified) {
+          set({ isAuthenticated: true });
         }
       }
     }),

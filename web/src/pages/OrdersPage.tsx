@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
-import { Package, Clock, Truck, CheckCircle, XCircle, Eye, Search, Filter, Calendar, MapPin } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { Package, Clock, Truck, CheckCircle, XCircle, Eye, Search, Filter, Calendar, MapPin, Star } from 'lucide-react';
 import { useCartStore } from '../stores/cartStore';
 import { Button } from '../components/ui/button';
 import Header from '../components/Header';
@@ -10,12 +10,34 @@ import TrackingModal from '../components/TrackingModal';
 
 export default function OrdersPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { orders } = useCartStore();
   
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedOrder, setSelectedOrder] = useState<string | null>(null);
   const [trackingOrder, setTrackingOrder] = useState<string | null>(null);
+  
+  // Show success message for newly created orders
+  const newOrderId = (location.state as { newOrderId?: string; fromCheckout?: boolean } | null)?.newOrderId;
+  const fromCheckout = (location.state as { fromCheckout?: boolean } | null)?.fromCheckout;
+  const [showSuccessBanner, setShowSuccessBanner] = useState(!!fromCheckout);
+
+  // Auto-hide success banner after 8 seconds
+  useEffect(() => {
+    if (showSuccessBanner) {
+      const timer = setTimeout(() => {
+        setShowSuccessBanner(false);
+      }, 8000);
+      return () => clearTimeout(timer);
+    }
+  }, [showSuccessBanner]);
+
+  // Check if order was created recently (within last 2 minutes)
+  const isNewOrder = (order: any) => {
+    const orderTime = getTimestamp(order.createdAt);
+    return Date.now() - orderTime < 120000; // 2 minutes
+  };
 
   const statusOptions = [
     { value: 'all', label: 'All Orders' },
@@ -60,73 +82,84 @@ export default function OrdersPage() {
     }
   };
 
-  const filteredOrders = orders.filter(order => {
-    const matchesSearch = order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         order.items.some(item => 
-                           item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                           item.seller.toLowerCase().includes(searchQuery.toLowerCase())
-                         );
-    
-    const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
-    
-    return matchesSearch && matchesStatus;
-  });
+  // Helper to convert createdAt to timestamp (handles both Date objects and strings)
+  const getTimestamp = (date: Date | string): number => {
+    if (date instanceof Date) {
+      return date.getTime();
+    }
+    return new Date(date).getTime();
+  };
 
-  const formatDate = (date: Date) => {
+  const filteredOrders = orders
+    .filter(order => {
+      const matchesSearch = order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                           order.items.some(item => 
+                             item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                             item.seller.toLowerCase().includes(searchQuery.toLowerCase())
+                           );
+      
+      const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
+      
+      return matchesSearch && matchesStatus;
+    })
+    .sort((a, b) => getTimestamp(b.createdAt) - getTimestamp(a.createdAt)); // Sort newest first
+
+  const formatDate = (date: Date | string) => {
+    const dateObj = date instanceof Date ? date : new Date(date);
     return new Intl.DateTimeFormat('en-PH', {
       month: 'short',
       day: 'numeric',
       year: 'numeric',
-    }).format(date);
+    }).format(dateObj);
   };
 
-  const formatDateTime = (date: Date) => {
+  const formatDateTime = (date: Date | string) => {
+    const dateObj = date instanceof Date ? date : new Date(date);
     return new Intl.DateTimeFormat('en-PH', {
       month: 'long',
       day: 'numeric',
       year: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
-    }).format(date);
+    }).format(dateObj);
   };
 
   const selectedOrderData = selectedOrder ? orders.find(o => o.id === selectedOrder) : null;
 
-  if (orders.length === 0) {
-    return (
-      <div className="min-h-screen bg-white">
-        <Header />
-        
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-center"
-          >
-            <div className="w-32 h-32 mx-auto mb-6 bg-gray-100 rounded-full flex items-center justify-center">
-              <Package className="w-16 h-16 text-gray-400" />
-            </div>
-            <h2 className="text-2xl font-semibold text-gray-900 mb-2">No orders yet</h2>
-            <p className="text-gray-600 mb-6">When you place your first order, it will appear here.</p>
-            <Button 
-              onClick={() => navigate('/shop')}
-              className="bg-[var(--brand-primary)] hover:bg-[var(--brand-secondary)] text-white"
-            >
-              Start Shopping
-            </Button>
-          </motion.div>
-        </div>
-        
-        <BazaarFooter />
-      </div>
-    );
-  }
+  // Always show orders page with sample orders - users should see this immediately
 
   return (
     <div className="min-h-screen bg-white">
       <Header />
       
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {/* Success notification for new order */}
+        {newOrderId && showSuccessBanner && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="mb-6 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-500 rounded-xl p-4 flex items-start gap-3 shadow-lg"
+          >
+            <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 animate-pulse">
+              <CheckCircle className="w-6 h-6 text-white" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-semibold text-green-900 mb-1">🎉 Order Placed Successfully!</h3>
+              <p className="text-sm text-green-800">
+                Your order <span className="font-semibold">#{newOrderId.split('_')[1]}</span> has been confirmed and is being processed. 
+                You can track your order status below.
+              </p>
+            </div>
+            <button
+              onClick={() => setShowSuccessBanner(false)}
+              className="text-green-600 hover:text-green-800 transition-colors"
+            >
+              <XCircle className="w-5 h-5" />
+            </button>
+          </motion.div>
+        )}
+        
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
@@ -197,10 +230,17 @@ export default function OrdersPage() {
                   <div className="flex-1">
                     {/* Order Header */}
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 flex-wrap">
                         <h3 className="font-semibold text-gray-900">
                           Order #{order.id.split('_')[1]}
                         </h3>
+                        {/* New order indicator (orders created in last 2 minutes) */}
+                        {isNewOrder(order) && (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-orange-500 text-white animate-pulse">
+                            <span className="w-1.5 h-1.5 rounded-full bg-white"></span>
+                            NEW
+                          </span>
+                        )}
                         <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(order.status)}`}>
                           {getStatusIcon(order.status)}
                           <span className="capitalize">{order.status}</span>
@@ -250,18 +290,29 @@ export default function OrdersPage() {
                       </div>
                       <div className="flex gap-2">
                         <Button
-                          onClick={() => setTrackingOrder(order.id)}
+                          onClick={() => navigate(`/delivery-tracking/${order.id}`)}
                           size="sm"
                           className="bg-[var(--brand-primary)] hover:bg-[var(--brand-secondary)] text-white"
                         >
-                          <MapPin className="w-4 h-4 mr-1" />
-                          Track
+                          <Truck className="w-4 h-4 mr-1" />
+                          Track Order
                         </Button>
+                        {order.status === 'delivered' && (
+                          <Button
+                            onClick={() => navigate(`/reviews?order=${order.id}`)}
+                            size="sm"
+                            variant="outline"
+                            className="border-orange-500 text-orange-600 hover:bg-orange-50"
+                          >
+                            <Star className="w-4 h-4 mr-1" />
+                            Review
+                          </Button>
+                        )}
                         <Button
-                          onClick={() => setSelectedOrder(order.id)}
+                          onClick={() => navigate(`/order/${order.id}`)}
                           variant="outline"
                           size="sm"
-                          className="border-[var(--brand-primary)] text-[var(--brand-primary)] hover:bg-[var(--brand-primary)] hover:text-white"
+                          className="border-gray-300 text-gray-700 hover:bg-gray-50"
                         >
                           <Eye className="w-4 h-4 mr-1" />
                           Details

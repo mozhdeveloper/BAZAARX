@@ -35,25 +35,55 @@ export interface Category {
 
 export interface Seller {
   id: string;
+  
+  // Business Information
   businessName: string;
+  storeName: string;
+  storeDescription: string;
+  storeCategory: string[];
+  businessType: 'sole_proprietor' | 'partnership' | 'corporation' | string;
+  businessRegistrationNumber: string;
+  taxIdNumber: string;
+  description: string;
+  logo?: string;
+  
+  // Owner Information
   ownerName: string;
   email: string;
   phone: string;
-  address: string;
-  businessType: string;
-  description: string;
-  logo?: string;
+  
+  // Address Information
+  businessAddress: string;
+  city: string;
+  province: string;
+  postalCode: string;
+  address: string; // Full address (combined)
+  
+  // Banking Information
+  bankName: string;
+  accountName: string;
+  accountNumber: string;
+  
+  // Status and Documents
   status: 'pending' | 'approved' | 'rejected' | 'suspended';
   documents: SellerDocument[];
   metrics: SellerMetrics;
+  
+  // Admin info
   joinDate: Date;
   approvedAt?: Date;
   approvedBy?: string;
+  rejectedAt?: Date;
+  rejectedBy?: string;
+  rejectionReason?: string;
+  suspendedAt?: Date;
+  suspendedBy?: string;
+  suspensionReason?: string;
 }
 
 export interface SellerDocument {
   id: string;
-  type: 'business_permit' | 'dti_registration' | 'tax_id' | 'other';
+  type: 'business_permit' | 'valid_id' | 'proof_of_address' | 'dti_registration' | 'tax_id' | 'other';
   fileName: string;
   url: string;
   uploadDate: Date;
@@ -346,30 +376,55 @@ interface SellersState {
   rejectSeller: (id: string, reason: string) => Promise<void>;
   suspendSeller: (id: string, reason: string) => Promise<void>;
   selectSeller: (seller: Seller | null) => void;
+  addSeller: (seller: Seller) => void;
   clearError: () => void;
 }
 
-export const useAdminSellers = create<SellersState>((set) => ({
-  sellers: [],
-  selectedSeller: null,
-  pendingSellers: [],
-  isLoading: false,
-  error: null,
+export const useAdminSellers = create<SellersState>()(
+  persist(
+    (set, get) => ({
+      sellers: [],
+      selectedSeller: null,
+      pendingSellers: [],
+      isLoading: false,
+      error: null,
 
-  loadSellers: async () => {
-    set({ isLoading: true });
+      loadSellers: async () => {
+        set({ isLoading: true });
+
+        // Check if we already have sellers (from persistence or previous loads)
+        const currentState = get();
+        if (currentState.sellers.length > 0) {
+          set({ 
+            isLoading: false,
+            pendingSellers: currentState.sellers.filter(s => s.status === 'pending')
+          });
+          return;
+        }
 
     // Demo sellers data
     const demoSellers: Seller[] = [
       {
         id: 'seller_1',
-        businessName: 'TechHub Philippines',
+        businessName: 'TechHub Electronics Corp.',
+        storeName: 'TechHub Philippines',
+        storeDescription: 'Leading supplier of latest gadgets and technology products',
+        storeCategory: ['Electronics', 'Gadgets', 'Computers'],
+        businessType: 'corporation',
+        businessRegistrationNumber: 'SEC-2024-001234',
+        taxIdNumber: '123-456-789-000',
+        description: 'Leading supplier of latest gadgets and technology products',
         ownerName: 'Maria Santos',
         email: 'maria@techhub.ph',
         phone: '+63 917 123 4567',
-        address: 'Makati City, Metro Manila',
-        businessType: 'Electronics Retailer',
-        description: 'Leading supplier of latest gadgets and technology products',
+        businessAddress: '123 Ayala Avenue, Brgy. Poblacion',
+        city: 'Makati City',
+        province: 'Metro Manila',
+        postalCode: '1200',
+        address: '123 Ayala Avenue, Makati City, Metro Manila 1200',
+        bankName: 'BDO',
+        accountName: 'TechHub Electronics Corp.',
+        accountNumber: '1234567890',
         logo: 'https://ui-avatars.io/api/?name=TechHub&background=FF6A00&color=fff',
         status: 'approved',
         documents: [
@@ -378,6 +433,22 @@ export const useAdminSellers = create<SellersState>((set) => ({
             type: 'business_permit',
             fileName: 'business-permit.pdf',
             url: '/documents/business-permit.pdf',
+            uploadDate: new Date('2024-01-10'),
+            isVerified: true
+          },
+          {
+            id: 'doc_1a',
+            type: 'valid_id',
+            fileName: 'owners-id.pdf',
+            url: '/documents/owners-id.pdf',
+            uploadDate: new Date('2024-01-10'),
+            isVerified: true
+          },
+          {
+            id: 'doc_1b',
+            type: 'proof_of_address',
+            fileName: 'utility-bill.pdf',
+            url: '/documents/utility-bill.pdf',
             uploadDate: new Date('2024-01-10'),
             isVerified: true
           }
@@ -396,13 +467,25 @@ export const useAdminSellers = create<SellersState>((set) => ({
       },
       {
         id: 'seller_2',
-        businessName: 'Fashion Forward Store',
+        businessName: 'Fashion Forward Trading',
+        storeName: 'Fashion Forward Store',
+        storeDescription: 'Trendy fashion items for modern Filipino consumers',
+        storeCategory: ['Fashion', 'Accessories', 'Beauty'],
+        businessType: 'sole_proprietor',
+        businessRegistrationNumber: 'DTI-2024-567890',
+        taxIdNumber: '987-654-321-000',
+        description: 'Trendy fashion items for modern Filipino consumers',
         ownerName: 'Juan dela Cruz',
         email: 'juan@fashionforward.ph',
         phone: '+63 917 765 4321',
-        address: 'Quezon City, Metro Manila',
-        businessType: 'Fashion Retailer',
-        description: 'Trendy fashion items for modern Filipino consumers',
+        businessAddress: '456 Commonwealth Avenue, Brgy. Holy Spirit',
+        city: 'Quezon City',
+        province: 'Metro Manila',
+        postalCode: '1127',
+        address: '456 Commonwealth Avenue, Quezon City, Metro Manila 1127',
+        bankName: 'BPI',
+        accountName: 'Juan dela Cruz',
+        accountNumber: '9876543210',
         status: 'pending',
         documents: [
           {
@@ -420,6 +503,22 @@ export const useAdminSellers = create<SellersState>((set) => ({
             url: '/documents/dti-registration.pdf',
             uploadDate: new Date('2024-12-10'),
             isVerified: false
+          },
+          {
+            id: 'doc_4',
+            type: 'valid_id',
+            fileName: 'valid-id.pdf',
+            url: '/documents/valid-id.pdf',
+            uploadDate: new Date('2024-12-10'),
+            isVerified: false
+          },
+          {
+            id: 'doc_5',
+            type: 'proof_of_address',
+            fileName: 'proof-address.pdf',
+            url: '/documents/proof-address.pdf',
+            uploadDate: new Date('2024-12-10'),
+            isVerified: false
           }
         ],
         metrics: {
@@ -431,6 +530,51 @@ export const useAdminSellers = create<SellersState>((set) => ({
           fulfillmentRate: 0
         },
         joinDate: new Date('2024-12-10')
+      },
+      {
+        id: 'seller_3',
+        businessName: 'FoodHub Manila',
+        storeName: 'FoodHub Delights',
+        storeDescription: 'Fresh groceries and food products delivered daily',
+        storeCategory: ['Food & Beverages', 'Groceries'],
+        businessType: 'partnership',
+        businessRegistrationNumber: 'DTI-2024-112233',
+        taxIdNumber: '111-222-333-000',
+        description: 'Quality food products for Filipino families',
+        ownerName: 'Ana Reyes',
+        email: 'ana@foodhub.ph',
+        phone: '+63 918 234 5678',
+        businessAddress: '789 Marcos Highway, Brgy. Dela Paz',
+        city: 'Pasig City',
+        province: 'Metro Manila',
+        postalCode: '1600',
+        address: '789 Marcos Highway, Pasig City, Metro Manila 1600',
+        bankName: 'Metrobank',
+        accountName: 'FoodHub Manila Partnership',
+        accountNumber: '5555666677',
+        status: 'rejected',
+        documents: [
+          {
+            id: 'doc_6',
+            type: 'business_permit',
+            fileName: 'food-permit.pdf',
+            url: '/documents/food-permit.pdf',
+            uploadDate: new Date('2024-12-01'),
+            isVerified: false
+          }
+        ],
+        metrics: {
+          totalProducts: 0,
+          totalOrders: 0,
+          totalRevenue: 0,
+          rating: 0,
+          responseRate: 0,
+          fulfillmentRate: 0
+        },
+        joinDate: new Date('2024-12-01'),
+        rejectedAt: new Date('2024-12-05'),
+        rejectedBy: 'admin_1',
+        rejectionReason: 'Incomplete documentation - missing valid ID and proof of address'
       }
     ];
 
@@ -465,7 +609,7 @@ export const useAdminSellers = create<SellersState>((set) => ({
     });
   },
 
-  rejectSeller: async (id, _reason) => {
+  rejectSeller: async (id, reason) => {
     set({ isLoading: true });
     
     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -473,7 +617,13 @@ export const useAdminSellers = create<SellersState>((set) => ({
     set(state => {
       const updatedSellers = state.sellers.map(seller =>
         seller.id === id
-          ? { ...seller, status: 'rejected' as const }
+          ? { 
+              ...seller, 
+              status: 'rejected' as const,
+              rejectedAt: new Date(),
+              rejectedBy: 'admin_1',
+              rejectionReason: reason
+            }
           : seller
       );
       
@@ -485,7 +635,7 @@ export const useAdminSellers = create<SellersState>((set) => ({
     });
   },
 
-  suspendSeller: async (id, _reason) => {
+  suspendSeller: async (id, reason) => {
     set({ isLoading: true });
     
     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -493,7 +643,13 @@ export const useAdminSellers = create<SellersState>((set) => ({
     set(state => ({
       sellers: state.sellers.map(seller =>
         seller.id === id
-          ? { ...seller, status: 'suspended' as const }
+          ? { 
+              ...seller, 
+              status: 'suspended' as const,
+              suspendedAt: new Date(),
+              suspendedBy: 'admin_1',
+              suspensionReason: reason
+            }
           : seller
       ),
       isLoading: false
@@ -501,8 +657,20 @@ export const useAdminSellers = create<SellersState>((set) => ({
   },
 
   selectSeller: (seller) => set({ selectedSeller: seller }),
+  
+  addSeller: (seller) => {
+    set(state => ({
+      sellers: [...state.sellers, seller]
+    }));
+  },
+  
   clearError: () => set({ error: null })
-}));
+    }),
+    {
+      name: 'admin-sellers-storage'
+    }
+  )
+);
 
 // Buyers Management Store
 interface BuyersState {
@@ -749,5 +917,666 @@ export const useAdminStats = create<AdminStatsState>((set) => ({
       topCategories: demoTopCategories,
       isLoading: false
     });
+  }
+}));
+
+// Voucher Types
+export interface Voucher {
+  id: string;
+  code: string;
+  title: string;
+  description: string;
+  type: 'percentage' | 'fixed' | 'free_shipping';
+  value: number;
+  minPurchase: number;
+  maxDiscount?: number;
+  usageLimit: number;
+  usedCount: number;
+  startDate: Date;
+  endDate: Date;
+  isActive: boolean;
+  applicableTo: 'all' | 'category' | 'seller' | 'product';
+  targetIds?: string[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Voucher Management Store
+interface VouchersState {
+  vouchers: Voucher[];
+  selectedVoucher: Voucher | null;
+  isLoading: boolean;
+  error: string | null;
+  loadVouchers: () => Promise<void>;
+  addVoucher: (voucher: Omit<Voucher, 'id' | 'usedCount' | 'createdAt' | 'updatedAt'>) => Promise<void>;
+  updateVoucher: (id: string, updates: Partial<Voucher>) => Promise<void>;
+  deleteVoucher: (id: string) => Promise<void>;
+  toggleVoucherStatus: (id: string) => Promise<void>;
+  selectVoucher: (voucher: Voucher | null) => void;
+  clearError: () => void;
+}
+
+export const useAdminVouchers = create<VouchersState>((set) => ({
+  vouchers: [],
+  selectedVoucher: null,
+  isLoading: false,
+  error: null,
+
+  loadVouchers: async () => {
+    set({ isLoading: true });
+
+    const demoVouchers: Voucher[] = [
+      {
+        id: 'vouch_1',
+        code: 'WELCOME20',
+        title: 'Welcome Discount',
+        description: '20% off for new customers',
+        type: 'percentage',
+        value: 20,
+        minPurchase: 500,
+        maxDiscount: 500,
+        usageLimit: 1000,
+        usedCount: 342,
+        startDate: new Date('2024-12-01'),
+        endDate: new Date('2025-03-31'),
+        isActive: true,
+        applicableTo: 'all',
+        createdAt: new Date('2024-11-15'),
+        updatedAt: new Date('2024-12-15')
+      },
+      {
+        id: 'vouch_2',
+        code: 'FREESHIP',
+        title: 'Free Shipping',
+        description: 'Free shipping on orders over ₱1000',
+        type: 'free_shipping',
+        value: 0,
+        minPurchase: 1000,
+        usageLimit: 5000,
+        usedCount: 1256,
+        startDate: new Date('2024-12-01'),
+        endDate: new Date('2025-01-31'),
+        isActive: true,
+        applicableTo: 'all',
+        createdAt: new Date('2024-11-20'),
+        updatedAt: new Date('2024-12-10')
+      },
+      {
+        id: 'vouch_3',
+        code: 'FLASH500',
+        title: 'Flash Sale Discount',
+        description: '₱500 off on purchases ₱3000 and above',
+        type: 'fixed',
+        value: 500,
+        minPurchase: 3000,
+        usageLimit: 500,
+        usedCount: 478,
+        startDate: new Date('2024-12-15'),
+        endDate: new Date('2024-12-20'),
+        isActive: true,
+        applicableTo: 'category',
+        targetIds: ['cat_1', 'cat_2'],
+        createdAt: new Date('2024-12-10'),
+        updatedAt: new Date('2024-12-14')
+      },
+      {
+        id: 'vouch_4',
+        code: 'XMAS2024',
+        title: 'Christmas Special',
+        description: '15% off all items',
+        type: 'percentage',
+        value: 15,
+        minPurchase: 1000,
+        maxDiscount: 1000,
+        usageLimit: 10000,
+        usedCount: 234,
+        startDate: new Date('2024-12-20'),
+        endDate: new Date('2024-12-26'),
+        isActive: false,
+        applicableTo: 'all',
+        createdAt: new Date('2024-11-01'),
+        updatedAt: new Date('2024-12-01')
+      }
+    ];
+
+    await new Promise(resolve => setTimeout(resolve, 800));
+    set({ vouchers: demoVouchers, isLoading: false });
+  },
+
+  addVoucher: async (voucherData) => {
+    set({ isLoading: true });
+    
+    const newVoucher: Voucher = {
+      ...voucherData,
+      id: `vouch_${Date.now()}`,
+      usedCount: 0,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    set(state => ({
+      vouchers: [...state.vouchers, newVoucher],
+      isLoading: false
+    }));
+  },
+
+  updateVoucher: async (id, updates) => {
+    set({ isLoading: true });
+    
+    await new Promise(resolve => setTimeout(resolve, 800));
+    
+    set(state => ({
+      vouchers: state.vouchers.map(voucher => 
+        voucher.id === id 
+          ? { ...voucher, ...updates, updatedAt: new Date() }
+          : voucher
+      ),
+      isLoading: false
+    }));
+  },
+
+  deleteVoucher: async (id) => {
+    set({ isLoading: true });
+    
+    await new Promise(resolve => setTimeout(resolve, 600));
+    
+    set(state => ({
+      vouchers: state.vouchers.filter(voucher => voucher.id !== id),
+      selectedVoucher: state.selectedVoucher?.id === id ? null : state.selectedVoucher,
+      isLoading: false
+    }));
+  },
+
+  toggleVoucherStatus: async (id) => {
+    set({ isLoading: true });
+    
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    set(state => ({
+      vouchers: state.vouchers.map(voucher =>
+        voucher.id === id
+          ? { ...voucher, isActive: !voucher.isActive, updatedAt: new Date() }
+          : voucher
+      ),
+      isLoading: false
+    }));
+  },
+
+  selectVoucher: (voucher) => set({ selectedVoucher: voucher }),
+  clearError: () => set({ error: null })
+}));
+
+// Review Types
+export interface Review {
+  id: string;
+  productId: string;
+  productName: string;
+  productImage: string;
+  buyerId: string;
+  buyerName: string;
+  buyerAvatar: string;
+  sellerId: string;
+  sellerName: string;
+  rating: number;
+  title: string;
+  content: string;
+  images: string[];
+  isVerifiedPurchase: boolean;
+  status: 'pending' | 'approved' | 'rejected' | 'flagged';
+  moderationNote?: string;
+  helpfulCount: number;
+  reportCount: number;
+  createdAt: Date;
+  moderatedAt?: Date;
+  moderatedBy?: string;
+}
+
+// Review Moderation Store
+interface ReviewsState {
+  reviews: Review[];
+  selectedReview: Review | null;
+  pendingReviews: Review[];
+  flaggedReviews: Review[];
+  isLoading: boolean;
+  error: string | null;
+  loadReviews: () => Promise<void>;
+  approveReview: (id: string) => Promise<void>;
+  rejectReview: (id: string, reason: string) => Promise<void>;
+  flagReview: (id: string, reason: string) => Promise<void>;
+  unflagReview: (id: string) => Promise<void>;
+  deleteReview: (id: string) => Promise<void>;
+  selectReview: (review: Review | null) => void;
+  clearError: () => void;
+}
+
+export const useAdminReviews = create<ReviewsState>((set) => ({
+  reviews: [],
+  selectedReview: null,
+  pendingReviews: [],
+  flaggedReviews: [],
+  isLoading: false,
+  error: null,
+
+  loadReviews: async () => {
+    set({ isLoading: true });
+
+    const demoReviews: Review[] = [
+      {
+        id: 'rev_1',
+        productId: 'prod_1',
+        productName: 'Wireless Bluetooth Earbuds',
+        productImage: 'https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=200',
+        buyerId: 'buyer_1',
+        buyerName: 'Anna Reyes',
+        buyerAvatar: 'https://ui-avatars.io/api/?name=Anna+Reyes&background=FF6A00&color=fff',
+        sellerId: 'seller_1',
+        sellerName: 'TechHub Philippines',
+        rating: 5,
+        title: 'Excellent product!',
+        content: 'Great sound quality and battery life. Highly recommended!',
+        images: ['https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=400'],
+        isVerifiedPurchase: true,
+        status: 'pending',
+        helpfulCount: 0,
+        reportCount: 0,
+        createdAt: new Date('2024-12-15T10:30:00')
+      },
+      {
+        id: 'rev_2',
+        productId: 'prod_2',
+        productName: 'Leather Crossbody Bag',
+        productImage: 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=200',
+        buyerId: 'buyer_2',
+        buyerName: 'Miguel Cruz',
+        buyerAvatar: 'https://ui-avatars.io/api/?name=Miguel+Cruz&background=FF6A00&color=fff',
+        sellerId: 'seller_2',
+        sellerName: 'Fashion Forward Store',
+        rating: 1,
+        title: 'Fake product, scam!',
+        content: 'This is clearly a fake. Terrible quality and misleading photos. SCAM!',
+        images: [],
+        isVerifiedPurchase: false,
+        status: 'flagged',
+        moderationNote: 'Flagged for inappropriate language and potential false claims',
+        helpfulCount: 2,
+        reportCount: 5,
+        createdAt: new Date('2024-12-14T15:20:00')
+      },
+      {
+        id: 'rev_3',
+        productId: 'prod_3',
+        productName: 'Smart Watch Series 5',
+        productImage: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=200',
+        buyerId: 'buyer_3',
+        buyerName: 'Sofia Lim',
+        buyerAvatar: 'https://ui-avatars.io/api/?name=Sofia+Lim&background=FF6A00&color=fff',
+        sellerId: 'seller_1',
+        sellerName: 'TechHub Philippines',
+        rating: 4,
+        title: 'Good value for money',
+        content: 'Works well, battery could be better. Overall satisfied with purchase.',
+        images: [],
+        isVerifiedPurchase: true,
+        status: 'approved',
+        helpfulCount: 12,
+        reportCount: 0,
+        createdAt: new Date('2024-12-13T09:15:00'),
+        moderatedAt: new Date('2024-12-13T10:00:00'),
+        moderatedBy: 'admin_1'
+      },
+      {
+        id: 'rev_4',
+        productId: 'prod_4',
+        productName: 'Coffee Maker Deluxe',
+        productImage: 'https://images.unsplash.com/photo-1517668808822-9ebb02f2a0e6?w=200',
+        buyerId: 'buyer_4',
+        buyerName: 'Carlos Tan',
+        buyerAvatar: 'https://ui-avatars.io/api/?name=Carlos+Tan&background=FF6A00&color=fff',
+        sellerId: 'seller_3',
+        sellerName: 'Home Essentials',
+        rating: 3,
+        title: 'Average quality',
+        content: 'It works but nothing special. Expected better for the price.',
+        images: [],
+        isVerifiedPurchase: true,
+        status: 'pending',
+        helpfulCount: 0,
+        reportCount: 0,
+        createdAt: new Date('2024-12-15T14:45:00')
+      }
+    ];
+
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    const pendingReviews = demoReviews.filter(review => review.status === 'pending');
+    const flaggedReviews = demoReviews.filter(review => review.status === 'flagged');
+    
+    set({ 
+      reviews: demoReviews,
+      pendingReviews,
+      flaggedReviews,
+      isLoading: false 
+    });
+  },
+
+  approveReview: async (id) => {
+    set({ isLoading: true });
+    
+    await new Promise(resolve => setTimeout(resolve, 800));
+    
+    set(state => {
+      const updatedReviews = state.reviews.map(review =>
+        review.id === id
+          ? { 
+              ...review, 
+              status: 'approved' as const,
+              moderatedAt: new Date(),
+              moderatedBy: 'admin_1'
+            }
+          : review
+      );
+      
+      return {
+        reviews: updatedReviews,
+        pendingReviews: updatedReviews.filter(review => review.status === 'pending'),
+        flaggedReviews: updatedReviews.filter(review => review.status === 'flagged'),
+        isLoading: false
+      };
+    });
+  },
+
+  rejectReview: async (id, reason) => {
+    set({ isLoading: true });
+    
+    await new Promise(resolve => setTimeout(resolve, 800));
+    
+    set(state => {
+      const updatedReviews = state.reviews.map(review =>
+        review.id === id
+          ? { 
+              ...review, 
+              status: 'rejected' as const,
+              moderationNote: reason,
+              moderatedAt: new Date(),
+              moderatedBy: 'admin_1'
+            }
+          : review
+      );
+      
+      return {
+        reviews: updatedReviews,
+        pendingReviews: updatedReviews.filter(review => review.status === 'pending'),
+        flaggedReviews: updatedReviews.filter(review => review.status === 'flagged'),
+        isLoading: false
+      };
+    });
+  },
+
+  flagReview: async (id, reason) => {
+    set({ isLoading: true });
+    
+    await new Promise(resolve => setTimeout(resolve, 600));
+    
+    set(state => {
+      const updatedReviews = state.reviews.map(review =>
+        review.id === id
+          ? { 
+              ...review, 
+              status: 'flagged' as const,
+              moderationNote: reason
+            }
+          : review
+      );
+      
+      return {
+        reviews: updatedReviews,
+        flaggedReviews: updatedReviews.filter(review => review.status === 'flagged'),
+        isLoading: false
+      };
+    });
+  },
+
+  unflagReview: async (id) => {
+    set({ isLoading: true });
+    
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    set(state => {
+      const updatedReviews = state.reviews.map(review =>
+        review.id === id
+          ? { 
+              ...review, 
+              status: 'approved' as const,
+              moderationNote: undefined
+            }
+          : review
+      );
+      
+      return {
+        reviews: updatedReviews,
+        flaggedReviews: updatedReviews.filter(review => review.status === 'flagged'),
+        isLoading: false
+      };
+    });
+  },
+
+  deleteReview: async (id) => {
+    set({ isLoading: true });
+    
+    await new Promise(resolve => setTimeout(resolve, 600));
+    
+    set(state => ({
+      reviews: state.reviews.filter(review => review.id !== id),
+      pendingReviews: state.pendingReviews.filter(review => review.id !== id),
+      flaggedReviews: state.flaggedReviews.filter(review => review.id !== id),
+      selectedReview: state.selectedReview?.id === id ? null : state.selectedReview,
+      isLoading: false
+    }));
+  },
+
+  selectReview: (review) => set({ selectedReview: review }),
+  clearError: () => set({ error: null })
+}));
+
+// Product Management Store
+export interface AdminProduct {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  stock: number;
+  category: string;
+  images: string[];
+  sellerId: string;
+  sellerName: string;
+  status: 'active' | 'inactive' | 'banned';
+  rating: number;
+  sales: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface ProductsState {
+  products: AdminProduct[];
+  isLoading: boolean;
+  error: string | null;
+  loadProducts: () => Promise<void>;
+  deactivateProduct: (id: string, reason: string) => Promise<void>;
+  activateProduct: (id: string) => Promise<void>;
+}
+
+export const useAdminProducts = create<ProductsState>((set) => ({
+  products: [],
+  isLoading: false,
+  error: null,
+
+  loadProducts: async () => {
+    set({ isLoading: true });
+
+    // Demo products
+    const demoProducts: AdminProduct[] = [
+      {
+        id: 'prod_1',
+        name: 'Wireless Bluetooth Earbuds',
+        description: 'High quality wireless earbuds with noise cancellation',
+        price: 1299,
+        stock: 50,
+        category: 'Electronics',
+        images: ['https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=200'],
+        sellerId: 'seller_1',
+        sellerName: 'TechHub Philippines',
+        status: 'active',
+        rating: 4.8,
+        sales: 120,
+        createdAt: new Date('2024-01-15'),
+        updatedAt: new Date('2024-12-15')
+      },
+      {
+        id: 'prod_2',
+        name: 'Leather Crossbody Bag',
+        description: 'Genuine leather bag for everyday use',
+        price: 2499,
+        stock: 20,
+        category: 'Fashion',
+        images: ['https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=200'],
+        sellerId: 'seller_2',
+        sellerName: 'Fashion Forward Store',
+        status: 'active',
+        rating: 4.5,
+        sales: 85,
+        createdAt: new Date('2024-02-10'),
+        updatedAt: new Date('2024-12-10')
+      },
+      {
+        id: 'prod_3',
+        name: 'Smart Watch Series 5',
+        description: 'Fitness tracker and smart watch',
+        price: 3999,
+        stock: 15,
+        category: 'Electronics',
+        images: ['https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=200'],
+        sellerId: 'seller_1',
+        sellerName: 'TechHub Philippines',
+        status: 'banned',
+        rating: 2.1,
+        sales: 5,
+        createdAt: new Date('2024-03-05'),
+        updatedAt: new Date('2024-03-10')
+      }
+    ];
+
+    await new Promise(resolve => setTimeout(resolve, 800));
+    set({ products: demoProducts, isLoading: false });
+  },
+
+  deactivateProduct: async (id, _reason) => {
+    set({ isLoading: true });
+    await new Promise(resolve => setTimeout(resolve, 800));
+    set(state => ({
+      products: state.products.map(p => p.id === id ? { ...p, status: 'banned' as const } : p),
+      isLoading: false
+    }));
+  },
+
+  activateProduct: async (id) => {
+    set({ isLoading: true });
+    await new Promise(resolve => setTimeout(resolve, 800));
+    set(state => ({
+      products: state.products.map(p => p.id === id ? { ...p, status: 'active' as const } : p),
+      isLoading: false
+    }));
+  }
+}));
+
+// Payout Management Store
+export interface Payout {
+  id: string;
+  referenceNumber: string;
+  sellerId: string;
+  sellerName: string;
+  amount: number;
+  status: 'pending' | 'processing' | 'paid' | 'failed';
+  periodStart: Date;
+  periodEnd: Date;
+  payoutDate?: Date;
+  bankName: string;
+  accountNumber: string;
+}
+
+interface PayoutsState {
+  payouts: Payout[];
+  isLoading: boolean;
+  error: string | null;
+  loadPayouts: () => Promise<void>;
+  markAsPaid: (id: string, referenceNumber: string) => Promise<void>;
+  processBatch: (ids: string[]) => Promise<void>;
+}
+
+export const useAdminPayouts = create<PayoutsState>((set) => ({
+  payouts: [],
+  isLoading: false,
+  error: null,
+
+  loadPayouts: async () => {
+    set({ isLoading: true });
+
+    const demoPayouts: Payout[] = [
+      {
+        id: 'payout_1',
+        referenceNumber: 'PAY-2024-001',
+        sellerId: 'seller_1',
+        sellerName: 'TechHub Philippines',
+        amount: 25000,
+        status: 'pending',
+        periodStart: new Date('2024-12-01'),
+        periodEnd: new Date('2024-12-15'),
+        bankName: 'BDO',
+        accountNumber: '1234567890'
+      },
+      {
+        id: 'payout_2',
+        referenceNumber: 'PAY-2024-002',
+        sellerId: 'seller_2',
+        sellerName: 'Fashion Forward Store',
+        amount: 12500,
+        status: 'paid',
+        periodStart: new Date('2024-11-16'),
+        periodEnd: new Date('2024-11-30'),
+        payoutDate: new Date('2024-12-05'),
+        bankName: 'BPI',
+        accountNumber: '9876543210'
+      }
+    ];
+
+    await new Promise(resolve => setTimeout(resolve, 800));
+    set({ payouts: demoPayouts, isLoading: false });
+  },
+
+  markAsPaid: async (id, referenceNumber) => {
+    set({ isLoading: true });
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    set(state => ({
+      payouts: state.payouts.map(p => 
+        p.id === id 
+          ? { ...p, status: 'paid' as const, referenceNumber, payoutDate: new Date() } 
+          : p
+      ),
+      isLoading: false
+    }));
+  },
+
+  processBatch: async (ids) => {
+    set({ isLoading: true });
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    set(state => ({
+      payouts: state.payouts.map(p => 
+        ids.includes(p.id) 
+          ? { ...p, status: 'processing' as const } 
+          : p
+      ),
+      isLoading: false
+    }));
   }
 }));

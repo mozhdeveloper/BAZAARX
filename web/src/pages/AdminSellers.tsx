@@ -46,7 +46,9 @@ import {
   Download,
   UserCheck,
   Ban,
-  Loader2
+  Loader2,
+  User,
+  Building
 } from 'lucide-react';
 
 const AdminSellers: React.FC = () => {
@@ -200,7 +202,7 @@ const AdminSellers: React.FC = () => {
             </div>
             <div className="flex items-center text-sm text-gray-600">
               <Calendar className="w-4 h-4 mr-2" />
-              Joined {seller.joinDate.toLocaleDateString()}
+              Joined {new Date(seller.joinDate).toLocaleDateString()}
             </div>
           </div>
 
@@ -449,9 +451,9 @@ const AdminSellers: React.FC = () => {
           </DialogHeader>
           
           {selectedSeller && (
-            <div className="space-y-6">
-              {/* Basic Info */}
-              <div className="grid gap-4">
+            <div className="space-y-6 max-h-[70vh] overflow-y-auto">
+              {/* Header with Status */}
+              <div className="flex items-start justify-between border-b pb-4">
                 <div className="flex items-center">
                   <div className="w-16 h-16 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center flex-shrink-0 mr-4">
                     {selectedSeller.logo ? (
@@ -462,40 +464,148 @@ const AdminSellers: React.FC = () => {
                   </div>
                   <div>
                     <h3 className="font-semibold text-xl text-gray-900">{selectedSeller.businessName}</h3>
-                    <p className="text-gray-600">{selectedSeller.ownerName}</p>
-                    {getStatusBadge(selectedSeller.status)}
+                    <p className="text-gray-600 text-sm">{selectedSeller.storeName}</p>
                   </div>
                 </div>
-                
-                <div className="grid grid-cols-2 gap-4">
+                <div className="text-right">
+                  {getStatusBadge(selectedSeller.status)}
+                  <p className="text-xs text-gray-500 mt-1">Joined {new Date(selectedSeller.joinDate).toLocaleDateString()}</p>
+                </div>
+              </div>
+
+              {/* Owner Information */}
+              <div>
+                <h4 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
+                  <User className="w-5 h-5 text-orange-500" />
+                  Owner Information
+                </h4>
+                <div className="grid grid-cols-2 gap-4 bg-gray-50 p-4 rounded-lg">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Owner Name</label>
+                    <p className="text-sm font-medium text-gray-900">{selectedSeller.ownerName}</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
                     <p className="text-sm text-gray-900">{selectedSeller.email}</p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Phone Number</label>
                     <p className="text-sm text-gray-900">{selectedSeller.phone}</p>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Business Type</label>
-                    <p className="text-sm text-gray-900">{selectedSeller.businessType}</p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Join Date</label>
-                    <p className="text-sm text-gray-900">{selectedSeller.joinDate.toLocaleDateString()}</p>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
-                  <p className="text-sm text-gray-900">{selectedSeller.address}</p>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                  <p className="text-sm text-gray-900">{selectedSeller.description}</p>
                 </div>
               </div>
+
+              {/* Business Information */}
+              <div>
+                <h4 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
+                  <Building className="w-5 h-5 text-orange-500" />
+                  Business Information
+                </h4>
+                <div className="bg-gray-50 p-4 rounded-lg space-y-3">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Business Type</label>
+                      <p className="text-sm text-gray-900 capitalize">{selectedSeller.businessType.replace('_', ' ')}</p>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Registration Number</label>
+                      <p className="text-sm font-mono text-gray-900">{selectedSeller.businessRegistrationNumber}</p>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Tax ID (TIN)</label>
+                      <p className="text-sm font-mono text-gray-900">{selectedSeller.taxIdNumber}</p>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Store Description</label>
+                    <p className="text-sm text-gray-900">{selectedSeller.storeDescription}</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Store Categories</label>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {selectedSeller.storeCategory.map((category, index) => (
+                        <Badge key={index} variant="secondary" className="bg-orange-100 text-orange-700 border-orange-200">
+                          {category}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Address Information */}
+              <div>
+                <h4 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
+                  <MapPin className="w-5 h-5 text-orange-500" />
+                  Business Address
+                </h4>
+                <div className="bg-gray-50 p-4 rounded-lg grid grid-cols-2 gap-4">
+                  <div className="col-span-2">
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Street Address</label>
+                    <p className="text-sm text-gray-900">{selectedSeller.businessAddress}</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">City</label>
+                    <p className="text-sm text-gray-900">{selectedSeller.city}</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Province</label>
+                    <p className="text-sm text-gray-900">{selectedSeller.province}</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Postal Code</label>
+                    <p className="text-sm font-mono text-gray-900">{selectedSeller.postalCode}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Banking Information */}
+              <div>
+                <h4 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-orange-500" />
+                  Banking Information
+                </h4>
+                <div className="bg-gray-50 p-4 rounded-lg grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Bank Name</label>
+                    <p className="text-sm text-gray-900">{selectedSeller.bankName}</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Account Name</label>
+                    <p className="text-sm text-gray-900">{selectedSeller.accountName}</p>
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Account Number</label>
+                    <p className="text-sm font-mono text-gray-900">{selectedSeller.accountNumber}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Status Information */}
+              {(selectedSeller.status === 'rejected' || selectedSeller.status === 'suspended') && (
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5 text-red-500" />
+                    {selectedSeller.status === 'rejected' ? 'Rejection' : 'Suspension'} Details
+                  </h4>
+                  <div className="bg-red-50 border border-red-200 p-4 rounded-lg">
+                    <p className="text-sm font-medium text-red-900 mb-1">Reason:</p>
+                    <p className="text-sm text-red-800">
+                      {selectedSeller.status === 'rejected' ? selectedSeller.rejectionReason : selectedSeller.suspensionReason}
+                    </p>
+                    {selectedSeller.status === 'rejected' && selectedSeller.rejectedAt && (
+                      <p className="text-xs text-red-600 mt-2">
+                        Rejected on {new Date(selectedSeller.rejectedAt).toLocaleDateString()} by {selectedSeller.rejectedBy}
+                      </p>
+                    )}
+                    {selectedSeller.status === 'suspended' && selectedSeller.suspendedAt && (
+                      <p className="text-xs text-red-600 mt-2">
+                        Suspended on {new Date(selectedSeller.suspendedAt).toLocaleDateString()} by {selectedSeller.suspendedBy}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Documents */}
               <div>

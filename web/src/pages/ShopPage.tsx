@@ -1,13 +1,75 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Search, Filter, Grid, List, ChevronDown, Star, MapPin, Truck, Shield } from 'lucide-react';
+import { Search, Filter, Grid, List, ChevronDown, Star, MapPin, Truck, Shield, Camera, Flame, Clock } from 'lucide-react';
 import Header from '../components/Header';
 import { BazaarFooter } from '../components/ui/bazaar-footer';
 import { Button } from '../components/ui/button';
-import { trendingProducts } from '../data/products';
+import { CartModal } from '../components/ui/cart-modal';
+import ProductRequestModal from '../components/ProductRequestModal';
+import VisualSearchModal from '../components/VisualSearchModal';
+import { trendingProducts, bestSellerProducts, newArrivals } from '../data/products';
 import { categories } from '../data/categories';
-import { useCartStore } from '../stores/cartStore';
+import { useBuyerStore } from '../stores/buyerStore';
+
+interface FlashSaleProduct {
+  id: string;
+  name: string;
+  image: string;
+  originalPrice: number;
+  salePrice: number;
+  discount: number;
+  sold: number;
+  stock: number;
+  rating: number;
+}
+
+const flashSaleProducts: FlashSaleProduct[] = [
+  {
+    id: 'fs1',
+    name: 'Wireless Earbuds Pro',
+    image: 'https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=400&h=400&fit=crop',
+    originalPrice: 2999,
+    salePrice: 1499,
+    discount: 50,
+    sold: 234,
+    stock: 500,
+    rating: 4.8
+  },
+  {
+    id: 'fs2',
+    name: 'Smart Watch Fitness Tracker',
+    image: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=400&fit=crop',
+    originalPrice: 4999,
+    salePrice: 2999,
+    discount: 40,
+    sold: 189,
+    stock: 300,
+    rating: 4.7
+  },
+  {
+    id: 'fs3',
+    name: 'Portable Power Bank 20000mAh',
+    image: 'https://images.unsplash.com/photo-1609091839311-d5365f9ff1c5?w=400&h=400&fit=crop',
+    originalPrice: 1999,
+    salePrice: 999,
+    discount: 50,
+    sold: 456,
+    stock: 200,
+    rating: 4.9
+  },
+  {
+    id: 'fs4',
+    name: 'LED Desk Lamp with USB',
+    image: 'https://images.unsplash.com/photo-1507473885765-e6ed057f782c?w=400&h=400&fit=crop',
+    originalPrice: 1499,
+    salePrice: 799,
+    discount: 47,
+    sold: 321,
+    stock: 150,
+    rating: 4.6
+  }
+];
 
 const categoryOptions = ['All Categories', ...categories.map(cat => cat.name)];
 
@@ -31,7 +93,7 @@ const priceRanges = [
 
 export default function ShopPage() {
   const navigate = useNavigate();
-  const { addToCart } = useCartStore();
+  const { addToCart, cartItems } = useBuyerStore();
   
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All Categories');
@@ -39,6 +101,35 @@ export default function ShopPage() {
   const [selectedPriceRange, setSelectedPriceRange] = useState('all');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [showFilters, setShowFilters] = useState(false);
+  const [showCartModal, setShowCartModal] = useState(false);
+  const [addedProduct, setAddedProduct] = useState<{ name: string; image: string } | null>(null);
+  const [showRequestModal, setShowRequestModal] = useState(false);
+  const [showVisualSearchModal, setShowVisualSearchModal] = useState(false);
+  
+  // Flash Sale Countdown
+  const [timeLeft, setTimeLeft] = useState({
+    hours: 2,
+    minutes: 45,
+    seconds: 30
+  });
+
+  // Countdown timer
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTimeLeft(prev => {
+        if (prev.seconds > 0) {
+          return { ...prev, seconds: prev.seconds - 1 };
+        } else if (prev.minutes > 0) {
+          return { hours: prev.hours, minutes: prev.minutes - 1, seconds: 59 };
+        } else if (prev.hours > 0) {
+          return { hours: prev.hours - 1, minutes: 59, seconds: 59 };
+        }
+        return prev;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
 
   // Generate more products by repeating the trending products with variations
   const allProducts = useMemo(() => {
@@ -117,14 +208,111 @@ export default function ShopPage() {
                 placeholder="Search products, brands, or sellers..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)] focus:border-transparent"
+                className="w-full pl-10 pr-12 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)] focus:border-transparent"
               />
+              <button
+                onClick={() => setShowVisualSearchModal(true)}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1.5 text-gray-400 hover:text-[var(--brand-primary)] hover:bg-orange-50 rounded-lg transition-colors"
+                title="Search by image"
+              >
+                <Camera className="w-5 h-5" />
+              </button>
             </div>
           </motion.div>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {/* Flash Sale Section */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="mb-8 bg-gradient-to-r from-red-500 via-orange-500 to-yellow-500 rounded-2xl p-6 text-white relative overflow-hidden"
+        >
+          {/* Animated Background */}
+          <div className="absolute inset-0 opacity-20">
+            <div className="absolute top-0 left-0 w-64 h-64 bg-white rounded-full blur-3xl animate-pulse" />
+            <div className="absolute bottom-0 right-0 w-96 h-96 bg-white rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+          </div>
+
+          <div className="relative z-10">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-white/20 backdrop-blur-sm rounded-xl">
+                  <Flame className="w-8 h-8" />
+                </div>
+                <div>
+                  <h2 className="text-3xl font-bold">Flash Sale</h2>
+                  <p className="text-white/90">Up to 50% OFF - Limited Time!</p>
+                </div>
+              </div>
+
+              {/* Countdown Timer */}
+              <div className="flex items-center gap-3">
+                <Clock className="w-6 h-6" />
+                <div className="flex gap-2">
+                  {[
+                    { label: 'Hours', value: timeLeft.hours },
+                    { label: 'Mins', value: timeLeft.minutes },
+                    { label: 'Secs', value: timeLeft.seconds }
+                  ].map((item, index) => (
+                    <div key={item.label} className="flex items-center">
+                      <div className="bg-white/20 backdrop-blur-sm rounded-xl p-3 min-w-[70px] text-center">
+                        <div className="text-2xl font-bold">{String(item.value).padStart(2, '0')}</div>
+                        <div className="text-xs text-white/80">{item.label}</div>
+                      </div>
+                      {index < 2 && <div className="text-2xl font-bold mx-2">:</div>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Flash Sale Products */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {flashSaleProducts.map((product, index) => (
+                <motion.div
+                  key={product.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                  className="bg-white rounded-xl p-3 text-gray-900 group cursor-pointer hover:shadow-lg transition-all"
+                  onClick={() => navigate(`/product/${product.id}`)}
+                >
+                  <div className="relative aspect-square mb-3 overflow-hidden rounded-lg">
+                    <img 
+                      src={product.image} 
+                      alt={product.name}
+                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                    />
+                    <div className="absolute top-2 left-2 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">
+                      -{product.discount}%
+                    </div>
+                    <div className="absolute bottom-0 left-0 right-0 bg-black/50 backdrop-blur-sm p-2">
+                      <div className="w-full bg-gray-200 rounded-full h-1.5 mb-1">
+                        <div 
+                          className="bg-orange-500 h-1.5 rounded-full" 
+                          style={{ width: `${(product.sold / product.stock) * 100}%` }}
+                        />
+                      </div>
+                      <div className="text-[10px] text-white text-center">
+                        {product.sold} sold
+                      </div>
+                    </div>
+                  </div>
+                  <h3 className="font-medium text-sm line-clamp-2 mb-2 group-hover:text-orange-600 transition-colors">
+                    {product.name}
+                  </h3>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-lg font-bold text-orange-600">₱{product.salePrice}</span>
+                    <span className="text-xs text-gray-400 line-through">₱{product.originalPrice}</span>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        </motion.div>
+
         <div className="flex flex-col lg:flex-row gap-6">
           {/* Filters Sidebar */}
           <motion.div
@@ -324,7 +512,39 @@ export default function ShopPage() {
                     <Button
                       onClick={(e) => {
                         e.stopPropagation();
-                        addToCart(product);
+                        // Transform simple Product to CartItem format
+                        addToCart({
+                          ...product,
+                          images: [product.image],
+                          seller: {
+                            id: `seller-${product.id}`,
+                            name: product.seller,
+                            avatar: '',
+                            rating: product.sellerRating || 4.5,
+                            totalReviews: 100,
+                            followers: 1000,
+                            isVerified: product.sellerVerified || false,
+                            description: '',
+                            location: product.location,
+                            established: '2020',
+                            products: [],
+                            badges: [],
+                            responseTime: '1 hour',
+                            categories: [product.category]
+                          },
+                          sellerId: `seller-${product.id}`,
+                          totalReviews: 100,
+                          description: product.description || '',
+                          specifications: {},
+                          variants: []
+                        }, 1);
+                        
+                        // Show modal with product info
+                        setAddedProduct({
+                          name: product.name,
+                          image: product.image
+                        });
+                        setShowCartModal(true);
                       }}
                       className="w-full mt-4 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white rounded-xl"
                     >
@@ -356,6 +576,35 @@ export default function ShopPage() {
       </div>
 
       <BazaarFooter />
+
+      {/* Cart Modal */}
+      {addedProduct && (
+        <CartModal
+          isOpen={showCartModal}
+          onClose={() => setShowCartModal(false)}
+          productName={addedProduct.name}
+          productImage={addedProduct.image}
+          cartItemCount={cartItems.length}
+        />
+      )}
+
+      {/* Visual Search Modal */}
+      <VisualSearchModal
+        isOpen={showVisualSearchModal}
+        onClose={() => setShowVisualSearchModal(false)}
+        onRequestProduct={() => {
+          setShowVisualSearchModal(false);
+          setShowRequestModal(true);
+        }}
+        products={[...trendingProducts, ...bestSellerProducts, ...newArrivals]}
+      />
+
+      {/* Product Request Modal */}
+      <ProductRequestModal
+        isOpen={showRequestModal}
+        onClose={() => setShowRequestModal(false)}
+        initialSearchTerm={searchQuery}
+      />
     </div>
   );
 }

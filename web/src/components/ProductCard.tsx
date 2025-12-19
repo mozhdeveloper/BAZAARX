@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
+import { BadgeCheck, ShieldCheck } from 'lucide-react';
 import { Product } from '../types';
 
 interface ProductCardProps {
@@ -20,7 +21,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0 }) => {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, delay: index * 0.1 }}
-      className="group bg-white rounded-xl hover:bg-gray-50 transition-all duration-300 overflow-hidden cursor-pointer"
+      className="group bg-white rounded-xl hover:shadow-md transition-all duration-300 overflow-hidden cursor-pointer border border-gray-100"
       onClick={() => navigate(`/product/${product.id}`)}
     >
       <div className="relative aspect-square overflow-hidden">
@@ -40,16 +41,15 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0 }) => {
           </div>
         )}
         {product.isVerified && (
-          <div className="absolute bottom-3 right-3 bg-blue-500 text-white p-1 rounded-full">
-            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-            </svg>
+          <div className="absolute bottom-3 left-3 bg-white/95 backdrop-blur-sm px-2 py-1 rounded-full flex items-center gap-1">
+            <ShieldCheck className="w-3 h-3 text-blue-600" />
+            <span className="text-xs font-medium text-blue-600">Verified</span>
           </div>
         )}
       </div>
       
-      <div className="p-4">
-        <h3 className="font-semibold text-[var(--text-primary)] text-sm mb-2 line-clamp-2 group-hover:text-[var(--brand-primary)] transition-colors">
+      <div className="p-3">
+        <h3 className="font-medium text-[var(--text-primary)] text-sm mb-2 line-clamp-2 group-hover:text-[var(--brand-primary)] transition-colors leading-snug">
           {product.name}
         </h3>
         
@@ -60,27 +60,40 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0 }) => {
             ))}
           </div>
           <span className="text-xs text-[var(--text-secondary)] ml-1">({product.rating})</span>
-          <span className="text-xs text-[var(--text-muted)] ml-2">{product.sold.toLocaleString()} sold</span>
         </div>
 
-        <div className="flex items-end justify-between">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-lg font-bold text-[var(--brand-primary)]">
-                ₱{product.price.toLocaleString()}
-              </span>
-              {hasDiscount && (
-                <span className="text-sm text-[var(--text-muted)] line-through">
-                  ₱{product.originalPrice!.toLocaleString()}
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-[var(--text-secondary)] mt-1">{product.location}</p>
+        <div className="flex items-baseline gap-2 mb-2">
+          <span className="text-xl font-bold text-[var(--brand-primary)]">
+            ₱{product.price.toLocaleString()}
+          </span>
+          {hasDiscount && (
+            <span className="text-xs text-[var(--text-muted)] line-through">
+              ₱{product.originalPrice!.toLocaleString()}
+            </span>
+          )}
+        </div>
+
+        <div className="text-xs text-[var(--text-muted)] mb-3">
+          {product.sold.toLocaleString()} sold
+        </div>
+
+        <div className="pt-3 border-t border-[var(--border-subtle)]">
+          <div className="flex items-center gap-1.5">
+            <p className="text-xs text-[var(--text-secondary)] truncate flex-1">
+              {product.seller}
+            </p>
+            {product.sellerVerified && (
+              <BadgeCheck className="w-4 h-4 text-blue-600 flex-shrink-0" />
+            )}
           </div>
-        </div>
-
-        <div className="mt-3 pt-3 border-t border-[var(--border-subtle)]">
-          <p className="text-xs text-[var(--text-secondary)] truncate">{product.seller}</p>
+          <div className="flex items-center gap-1 mt-1">
+            <div className="flex text-yellow-400" style={{ fontSize: '10px' }}>
+              {[...Array(5)].map((_, i) => (
+                <span key={i} className={i < Math.floor(product.sellerRating) ? 'text-yellow-400' : 'text-gray-300'}>★</span>
+              ))}
+            </div>
+            <span className="text-xs text-[var(--text-secondary)]">({product.sellerRating})</span>
+          </div>
         </div>
       </div>
     </motion.div>

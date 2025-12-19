@@ -12,7 +12,11 @@ import {
   ToggleLeft,
   ToggleRight,
   ArrowLeft,
-  ShoppingCart
+  ShoppingCart,
+  Settings,
+  LayoutDashboard,
+  Store,
+  Wallet
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Sidebar, SidebarBody, SidebarLink } from '@/components/ui/sidebar';
@@ -23,7 +27,12 @@ const sellerLinks = [
   {
     label: "Dashboard",
     href: "/seller",
-    icon: <TrendingUp className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
+    icon: <LayoutDashboard className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
+  },
+  {
+    label: "Store Profile",
+    href: "/seller/store-profile",
+    icon: <Store className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
   },
   {
     label: "Products", 
@@ -34,6 +43,26 @@ const sellerLinks = [
     label: "Orders",
     href: "/seller/orders",
     icon: <ShoppingCart className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
+  },
+  {
+    label: "Earnings",
+    href: "/seller/earnings",
+    icon: <Wallet className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
+  },
+  {
+    label: "Reviews",
+    href: "/seller/reviews",
+    icon: <Star className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
+  },
+  {
+    label: "Analytics",
+    href: "/seller/analytics",
+    icon: <TrendingUp className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
+  },
+  {
+    label: "Settings",
+    href: "/seller/settings",
+    icon: <Settings className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
   }
 ];
 

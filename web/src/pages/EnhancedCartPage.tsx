@@ -132,20 +132,20 @@ export default function EnhancedCartPage() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
                   transition={{ delay: sellerIndex * 0.1 }}
-                  className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm"
+                  className="bg-white rounded-xl border border-gray-200 shadow-sm"
                 >
                   {/* Seller Header */}
                   <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-4">
                       <div className="flex items-center gap-3">
                         <img
                           src={group.seller.avatar}
-                          alt={group.seller.name}
+                          alt=""
                           className="w-10 h-10 rounded-full object-cover"
                         />
                         <div>
-                          <div className="flex items-center gap-2">
-                            <h3 className="font-semibold text-gray-900">{group.seller.name}</h3>
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-semibold text-gray-900">{group.seller.name}</span>
                             {group.seller.isVerified && (
                               <Badge variant="outline" className="text-xs">
                                 <Shield className="h-3 w-3 mr-1" />
@@ -153,15 +153,15 @@ export default function EnhancedCartPage() {
                               </Badge>
                             )}
                           </div>
-                          <div className="flex items-center gap-4 text-sm text-gray-500">
-                            <div className="flex items-center gap-1">
-                              <Star className="h-3 w-3 fill-current text-yellow-400" />
+                          <div className="flex items-center gap-3 text-sm text-gray-500">
+                            <span className="flex items-center gap-1">
+                              <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
                               {group.seller.rating}
-                            </div>
-                            <div className="flex items-center gap-1">
+                            </span>
+                            <span className="flex items-center gap-1">
                               <Store className="h-3 w-3" />
                               {group.seller.location}
-                            </div>
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -191,7 +191,7 @@ export default function EnhancedCartPage() {
                     </div>
                   </div>
 
-                  {/* Items */}
+                  {/* Product Items */}
                   <div className="p-6 space-y-4">
                     {group.items.map((item, itemIndex) => (
                       <motion.div
@@ -199,41 +199,49 @@ export default function EnhancedCartPage() {
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: (sellerIndex * 0.1) + (itemIndex * 0.05) }}
-                        className="flex gap-4 p-4 border border-gray-100 rounded-lg"
+                        className="flex gap-4 p-4 border border-gray-100 rounded-lg hover:border-gray-200 transition-colors"
                       >
+                        {/* Product Image */}
                         <img
                           src={item.image}
-                          alt={item.name}
-                          className="w-20 h-20 object-cover rounded-lg flex-shrink-0"
+                          alt=""
+                          className="w-20 h-20 object-cover rounded-lg"
                         />
-                        <div className="flex-1">
+                        
+                        {/* Product Details */}
+                        <div className="flex-1 min-w-0">
                           <h4 className="font-medium text-gray-900 mb-2">{item.name}</h4>
-                          <div className="flex items-center gap-4 mb-3">
-                            <div className="text-lg font-semibold text-orange-600">
+                          
+                          {/* Price Section */}
+                          <div className="flex items-center gap-3 mb-3">
+                            <span className="text-lg font-semibold text-orange-600">
                               ₱{(item.price * item.quantity).toLocaleString()}
-                            </div>
+                            </span>
                             {item.originalPrice && (
-                              <div className="text-sm text-gray-500 line-through">
+                              <span className="text-sm text-gray-500 line-through">
                                 ₱{(item.originalPrice * item.quantity).toLocaleString()}
-                              </div>
+                              </span>
                             )}
                           </div>
+                          
+                          {/* Quantity Controls */}
                           <div className="flex items-center gap-3">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 border border-gray-200 rounded-lg">
                               <Button
-                                variant="outline"
+                                variant="ghost"
                                 size="sm"
                                 onClick={() => updateCartQuantity(item.id, item.quantity - 1)}
-                                className="h-8 w-8 p-0"
+                                className="h-8 w-8 p-0 hover:bg-gray-100"
+                                disabled={item.quantity <= 1}
                               >
                                 <Minus className="h-3 w-3" />
                               </Button>
-                              <span className="w-12 text-center font-medium">{item.quantity}</span>
+                              <span className="w-10 text-center font-medium text-sm">{item.quantity}</span>
                               <Button
-                                variant="outline"
+                                variant="ghost"
                                 size="sm"
                                 onClick={() => updateCartQuantity(item.id, item.quantity + 1)}
-                                className="h-8 w-8 p-0"
+                                className="h-8 w-8 p-0 hover:bg-gray-100"
                               >
                                 <Plus className="h-3 w-3" />
                               </Button>
@@ -242,9 +250,10 @@ export default function EnhancedCartPage() {
                               variant="ghost"
                               size="sm"
                               onClick={() => removeFromCart(item.id)}
-                              className="text-red-600 hover:text-red-700"
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <Trash2 className="h-4 w-4 mr-1" />
+                              Remove
                             </Button>
                           </div>
                         </div>
@@ -253,10 +262,12 @@ export default function EnhancedCartPage() {
                   </div>
 
                   {/* Seller Total */}
-                  <div className="px-6 py-4 bg-gray-50 border-t">
-                    <div className="flex justify-between font-semibold">
-                      <span>Seller Total</span>
-                      <span className="text-orange-600">₱{(group.subtotal + group.shippingFee).toLocaleString()}</span>
+                  <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
+                    <div className="flex justify-between items-center">
+                      <span className="font-semibold text-gray-900">Seller Total</span>
+                      <span className="text-lg font-bold text-orange-600">
+                        ₱{(group.subtotal + group.shippingFee).toLocaleString()}
+                      </span>
                     </div>
                   </div>
                 </motion.div>

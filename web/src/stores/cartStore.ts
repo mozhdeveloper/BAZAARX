@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-interface Product {
+// Unified Product interface for cart system
+export interface Product {
   id: string;
   name: string;
   price: number;
@@ -14,14 +15,18 @@ interface Product {
   isFreeShipping?: boolean;
   isVerified?: boolean;
   location?: string;
+  description?: string;
 }
 
-interface CartItem extends Product {
+// Cart item with quantity
+export interface CartItem extends Product {
   quantity: number;
 }
 
-interface Order {
+// Unified order interface
+export interface Order {
   id: string;
+  orderNumber?: string; // User-friendly order number
   items: CartItem[];
   total: number;
   status: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
@@ -145,7 +150,7 @@ export const useCartStore = create<CartStore>()(
   persist(
     (set, get) => ({
       items: [],
-      orders: sampleOrders,
+      orders: [],
       
       addToCart: (product: Product) => {
         set((state) => {
@@ -279,8 +284,12 @@ export const useCartStore = create<CartStore>()(
     }),
     {
       name: 'bazaar-cart-store',
+      onRehydrateStorage: () => (state) => {
+        // If no orders exist after rehydration, add sample orders
+        if (state && state.orders.length === 0) {
+          state.orders = sampleOrders;
+        }
+      },
     }
   )
 );
-
-export type { Product, CartItem, Order };

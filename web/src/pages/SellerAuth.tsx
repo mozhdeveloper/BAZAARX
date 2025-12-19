@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Eye, EyeOff, Mail, Lock, Store, ArrowRight } from 'lucide-react';
 import { useAuthStore } from '@/stores/sellerStore';
@@ -12,12 +12,11 @@ export function SellerLogin() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   
-  const { login, isAuthenticated } = useAuthStore();
+  const { login } = useAuthStore();
   const navigate = useNavigate();
 
-  if (isAuthenticated) {
-    return <Navigate to="/seller" replace />;
-  }
+  // Allow access to login page even if authenticated
+  // User can use logout button to log out
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -173,12 +172,10 @@ export function SellerRegister() {
   const [error, setError] = useState('');
   const [step, setStep] = useState(1);
   
-  const { register, isAuthenticated } = useAuthStore();
+  const { register } = useAuthStore();
   const navigate = useNavigate();
 
-  if (isAuthenticated) {
-    return <Navigate to="/seller" replace />;
-  }
+  // Allow access to registration page
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setFormData(prev => ({
@@ -219,16 +216,20 @@ export function SellerRegister() {
     try {
       const success = await register(formData);
       if (success) {
-        navigate('/seller');
+        // Redirect directly to onboarding
+        setIsLoading(false);
+        navigate('/seller/onboarding');
       } else {
         setError('Registration failed. Please try again.');
+        setIsLoading(false);
       }
     } catch (err) {
       setError('Something went wrong. Please try again.');
-    } finally {
       setIsLoading(false);
     }
   };
+
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 to-orange-100 flex items-center justify-center p-4">

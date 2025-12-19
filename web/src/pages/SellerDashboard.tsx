@@ -11,9 +11,14 @@ import {
   Search,
   ArrowUpRight,
   ArrowDownRight,
-  Filter
+  Filter,
+  LogOut,
+  Store,
+  Wallet,
+  Zap,
+  MessageSquare
 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
@@ -29,14 +34,25 @@ import {
 } from "recharts";
 
 export function SellerDashboard() {
-  const { seller } = useAuthStore();
+  const { seller, logout } = useAuthStore();
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+
+  const handleLogout = () => {
+    logout();
+    navigate('/seller/auth');
+  };
 
   const links = [
     {
       label: "Dashboard",
       href: "/seller",
       icon: <LayoutDashboard className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
+    },
+    {
+      label: "Store Profile",
+      href: "/seller/store-profile",
+      icon: <Store className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
     },
     {
       label: "Products",
@@ -47,6 +63,26 @@ export function SellerDashboard() {
       label: "Orders",
       href: "/seller/orders", 
       icon: <ShoppingCart className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
+    },
+    {
+      label: "Flash Sales",
+      href: "/seller/flash-sales",
+      icon: <Zap className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
+    },
+    {
+      label: "Messages",
+      href: "/seller/messages",
+      icon: <MessageSquare className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
+    },
+    {
+      label: "Earnings",
+      href: "/seller/earnings",
+      icon: <Wallet className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
+    },
+    {
+      label: "Reviews",
+      href: "/seller/reviews",
+      icon: <Star className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
     },
     {
       label: "Analytics",
@@ -72,7 +108,7 @@ export function SellerDashboard() {
               ))}
             </div>
           </div>
-          <div>
+          <div className="space-y-2">
             <SidebarLink
               link={{
                 label: seller?.name || "Seller",
@@ -86,6 +122,13 @@ export function SellerDashboard() {
                 ),
               }}
             />
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-2 w-full px-2 py-2 text-sm text-gray-700 hover:text-orange-500 hover:bg-orange-50 rounded-md transition-colors"
+            >
+              <LogOut className="h-5 w-5 flex-shrink-0" />
+              {open && <span>Logout</span>}
+            </button>
           </div>
         </SidebarBody>
       </Sidebar>

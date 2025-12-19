@@ -2,9 +2,9 @@ import React from 'react';
 import { BazaarHero } from '../components/ui/bazaar-hero';
 import ScrollMorphHero from '../components/ui/scroll-morph-hero';
 import { SectionTransition } from '../components/ui/section-transition';
-import { BazaarProductTrailDemo } from '../components/ui/bazaar-product-trail';
+import BazaarTrustShowcase from '../components/ui/bazaar-trust-showcase';
 import { MobileAppShowcase } from '../components/ui/mobile-app-showcase';
-import BazaarSellerDashboardHero from '../components/ui/bazaar-seller-dashboard-hero';
+import { Hero195 } from '../components/ui/hero-195';
 import { BazaarFooter } from '../components/ui/bazaar-footer';
 import { SmoothScrollProvider } from '../components/ui/smooth-scroll-provider';
 import FeaturedCollections from '../components/FeaturedCollections';
@@ -12,6 +12,8 @@ import ProductRail from '../components/sections/ProductRail';
 import FeatureStrip from '../components/sections/FeatureStrip';
 import StoreRail from '../components/sections/StoreRail';
 import CategoriesFooterStrip from '../components/CategoriesFooterStrip';
+import BazaarXTestimonials from '../components/sections/BazaarXTestimonials';
+import BrandTestimonials from '../components/sections/BrandTestimonials';
 
 // Data imports
 import { trendingProducts, bestSellerProducts, newArrivals } from '../data/products';
@@ -33,14 +35,20 @@ const HomePage: React.FC = () => {
         {/* Transition Section */}
         <SectionTransition />
 
-        {/* Immersive Product Explorer with Mouse Trail */}
-        <BazaarProductTrailDemo />
+        {/* Trust & Quality Showcase */}
+        <BazaarTrustShowcase />
 
         {/* Mobile App Showcase */}
         <MobileAppShowcase />
 
-        {/* Seller Dashboard Preview */}
-        <BazaarSellerDashboardHero />
+        {/* Seller Dashboard Preview - Interactive Demo */}
+        <Hero195 />
+
+        {/* Testimonials from Filipino Sellers */}
+        <BazaarXTestimonials />
+
+        {/* Brand Owner & CEO Testimonials */}
+        <BrandTestimonials />
 
       {/* Featured Collections */}
       <FeaturedCollections />

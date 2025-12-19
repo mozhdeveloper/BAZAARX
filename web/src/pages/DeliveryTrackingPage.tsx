@@ -24,12 +24,14 @@ import { Button } from '../components/ui/button';
 import { Progress } from '../components/ui/progress';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
+import { ReviewModal } from '../components/ReviewModal';
 
 function DeliveryTrackingPage() {
   const navigate = useNavigate();
   const { orderId } = useParams();
   const { orders } = useCartStore();
   const [showReceipt, setShowReceipt] = useState(false);
+  const [showReviewModal, setShowReviewModal] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
   const [animatedProgress, setAnimatedProgress] = useState(0);
 
@@ -107,7 +109,13 @@ function DeliveryTrackingPage() {
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentStep(prev => {
-        const next = prev < 4 ? prev + 1 : 1;
+        const next = prev < 4 ? prev + 1 : prev;
+        // Show review modal when delivery is complete (step 4)
+        if (next === 4 && prev === 3) {
+          setTimeout(() => {
+            setShowReviewModal(true);
+          }, 2000); // Show modal 2 seconds after delivery completes
+        }
         return next;
       });
     }, 8000); // Change every 8 seconds
@@ -178,8 +186,16 @@ function DeliveryTrackingPage() {
           >
             <Receipt className="w-4 h-4 mr-2" />
             View Receipt
-          </Button>
-        </motion.div>
+          </Button>          {currentStep === 4 && (
+            <Button 
+              size="sm"
+              onClick={() => setShowReviewModal(true)}
+              className="bg-orange-500 hover:bg-orange-600 text-white"
+            >
+              <MessageCircle className="w-4 h-4 mr-2" />
+              Rate & Review
+            </Button>
+          )}        </motion.div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Modern Interactive Map */}
@@ -697,6 +713,20 @@ function DeliveryTrackingPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Review Modal */}
+      <ReviewModal
+        isOpen={showReviewModal}
+        onClose={() => setShowReviewModal(false)}
+        orderId={order.id}
+        sellerId="seller-1"
+        sellerName={order.items[0]?.seller || "BazaarPH Store"}
+        items={order.items.map(item => ({
+          id: item.id,
+          name: item.name,
+          image: item.image
+        }))}
+      />
 
       <BazaarFooter />
     </div>

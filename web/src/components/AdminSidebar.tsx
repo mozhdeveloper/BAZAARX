@@ -13,6 +13,12 @@ import {
   BarChart3,
   Settings,
   LogOut,
+  Ticket,
+  Star,
+  Package,
+  MessageSquare,
+  Zap,
+  DollarSign
 } from 'lucide-react';
 
 interface AdminSidebarProps {
@@ -33,6 +39,21 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, setOpen }) => {
       icon: <FolderTree className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
     },
     {
+      label: 'Products',
+      href: '/admin/products',
+      icon: <Package className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
+    },
+    {
+      label: 'Product Requests',
+      href: '/admin/product-requests',
+      icon: <MessageSquare className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
+    },
+    {
+      label: 'Flash Sales',
+      href: '/admin/flash-sales',
+      icon: <Zap className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
+    },
+    {
       label: 'Seller Approvals',
       href: '/admin/sellers',
       icon: <UserCheck className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
@@ -46,6 +67,21 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, setOpen }) => {
       label: 'Orders',
       href: '/admin/orders',
       icon: <ShoppingBag className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
+    },
+    {
+      label: 'Payouts',
+      href: '/admin/payouts',
+      icon: <DollarSign className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
+    },
+    {
+      label: 'Vouchers',
+      href: '/admin/vouchers',
+      icon: <Ticket className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
+    },
+    {
+      label: 'Reviews',
+      href: '/admin/reviews',
+      icon: <Star className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
     },
     {
       label: 'Analytics',

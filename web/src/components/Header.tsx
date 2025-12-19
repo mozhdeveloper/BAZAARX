@@ -1,26 +1,23 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useCartStore } from '../stores/cartStore';
-import { useBuyerStore } from '../stores/buyerStore';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   User, 
   Heart, 
   Settings, 
-  LogOut, 
-  ShoppingBag,
+  LogOut,
   Star,
-  ChevronDown
+  ChevronDown,
+  ShoppingBag
 } from 'lucide-react';
 
 const Header: React.FC = () => {
   const navigate = useNavigate();
-  const { getTotalItems } = useCartStore();
-  const { getTotalCartItems } = useBuyerStore();
+  const location = useLocation();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement>(null);
   
-  const cartItemsCount = getTotalItems();
-  const enhancedCartItemsCount = getTotalCartItems();
+  // Check if we're on the search page
+  const isSearchPage = location.pathname === '/search';
 
   // Close profile menu when clicking outside
   useEffect(() => {
@@ -53,73 +50,61 @@ const Header: React.FC = () => {
             </div>
           </div>
 
-          {/* Search Bar */}
-          <div className="flex-1 max-w-2xl mx-8">
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                <svg className="h-5 w-5 text-[var(--text-secondary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
+          {/* Search Bar - Hidden on search page */}
+          {!isSearchPage && (
+            <div className="flex-1 max-w-2xl mx-8">
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <svg className="h-5 w-5 text-[var(--text-secondary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </div>
+                <input
+                  type="text"
+                  placeholder="Search for products, stores, or categories..."
+                  className="w-full pl-12 pr-4 py-3 bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-full focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)] focus:border-transparent transition-all"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      const query = (e.target as HTMLInputElement).value;
+                      navigate(`/search${query ? '?q=' + encodeURIComponent(query) : ''}`);
+                    }
+                  }}
+                />
+                <button 
+                  onClick={(e) => {
+                    const input = (e.currentTarget.previousElementSibling?.previousElementSibling as HTMLInputElement);
+                    const query = input?.value || '';
+                    navigate(`/search${query ? '?q=' + encodeURIComponent(query) : ''}`);
+                  }}
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-[var(--brand-primary)] text-white px-6 py-2 rounded-full text-sm font-semibold hover:bg-[var(--brand-primary-dark)] transition-colors"
+                >
+                  Search
+                </button>
               </div>
-              <input
-                type="text"
-                placeholder="Search for products, stores, or categories..."
-                className="w-full pl-12 pr-4 py-3 bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-full focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)] focus:border-transparent transition-all"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    navigate('/shop');
-                  }
-                }}
-              />
-              <button 
-                onClick={() => navigate('/shop')}
-                className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-[var(--brand-primary)] text-white px-6 py-2 rounded-full text-sm font-semibold hover:bg-[var(--brand-primary-dark)] transition-colors"
-              >
-                Search
-              </button>
             </div>
-          </div>
+          )}
 
           {/* Right Navigation */}
           <div className="flex items-center gap-6">
             
             {/* Sell Button */}
             <button 
-              onClick={() => navigate('/seller/login')}
+              onClick={() => navigate('/seller/auth')}
               className="btn-ghost text-sm hover:text-[var(--brand-primary)] transition-colors"
             >
               Sell on Bazaar
             </button>
 
             {/* Cart */}
-            <div className="flex items-center gap-1">
-              <button 
-                onClick={() => navigate('/cart')}
-                className="relative p-2 text-[var(--text-secondary)] hover:text-[var(--brand-primary)] transition-colors"
-              >
-                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.39.39-.39 1.024 0 1.414L6 19h12M10 21a1 1 0 100-2 1 1 0 000 2zm8 0a1 1 0 100-2 1 1 0 000 2z" />
-                </svg>
-                {cartItemsCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-[var(--brand-primary)] text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                    {cartItemsCount > 99 ? '99+' : cartItemsCount}
-                  </span>
-                )}
-              </button>
-              
-              <button 
-                onClick={() => navigate('/enhanced-cart')}
-                className="relative p-2 text-orange-600 hover:text-orange-700 transition-colors"
-                title="Enhanced Multi-seller Cart"
-              >
-                <ShoppingBag className="h-6 w-6" />
-                {enhancedCartItemsCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                    {enhancedCartItemsCount > 99 ? '99+' : enhancedCartItemsCount}
-                  </span>
-                )}
-              </button>
-            </div>
+            <button 
+              onClick={() => navigate('/enhanced-cart')}
+              className="relative p-2 text-[var(--text-secondary)] hover:text-[var(--brand-primary)] transition-colors"
+              title="Shopping Cart"
+            >
+              <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+            </button>
 
             {/* Orders */}
             <button 
