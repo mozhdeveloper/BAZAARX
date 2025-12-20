@@ -42,10 +42,10 @@ export default function OrdersPage() {
   const statusOptions = [
     { value: 'all', label: 'All Orders' },
     { value: 'pending', label: 'Pending' },
-    { value: 'confirmed', label: 'Confirmed' },
+    { value: 'confirmed', label: 'Processing' },
     { value: 'shipped', label: 'Shipped' },
     { value: 'delivered', label: 'Delivered' },
-    { value: 'cancelled', label: 'Cancelled' }
+    { value: 'cancelled', label: 'Canceled' }
   ];
 
   const getStatusIcon = (status: string) => {
@@ -178,23 +178,23 @@ export default function OrdersPage() {
         >
           {/* Search */}
           <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#FF5722] w-5 h-5" />
             <input
               type="text"
               placeholder="Search orders by ID or product name..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)] focus:border-transparent"
+              className="w-full pl-10 pr-4 py-2.5 border-2 border-[#FF5722] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF5722] focus:border-[#FF5722] bg-orange-50/30"
             />
           </div>
 
           {/* Status Filter */}
           <div className="flex items-center gap-2">
-            <Filter className="w-4 h-4 text-gray-500" />
+            <Filter className="w-4 h-4 text-[#FF5722]" />
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)] focus:border-transparent"
+              className="px-4 py-2.5 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF5722] focus:border-[#FF5722] bg-white font-medium"
             >
               {statusOptions.map(option => (
                 <option key={option.value} value={option.value}>
@@ -212,8 +212,25 @@ export default function OrdersPage() {
             className="text-center py-12"
           >
             <Package className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">No orders found</h3>
-            <p className="text-gray-600">Try adjusting your search or filter criteria.</p>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              {searchQuery || statusFilter !== 'all' ? 'No orders found' : 'No orders yet'}
+            </h3>
+            <p className="text-gray-600">
+              {searchQuery || statusFilter !== 'all' 
+                ? 'Try adjusting your search or filter criteria.' 
+                : 'Your orders will appear here once you make a purchase.'}
+            </p>
+            {(searchQuery || statusFilter !== 'all') && (
+              <button
+                onClick={() => {
+                  setSearchQuery('');
+                  setStatusFilter('all');
+                }}
+                className="mt-4 px-4 py-2 bg-[#FF5722] text-white rounded-lg hover:bg-[#E64A19] transition-colors"
+              >
+                Clear Filters
+              </button>
+            )}
           </motion.div>
         ) : (
           /* Orders List */
@@ -245,6 +262,12 @@ export default function OrdersPage() {
                           {getStatusIcon(order.status)}
                           <span className="capitalize">{order.status}</span>
                         </div>
+                        {/* Payment Status Badge */}
+                        {!order.isPaid && order.status !== 'cancelled' && (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold border-2 border-[#FF5722] bg-orange-50 text-[#FF5722]">
+                            Pending Payment
+                          </span>
+                        )}
                       </div>
                       <div className="flex items-center gap-2 text-sm text-gray-600">
                         <Calendar className="w-4 h-4" />
@@ -289,34 +312,70 @@ export default function OrdersPage() {
                         </span>
                       </div>
                       <div className="flex gap-2">
-                        <Button
-                          onClick={() => navigate(`/delivery-tracking/${order.id}`)}
-                          size="sm"
-                          className="bg-[var(--brand-primary)] hover:bg-[var(--brand-secondary)] text-white"
-                        >
-                          <Truck className="w-4 h-4 mr-1" />
-                          Track Order
-                        </Button>
-                        {order.status === 'delivered' && (
+                        {/* Pending Payment - Show Cancel and Track */}
+                        {order.status === 'pending' && !order.isPaid ? (
+                          <>
+                            <Button
+                              onClick={() => alert('Order canceled')}
+                              size="sm"
+                              variant="outline"
+                              className="border-gray-300 text-gray-700 hover:bg-gray-50"
+                            >
+                              Cancel Order
+                            </Button>
+                            <Button
+                              onClick={() => navigate(`/delivery-tracking/${order.id}`)}
+                              size="sm"
+                              className="bg-[#FF5722] hover:bg-[#E64A19] text-white"
+                            >
+                              <Truck className="w-4 h-4 mr-1" />
+                              Track Order
+                            </Button>
+                          </>
+                        ) : order.status === 'pending' || order.status === 'confirmed' || order.status === 'shipped' ? (
+                          /* In Progress - Track Order */
                           <Button
-                            onClick={() => navigate(`/reviews?order=${order.id}`)}
+                            onClick={() => navigate(`/delivery-tracking/${order.id}`)}
                             size="sm"
-                            variant="outline"
-                            className="border-orange-500 text-orange-600 hover:bg-orange-50"
+                            className="bg-[#FF5722] hover:bg-[#E64A19] text-white"
                           >
-                            <Star className="w-4 h-4 mr-1" />
-                            Review
+                            <Truck className="w-4 h-4 mr-1" />
+                            Track Order
                           </Button>
-                        )}
-                        <Button
-                          onClick={() => navigate(`/order/${order.id}`)}
-                          variant="outline"
-                          size="sm"
-                          className="border-gray-300 text-gray-700 hover:bg-gray-50"
-                        >
-                          <Eye className="w-4 h-4 mr-1" />
-                          Details
-                        </Button>
+                        ) : order.status === 'delivered' ? (
+                          /* Delivered - See Details and Review */
+                          <>
+                            <Button
+                              onClick={() => navigate(`/order/${order.id}`)}
+                              size="sm"
+                              variant="outline"
+                              className="border-[#FF5722] text-[#FF5722] hover:bg-orange-50"
+                            >
+                              <Eye className="w-4 h-4 mr-1" />
+                              See Details
+                            </Button>
+                            <Button
+                              onClick={() => navigate(`/reviews?order=${order.id}`)}
+                              size="sm"
+                              variant="outline"
+                              className="border-[#FF5722] text-[#FF5722] hover:bg-orange-50"
+                            >
+                              <Star className="w-4 h-4 mr-1" />
+                              Write Review
+                            </Button>
+                          </>
+                        ) : order.status === 'cancelled' ? (
+                          /* Canceled - View Details */
+                          <Button
+                            onClick={() => navigate(`/order/${order.id}`)}
+                            variant="outline"
+                            size="sm"
+                            className="border-gray-300 text-gray-500 hover:bg-gray-50"
+                          >
+                            <Eye className="w-4 h-4 mr-1" />
+                            View Details
+                          </Button>
+                        ) : null}
                       </div>
                     </div>
                   </div>

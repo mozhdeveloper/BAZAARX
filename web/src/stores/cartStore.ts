@@ -30,6 +30,7 @@ export interface Order {
   items: CartItem[];
   total: number;
   status: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
+  isPaid: boolean; // Payment status
   createdAt: Date;
   date: string; // Formatted date string
   shippingAddress: {
@@ -84,6 +85,7 @@ const sampleOrders: Order[] = [
     ],
     total: 2499,
     status: 'shipped',
+    isPaid: true, // Card payment - Already paid
     createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // 2 days ago
     date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { 
       year: 'numeric', 
@@ -123,6 +125,7 @@ const sampleOrders: Order[] = [
     ],
     total: 3299,
     status: 'delivered',
+    isPaid: true, // Card - Already paid
     createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000), // 5 days ago
     date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { 
       year: 'numeric', 
@@ -142,6 +145,88 @@ const sampleOrders: Order[] = [
     paymentMethod: {
       type: 'card',
       details: '****1234'
+    }
+  },
+  {
+    id: 'order_1734348000000_sample3',
+    items: [
+      {
+        id: '10',
+        name: 'Smart Watch Pro - Fitness Tracker',
+        price: 1899,
+        image: 'https://images.unsplash.com/photo-1579586337278-3befd40fd17a?w=300&h=300&fit=crop',
+        seller: 'TechGadgets PH',
+        rating: 4.6,
+        category: 'Electronics',
+        quantity: 1,
+        isFreeShipping: true,
+        isVerified: true,
+        location: 'BGC, Metro Manila'
+      }
+    ],
+    total: 1899,
+    status: 'pending',
+    isPaid: false, // COD - Not yet paid
+    createdAt: new Date(Date.now() - 0.5 * 24 * 60 * 60 * 1000),
+    date: new Date(Date.now() - 0.5 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric' 
+    }),
+    estimatedDelivery: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000),
+    trackingNumber: 'BPH2024120003',
+    shippingAddress: {
+      fullName: 'Juan Dela Cruz',
+      street: '123 Katipunan Avenue',
+      city: 'Quezon City',
+      province: 'Metro Manila',
+      postalCode: '1108',
+      phone: '+63912345678'
+    },
+    paymentMethod: {
+      type: 'cod',
+      details: 'Cash on Delivery'
+    }
+  },
+  {
+    id: 'order_1734264000000_sample4',
+    items: [
+      {
+        id: '12',
+        name: 'Wireless Gaming Mouse RGB',
+        price: 1599,
+        image: 'https://images.unsplash.com/photo-1527814050087-3793815479db?w=300&h=300&fit=crop',
+        seller: 'Gaming Pro Store',
+        rating: 4.7,
+        category: 'Electronics',
+        quantity: 1,
+        isFreeShipping: true,
+        isVerified: true,
+        location: 'Ortigas, Metro Manila'
+      }
+    ],
+    total: 1599,
+    status: 'confirmed',
+    isPaid: true, // PayMaya - Already paid
+    createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+    date: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric' 
+    }),
+    estimatedDelivery: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000),
+    trackingNumber: 'BPH2024120004',
+    shippingAddress: {
+      fullName: 'Juan Dela Cruz',
+      street: '123 Katipunan Avenue',
+      city: 'Quezon City',
+      province: 'Metro Manila',
+      postalCode: '1108',
+      phone: '+63912345678'
+    },
+    paymentMethod: {
+      type: 'paymaya',
+      details: '****9876'
     }
   }
 ];
@@ -235,6 +320,7 @@ export const useCartStore = create<CartStore>()(
           estimatedDelivery,
           trackingNumber,
           status: 'pending',
+          isPaid: orderData.paymentMethod?.type !== 'cod', // COD is unpaid, others are paid
           shippingAddress: orderData.shippingAddress,
           paymentMethod: orderData.paymentMethod,
         };

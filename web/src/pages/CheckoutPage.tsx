@@ -1,7 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, MapPin, CreditCard, Smartphone, Banknote, Shield, Check } from 'lucide-react';
+import { ArrowLeft, MapPin, CreditCard, Smartphone, Banknote, Shield, Check, Tag, X } from 'lucide-react';
+
+// Dummy voucher codes
+const VOUCHERS = {
+  'WELCOME10': { type: 'percentage', value: 10, description: '10% off your order' },
+  'SAVE50': { type: 'fixed', value: 50, description: '₱50 off' },
+  'FREESHIP': { type: 'shipping', value: 0, description: 'Free shipping' },
+  'NEWYEAR25': { type: 'percentage', value: 25, description: '25% off New Year Special' },
+  'FLASH100': { type: 'fixed', value: 100, description: '₱100 flash discount' },
+} as const;
 import { useCartStore } from '../stores/cartStore';
 import { useBuyerStore } from '../stores/buyerStore';
 import { Button } from '../components/ui/button';
@@ -73,10 +82,40 @@ export default function CheckoutPage() {
 
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Partial<CheckoutFormData>>({});
+  const [voucherCode, setVoucherCode] = useState('');
+  const [appliedVoucher, setAppliedVoucher] = useState<keyof typeof VOUCHERS | null>(null);
 
   const totalPrice = getCartTotal();
-  const shippingFee = cartItems.length > 0 && !cartItems.every(item => item.isFreeShipping) ? 50 : 0;
-  const finalTotal = totalPrice + shippingFee;
+  let shippingFee = cartItems.length > 0 && !cartItems.every(item => item.isFreeShipping) ? 50 : 0;
+  let discount = 0;
+
+  // Apply voucher discount
+  if (appliedVoucher && VOUCHERS[appliedVoucher]) {
+    const voucher = VOUCHERS[appliedVoucher];
+    if (voucher.type === 'percentage') {
+      discount = Math.round(totalPrice * (voucher.value / 100));
+    } else if (voucher.type === 'fixed') {
+      discount = voucher.value;
+    } else if (voucher.type === 'shipping') {
+      shippingFee = 0;
+    }
+  }
+
+  const finalTotal = totalPrice + shippingFee - discount;
+
+  const handleApplyVoucher = () => {
+    const code = voucherCode.trim().toUpperCase();
+    if (VOUCHERS[code as keyof typeof VOUCHERS]) {
+      setAppliedVoucher(code as keyof typeof VOUCHERS);
+    } else {
+      alert('Invalid voucher code. Please try again.');
+    }
+  };
+
+  const handleRemoveVoucher = () => {
+    setAppliedVoucher(null);
+    setVoucherCode('');
+  };
 
   const validateForm = () => {
     const newErrors: any = {};
@@ -515,8 +554,57 @@ export default function CheckoutPage() {
                   ))}
                 </div>
 
-                <div className="space-y-2 mb-4">
-                  <div className="flex justify-between text-gray-600">
+                {/* Voucher Code Section */}
+                <div className="mb-6 pb-6 border-b border-gray-200">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Tag className="w-4 h-4 text-[var(--brand-primary)]" />
+                    <h4 className="text-sm font-semibold text-gray-900">Have a Voucher?</h4>
+                  </div>
+                  
+                  {appliedVoucher ? (
+                    <div className="flex items-center justify-between bg-orange-50 border-2 border-[var(--brand-primary)] rounded-lg p-3">
+                      <div className="flex items-center gap-2">
+                        <Tag className="w-4 h-4 text-[var(--brand-primary)]" />
+                        <div>
+                          <p className="text-sm font-bold text-[var(--brand-primary)]">{appliedVoucher}</p>
+                          <p className="text-xs text-gray-600">{VOUCHERS[appliedVoucher].description}</p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleRemoveVoucher}
+                        className="p-1 rounded-full hover:bg-gray-200 transition-colors"
+                      >
+                        <X className="w-4 h-4 text-gray-600" />
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={voucherCode}
+                          onChange={(e) => setVoucherCode(e.target.value.toUpperCase())}
+                          placeholder="Enter voucher code"
+                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)] focus:border-transparent text-sm"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleApplyVoucher}
+                          disabled={!voucherCode.trim()}
+                          className="px-4 py-2 bg-[var(--brand-primary)] text-white rounded-lg hover:bg-[var(--brand-secondary)] disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition-colors"
+                        >
+                          Apply
+                        </button>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-2 italic">
+                        Try: WELCOME10, SAVE50, FREESHIP
+                      </p>
+                    </>
+                  )}
+                </div>
+
+                <div className="space-y-2 mb-4">\n                  <div className="flex justify-between text-gray-600">
                     <span>Subtotal</span>
                     <span>₱{totalPrice.toLocaleString()}</span>
                   </div>
@@ -530,6 +618,12 @@ export default function CheckoutPage() {
                       )}
                     </span>
                   </div>
+                  {discount > 0 && (
+                    <div className="flex justify-between text-[var(--brand-primary)] font-medium">
+                      <span>Voucher Discount</span>
+                      <span>-₱{discount.toLocaleString()}</span>
+                    </div>
+                  )}
                   <hr className="border-gray-300" />
                   <div className="flex justify-between text-lg font-bold text-gray-900">
                     <span>Total</span>
