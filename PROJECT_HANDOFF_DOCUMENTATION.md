@@ -241,12 +241,20 @@ mobile-app/
 │   ├── DeliveryTrackingScreen.tsx
 │   ├── ProductDetailScreen.tsx   # Product view
 │   ├── ProfileScreen.tsx         # User profile
-│   └── ShopScreen.tsx            # Seller storefront
+│   └── seller/                   # Seller Module (NEW)
+│       ├── SellerTabs.tsx        # Bottom tab navigator (5 tabs)
+│       ├── login.tsx             # Seller authentication
+│       └── (tabs)/               # Seller dashboard screens
+│           ├── dashboard.tsx     # Overview with stats & charts
+│           ├── products.tsx      # Inventory management
+│           ├── orders.tsx        # Order fulfillment
+│           ├── analytics.tsx     # Sales performance
+│           └── settings.tsx      # Store settings & account switching
 ├── src/
 │   ├── components/       # Mobile UI components
 │   │   ├── AIChatModal.tsx          # AI Assistant with comparison widgets
 │   │   ├── CameraSearchModal.tsx    # Visual search
-│   │   ├── LocationModal.tsx        # Address selection (NEW)
+│   │   ├── LocationModal.tsx        # Address selection
 │   │   ├── ProductRequestModal.tsx
 │   │   ├── ProductCard.tsx
 │   │   ├── CartItemRow.tsx          # Modernized cart item
@@ -258,6 +266,7 @@ mobile-app/
 │   ├── stores/           # Mobile state management
 │   │   ├── cartStore.ts  # Shopping cart (Zustand)
 │   │   ├── orderStore.ts # Order management
+│   │   ├── sellerStore.ts# Seller dashboard state (NEW)
 │   │   └── ...
 │   └── types/            # TypeScript definitions
 │       └── index.ts
@@ -306,6 +315,15 @@ The mobile app uses a nested navigator approach:
     -   `Checkout`
     -   `OrderDetail`
     -   `DeliveryTracking`
+    -   `SellerLogin` (Seller authentication)
+    -   `SellerTabs` (Seller dashboard with 5 tabs)
+
+3.  **SellerTabs (Bottom Tab Navigator - NEW):**
+    -   `Dashboard` (Stats overview with revenue charts)
+    -   `Products` (Inventory management)
+    -   `Orders` (Order fulfillment workflow)
+    -   `Analytics` (Sales performance & insights)
+    -   `Settings` (Store configuration & account switching)
 
 ---
 
@@ -394,13 +412,82 @@ The mobile app underwent a comprehensive UI/UX overhaul inspired by Apple, Nike,
 #### Completed Features:
 
 **1. Universal Header Pattern (Edge-to-Edge Orange)**
-- Implemented across Product Details, Cart, Checkout, and AI Chat screens
+- Implemented across Product Details, Cart, Checkout, AI Chat, and ALL Seller screens
 - Uses `useSafeAreaInsets` to extend behind status bar
 - Consistent layout: Back arrow (left) → Title (center) → Action (right)
+- Seller screens: Menu (left) → Title + Subtitle (center) → Bell with badge (right)
 - White text and icons on solid orange background
 - No borders, uses shadow for depth
 
-**2. Home Screen Enhancements**
+**2. Seller Module (Complete Mobile Dashboard - NEW)**
+- **Architecture:**
+  - React Navigation Bottom Tabs (replacing expo-router for seller module)
+  - 5 tabs: Dashboard, Products, Orders, Analytics, Settings
+  - Integrated into RootStack navigation
+  - Demo credentials: seller@bazaarx.ph / seller123
+  
+- **Dashboard Screen:**
+  - Immersive header: Menu + "Seller Hub" + Store name subtitle + Bell
+  - Stats cards (horizontal scroll): Total Sales, Products, Orders, Customers
+  - 7-day revenue LineChart with gradient
+  - Recent orders list with status badges
+  - All using #FF5722 orange branding
+  
+- **Products Screen:**
+  - Header with "Add Product" button (orange pill)
+  - Search bar for inventory filtering
+  - Product cards with images, stock count, price
+  - Active/Inactive toggle switches (orange)
+  - Edit/Delete action buttons
+  
+- **Orders Screen:**
+  - Segmented control filter: All / Pending / To Ship / Completed
+  - Order cards with customer info and items
+  - Dynamic action buttons based on status:
+    - Pending → "Accept Order" (orange)
+    - To Ship → "Mark as Shipped" (blue)
+    - Completed → "View Details" (grey)
+  - Status badges with color coding
+  
+- **Analytics Screen:**
+  - Time range pills: 7D / 30D / 90D (orange active state)
+  - Revenue LineChart with 7-day data
+  - Category breakdown PieChart
+  - Top 5 products table with sales metrics
+  
+- **Settings Screen (Premium Redesign):**
+  - **Store Identity Card:**
+    - Floating white card with soft shadow
+    - Large circular avatar (64px) with camera badge
+    - Store name + email display
+    - "Preview" button with eye icon
+  - **Horizontal Pill Tabs:**
+    - Active: Solid orange with white text
+    - Inactive: White with grey border
+    - Tabs: Profile, Store Info, Notifications, Security, Payments
+  - **Modern Form Inputs:**
+    - Bold dark grey labels
+    - Light grey backgrounds (#F9FAFB)
+    - Deep rounded corners (borderRadius: 12)
+    - No borders - clean minimal look
+  - **Orange Toggle Switches:** For notification preferences
+  - **"Switch to Buyer Mode" Button:**
+    - Airbnb-style account switching
+    - Premium white card with orange icon circle
+    - Title: "Switch to Buyer Mode"
+    - Subtitle: "Continue shopping as a customer"
+    - Positioned above logout button
+  - **Logout Button:** Red on light red background
+  
+- **Technical Implementation:**
+  - All TypeScript errors resolved
+  - Consistent header design across all 5 tabs
+  - Safe area handling with `useSafeAreaInsets`
+  - Zustand store integration (sellerStore.ts)
+  - Mock data: 6 products, 5 orders, revenue charts, category sales
+  - No expo-router conflicts (pure React Navigation)
+
+**3. Home Screen Enhancements**
 - **Tall Orange Header (3 Rows):**
   - Row 1: Greeting + Username, AI Assistant icon, Notifications bell
   - Row 2: Search bar (white pill) with camera icon inside, back arrow when focused
@@ -413,12 +500,12 @@ The mobile app underwent a comprehensive UI/UX overhaul inspired by Apple, Nike,
 - **Real-time Filtering:** Instant product search as user types
 - Header transitions: Hides greeting/location when search is focused
 
-**3. Shop Screen Fixes**
+**4. Shop Screen Fixes**
 - Fixed category visibility (removed clipping)
 - Updated filter logic to match product data categories
 - Categories: electronics, fashion, home-garden, food-beverages, books, beauty-personal-care, music-instruments
 
-**4. Product Details Redesign**
+**5. Product Details Redesign**
 - Orange header with embedded search bar (white pill)
 - Floating Share/Heart icons (white circles, orange icons)
 - Overlapping white card (borderTopRadius: 30, marginTop: -60)
@@ -427,7 +514,7 @@ The mobile app underwent a comprehensive UI/UX overhaul inspired by Apple, Nike,
 - Bottom actions: "Add to Cart" (outline) + "Buy Now" (solid orange)
 - All green colors removed
 
-**5. Cart & Checkout Modernization**
+**6. Cart & Checkout Modernization**
 - Edge-to-edge orange header
 - Free shipping banners: Soft orange (#FFF5F0) instead of green
 - Checkout button: Solid orange pill instead of green gradient
@@ -435,7 +522,7 @@ The mobile app underwent a comprehensive UI/UX overhaul inspired by Apple, Nike,
 - CartItemRow: White cards, borderRadius: 20, no borders, soft shadows
 - QuantityStepper: Orange borders, orange icons, pill-shaped
 
-**6. AI Chat / Assistant Redesign**
+**7. AI Chat / Assistant Redesign**
 - Universal orange header with "Clear Chat" text button
 - Light grey background (#F5F5F7) for conversation area
 - **User Messages:** Orange gradient bubbles, sharp bottom-right corner
@@ -450,7 +537,7 @@ The mobile app underwent a comprehensive UI/UX overhaul inspired by Apple, Nike,
 - Circular orange send button (48px) with paper plane icon
 - Suggested questions as white pills on first load
 
-**7. Location Selection Modal (NEW)**
+**8. Location Selection Modal**
 - Full-screen modal with white background
 - Header: "Select Delivery Location" with circular close button (#F5F5F7)
 - **Map Simulation:**
@@ -471,7 +558,7 @@ The mobile app underwent a comprehensive UI/UX overhaul inspired by Apple, Nike,
 - Fixed orange confirmation button at bottom
 - Integrated: Taps location bar in Home header to open
 
-**8. Component Library Updates**
+**9. Component Library Updates**
 - **ProductCard:** Consistent orange accents, no green
 - **CartItemRow:** Modernized with white background, no borders
 - **QuantityStepper:** Orange-branded, matches Product Details
@@ -521,6 +608,17 @@ The mobile app underwent a comprehensive UI/UX overhaul inspired by Apple, Nike,
 - [x] Component library (ProductCard, CartItemRow, QuantityStepper)
 - [x] Orange/White branding enforcement
 - [x] Edge-to-edge layouts with safe area handling
+- [x] **Seller Module (Complete Mobile Dashboard)**
+  - [x] React Navigation bottom tabs (5 tabs)
+  - [x] Dashboard with stats, charts, and recent orders
+  - [x] Products inventory management screen
+  - [x] Orders fulfillment workflow with status filters
+  - [x] Analytics with revenue charts and category breakdown
+  - [x] Settings with premium UI (store identity card, pill tabs, modern forms)
+  - [x] "Switch to Buyer Mode" feature (Airbnb-style)
+  - [x] Seller login with demo credentials
+  - [x] Immersive headers across all seller screens
+  - [x] Integration with sellerStore.ts (Zustand)
 
 ### ✅ Completed (Web)
 - [x] Seller onboarding workflow
@@ -531,8 +629,8 @@ The mobile app underwent a comprehensive UI/UX overhaul inspired by Apple, Nike,
 - [x] shadcn/ui component library integration
 
 ### 🔄 In Progress
-- [ ] Mobile: Seller dashboard screens
-- [ ] Mobile: Profile and settings
+- [ ] Mobile: Order management features (buyer side)
+- [ ] Mobile: Profile and user settings
 - [ ] Web: Mobile-style visual updates
 - [ ] API integration layer
 
@@ -547,3 +645,397 @@ The mobile app underwent a comprehensive UI/UX overhaul inspired by Apple, Nike,
 ---
 
 This document serves as the master reference for the BazaarX architecture and recent modernization efforts as of December 19, 2025.
+
+---
+
+## 11. Seller Module (Mobile) - Complete Implementation Guide
+
+### Overview
+The mobile seller module provides a complete dashboard for vendors to manage their business on-the-go. It mirrors the web seller portal functionality but with a mobile-first design optimized for touch interactions.
+
+### Navigation Architecture
+```
+App.tsx (RootStack)
+  └── SellerLogin (Authentication)
+       └── SellerTabs (Bottom Tab Navigator)
+            ├── Dashboard
+            ├── Products  
+            ├── Orders
+            ├── Analytics
+            └── Settings
+```
+
+### Authentication
+**File:** `mobile-app/app/seller/login.tsx`
+
+**Demo Credentials:**
+- Email: `seller@bazaarx.ph`
+- Password: `seller123`
+
+**Flow:**
+1. User enters credentials
+2. Success screen shows "Enter Seller Dashboard" button
+3. Navigation replaces current screen with SellerTabs
+
+**Key Implementation:**
+- Uses React Navigation (`NativeStackScreenProps`)
+- Success state triggers `navigation.replace('SellerTabs')`
+- Premium UI with demo credentials displayed for easy testing
+
+### Tab Structure
+**File:** `mobile-app/app/seller/SellerTabs.tsx`
+
+**Configuration:**
+```typescript
+const Tab = createBottomTabNavigator<SellerTabParamList>();
+
+Tabs:
+- Dashboard: LayoutDashboard icon
+- Products: Package icon  
+- Orders: ShoppingCart icon
+- Analytics: TrendingUp icon
+- Settings: Settings icon
+```
+
+**Styling:**
+- Active tint: #FF5722 (Bright Orange)
+- Inactive tint: #9CA3AF (Grey)
+- Tab bar height: 70px
+- Background: White with top border (#F3F4F6)
+- Shadow: offset (0, -2), opacity 0.05, radius 8, elevation 8
+
+### Screen Implementations
+
+#### 1. Dashboard (`dashboard.tsx`)
+**Purpose:** Overview of store performance and recent activity
+
+**Header:**
+- Title: "Seller Hub"
+- Subtitle: Store name (from sellerStore)
+- Menu button (left), Bell with badge (right)
+
+**Content:**
+- **Stats Cards (Horizontal Scroll):**
+  - Total Sales (₱ amount, percentage change)
+  - Products (count, active status)
+  - Orders (count, pending highlight)
+  - Customers (count, monthly trend)
+  - Design: White cards, orange accent colors, rounded corners (16px)
+
+- **Revenue Chart:**
+  - 7-day LineChart using react-native-gifted-charts
+  - Orange line (#FF5722) with gradient fill
+  - Displays daily revenue data
+  - Interactive data points
+
+- **Recent Orders:**
+  - List of latest 3-5 orders
+  - Shows: Order ID, customer name, amount, status
+  - Status badges: Pending (orange), Shipped (blue), Delivered (green)
+
+**Data Source:** `src/stores/sellerStore.ts`
+
+#### 2. Products (`products.tsx`)
+**Purpose:** Inventory management and product catalog
+
+**Header:**
+- Title: "Products"
+- Subtitle: "Inventory Management"
+- "Add Product" button (orange pill with Plus icon)
+
+**Content:**
+- **Search Bar:**
+  - White background, rounded corners (12px)
+  - Search icon (left)
+  - Placeholder: "Search products..."
+
+- **Product Cards:**
+  - Product image (100x100)
+  - Name, category, price
+  - Stock count with color coding (red if low)
+  - Active/Inactive toggle switch (orange when active)
+  - Edit (pencil) and Delete (trash) buttons
+
+**Interactions:**
+- Toggle product active status
+- Edit product details (placeholder)
+- Delete product with confirmation
+- Add new product (placeholder)
+
+**Data Source:** `sellerStore.products` array
+
+#### 3. Orders (`orders.tsx`)
+**Purpose:** Order fulfillment workflow
+
+**Header:**
+- Title: "Orders"  
+- Subtitle: "Order Management"
+
+**Content:**
+- **Segmented Control:**
+  - All | Pending | To Ship | Completed
+  - Active segment: Orange background, white text
+  - Inactive: Grey text on white
+
+- **Order Cards:**
+  - Order ID and date
+  - Customer name and address
+  - Items list with images and quantities
+  - Total amount
+  - Status badge
+  - Dynamic action button based on status:
+    - Pending → "Accept Order" (orange)
+    - To Ship → "Mark as Shipped" (blue)
+    - Completed → "View Details" (grey outline)
+
+**Workflow:**
+1. Orders start as "Pending"
+2. Seller accepts → Status: "To Ship"
+3. Seller marks shipped → Status: "Completed"
+
+**Data Source:** `sellerStore.orders` filtered by selected segment
+
+#### 4. Analytics (`analytics.tsx`)
+**Purpose:** Sales insights and performance metrics
+
+**Header:**
+- Title: "Analytics"
+- Subtitle: "Store Performance"
+
+**Content:**
+- **Time Range Selector:**
+  - Pills: 7D | 30D | 90D
+  - Active: Orange solid, white text
+  - Inactive: White with grey border
+
+- **Revenue Chart:**
+  - LineChart showing daily/weekly/monthly trends
+  - Orange line with gradient area fill
+  - Animated data points
+  - X-axis: Dates, Y-axis: Revenue (₱)
+
+- **Category Sales (PieChart):**
+  - Breakdown by product category
+  - Color-coded segments
+  - Labels with percentages
+  - Total revenue in center
+
+- **Top Products Table:**
+  - Rank | Product | Sales | Revenue
+  - Top 5 best-selling items
+  - Sortable columns (future enhancement)
+
+**Data Source:** `sellerStore.revenue` and `sellerStore.categorySales`
+
+#### 5. Settings (`settings.tsx`)
+**Purpose:** Store configuration and account management
+
+**Header:**
+- Title: "Store Settings"
+- Subtitle: "Manage your store"
+
+**Content:**
+
+**A. Store Identity Card:**
+- Premium white card with soft shadow
+- **Left:** Circular avatar (64px) with camera badge (orange circle)
+  - Shows store logo emoji
+  - Tappable to upload image (future)
+- **Center:** Store name (bold) and email
+- **Right:** "Preview" button with eye icon
+  - Opens public storefront (future)
+
+**B. Horizontal Pill Tabs:**
+- Profile | Store Info | Notifications | Security | Payments
+- Active tab: Solid orange (#FF5722), white text
+- Inactive: White background, grey border, grey text
+- Smooth horizontal scroll
+
+**C. Form Content (Tab-Specific):**
+
+**Profile Tab:**
+- Store Name (TextInput)
+- Email Address (TextInput)
+- Phone Number (TextInput)
+- All inputs: Light grey background (#F9FAFB), no borders, borderRadius: 12
+
+**Store Info Tab:**
+- Store Description (TextArea, multiline)
+- Business Address (TextInput)
+- City (TextInput)
+
+**Notifications Tab:**
+- Toggle switches for:
+  - New Orders
+  - Order Updates
+  - Promotions
+  - Customer Reviews
+  - Messages
+  - Low Stock Alerts
+- Each toggle: Label + description + orange switch
+
+**Security Tab:**
+- Current Password (secure TextInput)
+- New Password (secure TextInput)
+- Confirm Password (secure TextInput)
+- "Enable 2FA" button (orange border, white background)
+
+**Payments Tab:**
+- Bank Name (TextInput)
+- Account Number (TextInput)
+- Account Name (TextInput)
+- GCash Number (TextInput)
+
+**D. Switch to Buyer Mode Button:**
+- Airbnb-style account switching
+- White card with soft shadow
+- Orange icon circle (48px) with User icon
+- Title: "Switch to Buyer Mode"
+- Subtitle: "Continue shopping as a customer"
+- Tappable (currently dummy, ready for future implementation)
+
+**E. Logout Button:**
+- Red text on light red background (#FEE2E2)
+- LogOut icon + "Logout from Store" text
+- Shows confirmation alert before logout
+- Navigates to SellerLogin screen
+
+**Key Feature:** Auto-save functionality removed in favor of manual save or real-time updates (future API integration)
+
+### State Management
+**File:** `src/stores/sellerStore.ts`
+
+**Store Structure:**
+```typescript
+{
+  seller: {
+    storeName: string
+    storeDescription: string
+    storeLogo: string (emoji)
+    email: string
+    totalSales: number
+    totalProducts: number
+    totalOrders: number
+    totalCustomers: number
+  },
+  products: Product[],
+  orders: Order[],
+  revenue: DailyRevenue[],
+  categorySales: CategorySale[]
+}
+```
+
+**Actions:**
+- `toggleProductStatus(id)`: Activate/deactivate product
+- `updateOrderStatus(id, status)`: Change order workflow state
+- Future: `addProduct()`, `updateProduct()`, `deleteProduct()`
+
+### Design Specifications
+
+**Header Pattern (All Screens):**
+```typescript
+style={[styles.header, { paddingTop: insets.top + 12 }]}
+```
+- Background: #FF5722
+- Padding horizontal: 16px
+- Padding bottom: 16px
+- Shadow: elevation 4, opacity 0.1
+
+**Header Layout:**
+- Left: Menu icon (24px, white)
+- Center: Title (20px, weight 800) + Subtitle (13px, weight 500)
+- Right: Bell icon (22px) with red badge (8px circle)
+
+**Card Styling:**
+- Background: #FFFFFF
+- Border radius: 16-20px
+- Shadow: offset (0, 2-4), opacity 0.05-0.08, radius 8-12
+- Padding: 16-20px
+- No borders (shadows provide depth)
+
+**Input Styling:**
+- Background: #F9FAFB (light grey)
+- Border radius: 12px
+- Padding: 14-16px
+- Font size: 15px
+- Color: #1F2937 (dark grey)
+- No borders
+
+**Button Styling:**
+- Primary: #FF5722 background, white text, borderRadius: 12
+- Secondary: #FF5722 border, white background, orange text
+- Destructive: #EF4444 text, #FEE2E2 background
+
+**Toggle Switches:**
+- Track color (false): #E5E7EB (grey)
+- Track color (true): #FF5722 (orange)
+- Thumb color: #FFFFFF (white)
+- iOS background color: #E5E7EB
+
+### Integration Points
+
+**With Buyer Module:**
+- "Switch to Buyer Mode" button in Settings
+- Future: Unified account with role switching
+- Shares authentication state (when implemented)
+
+**With Web Seller Portal:**
+- Same data models and business logic
+- Consistent order statuses and workflows
+- Mock data matches web implementation
+
+**Future API Integration:**
+- All Zustand actions ready for async operations
+- Add `loading` and `error` states to store
+- Implement optimistic updates for better UX
+- WebSocket for real-time order notifications
+
+### Testing Guide
+
+**Manual Testing Flow:**
+1. Launch app → Tap "Access Seller Portal" on buyer login
+2. Enter credentials: seller@bazaarx.ph / seller123
+3. Tap "Enter Seller Dashboard"
+4. **Dashboard:** Verify stats display, chart renders, recent orders show
+5. **Products:** Toggle product status, search products
+6. **Orders:** Switch segments, interact with action buttons
+7. **Analytics:** Change time range, verify charts update
+8. **Settings:** 
+   - Navigate through all pill tabs
+   - Toggle notification switches
+   - Tap "Switch to Buyer Mode" (dummy)
+   - Tap "Logout" → Confirm alert → Return to login
+
+**Expected Behavior:**
+- All screens load without errors
+- Bottom tabs switch smoothly
+- Headers are immersive (extend behind status bar)
+- Orange branding is consistent
+- No green or blue colors present
+- TypeScript compiles without errors
+
+### Known Limitations & Future Enhancements
+
+**Current Limitations:**
+- No image upload functionality
+- Switch to Buyer Mode is placeholder (no navigation)
+- Forms don't persist changes to store
+- No API integration
+- Mock data only
+
+**Planned Enhancements:**
+- [ ] Image picker for store logo and product photos
+- [ ] Real-time order notifications via WebSocket
+- [ ] Barcode scanner for product management
+- [ ] Bulk product import/export
+- [ ] Advanced analytics (conversion rates, profit margins)
+- [ ] Customer messaging integration
+- [ ] Multi-language support
+- [ ] Dark mode
+- [ ] Offline mode with sync
+- [ ] Role-based permissions (multi-user stores)
+
+---
+
+**Last Updated:** December 20, 2025
+**Mobile Seller Module Version:** 1.0.0 (Complete)
