@@ -1,16 +1,28 @@
 import { useState, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Search, Filter, Grid, List, ChevronDown, Star, MapPin, Truck, Shield, Camera, Flame, Clock } from 'lucide-react';
+import { Search, Filter, Grid, List, Star, MapPin, Truck, Camera, Flame, Clock, BadgeCheck, ShoppingCart, RotateCcw } from 'lucide-react';
 import Header from '../components/Header';
 import { BazaarFooter } from '../components/ui/bazaar-footer';
 import { Button } from '../components/ui/button';
+import { Badge } from '../components/ui/badge';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../components/ui/accordion';
+import { Slider } from '../components/ui/slider';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../components/ui/select';
 import { CartModal } from '../components/ui/cart-modal';
 import ProductRequestModal from '../components/ProductRequestModal';
 import VisualSearchModal from '../components/VisualSearchModal';
 import { trendingProducts, bestSellerProducts, newArrivals } from '../data/products';
 import { categories } from '../data/categories';
 import { useBuyerStore } from '../stores/buyerStore';
+import { useProductStore, useAuthStore } from '../stores/sellerStore';
+import { useProductQAStore } from '../stores/productQAStore';
 
 interface FlashSaleProduct {
   id: string;
@@ -82,23 +94,16 @@ const sortOptions = [
   { value: 'bestseller', label: 'Best Sellers' }
 ];
 
-const priceRanges = [
-  { value: 'all', label: 'All Prices', min: 0, max: Infinity },
-  { value: '0-500', label: '₱0 - ₱500', min: 0, max: 500 },
-  { value: '500-1000', label: '₱500 - ₱1,000', min: 500, max: 1000 },
-  { value: '1000-2500', label: '₱1,000 - ₱2,500', min: 1000, max: 2500 },
-  { value: '2500-5000', label: '₱2,500 - ₱5,000', min: 2500, max: 5000 },
-  { value: '5000+', label: '₱5,000+', min: 5000, max: Infinity }
-];
-
 export default function ShopPage() {
   const navigate = useNavigate();
   const { addToCart, cartItems } = useBuyerStore();
+  const { products: sellerProducts } = useProductStore();
+  const { products: qaProducts } = useProductQAStore();
   
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All Categories');
   const [selectedSort, setSelectedSort] = useState('relevance');
-  const [selectedPriceRange, setSelectedPriceRange] = useState('all');
+  const [priceRange, setPriceRange] = useState<number[]>([0, 10000]);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [showFilters, setShowFilters] = useState(false);
   const [showCartModal, setShowCartModal] = useState(false);
@@ -131,20 +136,69 @@ export default function ShopPage() {
     return () => clearInterval(timer);
   }, []);
 
-  // Generate more products by repeating the trending products with variations
+  // Combine seller products (verified) with QA verified products and mock products
   const allProducts = useMemo(() => {
-    const products = [];
-    for (let i = 0; i < 5; i++) {
-      products.push(...trendingProducts.map((product) => ({
+    // Convert seller products to shop format (only approved ones)
+    const seller = useAuthStore.getState().seller;
+    const sellerName = seller?.businessName || seller?.storeName || 'Verified Seller';
+    
+    const verifiedSellerProducts = sellerProducts
+      .filter(p => p.approvalStatus === 'approved' && p.isActive)
+      .map(p => ({
+        id: p.id,
+        name: p.name,
+        price: p.price,
+        originalPrice: p.originalPrice,
+        image: p.images[0] || 'https://placehold.co/400?text=Product',
+        rating: p.rating || 0,
+        sold: p.sales || 0,
+        category: p.category,
+        seller: sellerName,
+        isVerified: true,
+        isFreeShipping: true,
+        location: 'Metro Manila',
+        description: p.description,
+        sellerRating: p.rating || 0,
+        sellerVerified: true
+      }));
+
+    // Convert QA verified products to shop format
+    const qaVerifiedProducts = qaProducts
+      .filter(p => p.status === 'ACTIVE_VERIFIED')
+      .map(p => ({
+        id: p.id,
+        name: p.name,
+        price: p.price,
+        originalPrice: undefined,
+        image: p.image || 'https://placehold.co/400?text=Product',
+        rating: 4.5, // Default rating for QA verified products
+        sold: 0, // New verified product
+        category: p.category,
+        seller: p.vendor,
+        isVerified: true,
+        isFreeShipping: true,
+        location: 'Metro Manila',
+        description: `Quality verified ${p.name}`,
+        sellerRating: 4.5,
+        sellerVerified: true
+      }));
+
+    // Generate mock products for variety
+    const mockProducts = [];
+    for (let i = 0; i < 3; i++) {
+      mockProducts.push(...trendingProducts.map((product) => ({
         ...product,
         id: `${product.id}-${i}`,
         name: `${product.name} ${i > 0 ? `(Variant ${i + 1})` : ''}`,
         price: Math.round(product.price * (0.8 + Math.random() * 0.4)),
-        sold: Math.round(product.sold * (0.5 + Math.random() * 1.5))
+        sold: Math.round(product.sold * (0.5 + Math.random() * 1.5)),
+        isVerified: false
       })));
     }
-    return products;
-  }, []);
+
+    // Combine: verified products first (both seller and QA), then mock products
+    return [...verifiedSellerProducts, ...qaVerifiedProducts, ...mockProducts];
+  }, [sellerProducts, qaProducts]);
 
   const filteredProducts = useMemo(() => {
     let filtered = allProducts.filter(product => {
@@ -154,9 +208,8 @@ export default function ShopPage() {
       
       const matchesCategory = selectedCategory === 'All Categories' || product.category === selectedCategory;
       
-      const priceRange = priceRanges.find(range => range.value === selectedPriceRange);
-      const matchesPrice = priceRange ? 
-        product.price >= priceRange.min && product.price <= priceRange.max : true;
+      // Use slider price range instead of predefined ranges
+      const matchesPrice = product.price >= priceRange[0] && product.price <= priceRange[1];
 
       return matchesSearch && matchesCategory && matchesPrice;
     });
@@ -181,7 +234,14 @@ export default function ShopPage() {
     }
 
     return filtered;
-  }, [allProducts, searchQuery, selectedCategory, selectedSort, selectedPriceRange]);
+  }, [allProducts, searchQuery, selectedCategory, selectedSort, priceRange]);
+
+  const resetFilters = () => {
+    setSearchQuery('');
+    setSelectedCategory('All Categories');
+    setSelectedSort('relevance');
+    setPriceRange([0, 10000]);
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -257,9 +317,9 @@ export default function ShopPage() {
                     { label: 'Secs', value: timeLeft.seconds }
                   ].map((item, index) => (
                     <div key={item.label} className="flex items-center">
-                      <div className="bg-white/20 backdrop-blur-sm rounded-xl p-3 min-w-[70px] text-center">
+                      <div className="bg-white/30 backdrop-blur-md rounded-xl p-3 min-w-[70px] text-center border border-white/20 shadow-lg">
                         <div className="text-2xl font-bold">{String(item.value).padStart(2, '0')}</div>
-                        <div className="text-xs text-white/80">{item.label}</div>
+                        <div className="text-xs text-white/90 font-medium">{item.label}</div>
                       </div>
                       {index < 2 && <div className="text-2xl font-bold mx-2">:</div>}
                     </div>
@@ -276,7 +336,7 @@ export default function ShopPage() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.1 }}
-                  className="bg-white rounded-xl p-3 text-gray-900 group cursor-pointer hover:shadow-lg transition-all"
+                  className="bg-white rounded-xl p-4 text-gray-900 group cursor-pointer hover:shadow-xl transition-all"
                   onClick={() => navigate(`/product/${product.id}`)}
                 >
                   <div className="relative aspect-square mb-3 overflow-hidden rounded-lg">
@@ -313,55 +373,77 @@ export default function ShopPage() {
           </div>
         </motion.div>
 
-        <div className="flex flex-col lg:flex-row gap-6">
+        <div className="flex flex-col lg:flex-row gap-8">
           {/* Filters Sidebar */}
           <motion.div
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
-            className={`lg:w-64 ${showFilters ? 'block' : 'hidden lg:block'}`}
+            className={`lg:w-64 lg:sticky lg:top-20 lg:self-start ${showFilters ? 'block' : 'hidden lg:block'}`}
           >
             <div className="bg-white rounded-2xl p-6 shadow-sm">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Filters</h3>
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-semibold text-gray-900">Filters</h3>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={resetFilters}
+                  className="text-gray-600 hover:text-[#FF5722] gap-1"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  Reset
+                </Button>
+              </div>
               
-              {/* Categories */}
-              <div className="mb-6">
-                <h4 className="text-sm font-medium text-gray-900 mb-3">Categories</h4>
-                <div className="space-y-2">
-                  {categoryOptions.map((category) => (
-                    <button
-                      key={category}
-                      onClick={() => setSelectedCategory(category)}
-                      className={`w-full text-left px-3 py-2 text-sm rounded-lg transition-colors ${
-                        selectedCategory === category
-                          ? 'bg-[var(--brand-primary)] text-white'
-                          : 'text-gray-600 hover:bg-gray-100'
-                      }`}
-                    >
-                      {category}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <Accordion type="multiple" defaultValue={["categories", "price"]} className="space-y-4">
+                {/* Categories */}
+                <AccordionItem value="categories" className="border-b-0">
+                  <AccordionTrigger className="text-sm font-medium text-gray-900 hover:no-underline py-2">
+                    Categories
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <div className="space-y-2 pt-2">
+                      {categoryOptions.map((category) => (
+                        <button
+                          key={category}
+                          onClick={() => setSelectedCategory(category)}
+                          className={`w-full text-left px-3 py-2 text-sm rounded-lg transition-all ${
+                            selectedCategory === category
+                              ? 'bg-[#FF5722] text-white shadow-sm'
+                              : 'text-gray-600 hover:bg-gray-50'
+                          }`}
+                        >
+                          {category}
+                        </button>
+                      ))}
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
 
-              {/* Price Range */}
-              <div className="mb-6">
-                <h4 className="text-sm font-medium text-gray-900 mb-3">Price Range</h4>
-                <div className="space-y-2">
-                  {priceRanges.map((range) => (
-                    <button
-                      key={range.value}
-                      onClick={() => setSelectedPriceRange(range.value)}
-                      className={`w-full text-left px-3 py-2 text-sm rounded-lg transition-colors ${
-                        selectedPriceRange === range.value
-                          ? 'bg-[var(--brand-primary)] text-white'
-                          : 'text-gray-600 hover:bg-gray-100'
-                      }`}
-                    >
-                      {range.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
+                {/* Price Range */}
+                <AccordionItem value="price" className="border-b-0">
+                  <AccordionTrigger className="text-sm font-medium text-gray-900 hover:no-underline py-2">
+                    Price Range
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <div className="space-y-4 pt-2">
+                      <div className="px-2">
+                        <Slider
+                          min={0}
+                          max={10000}
+                          step={100}
+                          value={priceRange}
+                          onValueChange={setPriceRange}
+                          className="w-full"
+                        />
+                        <div className="flex items-center justify-between mt-3 text-sm">
+                          <span className="text-gray-600">₱{priceRange[0].toLocaleString()}</span>
+                          <span className="text-gray-600">₱{priceRange[1].toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
             </div>
           </motion.div>
 
@@ -390,20 +472,18 @@ export default function ShopPage() {
 
                 <div className="flex items-center gap-4">
                   {/* Sort Dropdown */}
-                  <div className="relative">
-                    <select
-                      value={selectedSort}
-                      onChange={(e) => setSelectedSort(e.target.value)}
-                      className="appearance-none bg-white border border-gray-200 rounded-lg px-4 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)] focus:border-transparent"
-                    >
+                  <Select value={selectedSort} onValueChange={setSelectedSort}>
+                    <SelectTrigger className="w-[180px] border-gray-200">
+                      <SelectValue placeholder="Sort by" />
+                    </SelectTrigger>
+                    <SelectContent>
                       {sortOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
+                        <SelectItem key={option.value} value={option.value}>
                           {option.label}
-                        </option>
+                        </SelectItem>
                       ))}
-                    </select>
-                    <ChevronDown className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
-                  </div>
+                    </SelectContent>
+                  </Select>
 
                   {/* View Mode Toggle */}
                   <div className="flex items-center bg-gray-100 rounded-lg p-1">
@@ -445,7 +525,7 @@ export default function ShopPage() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.05 }}
-                  className={`bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-300 overflow-hidden group cursor-pointer ${
+                  className={`bg-white rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden group cursor-pointer ${
                     viewMode === 'list' ? 'flex' : ''
                   }`}
                   onClick={() => navigate(`/product/${product.id}`)}
@@ -458,24 +538,24 @@ export default function ShopPage() {
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                       />
                       {product.originalPrice && (
-                        <div className="absolute top-3 left-3 bg-red-500 text-white px-2 py-1 rounded-lg text-xs font-medium">
+                        <Badge className="absolute top-3 left-3 bg-red-500 hover:bg-red-500 text-white text-xs">
                           {Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)}% OFF
-                        </div>
+                        </Badge>
                       )}
                       {product.isFreeShipping && (
-                        <div className="absolute top-3 right-3 bg-green-500 text-white p-1 rounded-lg">
+                        <div className="absolute top-3 right-3 bg-green-500 text-white p-1.5 rounded-lg">
                           <Truck className="w-3 h-3" />
                         </div>
                       )}
                     </div>
                   </div>
 
-                  <div className="p-4 flex-1">
-                    <h3 className="font-semibold text-gray-900 group-hover:text-[var(--brand-primary)] transition-colors duration-200 line-clamp-2">
+                  <div className="p-4 flex-1 flex flex-col">
+                    <h3 className="font-semibold text-gray-900 group-hover:text-[#FF5722] transition-colors duration-200 line-clamp-2">
                       {product.name}
                     </h3>
                     
-                    <div className="mt-2 flex items-center gap-2">
+                    <div className="mt-2 flex items-center gap-2 flex-wrap">
                       <div className="flex items-center">
                         <Star className="w-4 h-4 text-yellow-400 fill-current" />
                         <span className="text-sm text-gray-600 ml-1">
@@ -483,13 +563,16 @@ export default function ShopPage() {
                         </span>
                       </div>
                       {product.isVerified && (
-                        <Shield className="w-4 h-4 text-blue-500" />
+                        <Badge variant="outline" className="text-xs gap-1 border-green-200 bg-green-50 text-green-700">
+                          <BadgeCheck className="w-3 h-3" />
+                          Verified
+                        </Badge>
                       )}
                     </div>
 
                     <div className="mt-2">
                       <div className="flex items-center gap-2">
-                        <span className="text-lg font-bold text-[var(--brand-primary)]">
+                        <span className="text-lg font-bold text-[#FF5722]">
                           ₱{product.price.toLocaleString()}
                         </span>
                         {product.originalPrice && (
@@ -509,47 +592,93 @@ export default function ShopPage() {
                       <p className="text-xs text-gray-500">{product.seller}</p>
                     </div>
 
-                    <Button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        // Transform simple Product to CartItem format
-                        addToCart({
-                          ...product,
-                          images: [product.image],
-                          seller: {
-                            id: `seller-${product.id}`,
-                            name: product.seller,
-                            avatar: '',
-                            rating: product.sellerRating || 4.5,
+                    {/* Always Visible Action Buttons */}
+                    <div className="mt-auto pt-4 space-y-2">
+                      <Button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          // Transform simple Product to CartItem format
+                          const cartItem = {
+                            ...product,
+                            images: [product.image],
+                            seller: {
+                              id: `seller-${product.id}`,
+                              name: product.seller,
+                              avatar: '',
+                              rating: product.sellerRating || 0,
+                              totalReviews: 100,
+                              followers: 1000,
+                              isVerified: product.sellerVerified || false,
+                              description: '',
+                              location: product.location,
+                              established: '2020',
+                              products: [],
+                              badges: [],
+                              responseTime: '1 hour',
+                              categories: [product.category]
+                            },
+                            sellerId: `seller-${product.id}`,
                             totalReviews: 100,
-                            followers: 1000,
-                            isVerified: product.sellerVerified || false,
-                            description: '',
-                            location: product.location,
-                            established: '2020',
-                            products: [],
-                            badges: [],
-                            responseTime: '1 hour',
-                            categories: [product.category]
-                          },
-                          sellerId: `seller-${product.id}`,
-                          totalReviews: 100,
-                          description: product.description || '',
-                          specifications: {},
-                          variants: []
-                        }, 1);
-                        
-                        // Show modal with product info
-                        setAddedProduct({
-                          name: product.name,
-                          image: product.image
-                        });
-                        setShowCartModal(true);
-                      }}
-                      className="w-full mt-4 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white rounded-xl"
-                    >
-                      Add to Cart
-                    </Button>
+                            description: product.description || '',
+                            specifications: {},
+                            variants: []
+                          };
+                          
+                          addToCart(cartItem, 1);
+                          
+                          // Show modal with product info
+                          setAddedProduct({
+                            name: product.name,
+                            image: product.image
+                          });
+                          setShowCartModal(true);
+                        }}
+                        variant="outline"
+                        className="w-full border-[#FF5722] text-[#FF5722] hover:bg-[#FF5722] hover:text-white rounded-xl gap-2"
+                      >
+                        <ShoppingCart className="w-4 h-4" />
+                        Add to Cart
+                      </Button>
+                      
+                      <Button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          // Add to cart first
+                          const cartItem = {
+                            ...product,
+                            images: [product.image],
+                            seller: {
+                              id: `seller-${product.id}`,
+                              name: product.seller,
+                              avatar: '',
+                              rating: product.sellerRating || 0,
+                              totalReviews: 100,
+                              followers: 1000,
+                              isVerified: product.sellerVerified || false,
+                              description: '',
+                              location: product.location,
+                              established: '2020',
+                              products: [],
+                              badges: [],
+                              responseTime: '1 hour',
+                              categories: [product.category]
+                            },
+                            sellerId: `seller-${product.id}`,
+                            totalReviews: 100,
+                            description: product.description || '',
+                            specifications: {},
+                            variants: []
+                          };
+                          
+                          addToCart(cartItem, 1);
+                          // Navigate to checkout
+                          navigate('/checkout');
+                        }}
+                        className="w-full bg-[#FF5722] hover:bg-[#E64A19] text-white rounded-xl"
+                      >
+                        Buy Now
+                      </Button>
+                    </div>
                   </div>
                 </motion.div>
               ))}

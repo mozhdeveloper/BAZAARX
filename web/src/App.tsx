@@ -1,5 +1,7 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import './styles/globals.css';
+import { Toaster } from './components/ui/toaster';
+import { OrderNotificationModal } from './components/OrderNotificationModal';
 import HomePage from './pages/HomePage';
 import ShopPage from './pages/ShopPage';
 import SearchPage from './pages/SearchPage';
@@ -33,6 +35,8 @@ import { SellerAnalytics } from './pages/SellerAnalytics';
 import { SellerSettings } from './pages/SellerSettings';
 import SellerFlashSales from './pages/SellerFlashSales';
 import SellerMessages from './pages/SellerMessages';
+import SellerProductStatus from './pages/SellerProductStatus';
+import SellerPOS from './pages/SellerPOS';
 import { ProtectedSellerRoute } from './components/ProtectedSellerRoute';
 
 // Admin Pages
@@ -51,11 +55,13 @@ import AdminProductRequests from './pages/AdminProductRequests';
 import AdminFlashSales from './pages/AdminFlashSales';
 import AdminPayouts from './pages/AdminPayouts';
 import AdminProfile from './pages/AdminProfile';
+import AdminProductApprovals from './pages/AdminProductApprovals';
 
 function App() {
   return (
-    <Router>
-      <Routes>
+    <>
+      <Router>
+        <Routes>
         {/* Buyer Routes */}
         <Route path="/" element={<HomePage />} />
         <Route path="/shop" element={<ShopPage />} />
@@ -85,7 +91,9 @@ function App() {
         <Route path="/seller/earnings" element={<ProtectedSellerRoute><SellerEarnings /></ProtectedSellerRoute>} />
         <Route path="/seller/products" element={<ProtectedSellerRoute><SellerProducts /></ProtectedSellerRoute>} />
         <Route path="/seller/products/add" element={<ProtectedSellerRoute><AddProduct /></ProtectedSellerRoute>} />
+        <Route path="/seller/product-status-qa" element={<ProtectedSellerRoute><SellerProductStatus /></ProtectedSellerRoute>} />
         <Route path="/seller/orders" element={<ProtectedSellerRoute><SellerOrders /></ProtectedSellerRoute>} />
+        <Route path="/seller/pos" element={<ProtectedSellerRoute><SellerPOS /></ProtectedSellerRoute>} />
         <Route path="/seller/flash-sales" element={<ProtectedSellerRoute><SellerFlashSales /></ProtectedSellerRoute>} />
         <Route path="/seller/messages" element={<ProtectedSellerRoute><SellerMessages /></ProtectedSellerRoute>} />
         <Route path="/seller/reviews" element={<ProtectedSellerRoute><SellerReviews /></ProtectedSellerRoute>} />
@@ -102,6 +110,7 @@ function App() {
         <Route path="/admin/vouchers" element={<AdminVouchers />} />
         <Route path="/admin/reviews" element={<AdminReviewModeration />} />
         <Route path="/admin/products" element={<AdminProducts />} />
+        <Route path="/admin/product-approvals" element={<AdminProductApprovals />} />
         <Route path="/admin/product-requests" element={<AdminProductRequests />} />
         <Route path="/admin/flash-sales" element={<AdminFlashSales />} />
         <Route path="/admin/payouts" element={<AdminPayouts />} />
@@ -109,7 +118,12 @@ function App() {
         <Route path="/admin/analytics" element={<AdminAnalytics />} />
         <Route path="/admin/settings" element={<AdminSettings />} />
       </Routes>
+      
+      {/* Global components that need Router context */}
+      <OrderNotificationModal />
     </Router>
+    <Toaster />
+    </>
   );
 }
 

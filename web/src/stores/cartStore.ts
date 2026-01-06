@@ -49,9 +49,19 @@ export interface Order {
   trackingNumber?: string;
 }
 
+export interface OrderNotification {
+  id: string;
+  orderId: string;
+  type: 'seller_confirmed' | 'shipped' | 'delivered' | 'cancelled';
+  message: string;
+  timestamp: Date;
+  read: boolean;
+}
+
 interface CartStore {
   items: CartItem[];
   orders: Order[];
+  notifications: OrderNotification[];
   addToCart: (product: Product) => void;
   removeFromCart: (productId: string) => void;
   updateQuantity: (productId: string, quantity: number) => void;
@@ -62,6 +72,10 @@ interface CartStore {
   getOrderById: (orderId: string) => Order | undefined;
   updateOrderStatus: (orderId: string, status: Order['status']) => void;
   simulateOrderProgression: (orderId: string) => void;
+  addNotification: (orderId: string, type: OrderNotification['type'], message: string) => void;
+  markNotificationRead: (notificationId: string) => void;
+  clearNotifications: () => void;
+  getUnreadNotifications: () => OrderNotification[];
 }
 
 // Sample orders for testing the complete flow
@@ -236,6 +250,7 @@ export const useCartStore = create<CartStore>()(
     (set, get) => ({
       items: [],
       orders: [],
+      notifications: [],
       
       addToCart: (product: Product) => {
         set((state) => {
@@ -331,6 +346,72 @@ export const useCartStore = create<CartStore>()(
           items: [], // Clear cart after order
         }));
         
+        // Also create seller orders - group items by seller
+        // This is done asynchronously to not block buyer checkout
+        try {
+          // Dynamically import to avoid circular dependency
+          import('./sellerStore').then(({ useOrderStore }) => {
+            const sellerOrderStore = useOrderStore.getState();
+            
+            // Group cart items by seller
+            const itemsBySeller: { [seller: string]: CartItem[] } = {};
+            currentItems.forEach(item => {
+              const seller = item.seller || 'Unknown Seller';
+              if (!itemsBySeller[seller]) {
+                itemsBySeller[seller] = [];
+              }
+              itemsBySeller[seller].push(item);
+            });
+            
+            // Create a seller order for each seller with proper validation
+            Object.entries(itemsBySeller).forEach(([sellerName, items]) => {
+              try {
+                const sellerTotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+                
+                // Validate seller order data before creating
+                const paymentStatus: 'pending' | 'paid' = orderData.paymentMethod?.type === 'cod' ? 'pending' : 'paid';
+                
+                const sellerOrderData = {
+                  buyerName: orderData.shippingAddress.fullName || 'Unknown Buyer',
+                  buyerEmail: 'buyer@bazaarph.com', // TODO: Get from auth when available
+                  items: items.map(item => ({
+                    productId: item.id,
+                    productName: item.name,
+                    quantity: Math.max(1, item.quantity),
+                    price: Math.max(0, item.price),
+                    image: item.image || 'https://placehold.co/100?text=Product'
+                  })),
+                  total: Math.max(0, sellerTotal),
+                  status: 'pending' as const,
+                  paymentStatus,
+                  orderDate: createdAt.toISOString(),
+                  shippingAddress: {
+                    fullName: orderData.shippingAddress.fullName || 'Unknown',
+                    street: orderData.shippingAddress.street || '',
+                    city: orderData.shippingAddress.city || '',
+                    province: orderData.shippingAddress.province || '',
+                    postalCode: orderData.shippingAddress.postalCode || '',
+                    phone: orderData.shippingAddress.phone || ''
+                  },
+                  trackingNumber
+                };
+
+                // Create the seller order
+                const sellerOrderId = sellerOrderStore.addOrder(sellerOrderData);
+                console.log(`Created seller order ${sellerOrderId} for ${sellerName}`);
+              } catch (sellerOrderError) {
+                console.error(`Failed to create seller order for ${sellerName}:`, sellerOrderError);
+                // Log but don't fail - buyer order is already created
+              }
+            });
+          }).catch(importError => {
+            console.error('Failed to import seller store:', importError);
+          });
+        } catch (error) {
+          console.error('Error in seller order creation process:', error);
+          // Don't fail the buyer order if seller order creation fails
+        }
+        
         // Start order progression simulation
         get().simulateOrderProgression(orderId);
         
@@ -351,7 +432,38 @@ export const useCartStore = create<CartStore>()(
           ),
         }));
       },
+      addNotification: (orderId, type, message) => {
+        const notificationId = `notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        set((state) => ({
+          notifications: [
+            {
+              id: notificationId,
+              orderId,
+              type,
+              message,
+              timestamp: new Date(),
+              read: false
+            },
+            ...state.notifications
+          ]
+        }));
+      },
 
+      markNotificationRead: (notificationId) => {
+        set((state) => ({
+          notifications: state.notifications.map(notif =>
+            notif.id === notificationId ? { ...notif, read: true } : notif
+          )
+        }));
+      },
+
+      clearNotifications: () => {
+        set({ notifications: [] });
+      },
+
+      getUnreadNotifications: () => {
+        return get().notifications.filter(n => !n.read);
+      },
       // Simulate realistic order progression
       simulateOrderProgression: (orderId: string) => {
         const updateStatus = get().updateOrderStatus;
@@ -370,10 +482,32 @@ export const useCartStore = create<CartStore>()(
     }),
     {
       name: 'bazaar-cart-store',
+      version: 1, // Version for migration support
       onRehydrateStorage: () => (state) => {
-        // If no orders exist after rehydration, add sample orders
-        if (state && state.orders.length === 0) {
-          state.orders = sampleOrders;
+        // Data integrity check on rehydration
+        if (state) {
+          // If no orders exist after rehydration, add sample orders
+          if (state.orders.length === 0) {
+            state.orders = sampleOrders;
+          }
+          
+          // Validate and clean cart items
+          state.items = state.items.filter(item => 
+            item.id && 
+            item.name && 
+            item.price > 0 && 
+            item.quantity > 0
+          );
+          
+          // Ensure all orders have required fields
+          state.orders = state.orders.filter(order => 
+            order.id && 
+            order.items.length > 0 && 
+            order.total > 0 && 
+            order.shippingAddress
+          );
+          
+          console.log('Cart store rehydrated with', state.items.length, 'items and', state.orders.length, 'orders');
         }
       },
     }

@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAdminAuth } from '../stores/adminStore';
-import { Button } from '@/components/ui/button';
 import { Sidebar, SidebarBody, SidebarLink } from '@/components/ui/sidebar';
 import {
   LayoutDashboard,
@@ -18,7 +17,8 @@ import {
   Package,
   MessageSquare,
   Zap,
-  DollarSign
+  DollarSign,
+  CheckSquare
 } from 'lucide-react';
 
 interface AdminSidebarProps {
@@ -42,6 +42,11 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, setOpen }) => {
       label: 'Products',
       href: '/admin/products',
       icon: <Package className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
+    },
+    {
+      label: 'Product Approvals',
+      href: '/admin/product-approvals',
+      icon: <CheckSquare className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
     },
     {
       label: 'Product Requests',
@@ -98,7 +103,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, setOpen }) => {
   return (
     <Sidebar open={open} setOpen={setOpen}>
       <SidebarBody className="justify-between gap-10">
-        <div className="flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
+        <div className="flex flex-col flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide">
           {open ? <Logo /> : <LogoIcon />}
           <div className="mt-8 flex flex-col gap-2">
             {links.map((link, idx) => (
@@ -107,7 +112,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ open, setOpen }) => {
           </div>
         </div>
         <div>
-          <UserProfile />
+          <UserProfile open={open} />
         </div>
       </SidebarBody>
     </Sidebar>
@@ -151,7 +156,7 @@ const LogoIcon = () => {
   );
 };
 
-const UserProfile = () => {
+const UserProfile = ({ open }: { open?: boolean }) => {
   const { user, logout } = useAdminAuth();
   const navigate = useNavigate();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -180,21 +185,28 @@ const UserProfile = () => {
           ),
         }}
       />
-      <Button
+      <button
         onClick={handleLogout}
         disabled={isLoggingOut}
-        variant="ghost"
-        className="w-full justify-start text-gray-600 hover:text-red-600 hover:bg-red-50 transition-colors p-2 h-auto min-h-[48px]"
+        className="w-full flex items-center justify-start gap-3 py-3 px-3 rounded-lg hover:bg-red-50 hover:text-red-600 transition-all duration-200 min-h-[48px] text-gray-600"
       >
-        <LogOut className="w-5 h-5 flex-shrink-0" />
+        <div className="flex-shrink-0 w-5 h-5 flex items-center justify-center">
+          <LogOut className="w-5 h-5 flex-shrink-0" />
+        </div>
         <motion.span
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="ml-3 font-medium text-sm"
+          animate={{
+            opacity: open ? 1 : 0,
+            width: open ? "auto" : 0,
+          }}
+          transition={{ duration: 0.3, ease: "easeInOut" }}
+          className="text-sm font-medium whitespace-nowrap overflow-hidden"
+          style={{
+            display: open ? "block" : "none",
+          }}
         >
           {isLoggingOut ? 'Signing out...' : 'Sign Out'}
         </motion.span>
-      </Button>
+      </button>
     </div>
   );
 };

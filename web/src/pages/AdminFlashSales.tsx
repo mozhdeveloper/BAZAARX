@@ -148,7 +148,7 @@ const AdminFlashSales: React.FC = () => {
     setFlashSales(prev => 
       prev.map(s => 
         s.id === saleId 
-          ? { ...s, status: s.status === 'active' ? 'scheduled' : 'active' as any }
+          ? { ...s, status: (s.status === 'active' ? 'scheduled' : 'active') as 'active' | 'scheduled' | 'ended' }
           : s
       )
     );

@@ -209,7 +209,8 @@ export default function CheckoutPage() {
             formData.paymentMethod === 'paymaya' ? formData.paymayaNumber || '09123456789' : 
             'Cash on Delivery'
         },
-        status: 'pending'
+        status: 'pending',
+        isPaid: formData.paymentMethod !== 'cod' // COD is unpaid, others are paid
       });
 
       // Clear buyer cart after successful order

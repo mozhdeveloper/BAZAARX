@@ -7,64 +7,32 @@ import {
   Trash2, 
   MoreHorizontal,
   Package,
-  TrendingUp,
   Star,
   ToggleLeft,
   ToggleRight,
   ArrowLeft,
-  ShoppingCart,
-  Settings,
-  LayoutDashboard,
-  Store,
-  Wallet
+  LogOut,
+  AlertTriangle,
+  Clock,
+  BadgeCheck
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Sidebar, SidebarBody, SidebarLink } from '@/components/ui/sidebar';
-import { useAuthStore, useProductStore } from '@/stores/sellerStore';
+import { useAuthStore, useProductStore, SellerProduct } from '@/stores/sellerStore';
+import { sellerLinks } from '@/config/sellerLinks';
 import { Button } from '@/components/ui/button';
-
-const sellerLinks = [
-  {
-    label: "Dashboard",
-    href: "/seller",
-    icon: <LayoutDashboard className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
-  },
-  {
-    label: "Store Profile",
-    href: "/seller/store-profile",
-    icon: <Store className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
-  },
-  {
-    label: "Products", 
-    href: "/seller/products",
-    icon: <Package className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
-  },
-  {
-    label: "Orders",
-    href: "/seller/orders",
-    icon: <ShoppingCart className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
-  },
-  {
-    label: "Earnings",
-    href: "/seller/earnings",
-    icon: <Wallet className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
-  },
-  {
-    label: "Reviews",
-    href: "/seller/reviews",
-    icon: <Star className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
-  },
-  {
-    label: "Analytics",
-    href: "/seller/analytics",
-    icon: <TrendingUp className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
-  },
-  {
-    label: "Settings",
-    href: "/seller/settings",
-    icon: <Settings className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
-  }
-];
+import { Badge } from '@/components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { useToast } from '@/hooks/use-toast';
 
 const Logo = () => (
   <Link to="/seller" className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20">
@@ -93,9 +61,23 @@ export function SellerProducts() {
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<SellerProduct | null>(null);
+  const [editFormData, setEditFormData] = useState({
+    name: '',
+    price: 0,
+    stock: 0,
+  });
   
-  const { seller } = useAuthStore();
+  const { seller, logout } = useAuthStore();
   const { products, updateProduct, deleteProduct } = useProductStore();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/seller/auth');
+  };
 
   const filteredProducts = products.filter(product => {
     const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -115,6 +97,32 @@ export function SellerProducts() {
     }
   };
 
+  const handleEditClick = (product: SellerProduct) => {
+    setEditingProduct(product);
+    setEditFormData({
+      name: product.name,
+      price: product.price,
+      stock: product.stock,
+    });
+    setIsEditDialogOpen(true);
+  };
+
+  const handleSaveEdit = () => {
+    if (editingProduct) {
+      updateProduct(editingProduct.id, {
+        name: editFormData.name,
+        price: editFormData.price,
+        stock: editFormData.stock,
+      });
+      toast({
+        title: 'Product Updated',
+        description: `${editFormData.name} has been successfully updated.`,
+      });
+      setIsEditDialogOpen(false);
+      setEditingProduct(null);
+    }
+  };
+
   return (
     <div className="h-screen w-full flex flex-col md:flex-row bg-gray-50 overflow-hidden">
       <Sidebar open={open} setOpen={setOpen}>
@@ -127,7 +135,7 @@ export function SellerProducts() {
               ))}
             </div>
           </div>
-          <div>
+          <div className="space-y-2">
             <SidebarLink
               link={{
                 label: seller?.name || "Seller",
@@ -141,6 +149,13 @@ export function SellerProducts() {
                 ),
               }}
             />
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-2 w-full px-2 py-2 text-sm text-gray-700 hover:text-orange-500 hover:bg-orange-50 rounded-md transition-colors"
+            >
+              <LogOut className="h-5 w-5 flex-shrink-0" />
+              {open && <span>Logout</span>}
+            </button>
           </div>
         </SidebarBody>
       </Sidebar>
@@ -228,6 +243,36 @@ export function SellerProducts() {
                   
                   <p className="text-gray-600 text-sm mb-3 line-clamp-2">{product.description}</p>
                   
+                  {/* Approval Status Badge */}
+                  {product.approvalStatus && (
+                    <div className="mb-3">
+                      {product.approvalStatus === 'pending' && (
+                        <Badge className="bg-yellow-100 text-yellow-700 hover:bg-yellow-100">
+                          <Clock className="w-3 h-3 mr-1" />
+                          Pending Approval
+                        </Badge>
+                      )}
+                      {product.approvalStatus === 'approved' && (
+                        <Badge className="bg-green-100 text-green-700 hover:bg-green-100">
+                          <BadgeCheck className="w-3 h-3 mr-1" />
+                          Verified
+                        </Badge>
+                      )}
+                      {product.approvalStatus === 'rejected' && (
+                        <Badge className="bg-red-100 text-red-700 hover:bg-red-100">
+                          <AlertTriangle className="w-3 h-3 mr-1" />
+                          Rejected
+                        </Badge>
+                      )}
+                      {product.approvalStatus === 'reclassified' && (
+                        <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100">
+                          <AlertTriangle className="w-3 h-3 mr-1" />
+                          Category Adjusted
+                        </Badge>
+                      )}
+                    </div>
+                  )}
+                  
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-1">
                       <Star className="h-4 w-4 text-yellow-500 fill-current" />
@@ -253,12 +298,12 @@ export function SellerProducts() {
                   </div>
 
                   <div className="flex gap-2">
-                    <Link 
-                      to={`/seller/products/edit/${product.id}`}
+                    <button
+                      onClick={() => handleEditClick(product)}
                       className="flex-1 px-3 py-2 bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100 transition-colors text-center text-sm font-medium"
                     >
                       Edit
-                    </Link>
+                    </button>
                     <button 
                       onClick={() => handleDelete(product.id)}
                       className="px-3 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors"
@@ -285,6 +330,77 @@ export function SellerProducts() {
           )}
         </div>
       </div>
+
+      {/* Edit Product Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Edit Product</DialogTitle>
+            <DialogDescription>
+              Update product name, price, and stock quantity. Other details cannot be changed.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="py-4 space-y-4">
+            <div>
+              <Label htmlFor="edit-name" className="mb-2 block">Product Name</Label>
+              <Input
+                id="edit-name"
+                value={editFormData.name}
+                onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+                className="w-full"
+                placeholder="Enter product name"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="edit-price" className="mb-2 block">Price (₱)</Label>
+              <Input
+                id="edit-price"
+                type="number"
+                min="0"
+                step="0.01"
+                value={editFormData.price}
+                onChange={(e) => setEditFormData({ ...editFormData, price: parseFloat(e.target.value) || 0 })}
+                className="w-full"
+                placeholder="Enter price"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="edit-stock" className="mb-2 block">Stock Quantity</Label>
+              <Input
+                id="edit-stock"
+                type="number"
+                min="0"
+                value={editFormData.stock}
+                onChange={(e) => setEditFormData({ ...editFormData, stock: parseInt(e.target.value) || 0 })}
+                className="w-full"
+                placeholder="Enter stock quantity"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setIsEditDialogOpen(false);
+                setEditingProduct(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleSaveEdit}
+              className="bg-orange-500 hover:bg-orange-600"
+              disabled={!editFormData.name.trim() || editFormData.price <= 0 || editFormData.stock < 0}
+            >
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -304,6 +420,7 @@ export function AddProduct() {
     images: ['']
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const categories = [
     'Electronics', 'Fashion', 'Home & Garden', 'Sports', 'Books',
@@ -316,6 +433,10 @@ export function AddProduct() {
       ...prev,
       [name]: value
     }));
+    // Clear error when user starts typing
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: '' }));
+    }
   };
 
   const handleImageChange = (index: number, value: string) => {
@@ -338,14 +459,46 @@ export function AddProduct() {
     }));
   };
 
+  const validateForm = (): boolean => {
+    const newErrors: Record<string, string> = {};
+
+    if (!formData.name.trim()) {
+      newErrors.name = 'Product name is required';
+    }
+    if (!formData.description.trim()) {
+      newErrors.description = 'Description is required';
+    }
+    if (!formData.price || parseInt(formData.price) <= 0) {
+      newErrors.price = 'Price must be greater than 0';
+    }
+    if (!formData.stock || parseInt(formData.stock) < 0) {
+      newErrors.stock = 'Stock cannot be negative';
+    }
+    if (!formData.category) {
+      newErrors.category = 'Please select a category';
+    }
+    const validImages = formData.images.filter(img => img.trim() !== '');
+    if (validImages.length === 0) {
+      newErrors.images = 'At least one product image is required';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!validateForm()) {
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
       const productData = {
-        name: formData.name,
-        description: formData.description,
+        name: formData.name.trim(),
+        description: formData.description.trim(),
         price: parseInt(formData.price),
         originalPrice: formData.originalPrice ? parseInt(formData.originalPrice) : undefined,
         stock: parseInt(formData.stock),
@@ -356,9 +509,13 @@ export function AddProduct() {
       };
 
       addProduct(productData);
+      
+      // Show success message
+      alert('Product added successfully! It will now go through the QA approval process.');
       navigate('/seller/products');
     } catch (error) {
       console.error('Failed to add product:', error);
+      alert('Failed to add product. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -394,10 +551,15 @@ export function AddProduct() {
               name="name"
               value={formData.name}
               onChange={handleChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 ${
+                errors.name ? 'border-red-500' : 'border-gray-300'
+              }`}
               placeholder="Enter product name"
               required
             />
+            {errors.name && (
+              <p className="mt-1 text-sm text-red-600">{errors.name}</p>
+            )}
           </div>
 
           {/* Description */}

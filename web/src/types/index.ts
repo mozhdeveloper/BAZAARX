@@ -14,6 +14,7 @@ export interface Product {
   location: string;
   description?: string;
   category: string;
+  stock?: number;
 }
 
 export interface Store {

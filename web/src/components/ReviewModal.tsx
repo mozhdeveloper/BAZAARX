@@ -17,7 +17,7 @@ interface ReviewModalProps {
   }>;
 }
 
-export function ReviewModal({ isOpen, onClose, orderId, sellerName, items }: ReviewModalProps) {
+export function ReviewModal({ isOpen, onClose, orderId, sellerId, sellerName, items }: ReviewModalProps) {
   const [rating, setRating] = useState(0);
   const [hoveredRating, setHoveredRating] = useState(0);
   const [reviewText, setReviewText] = useState('');
@@ -37,11 +37,11 @@ export function ReviewModal({ isOpen, onClose, orderId, sellerName, items }: Rev
     // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 1000));
 
-    // Add review to store for each product
+    // Add review to buyer store for each product
     items.forEach(item => {
       addReview({
         productId: item.id,
-        sellerId: 'seller-1',
+        sellerId: sellerId || 'seller-1',
         buyerId: 'buyer-1',
         buyerName: 'John Doe',
         buyerAvatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=John',
@@ -51,6 +51,34 @@ export function ReviewModal({ isOpen, onClose, orderId, sellerName, items }: Rev
         verified: true
       });
     });
+
+    // NEW: Submit rating to seller order store (database-ready cross-store sync)
+    try {
+      const { useOrderStore } = await import('../stores/sellerStore');
+      const sellerStore = useOrderStore.getState();
+      
+      // Update seller order with buyer rating
+      sellerStore.addOrderRating(
+        orderId,
+        rating,
+        reviewText || 'Great product!',
+        images
+      );
+      
+      console.log(`✅ Rating synced to seller order ${orderId}: ${rating} stars`);
+    } catch (error) {
+      console.error('Failed to sync rating to seller store:', error);
+      // Don't fail the review submission if seller sync fails
+    }
+
+    // Also update buyer order status to delivered
+    try {
+      const { useCartStore } = await import('../stores/cartStore');
+      const cartStore = useCartStore.getState();
+      cartStore.updateOrderStatus(orderId, 'delivered');
+    } catch (error) {
+      console.error('Failed to update buyer order status:', error);
+    }
 
     setSubmitted(true);
     setIsSubmitting(false);

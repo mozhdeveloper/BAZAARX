@@ -1,30 +1,22 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuthStore } from '@/stores/sellerStore';
 import { Sidebar, SidebarBody, SidebarLink } from '@/components/ui/sidebar';
+import { sellerLinks } from '@/config/sellerLinks';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
-  LayoutDashboard,
-  Package,
-  ShoppingBag,
-  Star,
-  BarChart3,
-  Settings,
-  Store,
-  Wallet,
-  Zap,
   Search,
-  MessageSquare,
   Send,
   MoreVertical,
   Phone,
   Video,
   Image as ImageIcon,
-  Paperclip
+  Paperclip,
+  LogOut
 } from 'lucide-react';
 
 interface Message {
@@ -45,91 +37,45 @@ interface Conversation {
   messages: Message[];
 }
 
+// Logo components defined outside of render
+const Logo = () => (
+  <Link to="/seller" className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20">
+    <img 
+      src="/Logo.png" 
+      alt="BazaarPH Logo" 
+      className="h-5 w-6 flex-shrink-0"
+    />
+    <motion.span
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="font-medium text-black whitespace-pre"
+    >
+      BazaarPH Seller
+    </motion.span>
+  </Link>
+);
+
+const LogoIcon = () => (
+  <Link to="/seller" className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20">
+    <img 
+      src="/Logo.png" 
+      alt="BazaarPH Logo" 
+      className="h-8 w-8 object-contain flex-shrink-0"
+    />
+  </Link>
+);
+
 export default function SellerMessages() {
-  const { seller } = useAuthStore();
+  const { seller, logout } = useAuthStore();
   const [open, setOpen] = useState(false);
   const [selectedConversation, setSelectedConversation] = useState<string | null>('1');
   const [newMessage, setNewMessage] = useState('');
+  const navigate = useNavigate();
 
-  const sellerLinks = [
-    {
-      label: "Dashboard",
-      href: "/seller",
-      icon: <LayoutDashboard className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
-    },
-    {
-      label: "Store Profile",
-      href: "/seller/store-profile",
-      icon: <Store className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
-    },
-    {
-      label: "Products",
-      href: "/seller/products",
-      icon: <Package className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
-    },
-    {
-      label: "Orders",
-      href: "/seller/orders",
-      icon: <ShoppingBag className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
-    },
-    {
-      label: "Flash Sales",
-      href: "/seller/flash-sales",
-      icon: <Zap className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
-    },
-    {
-      label: "Messages",
-      href: "/seller/messages",
-      icon: <MessageSquare className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
-    },
-    {
-      label: "Earnings",
-      href: "/seller/earnings",
-      icon: <Wallet className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
-    },
-    {
-      label: "Reviews",
-      href: "/seller/reviews",
-      icon: <Star className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
-    },
-    {
-      label: "Analytics",
-      href: "/seller/analytics",
-      icon: <BarChart3 className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
-    },
-    {
-      label: "Settings",
-      href: "/seller/settings",
-      icon: <Settings className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
-    }
-  ];
-
-  const Logo = () => (
-    <Link to="/seller" className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20">
-      <img 
-        src="/Logo.png" 
-        alt="BazaarPH Logo" 
-        className="h-5 w-6 flex-shrink-0"
-      />
-      <motion.span
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        className="font-medium text-black whitespace-pre"
-      >
-        BazaarPH Seller
-      </motion.span>
-    </Link>
-  );
-
-  const LogoIcon = () => (
-    <Link to="/seller" className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20">
-      <img 
-        src="/Logo.png" 
-        alt="BazaarPH Logo" 
-        className="h-8 w-8 object-contain flex-shrink-0"
-      />
-    </Link>
-  );
+  const handleLogout = () => {
+    logout();
+    navigate('/seller/auth');
+  };
 
   // Mock Data
   const [conversations, setConversations] = useState<Conversation[]>([
@@ -137,21 +83,21 @@ export default function SellerMessages() {
       id: '1',
       buyerName: 'Juan Dela Cruz',
       lastMessage: 'Is this item still available?',
-      lastMessageTime: new Date(Date.now() - 1000 * 60 * 5), // 5 mins ago
+      lastMessageTime: new Date('2025-12-23T11:55:00'), // 5 mins ago
       unreadCount: 1,
       messages: [
         {
           id: 'm1',
           senderId: 'buyer',
           text: 'Hi, I saw your listing for the Wireless Earbuds.',
-          timestamp: new Date(Date.now() - 1000 * 60 * 60),
+          timestamp: new Date('2025-12-23T11:00:00'),
           isRead: true
         },
         {
           id: 'm2',
           senderId: 'buyer',
           text: 'Is this item still available?',
-          timestamp: new Date(Date.now() - 1000 * 60 * 5),
+          timestamp: new Date('2025-12-23T11:55:00'),
           isRead: false
         }
       ]
@@ -160,21 +106,21 @@ export default function SellerMessages() {
       id: '2',
       buyerName: 'Maria Santos',
       lastMessage: 'Thank you for the fast delivery!',
-      lastMessageTime: new Date(Date.now() - 1000 * 60 * 60 * 24), // 1 day ago
+      lastMessageTime: new Date('2025-12-22T12:00:00'), // 1 day ago
       unreadCount: 0,
       messages: [
         {
           id: 'm3',
           senderId: 'seller',
           text: 'Your order has been shipped!',
-          timestamp: new Date(Date.now() - 1000 * 60 * 60 * 25),
+          timestamp: new Date('2025-12-22T11:00:00'),
           isRead: true
         },
         {
           id: 'm4',
           senderId: 'buyer',
           text: 'Thank you for the fast delivery!',
-          timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24),
+          timestamp: new Date('2025-12-22T12:00:00'),
           isRead: true
         }
       ]
@@ -224,7 +170,7 @@ export default function SellerMessages() {
               ))}
             </div>
           </div>
-          <div>
+          <div className="space-y-2">
             <SidebarLink
               link={{
                 label: seller?.storeName || "Store",
@@ -238,6 +184,13 @@ export default function SellerMessages() {
                 ),
               }}
             />
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-2 w-full px-2 py-2 text-sm text-gray-700 hover:text-orange-500 hover:bg-orange-50 rounded-md transition-colors"
+            >
+              <LogOut className="h-5 w-5 flex-shrink-0" />
+              {open && <span>Logout</span>}
+            </button>
           </div>
         </SidebarBody>
       </Sidebar>

@@ -1,22 +1,19 @@
 import { useState } from "react";
 import { 
-  LayoutDashboard, 
-  Package, 
-  ShoppingCart, 
-  Settings, 
   TrendingUp,
   TrendingDown,
   DollarSign,
   Eye,
   Download,
-  Star,
-  Store,
-  Wallet
+  LogOut,
+  ShoppingCart,
+  Package
 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
 import { useAuthStore } from "@/stores/sellerStore";
+import { sellerLinks } from "@/config/sellerLinks";
 import {
   AreaChart,
   Area,
@@ -31,52 +28,17 @@ import {
 } from "recharts";
 
 export function SellerAnalytics() {
-  const { seller } = useAuthStore();
+  const { seller, logout } = useAuthStore();
   const [open, setOpen] = useState(false);
   const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d' | '1y'>('30d');
+  const navigate = useNavigate();
 
-  const links = [
-    {
-      label: "Dashboard",
-      href: "/seller",
-      icon: <LayoutDashboard className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
-    },
-    {
-      label: "Store Profile",
-      href: "/seller/store-profile",
-      icon: <Store className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
-    },
-    {
-      label: "Products",
-      href: "/seller/products",
-      icon: <Package className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
-    },
-    {
-      label: "Orders",
-      href: "/seller/orders", 
-      icon: <ShoppingCart className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
-    },
-    {
-      label: "Earnings",
-      href: "/seller/earnings",
-      icon: <Wallet className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
-    },
-    {
-      label: "Reviews",
-      href: "/seller/reviews",
-      icon: <Star className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
-    },
-    {
-      label: "Analytics",
-      href: "/seller/analytics",
-      icon: <TrendingUp className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
-    },
-    {
-      label: "Settings",
-      href: "/seller/settings",
-      icon: <Settings className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
-    }
-  ];
+  const handleLogout = () => {
+    logout();
+    navigate('/seller/auth');
+  };
+
+
 
   return (
     <div className="h-screen w-full flex flex-col md:flex-row bg-gray-50 overflow-hidden">
@@ -85,12 +47,12 @@ export function SellerAnalytics() {
           <div className="flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
             {open ? <Logo /> : <LogoIcon />}
             <div className="mt-8 flex flex-col gap-2">
-              {links.map((link, idx) => (
+              {sellerLinks.map((link, idx) => (
                 <SidebarLink key={idx} link={link} />
               ))}
             </div>
           </div>
-          <div>
+          <div className="space-y-2">
             <SidebarLink
               link={{
                 label: seller?.name || "Seller",
@@ -104,6 +66,13 @@ export function SellerAnalytics() {
                 ),
               }}
             />
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-2 w-full px-2 py-2 text-sm text-gray-700 hover:text-orange-500 hover:bg-orange-50 rounded-md transition-colors"
+            >
+              <LogOut className="h-5 w-5 flex-shrink-0" />
+              {open && <span>Logout</span>}
+            </button>
           </div>
         </SidebarBody>
       </Sidebar>

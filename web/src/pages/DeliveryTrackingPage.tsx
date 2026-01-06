@@ -110,6 +110,30 @@ function DeliveryTrackingPage() {
     const interval = setInterval(() => {
       setCurrentStep(prev => {
         const next = prev < 4 ? prev + 1 : prev;
+        
+        // Cross-store sync: Update order status based on delivery step
+        if (orderId) {
+          // Update buyer order status
+          const { updateOrderStatus } = useCartStore.getState();
+          
+          if (next === 2) {
+            updateOrderStatus(orderId, 'confirmed');
+          } else if (next === 3) {
+            updateOrderStatus(orderId, 'shipped');
+          } else if (next === 4) {
+            updateOrderStatus(orderId, 'delivered');
+            
+            // Also update seller order to delivered and paid
+            import('../stores/sellerStore').then(({ useOrderStore }) => {
+              const sellerStore = useOrderStore.getState();
+              sellerStore.updateOrderStatus(orderId, 'delivered');
+              sellerStore.updatePaymentStatus(orderId, 'paid');
+            }).catch(error => {
+              console.error('Failed to update seller order status:', error);
+            });
+          }
+        }
+        
         // Show review modal when delivery is complete (step 4)
         if (next === 4 && prev === 3) {
           setTimeout(() => {

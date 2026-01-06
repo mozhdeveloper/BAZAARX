@@ -1,71 +1,24 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Star, 
   MessageSquare, 
   ThumbsUp,
   Search,
-  TrendingUp,
-  Package,
-  ShoppingCart,
-  Settings,
-  LayoutDashboard,
   Reply,
   Flag,
   Check,
-  Store,
-  Wallet
+  LogOut
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Sidebar, SidebarBody, SidebarLink } from '@/components/ui/sidebar';
+import { useAuthStore } from '@/stores/sellerStore';
+import { sellerLinks } from '@/config/sellerLinks';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-
-const sellerLinks = [
-  {
-    label: "Dashboard",
-    href: "/seller",
-    icon: <LayoutDashboard className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
-  },
-  {
-    label: "Store Profile",
-    href: "/seller/store-profile",
-    icon: <Store className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
-  },
-  {
-    label: "Products", 
-    href: "/seller/products",
-    icon: <Package className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
-  },
-  {
-    label: "Orders",
-    href: "/seller/orders",
-    icon: <ShoppingCart className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
-  },
-  {
-    label: "Earnings",
-    href: "/seller/earnings",
-    icon: <Wallet className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
-  },
-  {
-    label: "Reviews",
-    href: "/seller/reviews",
-    icon: <Star className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
-  },
-  {
-    label: "Analytics",
-    href: "/seller/analytics",
-    icon: <TrendingUp className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
-  },
-  {
-    label: "Settings",
-    href: "/seller/settings",
-    icon: <Settings className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
-  }
-];
 
 const Logo = () => (
   <Link to="/seller" className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20">
@@ -184,6 +137,13 @@ export function SellerReviews() {
   const [showReplyModal, setShowReplyModal] = useState(false);
   const [selectedReview, setSelectedReview] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
+  const { seller, logout } = useAuthStore();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/seller/auth');
+  };
 
   const filteredReviews = mockReviews.filter(review => {
     const matchesSearch = 
@@ -232,6 +192,28 @@ export function SellerReviews() {
                 <SidebarLink key={idx} link={link} />
               ))}
             </div>
+          </div>
+          <div className="space-y-2">
+            <SidebarLink
+              link={{
+                label: seller?.name || "Seller",
+                href: "/seller/profile",
+                icon: (
+                  <div className="h-7 w-7 flex-shrink-0 rounded-full bg-orange-500 flex items-center justify-center">
+                    <span className="text-white text-xs font-medium">
+                      {seller?.name?.charAt(0) || 'S'}
+                    </span>
+                  </div>
+                ),
+              }}
+            />
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-2 w-full px-2 py-2 text-sm text-gray-700 hover:text-orange-500 hover:bg-orange-50 rounded-md transition-colors"
+            >
+              <LogOut className="h-5 w-5 flex-shrink-0" />
+              {open && <span>Logout</span>}
+            </button>
           </div>
         </SidebarBody>
       </Sidebar>

@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { Minus, Plus, ShoppingCart, Star, ChevronRight, MessageCircle, User } from 'lucide-react';
 import { trendingProducts, bestSellerProducts, newArrivals } from '../data/products';
 import { useBuyerStore } from '../stores/buyerStore';
+import { useProductStore, useAuthStore } from '../stores/sellerStore';
 import { Button } from '../components/ui/button';
 import Header from '../components/Header';
 import { BazaarFooter } from '../components/ui/bazaar-footer';
@@ -479,6 +480,7 @@ export default function ProductDetailPage({}: ProductDetailPageProps) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { addToCart } = useBuyerStore();
+  const { products: sellerProducts } = useProductStore();
   
   const [quantity, setQuantity] = useState(1);
   const [selectedImage, setSelectedImage] = useState(0);
@@ -486,17 +488,58 @@ export default function ProductDetailPage({}: ProductDetailPageProps) {
   const [selectedType, setSelectedType] = useState('Sport Band');
   const [activeTab, setActiveTab] = useState('description');
   
-  const baseProduct = trendingProducts.find(p => p.id === id) || 
+  // Check seller products first (verified products)
+  const sellerProduct = sellerProducts.find(p => p.id === id);
+  
+  const baseProduct = sellerProduct || 
+                   trendingProducts.find(p => p.id === id) || 
                    trendingProducts.find(p => p.id === id?.split('-')[0]) ||
                    bestSellerProducts.find(p => p.id === id) || 
                    bestSellerProducts.find(p => p.id === id?.split('-')[0]) ||
                    newArrivals.find(p => p.id === id) ||
                    newArrivals.find(p => p.id === id?.split('-')[0]);
-  const productId = baseProduct?.id || id?.split('-')[0] || '1';
-  const productData = enhancedProductData[productId] || enhancedProductData['1'];
+  
+  // For seller products, create a product-like object
+  const seller = useAuthStore.getState().seller;
+  const sellerName = seller?.businessName || seller?.storeName || 'Verified Seller';
+  
+  const normalizedProduct = sellerProduct ? {
+    id: sellerProduct.id,
+    name: sellerProduct.name,
+    price: sellerProduct.price,
+    originalPrice: sellerProduct.originalPrice,
+    image: sellerProduct.images[0] || 'https://placehold.co/400?text=Product',
+    images: sellerProduct.images,
+    category: sellerProduct.category,
+    rating: sellerProduct.rating || 0,
+    sold: sellerProduct.sales || 0,
+    seller: sellerName,
+    location: 'Metro Manila',
+    isFreeShipping: true,
+    isVerified: true,
+    description: sellerProduct.description
+  } : baseProduct;
+  
+  const productId = normalizedProduct?.id || id?.split('-')[0] || '1';
+  const productData = enhancedProductData[productId] || {
+    name: normalizedProduct?.name || '',
+    description: normalizedProduct?.description || '',
+    price: normalizedProduct?.price || 0,
+    originalPrice: normalizedProduct?.originalPrice,
+    rating: normalizedProduct?.rating || 4.5,
+    reviewCount: 100,
+    colors: [{ 
+      name: 'Default', 
+      value: '#FF5722', 
+      image: normalizedProduct && 'image' in normalizedProduct ? normalizedProduct.image : (normalizedProduct?.images?.[0] || '')
+    }],
+    types: ['Standard'],
+    images: normalizedProduct && 'images' in normalizedProduct ? normalizedProduct.images : (normalizedProduct && 'image' in normalizedProduct ? [normalizedProduct.image] : ['']),
+    features: ['Free Shipping', 'Verified Product', 'Quality Guaranteed', 'Share']
+  };
   const productReviews = reviewsData[productId] || reviewsData['1'];
   
-  if (!baseProduct) {
+  if (!normalizedProduct) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="text-center">
@@ -511,37 +554,47 @@ export default function ProductDetailPage({}: ProductDetailPageProps) {
   }
 
   const handleAddToCart = () => {
+    if (!normalizedProduct) return;
+    
+    const productImage = 'image' in normalizedProduct ? normalizedProduct.image : normalizedProduct.images[0];
+    const productImages = 'images' in normalizedProduct ? normalizedProduct.images : [productImage];
+    const sellerName = 'seller' in normalizedProduct ? normalizedProduct.seller : 'Verified Seller';
+    const productLocation = 'location' in normalizedProduct ? normalizedProduct.location : 'Metro Manila';
+    const isVerified = 'isVerified' in normalizedProduct ? normalizedProduct.isVerified : true;
+    const soldCount = 'sold' in normalizedProduct ? normalizedProduct.sold : 0;
+    const freeShipping = 'isFreeShipping' in normalizedProduct ? normalizedProduct.isFreeShipping : true;
+    
     // Create proper product object for buyerStore
     const productForCart = {
-      id: baseProduct.id,
+      id: normalizedProduct.id,
       name: productData.name,
-      price: productData.price / 100,
-      originalPrice: baseProduct.originalPrice,
-      image: baseProduct.image,
-      images: productData.images || [baseProduct.image],
+      price: productData.price,
+      originalPrice: normalizedProduct.originalPrice,
+      image: productImage,
+      images: productData.images || productImages,
       seller: {
         id: 'seller-1',
-        name: baseProduct.seller,
-        avatar: 'https://api.dicebear.com/7.x/initials/svg?seed=' + baseProduct.seller,
+        name: sellerName,
+        avatar: 'https://api.dicebear.com/7.x/initials/svg?seed=' + sellerName,
         rating: 4.8,
         totalReviews: 234,
         followers: 1523,
-        isVerified: baseProduct.isVerified || true,
+        isVerified: isVerified,
         description: 'Trusted seller on BazaarPH',
-        location: baseProduct.location || 'Metro Manila',
+        location: productLocation,
         established: '2020',
         products: [],
         badges: ['Verified', 'Fast Shipper'],
         responseTime: '< 1 hour',
-        categories: [baseProduct.category]
+        categories: [normalizedProduct.category]
       },
       sellerId: 'seller-1',
-      rating: baseProduct.rating,
+      rating: normalizedProduct.rating,
       totalReviews: 234,
-      category: baseProduct.category,
-      sold: baseProduct.sold || 0,
-      isFreeShipping: baseProduct.isFreeShipping || false,
-      location: baseProduct.location || 'Metro Manila',
+      category: normalizedProduct.category,
+      sold: soldCount,
+      isFreeShipping: freeShipping,
+      location: productLocation,
       description: productData.description || '',
       specifications: {},
       variants: []
@@ -624,7 +677,7 @@ export default function ProductDetailPage({}: ProductDetailPageProps) {
             {/* Main Image */}
             <div className="aspect-square bg-gray-50 rounded-xl overflow-hidden border">
               <img
-                src={productData.colors[selectedColor]?.image || baseProduct.image}
+                src={productData.colors[selectedColor]?.image || productData.images[0] || ''}
                 alt={productData.name}
                 className="w-full h-full object-cover"
               />
@@ -644,7 +697,7 @@ export default function ProductDetailPage({}: ProductDetailPageProps) {
                   )}
                 >
                   <img
-                    src={baseProduct.image}
+                    src={productData.images[index] || ''}
                     alt={`${productData.name} ${index + 1}`}
                     className="w-full h-full object-cover"
                   />

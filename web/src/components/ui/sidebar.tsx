@@ -90,6 +90,7 @@ export const DesktopSidebar = ({
     <motion.div
       className={cn(
         "h-full px-4 py-4 hidden md:flex md:flex-col bg-white border-r border-gray-200 flex-shrink-0 shadow-sm",
+        !open && "[&>*]:overflow-hidden [&>*]:scrollbar-hide",
         className
       )}
       animate={{

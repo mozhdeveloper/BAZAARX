@@ -1,5 +1,8 @@
 {
   "dependencies": {
     "zustand": "^5.0.9"
+  },
+  "devDependencies": {
+    "@google/gemini-cli": "^0.21.3"
   }
 }

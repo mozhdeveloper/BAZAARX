@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
   Search, 
@@ -13,61 +13,50 @@ import {
   Phone,
   Mail,
   Download,
-  TrendingUp,
-  ShoppingCart,
-  Settings,
-  LayoutDashboard,
   Star,
-  Store,
-  Wallet
+  LogOut,
+  Globe,
+  Store as StoreIcon,
+  ShoppingBag,
+  MoreVertical,
+  Eye,
+  Printer,
+  CreditCard
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Sidebar, SidebarBody, SidebarLink } from '@/components/ui/sidebar';
 import { useAuthStore, useOrderStore } from '@/stores/sellerStore';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { sellerLinks } from '@/config/sellerLinks';
 
-const sellerLinks = [
-  {
-    label: "Dashboard",
-    href: "/seller",
-    icon: <LayoutDashboard className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
-  },
-  {
-    label: "Store Profile",
-    href: "/seller/store-profile",
-    icon: <Store className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
-  },
-  {
-    label: "Products", 
-    href: "/seller/products",
-    icon: <Package className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
-  },
-  {
-    label: "Orders",
-    href: "/seller/orders",
-    icon: <ShoppingCart className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
-  },
-  {
-    label: "Earnings",
-    href: "/seller/earnings",
-    icon: <Wallet className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
-  },
-  {
-    label: "Reviews",
-    href: "/seller/reviews",
-    icon: <Star className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
-  },
-  {
-    label: "Analytics",
-    href: "/seller/analytics",
-    icon: <TrendingUp className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
-  },
-  {
-    label: "Settings",
-    href: "/seller/settings",
-    icon: <Settings className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
-  }
-];
+
 
 const Logo = () => (
   <Link to="/seller" className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20">
@@ -92,48 +81,21 @@ const LogoIcon = () => (
   </Link>
 );
 
-const statusConfig = {
-  pending: { 
-    color: 'bg-yellow-100 text-yellow-700', 
-    icon: Clock, 
-    label: 'Pending' 
-  },
-  confirmed: { 
-    color: 'bg-blue-100 text-blue-700', 
-    icon: CheckCircle, 
-    label: 'Confirmed' 
-  },
-  shipped: { 
-    color: 'bg-purple-100 text-purple-700', 
-    icon: Truck, 
-    label: 'Shipped' 
-  },
-  delivered: { 
-    color: 'bg-green-100 text-green-700', 
-    icon: CheckCircle, 
-    label: 'Delivered' 
-  },
-  cancelled: { 
-    color: 'bg-red-100 text-red-700', 
-    icon: XCircle, 
-    label: 'Cancelled' 
-  }
-};
-
-const paymentStatusConfig = {
-  pending: { color: 'bg-yellow-100 text-yellow-700', label: 'Pending' },
-  paid: { color: 'bg-green-100 text-green-700', label: 'Paid' },
-  refunded: { color: 'bg-red-100 text-red-700', label: 'Refunded' }
-};
-
 export function SellerOrders() {
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [channelFilter, setChannelFilter] = useState<'all' | 'online' | 'pos'>('all');
   const [selectedOrder, setSelectedOrder] = useState<string | null>(null);
   
-  const { seller } = useAuthStore();
+  const { seller, logout } = useAuthStore();
   const { orders, updateOrderStatus, addTrackingNumber } = useOrderStore();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/seller/auth');
+  };
 
   const filteredOrders = orders.filter(order => {
     const matchesSearch = 
@@ -143,25 +105,61 @@ export function SellerOrders() {
     
     const matchesFilter = filterStatus === 'all' || order.status === filterStatus;
     
-    return matchesSearch && matchesFilter;
+    const matchesChannel = 
+      channelFilter === 'all' || 
+      (channelFilter === 'online' && order.type === 'ONLINE') ||
+      (channelFilter === 'pos' && order.type === 'OFFLINE');
+    
+    return matchesSearch && matchesFilter && matchesChannel;
   });
 
   const handleStatusUpdate = (orderId: string, newStatus: any) => {
     updateOrderStatus(orderId, newStatus);
     
-    // If shipped, add a tracking number
+    // Cross-store sync: Update buyer order status and send notification
+    if (newStatus === 'confirmed') {
+      // Dynamically import cart store to avoid circular dependency
+      import('../stores/cartStore').then(({ useCartStore }) => {
+        const cartStore = useCartStore.getState();
+        cartStore.updateOrderStatus(orderId, 'confirmed');
+        cartStore.addNotification(
+          orderId,
+          'seller_confirmed',
+          'Your order has been confirmed by the seller! Track your delivery now.'
+        );
+      }).catch(error => {
+        console.error('Failed to sync buyer notification:', error);
+      });
+    }
+    
+    // If shipped, add a tracking number and notify buyer
     if (newStatus === 'shipped') {
       const trackingNumber = `TRK${Date.now().toString().slice(-8)}`;
       addTrackingNumber(orderId, trackingNumber);
+      
+      // Notify buyer about shipment
+      import('../stores/cartStore').then(({ useCartStore }) => {
+        const cartStore = useCartStore.getState();
+        cartStore.updateOrderStatus(orderId, 'shipped');
+        cartStore.addNotification(
+          orderId,
+          'shipped',
+          `Your order is on the way! Tracking: ${trackingNumber}`
+        );
+      }).catch(error => {
+        console.error('Failed to sync shipment notification:', error);
+      });
     }
   };
 
   const orderStats = {
     total: orders.length,
     pending: orders.filter(o => o.status === 'pending').length,
-    confirmed: orders.filter(o => o.status === 'confirmed').length,
-    shipped: orders.filter(o => o.status === 'shipped').length,
-    delivered: orders.filter(o => o.status === 'delivered').length
+    delivered: orders.filter(o => o.status === 'delivered').length,
+    posToday: orders.filter(o => {
+      const isToday = new Date(o.orderDate).toDateString() === new Date().toDateString();
+      return o.type === 'OFFLINE' && isToday;
+    }).length
   };
 
   return (
@@ -176,7 +174,7 @@ export function SellerOrders() {
               ))}
             </div>
           </div>
-          <div>
+          <div className="space-y-2">
             <SidebarLink
               link={{
                 label: seller?.name || "Seller",
@@ -190,216 +188,379 @@ export function SellerOrders() {
                 ),
               }}
             />
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-2 w-full px-2 py-2 text-sm text-gray-700 hover:text-orange-500 hover:bg-orange-50 rounded-md transition-colors"
+            >
+              <LogOut className="h-5 w-5 flex-shrink-0" />
+              {open && <span>Logout</span>}
+            </button>
           </div>
         </SidebarBody>
       </Sidebar>
 
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden bg-gray-50">
         {/* Header */}
-        <div className="p-6 bg-white border-b border-gray-200">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+        <div className="px-8 py-6 bg-white border-b border-gray-200">
+          <div className="flex items-center justify-between mb-6">
             <div>
-              <h1 className="text-2xl font-semibold text-gray-900">Orders</h1>
-              <p className="text-gray-600 mt-1">Manage your customer orders</p>
+              <h1 className="text-3xl font-bold text-gray-900" style={{ fontFamily: 'Inter, sans-serif' }}>Orders</h1>
+              <p className="text-gray-500 mt-1 text-sm">Manage all your customer orders from App and POS</p>
             </div>
-            <Button variant="outline" className="flex items-center gap-2">
-              <Download className="h-4 w-4" />
+          </div>
+
+          {/* Modern Stats Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Total Orders - Orange */}
+            <Card className="border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+              <CardContent className="p-5">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-500 mb-1">Total Orders</p>
+                    <p className="text-3xl font-bold text-gray-900">{orderStats.total}</p>
+                  </div>
+                  <div className="h-12 w-12 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
+                    <ShoppingBag className="h-6 w-6 text-orange-600" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Pending - Yellow */}
+            <Card className="border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+              <CardContent className="p-5">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-500 mb-1">Pending</p>
+                    <p className="text-3xl font-bold text-yellow-600">{orderStats.pending}</p>
+                  </div>
+                  <div className="h-12 w-12 rounded-full bg-yellow-100 flex items-center justify-center flex-shrink-0">
+                    <Clock className="h-6 w-6 text-yellow-600" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Delivered - Green */}
+            <Card className="border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+              <CardContent className="p-5">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-500 mb-1">Delivered</p>
+                    <p className="text-3xl font-bold text-green-600">{orderStats.delivered}</p>
+                  </div>
+                  <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+                    <CheckCircle className="h-6 w-6 text-green-600" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* POS Sales Today - Purple */}
+            <Card className="border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+              <CardContent className="p-5">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-500 mb-1">POS Sales Today</p>
+                    <p className="text-3xl font-bold text-purple-600">{orderStats.posToday}</p>
+                  </div>
+                  <div className="h-12 w-12 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
+                    <CreditCard className="h-6 w-6 text-purple-600" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+
+        {/* Advanced Filtering Toolbar */}
+        <div className="px-8 py-4 bg-white border-b border-gray-200">
+          <div className="flex flex-col lg:flex-row gap-4 items-center">
+            {/* Search Input */}
+            <div className="flex-1 w-full lg:w-auto">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                <Input
+                  type="text"
+                  placeholder="Search by Order ID, Customer name, or Email..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 w-full border-gray-300 focus-visible:ring-orange-500"
+                />
+              </div>
+            </div>
+
+            {/* Channel Filter Tabs */}
+            <Tabs value={channelFilter} onValueChange={(v) => setChannelFilter(v as any)} className="w-full lg:w-auto">
+              <TabsList className="grid w-full lg:w-auto grid-cols-3 bg-gray-100">
+                <TabsTrigger value="all" className="data-[state=active]:bg-orange-500 data-[state=active]:text-white">
+                  All Channels
+                </TabsTrigger>
+                <TabsTrigger value="online" className="data-[state=active]:bg-orange-500 data-[state=active]:text-white">
+                  <Globe className="h-4 w-4 mr-1" />
+                  Online App
+                </TabsTrigger>
+                <TabsTrigger value="pos" className="data-[state=active]:bg-orange-500 data-[state=active]:text-white">
+                  <StoreIcon className="h-4 w-4 mr-1" />
+                  POS / Offline
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+
+            {/* Status Filter Select */}
+            <Select value={filterStatus} onValueChange={setFilterStatus}>
+              <SelectTrigger className="w-full lg:w-[180px] border-gray-300">
+                <SelectValue placeholder="Filter Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="confirmed">Confirmed</SelectItem>
+                <SelectItem value="shipped">Shipped</SelectItem>
+                <SelectItem value="delivered">Delivered</SelectItem>
+                <SelectItem value="cancelled">Cancelled</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {/* Export Button */}
+            <Button variant="outline" className="w-full lg:w-auto border-gray-300 hover:bg-gray-50">
+              <Download className="h-4 w-4 mr-2" />
               Export Orders
             </Button>
           </div>
-
-          {/* Order Stats */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-            <div className="bg-gray-50 rounded-lg p-4">
-              <div className="text-2xl font-semibold text-gray-900">{orderStats.total}</div>
-              <div className="text-sm text-gray-600">Total Orders</div>
-            </div>
-            <div className="bg-yellow-50 rounded-lg p-4">
-              <div className="text-2xl font-semibold text-yellow-700">{orderStats.pending}</div>
-              <div className="text-sm text-yellow-600">Pending</div>
-            </div>
-            <div className="bg-blue-50 rounded-lg p-4">
-              <div className="text-2xl font-semibold text-blue-700">{orderStats.confirmed}</div>
-              <div className="text-sm text-blue-600">Confirmed</div>
-            </div>
-            <div className="bg-purple-50 rounded-lg p-4">
-              <div className="text-2xl font-semibold text-purple-700">{orderStats.shipped}</div>
-              <div className="text-sm text-purple-600">Shipped</div>
-            </div>
-            <div className="bg-green-50 rounded-lg p-4">
-              <div className="text-2xl font-semibold text-green-700">{orderStats.delivered}</div>
-              <div className="text-sm text-green-600">Delivered</div>
-            </div>
-          </div>
         </div>
 
-        {/* Filters and Search */}
-        <div className="px-6 py-4 bg-white border-b border-gray-200">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-              <input
-                type="text"
-                placeholder="Search orders by ID, customer name, or email..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-              />
-            </div>
-            <select 
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-            >
-              <option value="all">All Orders</option>
-              <option value="pending">Pending</option>
-              <option value="confirmed">Confirmed</option>
-              <option value="shipped">Shipped</option>
-              <option value="delivered">Delivered</option>
-              <option value="cancelled">Cancelled</option>
-            </select>
-          </div>
-        </div>
-
-        {/* Orders List */}
-        <div className="flex-1 overflow-auto p-6">
-          <div className="space-y-4">
-            {filteredOrders.map((order) => {
-              const StatusIcon = statusConfig[order.status].icon;
-              const isExpanded = selectedOrder === order.id;
-              
-              return (
-                <motion.div
-                  key={order.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="bg-white rounded-lg border border-gray-200 overflow-hidden"
-                >
-                  {/* Order Header */}
-                  <div 
-                    className="p-6 cursor-pointer hover:bg-gray-50 transition-colors"
-                    onClick={() => setSelectedOrder(isExpanded ? null : order.id)}
+        {/* Orders Table */}
+        <div className="flex-1 overflow-auto px-8 py-6">
+          <Card className="border border-gray-200 shadow-sm">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-gray-50 hover:bg-gray-50">
+                  <TableHead className="font-semibold text-gray-700">Order ID & Date</TableHead>
+                  <TableHead className="font-semibold text-gray-700">Customer</TableHead>
+                  <TableHead className="font-semibold text-gray-700">Channel</TableHead>
+                  <TableHead className="font-semibold text-gray-700">Status</TableHead>
+                  <TableHead className="font-semibold text-gray-700">Payment</TableHead>
+                  <TableHead className="font-semibold text-gray-700 text-right">Total</TableHead>
+                  <TableHead className="font-semibold text-gray-700 text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredOrders.map((order) => (
+                  <TableRow 
+                    key={order.id} 
+                    className="hover:bg-gray-50 transition-colors cursor-pointer"
+                    onClick={() => setSelectedOrder(selectedOrder === order.id ? null : order.id)}
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <div className="h-12 w-12 bg-orange-100 rounded-full flex items-center justify-center">
-                          <User className="h-6 w-6 text-orange-600" />
-                        </div>
+                    {/* Order ID & Source */}
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        {order.type === 'ONLINE' ? (
+                          <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                            <Globe className="h-4 w-4 text-blue-600" />
+                          </div>
+                        ) : (
+                          <div className="h-8 w-8 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
+                            <StoreIcon className="h-4 w-4 text-purple-600" />
+                          </div>
+                        )}
                         <div>
-                          <h3 className="font-medium text-gray-900">{order.buyerName}</h3>
-                          <p className="text-sm text-gray-600">Order #{order.id}</p>
+                          <p className="font-semibold text-gray-900 text-sm">#{order.id.slice(0, 8)}</p>
                           <p className="text-xs text-gray-500">
                             {new Date(order.orderDate).toLocaleDateString('en-US', {
-                              year: 'numeric',
                               month: 'short',
                               day: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit'
+                              year: 'numeric'
                             })}
                           </p>
                         </div>
                       </div>
-                      
-                      <div className="flex items-center gap-4">
-                        <div className="text-right">
-                          <p className="font-semibold text-gray-900">₱{order.total.toLocaleString()}</p>
-                          <p className="text-sm text-gray-600">{order.items.length} item{order.items.length > 1 ? 's' : ''}</p>
-                        </div>
-                        
-                        <div className="flex flex-col gap-2">
-                          <span className={cn(
-                            "px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1",
-                            statusConfig[order.status].color
-                          )}>
-                            <StatusIcon className="h-3 w-3" />
-                            {statusConfig[order.status].label}
-                          </span>
-                          <span className={cn(
-                            "px-3 py-1 rounded-full text-xs font-medium",
-                            paymentStatusConfig[order.paymentStatus].color
-                          )}>
-                            {paymentStatusConfig[order.paymentStatus].label}
-                          </span>
-                        </div>
+                    </TableCell>
 
-                        {order.status === 'pending' && (
-                          <div className="flex gap-2">
-                            <Button 
-                              size="sm"
-                              variant="outline"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleStatusUpdate(order.id, 'cancelled');
-                              }}
-                              className="text-red-600 border-red-300 hover:bg-red-50"
-                            >
-                              Reject
-                            </Button>
-                            <Button 
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleStatusUpdate(order.id, 'confirmed');
-                              }}
-                              className="bg-orange-500 hover:bg-orange-600 text-white"
-                            >
-                              Confirm
-                            </Button>
-                          </div>
-                        )}
-
-                        {order.status === 'confirmed' && (
-                          <Button 
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleStatusUpdate(order.id, 'shipped');
-                            }}
-                            className="bg-purple-500 hover:bg-purple-600 text-white"
-                          >
-                            Ship Order
-                          </Button>
-                        )}
+                    {/* Customer */}
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Avatar className="h-8 w-8">
+                          <AvatarFallback className="bg-orange-100 text-orange-600 text-xs font-medium">
+                            {order.buyerName.charAt(0)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <p className="font-medium text-gray-900 text-sm">{order.buyerName}</p>
+                          {order.type === 'OFFLINE' && (
+                            <p className="text-xs text-purple-600 font-medium">Walk-in</p>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  </div>
+                    </TableCell>
 
-                  {/* Expanded Order Details */}
-                  {isExpanded && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
-                      exit={{ opacity: 0, height: 0 }}
-                      className="border-t border-gray-200 p-6 bg-gray-50"
-                    >
+                    {/* Channel Badge */}
+                    <TableCell>
+                      {order.type === 'ONLINE' ? (
+                        <Badge variant="outline" className="border-blue-300 text-blue-700 bg-blue-50 font-medium">
+                          Online
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="border-purple-300 text-purple-700 bg-purple-50 font-medium">
+                          POS
+                        </Badge>
+                      )}
+                    </TableCell>
+
+                    {/* Status */}
+                    <TableCell>
+                      <Badge 
+                        variant="secondary"
+                        className={cn(
+                          "font-medium",
+                          order.status === 'pending' && "bg-yellow-100 text-yellow-700 hover:bg-yellow-100",
+                          order.status === 'confirmed' && "bg-blue-100 text-blue-700 hover:bg-blue-100",
+                          order.status === 'shipped' && "bg-purple-100 text-purple-700 hover:bg-purple-100",
+                          order.status === 'delivered' && "bg-green-100 text-green-700 hover:bg-green-100",
+                          order.status === 'cancelled' && "bg-red-100 text-red-700 hover:bg-red-100"
+                        )}
+                      >
+                        {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+                      </Badge>
+                    </TableCell>
+
+                    {/* Payment Status */}
+                    <TableCell>
+                      <Badge 
+                        variant="secondary"
+                        className={cn(
+                          "font-medium",
+                          order.paymentStatus === 'paid' && "bg-green-100 text-green-700 hover:bg-green-100",
+                          order.paymentStatus === 'pending' && "bg-yellow-100 text-yellow-700 hover:bg-yellow-100",
+                          order.paymentStatus === 'refunded' && "bg-red-100 text-red-700 hover:bg-red-100"
+                        )}
+                      >
+                        {order.paymentStatus.charAt(0).toUpperCase() + order.paymentStatus.slice(1)}
+                      </Badge>
+                    </TableCell>
+
+                    {/* Total */}
+                    <TableCell className="text-right">
+                      <p className="font-bold text-gray-900 text-base">₱{order.total.toLocaleString()}</p>
+                      <p className="text-xs text-gray-500">{order.items.length} items</p>
+                    </TableCell>
+
+                    {/* Actions Dropdown */}
+                    <TableCell className="text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-48">
+                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setSelectedOrder(order.id); }}>
+                            <Eye className="h-4 w-4 mr-2" />
+                            View Details
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={(e) => e.stopPropagation()}>
+                            <Printer className="h-4 w-4 mr-2" />
+                            Print Invoice
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          {order.status === 'pending' && (
+                            <>
+                              <DropdownMenuItem 
+                                onClick={(e) => { e.stopPropagation(); handleStatusUpdate(order.id, 'confirmed'); }}
+                                className="text-green-600"
+                              >
+                                <CheckCircle className="h-4 w-4 mr-2" />
+                                Confirm Order
+                              </DropdownMenuItem>
+                              <DropdownMenuItem 
+                                onClick={(e) => { e.stopPropagation(); handleStatusUpdate(order.id, 'cancelled'); }}
+                                className="text-red-600"
+                              >
+                                <XCircle className="h-4 w-4 mr-2" />
+                                Cancel Order
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                          {order.status === 'confirmed' && (
+                            <DropdownMenuItem 
+                              onClick={(e) => { e.stopPropagation(); handleStatusUpdate(order.id, 'shipped'); }}
+                              className="text-purple-600"
+                            >
+                              <Truck className="h-4 w-4 mr-2" />
+                              Mark as Shipped
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+
+            {/* Empty State */}
+            {filteredOrders.length === 0 && (
+              <div className="text-center py-12">
+                <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No orders found</h3>
+                <p className="text-gray-600 text-sm">
+                  {searchQuery || filterStatus !== 'all' || channelFilter !== 'all'
+                    ? 'Try adjusting your search or filters'
+                    : 'Orders will appear here when customers make purchases'
+                  }
+                </p>
+              </div>
+            )}
+          </Card>
+
+          {/* Order Details Panel */}
+          {selectedOrder && orders.find(o => o.id === selectedOrder) && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-6"
+            >
+              <Card className="border border-gray-200 shadow-sm">
+                <CardHeader className="border-b border-gray-200 bg-gray-50">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-xl font-bold">Order Details</CardTitle>
+                    <Button variant="ghost" size="sm" onClick={() => setSelectedOrder(null)}>
+                      <XCircle className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-6">
+                  {(() => {
+                    const order = orders.find(o => o.id === selectedOrder)!;
+                    return (
                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         {/* Customer Info */}
-                        <div>
-                          <h4 className="font-medium text-gray-900 mb-4">Customer Information</h4>
+                        <div className="space-y-4">
+                          <h4 className="font-semibold text-gray-900">Customer Information</h4>
                           <div className="space-y-3 text-sm">
                             <div className="flex items-center gap-2">
                               <User className="h-4 w-4 text-gray-400" />
                               <span className="text-gray-600">Name:</span>
-                              <span className="text-gray-900">{order.buyerName}</span>
+                              <span className="text-gray-900 font-medium">{order.buyerName}</span>
                             </div>
                             <div className="flex items-center gap-2">
                               <Mail className="h-4 w-4 text-gray-400" />
                               <span className="text-gray-600">Email:</span>
-                              <span className="text-gray-900">{order.buyerEmail}</span>
+                              <span className="text-gray-900 font-medium">{order.buyerEmail}</span>
                             </div>
                             <div className="flex items-center gap-2">
                               <Phone className="h-4 w-4 text-gray-400" />
                               <span className="text-gray-600">Phone:</span>
-                              <span className="text-gray-900">{order.shippingAddress.phone}</span>
+                              <span className="text-gray-900 font-medium">{order.shippingAddress.phone}</span>
                             </div>
                           </div>
 
-                          <h4 className="font-medium text-gray-900 mb-4 mt-6">Shipping Address</h4>
-                          <div className="text-sm text-gray-600">
+                          <h4 className="font-semibold text-gray-900 pt-4">Shipping Address</h4>
+                          <div className="text-sm text-gray-600 bg-gray-50 p-4 rounded-lg">
                             <div className="flex items-start gap-2">
-                              <MapPin className="h-4 w-4 text-gray-400 mt-0.5" />
+                              <MapPin className="h-4 w-4 text-gray-400 mt-0.5 flex-shrink-0" />
                               <div>
-                                <p>{order.shippingAddress.fullName}</p>
+                                <p className="font-medium text-gray-900">{order.shippingAddress.fullName}</p>
                                 <p>{order.shippingAddress.street}</p>
                                 <p>{order.shippingAddress.city}, {order.shippingAddress.province}</p>
                                 <p>{order.shippingAddress.postalCode}</p>
@@ -408,61 +569,76 @@ export function SellerOrders() {
                           </div>
 
                           {order.trackingNumber && (
-                            <div className="mt-6">
-                              <h4 className="font-medium text-gray-900 mb-2">Tracking Number</h4>
-                              <div className="bg-white border border-gray-200 rounded-lg p-3">
-                                <code className="text-sm text-gray-900">{order.trackingNumber}</code>
+                            <>
+                              <h4 className="font-semibold text-gray-900 pt-4">Tracking Number</h4>
+                              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                                <code className="text-sm text-blue-900 font-mono">{order.trackingNumber}</code>
                               </div>
-                            </div>
+                            </>
                           )}
                         </div>
 
                         {/* Order Items */}
-                        <div>
-                          <h4 className="font-medium text-gray-900 mb-4">Order Items</h4>
+                        <div className="space-y-4">
+                          <h4 className="font-semibold text-gray-900">Order Items</h4>
                           <div className="space-y-3">
                             {order.items.map((item, index) => (
-                              <div key={index} className="flex items-center gap-3 bg-white border border-gray-200 rounded-lg p-3">
+                              <div key={index} className="flex items-center gap-3 bg-gray-50 rounded-lg p-3">
                                 <img
                                   src={item.image}
                                   alt={item.productName}
-                                  className="w-12 h-12 object-cover rounded-lg"
+                                  className="w-16 h-16 object-cover rounded-lg border border-gray-200"
                                 />
                                 <div className="flex-1">
                                   <h5 className="font-medium text-gray-900 text-sm">{item.productName}</h5>
                                   <p className="text-xs text-gray-600">Qty: {item.quantity}</p>
                                 </div>
-                                <p className="font-medium text-gray-900 text-sm">₱{item.price.toLocaleString()}</p>
+                                <p className="font-semibold text-gray-900">₱{item.price.toLocaleString()}</p>
                               </div>
                             ))}
                           </div>
 
-                          <div className="mt-4 bg-white border border-gray-200 rounded-lg p-4">
+                          <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mt-4">
                             <div className="flex justify-between items-center">
-                              <span className="font-medium text-gray-900">Total</span>
-                              <span className="font-semibold text-lg text-gray-900">₱{order.total.toLocaleString()}</span>
+                              <span className="font-semibold text-gray-900">Total Amount</span>
+                              <span className="font-bold text-2xl text-orange-600">₱{order.total.toLocaleString()}</span>
                             </div>
                           </div>
+
+                          {/* Review Section */}
+                          {order.rating && (
+                            <div className="pt-4">
+                              <h4 className="font-semibold text-gray-900 mb-3">Customer Review</h4>
+                              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <div className="flex gap-1">
+                                    {[...Array(5)].map((_, i) => (
+                                      <Star
+                                        key={i}
+                                        className={cn(
+                                          "h-5 w-5",
+                                          i < order.rating!
+                                            ? "text-yellow-500 fill-yellow-500"
+                                            : "text-gray-300"
+                                        )}
+                                      />
+                                    ))}
+                                  </div>
+                                  <span className="font-semibold text-gray-900">{order.rating}.0 / 5.0</span>
+                                </div>
+                                {order.reviewComment && (
+                                  <p className="text-sm text-gray-700 italic">"{order.reviewComment}"</p>
+                                )}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
-                    </motion.div>
-                  )}
-                </motion.div>
-              );
-            })}
-          </div>
-
-          {filteredOrders.length === 0 && (
-            <div className="text-center py-12">
-              <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No orders found</h3>
-              <p className="text-gray-600">
-                {searchQuery || filterStatus !== 'all' 
-                  ? 'Try adjusting your search or filters'
-                  : 'Orders will appear here when customers make purchases'
-                }
-              </p>
-            </div>
+                    );
+                  })()}
+                </CardContent>
+              </Card>
+            </motion.div>
           )}
         </div>
       </div>
