@@ -1,0 +1,861 @@
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  TextInput,
+  StyleSheet,
+  Pressable,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Image,
+} from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ArrowLeft, MapPin, CreditCard, Shield, Tag, X, ChevronDown, Check } from 'lucide-react-native';
+
+// Dummy voucher codes
+const VOUCHERS = {
+  'WELCOME10': { type: 'percentage', value: 10, description: '10% off' },
+  'SAVE50': { type: 'fixed', value: 50, description: '₱50 off' },
+  'FREESHIP': { type: 'shipping', value: 0, description: 'Free shipping' },
+  'NEWYEAR25': { type: 'percentage', value: 25, description: '25% off New Year' },
+  'FLASH100': { type: 'fixed', value: 100, description: '₱100 flash discount' },
+};
+import { useCartStore } from '../src/stores/cartStore';
+import { useOrderStore } from '../src/stores/orderStore';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../App';
+import type { ShippingAddress } from '../src/types';
+
+type Props = NativeStackScreenProps<RootStackParamList, 'Checkout'>;
+
+type CheckoutStep = 'shipping' | 'payment' | 'confirmation';
+
+export default function CheckoutScreen({ navigation }: Props) {
+  const { items, getTotal, clearCart } = useCartStore();
+  const createOrder = useOrderStore((state) => state.createOrder);
+  const insets = useSafeAreaInsets();
+
+  const [currentStep, setCurrentStep] = useState<CheckoutStep>('payment');
+  const [address, setAddress] = useState<ShippingAddress>({
+    name: '',
+    email: '',
+    phone: '',
+    address: '',
+    city: '',
+    region: '',
+    postalCode: '',
+  });
+
+  const [paymentMethod, setPaymentMethod] = useState<'cod' | 'gcash' | 'card' | 'paymongo'>('cod');
+  const [voucherCode, setVoucherCode] = useState('');
+  const [appliedVoucher, setAppliedVoucher] = useState<keyof typeof VOUCHERS | null>(null);
+
+  const subtotal = getTotal();
+  let shippingFee = subtotal > 500 ? 0 : 50;
+  let discount = 0;
+
+  // Apply voucher discount
+  if (appliedVoucher && VOUCHERS[appliedVoucher]) {
+    const voucher = VOUCHERS[appliedVoucher];
+    if (voucher.type === 'percentage') {
+      discount = Math.round(subtotal * (voucher.value / 100));
+    } else if (voucher.type === 'fixed') {
+      discount = voucher.value;
+    } else if (voucher.type === 'shipping') {
+      shippingFee = 0;
+    }
+  }
+
+  const total = subtotal + shippingFee - discount;
+
+  const handleApplyVoucher = () => {
+    const code = voucherCode.trim().toUpperCase();
+    if (VOUCHERS[code as keyof typeof VOUCHERS]) {
+      setAppliedVoucher(code as keyof typeof VOUCHERS);
+      Alert.alert('Success', `Voucher "${code}" applied successfully!`);
+    } else {
+      Alert.alert('Invalid Voucher', 'This voucher code is not valid.');
+    }
+  };
+
+  const handleRemoveVoucher = () => {
+    setAppliedVoucher(null);
+    setVoucherCode('');
+  };
+
+  const handleAutofill = () => {
+    setAddress({
+      name: 'John Doe',
+      email: 'john.doe@example.com',
+      phone: '+63 912 345 6789',
+      address: '123 Main Street, Brgy. San Antonio',
+      city: 'Manila',
+      region: 'Metro Manila',
+      postalCode: '1000',
+    });
+    Alert.alert('Success', 'Demo data filled in automatically!');
+  };
+
+  const handlePlaceOrder = () => {
+    // Validate
+    if (!address.name || !address.phone || !address.address || !address.city) {
+      Alert.alert('Error', 'Please fill in all required fields');
+      return;
+    }
+
+    // Check if cart is empty
+    if (!items || items.length === 0) {
+      Alert.alert('Error', 'Your cart is empty');
+      navigation.navigate('MainTabs', { screen: 'Shop', params: {} });
+      return;
+    }
+
+    // Create order
+    try {
+      const order = createOrder(items, address, paymentMethod);
+      clearCart();
+
+      // Check if online payment (GCash, PayMongo, PayMaya, Card)
+      const isOnlinePayment = paymentMethod.toLowerCase() !== 'cod' && paymentMethod.toLowerCase() !== 'cash on delivery';
+
+      if (isOnlinePayment) {
+        // Navigate to payment gateway simulation
+        navigation.navigate('PaymentGateway', { paymentMethod, order });
+      } else {
+        // COD - go directly to confirmation
+        navigation.navigate('OrderConfirmation', { order });
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to place order. Please try again.');
+      console.error('Order creation error:', error);
+    }
+  };
+
+  const ProgressStepper = () => {
+    const steps: { id: CheckoutStep; label: string }[] = [
+      { id: 'shipping', label: 'Shipping' },
+      { id: 'payment', label: 'Payment' },
+      { id: 'confirmation', label: 'Confirm' },
+    ];
+
+    const currentIndex = steps.findIndex(s => s.id === currentStep);
+
+    return (
+      <View style={styles.stepperContainer}>
+        {steps.map((step, index) => {
+          const isCompleted = index < currentIndex;
+          const isActive = index === currentIndex;
+          
+          return (
+            <View key={step.id} style={styles.stepWrapper}>
+              {/* Step Circle */}
+              <View style={[
+                styles.stepCircle,
+                isActive && styles.stepCircleActive,
+                isCompleted && styles.stepCircleCompleted
+              ]}>
+                {isCompleted ? (
+                  <Check size={14} color="#FFFFFF" strokeWidth={3} />
+                ) : (
+                  <Text style={[
+                    styles.stepNumber,
+                    isActive && styles.stepNumberActive
+                  ]}>{index + 1}</Text>
+                )}
+              </View>
+
+              {/* Step Label */}
+              <Text style={[
+                styles.stepLabel,
+                isActive && styles.stepLabelActive,
+                isCompleted && styles.stepLabelCompleted
+              ]}>{step.label}</Text>
+
+              {/* Connector Line */}
+              {index < steps.length - 1 && (
+                <View style={[
+                  styles.stepConnector,
+                  isCompleted && styles.stepConnectorActive
+                ]} />
+              )}
+            </View>
+          );
+        })}
+      </View>
+    );
+  };
+
+  return (
+    <SafeAreaView style={styles.container} edges={['left', 'right']}>
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={{ flex: 1 }}
+      >
+        {/* Edge-to-Edge Orange Header */}
+        <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+          <View style={styles.headerTop}>
+            <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
+              <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
+            </Pressable>
+            <Text style={styles.headerTitle}>Checkout</Text>
+            <View style={{ width: 36 }} />
+          </View>
+        </View>
+
+        <ScrollView 
+          style={styles.scrollContainer} 
+          contentContainerStyle={{ paddingBottom: 120 + insets.bottom }}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Compact Order List */}
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Order Items ({items.length})</Text>
+            </View>
+            
+            {items.map((item) => (
+              <View key={item.id} style={styles.compactOrderItem}>
+                <Image source={{ uri: item.image }} style={styles.compactThumbnail} />
+                <View style={styles.compactOrderInfo}>
+                  <Text style={styles.compactProductName} numberOfLines={1}>{item.name}</Text>
+                  <View style={styles.compactDetailsRow}>
+                    <View style={styles.compactSelector}>
+                      <Text style={styles.compactSelectorText}>Color</Text>
+                      <ChevronDown size={12} color="#6B7280" />
+                    </View>
+                    <View style={styles.compactSelector}>
+                      <Text style={styles.compactSelectorText}>Size</Text>
+                      <ChevronDown size={12} color="#6B7280" />
+                    </View>
+                    <Text style={styles.compactQuantity}>x{item.quantity}</Text>
+                  </View>
+                </View>
+                <Text style={styles.compactPrice}>₱{(item.price * item.quantity).toLocaleString()}</Text>
+              </View>
+            ))}
+          </View>
+
+          {/* Shipping Address Card */}
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHeaderWithBadge}>
+            <View style={styles.sectionHeader}>
+              <MapPin size={20} color="#FF5722" />
+              <Text style={[styles.sectionTitle, { marginLeft: 8 }]}>Delivery Address</Text>
+            </View>
+            <View style={styles.shippingBadge}>
+              <Text style={styles.shippingBadgeText}>Shipping Available</Text>
+            </View>
+          </View>
+
+          <Pressable
+            onPress={handleAutofill}
+            style={styles.autofillButton}
+          >
+            <Text style={styles.autofillButtonText}>Use Demo Data</Text>
+          </Pressable>
+
+          <TextInput
+            style={styles.input}
+            placeholder="Full Name *"
+            placeholderTextColor="#9CA3AF"
+            value={address.name}
+            onChangeText={(text) => setAddress({ ...address, name: text })}
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="Email"
+            placeholderTextColor="#9CA3AF"
+            value={address.email}
+            onChangeText={(text) => setAddress({ ...address, email: text })}
+            keyboardType="email-address"
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="Phone Number *"
+            placeholderTextColor="#9CA3AF"
+            value={address.phone}
+            onChangeText={(text) => setAddress({ ...address, phone: text })}
+            keyboardType="phone-pad"
+          />
+          <TextInput
+            style={[styles.input, styles.textArea]}
+            placeholder="Complete Address *"
+            placeholderTextColor="#9CA3AF"
+            value={address.address}
+            onChangeText={(text) => setAddress({ ...address, address: text })}
+            multiline
+            numberOfLines={3}
+          />
+          <View style={styles.row}>
+            <TextInput
+              style={[styles.input, styles.halfInput]}
+              placeholder="City *"
+              placeholderTextColor="#9CA3AF"
+              value={address.city}
+              onChangeText={(text) => setAddress({ ...address, city: text })}
+            />
+            <TextInput
+              style={[styles.input, styles.halfInput]}
+              placeholder="Region"
+              placeholderTextColor="#9CA3AF"
+              value={address.region}
+              onChangeText={(text) => setAddress({ ...address, region: text })}
+            />
+          </View>
+          <TextInput
+            style={styles.input}
+            placeholder="Postal Code"
+            placeholderTextColor="#9CA3AF"
+            value={address.postalCode}
+            onChangeText={(text) => setAddress({ ...address, postalCode: text })}
+            keyboardType="number-pad"
+          />
+        </View>
+
+        {/* Payment Method Card */}
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHeader}>
+            <CreditCard size={20} color="#FF5722" />
+            <Text style={[styles.sectionTitle, { marginLeft: 8 }]}>Payment Method</Text>
+          </View>
+
+          <Pressable
+            onPress={() => setPaymentMethod('gcash')}
+            style={[styles.paymentOption, paymentMethod === 'gcash' && styles.paymentOptionActive]}
+          >
+            <View style={styles.radio}>
+              {paymentMethod === 'gcash' && <View style={styles.radioInner} />}
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.paymentText}>GCash</Text>
+              <Text style={styles.paymentSubtext}>Instantly paid online</Text>
+            </View>
+            <Shield size={16} color="#10B981" />
+          </Pressable>
+
+          <Pressable
+            onPress={() => setPaymentMethod('paymongo')}
+            style={[styles.paymentOption, paymentMethod === 'paymongo' && styles.paymentOptionActive]}
+          >
+            <View style={styles.radio}>
+              {paymentMethod === 'paymongo' && <View style={styles.radioInner} />}
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.paymentText}>PayMongo</Text>
+              <Text style={styles.paymentSubtext}>Instantly paid online</Text>
+            </View>
+            <Shield size={16} color="#10B981" />
+          </Pressable>
+
+          <Pressable
+            onPress={() => setPaymentMethod('card')}
+            style={[styles.paymentOption, paymentMethod === 'card' && styles.paymentOptionActive]}
+          >
+            <View style={styles.radio}>
+              {paymentMethod === 'card' && <View style={styles.radioInner} />}
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.paymentText}>Credit/Debit Card</Text>
+              <Text style={styles.paymentSubtext}>Instantly paid online</Text>
+            </View>
+            <Shield size={16} color="#10B981" />
+          </Pressable>
+
+          <Pressable
+            onPress={() => setPaymentMethod('cod')}
+            style={[styles.paymentOption, paymentMethod === 'cod' && styles.paymentOptionActive]}
+          >
+            <View style={styles.radio}>
+              {paymentMethod === 'cod' && <View style={styles.radioInner} />}
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.paymentText}>Cash on Delivery</Text>
+              <Text style={styles.paymentSubtext}>Pay when you receive</Text>
+            </View>
+          </Pressable>
+
+          {/* Payment Status Info */}
+          <View style={styles.paymentInfoBanner}>
+            <Shield size={16} color={paymentMethod === 'cod' ? '#6B7280' : '#10B981'} />
+            <Text style={styles.paymentInfoText}>
+              {paymentMethod === 'cod' 
+                ? '💵 You will pay when you receive your order'
+                : '✅ Your payment will be processed instantly and securely'}
+            </Text>
+          </View>
+        </View>
+
+        {/* Voucher Code Card */}
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHeader}>
+            <Tag size={20} color="#FF5722" />
+            <Text style={[styles.sectionTitle, { marginLeft: 8 }]}>Voucher Code</Text>
+          </View>
+
+          {appliedVoucher ? (
+            <View style={styles.appliedVoucherContainer}>
+              <View style={styles.appliedVoucherBadge}>
+                <Tag size={16} color="#FF5722" />
+                <Text style={styles.appliedVoucherCode}>{appliedVoucher}</Text>
+                <Text style={styles.appliedVoucherDesc}>
+                  {VOUCHERS[appliedVoucher].description}
+                </Text>
+              </View>
+              <Pressable onPress={handleRemoveVoucher} style={styles.removeVoucherButton}>
+                <X size={18} color="#6B7280" />
+              </Pressable>
+            </View>
+          ) : (
+            <View style={styles.voucherInputContainer}>
+              <TextInput
+                style={styles.voucherInput}
+                placeholder="Enter voucher code"
+                placeholderTextColor="#9CA3AF"
+                value={voucherCode}
+                onChangeText={setVoucherCode}
+                autoCapitalize="characters"
+              />
+              <Pressable 
+                onPress={handleApplyVoucher}
+                style={[styles.applyButton, !voucherCode.trim() && styles.applyButtonDisabled]}
+                disabled={!voucherCode.trim()}
+              >
+                <Text style={styles.applyButtonText}>Apply</Text>
+              </Pressable>
+            </View>
+          )}
+
+          {!appliedVoucher && (
+            <View style={styles.voucherHintContainer}>
+              <Text style={styles.voucherHint}>Try: WELCOME10, SAVE50, FREESHIP</Text>
+            </View>
+          )}
+        </View>
+        </ScrollView>
+
+        {/* Bottom Action Bar */}
+        <View style={[styles.bottomBar, { paddingBottom: insets.bottom }]}>
+          <View style={styles.totalContainer}>
+            <Text style={styles.totalLabel}>Total</Text>
+            <Text style={styles.totalAmount}>₱{total.toLocaleString()}</Text>
+          </View>
+          <Pressable
+            onPress={handlePlaceOrder}
+            style={({ pressed }) => [
+              styles.checkoutButton,
+              pressed && styles.checkoutButtonPressed
+            ]}
+          >
+            <Text style={styles.checkoutButtonText}>Place Order</Text>
+          </Pressable>
+        </View>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#F5F5F7',
+  },
+  header: {
+    backgroundColor: '#FF5722',
+    paddingBottom: 12,
+    shadowColor: '#FF5722',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingBottom: 8,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.3,
+  },
+  stepperContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    paddingTop: 8,
+  },
+  stepWrapper: {
+    alignItems: 'center',
+    position: 'relative',
+    flex: 1,
+  },
+  stepCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
+  },
+  stepCircleActive: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#FFFFFF',
+  },
+  stepCircleCompleted: {
+    backgroundColor: 'rgba(255, 255, 255, 0.6)',
+    borderColor: 'rgba(255, 255, 255, 0.6)',
+  },
+  stepNumber: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.9)',
+  },
+  stepNumberActive: {
+    color: '#FF5722',
+    fontWeight: '700',
+  },
+  stepLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.6)',
+  },
+  stepLabelActive: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  stepLabelCompleted: {
+    color: 'rgba(255, 255, 255, 0.6)',
+  },
+  stepConnector: {
+    position: 'absolute',
+    top: 14,
+    left: '50%',
+    width: '100%',
+    height: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    zIndex: -1,
+  },
+  stepConnectorActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.6)',
+  },
+  scrollContainer: {
+    flex: 1,
+  },
+  sectionCard: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  sectionHeaderWithBadge: {
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  shippingBadge: {
+    backgroundColor: '#FFF4ED',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    marginTop: 8,
+    alignSelf: 'flex-start',
+  },
+  shippingBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FF5722',
+  },
+  compactOrderItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  compactThumbnail: {
+    width: 56,
+    height: 56,
+    borderRadius: 8,
+    backgroundColor: '#F5F5F7',
+  },
+  compactOrderInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  compactProductName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 6,
+  },
+  compactDetailsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  compactSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    gap: 4,
+  },
+  compactSelectorText: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#6B7280',
+  },
+  compactQuantity: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#6B7280',
+    marginLeft: 'auto',
+  },
+  compactPrice: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#111827',
+    marginLeft: 12,
+  },
+  autofillButton: {
+    backgroundColor: '#FFF4ED',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#FF5722',
+  },
+  autofillButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#FF5722',
+  },
+  input: {
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 15,
+    color: '#111827',
+    marginBottom: 12,
+  },
+  textArea: {
+    height: 80,
+    textAlignVertical: 'top',
+    paddingTop: 14,
+  },
+  row: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  halfInput: {
+    flex: 1,
+  },
+  paymentOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    marginBottom: 12,
+    backgroundColor: '#F9FAFB',
+  },
+  paymentOptionActive: {
+    borderColor: '#FF5722',
+    backgroundColor: '#FFF4ED',
+  },
+  radio: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: '#D1D5DB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  radioInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#FF5722',
+  },
+  paymentText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 2,
+  },
+  paymentSubtext: {
+    fontSize: 12,
+    color: '#6B7280',
+  },
+  paymentInfoBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0FDF4',
+    padding: 12,
+    borderRadius: 10,
+    gap: 8,
+  },
+  paymentInfoText: {
+    fontSize: 13,
+    color: '#065F46',
+    flex: 1,
+  },
+  voucherInputContainer: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  voucherInput: {
+    flex: 1,
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 15,
+    color: '#111827',
+  },
+  applyButton: {
+    backgroundColor: '#FF5722',
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 12,
+    justifyContent: 'center',
+  },
+  applyButtonDisabled: {
+    backgroundColor: '#D1D5DB',
+  },
+  applyButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  appliedVoucherContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF4ED',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FF5722',
+  },
+  appliedVoucherBadge: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  appliedVoucherCode: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FF5722',
+  },
+  appliedVoucherDesc: {
+    fontSize: 13,
+    color: '#6B7280',
+  },
+  removeVoucherButton: {
+    padding: 4,
+  },
+  voucherHintContainer: {
+    marginTop: 8,
+  },
+  voucherHint: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    fontStyle: 'italic',
+  },
+  bottomBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 10,
+  },
+  totalContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  totalLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#6B7280',
+  },
+  totalAmount: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  checkoutButton: {
+    backgroundColor: '#FF5722',
+    paddingVertical: 16,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkoutButtonPressed: {
+    opacity: 0.9,
+    transform: [{ scale: 0.98 }],
+  },
+  checkoutButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+});
+

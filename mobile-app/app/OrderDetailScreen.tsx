@@ -1,0 +1,753 @@
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  StyleSheet,
+  Pressable,
+  Alert,
+  Modal,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
+  Image,
+} from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
+import { ArrowLeft, Package, MapPin, CreditCard, Receipt, CheckCircle, MessageCircle, Send, X, Truck, Clock, CheckCircle2 } from 'lucide-react-native';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../App';
+import { useOrderStore } from '../src/stores/orderStore';
+import ReviewModal from '../src/components/ReviewModal';
+
+type Props = NativeStackScreenProps<RootStackParamList, 'OrderDetail'>;
+
+export default function OrderDetailScreen({ route, navigation }: Props) {
+  const { order } = route.params;
+  const insets = useSafeAreaInsets();
+  const updateOrderStatus = useOrderStore((state) => state.updateOrderStatus);
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [showChatModal, setShowChatModal] = useState(false);
+  const [chatMessage, setChatMessage] = useState('');
+  const [chatMessages, setChatMessages] = useState([
+    {
+      id: '1',
+      sender: 'system',
+      message: 'Order confirmed! Your seller will start preparing your items.',
+      timestamp: new Date(Date.now() - 7200000),
+    },
+    {
+      id: '2',
+      sender: 'seller',
+      message: 'Hello! Thank you for your order. We are preparing your items now.',
+      timestamp: new Date(Date.now() - 5400000),
+    },
+  ]);
+
+  const handleSendMessage = () => {
+    if (!chatMessage.trim()) return;
+    
+    const newMessage = {
+      id: Date.now().toString(),
+      sender: 'buyer',
+      message: chatMessage,
+      timestamp: new Date(),
+    };
+    
+    setChatMessages([...chatMessages, newMessage]);
+    setChatMessage('');
+    
+    // Simulate seller response
+    setTimeout(() => {
+      const response = {
+        id: (Date.now() + 1).toString(),
+        sender: 'seller',
+        message: 'Thanks for your message! We will get back to you shortly.',
+        timestamp: new Date(),
+      };
+      setChatMessages(prev => [...prev, response]);
+    }, 1000);
+  };
+
+  const handleMarkAsReceived = () => {
+    Alert.alert(
+      'Confirm Receipt',
+      'Have you received this order?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Yes, Received',
+          onPress: () => {
+            updateOrderStatus(order.id, 'delivered');
+            setShowReviewModal(true);
+          },
+        },
+      ]
+    );
+  };
+
+  const handleSubmitReview = (rating: number, review: string) => {
+    // In a real app, this would save to a reviews API
+    console.log('Review submitted:', { rating, review, orderId: order.id });
+    
+    Alert.alert('Thank You!', 'Your review has been submitted successfully.', [
+      { text: 'OK', onPress: () => {
+        setShowReviewModal(false);
+        navigation.goBack();
+      }},
+    ]);
+  };
+
+  const getStatusColor = () => {
+    switch (order.status) {
+      case 'pending': return '#F59E0B';
+      case 'processing': return '#FF5722';
+      case 'shipped': return '#8B5CF6';
+      case 'delivered': return '#22C55E';
+      default: return '#6B7280';
+    }
+  };
+
+  const getStatusText = () => {
+    switch (order.status) {
+      case 'pending': return 'Order Pending';
+      case 'processing': return 'Being Prepared';
+      case 'shipped': return 'In Transit';
+      case 'delivered': return 'Delivered';
+      default: return order.status;
+    }
+  };
+
+  const getStatusIcon = () => {
+    switch (order.status) {
+      case 'pending': return Clock;
+      case 'processing': return Package;
+      case 'shipped': return Truck;
+      case 'delivered': return CheckCircle2;
+      default: return Package;
+    }
+  };
+
+  const StatusIcon = getStatusIcon();
+
+  return (
+    <View style={styles.container}>
+      {/* Edge-to-Edge Orange Header */}
+      <View style={[styles.header, { paddingTop: insets.top }]}>
+        <View style={styles.headerContent}>
+          <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
+            <ArrowLeft size={24} color="#FFFFFF" />
+          </Pressable>
+          <Text style={styles.headerTitle}>Order Details</Text>
+          <View style={{ width: 24 }} />
+        </View>
+      </View>
+
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={{ paddingBottom: order.status !== 'delivered' ? 100 : 24 }}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Status Banner Card */}
+        <View style={[styles.statusBanner, { backgroundColor: getStatusColor() }]}>
+          <View style={styles.statusContent}>
+            <View style={styles.statusLeft}>
+              <Text style={styles.statusTitle}>{getStatusText()}</Text>
+              <Text style={styles.statusTimestamp}>
+                {order.status === 'delivered' 
+                  ? `Delivered on ${order.deliveryDate}`
+                  : `Last updated: ${new Date(order.createdAt).toLocaleDateString()}`
+                }
+              </Text>
+            </View>
+            <View style={styles.statusIconContainer}>
+              <StatusIcon size={48} color="#FFFFFF" strokeWidth={1.5} />
+            </View>
+          </View>
+        </View>
+
+        {/* Chat Button */}
+        <Pressable 
+          style={({ pressed }) => [
+            styles.chatButton,
+            pressed && styles.chatButtonPressed,
+          ]}
+          onPress={() => setShowChatModal(true)}
+        >
+          <MessageCircle size={18} color="#FF5722" />
+          <Text style={styles.chatButtonText}>Chat with Seller</Text>
+        </Pressable>
+
+        {/* Order Items Card */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <View style={styles.iconCircle}>
+              <Package size={20} color="#FF5722" />
+            </View>
+            <Text style={styles.cardTitle}>Order Items</Text>
+          </View>
+          {order.items.map((item, index) => (
+            <React.Fragment key={index}>
+              {index > 0 && <View style={styles.itemDivider} />}
+              <View style={styles.itemRow}>
+                <Image 
+                  source={{ uri: item.image || 'https://via.placeholder.com/60' }}
+                  style={styles.itemImage}
+                />
+                <View style={styles.itemInfo}>
+                  <Text style={styles.itemName}>{item.name}</Text>
+                  <Text style={styles.itemVariant}>
+                    {item.quantity} × ₱{item.price.toLocaleString()}
+                  </Text>
+                </View>
+                <Text style={styles.itemPrice}>₱{(item.price * item.quantity).toLocaleString()}</Text>
+              </View>
+            </React.Fragment>
+          ))}
+        </View>
+
+        {/* Shipping Address Card */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <View style={styles.iconCircle}>
+              <MapPin size={20} color="#FF5722" />
+            </View>
+            <Text style={styles.cardTitle}>Shipping Address</Text>
+          </View>
+          <View style={styles.cardContent}>
+            <Text style={styles.addressName}>{order.shippingAddress.name}</Text>
+            <Text style={styles.addressPhone}>{order.shippingAddress.phone}</Text>
+            <Text style={styles.addressLine}>{order.shippingAddress.address}</Text>
+            <Text style={styles.addressLine}>
+              {order.shippingAddress.city}, {order.shippingAddress.region} {order.shippingAddress.postalCode}
+            </Text>
+          </View>
+        </View>
+
+        {/* Payment Method Card */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <View style={styles.iconCircle}>
+              <CreditCard size={20} color="#FF5722" />
+            </View>
+            <Text style={styles.cardTitle}>Payment Method</Text>
+          </View>
+          <View style={styles.cardContent}>
+            <Text style={styles.paymentText}>{order.paymentMethod}</Text>
+          </View>
+        </View>
+
+        {/* Order Summary Card */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <View style={styles.iconCircle}>
+              <Receipt size={20} color="#FF5722" />
+            </View>
+            <Text style={styles.cardTitle}>Order Summary</Text>
+          </View>
+          <View style={styles.cardContent}>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Subtotal</Text>
+              <Text style={styles.summaryValue}>₱{(order.total - order.shippingFee).toLocaleString()}</Text>
+            </View>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Shipping Fee</Text>
+              <Text style={[
+                styles.summaryValue,
+                order.shippingFee === 0 && styles.freeShipping
+              ]}>
+                {order.shippingFee === 0 ? 'FREE' : `₱${order.shippingFee.toLocaleString()}`}
+              </Text>
+            </View>
+            <View style={styles.dividerLine} />
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>Total Amount</Text>
+              <Text style={styles.totalValue}>₱{order.total.toLocaleString()}</Text>
+            </View>
+          </View>
+        </View>
+      </ScrollView>
+
+      {/* Mark as Received Button (only for shipped orders) */}
+      {order.status === 'shipped' && (
+        <View style={styles.bottomBar}>
+          <Pressable onPress={handleMarkAsReceived} style={styles.receivedButton}>
+            <CheckCircle size={20} color="#FFFFFF" />
+            <Text style={styles.receivedButtonText}>Mark as Received</Text>
+          </Pressable>
+        </View>
+      )}
+
+      {/* Review Modal */}
+      <ReviewModal
+        visible={showReviewModal}
+        order={order}
+        onClose={() => {
+          setShowReviewModal(false);
+          navigation.goBack();
+        }}
+        onSubmit={handleSubmitReview}
+      />
+
+      {/* Chat Modal */}
+      <Modal
+        visible={showChatModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowChatModal(false)}
+      >
+        <SafeAreaView style={styles.chatModalContainer}>
+          <KeyboardAvoidingView 
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={{ flex: 1 }}
+          >
+            <View style={styles.chatHeader}>
+              <Pressable onPress={() => setShowChatModal(false)} style={styles.closeButton}>
+                <ArrowLeft size={24} color="#1F2937" />
+              </Pressable>
+              <View>
+                <Text style={styles.chatTitle}>Seller Chat</Text>
+                <Text style={styles.chatSubtitle}>Order #{order.transactionId}</Text>
+              </View>
+              <View style={{ width: 24 }} />
+            </View>
+
+            <ScrollView 
+              style={styles.chatMessages}
+              contentContainerStyle={{ padding: 16, gap: 16 }}
+            >
+              {chatMessages.map((msg) => (
+                <View 
+                  key={msg.id} 
+                  style={[
+                    styles.messageBubble,
+                    msg.sender === 'buyer' ? styles.buyerMessage : styles.sellerMessage,
+                    msg.sender === 'system' && styles.systemMessage
+                  ]}
+                >
+                  <Text style={[
+                    styles.messageText,
+                    msg.sender === 'buyer' ? styles.buyerMessageText : styles.sellerMessageText,
+                    msg.sender === 'system' && styles.systemMessageText
+                  ]}>
+                    {msg.message}
+                  </Text>
+                  <Text style={[
+                    styles.messageTime,
+                    msg.sender === 'buyer' ? styles.buyerMessageTime : styles.sellerMessageTime
+                  ]}>
+                    {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </Text>
+                </View>
+              ))}
+            </ScrollView>
+
+            <View style={styles.chatInputContainer}>
+              <TextInput
+                style={styles.chatInput}
+                placeholder="Type a message..."
+                value={chatMessage}
+                onChangeText={setChatMessage}
+                multiline
+              />
+              <Pressable 
+                style={[styles.sendButton, !chatMessage.trim() && styles.sendButtonDisabled]}
+                onPress={handleSendMessage}
+                disabled={!chatMessage.trim()}
+              >
+                <Send size={20} color="#FFFFFF" />
+              </Pressable>
+            </View>
+          </KeyboardAvoidingView>
+        </SafeAreaView>
+      </Modal>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#F5F5F7',
+  },
+  // ===== EDGE-TO-EDGE HEADER =====
+  header: {
+    backgroundColor: '#FF5722',
+    paddingBottom: 16,
+  },
+  headerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 12,
+  },
+  backButton: {
+    padding: 4,
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.3,
+  },
+  // ===== SCROLL VIEW =====
+  scrollView: {
+    flex: 1,
+    backgroundColor: '#F5F5F7',
+  },
+  // ===== STATUS BANNER =====
+  statusBanner: {
+    marginHorizontal: 16,
+    marginTop: 20,
+    marginBottom: 16,
+    borderRadius: 20,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  statusContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  statusLeft: {
+    flex: 1,
+  },
+  statusTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 8,
+    letterSpacing: 0.5,
+  },
+  statusTimestamp: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontWeight: '500',
+  },
+  statusIconContainer: {
+    marginLeft: 16,
+  },
+  // ===== CHAT BUTTON =====
+  chatButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    marginBottom: 16,
+    paddingVertical: 14,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: '#FF5722',
+    shadowColor: '#FF5722',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+    gap: 8,
+  },
+  chatButtonPressed: {
+    transform: [{ scale: 0.98 }],
+    opacity: 0.9,
+  },
+  chatButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FF5722',
+    letterSpacing: 0.3,
+  },
+  // ===== WHITE CARDS =====
+  card: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    marginBottom: 16,
+    borderRadius: 20,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 18,
+  },
+  iconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: '#FFF3F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  cardTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#1F2937',
+    letterSpacing: 0.2,
+  },
+  cardContent: {
+    gap: 6,
+  },
+  // ===== ORDER ITEMS =====
+  itemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  itemDivider: {
+    height: 1,
+    backgroundColor: '#F0F0F0',
+    marginVertical: 14,
+  },
+  itemImage: {
+    width: 68,
+    height: 68,
+    borderRadius: 14,
+    backgroundColor: '#F9FAFB',
+  },
+  itemInfo: {
+    flex: 1,
+  },
+  itemName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginBottom: 6,
+    lineHeight: 20,
+  },
+  itemVariant: {
+    fontSize: 13,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  itemPrice: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#FF5722',
+  },
+  // ===== SHIPPING ADDRESS =====
+  addressName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: 6,
+  },
+  addressPhone: {
+    fontSize: 15,
+    color: '#4B5563',
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  addressLine: {
+    fontSize: 14,
+    color: '#6B7280',
+    lineHeight: 20,
+  },
+  // ===== PAYMENT METHOD =====
+  paymentText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1F2937',
+    textTransform: 'capitalize',
+  },
+  // ===== ORDER SUMMARY =====
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  summaryLabel: {
+    fontSize: 15,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  summaryValue: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1F2937',
+  },
+  freeShipping: {
+    color: '#FF5722',
+    fontWeight: '700',
+  },
+  dividerLine: {
+    height: 1,
+    backgroundColor: '#E5E7EB',
+    marginVertical: 12,
+  },
+  totalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 4,
+  },
+  totalLabel: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  totalValue: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#FF5722',
+    letterSpacing: 0.3,
+  },
+  // ===== BOTTOM BAR =====
+  bottomBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 24,
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 10,
+  },
+  receivedButton: {
+    backgroundColor: '#FF5722',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    borderRadius: 16,
+    shadowColor: '#FF5722',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 6,
+    gap: 8,
+  },
+  receivedButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+  // ===== CHAT MODAL =====
+  chatModalContainer: {
+    flex: 1,
+    backgroundColor: '#F9FAFB',
+  },
+  chatHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  chatTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1F2937',
+    textAlign: 'center',
+  },
+  chatSubtitle: {
+    fontSize: 12,
+    color: '#6B7280',
+    textAlign: 'center',
+  },
+  chatMessages: {
+    flex: 1,
+  },
+  messageBubble: {
+    maxWidth: '80%',
+    padding: 12,
+    borderRadius: 16,
+  },
+  buyerMessage: {
+    alignSelf: 'flex-end',
+    backgroundColor: '#FF5722',
+    borderBottomRightRadius: 4,
+  },
+  sellerMessage: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#FFFFFF',
+    borderBottomLeftRadius: 4,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  systemMessage: {
+    alignSelf: 'center',
+    backgroundColor: '#F3F4F6',
+    borderRadius: 8,
+    padding: 8,
+    maxWidth: '90%',
+  },
+  messageText: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  buyerMessageText: {
+    color: '#FFFFFF',
+  },
+  sellerMessageText: {
+    color: '#1F2937',
+  },
+  systemMessageText: {
+    color: '#6B7280',
+    fontSize: 12,
+    textAlign: 'center',
+  },
+  messageTime: {
+    fontSize: 10,
+    marginTop: 4,
+    alignSelf: 'flex-end',
+  },
+  buyerMessageTime: {
+    color: 'rgba(255, 255, 255, 0.7)',
+  },
+  sellerMessageTime: {
+    color: '#9CA3AF',
+  },
+  chatInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+    gap: 12,
+  },
+  chatInput: {
+    flex: 1,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 24,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    fontSize: 14,
+    maxHeight: 100,
+  },
+  sendButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FF5722',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sendButtonDisabled: {
+    backgroundColor: '#D1D5DB',
+  },
+  closeButton: {
+    padding: 4,
+  },
+});
