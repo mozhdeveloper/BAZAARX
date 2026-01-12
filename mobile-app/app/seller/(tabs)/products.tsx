@@ -27,6 +27,9 @@ export default function SellerProductsScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [imageUploadMode, setImageUploadMode] = useState<'upload' | 'url'>('upload');
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const { updateProduct } = useSellerStore();
 
   // Form state for adding products
   const [formData, setFormData] = useState({
@@ -122,6 +125,21 @@ export default function SellerProductsScreen() {
       Alert.alert('Validation Error', 'Product name is required');
       return false;
     }
+
+    // In edit mode only validate name, price, and stock
+    if (isEditMode) {
+      if (!formData.price || parseFloat(formData.price) <= 0) {
+        Alert.alert('Validation Error', 'Please enter a valid price');
+        return false;
+      }
+      if (!formData.stock || parseInt(formData.stock) < 0) {
+        Alert.alert('Validation Error', 'Please enter a valid stock quantity');
+        return false;
+      }
+      return true;
+    }
+
+    // Add mode: require all fields
     if (!formData.description.trim()) {
       Alert.alert('Validation Error', 'Product description is required');
       return false;
@@ -196,6 +214,49 @@ export default function SellerProductsScreen() {
     }
   };
 
+  const handleEditPress = (product: SellerProduct) => {
+    setIsEditMode(true);
+    setEditingProductId(product.id);
+    
+    // Fill the form with existing data
+    setFormData({
+      name: product.name,
+      description: product.description, // Will be read-only in UI
+      price: product.price.toString(),
+      originalPrice: product.originalPrice?.toString() || '',
+      stock: product.stock.toString(),
+      category: product.category,       // Will be read-only in UI
+      images: product.images || [''],           // Will be read-only in UI
+    });
+    
+    setIsAddModalOpen(true);
+  };
+
+  const handleUpdateProduct = () => {
+    // Use the same validation (Name, Price, Stock are required)
+    if (!validateForm()) return;
+
+    try {
+      const updatedData = {
+        name: formData.name.trim(),
+        price: parseFloat(formData.price),
+        stock: parseInt(formData.stock),
+      };
+
+      if (editingProductId) {
+        updateProduct(editingProductId, updatedData);
+        
+        Alert.alert('Success', 'Product updated successfully!');
+        setIsAddModalOpen(false);
+        resetForm();
+        setIsEditMode(false);
+        setEditingProductId(null);
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to update product');
+    }
+  };
+  
   const filteredProducts = products.filter((product) =>
     product.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -251,7 +312,7 @@ export default function SellerProductsScreen() {
           <View style={styles.actionButtons}>
             <TouchableOpacity 
               style={styles.editButton}
-              onPress={() => Alert.alert('Edit', 'Edit feature coming soon')}
+              onPress={() => handleEditPress(item)}
               activeOpacity={0.7}
             >
               <Edit size={16} color="#FF5722" strokeWidth={2.5} />
@@ -351,7 +412,7 @@ export default function SellerProductsScreen() {
 
               {/* Modal Header */}
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>New Product</Text>
+                <Text style={styles.modalTitle}>{isEditMode ? 'Edit Product' : 'New Product'}</Text>
                 <TouchableOpacity onPress={() => setIsAddModalOpen(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                   <X size={24} color="#6B7280" strokeWidth={2.5} />
                 </TouchableOpacity>
@@ -363,208 +424,261 @@ export default function SellerProductsScreen() {
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={{ paddingBottom: 20 }}
               >
-                {/* Image Upload/URL Section */}
-                <View style={styles.inputGroup}>
-                  <View style={styles.imageHeaderRow}>
-                    <Text style={styles.inputLabel}>Product Images *</Text>
-                    <View style={styles.uploadModeToggle}>
-                      <TouchableOpacity
-                        style={[styles.modeButton, imageUploadMode === 'upload' && styles.modeButtonActive]}
-                        onPress={() => setImageUploadMode('upload')}
-                      >
-                        <Camera size={14} color={imageUploadMode === 'upload' ? '#FFFFFF' : '#6B7280'} />
-                        <Text style={[styles.modeButtonText, imageUploadMode === 'upload' && styles.modeButtonTextActive]}>Upload</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[styles.modeButton, imageUploadMode === 'url' && styles.modeButtonActive]}
-                        onPress={() => setImageUploadMode('url')}
-                      >
-                        <Link size={14} color={imageUploadMode === 'url' ? '#FFFFFF' : '#6B7280'} />
-                        <Text style={[styles.modeButtonText, imageUploadMode === 'url' && styles.modeButtonTextActive]}>URL</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
+                {/* Add mode: full form. Edit mode: minimal form (Name, Price, Stock) */}
 
-                  {formData.images.map((imageUrl, index) => (
-                    <View key={index} style={{ marginBottom: 12 }}>
-                      {imageUploadMode === 'upload' ? (
-                        <TouchableOpacity style={styles.imageUploadArea} activeOpacity={0.7} onPress={() => handlePickImage(index)}>
-                          {imageUrl ? (
-                            <View style={{ position: 'relative', width: '100%', height: 150 }}>
-                              <Image source={{ uri: imageUrl }} style={styles.uploadedImagePreview} />
-                              {formData.images.length > 1 && (
-                                <TouchableOpacity
-                                  style={styles.removeImageButton}
-                                  onPress={() => removeImageField(index)}
-                                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                                >
-                                  <X size={16} color="#FFFFFF" strokeWidth={2.5} />
-                                </TouchableOpacity>
+                {!isEditMode && (
+                  <>
+                    {/* Image Upload/URL Section */}
+                    <View style={styles.inputGroup}>
+                      <View style={styles.imageHeaderRow}>
+                        <Text style={styles.inputLabel}>Product Images *</Text>
+                        <View style={styles.uploadModeToggle}>
+                          <TouchableOpacity
+                            style={[styles.modeButton, imageUploadMode === 'upload' && styles.modeButtonActive]}
+                            onPress={() => !isEditMode && setImageUploadMode('upload')}
+                          >
+                            <Camera size={14} color={imageUploadMode === 'upload' ? '#FFFFFF' : '#6B7280'} />
+                            <Text style={[styles.modeButtonText, imageUploadMode === 'upload' && styles.modeButtonTextActive]}>Upload</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[styles.modeButton, imageUploadMode === 'url' && styles.modeButtonActive]}
+                            onPress={() => !isEditMode && setImageUploadMode('url')}
+                          >
+                            <Link size={14} color={imageUploadMode === 'url' ? '#FFFFFF' : '#6B7280'} />
+                            <Text style={[styles.modeButtonText, imageUploadMode === 'url' && styles.modeButtonTextActive]}>URL</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+
+                      {formData.images.map((imageUrl, index) => (
+                        <View key={index} style={{ marginBottom: 12 }}>
+                          {imageUploadMode === 'upload' ? (
+                            <TouchableOpacity style={styles.imageUploadArea} activeOpacity={0.7} onPress={() => !isEditMode && handlePickImage(index)} disabled={isEditMode}>
+                              {imageUrl ? (
+                                <View style={{ position: 'relative', width: '100%', height: 150 }}>
+                                  <Image source={{ uri: imageUrl }} style={styles.uploadedImagePreview} />
+                                  {formData.images.length > 1 && !isEditMode && (
+                                    <TouchableOpacity
+                                      style={styles.removeImageButton}
+                                      onPress={() => removeImageField(index)}
+                                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                    >
+                                      <X size={16} color="#FFFFFF" strokeWidth={2.5} />
+                                    </TouchableOpacity>
+                                  )}
+                                </View>
+                              ) : (
+                                <>
+                                  <Camera size={32} color="#9CA3AF" strokeWidth={2} />
+                                  <Text style={styles.imageUploadText}>Tap to upload image {index + 1}</Text>
+                                  <Text style={styles.imageUploadHint}>JPG, PNG up to 5MB</Text>
+                                  {formData.images.length > 1 && !isEditMode && (
+                                    <TouchableOpacity
+                                      style={styles.removeImageButtonEmpty}
+                                      onPress={() => removeImageField(index)}
+                                    >
+                                      <Text style={styles.removeImageButtonText}>Remove</Text>
+                                    </TouchableOpacity>
+                                  )}
+                                </>
+                              )}
+                            </TouchableOpacity>
+                          ) : (
+                            <View>
+                              <View style={{ flexDirection: 'row', gap: 8 }}>
+                                <TextInput
+                                  style={[styles.modernInput, { flex: 1 }]}
+                                  placeholder={`https://example.com/image${index + 1}.jpg`}
+                                  value={imageUrl}
+                                  onChangeText={(text) => !isEditMode && handleImageChange(index, text)}
+                                  placeholderTextColor="#9CA3AF"
+                                  autoCapitalize="none"
+                                  keyboardType="url"
+                                  editable={!isEditMode}
+                                />
+                                {formData.images.length > 1 && (
+                                  !isEditMode && (
+                                    <TouchableOpacity
+                                      style={styles.removeUrlButton}
+                                      onPress={() => removeImageField(index)}
+                                    >
+                                      <X size={16} color="#EF4444" strokeWidth={2.5} />
+                                    </TouchableOpacity>
+                                  )
+                                )}
+                              </View>
+                              {imageUrl && imageUrl.startsWith('http') && (
+                                <Image source={{ uri: imageUrl }} style={styles.urlImagePreview} />
                               )}
                             </View>
-                          ) : (
-                            <>
-                              <Camera size={32} color="#9CA3AF" strokeWidth={2} />
-                              <Text style={styles.imageUploadText}>Tap to upload image {index + 1}</Text>
-                              <Text style={styles.imageUploadHint}>JPG, PNG up to 5MB</Text>
-                              {formData.images.length > 1 && (
-                                <TouchableOpacity
-                                  style={styles.removeImageButtonEmpty}
-                                  onPress={() => removeImageField(index)}
-                                >
-                                  <Text style={styles.removeImageButtonText}>Remove</Text>
-                                </TouchableOpacity>
-                              )}
-                            </>
-                          )}
-                        </TouchableOpacity>
-                      ) : (
-                        <View>
-                          <View style={{ flexDirection: 'row', gap: 8 }}>
-                            <TextInput
-                              style={[styles.modernInput, { flex: 1 }]}
-                              placeholder={`https://example.com/image${index + 1}.jpg`}
-                              value={imageUrl}
-                              onChangeText={(text) => handleImageChange(index, text)}
-                              placeholderTextColor="#9CA3AF"
-                              autoCapitalize="none"
-                              keyboardType="url"
-                            />
-                            {formData.images.length > 1 && (
-                              <TouchableOpacity
-                                style={styles.removeUrlButton}
-                                onPress={() => removeImageField(index)}
-                              >
-                                <X size={16} color="#EF4444" strokeWidth={2.5} />
-                              </TouchableOpacity>
-                            )}
-                          </View>
-                          {imageUrl && imageUrl.startsWith('http') && (
-                            <Image source={{ uri: imageUrl }} style={styles.urlImagePreview} />
                           )}
                         </View>
-                      )}
-                    </View>
-                  ))}
+                      ))}
 
-                  {/* Add Another Image Button */}
-                  <TouchableOpacity
-                    style={styles.addImageButton}
-                    onPress={addImageField}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.addImageButtonText}>+ Add Another Image</Text>
-                  </TouchableOpacity>
-                </View>
-
-                {/* Product Name */}
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Product Name *</Text>
-                  <TextInput
-                    style={styles.modernInput}
-                    placeholder="e.g. iPhone 15 Pro Max"
-                    value={formData.name}
-                    onChangeText={(text) => setFormData({ ...formData, name: text })}
-                    placeholderTextColor="#9CA3AF"
-                  />
-                </View>
-
-                {/* Description */}
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Description *</Text>
-                  <TextInput
-                    style={[styles.modernInput, styles.textArea]}
-                    placeholder="Enter product description..."
-                    value={formData.description}
-                    onChangeText={(text) => setFormData({ ...formData, description: text })}
-                    placeholderTextColor="#9CA3AF"
-                    multiline
-                    numberOfLines={4}
-                    textAlignVertical="top"
-                  />
-                </View>
-
-                {/* Category Pills */}
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Category *</Text>
-                  <ScrollView 
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.pillContainer}
-                  >
-                    {categories.map((item) => (
+                      {/* Add Another Image Button */}
                       <TouchableOpacity
-                        key={item}
-                        style={[
-                          styles.pillChip,
-                          formData.category === item && styles.pillChipSelected,
-                        ]}
-                        onPress={() => setFormData({ ...formData, category: item })}
+                        style={styles.addImageButton}
+                        onPress={() => !isEditMode && addImageField()}
                         activeOpacity={0.7}
+                        disabled={isEditMode}
                       >
-                        <Text
-                          style={[
-                            styles.pillChipText,
-                            formData.category === item && styles.pillChipTextSelected,
-                          ]}
-                        >
-                          {item}
-                        </Text>
+                        <Text style={styles.addImageButtonText}>+ Add Another Image</Text>
                       </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                </View>
+                    </View>
 
-                {/* Price & Original Price Row */}
-                <View style={styles.rowInputs}>
-                  <View style={styles.halfInput}>
-                    <Text style={styles.inputLabel}>Price (₱) *</Text>
-                    <TextInput
-                      style={styles.modernInput}
-                      placeholder="0.00"
-                      value={formData.price}
-                      onChangeText={(text) => setFormData({ ...formData, price: text })}
-                      placeholderTextColor="#9CA3AF"
-                      keyboardType="decimal-pad"
-                    />
-                  </View>
-                  <View style={styles.halfInput}>
-                    <Text style={styles.inputLabel}>Original Price (₱)</Text>
-                    <TextInput
-                      style={styles.modernInput}
-                      placeholder="0.00"
-                      value={formData.originalPrice}
-                      onChangeText={(text) => setFormData({ ...formData, originalPrice: text })}
-                      placeholderTextColor="#9CA3AF"
-                      keyboardType="decimal-pad"
-                    />
-                  </View>
-                </View>
+                    {/* Product Name */}
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.inputLabel}>Product Name *</Text>
+                      <TextInput
+                        style={styles.modernInput}
+                        placeholder="e.g. iPhone 15 Pro Max"
+                        value={formData.name}
+                        onChangeText={(text) => setFormData({ ...formData, name: text })}
+                        placeholderTextColor="#9CA3AF"
+                      />
+                    </View>
 
-                {/* Stock Quantity */}
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Stock Quantity *</Text>
-                  <TextInput
-                    style={styles.modernInput}
-                    placeholder="0"
-                    value={formData.stock}
-                    onChangeText={(text) => setFormData({ ...formData, stock: text })}
-                    placeholderTextColor="#9CA3AF"
-                    keyboardType="number-pad"
-                  />
-                </View>
+                    {/* Description */}
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.inputLabel}>Description *</Text>
+                      <TextInput
+                        style={[styles.modernInput, styles.textArea]}
+                        placeholder="Enter product description..."
+                        value={formData.description}
+                        onChangeText={(text) => !isEditMode && setFormData({ ...formData, description: text })}
+                        placeholderTextColor="#9CA3AF"
+                        multiline
+                        numberOfLines={4}
+                        textAlignVertical="top"
+                        editable={!isEditMode}
+                      />
+                    </View>
 
-                {/* QA Note */}
-                <View style={styles.qaNote}>
-                  <Info size={16} color="#FF5722" strokeWidth={2.5} />
-                  <Text style={styles.qaNoteText}>
-                    Product will be submitted for Quality Assurance review. Track progress in QA Products tab.
-                  </Text>
-                </View>
+                    {/* Category Pills */}
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.inputLabel}>Category *</Text>
+                      <ScrollView 
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.pillContainer}
+                      >
+                        {categories.map((item) => (
+                          <TouchableOpacity
+                            key={item}
+                            style={[
+                              styles.pillChip,
+                              formData.category === item && styles.pillChipSelected,
+                            ]}
+                            onPress={() => !isEditMode && setFormData({ ...formData, category: item })}
+                            activeOpacity={0.7}
+                          >
+                            <Text
+                              style={[
+                                styles.pillChipText,
+                                formData.category === item && styles.pillChipTextSelected,
+                              ]}
+                            >
+                              {item}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    </View>
+
+                    {/* Price & Original Price Row */}
+                    <View style={styles.rowInputs}>
+                      <View style={styles.halfInput}>
+                        <Text style={styles.inputLabel}>Price (₱) *</Text>
+                        <TextInput
+                          style={styles.modernInput}
+                          placeholder="0.00"
+                          value={formData.price}
+                          onChangeText={(text) => setFormData({ ...formData, price: text })}
+                          placeholderTextColor="#9CA3AF"
+                          keyboardType="decimal-pad"
+                        />
+                      </View>
+                      <View style={styles.halfInput}>
+                        <Text style={styles.inputLabel}>Original Price (₱)</Text>
+                        <TextInput
+                          style={styles.modernInput}
+                          placeholder="0.00"
+                          value={formData.originalPrice}
+                          onChangeText={(text) => !isEditMode && setFormData({ ...formData, originalPrice: text })}
+                          placeholderTextColor="#9CA3AF"
+                          keyboardType="decimal-pad"
+                          editable={!isEditMode}
+                        />
+                      </View>
+                    </View>
+
+                    {/* Stock Quantity */}
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.inputLabel}>Stock Quantity *</Text>
+                      <TextInput
+                        style={styles.modernInput}
+                        placeholder="0"
+                        value={formData.stock}
+                        onChangeText={(text) => setFormData({ ...formData, stock: text })}
+                        placeholderTextColor="#9CA3AF"
+                        keyboardType="number-pad"
+                      />
+                    </View>
+
+                    {/* QA Note */}
+                    <View style={styles.qaNote}>
+                      <Info size={16} color="#FF5722" strokeWidth={2.5} />
+                      <Text style={styles.qaNoteText}>
+                        Product will be submitted for Quality Assurance review. Track progress in QA Products tab.
+                      </Text>
+                    </View>
+                  </>
+                )}
+
+                {/* Edit mode: only editable fields */}
+                {isEditMode && (
+                  <>
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.inputLabel}>Product Name *</Text>
+                      <TextInput
+                        style={styles.modernInput}
+                        placeholder="e.g. iPhone 15 Pro Max"
+                        value={formData.name}
+                        onChangeText={(text) => setFormData({ ...formData, name: text })}
+                        placeholderTextColor="#9CA3AF"
+                      />
+                    </View>
+
+                    <View style={styles.rowInputs}>
+                      <View style={styles.halfInput}>
+                        <Text style={styles.inputLabel}>Price (₱) *</Text>
+                        <TextInput
+                          style={styles.modernInput}
+                          placeholder="0.00"
+                          value={formData.price}
+                          onChangeText={(text) => setFormData({ ...formData, price: text })}
+                          placeholderTextColor="#9CA3AF"
+                          keyboardType="decimal-pad"
+                        />
+                      </View>
+                      <View style={styles.halfInput}>
+                        <Text style={styles.inputLabel}>Stock Quantity *</Text>
+                        <TextInput
+                          style={styles.modernInput}
+                          placeholder="0"
+                          value={formData.stock}
+                          onChangeText={(text) => setFormData({ ...formData, stock: text })}
+                          placeholderTextColor="#9CA3AF"
+                          keyboardType="number-pad"
+                        />
+                      </View>
+                    </View>
+                  </>
+                )}
               </ScrollView>
 
               {/* Fixed Footer */}
-              <View style={styles.modalFooter}>
+                <View style={styles.modalFooter}>
                 <TouchableOpacity
                   style={styles.cancelButton}
                   onPress={() => setIsAddModalOpen(false)}
@@ -574,10 +688,10 @@ export default function SellerProductsScreen() {
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.submitButton}
-                  onPress={handleAddProduct}
+                  onPress={isEditMode ? handleUpdateProduct : handleAddProduct}
                   activeOpacity={0.9}
                 >
-                  <Text style={styles.submitButtonText}>Submit for Review</Text>
+                  <Text style={styles.submitButtonText}>{isEditMode ? 'Save Changes' : 'Submit for Review'}</Text>
                 </TouchableOpacity>
               </View>
             </TouchableOpacity>
@@ -656,15 +770,15 @@ const styles = StyleSheet.create({
   // Products List (Fixed Bottom Padding)
   productsList: {
     paddingHorizontal: 16,
-    paddingTop: 4,
-    paddingBottom: 100, // Crucial: prevents last item from hiding behind tab bar
+    paddingTop: 15,
+    paddingBottom: 100,
   },
   productCard: {
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 12,
-    marginBottom: 16, // Consistent spacing between cards
+    marginBottom: 16, 
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
