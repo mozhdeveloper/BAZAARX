@@ -83,42 +83,49 @@ const thirdColumn = testimonials.slice(6, 9);
 
 export default function BazaarXTestimonials() {
   return (
-    <section className="bg-gradient-to-b from-white to-orange-50/30 py-20 relative">
+    <section className="bg-gradient-to-b from-white to-orange-50/30 py-24 relative overflow-hidden">
       <div className="container z-10 mx-auto px-4 sm:px-6 lg:px-8">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
-          viewport={{ once: true }}
-          className="flex flex-col items-center justify-center max-w-[640px] mx-auto"
-        >
-          <div className="flex justify-center">
-            <div className="border border-orange-200 bg-orange-50 text-orange-700 py-1 px-4 rounded-lg text-sm font-medium">
-              Testimonials
-            </div>
+        {/* Main Grid Layout to match reference layout */}
+        <div className="grid lg:grid-cols-12 gap-12 items-center">
+          
+          {/* Left Side: Content Block */}
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.8, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
+            viewport={{ once: true }}
+            className="lg:col-span-5 flex flex-col items-start text-left"
+          >
+            <span className="text-[#ff8555] font-bold tracking-widest text-sm uppercase mb-4">
+    Testimonials
+  </span>
+
+            <h2 className="text-5xl lg:text-6xl font-extrabold text-[#1a2b3b] leading-tight">
+              Trusted by <br />
+              <span className="text-[#ff8555]">Filipino Sellers</span>
+            </h2>
+            
+            <p className="mt-6 text-gray-600 text-lg max-w-md">
+              Join thousands of successful sellers who grew their business with BazaarX. 
+              Real reviews from Google and Facebook.
+            </p>
+
+          </motion.div>
+
+          {/* Right Side: Scrolling Columns */}
+          <div className="lg:col-span-7 flex justify-center gap-6 [mask-image:linear-gradient(to_bottom,transparent,black_20%,black_80%,transparent)] max-h-[600px] overflow-hidden">
+            <TestimonialsColumn testimonials={firstColumn} duration={15} />
+            <TestimonialsColumn
+              testimonials={secondColumn}
+              className="hidden md:block"
+              duration={19}
+            />
+            <TestimonialsColumn
+              testimonials={thirdColumn}
+              className="hidden lg:block"
+              duration={17}
+            />
           </div>
-
-          <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight mt-5 text-gray-900 text-center">
-            Trusted by Filipino Sellers
-          </h2>
-          <p className="text-center mt-5 text-gray-600 text-lg">
-            Join thousands of successful sellers who grew their business with BazaarX. 
-            Real reviews from Google and Facebook.
-          </p>
-        </motion.div>
-
-        <div className="flex justify-center gap-6 mt-10 [mask-image:linear-gradient(to_bottom,transparent,black_25%,black_75%,transparent)] max-h-[740px] overflow-hidden">
-          <TestimonialsColumn testimonials={firstColumn} duration={15} />
-          <TestimonialsColumn
-            testimonials={secondColumn}
-            className="hidden md:block"
-            duration={19}
-          />
-          <TestimonialsColumn
-            testimonials={thirdColumn}
-            className="hidden lg:block"
-            duration={17}
-          />
         </div>
 
         {/* Stats Bar */}
@@ -127,23 +134,23 @@ export default function BazaarXTestimonials() {
           whileInView={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.3 }}
           viewport={{ once: true }}
-          className="grid grid-cols-2 md:grid-cols-4 gap-6 mt-16 max-w-4xl mx-auto"
+          className="grid grid-cols-2 md:grid-cols-4 gap-6 mt-20 pt-10 border-t border-orange-100 max-w-5xl mx-auto"
         >
           <div className="text-center p-4">
             <div className="text-3xl font-bold text-orange-600">4.9/5</div>
-            <div className="text-sm text-gray-600 mt-1">Google Rating</div>
+            <div className="text-sm text-gray-600 mt-1 tracking-tighter">Google Rating</div>
           </div>
           <div className="text-center p-4">
             <div className="text-3xl font-bold text-orange-600">15K+</div>
-            <div className="text-sm text-gray-600 mt-1">Happy Sellers</div>
+            <div className="text-sm text-gray-600 mt-1 tracking-tighter">Happy Sellers</div>
           </div>
           <div className="text-center p-4">
             <div className="text-3xl font-bold text-orange-600">4.8/5</div>
-            <div className="text-sm text-gray-600 mt-1">Facebook Reviews</div>
+            <div className="text-sm text-gray-600 mt-1 tracking-tighter">Facebook Reviews</div>
           </div>
           <div className="text-center p-4">
             <div className="text-3xl font-bold text-orange-600">₱2.5M</div>
-            <div className="text-sm text-gray-600 mt-1">Daily Transactions</div>
+            <div className="text-sm text-gray-600 mt-1  tracking-tighter">Daily Transactions</div>
           </div>
         </motion.div>
       </div>
