@@ -1,28 +1,51 @@
-import { useState, useMemo, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
-import { Search, Filter, Grid, List, Star, MapPin, Truck, Camera, Flame, Clock, BadgeCheck, ShoppingCart, RotateCcw } from 'lucide-react';
-import Header from '../components/Header';
-import { BazaarFooter } from '../components/ui/bazaar-footer';
-import { Button } from '../components/ui/button';
-import { Badge } from '../components/ui/badge';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../components/ui/accordion';
-import { Slider } from '../components/ui/slider';
+import { useState, useMemo, useEffect } from "react";
+import { motion } from "framer-motion";
+import { useNavigate } from "react-router-dom";
+import {
+  Search,
+  Filter,
+  Grid,
+  List,
+  Star,
+  MapPin,
+  Truck,
+  Camera,
+  Flame,
+  Clock,
+  BadgeCheck,
+  ShoppingCart,
+  RotateCcw,
+} from "lucide-react";
+import Header from "../components/Header";
+import { BazaarFooter } from "../components/ui/bazaar-footer";
+import { Button } from "../components/ui/button";
+import { Badge } from "../components/ui/badge";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "../components/ui/accordion";
+import { Slider } from "../components/ui/slider";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '../components/ui/select';
-import { CartModal } from '../components/ui/cart-modal';
-import ProductRequestModal from '../components/ProductRequestModal';
-import VisualSearchModal from '../components/VisualSearchModal';
-import { trendingProducts, bestSellerProducts, newArrivals } from '../data/products';
-import { categories } from '../data/categories';
-import { useBuyerStore } from '../stores/buyerStore';
-import { useProductStore, useAuthStore } from '../stores/sellerStore';
-import { useProductQAStore } from '../stores/productQAStore';
+} from "../components/ui/select";
+import { CartModal } from "../components/ui/cart-modal";
+import ProductRequestModal from "../components/ProductRequestModal";
+import VisualSearchModal from "../components/VisualSearchModal";
+import {
+  trendingProducts,
+  bestSellerProducts,
+  newArrivals,
+} from "../data/products";
+import { categories } from "../data/categories";
+import { useBuyerStore } from "../stores/buyerStore";
+import { useProductStore, useAuthStore } from "../stores/sellerStore";
+import { useProductQAStore } from "../stores/productQAStore";
 
 interface FlashSaleProduct {
   id: string;
@@ -38,60 +61,67 @@ interface FlashSaleProduct {
 
 const flashSaleProducts: FlashSaleProduct[] = [
   {
-    id: 'fs1',
-    name: 'Wireless Earbuds Pro',
-    image: 'https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=400&h=400&fit=crop',
+    id: "fs1",
+    name: "Wireless Earbuds Pro",
+    image:
+      "https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=400&h=400&fit=crop",
     originalPrice: 2999,
     salePrice: 1499,
     discount: 50,
     sold: 234,
     stock: 500,
-    rating: 4.8
+    rating: 4.8,
   },
   {
-    id: 'fs2',
-    name: 'Smart Watch Fitness Tracker',
-    image: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=400&fit=crop',
+    id: "fs2",
+    name: "Smart Watch Fitness Tracker",
+    image:
+      "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=400&fit=crop",
     originalPrice: 4999,
     salePrice: 2999,
     discount: 40,
     sold: 189,
     stock: 300,
-    rating: 4.7
+    rating: 4.7,
   },
   {
-    id: 'fs3',
-    name: 'Portable Power Bank 20000mAh',
-    image: 'https://images.unsplash.com/photo-1609091839311-d5365f9ff1c5?w=400&h=400&fit=crop',
+    id: "fs3",
+    name: "Portable Power Bank 20000mAh",
+    image:
+      "https://images.unsplash.com/photo-1609091839311-d5365f9ff1c5?w=400&h=400&fit=crop",
     originalPrice: 1999,
     salePrice: 999,
     discount: 50,
     sold: 456,
     stock: 200,
-    rating: 4.9
+    rating: 4.9,
   },
   {
-    id: 'fs4',
-    name: 'LED Desk Lamp with USB',
-    image: 'https://images.unsplash.com/photo-1507473885765-e6ed057f782c?w=400&h=400&fit=crop',
+    id: "fs4",
+    name: "LED Desk Lamp with USB",
+    image:
+      "https://images.unsplash.com/photo-1507473885765-e6ed057f782c?w=400&h=400&fit=crop",
     originalPrice: 1499,
     salePrice: 799,
     discount: 47,
     sold: 321,
     stock: 150,
-    rating: 4.6
-  }
+    rating: 4.6,
+  },
 ];
 
-const categoryOptions = ['All Categories', ...categories.map(cat => cat.name)];
+const categoryOptions = [
+  "All Categories",
+  ...categories.map((cat) => cat.name),
+];
 
 const sortOptions = [
-  { value: 'relevance', label: 'Best Match' },
-  { value: 'price-low', label: 'Price: Low to High' },
-  { value: 'price-high', label: 'Price: High to Low' },
-  { value: 'rating', label: 'Customer Rating' },
-  { value: 'newest', label: 'Newest Arrivals' },
-  { value: 'bestseller', label: 'Best Sellers' }
+  { value: "relevance", label: "Best Match" },
+  { value: "price-low", label: "Price: Low to High" },
+  { value: "price-high", label: "Price: High to Low" },
+  { value: "rating", label: "Customer Rating" },
+  { value: "newest", label: "Newest Arrivals" },
+  { value: "bestseller", label: "Best Sellers" },
 ];
 
 export default function ShopPage() {
@@ -99,29 +129,32 @@ export default function ShopPage() {
   const { addToCart, cartItems } = useBuyerStore();
   const { products: sellerProducts } = useProductStore();
   const { products: qaProducts } = useProductQAStore();
-  
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('All Categories');
-  const [selectedSort, setSelectedSort] = useState('relevance');
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("All Categories");
+  const [selectedSort, setSelectedSort] = useState("relevance");
   const [priceRange, setPriceRange] = useState<number[]>([0, 10000]);
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [showFilters, setShowFilters] = useState(false);
   const [showCartModal, setShowCartModal] = useState(false);
-  const [addedProduct, setAddedProduct] = useState<{ name: string; image: string } | null>(null);
+  const [addedProduct, setAddedProduct] = useState<{
+    name: string;
+    image: string;
+  } | null>(null);
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [showVisualSearchModal, setShowVisualSearchModal] = useState(false);
-  
+
   // Flash Sale Countdown
   const [timeLeft, setTimeLeft] = useState({
     hours: 2,
     minutes: 45,
-    seconds: 30
+    seconds: 30,
   });
 
   // Countdown timer
   useEffect(() => {
     const timer = setInterval(() => {
-      setTimeLeft(prev => {
+      setTimeLeft((prev) => {
         if (prev.seconds > 0) {
           return { ...prev, seconds: prev.seconds - 1 };
         } else if (prev.minutes > 0) {
@@ -140,60 +173,69 @@ export default function ShopPage() {
   const allProducts = useMemo(() => {
     // Convert seller products to shop format (only approved ones)
     const seller = useAuthStore.getState().seller;
-    const sellerName = seller?.businessName || seller?.storeName || 'Verified Seller';
-    
+    const sellerName =
+      seller?.businessName || seller?.storeName || "Verified Seller";
+
     const verifiedSellerProducts = sellerProducts
-      .filter(p => p.approvalStatus === 'approved' && p.isActive)
-      .map(p => ({
+      .filter((p) => p.approvalStatus === "approved" && p.isActive)
+      .map((p) => ({
         id: p.id,
         name: p.name,
         price: p.price,
         originalPrice: p.originalPrice,
-        image: p.images[0] || 'https://placehold.co/400?text=Product',
+        image: p.images[0] || "https://placehold.co/400?text=Product",
         rating: p.rating || 0,
         sold: p.sales || 0,
         category: p.category,
         seller: sellerName,
         isVerified: true,
         isFreeShipping: true,
-        location: 'Metro Manila',
+        location: "Metro Manila",
         description: p.description,
         sellerRating: p.rating || 0,
-        sellerVerified: true
+        sellerVerified: true,
       }));
 
     // Convert QA verified products to shop format
     const qaVerifiedProducts = qaProducts
-      .filter(p => p.status === 'ACTIVE_VERIFIED')
-      .map(p => ({
+      .filter((p) => p.status === "ACTIVE_VERIFIED")
+      .map((p) => ({
         id: p.id,
         name: p.name,
         price: p.price,
         originalPrice: undefined,
-        image: p.image || 'https://placehold.co/400?text=Product',
+        image: p.image || "https://placehold.co/400?text=Product",
         rating: 4.5, // Default rating for QA verified products
         sold: 0, // New verified product
         category: p.category,
         seller: p.vendor,
         isVerified: true,
         isFreeShipping: true,
-        location: 'Metro Manila',
+        location: "Metro Manila",
         description: `Quality verified ${p.name}`,
         sellerRating: 4.5,
-        sellerVerified: true
+        sellerVerified: true,
       }));
 
     // Generate mock products for variety
     const mockProducts = [];
+    const allMockSources = [
+      ...trendingProducts,
+      ...bestSellerProducts,
+      ...newArrivals,
+    ];
+
     for (let i = 0; i < 3; i++) {
-      mockProducts.push(...trendingProducts.map((product) => ({
-        ...product,
-        id: `${product.id}-${i}`,
-        name: `${product.name} ${i > 0 ? `(Variant ${i + 1})` : ''}`,
-        price: Math.round(product.price * (0.8 + Math.random() * 0.4)),
-        sold: Math.round(product.sold * (0.5 + Math.random() * 1.5)),
-        isVerified: false
-      })));
+      mockProducts.push(
+        ...allMockSources.map((product) => ({
+          ...product,
+          id: `${product.id}-${i}`,
+          name: `${product.name} ${i > 0 ? `(Variant ${i + 1})` : ""}`,
+          price: Math.round(product.price * (0.8 + Math.random() * 0.4)),
+          sold: Math.round(product.sold * (0.5 + Math.random() * 1.5)),
+          isVerified: false,
+        }))
+      );
     }
 
     // Combine: verified products first (both seller and QA), then mock products
@@ -201,31 +243,35 @@ export default function ShopPage() {
   }, [sellerProducts, qaProducts]);
 
   const filteredProducts = useMemo(() => {
-    let filtered = allProducts.filter(product => {
-      const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                           product.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                           product.seller.toLowerCase().includes(searchQuery.toLowerCase());
-      
-      const matchesCategory = selectedCategory === 'All Categories' || product.category === selectedCategory;
-      
+    const filtered = allProducts.filter((product) => {
+      const matchesSearch =
+        product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        product.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        product.seller.toLowerCase().includes(searchQuery.toLowerCase());
+
+      const matchesCategory =
+        selectedCategory === "All Categories" ||
+        product.category === selectedCategory;
+
       // Use slider price range instead of predefined ranges
-      const matchesPrice = product.price >= priceRange[0] && product.price <= priceRange[1];
+      const matchesPrice =
+        product.price >= priceRange[0] && product.price <= priceRange[1];
 
       return matchesSearch && matchesCategory && matchesPrice;
     });
 
     // Apply sorting
     switch (selectedSort) {
-      case 'price-low':
+      case "price-low":
         filtered.sort((a, b) => a.price - b.price);
         break;
-      case 'price-high':
+      case "price-high":
         filtered.sort((a, b) => b.price - a.price);
         break;
-      case 'rating':
+      case "rating":
         filtered.sort((a, b) => (b.rating || 0) - (a.rating || 0));
         break;
-      case 'bestseller':
+      case "bestseller":
         filtered.sort((a, b) => (b.sold || 0) - (a.sold || 0));
         break;
       default:
@@ -237,16 +283,16 @@ export default function ShopPage() {
   }, [allProducts, searchQuery, selectedCategory, selectedSort, priceRange]);
 
   const resetFilters = () => {
-    setSearchQuery('');
-    setSelectedCategory('All Categories');
-    setSelectedSort('relevance');
+    setSearchQuery("");
+    setSelectedCategory("All Categories");
+    setSelectedSort("relevance");
     setPriceRange([0, 10000]);
   };
 
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
-      
+
       {/* Shop Header */}
       <div className="bg-white border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -256,10 +302,14 @@ export default function ShopPage() {
             className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4"
           >
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Shop All Products</h1>
-              <p className="text-gray-600 mt-1">Discover amazing products from trusted Filipino sellers</p>
+              <h1 className="text-3xl font-bold text-gray-900">
+                Shop All Products
+              </h1>
+              <p className="text-gray-600 mt-1">
+                Discover amazing products from trusted Filipino sellers
+              </p>
             </div>
-            
+
             {/* Search Bar */}
             <div className="relative max-w-md w-full lg:w-96">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -292,7 +342,10 @@ export default function ShopPage() {
           {/* Animated Background */}
           <div className="absolute inset-0 opacity-20">
             <div className="absolute top-0 left-0 w-64 h-64 bg-white rounded-full blur-3xl animate-pulse" />
-            <div className="absolute bottom-0 right-0 w-96 h-96 bg-white rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+            <div
+              className="absolute bottom-0 right-0 w-96 h-96 bg-white rounded-full blur-3xl animate-pulse"
+              style={{ animationDelay: "1s" }}
+            />
           </div>
 
           <div className="relative z-10">
@@ -312,16 +365,22 @@ export default function ShopPage() {
                 <Clock className="w-6 h-6" />
                 <div className="flex gap-2">
                   {[
-                    { label: 'Hours', value: timeLeft.hours },
-                    { label: 'Mins', value: timeLeft.minutes },
-                    { label: 'Secs', value: timeLeft.seconds }
+                    { label: "Hours", value: timeLeft.hours },
+                    { label: "Mins", value: timeLeft.minutes },
+                    { label: "Secs", value: timeLeft.seconds },
                   ].map((item, index) => (
                     <div key={item.label} className="flex items-center">
                       <div className="bg-white/30 backdrop-blur-md rounded-xl p-3 min-w-[70px] text-center border border-white/20 shadow-lg">
-                        <div className="text-2xl font-bold">{String(item.value).padStart(2, '0')}</div>
-                        <div className="text-xs text-white/90 font-medium">{item.label}</div>
+                        <div className="text-2xl font-bold">
+                          {String(item.value).padStart(2, "0")}
+                        </div>
+                        <div className="text-xs text-white/90 font-medium">
+                          {item.label}
+                        </div>
                       </div>
-                      {index < 2 && <div className="text-2xl font-bold mx-2">:</div>}
+                      {index < 2 && (
+                        <div className="text-2xl font-bold mx-2">:</div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -340,8 +399,8 @@ export default function ShopPage() {
                   onClick={() => navigate(`/product/${product.id}`)}
                 >
                   <div className="relative aspect-square mb-3 overflow-hidden rounded-lg">
-                    <img 
-                      src={product.image} 
+                    <img
+                      src={product.image}
                       alt={product.name}
                       className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                     />
@@ -350,9 +409,11 @@ export default function ShopPage() {
                     </div>
                     <div className="absolute bottom-0 left-0 right-0 bg-black/50 backdrop-blur-sm p-2">
                       <div className="w-full bg-gray-200 rounded-full h-1.5 mb-1">
-                        <div 
-                          className="bg-orange-500 h-1.5 rounded-full" 
-                          style={{ width: `${(product.sold / product.stock) * 100}%` }}
+                        <div
+                          className="bg-orange-500 h-1.5 rounded-full"
+                          style={{
+                            width: `${(product.sold / product.stock) * 100}%`,
+                          }}
                         />
                       </div>
                       <div className="text-[10px] text-white text-center">
@@ -364,8 +425,12 @@ export default function ShopPage() {
                     {product.name}
                   </h3>
                   <div className="flex items-baseline gap-2">
-                    <span className="text-lg font-bold text-orange-600">₱{product.salePrice}</span>
-                    <span className="text-xs text-gray-400 line-through">₱{product.originalPrice}</span>
+                    <span className="text-lg font-bold text-orange-600">
+                      ₱{product.salePrice}
+                    </span>
+                    <span className="text-xs text-gray-400 line-through">
+                      ₱{product.originalPrice}
+                    </span>
                   </div>
                 </motion.div>
               ))}
@@ -378,7 +443,9 @@ export default function ShopPage() {
           <motion.div
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
-            className={`lg:w-64 lg:sticky lg:top-20 lg:self-start ${showFilters ? 'block' : 'hidden lg:block'}`}
+            className={`lg:w-64 lg:sticky lg:top-20 lg:self-start ${
+              showFilters ? "block" : "hidden lg:block"
+            }`}
           >
             <div className="bg-white rounded-2xl p-6 shadow-sm">
               <div className="flex items-center justify-between mb-6">
@@ -393,8 +460,12 @@ export default function ShopPage() {
                   Reset
                 </Button>
               </div>
-              
-              <Accordion type="multiple" defaultValue={["categories", "price"]} className="space-y-4">
+
+              <Accordion
+                type="multiple"
+                defaultValue={["categories", "price"]}
+                className="space-y-4"
+              >
                 {/* Categories */}
                 <AccordionItem value="categories" className="border-b-0">
                   <AccordionTrigger className="text-sm font-medium text-gray-900 hover:no-underline py-2">
@@ -408,8 +479,8 @@ export default function ShopPage() {
                           onClick={() => setSelectedCategory(category)}
                           className={`w-full text-left px-3 py-2 text-sm rounded-lg transition-all ${
                             selectedCategory === category
-                              ? 'bg-[#FF5722] text-white shadow-sm'
-                              : 'text-gray-600 hover:bg-gray-50'
+                              ? "bg-[#FF5722] text-white shadow-sm"
+                              : "text-gray-600 hover:bg-gray-50"
                           }`}
                         >
                           {category}
@@ -436,8 +507,12 @@ export default function ShopPage() {
                           className="w-full"
                         />
                         <div className="flex items-center justify-between mt-3 text-sm">
-                          <span className="text-gray-600">₱{priceRange[0].toLocaleString()}</span>
-                          <span className="text-gray-600">₱{priceRange[1].toLocaleString()}</span>
+                          <span className="text-gray-600">
+                            ₱{priceRange[0].toLocaleString()}
+                          </span>
+                          <span className="text-gray-600">
+                            ₱{priceRange[1].toLocaleString()}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -464,7 +539,7 @@ export default function ShopPage() {
                     <Filter className="w-4 h-4" />
                     Filters
                   </button>
-                  
+
                   <p className="text-gray-600 text-sm">
                     Showing {filteredProducts.length} results
                   </p>
@@ -488,17 +563,21 @@ export default function ShopPage() {
                   {/* View Mode Toggle */}
                   <div className="flex items-center bg-gray-100 rounded-lg p-1">
                     <button
-                      onClick={() => setViewMode('grid')}
+                      onClick={() => setViewMode("grid")}
                       className={`p-2 rounded-md transition-colors ${
-                        viewMode === 'grid' ? 'bg-white shadow-sm' : 'text-gray-400'
+                        viewMode === "grid"
+                          ? "bg-white shadow-sm"
+                          : "text-gray-400"
                       }`}
                     >
                       <Grid className="w-4 h-4" />
                     </button>
                     <button
-                      onClick={() => setViewMode('list')}
+                      onClick={() => setViewMode("list")}
                       className={`p-2 rounded-md transition-colors ${
-                        viewMode === 'list' ? 'bg-white shadow-sm' : 'text-gray-400'
+                        viewMode === "list"
+                          ? "bg-white shadow-sm"
+                          : "text-gray-400"
                       }`}
                     >
                       <List className="w-4 h-4" />
@@ -514,9 +593,9 @@ export default function ShopPage() {
               animate={{ opacity: 1 }}
               transition={{ delay: 0.2 }}
               className={
-                viewMode === 'grid'
-                  ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6'
-                  : 'space-y-4'
+                viewMode === "grid"
+                  ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+                  : "space-y-4"
               }
             >
               {filteredProducts.map((product, index) => (
@@ -526,11 +605,13 @@ export default function ShopPage() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.05 }}
                   className={`bg-white rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden group cursor-pointer ${
-                    viewMode === 'list' ? 'flex' : ''
+                    viewMode === "list" ? "flex" : ""
                   }`}
                   onClick={() => navigate(`/product/${product.id}`)}
                 >
-                  <div className={viewMode === 'list' ? 'w-48 flex-shrink-0' : ''}>
+                  <div
+                    className={viewMode === "list" ? "w-48 flex-shrink-0" : ""}
+                  >
                     <div className="relative aspect-square overflow-hidden">
                       <img
                         src={product.image}
@@ -539,7 +620,12 @@ export default function ShopPage() {
                       />
                       {product.originalPrice && (
                         <Badge className="absolute top-3 left-3 bg-red-500 hover:bg-red-500 text-white text-xs">
-                          {Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)}% OFF
+                          {Math.round(
+                            ((product.originalPrice - product.price) /
+                              product.originalPrice) *
+                              100
+                          )}
+                          % OFF
                         </Badge>
                       )}
                       {product.isFreeShipping && (
@@ -554,7 +640,7 @@ export default function ShopPage() {
                     <h3 className="font-semibold text-gray-900 group-hover:text-[#FF5722] transition-colors duration-200 line-clamp-2">
                       {product.name}
                     </h3>
-                    
+
                     <div className="mt-2 flex items-center gap-2 flex-wrap">
                       <div className="flex items-center">
                         <Star className="w-4 h-4 text-yellow-400 fill-current" />
@@ -563,7 +649,10 @@ export default function ShopPage() {
                         </span>
                       </div>
                       {product.isVerified && (
-                        <Badge variant="outline" className="text-xs gap-1 border-green-200 bg-green-50 text-green-700">
+                        <Badge
+                          variant="outline"
+                          className="text-xs gap-1 border-green-200 bg-green-50 text-green-700"
+                        >
                           <BadgeCheck className="w-3 h-3" />
                           Verified
                         </Badge>
@@ -604,32 +693,32 @@ export default function ShopPage() {
                             seller: {
                               id: `seller-${product.id}`,
                               name: product.seller,
-                              avatar: '',
+                              avatar: "",
                               rating: product.sellerRating || 0,
                               totalReviews: 100,
                               followers: 1000,
                               isVerified: product.sellerVerified || false,
-                              description: '',
+                              description: "",
                               location: product.location,
-                              established: '2020',
+                              established: "2020",
                               products: [],
                               badges: [],
-                              responseTime: '1 hour',
-                              categories: [product.category]
+                              responseTime: "1 hour",
+                              categories: [product.category],
                             },
                             sellerId: `seller-${product.id}`,
                             totalReviews: 100,
-                            description: product.description || '',
+                            description: product.description || "",
                             specifications: {},
-                            variants: []
+                            variants: [],
                           };
-                          
+
                           addToCart(cartItem, 1);
-                          
+
                           // Show modal with product info
                           setAddedProduct({
                             name: product.name,
-                            image: product.image
+                            image: product.image,
                           });
                           setShowCartModal(true);
                         }}
@@ -639,7 +728,7 @@ export default function ShopPage() {
                         <ShoppingCart className="w-4 h-4" />
                         Add to Cart
                       </Button>
-                      
+
                       <Button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -650,29 +739,29 @@ export default function ShopPage() {
                             seller: {
                               id: `seller-${product.id}`,
                               name: product.seller,
-                              avatar: '',
+                              avatar: "",
                               rating: product.sellerRating || 0,
                               totalReviews: 100,
                               followers: 1000,
                               isVerified: product.sellerVerified || false,
-                              description: '',
+                              description: "",
                               location: product.location,
-                              established: '2020',
+                              established: "2020",
                               products: [],
                               badges: [],
-                              responseTime: '1 hour',
-                              categories: [product.category]
+                              responseTime: "1 hour",
+                              categories: [product.category],
                             },
                             sellerId: `seller-${product.id}`,
                             totalReviews: 100,
-                            description: product.description || '',
+                            description: product.description || "",
                             specifications: {},
-                            variants: []
+                            variants: [],
                           };
-                          
+
                           addToCart(cartItem, 1);
                           // Navigate to checkout
-                          navigate('/checkout');
+                          navigate("/checkout");
                         }}
                         className="w-full bg-[#FF5722] hover:bg-[#E64A19] text-white rounded-xl"
                       >
