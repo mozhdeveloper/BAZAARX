@@ -1,241 +1,125 @@
 "use client";
-import { TimelineContent } from "@/components/ui/timeline-animation";
-import { useRef } from "react";
+import { useRef, useState } from "react";
+import { ArrowLeft, ArrowRight, Star } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+
+const TESTIMONIALS = [
+  {
+    name: "Ana Gonzales",
+    role: "Owner of Gourmet Manila",
+    quote: "BazaarX's seller dashboard is incredibly powerful. We manage 10+ product lines effortlessly. Customer support is outstanding!",
+    img: "https://images.unsplash.com/photo-1580489944761-15a19d654956?q=80&w=761&auto=format&fit=crop"
+  },
+  {
+    name: "Patricia Santos",
+    role: "CEO of PatSan Fashion",
+    quote: "BazaarX transformed how we sell online. From 100 to 5,000 orders per month in just 6 months. The platform is built for Filipino businesses!",
+    img: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=688&auto=format&fit=crop"
+  },
+  {
+    name: "Mark Reyes",
+    role: "Founder of TechHub PH",
+    quote: "Best investment for my online store. Real-time analytics helped us triple our revenue!",
+    img: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=687&auto=format&fit=crop"
+  },
+ {
+    name: "Rico Tan ",
+    role: "CEO of Island Crafts Co.",
+    quote: "From Cebu to Manila, BazaarX helped us reach customers nationwide. The platform handles everything seamlessly!",
+    img: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=870&auto=format&fit=crop"
+  }
+];
 
 function BrandTestimonials() {
+  const [index, setIndex] = useState(0);
   const testimonialRef = useRef<HTMLDivElement>(null);
 
-  const revealVariants = {
-    visible: (i: number) => ({
-      y: 0,
-      opacity: 1,
-      filter: "blur(0px)",
-      transition: {
-        delay: i * 0.4,
-        duration: 0.5,
-      },
-    }),
-    hidden: {
-      filter: "blur(10px)",
-      y: -20,
-      opacity: 0,
-    },
-  };
+  const next = () => setIndex((prev) => (prev + 1) % TESTIMONIALS.length);
+  const prev = () => setIndex((prev) => (prev - 1 + TESTIMONIALS.length) % TESTIMONIALS.length);
 
   return (
-    <main className="w-full bg-white">
-      <section
-        className="relative h-full container text-black mx-auto rounded-lg py-14 bg-white"
-        ref={testimonialRef}
-      >
-        <article className={"max-w-screen-md mx-auto text-center space-y-2 "}>
-          <TimelineContent
-            as="h1"
-            className={"xl:text-4xl text-3xl font-bold"}
-            animationNum={0}
-            customVariants={revealVariants}
-            timelineRef={testimonialRef}
-          >
-            Trusted by Leading Filipino Brands
-          </TimelineContent>
-          <TimelineContent
-            as="p"
-            className={"mx-auto text-gray-500"}
-            animationNum={1}
-            customVariants={revealVariants}
-            timelineRef={testimonialRef}
-          >
-            See what business owners and entrepreneurs say about BazaarX
-          </TimelineContent>
-        </article>
-        <div className="lg:grid lg:grid-cols-3 gap-2 flex flex-col w-full lg:py-10 pt-10 pb-4 lg:px-10 px-4">
-          <div className="md:flex lg:flex-col lg:space-y-2 h-full lg:gap-0 gap-2 ">
-            <TimelineContent
-              animationNum={0}
-              customVariants={revealVariants}
-              timelineRef={testimonialRef}
-              className="lg:flex-[7] flex-[6] flex flex-col justify-between relative bg-gradient-to-br from-orange-500 to-orange-600 text-white overflow-hidden rounded-lg border border-orange-300 p-5"
-            >
-              <div className="absolute bottom-0 left-0 right-0 top-0 bg-[linear-gradient(to_right,#ffffff2e_1px,transparent_1px),linear-gradient(to_bottom,#ffffff2e_1px,transparent_1px)] bg-[size:50px_56px] [mask-image:radial-gradient(ellipse_80%_50%_at_50%_0%,#000_70%,transparent_110%)]"></div>
-              <article className="mt-auto relative z-10">
-                <p>
-                  "BazaarX transformed how we sell online. From 100 to 5,000 orders per month in just 6 months. The platform is built for Filipino businesses!"
-                </p>
-                <div className="flex justify-between pt-5">
-                  <div>
-                    <h2 className="font-semibold lg:text-xl text-sm">
-                      Patricia Santos
-                    </h2>
-                    <p className="text-orange-100">CEO of PatSan Fashion</p>
-                  </div>
-                  <img
-                    src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=688&auto=format&fit=crop"
-                    alt="Patricia Santos"
-                    className="w-16 h-16 rounded-xl object-cover"
-                  />
-                </div>
-              </article>
-            </TimelineContent>
-            <TimelineContent
-              animationNum={1}
-              customVariants={revealVariants}
-              timelineRef={testimonialRef}
-              className="lg:flex-[3] flex-[4] lg:h-fit lg:shrink-0 flex flex-col justify-between relative bg-blue-600 text-white overflow-hidden rounded-lg border border-blue-400 p-5"
-            >
-              <article className="mt-auto">
-                <p>
-                  "Best investment for my online store. Real-time analytics helped us triple our revenue!"
-                </p>
-                <div className="flex justify-between pt-5">
-                  <div>
-                    <h2 className="font-semibold text-xl">Mark Reyes</h2>
-                    <p className="text-blue-100">Founder of TechHub PH</p>
-                  </div>
-                  <img
-                    src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=687&auto=format&fit=crop"
-                    alt="Mark Reyes"
-                    className="w-16 h-16 rounded-xl object-cover"
-                  />
-                </div>
-              </article>
-            </TimelineContent>
-          </div>
-          <div className="lg:h-full md:flex lg:flex-col h-fit lg:space-y-2 lg:gap-0 gap-2">
-            <TimelineContent
-              animationNum={2}
-              customVariants={revealVariants}
-              timelineRef={testimonialRef}
-              className="flex flex-col justify-between relative bg-[#111111] text-white overflow-hidden rounded-lg border border-gray-700 p-5"
-            >
-              <article className="mt-auto">
-                <p className="2xl:text-base text-sm">
-                  "BazaarX's seller dashboard is incredibly powerful. We manage 10+ product lines effortlessly. Customer support is outstanding!"
-                </p>
-                <div className="flex justify-between items-end pt-5">
-                  <div>
-                    <h2 className="font-semibold lg:text-xl text-lg">
-                      Ana Gonzales
-                    </h2>
-                    <p className="lg:text-base text-sm text-gray-400">
-                      Owner of Gourmet Manila
-                    </p>
-                  </div>
-                  <img
-                    src="https://images.unsplash.com/photo-1580489944761-15a19d654956?q=80&w=761&auto=format&fit=crop"
-                    alt="Ana Gonzales"
-                    className="lg:w-16 lg:h-16 w-12 h-12 rounded-xl object-cover"
-                  />
-                </div>
-              </article>
-            </TimelineContent>
-            <TimelineContent
-              animationNum={3}
-              customVariants={revealVariants}
-              timelineRef={testimonialRef}
-              className="flex flex-col justify-between relative bg-[#111111] text-white overflow-hidden rounded-lg border border-gray-700 p-5"
-            >
-              <article className="mt-auto">
-                <p className="2xl:text-base text-sm">
-                  "From Cebu to Manila, BazaarX helped us reach customers nationwide. The platform handles everything seamlessly!"
-                </p>
-                <div className="flex justify-between items-end pt-5">
-                  <div>
-                    <h2 className="font-semibold lg:text-xl text-lg">
-                      Rico Tan
-                    </h2>
-                    <p className="lg:text-base text-sm text-gray-400">
-                      CEO of Island Crafts Co.
-                    </p>
-                  </div>
-                  <img
-                    src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=870&auto=format&fit=crop"
-                    alt="Rico Tan"
-                    className="lg:w-16 lg:h-16 w-12 h-12 rounded-xl object-cover"
-                  />
-                </div>
-              </article>
-            </TimelineContent>
-            <TimelineContent
-              animationNum={4}
-              customVariants={revealVariants}
-              timelineRef={testimonialRef}
-              className="flex flex-col justify-between relative bg-[#111111] text-white overflow-hidden rounded-lg border border-gray-700 p-5"
-            >
-              <article className="mt-auto">
-                <p className="2xl:text-base text-sm">
-                  "Switched from another platform to BazaarX - best decision ever! Sales increased 300% in 3 months. Highly recommend!"
-                </p>
-                <div className="flex justify-between items-end pt-5">
-                  <div>
-                    <h2 className="font-semibold lg:text-xl text-lg">
-                      Carlo Mendoza
-                    </h2>
-                    <p className="lg:text-base text-sm text-gray-400">
-                      Founder of FitLife PH
-                    </p>
-                  </div>
-                  <img
-                    src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=687&auto=format&fit=crop"
-                    alt="Carlo Mendoza"
-                    className="lg:w-16 lg:h-16 w-12 h-12 rounded-xl object-cover"
-                  />
-                </div>
-              </article>
-            </TimelineContent>
-          </div>
-          <div className="h-full md:flex lg:flex-col lg:space-y-2 lg:gap-0 gap-2">
-            <TimelineContent
-              animationNum={5}
-              customVariants={revealVariants}
-              timelineRef={testimonialRef}
-              className="lg:flex-[3] flex-[4] flex flex-col justify-between relative bg-blue-600 text-white overflow-hidden rounded-lg border border-blue-400 p-5"
-            >
-              <article className="mt-auto">
-                <p>
-                  "BazaarX has been a key partner in our growth journey. Couldn't ask for better!"
-                </p>
-                <div className="flex justify-between pt-5">
-                  <div>
-                    <h2 className="font-semibold text-xl">Maya Villanueva</h2>
-                    <p className="text-blue-100">CEO of BeautyBox Manila</p>
-                  </div>
-                  <img
-                    src="https://images.unsplash.com/photo-1438761681033-6461ffad8d80?q=80&w=870&auto=format&fit=crop"
-                    alt="Maya Villanueva"
-                    className="w-16 h-16 rounded-xl object-cover"
-                  />
-                </div>
-              </article>
-            </TimelineContent>
-            <TimelineContent
-              animationNum={6}
-              customVariants={revealVariants}
-              timelineRef={testimonialRef}
-              className="lg:flex-[7] flex-[6] flex flex-col justify-between relative bg-gradient-to-br from-orange-500 to-orange-600 text-white overflow-hidden rounded-lg border border-orange-300 p-5"
-            >
-              <div className="absolute bottom-0 left-0 right-0 top-0 bg-[linear-gradient(to_right,#ffffff2e_1px,transparent_1px),linear-gradient(to_bottom,#ffffff2e_1px,transparent_1px)] bg-[size:50px_56px] [mask-image:radial-gradient(ellipse_80%_50%_at_50%_0%,#000_70%,transparent_110%)]"></div>
-              <article className="mt-auto relative z-10">
-                <p>
-                  "BazaarX revolutionized our business. The AI-powered insights, automated inventory, and exceptional support helped us scale to 15,000+ orders monthly. Truly game-changing!"
-                </p>
-                <div className="flex justify-between pt-5">
-                  <div>
-                    <h2 className="font-semibold text-xl">James Cruz</h2>
-                    <p className="text-orange-100">CTO of HomeStyle PH</p>
-                  </div>
-                  <img
-                    src="https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?q=80&w=687&auto=format&fit=crop"
-                    alt="James Cruz"
-                    className="w-16 h-16 rounded-xl object-cover"
-                  />
-                </div>
-              </article>
-            </TimelineContent>
-          </div>
+    <main className="w-full bg-[#fdf8f4] py-20 overflow-hidden">
+      <section className="container mx-auto px-6 flex flex-col lg:flex-row items-center gap-12" ref={testimonialRef}>
+        
+        {/* LEFT COLUMN: STATIC CONTENT */}
+        <div className="lg:w-2/5 space-y-6">
+          <span className="text-[#ff8555] font-bold tracking-widest text-sm uppercase">
+            Testimonials
+          </span>
+          <h2 className="text-5xl lg:text-6xl font-extrabold text-[#1a2b3b] leading-tight">
+            Trusted by Leading <br />
+            <span className="text-[#ff8555]">Filipino Brands</span>
+          </h2>
+          <p className="text-gray-600 text-lg max-w-md">
+            See what business owners and entrepreneurs say about BazaarX.
+          </p>
         </div>
 
-        <div className="absolute border-b-2 border-[#e6e6e6] bottom-4 h-16 z-[2] md:w-full w-[90%] md:left-0 left-[5%]">
-          <div className="container mx-auto w-full h-full relative before:absolute before:-left-2 before:-bottom-2 before:w-4 before:h-4 before:bg-white before:shadow-sm before:border border-gray-200 before:border-gray-300 after:absolute after:-right-2 after:-bottom-2 after:w-4 after:h-4 after:bg-white after:shadow-sm after:border after:border-gray-300 "></div>
+        {/* RIGHT COLUMN: CARD + CONTROLS ON THE RIGHT */}
+        <div className="lg:w-3/5 flex flex-col md:flex-row items-center gap-8">
+          
+          {/* THE REVIEW CARD */}
+          <div className="relative w-full max-w-xl min-h-[400px] flex items-center">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={index}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ duration: 0.3 }}
+                className="bg-white p-10 rounded-3xl shadow-xl shadow-gray-200/50 w-full z-10"
+              >
+                <div className="flex gap-1 mb-6">
+                  {[...Array(5)].map((_, i) => (
+                    <Star key={i} className="w-5 h-5 fill-[#ff8555] text-[#ff8555]" />
+                  ))}
+                </div>
+
+                <blockquote className="text-xl text-gray-700 leading-relaxed mb-8 italic min-h-[120px]">
+                  "{TESTIMONIALS[index].quote}"
+                </blockquote>
+
+                <div className="flex items-center gap-4">
+                  <img
+                    src={TESTIMONIALS[index].img}
+                    alt={TESTIMONIALS[index].name}
+                    className="w-14 h-14 rounded-full object-cover border-2 border-[#ff8555]"
+                  />
+                  <div>
+                    <h4 className="font-bold text-[#1a2b3b] text-lg leading-tight">{TESTIMONIALS[index].name}</h4>
+                    <p className="text-gray-500 text-sm font-medium">{TESTIMONIALS[index].role}</p>
+                  </div>
+                </div>
+              </motion.div>
+            </AnimatePresence>
+          </div>
+
+            <div className="flex items-center gap-2 px-2">
+              {TESTIMONIALS.map((_, i) => (
+                <div 
+                  key={i} 
+                  className={`transition-all duration-300 rounded-full h-1.5 ${i === index ? "w-8 bg-[#ff8555]" : "w-2 bg-gray-300"}`} 
+                />
+              ))}
+            </div>
+
+          <div className="flex flex-col items-center md:items-start gap-10">
+            <div className="flex gap-4">
+              <button 
+                onClick={prev} 
+                className="p-4 rounded-full border border-gray-200 bg-white hover:bg-gray-50 transition-all active:scale-95 shadow-sm"
+              >
+                <ArrowLeft className="w-6 h-6 text-gray-700" />
+              </button>
+              <button 
+                onClick={next} 
+                className="p-4 rounded-full bg-[#ff8555] hover:bg-[#ff703d] transition-all active:scale-95 shadow-lg shadow-orange-200"
+              >
+                <ArrowRight className="w-6 h-6 text-white" />
+              </button>
+            </div>
+          </div>
+
         </div>
       </section>
     </main>
