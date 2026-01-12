@@ -15,7 +15,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Search, Plus, Edit, Trash2, X, Camera, Package as PackageIcon, Info, Link } from 'lucide-react-native';
+import { Search, Plus, Edit, Trash2, X, Camera, Package as PackageIcon, Info, Link, ChevronDown } from 'lucide-react-native';
 import { useSellerStore, SellerProduct } from '../../../src/stores/sellerStore';
 import { useProductQAStore } from '../../../src/stores/productQAStore';
 import * as ImagePicker from 'expo-image-picker';
@@ -30,6 +30,10 @@ export default function SellerProductsScreen() {
   const [isEditMode, setIsEditMode] = useState(false);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const { updateProduct } = useSellerStore();
+
+  type FilterStatus = 'all' | 'active' | 'inactive';
+  const [statusFilter, setStatusFilter] = useState<FilterStatus>('all');
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
 
   // Form state for adding products
   const [formData, setFormData] = useState({
@@ -257,9 +261,15 @@ export default function SellerProductsScreen() {
     }
   };
   
-  const filteredProducts = products.filter((product) =>
-    product.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredProducts = products.filter(product => {
+  const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase());
+  const matchesStatus = 
+    statusFilter === 'all' ? true : 
+    statusFilter === 'active' ? product.isActive : 
+    !product.isActive;
+  
+  return matchesSearch && matchesStatus;
+});
 
   const handleDeleteProduct = (id: string, name: string) => {
     Alert.alert(
@@ -362,6 +372,50 @@ export default function SellerProductsScreen() {
             onChangeText={setSearchQuery}
             placeholderTextColor="#9CA3AF"
           />
+
+          {/* Status Filter Dropdown */}
+          <View style={styles.filterWrapper}>
+            <TouchableOpacity
+              style={styles.filterDropdownButton}
+              onPress={() => setIsFilterOpen(prev => !prev)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.filterDropdownButtonText}>
+                {statusFilter === 'all' ? 'All' : statusFilter === 'active' ? 'Active' : 'Inactive'}
+              </Text>
+              <ChevronDown size={16} color="#6B7280" style={{ transform: [{ rotate: isFilterOpen ? '180deg' : '0deg' }] }} />
+            </TouchableOpacity>
+
+            {isFilterOpen && (
+              <>
+                <TouchableOpacity style={styles.dropdownOverlay} onPress={() => setIsFilterOpen(false)} activeOpacity={1} />
+                <View style={styles.filterDropdownMenu}>
+                  <TouchableOpacity
+                    style={styles.filterDropdownItem}
+                    onPress={() => { setStatusFilter('all'); setIsFilterOpen(false); }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.filterDropdownItemText, statusFilter === 'all' && styles.filterDropdownItemTextSelected]}>All</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.filterDropdownItem}
+                    onPress={() => { setStatusFilter('active'); setIsFilterOpen(false); }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.filterDropdownItemText, statusFilter === 'active' && styles.filterDropdownItemTextSelected]}>Active</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.filterDropdownItem}
+                    onPress={() => { setStatusFilter('inactive'); setIsFilterOpen(false); }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.filterDropdownItemText, statusFilter === 'inactive' && styles.filterDropdownItemTextSelected]}>Inactive</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </View> 
+
           {searchQuery.length > 0 && (
             <TouchableOpacity onPress={() => setSearchQuery('')}>
               <X size={20} color="#9CA3AF" />
@@ -766,6 +820,65 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 15,
     color: '#111827',
+  },
+  // Status Filter (Dropdown)
+  filterWrapper: {
+    position: 'relative',
+    marginLeft: 8,
+  },
+  filterDropdownButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 10,
+  },
+  filterDropdownButtonText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#6B7280',
+  },
+  filterDropdownMenu: {
+    position: 'absolute',
+    top: 52,
+    right: 0,
+    width: 140,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    paddingVertical: 6,
+    paddingHorizontal: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 3,
+    zIndex: 1000,
+  },
+  filterDropdownItem: {
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+  },
+  filterDropdownItemText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  filterDropdownItemTextSelected: {
+    color: '#FF5722',
+  },
+  dropdownOverlay: {
+    position: 'absolute',
+    top: 52,
+    left: -1000,
+    right: -1000,
+    bottom: -1000,
+    backgroundColor: 'transparent',
+    zIndex: 900,
   },
   // Products List (Fixed Bottom Padding)
   productsList: {
