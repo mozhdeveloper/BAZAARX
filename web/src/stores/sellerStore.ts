@@ -51,6 +51,8 @@ export interface SellerProduct {
   stock: number;
   category: string;
   images: string[];
+  sizes?: string[];
+  colors?: string[];
   isActive: boolean;
   sellerId: string;
   createdAt: string;
@@ -490,7 +492,9 @@ export const useProductStore = create<ProductStore>()(
             rating: 0,
             reviews: 0,
             approvalStatus: 'pending',
-            vendorSubmittedCategory: product.category
+            vendorSubmittedCategory: product.category,
+            sizes: product.sizes || [],
+            colors: product.colors || []
           };
           
           set((state) => ({ products: [...state.products, newProduct] }));
