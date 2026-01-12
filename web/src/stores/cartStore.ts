@@ -535,12 +535,11 @@ export const useCartStore = create<CartStore>()(
           console.log('Cart store rehydrated with', state.items.length, 'items and', state.orders.length, 'orders');
         }
       },
-      storage: localStorage,
       partialize: (state) => ({
         items: state.items,
         orders: state.orders,
         // notifications are NOT persisted - always use initial hardcoded values
-      }),
+      }) as Partial<CartStore>,
     }
   )
 );
