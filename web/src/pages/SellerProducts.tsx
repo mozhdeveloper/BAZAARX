@@ -15,6 +15,7 @@ import {
   AlertTriangle,
   Clock,
   BadgeCheck,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
@@ -489,6 +490,8 @@ export function AddProduct() {
     sizes: [] as string[],
     colors: [] as string[],
   });
+  const [variationInput, setVariationInput] = useState("");
+  const [colorInput, setColorInput] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -503,18 +506,6 @@ export function AddProduct() {
     "Toys",
     "Health",
     "Food & Beverage",
-  ];
-
-  const sizeOptions = ["XS", "S", "M", "L", "XL", "XXL"];
-  const colorOptions = [
-    { name: "Red", hex: "#EF4444" },
-    { name: "Orange", hex: "#F97316" },
-    { name: "Yellow", hex: "#FACC15" },
-    { name: "Green", hex: "#22C55E" },
-    { name: "Blue", hex: "#3B82F6" },
-    { name: "Purple", hex: "#A855F7" },
-    { name: "Black", hex: "#111827" },
-    { name: "White", hex: "#F9FAFB", border: true },
   ];
 
   const handleChange = (
@@ -533,12 +524,39 @@ export function AddProduct() {
     }
   };
 
-  const toggleSelection = (field: "sizes" | "colors", value: string) => {
+  const addVariation = () => {
+    const trimmed = variationInput.trim();
+    if (trimmed && !formData.sizes.includes(trimmed)) {
+      setFormData((prev) => ({
+        ...prev,
+        sizes: [...prev.sizes, trimmed],
+      }));
+      setVariationInput("");
+    }
+  };
+
+  const removeVariation = (variation: string) => {
     setFormData((prev) => ({
       ...prev,
-      [field]: prev[field].includes(value)
-        ? prev[field].filter((item) => item !== value)
-        : [...prev[field], value],
+      sizes: prev.sizes.filter((v) => v !== variation),
+    }));
+  };
+
+  const addColor = () => {
+    const trimmed = colorInput.trim();
+    if (trimmed && !formData.colors.includes(trimmed)) {
+      setFormData((prev) => ({
+        ...prev,
+        colors: [...prev.colors, trimmed],
+      }));
+      setColorInput("");
+    }
+  };
+
+  const removeColor = (color: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      colors: prev.colors.filter((c) => c !== color),
     }));
   };
 
@@ -708,26 +726,34 @@ export function AddProduct() {
                     )}
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {(formData.sizes.length
-                      ? formData.sizes
-                      : ["Size options"]
-                    ).map((size, idx) => (
-                      <span
-                        key={`${size}-${idx}`}
-                        className="rounded-full bg-orange-50 text-orange-700 px-3 py-1 text-xs font-semibold"
-                      >
-                        {size}
+                    {formData.sizes.length > 0 ? (
+                      formData.sizes.map((size, idx) => (
+                        <span
+                          key={`${size}-${idx}`}
+                          className="rounded-full bg-orange-50 text-orange-700 px-3 py-1 text-xs font-semibold"
+                        >
+                          {size}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-xs text-gray-400 italic">
+                        No variations added
                       </span>
-                    ))}
+                    )}
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {(formData.colors.length
                       ? formData.colors
-                      : ["Colors"]
+                      : ["No colors"]
                     ).map((color, idx) => (
                       <span
                         key={`${color}-${idx}`}
-                        className="rounded-full border border-gray-200 px-3 py-1 text-xs font-semibold text-gray-700"
+                        className={cn(
+                          "rounded-full border px-3 py-1 text-xs font-semibold",
+                          formData.colors.length
+                            ? "border-blue-200 bg-blue-50 text-blue-700"
+                            : "border-gray-200 text-gray-400 italic"
+                        )}
                       >
                         {color}
                       </span>
@@ -750,7 +776,7 @@ export function AddProduct() {
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="h-2 w-2 rounded-full bg-orange-500" />
-                    Fill sizes/colors for apparel
+                    Add variations if product has options
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="h-2 w-2 rounded-full bg-orange-500" />
@@ -907,37 +933,59 @@ export function AddProduct() {
                 </div>
               </div>
 
-              {/* Sizes */}
+              {/* Variations */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <label className="block text-sm font-semibold text-gray-800">
-                    Sizes (optional)
+                    Variations (optional)
                   </label>
                   <span className="text-xs text-gray-500">
-                    Pick all that apply
+                    Sizes, models, flavors, etc.
                   </span>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {sizeOptions.map((size) => {
-                    const isActive = formData.sizes.includes(size);
-                    return (
-                      <Button
-                        key={size}
-                        type="button"
-                        variant={isActive ? "default" : "outline"}
-                        onClick={() => toggleSelection("sizes", size)}
-                        className={cn(
-                          "h-10 rounded-full px-3 text-sm shadow-sm",
-                          isActive
-                            ? "bg-orange-500 hover:bg-orange-600 text-white"
-                            : "border-gray-200 text-gray-700 hover:border-orange-200"
-                        )}
-                      >
-                        {size}
-                      </Button>
-                    );
-                  })}
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={variationInput}
+                    onChange={(e) => setVariationInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addVariation();
+                      }
+                    }}
+                    className="flex-1 rounded-xl border border-gray-200 px-3 py-2.5 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                    placeholder="E.g., Small, 32GB, Chocolate"
+                  />
+                  <Button
+                    type="button"
+                    onClick={addVariation}
+                    variant="outline"
+                    className="rounded-xl border-dashed border-gray-300 hover:border-orange-400"
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    Add
+                  </Button>
                 </div>
+                {formData.sizes.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {formData.sizes.map((variation) => (
+                      <span
+                        key={variation}
+                        className="inline-flex items-center gap-1.5 rounded-full bg-orange-50 text-orange-700 px-3 py-1.5 text-sm font-medium border border-orange-200"
+                      >
+                        {variation}
+                        <button
+                          type="button"
+                          onClick={() => removeVariation(variation)}
+                          className="hover:bg-orange-200 rounded-full p-0.5 transition-colors"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Colors */}
@@ -946,39 +994,52 @@ export function AddProduct() {
                   <label className="block text-sm font-semibold text-gray-800">
                     Colors (optional)
                   </label>
-                  <span className="text-xs text-gray-500">Tap to toggle</span>
+                  <span className="text-xs text-gray-500">
+                    For products with color options
+                  </span>
                 </div>
-                <div className="flex flex-wrap gap-3">
-                  {colorOptions.map((color) => {
-                    const isActive = formData.colors.includes(color.name);
-                    return (
-                      <button
-                        key={color.name}
-                        type="button"
-                        onClick={() => toggleSelection("colors", color.name)}
-                        className={cn(
-                          "w-10 h-10 rounded-full border flex items-center justify-center transition-all duration-150 shadow-sm",
-                          isActive
-                            ? "ring-2 ring-orange-500 scale-105"
-                            : "hover:scale-105",
-                          color.border
-                            ? "border-gray-200"
-                            : "border-transparent"
-                        )}
-                        style={{ backgroundColor: color.hex }}
-                        aria-pressed={isActive}
-                      >
-                        {isActive && (
-                          <span className="w-2.5 h-2.5 rounded-full bg-white" />
-                        )}
-                      </button>
-                    );
-                  })}
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={colorInput}
+                    onChange={(e) => setColorInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addColor();
+                      }
+                    }}
+                    className="flex-1 rounded-xl border border-gray-200 px-3 py-2.5 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                    placeholder="E.g., Space Gray, Forest Green"
+                  />
+                  <Button
+                    type="button"
+                    onClick={addColor}
+                    variant="outline"
+                    className="rounded-xl border-dashed border-gray-300 hover:border-orange-400"
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    Add
+                  </Button>
                 </div>
                 {formData.colors.length > 0 && (
-                  <p className="text-xs text-gray-500">
-                    Selected: {formData.colors.join(", ")}
-                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {formData.colors.map((color) => (
+                      <span
+                        key={color}
+                        className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 text-blue-700 px-3 py-1.5 text-sm font-medium border border-blue-200"
+                      >
+                        {color}
+                        <button
+                          type="button"
+                          onClick={() => removeColor(color)}
+                          className="hover:bg-blue-200 rounded-full p-0.5 transition-colors"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
                 )}
               </div>
 
