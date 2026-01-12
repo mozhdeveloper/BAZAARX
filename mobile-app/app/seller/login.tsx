@@ -22,11 +22,10 @@ export default function SellerLoginScreen({ navigation }: Props) {
   const [password, setPassword] = useState('');
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   const handleLogin = () => {
     if (email === 'seller@bazaarx.ph' && password === 'seller123') {
-      setIsLoggedIn(true);
+      navigation.replace('SellerStack');
     } else if (email === 'buyer@bazaarx.ph' && password === 'password') {
       Alert.alert('Wrong Portal', 'These are buyer credentials. Please use seller credentials.');
     } else {
@@ -43,43 +42,6 @@ export default function SellerLoginScreen({ navigation }: Props) {
       setPassword('seller123');
     }
   };
-
-  if (isLoggedIn) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.successContainer}>
-          <CheckCircle size={80} color="#10B981" strokeWidth={2} />
-          <Text style={styles.successTitle}>Login Successful!</Text>
-          <Text style={styles.successMessage}>
-            Welcome to the Seller Portal
-          </Text>
-          <View style={styles.infoCard}>
-            <Text style={styles.infoTitle}>🎉 Seller Module Available</Text>
-            <Text style={styles.infoText}>
-              The complete Seller Dashboard with all 5 tabs is ready:{'\n\n'}
-              • Dashboard (Stats & Analytics){'\n'}
-              • Products (Inventory Management){'\n'}
-              • Orders (Order Processing){'\n'}
-              • Analytics (Charts & Reports){'\n'}
-              • Settings (Profile & Configuration)
-            </Text>
-          </View>
-          
-          <Pressable
-            style={styles.enterButton}
-            onPress={() => navigation.replace('SellerTabs')}
-          >
-            <Text style={styles.enterButtonText}>Enter Seller Dashboard</Text>
-            <ArrowRight size={20} color="#FFFFFF" strokeWidth={2.5} />
-          </Pressable>
-          
-          <Text style={styles.noteText}>
-            Access all 5 seller modules: Dashboard, Products, Orders, Analytics & Settings
-          </Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
 
   return (
     <SafeAreaView style={styles.container}>

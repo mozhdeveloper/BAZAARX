@@ -1,17 +1,19 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { LayoutDashboard, Package, ShoppingCart, TrendingUp, Settings } from 'lucide-react-native';
+import { LayoutDashboard, Package, ShoppingCart, CreditCard, Settings, FileCheck } from 'lucide-react-native';
 import SellerDashboardScreen from './(tabs)/dashboard';
 import SellerProductsScreen from './(tabs)/products';
+import SellerQAProductsScreen from './(tabs)/qa-products';
 import SellerOrdersScreen from './(tabs)/orders';
-import SellerAnalyticsScreen from './(tabs)/analytics';
+import SellerPOSScreen from './pos';
 import SellerSettingsScreen from './(tabs)/settings';
 
 export type SellerTabParamList = {
   Dashboard: undefined;
   Products: undefined;
+  'QA Products': undefined;
   Orders: undefined;
-  Analytics: undefined;
+  'POS Lite': undefined;
   Settings: undefined;
 };
 
@@ -38,7 +40,7 @@ export default function SellerTabs() {
           elevation: 8,
         },
         tabBarLabelStyle: {
-          fontSize: 12,
+          fontSize: 10,
           fontWeight: '600',
           marginTop: 4,
         },
@@ -59,6 +61,13 @@ export default function SellerTabs() {
         }}
       />
       <Tab.Screen
+        name="QA Products"
+        component={SellerQAProductsScreen}
+        options={{
+          tabBarIcon: ({ color, size }) => <FileCheck size={size} color={color} strokeWidth={2.5} />,
+        }}
+      />
+      <Tab.Screen
         name="Orders"
         component={SellerOrdersScreen}
         options={{
@@ -66,10 +75,10 @@ export default function SellerTabs() {
         }}
       />
       <Tab.Screen
-        name="Analytics"
-        component={SellerAnalyticsScreen}
+        name="POS Lite"
+        component={SellerPOSScreen}
         options={{
-          tabBarIcon: ({ color, size }) => <TrendingUp size={size} color={color} strokeWidth={2.5} />,
+          tabBarIcon: ({ color, size }) => <CreditCard size={size} color={color} strokeWidth={2.5} />,
         }}
       />
       <Tab.Screen

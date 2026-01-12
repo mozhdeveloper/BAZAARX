@@ -194,7 +194,7 @@ export default function CheckoutScreen({ navigation }: Props) {
         style={{ flex: 1 }}
       >
         {/* Edge-to-Edge Orange Header */}
-        <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+        <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
           <View style={styles.headerTop}>
             <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
               <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2.5} />

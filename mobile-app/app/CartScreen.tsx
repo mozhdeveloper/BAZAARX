@@ -46,7 +46,7 @@ export default function CartScreen({ navigation }: Props) {
   if (items.length === 0) {
     return (
       <View style={styles.container}>
-        <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
+        <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
           <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
             <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
           </Pressable>
@@ -71,7 +71,7 @@ export default function CartScreen({ navigation }: Props) {
   return (
     <View style={styles.container}>
       {/* Edge-to-Edge Orange Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
           <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
         </Pressable>

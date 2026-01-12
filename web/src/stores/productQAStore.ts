@@ -12,12 +12,15 @@ export type ProductQAStatus =
 export interface QAProduct {
   id: string;
   name: string;
+  description?: string;
   vendor: string;
   price: number;
+  originalPrice?: number;
   category: string;
   status: ProductQAStatus;
   logistics: string | null;
   image: string;
+  images?: string[];
   rejectionReason?: string;
   rejectionStage?: 'digital' | 'physical'; // Track which stage rejected
   submittedAt?: string;
@@ -353,7 +356,7 @@ export const useProductQAStore = create<ProductQAStore>()(
       },
     }),
     {
-      name: 'product-qa-storage',
+      name: 'bazaarx-product-qa-shared',
     }
   )
 );

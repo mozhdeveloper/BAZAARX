@@ -275,7 +275,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
   return (
     <View style={styles.container}>
       {/* Edge-to-Edge Orange Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <View style={styles.headerTop}>
           <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
             <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
@@ -427,7 +427,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
           onPress={() => setShowSearchModal(false)}
         >
           <Pressable 
-            style={[styles.searchModalContent, { paddingTop: insets.top + 12 }]}
+            style={[styles.searchModalContent, { paddingTop: insets.top + 16 }]}
             onPress={(e) => e.stopPropagation()}
           >
             <View style={styles.modalHeader}>

@@ -94,7 +94,7 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
         style={{ flex: 1 }}
       >
         {/* Minimalist White Header */}
-        <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+        <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
           <Pressable 
             onPress={() => navigation.goBack()} 
             style={styles.backButton}

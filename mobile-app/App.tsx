@@ -30,7 +30,8 @@ import PaymentMethodsScreen from './app/PaymentMethodsScreen';
 import HelpSupportScreen from './app/HelpSupportScreen';
 import PrivacyPolicyScreen from './app/PrivacyPolicyScreen';
 import SellerLoginScreen from './app/seller/login';
-import SellerTabs from './app/seller/SellerTabs';
+import SellerStack from './app/seller/SellerStack';
+import AdminStack from './app/admin/AdminStack';
 
 // Import types
 import type { Product, Order } from './src/types';
@@ -48,7 +49,8 @@ export type RootStackParamList = {
   Onboarding: undefined;
   Login: undefined;
   SellerLogin: undefined;
-  SellerTabs: undefined;
+  SellerStack: undefined;
+  AdminStack: undefined;
   MainTabs: NavigatorScreenParams<TabParamList>;
   ProductDetail: { product: Product };
   Checkout: undefined;
@@ -175,8 +177,13 @@ export default function App() {
             options={{ animation: 'slide_from_bottom' }}
           />
           <Stack.Screen 
-            name="SellerTabs" 
-            component={SellerTabs}
+            name="SellerStack" 
+            component={SellerStack}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen 
+            name="AdminStack" 
+            component={AdminStack}
             options={{ headerShown: false }}
           />
           <Stack.Screen name="MainTabs" component={MainTabs} />

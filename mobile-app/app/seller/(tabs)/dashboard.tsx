@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -6,18 +6,19 @@ import {
   ScrollView,
   Pressable,
   Dimensions,
-  StatusBar,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TrendingUp, TrendingDown, Package, Eye, DollarSign, Menu, Bell } from 'lucide-react-native';
 import { LineChart } from 'react-native-gifted-charts';
 import { useSellerStore } from '../../../src/stores/sellerStore';
+import SellerDrawer from '../../../src/components/SellerDrawer';
 
 const { width } = Dimensions.get('window');
 
 export default function SellerDashboardScreen() {
   const { stats, revenueData, orders, seller } = useSellerStore();
   const insets = useSafeAreaInsets();
+  const [drawerVisible, setDrawerVisible] = useState(false);
 
   const recentOrders = orders.slice(0, 3);
 
@@ -55,13 +56,14 @@ export default function SellerDashboardScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#FF5722" />
+      {/* Seller Drawer */}
+      <SellerDrawer visible={drawerVisible} onClose={() => setDrawerVisible(false)} />
       
       {/* Immersive Edge-to-Edge Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <View style={styles.headerContent}>
           <View style={styles.headerLeft}>
-            <Pressable style={styles.menuButton}>
+            <Pressable style={styles.menuButton} onPress={() => setDrawerVisible(true)}>
               <Menu size={24} color="#FFFFFF" strokeWidth={2.5} />
             </Pressable>
             <View style={styles.headerTitleContainer}>

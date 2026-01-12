@@ -7,7 +7,6 @@ import {
   Pressable,
   Switch,
   Alert,
-  StatusBar,
   TextInput,
   KeyboardAvoidingView,
   Platform,
@@ -101,7 +100,7 @@ export default function SellerSettingsScreen() {
       {
         text: 'Logout',
         style: 'destructive',
-        onPress: () => navigation.navigate('SellerLogin' as never),
+        onPress: () => navigation.navigate('Login' as never),
       },
     ]);
   };
@@ -559,10 +558,8 @@ export default function SellerSettingsScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={0}
     >
-      <StatusBar barStyle="light-content" backgroundColor="#FF5722" />
-      
       {/* Immersive Edge-to-Edge Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <View style={styles.headerContent}>
           <View style={styles.headerLeft}>
             <Pressable style={styles.menuButton}>

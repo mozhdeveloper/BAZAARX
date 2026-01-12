@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { LayoutDashboard, Package, ShoppingCart, TrendingUp, Settings } from 'lucide-react-native';
+import { LayoutDashboard, Package, ShoppingCart, TrendingUp, Settings, FileCheck } from 'lucide-react-native';
 
 export default function SellerTabsLayout() {
   return (
@@ -17,7 +17,7 @@ export default function SellerTabsLayout() {
           height: 68,
         },
         tabBarLabelStyle: {
-          fontSize: 11,
+          fontSize: 10,
           fontWeight: '600',
         },
       }}
@@ -37,6 +37,15 @@ export default function SellerTabsLayout() {
           title: 'Products',
           tabBarIcon: ({ color, size }) => (
             <Package size={size} color={color} strokeWidth={2} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="qa-products"
+        options={{
+          title: 'QA Products',
+          tabBarIcon: ({ color, size }) => (
+            <FileCheck size={size} color={color} strokeWidth={2} />
           ),
         }}
       />

@@ -3,22 +3,198 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
+  FlatList,
   TextInput,
-  Pressable,
   Image,
   Switch,
   Alert,
-  StatusBar,
+  Modal,
+  KeyboardAvoidingView,
+  Platform,
+  TouchableOpacity,
+  ScrollView,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Search, Plus, Edit, Trash2, Menu, Bell } from 'lucide-react-native';
-import { useSellerStore } from '../../../src/stores/sellerStore';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Search, Plus, Edit, Trash2, X, Camera, Package as PackageIcon, Info, Link } from 'lucide-react-native';
+import { useSellerStore, SellerProduct } from '../../../src/stores/sellerStore';
+import { useProductQAStore } from '../../../src/stores/productQAStore';
+import * as ImagePicker from 'expo-image-picker';
 
 export default function SellerProductsScreen() {
-  const { products, toggleProductStatus, deleteProduct } = useSellerStore();
+  const { products, toggleProductStatus, deleteProduct, seller } = useSellerStore();
+  const { addProductToQA } = useProductQAStore();
   const insets = useSafeAreaInsets();
   const [searchQuery, setSearchQuery] = useState('');
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [imageUploadMode, setImageUploadMode] = useState<'upload' | 'url'>('upload');
+
+  // Form state for adding products
+  const [formData, setFormData] = useState({
+    name: '',
+    description: '',
+    price: '',
+    originalPrice: '',
+    stock: '',
+    category: '',
+    images: [''],
+  });
+
+  const categories = [
+    'Electronics',
+    'Fashion',
+    'Beauty',
+    'Food',
+    'Home & Living',
+    'Sports',
+    'Books',
+    'Toys',
+    'Accessories',
+    'Others',
+  ];
+
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      description: '',
+      price: '',
+      originalPrice: '',
+      stock: '',
+      category: '',
+      images: [''],
+    });
+  };
+
+  const handleOpenAddModal = () => {
+    resetForm();
+    setIsAddModalOpen(true);
+  };
+
+  const handlePickImage = async (index: number) => {
+    try {
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (!permissionResult.granted) {
+        Alert.alert('Permission Required', 'Please allow access to your photo library to upload images.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const newImages = [...formData.images];
+        newImages[index] = result.assets[0].uri;
+        setFormData({ ...formData, images: newImages });
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to pick image. Please try again.');
+    }
+  };
+
+  const handleImageChange = (index: number, value: string) => {
+    const newImages = [...formData.images];
+    newImages[index] = value;
+    setFormData({ ...formData, images: newImages });
+  };
+
+  const addImageField = () => {
+    setFormData({
+      ...formData,
+      images: [...formData.images, ''],
+    });
+  };
+
+  const removeImageField = (index: number) => {
+    if (formData.images.length > 1) {
+      setFormData({
+        ...formData,
+        images: formData.images.filter((_, i) => i !== index),
+      });
+    }
+  };
+
+  const validateForm = () => {
+    if (!formData.name.trim()) {
+      Alert.alert('Validation Error', 'Product name is required');
+      return false;
+    }
+    if (!formData.description.trim()) {
+      Alert.alert('Validation Error', 'Product description is required');
+      return false;
+    }
+    if (!formData.price || parseFloat(formData.price) <= 0) {
+      Alert.alert('Validation Error', 'Please enter a valid price');
+      return false;
+    }
+    if (!formData.stock || parseInt(formData.stock) < 0) {
+      Alert.alert('Validation Error', 'Please enter a valid stock quantity');
+      return false;
+    }
+    if (!formData.category) {
+      Alert.alert('Validation Error', 'Please select a category');
+      return false;
+    }
+    const validImages = formData.images.filter(img => img.trim() !== '');
+    if (validImages.length === 0) {
+      Alert.alert('Validation Error', 'At least one product image is required');
+      return false;
+    }
+    return true;
+  };
+
+  const handleAddProduct = () => {
+    if (!validateForm()) return;
+
+    try {
+      const validImages = formData.images.filter(img => img.trim() !== '');
+      const firstImage = validImages[0] || 'https://placehold.co/400x400?text=' + encodeURIComponent(formData.name);
+
+      const newProduct: SellerProduct = {
+        id: `PROD-${Date.now()}`,
+        name: formData.name.trim(),
+        description: formData.description.trim(),
+        price: parseFloat(formData.price),
+        originalPrice: formData.originalPrice ? parseFloat(formData.originalPrice) : undefined,
+        stock: parseInt(formData.stock),
+        category: formData.category,
+        image: firstImage,
+        images: validImages,
+        isActive: true,
+        sold: 0,
+      };
+
+      // Add to seller store first
+      const { addProduct } = useSellerStore.getState();
+      addProduct(newProduct);
+
+      // Add to product QA flow
+      addProductToQA({
+        id: newProduct.id,
+        name: newProduct.name,
+        description: newProduct.description,
+        vendor: seller?.storeName || 'Tech Shop PH',
+        price: newProduct.price,
+        originalPrice: newProduct.originalPrice,
+        category: newProduct.category,
+        image: firstImage,
+        images: validImages,
+      });
+
+      Alert.alert(
+        'Product Submitted',
+        'Your product has been added and submitted for quality review. Track its status in the QA Products tab.',
+        [{ text: 'OK', onPress: () => setIsAddModalOpen(false) }]
+      );
+      
+      resetForm();
+    } catch (error) {
+      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to add product');
+    }
+  };
 
   const filteredProducts = products.filter((product) =>
     product.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -39,35 +215,83 @@ export default function SellerProductsScreen() {
     );
   };
 
+  const renderProductCard = ({ item }: { item: SellerProduct }) => (
+    <View style={styles.productCard}>
+      <Image source={{ uri: item.image }} style={styles.productImage} />
+      
+      <View style={styles.productInfo}>
+        <View style={styles.productHeader}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.productName} numberOfLines={1}>{item.name}</Text>
+            <Text style={styles.productCategory}>{item.category}</Text>
+          </View>
+          <View style={[styles.statusBadge, { backgroundColor: item.isActive ? '#DCFCE7' : '#F3F4F6' }]}>
+            <Text style={[styles.statusText, { color: item.isActive ? '#16A34A' : '#6B7280' }]}>
+              {item.isActive ? 'Active' : 'Inactive'}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.productMeta}>
+          <View style={styles.priceContainer}>
+            <Text style={styles.productPrice}>₱{item.price.toLocaleString()}</Text>
+            <Text style={styles.productStock}>Stock: {item.stock}</Text>
+          </View>
+          <Text style={styles.productSold}>{item.sold} sold</Text>
+        </View>
+
+        <View style={styles.productActions}>
+          <Switch
+            value={item.isActive}
+            onValueChange={() => toggleProductStatus(item.id)}
+            trackColor={{ false: '#E5E7EB', true: '#FF5722' }}
+            thumbColor="#FFFFFF"
+            ios_backgroundColor="#E5E7EB"
+          />
+          <View style={styles.actionButtons}>
+            <TouchableOpacity 
+              style={styles.editButton}
+              onPress={() => Alert.alert('Edit', 'Edit feature coming soon')}
+              activeOpacity={0.7}
+            >
+              <Edit size={16} color="#FF5722" strokeWidth={2.5} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.deleteButton}
+              onPress={() => handleDeleteProduct(item.id, item.name)}
+              activeOpacity={0.7}
+            >
+              <Trash2 size={16} color="#EF4444" strokeWidth={2.5} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#FF5722" />
-      
-      {/* Immersive Edge-to-Edge Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-        <View style={styles.headerContent}>
-          <View style={styles.headerLeft}>
-            <Pressable style={styles.menuButton}>
-              <Menu size={24} color="#FFFFFF" strokeWidth={2.5} />
-            </Pressable>
-            <View style={styles.headerTitleContainer}>
-              <Text style={styles.headerTitle}>Products</Text>
-              <Text style={styles.headerSubtitle}>Inventory Management</Text>
-            </View>
+      {/* Bright Orange Edge-to-Edge Header */}
+      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
+        <View style={styles.headerRow}>
+          <View style={styles.iconContainer}>
+            <PackageIcon size={24} color="#FFFFFF" strokeWidth={2} />
           </View>
-          <Pressable style={styles.notificationButton}>
-            <Bell size={22} color="#FFFFFF" strokeWidth={2.5} />
-            <View style={styles.notificationBadge} />
-          </Pressable>
+          <View style={styles.headerTextContainer}>
+            <Text style={styles.headerTitle}>Inventory</Text>
+            <Text style={styles.headerSubtitle}>Manage your products</Text>
+          </View>
+          <TouchableOpacity 
+            style={styles.addButton}
+            onPress={handleOpenAddModal}
+            activeOpacity={0.8}
+          >
+            <Plus size={18} color="#FFFFFF" strokeWidth={2.5} />
+            <Text style={styles.addButtonText}>Add</Text>
+          </TouchableOpacity>
         </View>
-        
-        {/* Add Button */}
-        <Pressable style={styles.addButton}>
-          <Plus size={20} color="#FFFFFF" strokeWidth={2.5} />
-          <Text style={styles.addButtonText}>Add Product</Text>
-        </Pressable>
 
-        {/* Search Bar */}
+        {/* Search Bar Embedded in Header */}
         <View style={styles.searchBar}>
           <Search size={20} color="#9CA3AF" strokeWidth={2} />
           <TextInput
@@ -77,75 +301,289 @@ export default function SellerProductsScreen() {
             onChangeText={setSearchQuery}
             placeholderTextColor="#9CA3AF"
           />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')}>
+              <X size={20} color="#9CA3AF" />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
-      <ScrollView
-        style={styles.scrollView}
+      {/* Products List with Bottom Padding */}
+      <FlatList
+        data={filteredProducts}
+        renderItem={renderProductCard}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.productsList}
         showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.productsList}>
-          {filteredProducts.map((product) => (
-            <View key={product.id} style={styles.productCard}>
-              {/* Product Image */}
-              <Image
-                source={{ uri: product.image }}
-                style={styles.productImage}
-              />
+        ListEmptyComponent={
+          <View style={styles.emptyState}>
+            <PackageIcon size={64} color="#D1D5DB" strokeWidth={1.5} />
+            <Text style={styles.emptyTitle}>No products yet</Text>
+            <Text style={styles.emptySubtitle}>Tap 'Add' in the header to create your first product</Text>
+          </View>
+        }
+      />
 
-              {/* Product Info */}
-              <View style={styles.productInfo}>
-                <Text style={styles.productName} numberOfLines={2}>
-                  {product.name}
-                </Text>
-                <Text style={styles.productCategory}>{product.category}</Text>
-                <View style={styles.productDetails}>
-                  <Text style={styles.productPrice}>
-                    ₱{product.price.toLocaleString()}
-                  </Text>
-                  <Text style={styles.productStock}>
-                    Stock: {product.stock}
-                  </Text>
-                </View>
-                <Text style={styles.productSold}>{product.sold} sold</Text>
+      {/* Bottom Sheet Modal - Add Product */}
+      <Modal
+        visible={isAddModalOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setIsAddModalOpen(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalContainer}
+        >
+          <TouchableOpacity 
+            style={styles.modalOverlay} 
+            activeOpacity={1}
+            onPress={() => setIsAddModalOpen(false)}
+          >
+            <TouchableOpacity 
+              style={styles.bottomSheet} 
+              activeOpacity={1}
+              onPress={(e) => e.stopPropagation()}
+            >
+              {/* Handle Bar */}
+              <View style={styles.handleBar} />
+
+              {/* Modal Header */}
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>New Product</Text>
+                <TouchableOpacity onPress={() => setIsAddModalOpen(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                  <X size={24} color="#6B7280" strokeWidth={2.5} />
+                </TouchableOpacity>
               </View>
 
-              {/* Actions */}
-              <View style={styles.productActions}>
-                {/* Active Toggle */}
-                <View style={styles.toggleRow}>
-                  <Text style={styles.toggleLabel}>
-                    {product.isActive ? 'Active' : 'Inactive'}
-                  </Text>
-                  <Switch
-                    value={product.isActive}
-                    onValueChange={() => toggleProductStatus(product.id)}
-                    trackColor={{ false: '#D1D5DB', true: '#FF5722' }}
-                    thumbColor="#FFFFFF"
+              {/* Modal Body */}
+              <ScrollView 
+                style={styles.modalBody}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingBottom: 20 }}
+              >
+                {/* Image Upload/URL Section */}
+                <View style={styles.inputGroup}>
+                  <View style={styles.imageHeaderRow}>
+                    <Text style={styles.inputLabel}>Product Images *</Text>
+                    <View style={styles.uploadModeToggle}>
+                      <TouchableOpacity
+                        style={[styles.modeButton, imageUploadMode === 'upload' && styles.modeButtonActive]}
+                        onPress={() => setImageUploadMode('upload')}
+                      >
+                        <Camera size={14} color={imageUploadMode === 'upload' ? '#FFFFFF' : '#6B7280'} />
+                        <Text style={[styles.modeButtonText, imageUploadMode === 'upload' && styles.modeButtonTextActive]}>Upload</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.modeButton, imageUploadMode === 'url' && styles.modeButtonActive]}
+                        onPress={() => setImageUploadMode('url')}
+                      >
+                        <Link size={14} color={imageUploadMode === 'url' ? '#FFFFFF' : '#6B7280'} />
+                        <Text style={[styles.modeButtonText, imageUploadMode === 'url' && styles.modeButtonTextActive]}>URL</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  {formData.images.map((imageUrl, index) => (
+                    <View key={index} style={{ marginBottom: 12 }}>
+                      {imageUploadMode === 'upload' ? (
+                        <TouchableOpacity style={styles.imageUploadArea} activeOpacity={0.7} onPress={() => handlePickImage(index)}>
+                          {imageUrl ? (
+                            <View style={{ position: 'relative', width: '100%', height: 150 }}>
+                              <Image source={{ uri: imageUrl }} style={styles.uploadedImagePreview} />
+                              {formData.images.length > 1 && (
+                                <TouchableOpacity
+                                  style={styles.removeImageButton}
+                                  onPress={() => removeImageField(index)}
+                                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                >
+                                  <X size={16} color="#FFFFFF" strokeWidth={2.5} />
+                                </TouchableOpacity>
+                              )}
+                            </View>
+                          ) : (
+                            <>
+                              <Camera size={32} color="#9CA3AF" strokeWidth={2} />
+                              <Text style={styles.imageUploadText}>Tap to upload image {index + 1}</Text>
+                              <Text style={styles.imageUploadHint}>JPG, PNG up to 5MB</Text>
+                              {formData.images.length > 1 && (
+                                <TouchableOpacity
+                                  style={styles.removeImageButtonEmpty}
+                                  onPress={() => removeImageField(index)}
+                                >
+                                  <Text style={styles.removeImageButtonText}>Remove</Text>
+                                </TouchableOpacity>
+                              )}
+                            </>
+                          )}
+                        </TouchableOpacity>
+                      ) : (
+                        <View>
+                          <View style={{ flexDirection: 'row', gap: 8 }}>
+                            <TextInput
+                              style={[styles.modernInput, { flex: 1 }]}
+                              placeholder={`https://example.com/image${index + 1}.jpg`}
+                              value={imageUrl}
+                              onChangeText={(text) => handleImageChange(index, text)}
+                              placeholderTextColor="#9CA3AF"
+                              autoCapitalize="none"
+                              keyboardType="url"
+                            />
+                            {formData.images.length > 1 && (
+                              <TouchableOpacity
+                                style={styles.removeUrlButton}
+                                onPress={() => removeImageField(index)}
+                              >
+                                <X size={16} color="#EF4444" strokeWidth={2.5} />
+                              </TouchableOpacity>
+                            )}
+                          </View>
+                          {imageUrl && imageUrl.startsWith('http') && (
+                            <Image source={{ uri: imageUrl }} style={styles.urlImagePreview} />
+                          )}
+                        </View>
+                      )}
+                    </View>
+                  ))}
+
+                  {/* Add Another Image Button */}
+                  <TouchableOpacity
+                    style={styles.addImageButton}
+                    onPress={addImageField}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.addImageButtonText}>+ Add Another Image</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Product Name */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Product Name *</Text>
+                  <TextInput
+                    style={styles.modernInput}
+                    placeholder="e.g. iPhone 15 Pro Max"
+                    value={formData.name}
+                    onChangeText={(text) => setFormData({ ...formData, name: text })}
+                    placeholderTextColor="#9CA3AF"
                   />
                 </View>
 
-                {/* Edit & Delete Buttons */}
-                <View style={styles.actionButtons}>
-                  <Pressable style={styles.editButton}>
-                    <Edit size={16} color="#FF5722" strokeWidth={2} />
-                  </Pressable>
-                  <Pressable
-                    style={styles.deleteButton}
-                    onPress={() =>
-                      handleDeleteProduct(product.id, product.name)
-                    }
-                  >
-                    <Trash2 size={16} color="#EF4444" strokeWidth={2} />
-                  </Pressable>
+                {/* Description */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Description *</Text>
+                  <TextInput
+                    style={[styles.modernInput, styles.textArea]}
+                    placeholder="Enter product description..."
+                    value={formData.description}
+                    onChangeText={(text) => setFormData({ ...formData, description: text })}
+                    placeholderTextColor="#9CA3AF"
+                    multiline
+                    numberOfLines={4}
+                    textAlignVertical="top"
+                  />
                 </View>
-              </View>
-            </View>
-          ))}
-        </View>
 
-        <View style={{ height: 100 }} />
-      </ScrollView>
+                {/* Category Pills */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Category *</Text>
+                  <ScrollView 
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.pillContainer}
+                  >
+                    {categories.map((item) => (
+                      <TouchableOpacity
+                        key={item}
+                        style={[
+                          styles.pillChip,
+                          formData.category === item && styles.pillChipSelected,
+                        ]}
+                        onPress={() => setFormData({ ...formData, category: item })}
+                        activeOpacity={0.7}
+                      >
+                        <Text
+                          style={[
+                            styles.pillChipText,
+                            formData.category === item && styles.pillChipTextSelected,
+                          ]}
+                        >
+                          {item}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+
+                {/* Price & Original Price Row */}
+                <View style={styles.rowInputs}>
+                  <View style={styles.halfInput}>
+                    <Text style={styles.inputLabel}>Price (₱) *</Text>
+                    <TextInput
+                      style={styles.modernInput}
+                      placeholder="0.00"
+                      value={formData.price}
+                      onChangeText={(text) => setFormData({ ...formData, price: text })}
+                      placeholderTextColor="#9CA3AF"
+                      keyboardType="decimal-pad"
+                    />
+                  </View>
+                  <View style={styles.halfInput}>
+                    <Text style={styles.inputLabel}>Original Price (₱)</Text>
+                    <TextInput
+                      style={styles.modernInput}
+                      placeholder="0.00"
+                      value={formData.originalPrice}
+                      onChangeText={(text) => setFormData({ ...formData, originalPrice: text })}
+                      placeholderTextColor="#9CA3AF"
+                      keyboardType="decimal-pad"
+                    />
+                  </View>
+                </View>
+
+                {/* Stock Quantity */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Stock Quantity *</Text>
+                  <TextInput
+                    style={styles.modernInput}
+                    placeholder="0"
+                    value={formData.stock}
+                    onChangeText={(text) => setFormData({ ...formData, stock: text })}
+                    placeholderTextColor="#9CA3AF"
+                    keyboardType="number-pad"
+                  />
+                </View>
+
+                {/* QA Note */}
+                <View style={styles.qaNote}>
+                  <Info size={16} color="#FF5722" strokeWidth={2.5} />
+                  <Text style={styles.qaNoteText}>
+                    Product will be submitted for Quality Assurance review. Track progress in QA Products tab.
+                  </Text>
+                </View>
+              </ScrollView>
+
+              {/* Fixed Footer */}
+              <View style={styles.modalFooter}>
+                <TouchableOpacity
+                  style={styles.cancelButton}
+                  onPress={() => setIsAddModalOpen(false)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.submitButton}
+                  onPress={handleAddProduct}
+                  activeOpacity={0.9}
+                >
+                  <Text style={styles.submitButtonText}>Submit for Review</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -153,103 +591,80 @@ export default function SellerProductsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F7',
+    backgroundColor: '#F9FAFB',
   },
+  // Bright Orange Edge-to-Edge Header
   header: {
     backgroundColor: '#FF5722',
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 4,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
   },
-  headerContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  headerLeft: {
+  headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    marginBottom: 16,
   },
-  menuButton: {
-    padding: 4,
+  iconContainer: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    padding: 12,
+    borderRadius: 12,
   },
-  headerTitleContainer: {
-    gap: 2,
+  headerTextContainer: {
+    flex: 1,
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: '800',
+    fontSize: 22,
+    fontWeight: '700',
     color: '#FFFFFF',
-    letterSpacing: 0.3,
   },
   headerSubtitle: {
     fontSize: 13,
-    color: '#FFFFFF',
-    opacity: 0.9,
-    fontWeight: '500',
-  },
-  notificationButton: {
-    padding: 4,
-    position: 'relative',
-  },
-  notificationBadge: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#EF4444',
-    borderWidth: 1.5,
-    borderColor: '#FF5722',
+    color: 'rgba(255, 255, 255, 0.9)',
+    marginTop: 2,
   },
   addButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 12,
+    gap: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 18,
+    height: 36,
   },
   addButtonText: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
     color: '#FFFFFF',
   },
+  // Search Bar (Embedded in Header)
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    marginHorizontal: 20,
-    gap: 10,
+    paddingHorizontal: 12,
+    height: 48,
+    gap: 8,
   },
   searchInput: {
     flex: 1,
     fontSize: 15,
-    color: '#1F2937',
+    color: '#111827',
   },
-  scrollView: {
-    flex: 1,
-  },
+  // Products List (Fixed Bottom Padding)
   productsList: {
-    padding: 20,
+    paddingHorizontal: 16,
+    paddingTop: 4,
+    paddingBottom: 100, // Crucial: prevents last item from hiding behind tab bar
   },
   productCard: {
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 12,
-    marginBottom: 12,
+    marginBottom: 16, // Consistent spacing between cards
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
@@ -259,30 +674,51 @@ const styles = StyleSheet.create({
   productImage: {
     width: 80,
     height: 80,
-    borderRadius: 8,
-    backgroundColor: '#F5F5F7',
+    borderRadius: 10,
+    backgroundColor: '#F3F4F6',
   },
   productInfo: {
     flex: 1,
     marginLeft: 12,
+    justifyContent: 'space-between',
+  },
+  productHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: 6,
   },
   productName: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1F2937',
-    marginBottom: 4,
+    color: '#111827',
     lineHeight: 18,
   },
   productCategory: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#6B7280',
-    marginBottom: 8,
+    marginTop: 2,
+    fontWeight: '500',
   },
-  productDetails: {
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  statusText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  productMeta: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    marginBottom: 4,
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  priceContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
   productPrice: {
     fontSize: 16,
@@ -290,26 +726,18 @@ const styles = StyleSheet.create({
     color: '#FF5722',
   },
   productStock: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#6B7280',
+    fontWeight: '500',
   },
   productSold: {
-    fontSize: 11,
+    fontSize: 10,
     color: '#9CA3AF',
   },
   productActions: {
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-  },
-  toggleRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
-  },
-  toggleLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#6B7280',
-    marginBottom: 4,
+    justifyContent: 'space-between',
   },
   actionButtons: {
     flexDirection: 'row',
@@ -330,5 +758,288 @@ const styles = StyleSheet.create({
     backgroundColor: '#FEE2E2',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  // Empty State
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 80,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#374151',
+    marginTop: 16,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    marginTop: 8,
+    textAlign: 'center',
+    paddingHorizontal: 20,
+  },
+  // Bottom Sheet Modal
+  modalContainer: {
+    flex: 1,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  bottomSheet: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    maxHeight: '92%',
+    paddingBottom: 20,
+  },
+  handleBar: {
+    width: 40,
+    height: 4,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  modalBody: {
+    paddingHorizontal: 24,
+    paddingTop: 24,
+  },
+  // Image Upload
+  imageHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  uploadModeToggle: {
+    flexDirection: 'row',
+    backgroundColor: '#F3F4F6',
+    borderRadius: 8,
+    padding: 2,
+  },
+  modeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+  },
+  modeButtonActive: {
+    backgroundColor: '#FF5722',
+  },
+  modeButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  modeButtonTextActive: {
+    color: '#FFFFFF',
+  },
+  imageUploadArea: {
+    height: 160,
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    borderRadius: 16,
+    borderStyle: 'dashed',
+    backgroundColor: '#F9FAFB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  imageUploadText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#6B7280',
+    marginTop: 12,
+  },
+  imageUploadHint: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    marginTop: 4,
+  },
+  uploadedImagePreview: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  urlImagePreview: {
+    width: '100%',
+    height: 160,
+    borderRadius: 12,
+    marginTop: 12,
+    resizeMode: 'cover',
+    backgroundColor: '#F3F4F6',
+  },
+  // Modern Inputs
+  inputGroup: {
+    marginBottom: 20,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 10,
+  },
+  modernInput: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 15,
+    color: '#111827',
+    fontWeight: '500',
+  },
+  textArea: {
+    minHeight: 100,
+    textAlignVertical: 'top',
+    paddingTop: 14,
+  },
+  rowInputs: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  halfInput: {
+    flex: 1,
+  },
+  // Image Management Buttons
+  removeImageButton: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: '#EF4444',
+    borderRadius: 20,
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  removeImageButtonEmpty: {
+    marginTop: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    backgroundColor: '#FEE2E2',
+    borderRadius: 8,
+  },
+  removeImageButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#EF4444',
+  },
+  removeUrlButton: {
+    width: 40,
+    height: 52,
+    backgroundColor: '#FEE2E2',
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addImageButton: {
+    backgroundColor: '#F3F4F6',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
+    borderStyle: 'dashed',
+  },
+  addImageButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  // Category Pills
+  pillContainer: {
+    paddingVertical: 4,
+  },
+  pillChip: {
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 24,
+    backgroundColor: '#F3F4F6',
+    marginRight: 10,
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
+  },
+  pillChipSelected: {
+    backgroundColor: '#FF5722',
+    borderColor: '#FF5722',
+  },
+  pillChipText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  pillChipTextSelected: {
+    color: '#FFFFFF',
+  },
+  // QA Note
+  qaNote: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#FFF7ED',
+    borderRadius: 12,
+    padding: 14,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: '#FFEDD5',
+    marginBottom: 20,
+  },
+  qaNoteText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#EA580C',
+    lineHeight: 18,
+    fontWeight: '500',
+  },
+  // Modal Footer
+  modalFooter: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingHorizontal: 24,
+    paddingTop: 20,
+  },
+  cancelButton: {
+    flex: 1,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 14,
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  cancelButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  submitButton: {
+    flex: 1.5,
+    backgroundColor: '#FF5722',
+    borderRadius: 14,
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  submitButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
 });

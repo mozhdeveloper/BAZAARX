@@ -22,6 +22,8 @@ import LocationModal from '../src/components/LocationModal';
 import { trendingProducts, bestSellerProducts } from '../src/data/products';
 import { useCartStore } from '../src/stores/cartStore';
 import { useOrderStore } from '../src/stores/orderStore';
+import { useAdminProductQA } from '../src/stores/adminStore';
+import { useProductQAStore } from '../src/stores/productQAStore';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -99,8 +101,30 @@ export default function HomeScreen({ navigation }: Props) {
     { id: '6', name: 'Dell', logo: 'https://images.unsplash.com/photo-1593642632823-8f785ba67e45?w=200' },
   ];
 
+  // Get QA-verified products from productQAStore
+  const qaProducts = useProductQAStore((state) => state.products);
+  const verifiedQAProducts = qaProducts
+    .filter(qp => qp.status === 'ACTIVE_VERIFIED')
+    .map(qp => ({
+      id: qp.id,
+      name: qp.name,
+      price: qp.price,
+      originalPrice: qp.originalPrice,
+      image: qp.image,
+      images: qp.images || [qp.image],
+      rating: 4.5,
+      sold: 0,
+      seller: qp.vendor,
+      sellerRating: 4.7,
+      sellerVerified: true,
+      isFreeShipping: qp.logistics === 'Drop-off / Courier',
+      isVerified: true,
+      location: 'Philippines',
+      category: qp.category,
+    } as Product));
+
   // Combine all products for search
-  const allProducts = [...trendingProducts, ...bestSellerProducts];
+  const allProducts = [...verifiedQAProducts, ...trendingProducts, ...bestSellerProducts];
 
   // Filter products based on search query
   const filteredProducts = searchQuery.trim()

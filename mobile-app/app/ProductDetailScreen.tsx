@@ -10,7 +10,7 @@ import {
   TextInput,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, ShoppingCart, Star, BadgeCheck, ShieldCheck, Menu, Search, Camera, Share2, Heart, Plus, Minus } from 'lucide-react-native';
+import { ArrowLeft, ShoppingCart, Star, BadgeCheck, ShieldCheck, Menu, Search, Camera, Share2, Heart, Plus, Minus, ThumbsUp, CheckCircle } from 'lucide-react-native';
 import { ProductCard } from '../src/components/ProductCard';
 import { useCartStore } from '../src/stores/cartStore';
 import { trendingProducts } from '../src/data/products';
@@ -20,6 +20,46 @@ import type { RootStackParamList } from '../App';
 type Props = NativeStackScreenProps<RootStackParamList, 'ProductDetail'>;
 
 const { width } = Dimensions.get('window');
+
+// Demo reviews data matching web format
+const demoReviews = [
+  {
+    id: '1',
+    buyerName: 'Maria Santos',
+    buyerAvatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b5e5?w=150&h=150&fit=crop&crop=face',
+    rating: 5,
+    title: 'Excellent Product!',
+    comment: 'Amazing product with great quality. Fast delivery and secure packaging. Highly recommended!',
+    images: ['https://images.unsplash.com/photo-1592750475338-74b7b21085ab?w=400&h=300&fit=crop'],
+    date: '2024-12-15',
+    helpful: 23,
+    verified: true
+  },
+  {
+    id: '2',
+    buyerName: 'Juan Dela Cruz',
+    buyerAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face',
+    rating: 4,
+    title: 'Great value for money',
+    comment: 'Performance is excellent. Only minor issue is the packaging could be better. Overall very satisfied with the purchase.',
+    images: [],
+    date: '2024-12-10',
+    helpful: 15,
+    verified: true
+  },
+  {
+    id: '3',
+    buyerName: 'Anna Reyes',
+    buyerAvatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop&crop=face',
+    rating: 5,
+    title: 'Perfect for daily use',
+    comment: 'Quality is amazing and works perfectly. Comfortable for long use. Will definitely buy again!',
+    images: ['https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=300&fit=crop'],
+    date: '2024-12-05',
+    helpful: 8,
+    verified: true
+  }
+];
 
 export default function ProductDetailScreen({ route, navigation }: Props) {
   const insets = useSafeAreaInsets();
@@ -55,7 +95,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   return (
     <View style={styles.container}>
       {/* Orange Header with Search */}
-      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <Pressable onPress={() => navigation.goBack()} style={styles.headerIcon}>
           <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
         </Pressable>
@@ -248,10 +288,67 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
               </Text>
             )}
             {activeTab === 'ratings' && (
-              <Text style={styles.description}>
-                {product.rating.toFixed(1)} out of 5 stars based on {product.sold} reviews.
-                Customers love this product!
-              </Text>
+              <View style={styles.ratingsContainer}>
+                {/* Rating Summary */}
+                <View style={styles.ratingSummary}>
+                  <Text style={styles.ratingScore}>{product.rating.toFixed(1)}</Text>
+                  <View style={styles.ratingStars}>
+                    {renderStars(Math.round(product.rating))}
+                  </View>
+                  <Text style={styles.ratingCount}>Based on {product.sold || demoReviews.length} reviews</Text>
+                </View>
+
+                {/* Reviews List */}
+                <View style={styles.reviewsList}>
+                  <Text style={styles.reviewsTitle}>Customer Reviews</Text>
+                  {demoReviews.map((review) => (
+                    <View key={review.id} style={styles.reviewCard}>
+                      {/* Reviewer Info */}
+                      <View style={styles.reviewHeader}>
+                        <Image source={{ uri: review.buyerAvatar }} style={styles.reviewerAvatar} />
+                        <View style={styles.reviewerInfo}>
+                          <View style={styles.reviewerNameRow}>
+                            <Text style={styles.reviewerName}>{review.buyerName}</Text>
+                            {review.verified && (
+                              <View style={styles.verifiedBadge}>
+                                <CheckCircle size={14} color="#10B981" fill="#10B981" />
+                                <Text style={styles.verifiedText}>Verified</Text>
+                              </View>
+                            )}
+                          </View>
+                          <View style={styles.reviewStars}>
+                            {renderStars(review.rating)}
+                          </View>
+                        </View>
+                      </View>
+
+                      {/* Review Content */}
+                      {review.title && (
+                        <Text style={styles.reviewTitle}>{review.title}</Text>
+                      )}
+                      <Text style={styles.reviewComment}>{review.comment}</Text>
+
+                      {/* Review Images */}
+                      {review.images && review.images.length > 0 && (
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.reviewImages}>
+                          {review.images.map((img, idx) => (
+                            <Image key={idx} source={{ uri: img }} style={styles.reviewImage} />
+                          ))}
+                        </ScrollView>
+                      )}
+
+                      {/* Review Footer */}
+                      <View style={styles.reviewFooter}>
+                        <Text style={styles.reviewDate}>{new Date(review.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</Text>
+                        <View style={styles.helpfulButton}>
+                          <ThumbsUp size={14} color="#6B7280" />
+                          <Text style={styles.helpfulText}>Helpful ({review.helpful})</Text>
+                        </View>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              </View>
             )}
           </View>
 
@@ -719,5 +816,133 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#FFFFFF',
     letterSpacing: 0.5,
+  },
+  ratingsContainer: {
+    gap: 20,
+  },
+  ratingSummary: {
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    padding: 20,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  ratingScore: {
+    fontSize: 48,
+    fontWeight: '700',
+    color: '#FF5722',
+    marginBottom: 8,
+  },
+  ratingStars: {
+    flexDirection: 'row',
+    gap: 4,
+    marginBottom: 8,
+  },
+  ratingCount: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  reviewsList: {
+    gap: 12,
+  },
+  reviewsTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: 8,
+  },
+  reviewCard: {
+    backgroundColor: '#FFFFFF',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    gap: 12,
+  },
+  reviewHeader: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  reviewerAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#F3F4F6',
+  },
+  reviewerInfo: {
+    flex: 1,
+    gap: 6,
+  },
+  reviewerNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  reviewerName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1F2937',
+  },
+  verifiedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#D1FAE5',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+  },
+  verifiedText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#10B981',
+  },
+  reviewStars: {
+    flexDirection: 'row',
+    gap: 2,
+  },
+  reviewTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1F2937',
+  },
+  reviewComment: {
+    fontSize: 14,
+    color: '#4B5563',
+    lineHeight: 20,
+  },
+  reviewImages: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  reviewImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    marginRight: 8,
+    backgroundColor: '#F3F4F6',
+  },
+  reviewFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  reviewDate: {
+    fontSize: 12,
+    color: '#9CA3AF',
+  },
+  helpfulButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  helpfulText: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontWeight: '500',
   },
 });

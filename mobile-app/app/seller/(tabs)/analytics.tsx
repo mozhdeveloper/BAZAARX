@@ -6,7 +6,6 @@ import {
   ScrollView,
   Pressable,
   Dimensions,
-  StatusBar,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TrendingUp, Download, Menu, Bell } from 'lucide-react-native';
@@ -39,10 +38,8 @@ export default function SellerAnalyticsScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#FF5722" />
-      
       {/* Immersive Edge-to-Edge Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <View style={styles.headerContent}>
           <View style={styles.headerLeft}>
             <Pressable style={styles.menuButton}>

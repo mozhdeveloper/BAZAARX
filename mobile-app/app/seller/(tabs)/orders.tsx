@@ -6,7 +6,6 @@ import {
   ScrollView,
   Pressable,
   Image,
-  StatusBar,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Package, Menu, Bell } from 'lucide-react-native';
@@ -18,6 +17,14 @@ export default function SellerOrdersScreen() {
   const { orders, updateOrderStatus } = useSellerStore();
   const insets = useSafeAreaInsets();
   const [selectedTab, setSelectedTab] = useState<OrderStatus>('all');
+
+  // Count orders by status
+  const orderCounts = {
+    all: orders.length,
+    pending: orders.filter(o => o.status === 'pending').length,
+    'to-ship': orders.filter(o => o.status === 'to-ship').length,
+    completed: orders.filter(o => o.status === 'completed').length,
+  };
 
   const filteredOrders =
     selectedTab === 'all'
@@ -85,10 +92,8 @@ export default function SellerOrdersScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#FF5722" />
-      
       {/* Immersive Edge-to-Edge Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <View style={styles.headerContent}>
           <View style={styles.headerLeft}>
             <Pressable style={styles.menuButton}>
@@ -132,6 +137,17 @@ export default function SellerOrdersScreen() {
                   {tab.charAt(0).toUpperCase() +
                     tab.slice(1).replace('-', ' ')}
                 </Text>
+                <View style={[
+                  styles.countBadge,
+                  selectedTab === tab && styles.countBadgeActive,
+                ]}>
+                  <Text style={[
+                    styles.countBadgeText,
+                    selectedTab === tab && styles.countBadgeTextActive,
+                  ]}>
+                    {orderCounts[tab]}
+                  </Text>
+                </View>
               </Pressable>
             )
           )}
@@ -141,18 +157,48 @@ export default function SellerOrdersScreen() {
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollViewContent}
       >
-        <View style={styles.ordersList}>
+        {filteredOrders.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Package size={64} color="#D1D5DB" strokeWidth={1.5} />
+            <Text style={styles.emptyStateTitle}>No {selectedTab === 'all' ? '' : selectedTab} orders</Text>
+            <Text style={styles.emptyStateText}>
+              {selectedTab === 'all' 
+                ? 'Orders will appear here once customers make purchases'
+                : `No orders with "${selectedTab.replace('-', ' ')}" status`
+              }
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.ordersList}>
           {filteredOrders.map((order) => (
             <View key={order.id} style={styles.orderCard}>
               {/* Order Header */}
               <View style={styles.orderHeader}>
-                <View>
-                  <Text style={styles.orderId}>{order.orderId}</Text>
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                    <Text style={styles.orderId}>{order.orderId}</Text>
+                    {order.type === 'OFFLINE' && (
+                      <View style={styles.walkInBadge}>
+                        <Text style={styles.walkInBadgeText}>Walk-in</Text>
+                      </View>
+                    )}
+                    {order.type === 'ONLINE' && (
+                      <View style={styles.onlineBadge}>
+                        <Text style={styles.onlineBadgeText}>Online</Text>
+                      </View>
+                    )}
+                  </View>
                   <Text style={styles.customerName}>{order.customerName}</Text>
-                  <Text style={styles.customerEmail}>
-                    {order.customerEmail}
-                  </Text>
+                  {order.posNote && (
+                    <Text style={styles.posNote}>Note: {order.posNote}</Text>
+                  )}
+                  {!order.posNote && (
+                    <Text style={styles.customerEmail}>
+                      {order.customerEmail}
+                    </Text>
+                  )}
                 </View>
                 <View
                   style={[
@@ -202,15 +248,6 @@ export default function SellerOrdersScreen() {
               </View>
             </View>
           ))}
-        </View>
-
-        {filteredOrders.length === 0 && (
-          <View style={styles.emptyState}>
-            <Package size={48} color="#D1D5DB" strokeWidth={1.5} />
-            <Text style={styles.emptyText}>No orders found</Text>
-            <Text style={styles.emptySubtext}>
-              Orders will appear here once customers place them
-            </Text>
           </View>
         )}
 
@@ -293,6 +330,9 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 100,
     backgroundColor: '#F3F4F6',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   segmentButtonActive: {
     backgroundColor: '#FF5722',
@@ -305,8 +345,31 @@ const styles = StyleSheet.create({
   segmentButtonTextActive: {
     color: '#FFFFFF',
   },
+  countBadge: {
+    backgroundColor: '#E5E7EB',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    minWidth: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  countBadgeActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  countBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#374151',
+  },
+  countBadgeTextActive: {
+    color: '#FFFFFF',
+  },
   scrollView: {
     flex: 1,
+  },
+  scrollViewContent: {
+    paddingBottom: 100,
   },
   ordersList: {
     padding: 20,
@@ -343,6 +406,33 @@ const styles = StyleSheet.create({
   customerEmail: {
     fontSize: 12,
     color: '#9CA3AF',
+  },
+  posNote: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontStyle: 'italic',
+  },
+  walkInBadge: {
+    backgroundColor: '#8B5CF6',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  walkInBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  onlineBadge: {
+    backgroundColor: '#3B82F6',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  onlineBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   statusBadge: {
     paddingHorizontal: 10,
@@ -414,6 +504,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 80,
+  },
+  emptyStateTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptyStateText: {
+    fontSize: 14,
+    color: '#6B7280',
+    textAlign: 'center',
+    paddingHorizontal: 40,
   },
   emptyText: {
     fontSize: 18,

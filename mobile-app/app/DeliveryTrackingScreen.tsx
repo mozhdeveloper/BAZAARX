@@ -7,7 +7,6 @@ import {
   ScrollView,
   Dimensions,
   Animated,
-  StatusBar,
   Image,
   Alert,
   Modal,
@@ -133,10 +132,8 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
-      
       {/* Edge-to-Edge Orange Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <View style={styles.headerContent}>
           <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
             <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2.5} />

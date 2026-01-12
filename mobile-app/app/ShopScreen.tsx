@@ -16,6 +16,7 @@ import { Search, SlidersHorizontal, X, Check, Camera, ShoppingCart, ArrowLeft, P
 import CameraSearchModal from '../src/components/CameraSearchModal';
 import { ProductCard } from '../src/components/ProductCard';
 import { trendingProducts, bestSellerProducts, newArrivals } from '../src/data/products';
+import { useProductQAStore } from '../src/stores/productQAStore';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -118,6 +119,31 @@ const priceRanges = [
 export default function ShopScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const cartItems = useCartStore((state) => state.items);
+  
+  // Get QA-verified products from productQAStore
+  const qaProducts = useProductQAStore((state) => state.products);
+  const verifiedQAProducts = qaProducts
+    .filter(qp => qp.status === 'ACTIVE_VERIFIED')
+    .map(qp => ({
+      id: qp.id,
+      name: qp.name,
+      price: qp.price,
+      originalPrice: qp.originalPrice,
+      image: qp.image,
+      images: qp.images || [qp.image],
+      rating: 4.5,
+      sold: 0,
+      seller: qp.vendor,
+      sellerRating: 4.7,
+      sellerVerified: true,
+      isFreeShipping: qp.logistics === 'Drop-off / Courier',
+      isVerified: true,
+      location: 'Philippines',
+      category: qp.category,
+    } as Product));
+
+  // Combine all products including QA-verified ones
+  const allProducts = [...verifiedQAProducts, ...trendingProducts, ...bestSellerProducts, ...newArrivals];
   
   const { searchQuery: initialSearchQuery, customResults } = route.params || {};
 
