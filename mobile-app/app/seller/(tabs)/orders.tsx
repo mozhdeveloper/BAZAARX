@@ -451,7 +451,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
-    gap: 3,
+    gap: 12,
     backgroundColor: '#FFFFFF',
   },
   segmentDivider: {
