@@ -18,12 +18,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Search, Plus, Edit, Trash2, X, Camera, Package as PackageIcon, Info, Link, ChevronDown } from 'lucide-react-native';
 import { useSellerStore, SellerProduct } from '../../../src/stores/sellerStore';
 import { useProductQAStore } from '../../../src/stores/productQAStore';
+import SellerDrawer from '../../../src/components/SellerDrawer';
 import * as ImagePicker from 'expo-image-picker';
 
 export default function SellerProductsScreen() {
   const { products, toggleProductStatus, deleteProduct, seller } = useSellerStore();
   const { addProductToQA } = useProductQAStore();
   const insets = useSafeAreaInsets();
+  const [drawerVisible, setDrawerVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [imageUploadMode, setImageUploadMode] = useState<'upload' | 'url'>('upload');
@@ -389,12 +391,15 @@ export default function SellerProductsScreen() {
 
   return (
     <View style={styles.container}>
+      {/* Seller Drawer */}
+      <SellerDrawer visible={drawerVisible} onClose={() => setDrawerVisible(false)} />
+
       {/* Bright Orange Edge-to-Edge Header */}
       <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <View style={styles.headerRow}>
-          <View style={styles.iconContainer}>
+          <TouchableOpacity style={styles.iconContainer} onPress={() => setDrawerVisible(true)}>
             <PackageIcon size={24} color="#FFFFFF" strokeWidth={2} />
-          </View>
+          </TouchableOpacity>
           <View style={styles.headerTextContainer}>
             <Text style={styles.headerTitle}>Inventory</Text>
             <Text style={styles.headerSubtitle}>Manage your products</Text>

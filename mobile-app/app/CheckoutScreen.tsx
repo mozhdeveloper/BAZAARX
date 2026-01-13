@@ -33,9 +33,14 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Checkout'>;
 type CheckoutStep = 'shipping' | 'payment' | 'confirmation';
 
 export default function CheckoutScreen({ navigation }: Props) {
-  const { items, getTotal, clearCart } = useCartStore();
+  const { items, getTotal, clearCart, quickOrder, clearQuickOrder, getQuickOrderTotal } = useCartStore();
   const createOrder = useOrderStore((state) => state.createOrder);
   const insets = useSafeAreaInsets();
+
+  // Determine which items to checkout: quick order takes precedence
+  const checkoutItems = quickOrder ? [quickOrder] : items;
+  const checkoutSubtotal = quickOrder ? getQuickOrderTotal() : getTotal();
+  const isQuickCheckout = quickOrder !== null;
 
   const [currentStep, setCurrentStep] = useState<CheckoutStep>('payment');
   const [address, setAddress] = useState<ShippingAddress>({
@@ -52,7 +57,7 @@ export default function CheckoutScreen({ navigation }: Props) {
   const [voucherCode, setVoucherCode] = useState('');
   const [appliedVoucher, setAppliedVoucher] = useState<keyof typeof VOUCHERS | null>(null);
 
-  const subtotal = getTotal();
+  const subtotal = checkoutSubtotal;
   let shippingFee = subtotal > 500 ? 0 : 50;
   let discount = 0;
 
@@ -106,7 +111,7 @@ export default function CheckoutScreen({ navigation }: Props) {
     }
 
     // Check if cart is empty
-    if (!items || items.length === 0) {
+    if (!checkoutItems || checkoutItems.length === 0) {
       Alert.alert('Error', 'Your cart is empty');
       navigation.navigate('MainTabs', { screen: 'Shop', params: {} });
       return;
@@ -114,8 +119,15 @@ export default function CheckoutScreen({ navigation }: Props) {
 
     // Create order
     try {
-      const order = createOrder(items, address, paymentMethod);
+      const order = createOrder(checkoutItems, address, paymentMethod);
+      
+      // Clear buyer cart after successful order
       clearCart();
+
+      // Clear quick order if it was used
+      if (isQuickCheckout) {
+        clearQuickOrder();
+      }
 
       // Check if online payment (GCash, PayMongo, PayMaya, Card)
       const isOnlinePayment = paymentMethod.toLowerCase() !== 'cod' && paymentMethod.toLowerCase() !== 'cash on delivery';
@@ -212,10 +224,10 @@ export default function CheckoutScreen({ navigation }: Props) {
           {/* Compact Order List */}
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Order Items ({items.length})</Text>
+              <Text style={styles.sectionTitle}>Order Items ({checkoutItems.length})</Text>
             </View>
             
-            {items.map((item) => (
+            {checkoutItems.map((item) => (
               <View key={item.id} style={styles.compactOrderItem}>
                 <Image source={{ uri: item.image }} style={styles.compactThumbnail} />
                 <View style={styles.compactOrderInfo}>
