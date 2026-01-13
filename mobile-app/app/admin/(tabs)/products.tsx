@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { Menu, Bell, Package, Search, Edit, Ban, CheckCircle, Eye, XCircle } from 'lucide-react-native';
+import { Menu, Bell, Package, Search, Edit, Ban, CheckCircle, Eye, XCircle, X } from 'lucide-react-native';
 import AdminDrawer from '../../../src/components/AdminDrawer';
 import { useAdminProducts } from '../../../src/stores/adminStore';
 
@@ -24,7 +24,18 @@ export default function AdminProductsScreen() {
   const [verifiedFilter, setVerifiedFilter] = useState<'all' | 'verified' | 'unverified'>('all');
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [deactivateDialogVisible, setDeactivateDialogVisible] = useState(false);
+  const [editDialogVisible, setEditDialogVisible] = useState(false);
   const [deactivateReason, setDeactivateReason] = useState('');
+  
+  // Edit form states
+  const [editName, setEditName] = useState('');
+  const [editPrice, setEditPrice] = useState('');
+  const [editStock, setEditStock] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  
+  // Focus states
+  const [focusedInput, setFocusedInput] = useState<string | null>(null);
+  
   const insets = useSafeAreaInsets();
 
   // Reload products every time screen comes into focus (e.g., when switching accounts)
@@ -69,6 +80,35 @@ export default function AdminProductsScreen() {
 
   const handleActivateClick = async (product: any) => {
     await activateProduct(product.id);
+  };
+
+  const handleEditClick = (product: any) => {
+    setSelectedProduct(product);
+    setEditName(product.name);
+    setEditPrice(product.price.toString());
+    setEditStock(product.stock.toString());
+    setEditDescription(product.description || '');
+    setEditDialogVisible(true);
+  };
+
+  const handleSaveChanges = async () => {
+    if (selectedProduct && editName && editPrice && editStock) {
+      // TODO: Add updateProduct function to adminStore
+      // For now, we'll just log and reload
+      console.log('Product update:', {
+        id: selectedProduct.id,
+        name: editName,
+        price: parseFloat(editPrice),
+        stock: parseInt(editStock),
+        description: editDescription
+      });
+      
+      setEditDialogVisible(false);
+      setSelectedProduct(null);
+      
+      // Reload products after update
+      await loadProducts();
+    }
   };
 
   return (
@@ -195,7 +235,7 @@ export default function AdminProductsScreen() {
                   <Pressable style={styles.actionButton}>
                     <Eye size={16} color="#6B7280" />
                   </Pressable>
-                  <Pressable style={styles.actionButton}>
+                  <Pressable style={styles.actionButton} onPress={() => handleEditClick(product)}>
                     <Edit size={16} color="#3B82F6" />
                   </Pressable>
                   {product.status === 'banned' ? (
@@ -213,6 +253,93 @@ export default function AdminProductsScreen() {
           })
         )}
       </ScrollView>
+
+      {/* Edit Product Dialog */}
+      <Modal visible={editDialogVisible} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.editModalContent}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>Edit Product</Text>
+                <Text style={styles.modalSubtitle}>
+                  Update the details for "{selectedProduct?.name}"
+                </Text>
+              </View>
+              <Pressable onPress={() => setEditDialogVisible(false)}>
+                <X size={24} color="#6B7280" />
+              </Pressable>
+            </View>
+            
+            <ScrollView style={styles.editModalBody}>
+              <Text style={styles.inputLabel}>Product Name</Text>
+              <TextInput
+                style={[styles.textInput, focusedInput === 'name' && styles.textInputFocused]}
+                value={editName}
+                onChangeText={setEditName}
+                placeholder="Enter product name"
+                placeholderTextColor="#9CA3AF"
+                onFocus={() => setFocusedInput('name')}
+                onBlur={() => setFocusedInput(null)}
+              />
+
+              <View style={styles.inputRow}>
+                <View style={styles.inputHalf}>
+                  <Text style={styles.inputLabel}>Price (₱)</Text>
+                  <TextInput
+                    style={[styles.textInput, focusedInput === 'price' && styles.textInputFocused]}
+                    value={editPrice}
+                    onChangeText={setEditPrice}
+                    placeholder="2499"
+                    keyboardType="numeric"
+                    placeholderTextColor="#9CA3AF"
+                    onFocus={() => setFocusedInput('price')}
+                    onBlur={() => setFocusedInput(null)}
+                  />
+                </View>
+                <View style={styles.inputHalf}>
+                  <Text style={styles.inputLabel}>Stock</Text>
+                  <TextInput
+                    style={[styles.textInput, focusedInput === 'stock' && styles.textInputFocused]}
+                    value={editStock}
+                    onChangeText={setEditStock}
+                    placeholder="20"
+                    keyboardType="numeric"
+                    placeholderTextColor="#9CA3AF"
+                    onFocus={() => setFocusedInput('stock')}
+                    onBlur={() => setFocusedInput(null)}
+                  />
+                </View>
+              </View>
+
+              <Text style={styles.inputLabel}>Description</Text>
+              <TextInput
+                style={[styles.textInput, styles.textArea, focusedInput === 'description' && styles.textInputFocused]}
+                value={editDescription}
+                onChangeText={setEditDescription}
+                placeholder="Enter product description"
+                placeholderTextColor="#9CA3AF"
+                multiline
+                numberOfLines={4}
+                onFocus={() => setFocusedInput('description')}
+                onBlur={() => setFocusedInput(null)}
+              />
+            </ScrollView>
+
+            <View style={styles.modalFooter}>
+              <Pressable style={styles.cancelButton} onPress={() => setEditDialogVisible(false)}>
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </Pressable>
+              <Pressable 
+                style={[styles.saveButton, (!editName || !editPrice || !editStock) && styles.saveButtonDisabled]} 
+                onPress={handleSaveChanges}
+                disabled={!editName || !editPrice || !editStock}
+              >
+                <Text style={styles.saveButtonText}>Save Changes</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Deactivate Dialog */}
       <Modal visible={deactivateDialogVisible} animationType="slide" transparent>
@@ -314,10 +441,30 @@ const styles = StyleSheet.create({
   actionButton: { padding: 8, borderRadius: 8, backgroundColor: '#F9FAFB' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalContent: { backgroundColor: '#FFFFFF', borderTopLeftRadius: 20, borderTopRightRadius: 20 },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#E5E7EB' },
+  editModalContent: { backgroundColor: '#FFFFFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '90%' },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', padding: 20, borderBottomWidth: 1, borderBottomColor: '#E5E7EB' },
   modalTitle: { fontSize: 20, fontWeight: '700', color: '#111827' },
+  modalSubtitle: { fontSize: 13, color: '#6B7280', marginTop: 4 },
   modalBody: { padding: 20 },
+  editModalBody: { padding: 20, maxHeight: 400 },
   modalDesc: { fontSize: 14, color: '#6B7280', marginBottom: 16, lineHeight: 20 },
+  inputLabel: { fontSize: 14, fontWeight: '600', color: '#111827', marginBottom: 8, marginTop: 12 },
+  textInput: { 
+    backgroundColor: '#FFFFFF', 
+    borderRadius: 8, 
+    padding: 12, 
+    fontSize: 15, 
+    color: '#111827', 
+    borderWidth: 2, 
+    borderColor: '#E5E7EB',
+    marginBottom: 4
+  },
+  textInputFocused: {
+    borderColor: '#FF5722'
+  },
+  textArea: { height: 100, textAlignVertical: 'top' },
+  inputRow: { flexDirection: 'row', gap: 12 },
+  inputHalf: { flex: 1 },
   reasonInput: { backgroundColor: '#F9FAFB', borderRadius: 8, padding: 12, fontSize: 14, color: '#111827', borderWidth: 1, borderColor: '#E5E7EB', height: 80, textAlignVertical: 'top' },
   modalFooter: { flexDirection: 'row', padding: 20, gap: 12, borderTopWidth: 1, borderTopColor: '#E5E7EB' },
   cancelButton: { flex: 1, paddingVertical: 12, borderRadius: 8, borderWidth: 1, borderColor: '#E5E7EB', alignItems: 'center' },
@@ -325,4 +472,7 @@ const styles = StyleSheet.create({
   deactivateButton: { flex: 1, paddingVertical: 12, borderRadius: 8, backgroundColor: '#DC2626', alignItems: 'center' },
   deactivateButtonDisabled: { backgroundColor: '#FCA5A5', opacity: 0.5 },
   deactivateButtonText: { fontSize: 16, fontWeight: '600', color: '#FFFFFF' },
+  saveButton: { flex: 1, paddingVertical: 12, borderRadius: 8, backgroundColor: '#FF5722', alignItems: 'center' },
+  saveButtonDisabled: { backgroundColor: '#FCA5A5', opacity: 0.5 },
+  saveButtonText: { fontSize: 16, fontWeight: '600', color: '#FFFFFF' },
 });
