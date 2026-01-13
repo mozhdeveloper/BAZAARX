@@ -16,6 +16,7 @@ import {
   Clock,
   BadgeCheck,
   X,
+  Upload,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
@@ -38,6 +39,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { BulkUploadModal, BulkProductData } from "@/components/BulkUploadModal";
 
 const Logo = () => (
   <Link
@@ -77,6 +79,7 @@ export function SellerProducts() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<SellerProduct | null>(
     null
   );
@@ -87,7 +90,8 @@ export function SellerProducts() {
   });
 
   const { seller, logout } = useAuthStore();
-  const { products, updateProduct, deleteProduct } = useProductStore();
+  const { products, updateProduct, deleteProduct, bulkAddProducts } =
+    useProductStore();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -143,6 +147,23 @@ export function SellerProducts() {
     }
   };
 
+  const handleBulkUpload = (products: BulkProductData[]) => {
+    try {
+      bulkAddProducts(products);
+      toast({
+        title: "Bulk Upload Successful",
+        description: `${products.length} product(s) have been uploaded and sent to Quality Assurance.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Upload Failed",
+        description:
+          "There was an error uploading your products. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="h-screen w-full flex flex-col md:flex-row bg-gray-50 overflow-hidden">
       <Sidebar open={open} setOpen={setOpen}>
@@ -189,12 +210,22 @@ export function SellerProducts() {
                 Manage your product inventory
               </p>
             </div>
-            <Link to="/seller/products/add">
-              <Button className="bg-orange-500 hover:bg-orange-600 text-white flex items-center gap-2">
-                <Plus className="h-4 w-4" />
-                Add Product
+            <div className="flex items-center gap-3">
+              <Button
+                onClick={() => setIsBulkUploadOpen(true)}
+                variant="outline"
+                className="border-orange-500 text-orange-500 hover:bg-orange-50 flex items-center gap-2"
+              >
+                <Upload className="h-4 w-4" />
+                Bulk Upload
               </Button>
-            </Link>
+              <Link to="/seller/products/add">
+                <Button className="bg-orange-500 hover:bg-orange-600 text-white flex items-center gap-2">
+                  <Plus className="h-4 w-4" />
+                  Add Product
+                </Button>
+              </Link>
+            </div>
           </div>
         </div>
 
@@ -470,6 +501,13 @@ export function SellerProducts() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Bulk Upload Modal */}
+      <BulkUploadModal
+        isOpen={isBulkUploadOpen}
+        onClose={() => setIsBulkUploadOpen(false)}
+        onUpload={handleBulkUpload}
+      />
     </div>
   );
 }
