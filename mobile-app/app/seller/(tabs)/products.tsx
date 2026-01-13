@@ -44,7 +44,12 @@ export default function SellerProductsScreen() {
     stock: '',
     category: '',
     images: [''],
+    sizes: [] as string[],
+    colors: [] as string[],
   });
+
+  const [variationInput, setVariationInput] = useState('');
+  const [colorInput, setColorInput] = useState('');
 
   const categories = [
     'Electronics',
@@ -68,11 +73,25 @@ export default function SellerProductsScreen() {
       stock: '',
       category: '',
       images: [''],
+      sizes: [],
+      colors: [],
     });
+    setVariationInput('');
+    setColorInput('');
+  };
+
+  const handleCloseModal = () => {
+    setIsAddModalOpen(false);
+    setIsEditMode(false);
+    setEditingProductId(null);
+    resetForm();
+    setImageUploadMode('upload');
   };
 
   const handleOpenAddModal = () => {
     resetForm();
+    setIsEditMode(false);
+    setEditingProductId(null);
     setIsAddModalOpen(true);
   };
 
@@ -122,6 +141,31 @@ export default function SellerProductsScreen() {
         images: formData.images.filter((_, i) => i !== index),
       });
     }
+  };
+
+  // Variations & Colors handlers
+  const addVariation = () => {
+    const trimmed = variationInput.trim();
+    if (trimmed && !formData.sizes.includes(trimmed)) {
+      setFormData({ ...formData, sizes: [...formData.sizes, trimmed] });
+      setVariationInput('');
+    }
+  };
+
+  const removeVariation = (index: number) => {
+    setFormData({ ...formData, sizes: formData.sizes.filter((_, i) => i !== index) });
+  };
+
+  const addColor = () => {
+    const trimmed = colorInput.trim();
+    if (trimmed && !formData.colors.includes(trimmed)) {
+      setFormData({ ...formData, colors: [...formData.colors, trimmed] });
+      setColorInput('');
+    }
+  };
+
+  const removeColor = (index: number) => {
+    setFormData({ ...formData, colors: formData.colors.filter((_, i) => i !== index) });
   };
 
   const validateForm = () => {
@@ -187,6 +231,8 @@ export default function SellerProductsScreen() {
         images: validImages,
         isActive: true,
         sold: 0,
+        sizes: formData.sizes,
+        colors: formData.colors,
       };
 
       // Add to seller store first
@@ -209,7 +255,7 @@ export default function SellerProductsScreen() {
       Alert.alert(
         'Product Submitted',
         'Your product has been added and submitted for quality review. Track its status in the QA Products tab.',
-        [{ text: 'OK', onPress: () => setIsAddModalOpen(false) }]
+        [{ text: 'OK', onPress: handleCloseModal }]
       );
       
       resetForm();
@@ -231,6 +277,8 @@ export default function SellerProductsScreen() {
       stock: product.stock.toString(),
       category: product.category,       // Will be read-only in UI
       images: product.images || [''],           // Will be read-only in UI
+      sizes: product.sizes || [],
+      colors: product.colors || [],
     });
     
     setIsAddModalOpen(true);
@@ -245,16 +293,15 @@ export default function SellerProductsScreen() {
         name: formData.name.trim(),
         price: parseFloat(formData.price),
         stock: parseInt(formData.stock),
+        sizes: formData.sizes,
+        colors: formData.colors,
       };
 
       if (editingProductId) {
         updateProduct(editingProductId, updatedData);
         
         Alert.alert('Success', 'Product updated successfully!');
-        setIsAddModalOpen(false);
-        resetForm();
-        setIsEditMode(false);
-        setEditingProductId(null);
+        handleCloseModal();
       }
     } catch (error) {
       Alert.alert('Error', 'Failed to update product');
@@ -445,7 +492,7 @@ export default function SellerProductsScreen() {
         visible={isAddModalOpen}
         transparent
         animationType="slide"
-        onRequestClose={() => setIsAddModalOpen(false)}
+        onRequestClose={handleCloseModal}
       >
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -454,7 +501,7 @@ export default function SellerProductsScreen() {
           <TouchableOpacity 
             style={styles.modalOverlay} 
             activeOpacity={1}
-            onPress={() => setIsAddModalOpen(false)}
+            onPress={handleCloseModal}
           >
             <TouchableOpacity 
               style={styles.bottomSheet} 
@@ -467,7 +514,7 @@ export default function SellerProductsScreen() {
               {/* Modal Header */}
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>{isEditMode ? 'Edit Product' : 'New Product'}</Text>
-                <TouchableOpacity onPress={() => setIsAddModalOpen(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <TouchableOpacity onPress={handleCloseModal} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                   <X size={24} color="#6B7280" strokeWidth={2.5} />
                 </TouchableOpacity>
               </View>
@@ -679,6 +726,66 @@ export default function SellerProductsScreen() {
                       />
                     </View>
 
+                    {/* Variations */}
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.inputLabel}>Variations (optional)</Text>
+                      <View style={{ flexDirection: 'row', gap: 8 }}>
+                        <TextInput
+                          style={[styles.modernInput, { flex: 1 }]}
+                          placeholder="e.g., Small, 32GB, Chocolate"
+                          value={variationInput}
+                          onChangeText={setVariationInput}
+                          onSubmitEditing={addVariation}
+                          placeholderTextColor="#9CA3AF"
+                        />
+                        <TouchableOpacity style={styles.addSmallButton} onPress={addVariation} activeOpacity={0.8}>
+                          <Plus size={16} color="#FF5722" />
+                        </TouchableOpacity>
+                      </View>
+                      {formData.sizes.length > 0 && (
+                        <View style={styles.chipsRow}>
+                          {formData.sizes.map((s, idx) => (
+                            <View key={idx} style={styles.chip}>
+                              <Text style={styles.chipText}>{s}</Text>
+                              <TouchableOpacity onPress={() => removeVariation(idx)} style={styles.removeChipButton} activeOpacity={0.7}>
+                                <X size={14} color="#6B7280" />
+                              </TouchableOpacity>
+                            </View>
+                          ))}
+                        </View>
+                      )}
+                    </View>
+
+                    {/* Colors */}
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.inputLabel}>Colors (optional)</Text>
+                      <View style={{ flexDirection: 'row', gap: 8 }}>
+                        <TextInput
+                          style={[styles.modernInput, { flex: 1 }]}
+                          placeholder="e.g., Space Gray, Forest Green"
+                          value={colorInput}
+                          onChangeText={setColorInput}
+                          onSubmitEditing={addColor}
+                          placeholderTextColor="#9CA3AF"
+                        />
+                        <TouchableOpacity style={styles.addSmallButton} onPress={addColor} activeOpacity={0.8}>
+                          <Plus size={16} color="#FF5722" />
+                        </TouchableOpacity>
+                      </View>
+                      {formData.colors.length > 0 && (
+                        <View style={styles.chipsRow}>
+                          {formData.colors.map((c, idx) => (
+                            <View key={idx} style={styles.chip}>
+                              <Text style={styles.chipText}>{c}</Text>
+                              <TouchableOpacity onPress={() => removeColor(idx)} style={styles.removeChipButton} activeOpacity={0.7}>
+                                <X size={14} color="#6B7280" />
+                              </TouchableOpacity>
+                            </View>
+                          ))}
+                        </View>
+                      )}
+                    </View>
+
                     {/* QA Note */}
                     <View style={styles.qaNote}>
                       <Info size={16} color="#FF5722" strokeWidth={2.5} />
@@ -727,6 +834,66 @@ export default function SellerProductsScreen() {
                         />
                       </View>
                     </View>
+
+                    {/* Variations (editable) */}
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.inputLabel}>Variations (optional)</Text>
+                      <View style={{ flexDirection: 'row', gap: 8 }}>
+                        <TextInput
+                          style={[styles.modernInput, { flex: 1 }]}
+                          placeholder="e.g., Small, 32GB, Chocolate"
+                          value={variationInput}
+                          onChangeText={setVariationInput}
+                          onSubmitEditing={addVariation}
+                          placeholderTextColor="#9CA3AF"
+                        />
+                        <TouchableOpacity style={styles.addSmallButton} onPress={addVariation} activeOpacity={0.8}>
+                          <Plus size={16} color="#FF5722" />
+                        </TouchableOpacity>
+                      </View>
+                      {formData.sizes.length > 0 && (
+                        <View style={styles.chipsRow}>
+                          {formData.sizes.map((s, idx) => (
+                            <View key={idx} style={styles.chip}>
+                              <Text style={styles.chipText}>{s}</Text>
+                              <TouchableOpacity onPress={() => removeVariation(idx)} style={styles.removeChipButton} activeOpacity={0.7}>
+                                <X size={14} color="#6B7280" />
+                              </TouchableOpacity>
+                            </View>
+                          ))}
+                        </View>
+                      )}
+                    </View>
+
+                    {/* Colors (editable) */}
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.inputLabel}>Colors (optional)</Text>
+                      <View style={{ flexDirection: 'row', gap: 8 }}>
+                        <TextInput
+                          style={[styles.modernInput, { flex: 1 }]}
+                          placeholder="e.g., Space Gray, Forest Green"
+                          value={colorInput}
+                          onChangeText={setColorInput}
+                          onSubmitEditing={addColor}
+                          placeholderTextColor="#9CA3AF"
+                        />
+                        <TouchableOpacity style={styles.addSmallButton} onPress={addColor} activeOpacity={0.8}>
+                          <Plus size={16} color="#FF5722" />
+                        </TouchableOpacity>
+                      </View>
+                      {formData.colors.length > 0 && (
+                        <View style={styles.chipsRow}>
+                          {formData.colors.map((c, idx) => (
+                            <View key={idx} style={styles.chip}>
+                              <Text style={styles.chipText}>{c}</Text>
+                              <TouchableOpacity onPress={() => removeColor(idx)} style={styles.removeChipButton} activeOpacity={0.7}>
+                                <X size={14} color="#6B7280" />
+                              </TouchableOpacity>
+                            </View>
+                          ))}
+                        </View>
+                      )}
+                    </View>
                   </>
                 )}
               </ScrollView>
@@ -735,7 +902,7 @@ export default function SellerProductsScreen() {
                 <View style={styles.modalFooter}>
                 <TouchableOpacity
                   style={styles.cancelButton}
-                  onPress={() => setIsAddModalOpen(false)}
+                  onPress={handleCloseModal}
                   activeOpacity={0.7}
                 >
                   <Text style={styles.cancelButtonText}>Cancel</Text>
@@ -1046,14 +1213,18 @@ const styles = StyleSheet.create({
   },
   modalBody: {
     paddingHorizontal: 24,
-    paddingTop: 24,
+    paddingTop: 20,
+    paddingBottom: 8,
   },
   // Image Upload
+  inputGroup: {
+    marginBottom: 16,
+  },
   imageHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 12,
   },
   uploadModeToggle: {
     flexDirection: 'row',
@@ -1090,6 +1261,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
+    marginBottom: 12,
   },
   imageUploadText: {
     fontSize: 15,
@@ -1116,14 +1288,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#F3F4F6',
   },
   // Modern Inputs
-  inputGroup: {
-    marginBottom: 20,
-  },
   inputLabel: {
     fontSize: 14,
     fontWeight: '600',
     color: '#374151',
-    marginBottom: 10,
+    marginBottom: 8,
   },
   modernInput: {
     backgroundColor: '#FFFFFF',
@@ -1131,7 +1300,7 @@ const styles = StyleSheet.create({
     borderColor: '#E5E7EB',
     borderRadius: 12,
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 12,
     fontSize: 15,
     color: '#111827',
     fontWeight: '500',
@@ -1144,6 +1313,7 @@ const styles = StyleSheet.create({
   rowInputs: {
     flexDirection: 'row',
     gap: 12,
+    marginBottom: 15,
   },
   halfInput: {
     flex: 1,
@@ -1188,6 +1358,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: '#E5E7EB',
     borderStyle: 'dashed',
+    marginTop: 12,
   },
   addImageButtonText: {
     fontSize: 14,
@@ -1229,7 +1400,7 @@ const styles = StyleSheet.create({
     gap: 10,
     borderWidth: 1,
     borderColor: '#FFEDD5',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   qaNoteText: {
     flex: 1,
@@ -1268,5 +1439,38 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  // Small add button for chips
+  addSmallButton: {
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 12,
+  },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    backgroundColor: '#F3F4F6',
+    marginRight: 8,
+    marginTop: 8,
+  },
+  chipText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  removeChipButton: {
+    marginLeft: 8,
   },
 });
