@@ -21,6 +21,7 @@ import { useProductQAStore } from '../../../src/stores/productQAStore';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { File, Paths } from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy'; //
 import * as Sharing from 'expo-sharing';
 import SellerDrawer from '../../../src/components/SellerDrawer';
 
@@ -39,7 +40,9 @@ export default function SellerProductsScreen() {
   // New temporary states for typing
   const [currentColorInput, setCurrentColorInput] = useState('');
   const [currentSizeInput, setCurrentSizeInput] = useState('');
-
+  const [bulkPreviewProducts, setBulkPreviewProducts] = useState<SellerProduct[]>([]);
+  const [isPreviewMode, setIsPreviewMode] = useState(false);
+  
   // Form state for adding products
   const [formData, setFormData] = useState({
     name: '',
@@ -133,38 +136,11 @@ export default function SellerProductsScreen() {
     }
   };
 
-  const addColorField = () => {
-    setFormData({
-      ...formData,
-      colors: [...formData.colors, ''],
-    });
-  };
-
   const removeColorField = (index: number) => {
     const newColors = formData.colors.filter((_, i) => i !== index);
     setFormData({
       ...formData,
       colors: newColors.length > 0 ? newColors : [''],
-    });
-  };
-
-  const handleColorChange = (index: number, value: string) => {
-    const newColors = [...formData.colors];
-    newColors[index] = value;
-    setFormData({ ...formData, colors: newColors });
-  };
-
-  const handleColorInput = (value: string) => {
-    // Update only the last (empty) color field
-    const newColors = [...formData.colors];
-    newColors[newColors.length - 1] = value;
-    setFormData({ ...formData, colors: newColors });
-  };
-
-  const addSizeField = () => {
-    setFormData({
-      ...formData,
-      sizes: [...formData.sizes, ''],
     });
   };
 
@@ -174,13 +150,6 @@ export default function SellerProductsScreen() {
       ...formData,
       sizes: newSizes.length > 0 ? newSizes : [''],
     });
-  };
-
-  const handleSizeInput = (value: string) => {
-    // Update only the last (empty) size field
-    const newSizes = [...formData.sizes];
-    newSizes[newSizes.length - 1] = value;
-    setFormData({ ...formData, sizes: newSizes });
   };
 
   // Handle adding a Color
@@ -363,26 +332,65 @@ export default function SellerProductsScreen() {
   const handleBulkUploadCSV = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: ['text/csv','text/comma-separated-values', 'application/csv', 'application/vnd.ms-excel'],
+        type: ['text/csv', 'text/comma-separated-values', 'application/csv', 'application/vnd.ms-excel'],
         copyToCacheDirectory: true,
       });
 
-      if (result.canceled) {
-        return;
-      }
+      if (result.canceled) return;
 
-      Alert.alert(
-        'CSV Processing',
-        `CSV file "${result.assets[0].name}" selected. This feature will process your products in bulk.\n\nMake sure your CSV follows the format:\nname,description,price,originalPrice,stock,category,imageUrl\n\nProcessing will be implemented in the next update.`,
-        [{ text: 'OK' }]
-      );
+      const fileUri = result.assets[0].uri;
+      const csvString = await FileSystem.readAsStringAsync(fileUri);
+
+      const rows = csvString.split('\n').filter((row: string) => row.trim() !== '');
       
-      setIsBulkUploadModalOpen(false);
+      // Parse rows into temporary preview state
+      const parsedProducts: SellerProduct[] = rows.slice(1).map((row: string, index: number) => {
+        // Handles commas inside quotes
+        const columns = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+        
+        const price = parseFloat(columns[2]);
+        const stock = parseInt(columns[4]);
+
+        return {
+          id: `PREVIEW-${Date.now()}-${index}`,
+          name: columns[0]?.replace(/"/g, '').trim() || 'Untitled Product',
+          description: columns[1]?.replace(/"/g, '').trim() || '',
+          price: isNaN(price) ? 0 : price,
+          originalPrice: columns[3] ? parseFloat(columns[3]) : undefined,
+          stock: isNaN(stock) ? 0 : stock,
+          category: columns[5]?.trim() || 'Others',
+          image: columns[6]?.trim() || 'https://placehold.co/400x400',
+          isActive: true,
+          sold: 0,
+        };
+      });
+
+      setBulkPreviewProducts(parsedProducts);
+      setIsPreviewMode(true); // Switch to preview view
     } catch (error) {
-      Alert.alert('Error', 'Failed to upload CSV file');
+      Alert.alert('Error', 'Failed to process the CSV file.');
     }
   };
 
+  const confirmBulkUpload = () => {
+    const { addProduct } = useSellerStore.getState();
+    
+    bulkPreviewProducts.forEach(product => {
+      // Convert preview ID to actual ID
+      const finalProduct = { ...product, id: `PROD-${Date.now()}-${Math.random()}` };
+      
+      addProduct(finalProduct); //
+      addProductToQA({
+        ...finalProduct,
+        vendor: seller?.storeName || 'Tech Shop PH',
+      }); //
+    });
+
+    Alert.alert('Success', `${bulkPreviewProducts.length} products added to inventory.`);
+    setBulkPreviewProducts([]);
+    setIsPreviewMode(false);
+    setIsBulkUploadModalOpen(false);
+  };
   // Download CSV Template
   const downloadCSVTemplate = async () => {
     try {
@@ -503,6 +511,31 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
             </TouchableOpacity>
           </View>
         </View>
+      </View>
+    </View>
+  );
+
+  const renderPreviewCard = (item: SellerProduct) => (
+    <View style={styles.productCard}>
+      <Image source={{ uri: item.image }} style={styles.productImage} />
+      
+      <View style={styles.productInfo}>
+        <View style={styles.productHeader}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.productName} numberOfLines={1}>{item.name}</Text>
+            <Text style={styles.productCategory}>{item.category}</Text>
+          </View>
+        </View>
+
+        <View style={styles.productMeta}>
+          <View style={styles.priceContainer}>
+            <Text style={styles.productPrice}>₱{item.price.toLocaleString()}</Text>
+            <Text style={styles.productStock}>Stock: {item.stock}</Text>
+          </View>
+          {/* Removed 'sold' count here */}
+        </View>
+
+        {/* Removed 'productActions' section (Switch, Edit, and Delete buttons) */}
       </View>
     </View>
   );
@@ -1315,61 +1348,87 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
                 contentContainerStyle={styles.bulkUploadScrollContent}
                 bounces={true}
               >
-                {/* CSV Format Instructions */}
-                <View style={styles.csvInstructionsCard}>
-                  <View style={styles.csvHeader}>
-                    <FileText size={20} color="#FF5722" strokeWidth={2.5} />
-                    <Text style={styles.csvHeaderText}>CSV Format Requirements</Text>
+                {isPreviewMode ? (
+                  <View>
+                    <View style={styles.previewHeader}>
+                      <Text style={styles.previewTitle}>Preview ({bulkPreviewProducts.length} items)</Text>
+                      <TouchableOpacity onPress={() => setIsPreviewMode(false)}>
+                        <Text style={{ color: '#FF5722', fontWeight: '600' }}>Change File</Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    {bulkPreviewProducts.map((item) => (
+                      <View key={item.id}>
+                        {renderPreviewCard(item)}
+                      </View>
+                    ))}
+
+                    <TouchableOpacity
+                      style={[styles.csvUploadButton, { marginTop: 20 }]}
+                      onPress={confirmBulkUpload}
+                    >
+                      <Text style={styles.csvUploadButtonText}>Confirm & Add to Inventory</Text>
+                    </TouchableOpacity>
                   </View>
-                  
-                  <Text style={styles.csvDescription}>
-                    Your CSV file must include these 7 columns in order:
-                  </Text>
+                ) : (
+                  <View>
+                    {/* CSV Format Instructions */}
+                    <View style={styles.csvInstructionsCard}>
+                      <View style={styles.csvHeader}>
+                        <FileText size={20} color="#FF5722" strokeWidth={2.5} />
+                        <Text style={styles.csvHeaderText}>CSV Format Requirements</Text>
+                      </View>
+                      
+                      <Text style={styles.csvDescription}>
+                        Your CSV file must include these 7 columns in order:
+                      </Text>
 
-                  <View style={styles.csvColumnsList}>
-                    <Text style={styles.csvColumn}>1. name (required)</Text>
-                    <Text style={styles.csvColumn}>2. description (required)</Text>
-                    <Text style={styles.csvColumn}>3. price (required)</Text>
-                    <Text style={styles.csvColumn}>4. originalPrice (optional)</Text>
-                    <Text style={styles.csvColumn}>5. stock (required)</Text>
-                    <Text style={styles.csvColumn}>6. category (required)</Text>
-                    <Text style={styles.csvColumn}>7. imageUrl (required)</Text>
+                      <View style={styles.csvColumnsList}>
+                        <Text style={styles.csvColumn}>1. name (required)</Text>
+                        <Text style={styles.csvColumn}>2. description (required)</Text>
+                        <Text style={styles.csvColumn}>3. price (required)</Text>
+                        <Text style={styles.csvColumn}>4. originalPrice (optional)</Text>
+                        <Text style={styles.csvColumn}>5. stock (required)</Text>
+                        <Text style={styles.csvColumn}>6. category (required)</Text>
+                        <Text style={styles.csvColumn}>7. imageUrl (required)</Text>
+                      </View>
+
+                      <Text style={styles.csvDescription}>
+                        💡 Download the template below for correct format and examples.
+                      </Text>
+                    </View>
+
+                    {/* Download Template Button */}
+                    <TouchableOpacity
+                      style={styles.csvDownloadButton}
+                      onPress={downloadCSVTemplate}
+                      activeOpacity={0.9}
+                    >
+                      <FileText size={20} color="#FF5722" strokeWidth={2.5} />
+                      <Text style={styles.csvDownloadButtonText}>Download CSV Template</Text>
+                    </TouchableOpacity>
+
+                    {/* Upload Button */}
+                    <TouchableOpacity
+                      style={styles.csvUploadButton}
+                      onPress={handleBulkUploadCSV}
+                      activeOpacity={0.9}
+                    >
+                      <Upload size={20} color="#FFFFFF" strokeWidth={2.5} />
+                      <Text style={styles.csvUploadButtonText}>Select CSV File</Text>
+                    </TouchableOpacity>
+
+                    {/* Help Button */}
+                    <TouchableOpacity
+                      style={styles.csvHelpButton}
+                      onPress={showCSVFormat}
+                      activeOpacity={0.7}
+                    >
+                      <Info size={16} color="#FF5722" strokeWidth={2.5} />
+                      <Text style={styles.csvHelpButtonText}>Show CSV Format Help</Text>
+                    </TouchableOpacity>
                   </View>
-
-                  <Text style={styles.csvDescription}>
-                    💡 Download the template below for correct format and examples.
-                  </Text>
-                </View>
-
-                {/* Download Template Button */}
-                <TouchableOpacity
-                  style={styles.csvDownloadButton}
-                  onPress={downloadCSVTemplate}
-                  activeOpacity={0.9}
-                >
-                  <FileText size={20} color="#FF5722" strokeWidth={2.5} />
-                  <Text style={styles.csvDownloadButtonText}>Download CSV Template</Text>
-                </TouchableOpacity>
-
-                {/* Upload Button */}
-                <TouchableOpacity
-                  style={styles.csvUploadButton}
-                  onPress={handleBulkUploadCSV}
-                  activeOpacity={0.9}
-                >
-                  <Upload size={20} color="#FFFFFF" strokeWidth={2.5} />
-                  <Text style={styles.csvUploadButtonText}>Select CSV File</Text>
-                </TouchableOpacity>
-
-                {/* Help Button */}
-                <TouchableOpacity
-                  style={styles.csvHelpButton}
-                  onPress={showCSVFormat}
-                  activeOpacity={0.7}
-                >
-                  <Info size={16} color="#FF5722" strokeWidth={2.5} />
-                  <Text style={styles.csvHelpButtonText}>Show CSV Format Help</Text>
-                </TouchableOpacity>
+                )}               
               </ScrollView>
             </TouchableOpacity>
           </TouchableOpacity>
@@ -1872,6 +1931,18 @@ const styles = StyleSheet.create({
     width: 36,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  previewHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingHorizontal: 4,
+  },
+  previewTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
   },
   // CSV Bulk Upload Modal Styles
   csvInstructionsCard: {
