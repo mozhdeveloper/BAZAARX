@@ -2,7 +2,7 @@ export interface Category {
   id: string;
   name: string;
   description?: string;
-  icon: string;
+  image: string;
   productCount: number;
 }
 
@@ -11,70 +11,70 @@ export const categories: Category[] = [
     id: 'electronics',
     name: 'Electronics',
     description: 'Phones, laptops, gadgets and more',
-    icon: '📱',
+    image: '📱',
     productCount: 1245
   },
   {
     id: 'fashion',
     name: 'Fashion',
     description: 'Clothing, shoes, accessories',
-    icon: '👗',
+    image: '👗',
     productCount: 2341
   },
   {
     id: 'home-garden',
     name: 'Home & Garden',
     description: 'Furniture, decorations, plants',
-    icon: '🏠',
+    image: '🏠',
     productCount: 876
   },
   {
     id: 'food-beverages',
     name: 'Food & Beverages',
     description: 'Local delicacies, snacks, drinks',
-    icon: '🍽️',
+    image: '🍽️',
     productCount: 567
   },
   {
     id: 'sports-outdoors',
     name: 'Sports & Outdoors',
     description: 'Athletic gear, camping equipment',
-    icon: '⚽',
+    image: '⚽',
     productCount: 432
   },
   {
     id: 'books-media',
     name: 'Books & Media',
     description: 'Books, magazines, educational',
-    icon: '📚',
+    image: '📚',
     productCount: 298
   },
   {
     id: 'automotive',
     name: 'Automotive',
     description: 'Car parts, accessories, tools',
-    icon: '🚗',
+    image: '🚗',
     productCount: 654
   },
   {
     id: 'beauty-personal',
     name: 'Beauty & Personal Care',
     description: 'Skincare, makeup, wellness',
-    icon: '💄',
+    image: '💄',
     productCount: 789
   },
   {
     id: 'toys-games',
     name: 'Toys & Games',
     description: 'Children toys, board games',
-    icon: '🧸',
+    image: '🧸',
     productCount: 345
   },
   {
     id: 'crafts-handmade',
     name: 'Crafts & Handmade',
     description: 'Filipino crafts, handmade items',
-    icon: '🎨',
+    image: '🎨',
     productCount: 123
   }
 ];

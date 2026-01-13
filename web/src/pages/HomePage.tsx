@@ -14,6 +14,7 @@ import StoreRail from '../components/sections/StoreRail';
 import CategoriesFooterStrip from '../components/CategoriesFooterStrip';
 import BazaarXTestimonials from '../components/sections/BazaarXTestimonials';
 import BrandTestimonials from '../components/sections/BrandTestimonials';
+import POSLiteFeature from '@/components/sections/PosLite';
 
 // Data imports
 import { trendingProducts, bestSellerProducts, newArrivals } from '../data/products';
@@ -34,12 +35,15 @@ const HomePage: React.FC = () => {
 
         {/* Transition Section */}
         <SectionTransition />
-
+        
         {/* Trust & Quality Showcase */}
         <BazaarTrustShowcase />
 
         {/* Mobile App Showcase */}
         <MobileAppShowcase />
+
+        {/* POS Lite Feature*/}
+        <POSLiteFeature />
 
         {/* Seller Dashboard Preview - Interactive Demo */}
         <Hero195 />
