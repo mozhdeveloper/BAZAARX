@@ -19,6 +19,8 @@ export default function AdminSellersScreen() {
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedTab, setSelectedTab] = useState<'pending' | 'approved' | 'all'>('pending');
+  const [detailsModalVisible, setDetailsModalVisible] = useState(false);
+  const [selectedSeller, setSelectedSeller] = useState('');
   const insets = useSafeAreaInsets();
   
   const { sellers, pendingSellers, isLoading, loadSellers, approveSeller, rejectSeller } = useAdminSellers();
@@ -43,6 +45,11 @@ export default function AdminSellersScreen() {
   const handleReject = async (sellerId: string) => {
     await rejectSeller(sellerId, 'Application rejected by admin');
   };
+
+  const handleViewDetails = (seller: any) => {
+    setSelectedSeller(seller);
+    setDetailsModalVisible(true);
+  }
 
   const filteredSellers = selectedTab === 'pending' 
     ? pendingSellers 
