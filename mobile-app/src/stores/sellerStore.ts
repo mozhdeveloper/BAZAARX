@@ -14,6 +14,9 @@ export interface SellerProduct {
   category: string;
   isActive: boolean;
   sold: number;
+  // Optional product attributes
+  sizes?: string[];
+  colors?: string[];
 }
 
 export interface SellerOrder {

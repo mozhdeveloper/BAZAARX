@@ -9,13 +9,14 @@ import {
   Image,
   Modal,
   Alert,
+  Pressable,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { SellerStackParamList } from './SellerStack';
 import {
-  ArrowLeft,
+  CreditCard,
   Search,
   Plus,
   Minus,
@@ -27,11 +28,11 @@ import {
   Package,
   Star,
   Hash,
-  CreditCard,
   CheckCircle,
   X,
 } from 'lucide-react-native';
 import { useSellerStore } from '../../src/stores/sellerStore';
+import SellerDrawer from '../../src/components/SellerDrawer';
 
 interface CartItem {
   productId: string;
@@ -46,6 +47,7 @@ export default function POSScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<SellerStackParamList>>();
   const insets = useSafeAreaInsets();
   const { products, addOfflineOrder } = useSellerStore();
+  const [drawerVisible, setDrawerVisible] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterTab, setFilterTab] = useState<'all' | 'low-stock' | 'best-sellers'>('all');
@@ -172,15 +174,20 @@ export default function POSScreen() {
 
   return (
     <View style={styles.container}>
+      {/* Seller Drawer */}
+      <SellerDrawer visible={drawerVisible} onClose={() => setDrawerVisible(false)} />
+
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <View style={styles.headerContent}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
-          </TouchableOpacity>
-          <View style={styles.headerTitleContainer}>
-            <Text style={styles.headerTitle}>POS Lite</Text>
-            <Text style={styles.headerSubtitle}>Quick checkout for offline sales</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <Pressable style={styles.iconContainer} onPress={() => setDrawerVisible(true)}>
+              <CreditCard size={24} color="#FFFFFF" strokeWidth={2} />
+            </Pressable>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.headerTitle}>POS Lite</Text>
+              <Text style={styles.headerSubtitle}>Quick checkout for offline sales</Text>
+            </View>
           </View>
           {cart.length > 0 && (
             <View style={styles.cartBadgeHeader}>
@@ -191,30 +198,33 @@ export default function POSScreen() {
             </View>
           )}
         </View>
+
+        {/* Search Bar in Header */}
+        <View style={styles.searchBar}>
+          <Scan size={20} color="#9CA3AF" strokeWidth={2} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search or Scan product..."
+            placeholderTextColor="#9CA3AF"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+          {searchQuery.length > 0 && (
+            <Pressable onPress={() => setSearchQuery('')}>
+              <X size={20} color="#9CA3AF" />
+            </Pressable>
+          )}
+        </View>
       </View>
 
       {/* Main Scroll Container */}
-      <ScrollView 
-        style={styles.mainScroll} 
+      <ScrollView
+        style={styles.mainScroll}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.mainScrollContent}
       >
         {/* Products Section */}
         <View style={styles.productsSection}>
-          {/* Search Bar */}
-          <View style={styles.searchContainer}>
-            <View style={styles.searchBar}>
-              <Scan size={20} color="#9CA3AF" strokeWidth={2} />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search or Scan product..."
-                placeholderTextColor="#9CA3AF"
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-              />
-            </View>
-          </View>
-
           {/* Filter Tabs */}
           <View style={styles.filterTabs}>
             <TouchableOpacity
@@ -267,78 +277,78 @@ export default function POSScreen() {
                   disabled={isOutOfStock}
                   activeOpacity={0.7}
                 >
-                    {/* Product Image */}
-                    <View style={styles.productImageContainer}>
-                      <Image source={{ uri: product.image }} style={styles.productImage} />
+                  {/* Product Image */}
+                  <View style={styles.productImageContainer}>
+                    <Image source={{ uri: product.image }} style={styles.productImage} />
 
-                      {/* Stock Badge */}
-                      <View
-                        style={[
-                          styles.stockBadge,
-                          remainingStock === 0
-                            ? styles.stockBadgeOut
-                            : remainingStock < 10
+                    {/* Stock Badge */}
+                    <View
+                      style={[
+                        styles.stockBadge,
+                        remainingStock === 0
+                          ? styles.stockBadgeOut
+                          : remainingStock < 10
                             ? styles.stockBadgeLow
                             : styles.stockBadgeOk,
-                        ]}
-                      >
-                        <Text style={styles.stockBadgeText}>
-                          {remainingStock === 0 ? 'Out' : remainingStock}
+                      ]}
+                    >
+                      <Text style={styles.stockBadgeText}>
+                        {remainingStock === 0 ? 'Out' : remainingStock}
+                      </Text>
+                    </View>
+
+                    {/* Cart Quantity Badge */}
+                    {cartItem && (
+                      <View style={styles.cartQuantityBadge}>
+                        <Text style={styles.cartQuantityText}>×{cartItem.quantity}</Text>
+                      </View>
+                    )}
+                  </View>
+
+                  {/* Product Info */}
+                  <View style={styles.productInfo}>
+                    <Text style={styles.productName} numberOfLines={2}>
+                      {product.name}
+                    </Text>
+                    <Text style={styles.productCategory}>{product.category}</Text>
+
+                    {/* Product Details */}
+                    <View style={styles.productDetails}>
+                      <View style={styles.productDetailRow}>
+                        <Hash size={12} color="#9CA3AF" />
+                        <Text style={styles.productDetailText}>
+                          {product.id.slice(-8)}
                         </Text>
                       </View>
+                      <View style={styles.productDetailRow}>
+                        <Package size={12} color={remainingStock < 10 ? '#F59E0B' : '#10B981'} />
+                        <Text
+                          style={[
+                            styles.productDetailText,
+                            { color: remainingStock < 10 ? '#F59E0B' : '#10B981' },
+                          ]}
+                        >
+                          {remainingStock}
+                        </Text>
+                      </View>
+                    </View>
 
-                      {/* Cart Quantity Badge */}
-                      {cartItem && (
-                        <View style={styles.cartQuantityBadge}>
-                          <Text style={styles.cartQuantityText}>×{cartItem.quantity}</Text>
-                        </View>
+                    {/* Price & Add Button */}
+                    <View style={styles.productFooter}>
+                      <Text style={styles.productPrice}>₱{product.price.toLocaleString()}</Text>
+                      {!isOutOfStock && (
+                        <TouchableOpacity
+                          style={styles.addButton}
+                          onPress={() => addToCart(product)}
+                        >
+                          <Plus size={14} color="#FFF" strokeWidth={2.5} />
+                        </TouchableOpacity>
                       )}
                     </View>
-
-                    {/* Product Info */}
-                    <View style={styles.productInfo}>
-                      <Text style={styles.productName} numberOfLines={2}>
-                        {product.name}
-                      </Text>
-                      <Text style={styles.productCategory}>{product.category}</Text>
-
-                      {/* Product Details */}
-                      <View style={styles.productDetails}>
-                        <View style={styles.productDetailRow}>
-                          <Hash size={12} color="#9CA3AF" />
-                          <Text style={styles.productDetailText}>
-                            {product.id.slice(-8)}
-                          </Text>
-                        </View>
-                        <View style={styles.productDetailRow}>
-                          <Package size={12} color={remainingStock < 10 ? '#F59E0B' : '#10B981'} />
-                          <Text
-                            style={[
-                              styles.productDetailText,
-                              { color: remainingStock < 10 ? '#F59E0B' : '#10B981' },
-                            ]}
-                          >
-                            {remainingStock}
-                          </Text>
-                        </View>
-                      </View>
-
-                      {/* Price & Add Button */}
-                      <View style={styles.productFooter}>
-                        <Text style={styles.productPrice}>₱{product.price.toLocaleString()}</Text>
-                        {!isOutOfStock && (
-                          <TouchableOpacity
-                            style={styles.addButton}
-                            onPress={() => addToCart(product)}
-                          >
-                            <Plus size={14} color="#FFF" strokeWidth={2.5} />
-                          </TouchableOpacity>
-                        )}
-                      </View>
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
             {filteredProducts.length === 0 && (
               <View style={styles.emptyState}>
                 <Search size={48} color="#D1D5DB" />
@@ -547,29 +557,50 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#FF5722',
-    paddingBottom: 16,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 4,
   },
   headerContent: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    marginBottom: 15,
   },
-  backButton: {
-    padding: 8,
-    marginRight: 8,
-  },
-  headerTitleContainer: {
-    flex: 1,
+  iconContainer: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    padding: 12,
+    borderRadius: 12,
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: 22,
+    fontWeight: '800',
     color: '#FFFFFF',
+    letterSpacing: 0.3,
   },
   headerSubtitle: {
     fontSize: 13,
-    color: '#FFE4DC',
-    marginTop: 2,
+    color: '#FFFFFF',
+    opacity: 0.9,
+    fontWeight: '500',
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 48,
+    gap: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: '#1F2937',
   },
   cartBadgeHeader: {
     position: 'relative',
@@ -607,22 +638,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
-  },
-  searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    height: 44,
-    gap: 8,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 14,
-    color: '#111827',
   },
   filterTabs: {
     flexDirection: 'row',
@@ -781,6 +796,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   emptyState: {
+    width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 80,

@@ -179,6 +179,12 @@ interface BuyerStore {
   getTotalCartItems: () => number;
   groupCartBySeller: () => void;
 
+  // Quick Order (Buy Now)
+  quickOrder: CartItem | null;
+  setQuickOrder: (product: Product, quantity?: number, variant?: ProductVariant) => void;
+  clearQuickOrder: () => void;
+  getQuickOrderTotal: () => number;
+
   // Voucher System
   availableVouchers: Voucher[];
   appliedVouchers: { [sellerId: string]: Voucher }; // Per seller vouchers
@@ -308,6 +314,27 @@ export const useBuyerStore = create<BuyerStore>()(persist(
     // Enhanced Cart
     cartItems: [],
     groupedCart: {},
+
+    // Quick Order (Buy Now)
+    quickOrder: null,
+
+    setQuickOrder: (product, quantity = 1, variant) => {
+      set({
+        quickOrder: {
+          ...product,
+          quantity,
+          selectedVariant: variant
+        }
+      });
+    },
+
+    clearQuickOrder: () => set({ quickOrder: null }),
+
+    getQuickOrderTotal: () => {
+      const { quickOrder } = get();
+      if (!quickOrder) return 0;
+      return quickOrder.price * quickOrder.quantity;
+    },
 
     addToCart: (product, quantity = 1, variant) => {
       set((state) => {

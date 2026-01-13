@@ -68,6 +68,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   const [quantity, setQuantity] = useState(1);
   const [isFavorite, setIsFavorite] = useState(false);
   const addItem = useCartStore((state) => state.addItem);
+  const setQuickOrder = useCartStore((state) => state.setQuickOrder);
 
   const relatedProducts = trendingProducts.filter((p) => p.id !== product.id).slice(0, 4);
 
@@ -77,8 +78,9 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   };
 
   const handleBuyNow = () => {
-    addItem(product);
-    navigation.navigate('MainTabs', { screen: 'Cart' });
+    // Set as quick order and navigate to checkout
+    setQuickOrder(product, quantity);
+    navigation.navigate('Checkout');
   };
 
   const renderStars = (rating: number) => {

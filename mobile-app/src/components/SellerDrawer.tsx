@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,8 @@ import {
   ScrollView,
   Modal,
   Pressable,
+  Animated,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -55,18 +57,57 @@ export default function SellerDrawer({ visible, onClose }: SellerDrawerProps) {
   const insets = useSafeAreaInsets();
   const { seller, logout } = useSellerStore();
 
+  const drawerWidth = Math.min(Dimensions.get('window').width * 0.85, 320);
+  const translateX = useRef(new Animated.Value(-drawerWidth)).current;
+  const [showModal, setShowModal] = useState(visible);
+
+  useEffect(() => {
+    if (visible) {
+      setShowModal(true);
+      // Slide in
+      Animated.timing(translateX, {
+        toValue: 0,
+        duration: 250,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      // Slide out then hide
+      Animated.timing(translateX, {
+        toValue: -drawerWidth,
+        duration: 200,
+        useNativeDriver: true,
+      }).start(() => setShowModal(false));
+    }
+  }, [visible, translateX, drawerWidth]);
+
+  const closeWithAnimation = (callback?: () => void) => {
+    Animated.timing(translateX, {
+      toValue: -drawerWidth,
+      duration: 200,
+      useNativeDriver: true,
+    }).start(() => {
+      setShowModal(false);
+      onClose();
+      if (callback) {
+        callback();
+      }
+    });
+  };
+
   const handleNavigation = (route: keyof SellerStackParamList | 'Tab') => {
-    onClose();
     if (route !== 'Tab') {
-      navigation.navigate(route);
+      closeWithAnimation(() => navigation.navigate(route));
+    } else {
+      closeWithAnimation();
     }
   };
 
   const handleLogout = () => {
-    logout();
-    onClose();
-    // Navigate back to seller login via the root stack
-    navigation.getParent()?.navigate('SellerLogin' as never);
+    closeWithAnimation(() => {
+      logout();
+      // Navigate back to seller login via the root stack
+      navigation.getParent()?.navigate('SellerLogin' as never);
+    });
   };
 
   const menuItems: MenuSection[] = [
@@ -106,28 +147,27 @@ export default function SellerDrawer({ visible, onClose }: SellerDrawerProps) {
 
   return (
     <Modal
-      visible={visible}
-      animationType="slide"
+      visible={showModal}
       transparent={true}
-      onRequestClose={onClose}
+      onRequestClose={() => closeWithAnimation()}
     >
-      <Pressable style={styles.overlay} onPress={onClose}>
-        <Pressable style={[styles.drawer, { paddingTop: insets.top }]} onPress={(e) => e.stopPropagation()}>
+      <Pressable style={styles.overlay} onPress={() => closeWithAnimation()}>
+        <Animated.View style={[styles.drawer, { paddingTop: insets.top, transform: [{ translateX }] }]} onStartShouldSetResponder={() => true}>
           {/* Header */}
           <View style={styles.drawerHeader}>
-            <View style={styles.profileSection}>
+            <TouchableOpacity style={styles.profileSection} onPress={() => handleNavigation('StoreProfile')} activeOpacity={0.8}>
               <View style={styles.avatarCircle}>
-                <User size={32} color="#FF5722" strokeWidth={2} />
+                <User size={28} color="#FF5722" strokeWidth={2} />
               </View>
               <View style={styles.profileInfo}>
-                <Text style={styles.storeName}>{seller.storeName}</Text>
-                <Text style={styles.sellerName}>{seller.ownerName}</Text>
+                <Text style={styles.storeName} numberOfLines={1} ellipsizeMode="tail">{seller.storeName}</Text>
+                <Text style={styles.sellerName} numberOfLines={1} ellipsizeMode="tail">{seller.ownerName}</Text>
               </View>
-            </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => closeWithAnimation()} style={styles.closeButton}>
               <X size={24} color="#6B7280" strokeWidth={2.5} />
             </TouchableOpacity>
-          </View>
+          </View> 
 
           {/* Menu Items */}
           <ScrollView style={styles.menuScroll} showsVerticalScrollIndicator={false}>
@@ -181,7 +221,7 @@ export default function SellerDrawer({ visible, onClose }: SellerDrawerProps) {
           <View style={styles.drawerFooter}>
             <Text style={styles.footerText}>BazaarX Seller v1.0</Text>
           </View>
-        </Pressable>
+        </Animated.View>
       </Pressable>
     </Modal>
   );
@@ -208,7 +248,7 @@ const styles = StyleSheet.create({
   },
   drawerHeader: {
     paddingHorizontal: 20,
-    paddingVertical: 20,
+    paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
     flexDirection: 'row',
@@ -221,9 +261,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   avatarCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: '#FFF5F0',
     alignItems: 'center',
     justifyContent: 'center',
@@ -235,13 +275,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   storeName: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
     color: '#111827',
     marginBottom: 2,
   },
   sellerName: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#6B7280',
     fontWeight: '500',
   },
