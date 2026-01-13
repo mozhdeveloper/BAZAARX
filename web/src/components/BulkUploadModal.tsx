@@ -60,6 +60,8 @@ export const BulkUploadModal: React.FC<BulkUploadModalProps> = ({
   const [uploadProgress, setUploadProgress] = useState(0);
   const [errors, setErrors] = useState<ValidationError[]>([]);
   const [showHelp, setShowHelp] = useState(false);
+  const [previewProducts, setPreviewProducts] = useState<BulkProductData[]>([]);
+  const [showPreview, setShowPreview] = useState(false);
   const { toast } = useToast();
 
   const downloadTemplate = useCallback(() => {
@@ -343,19 +345,16 @@ Summer Floral Dress,Lightweight cotton dress perfect for warm weather,1299,,75,F
 
           setUploadProgress(100);
 
-          // Successful upload
-          onUpload(validation.products);
+          // Show preview instead of immediate upload
+          setPreviewProducts(validation.products);
+          setShowPreview(true);
+          setIsUploading(false);
+          setUploadProgress(0);
 
-          setTimeout(() => {
-            setIsUploading(false);
-            setUploadProgress(0);
-            setErrors([]);
-            toast({
-              title: "Success!",
-              description: `${validation.products.length} product(s) uploaded to Quality Assurance`,
-            });
-            onClose();
-          }, 500);
+          toast({
+            title: "Validation Successful!",
+            description: `Ready to upload ${validation.products.length} product(s). Please review before confirming.`,
+          });
         },
         error: (error) => {
           setIsUploading(false);
@@ -371,11 +370,42 @@ Summer Floral Dress,Lightweight cotton dress perfect for warm weather,1299,,75,F
     [onUpload, onClose, toast, validateCSV]
   );
 
+  const handleConfirmUpload = useCallback(() => {
+    setIsUploading(true);
+    setUploadProgress(25);
+
+    setTimeout(() => {
+      setUploadProgress(75);
+
+      onUpload(previewProducts);
+
+      setTimeout(() => {
+        setUploadProgress(100);
+        setIsUploading(false);
+        setUploadProgress(0);
+        setShowPreview(false);
+        setPreviewProducts([]);
+
+        toast({
+          title: "Success!",
+          description: `${previewProducts.length} product(s) uploaded to Quality Assurance`,
+        });
+        onClose();
+      }, 300);
+    }, 300);
+  }, [previewProducts, onUpload, onClose, toast]);
+
+  const handleBackToUpload = useCallback(() => {
+    setShowPreview(false);
+    setPreviewProducts([]);
+    setErrors([]);
+  }, []);
+
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     accept: { "text/csv": [".csv"] },
     maxFiles: 1,
     onDrop: handleCSVUpload,
-    disabled: isUploading,
+    disabled: isUploading || showPreview,
   });
 
   return (
@@ -398,153 +428,302 @@ Summer Floral Dress,Lightweight cotton dress perfect for warm weather,1299,,75,F
         </DialogHeader>
 
         <div className="px-6 py-6 overflow-y-auto max-h-[calc(90vh-80px)]">
-          {/* CSV Format Instructions */}
-          {showHelp && (
-            <div className="bg-gray-50 border border-orange-200 rounded-xl p-5 mb-4">
-              <div className="flex items-center gap-2 mb-3">
+          {/* Preview Mode */}
+          {showPreview ? (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 mb-4">
                 <FileText size={20} className="text-orange-600" />
                 <h3 className="text-lg font-semibold">
-                  CSV Format Requirements
+                  Review Products ({previewProducts.length})
                 </h3>
               </div>
-              <div className="space-y-3 text-sm text-gray-700">
-                <div>
-                  <p className="font-semibold mb-1">
-                    Required Columns (in order):
-                  </p>
-                  <ol className="list-decimal list-inside space-y-1 ml-2">
-                    <li>
-                      <strong>name</strong> - Product name (max 100 chars)
-                    </li>
-                    <li>
-                      <strong>description</strong> - Product description (max
-                      500 chars)
-                    </li>
-                    <li>
-                      <strong>price</strong> - Selling price (number only, no ₱
-                      symbol)
-                    </li>
-                    <li>
-                      <strong>originalPrice</strong> - Original price (optional,
-                      for discounts)
-                    </li>
-                    <li>
-                      <strong>stock</strong> - Available quantity (whole number)
-                    </li>
-                    <li>
-                      <strong>category</strong> - One of:{" "}
-                      {VALID_CATEGORIES.join(", ")}
-                    </li>
-                    <li>
-                      <strong>imageUrl</strong> - Full HTTP/HTTPS image URL
-                    </li>
-                  </ol>
-                </div>
-                <div className="bg-gray-100 p-3 rounded font-mono text-xs overflow-x-auto">
-                  <div>
-                    name,description,price,originalPrice,stock,category,imageUrl
+
+              {/* Product Preview Table */}
+              <div className="space-y-3 max-h-96 overflow-y-auto">
+                {previewProducts.map((product, index) => (
+                  <div
+                    key={index}
+                    className="border border-gray-200 rounded-lg p-4 hover:border-orange-300 hover:bg-orange-50 transition-colors"
+                  >
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                      {/* Product Image */}
+                      <div className="md:col-span-1">
+                        <img
+                          src={product.imageUrl}
+                          alt={product.name}
+                          className="w-full h-24 object-cover rounded-lg bg-gray-100"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src =
+                              "https://placehold.co/100?text=No+Image";
+                          }}
+                        />
+                      </div>
+
+                      {/* Product Details */}
+                      <div className="md:col-span-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <p className="text-xs text-gray-500 font-semibold uppercase">
+                              Name
+                            </p>
+                            <p className="text-sm font-medium text-gray-900 line-clamp-2">
+                              {product.name}
+                            </p>
+                          </div>
+
+                          <div>
+                            <p className="text-xs text-gray-500 font-semibold uppercase">
+                              Category
+                            </p>
+                            <p className="text-sm font-medium text-gray-900">
+                              {product.category}
+                            </p>
+                          </div>
+
+                          <div>
+                            <p className="text-xs text-gray-500 font-semibold uppercase">
+                              Price
+                            </p>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-bold text-orange-600">
+                                ₱{product.price.toLocaleString()}
+                              </span>
+                              {product.originalPrice && (
+                                <>
+                                  <span className="text-sm text-gray-400 line-through">
+                                    ₱{product.originalPrice.toLocaleString()}
+                                  </span>
+                                  <span className="text-xs font-bold text-green-600">
+                                    {Math.round(
+                                      ((product.originalPrice - product.price) /
+                                        product.originalPrice) *
+                                        100
+                                    )}
+                                    % OFF
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+
+                          <div>
+                            <p className="text-xs text-gray-500 font-semibold uppercase">
+                              Stock
+                            </p>
+                            <p className="text-sm font-medium text-gray-900">
+                              {product.stock} unit
+                              {product.stock !== 1 ? "s" : ""}
+                            </p>
+                          </div>
+
+                          <div className="sm:col-span-2">
+                            <p className="text-xs text-gray-500 font-semibold uppercase">
+                              Description
+                            </p>
+                            <p className="text-sm text-gray-700 line-clamp-2">
+                              {product.description}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    iPhone 15,Latest
-                    flagship,59999,65999,50,Electronics,https://...
-                  </div>
-                </div>
-                <div className="text-xs text-gray-600">
-                  <p>• Maximum {MAX_PRODUCTS} products per upload</p>
-                  <p>• Maximum file size: 5MB</p>
-                  <p>• All products will go to Quality Assurance for review</p>
-                </div>
+                ))}
               </div>
-            </div>
-          )}
 
-          {/* Help Toggle Button */}
-          <button
-            onClick={() => setShowHelp(!showHelp)}
-            className="w-full flex items-center justify-center gap-2 px-6 py-3 mb-3 bg-gray-100 text-orange-600 font-semibold rounded-xl hover:bg-gray-200 transition-colors"
-          >
-            <Info size={16} />
-            <span>{showHelp ? "Hide" : "Show"} CSV Format Help</span>
-          </button>
-
-          {/* Download Template Button */}
-          <Button
-            onClick={downloadTemplate}
-            variant="outline"
-            className="w-full flex items-center justify-center gap-3 px-6 py-4 h-auto border-2 border-orange-600 text-orange-600 font-bold rounded-xl hover:bg-orange-50 mb-3"
-            disabled={isUploading}
-          >
-            <FileText size={20} />
-            <span>Download CSV Template</span>
-          </Button>
-
-          {/* Upload Button / Dropzone */}
-          <div
-            {...getRootProps()}
-            className={`w-full flex flex-col items-center justify-center gap-3 px-6 py-8 bg-orange-600 text-white font-bold rounded-xl cursor-pointer hover:bg-orange-700 transition-colors mb-3 ${
-              isDragActive ? "bg-orange-500 ring-4 ring-orange-300" : ""
-            } ${isUploading ? "opacity-50 cursor-not-allowed" : ""}`}
-          >
-            <input {...getInputProps()} />
-            <Upload size={32} />
-            <span className="text-center">
-              {isDragActive
-                ? "Drop CSV file here"
-                : isUploading
-                ? "Uploading..."
-                : "Select CSV File or Drag & Drop"}
-            </span>
-            {!isUploading && (
-              <span className="text-sm font-normal opacity-90">
-                CSV files only, max 5MB
-              </span>
-            )}
-          </div>
-
-          {/* Progress Bar */}
-          {isUploading && (
-            <div className="mb-4">
-              <Progress value={uploadProgress} className="h-2" />
-              <p className="text-sm text-gray-600 text-center mt-2">
-                {uploadProgress}% - Processing your file...
-              </p>
-            </div>
-          )}
-
-          {/* Errors Display */}
-          {errors.length > 0 && (
-            <Alert variant="destructive" className="mb-4">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                <div className="font-semibold mb-2">
-                  Found {errors.length} error(s):
-                </div>
-                <div className="max-h-40 overflow-y-auto space-y-1 text-sm">
-                  {errors.slice(0, 10).map((error, index) => (
-                    <div key={index}>
-                      <strong>Row {error.row}</strong> ({error.field}):{" "}
-                      {error.message}
-                    </div>
-                  ))}
-                  {errors.length > 10 && (
-                    <div className="text-xs italic mt-2">
-                      ... and {errors.length - 10} more error(s)
-                    </div>
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-4 border-t">
+                <Button
+                  onClick={handleBackToUpload}
+                  variant="outline"
+                  className="flex-1 rounded-xl"
+                  disabled={isUploading}
+                >
+                  Back
+                </Button>
+                <Button
+                  onClick={handleConfirmUpload}
+                  disabled={isUploading}
+                  className="flex-1 rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-bold flex items-center justify-center gap-2"
+                >
+                  {isUploading ? (
+                    <>
+                      <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Uploading...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-4 w-4" />
+                      Confirm & Upload
+                    </>
                   )}
-                </div>
-              </AlertDescription>
-            </Alert>
-          )}
+                </Button>
+              </div>
 
-          {/* Info Alert */}
-          <Alert className="border-blue-200 bg-blue-50">
-            <Info className="h-4 w-4 text-blue-600" />
-            <AlertDescription className="text-sm text-gray-700">
-              All uploaded products will be sent to{" "}
-              <strong>Quality Assurance</strong> for admin review before going
-              live. You'll be notified once reviewed.
-            </AlertDescription>
-          </Alert>
+              {/* Progress Bar */}
+              {isUploading && (
+                <div className="mt-4">
+                  <Progress value={uploadProgress} className="h-2" />
+                  <p className="text-sm text-gray-600 text-center mt-2">
+                    {uploadProgress}% - Processing upload...
+                  </p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <>
+              {/* CSV Format Instructions */}
+              {showHelp && (
+                <div className="bg-gray-50 border border-orange-200 rounded-xl p-5 mb-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <FileText size={20} className="text-orange-600" />
+                    <h3 className="text-lg font-semibold">
+                      CSV Format Requirements
+                    </h3>
+                  </div>
+                  <div className="space-y-3 text-sm text-gray-700">
+                    <div>
+                      <p className="font-semibold mb-1">
+                        Required Columns (in order):
+                      </p>
+                      <ol className="list-decimal list-inside space-y-1 ml-2">
+                        <li>
+                          <strong>name</strong> - Product name (max 100 chars)
+                        </li>
+                        <li>
+                          <strong>description</strong> - Product description
+                          (max 500 chars)
+                        </li>
+                        <li>
+                          <strong>price</strong> - Selling price (number only,
+                          no ₱ symbol)
+                        </li>
+                        <li>
+                          <strong>originalPrice</strong> - Original price
+                          (optional, for discounts)
+                        </li>
+                        <li>
+                          <strong>stock</strong> - Available quantity (whole
+                          number)
+                        </li>
+                        <li>
+                          <strong>category</strong> - One of:{" "}
+                          {VALID_CATEGORIES.join(", ")}
+                        </li>
+                        <li>
+                          <strong>imageUrl</strong> - Full HTTP/HTTPS image URL
+                        </li>
+                      </ol>
+                    </div>
+                    <div className="bg-gray-100 p-3 rounded font-mono text-xs overflow-x-auto">
+                      <div>
+                        name,description,price,originalPrice,stock,category,imageUrl
+                      </div>
+                      <div>
+                        iPhone 15,Latest
+                        flagship,59999,65999,50,Electronics,https://...
+                      </div>
+                    </div>
+                    <div className="text-xs text-gray-600">
+                      <p>• Maximum {MAX_PRODUCTS} products per upload</p>
+                      <p>• Maximum file size: 5MB</p>
+                      <p>
+                        • All products will go to Quality Assurance for review
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Help Toggle Button */}
+              <button
+                onClick={() => setShowHelp(!showHelp)}
+                className="w-full flex items-center justify-center gap-2 px-6 py-3 mb-3 bg-gray-100 text-orange-600 font-semibold rounded-xl hover:bg-gray-200 transition-colors"
+              >
+                <Info size={16} />
+                <span>{showHelp ? "Hide" : "Show"} CSV Format Help</span>
+              </button>
+
+              {/* Download Template Button */}
+              <Button
+                onClick={downloadTemplate}
+                variant="outline"
+                className="w-full flex items-center justify-center gap-3 px-6 py-4 h-auto border-2 border-orange-600 text-orange-600 font-bold rounded-xl hover:bg-orange-50 mb-3"
+                disabled={isUploading}
+              >
+                <FileText size={20} />
+                <span>Download CSV Template</span>
+              </Button>
+
+              {/* Upload Button / Dropzone */}
+              <div
+                {...getRootProps()}
+                className={`w-full flex flex-col items-center justify-center gap-3 px-6 py-8 bg-orange-600 text-white font-bold rounded-xl cursor-pointer hover:bg-orange-700 transition-colors mb-3 ${
+                  isDragActive ? "bg-orange-500 ring-4 ring-orange-300" : ""
+                } ${isUploading ? "opacity-50 cursor-not-allowed" : ""}`}
+              >
+                <input {...getInputProps()} />
+                <Upload size={32} />
+                <span className="text-center">
+                  {isDragActive
+                    ? "Drop CSV file here"
+                    : isUploading
+                    ? "Uploading..."
+                    : "Select CSV File or Drag & Drop"}
+                </span>
+                {!isUploading && (
+                  <span className="text-sm font-normal opacity-90">
+                    CSV files only, max 5MB
+                  </span>
+                )}
+              </div>
+
+              {/* Progress Bar */}
+              {isUploading && (
+                <div className="mb-4">
+                  <Progress value={uploadProgress} className="h-2" />
+                  <p className="text-sm text-gray-600 text-center mt-2">
+                    {uploadProgress}% - Processing your file...
+                  </p>
+                </div>
+              )}
+
+              {/* Errors Display */}
+              {errors.length > 0 && (
+                <Alert variant="destructive" className="mb-4">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    <div className="font-semibold mb-2">
+                      Found {errors.length} error(s):
+                    </div>
+                    <div className="max-h-40 overflow-y-auto space-y-1 text-sm">
+                      {errors.slice(0, 10).map((error, index) => (
+                        <div key={index}>
+                          <strong>Row {error.row}</strong> ({error.field}):{" "}
+                          {error.message}
+                        </div>
+                      ))}
+                      {errors.length > 10 && (
+                        <div className="text-xs italic mt-2">
+                          ... and {errors.length - 10} more error(s)
+                        </div>
+                      )}
+                    </div>
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {/* Info Alert */}
+              <Alert className="border-blue-200 bg-blue-50">
+                <Info className="h-4 w-4 text-blue-600" />
+                <AlertDescription className="text-sm text-gray-700">
+                  All uploaded products will be sent to{" "}
+                  <strong>Quality Assurance</strong> for admin review before
+                  going live. You'll be notified once reviewed.
+                </AlertDescription>
+              </Alert>
+            </>
+          )}
         </div>
       </DialogContent>
     </Dialog>
