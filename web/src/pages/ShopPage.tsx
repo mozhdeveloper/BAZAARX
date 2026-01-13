@@ -637,7 +637,7 @@ export default function ShopPage() {
                   </div>
 
                   <div className="p-4 flex-1 flex flex-col">
-                    <h3 className="font-semibold text-gray-900 group-hover:text-[#FF5722] transition-colors duration-200 line-clamp-2">
+                    <h3 className="font-semibold text-gray-900 group-hover:text-[#FF5722] transition-colors duration-200 line-clamp-2 h-12">
                       {product.name}
                     </h3>
 
