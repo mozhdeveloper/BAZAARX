@@ -22,6 +22,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
+import SellerDrawer from '../../../src/components/SellerDrawer';
 
 export default function SellerProductsScreen() {
   const { products, toggleProductStatus, deleteProduct, seller, updateProduct } = useSellerStore();
@@ -33,6 +34,11 @@ export default function SellerProductsScreen() {
   const [isBulkUploadModalOpen, setIsBulkUploadModalOpen] = useState(false);
   const [imageUploadMode, setImageUploadMode] = useState<'upload' | 'url'>('upload');
   const [editingProduct, setEditingProduct] = useState<SellerProduct | null>(null);
+  const [drawerVisible, setDrawerVisible] = useState(false);
+
+  // New temporary states for typing
+  const [currentColorInput, setCurrentColorInput] = useState('');
+  const [currentSizeInput, setCurrentSizeInput] = useState('');
 
   // Form state for adding products
   const [formData, setFormData] = useState({
@@ -43,6 +49,8 @@ export default function SellerProductsScreen() {
     stock: '',
     category: '',
     images: [''],
+    colors: [''],
+    sizes: [''],
   });
 
   const categories = [
@@ -67,6 +75,8 @@ export default function SellerProductsScreen() {
       stock: '',
       category: '',
       images: [''],
+      colors: [''],
+      sizes: [''],
     });
   };
 
@@ -123,6 +133,78 @@ export default function SellerProductsScreen() {
     }
   };
 
+  const addColorField = () => {
+    setFormData({
+      ...formData,
+      colors: [...formData.colors, ''],
+    });
+  };
+
+  const removeColorField = (index: number) => {
+    const newColors = formData.colors.filter((_, i) => i !== index);
+    setFormData({
+      ...formData,
+      colors: newColors.length > 0 ? newColors : [''],
+    });
+  };
+
+  const handleColorChange = (index: number, value: string) => {
+    const newColors = [...formData.colors];
+    newColors[index] = value;
+    setFormData({ ...formData, colors: newColors });
+  };
+
+  const handleColorInput = (value: string) => {
+    // Update only the last (empty) color field
+    const newColors = [...formData.colors];
+    newColors[newColors.length - 1] = value;
+    setFormData({ ...formData, colors: newColors });
+  };
+
+  const addSizeField = () => {
+    setFormData({
+      ...formData,
+      sizes: [...formData.sizes, ''],
+    });
+  };
+
+  const removeSizeField = (index: number) => {
+    const newSizes = formData.sizes.filter((_, i) => i !== index);
+    setFormData({
+      ...formData,
+      sizes: newSizes.length > 0 ? newSizes : [''],
+    });
+  };
+
+  const handleSizeInput = (value: string) => {
+    // Update only the last (empty) size field
+    const newSizes = [...formData.sizes];
+    newSizes[newSizes.length - 1] = value;
+    setFormData({ ...formData, sizes: newSizes });
+  };
+
+  // Handle adding a Color
+  const handleAddColor = () => {
+    if (currentColorInput.trim()) {
+      setFormData({
+        ...formData,
+        colors: [...formData.colors.filter(c => c.trim() !== ''), currentColorInput.trim()],
+      });
+      setCurrentColorInput(''); // Clear the input
+    }
+  };
+
+  // Handle adding a Size
+  const handleAddSize = () => {
+    if (currentSizeInput.trim()) {
+      setFormData({
+        ...formData,
+        sizes: [...formData.sizes.filter(s => s.trim() !== ''), currentSizeInput.trim()],
+      });
+      setCurrentSizeInput(''); // Clear the input
+    }
+  };
+
   const validateForm = () => {
     if (!formData.name.trim()) {
       Alert.alert('Validation Error', 'Product name is required');
@@ -157,6 +239,8 @@ export default function SellerProductsScreen() {
 
     try {
       const validImages = formData.images.filter(img => img.trim() !== '');
+      const validColors = formData.colors.filter(color => color.trim() !== '');
+      const validSizes = formData.sizes.filter(size => size.trim() !== '');
       const firstImage = validImages[0] || 'https://placehold.co/400x400?text=' + encodeURIComponent(formData.name);
 
       const newProduct: SellerProduct = {
@@ -169,6 +253,8 @@ export default function SellerProductsScreen() {
         category: formData.category,
         image: firstImage,
         images: validImages,
+        colors: validColors.length > 0 ? validColors : undefined,
+        sizes: validSizes.length > 0 ? validSizes : undefined,
         isActive: true,
         sold: 0,
       };
@@ -227,6 +313,8 @@ export default function SellerProductsScreen() {
       stock: product.stock.toString(),
       category: product.category,
       images: product.images || [product.image],
+      colors: product.colors && product.colors.length > 0 ? product.colors : [''],
+      sizes: product.sizes && product.sizes.length > 0 ? product.sizes : [''],
     });
     setIsEditModalOpen(true);
   };
@@ -236,6 +324,8 @@ export default function SellerProductsScreen() {
 
     try {
       const validImages = formData.images.filter(img => img.trim() !== '');
+      const validColors = formData.colors.filter(color => color.trim() !== '');
+      const validSizes = formData.sizes.filter(size => size.trim() !== '');
       const firstImage = validImages[0] || editingProduct.image;
 
       const updatedProduct: SellerProduct = {
@@ -248,6 +338,8 @@ export default function SellerProductsScreen() {
         category: formData.category,
         image: firstImage,
         images: validImages,
+        colors: validColors.length > 0 ? validColors : undefined,
+        sizes: validSizes.length > 0 ? validSizes : undefined,
       };
 
       if (editingProduct) {
@@ -271,7 +363,7 @@ export default function SellerProductsScreen() {
   const handleBulkUploadCSV = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: 'text/csv',
+        type: ['text/csv','text/comma-separated-values', 'application/csv', 'application/vnd.ms-excel'],
         copyToCacheDirectory: true,
       });
 
@@ -416,13 +508,16 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
   );
 
   return (
+    
     <View style={styles.container}>
+      <SellerDrawer visible={drawerVisible} onClose={() => setDrawerVisible(false)} />
+            
       {/* Bright Orange Edge-to-Edge Header */}
       <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <View style={styles.headerRow}>
-          <View style={styles.iconContainer}>
+          <TouchableOpacity style={{ backgroundColor: 'rgba(255,255,255,0.2)', padding: 12, borderRadius: 12 }} onPress={() => setDrawerVisible(true)}>
             <PackageIcon size={24} color="#FFFFFF" strokeWidth={2} />
-          </View>
+          </TouchableOpacity>
           <View style={styles.headerTextContainer}>
             <Text style={styles.headerTitle}>Inventory</Text>
             <Text style={styles.headerSubtitle}>Manage your products</Text>
@@ -739,6 +834,85 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
                   </View>
                 </View>
 
+                {/* Others Card with Colors and Variations */}
+                <View style={styles.sectionCard}>
+                  <View style={styles.sectionHeader}>
+                    <Text style={{ fontSize: 20 }}>✨</Text>
+                    <Text style={styles.sectionTitle}>Others</Text>
+                    <View style={styles.optionalBadge}>
+                      <Text style={styles.optionalBadgeText}>Optional</Text>
+                    </View>
+                  </View>
+
+                  {/* Colors Subsection */}
+                  <View style={{ marginBottom: 20 }}>
+                    <Text style={[styles.inputLabel, { marginBottom: 10 }]}>Colors</Text>
+                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+                      <TextInput
+                        style={[styles.modernInput, { flex: 1 }]}
+                        placeholder="e.g. Red, Blue, White"
+                        placeholderTextColor="#9CA3AF"
+                        value={currentColorInput} // Use temp state
+                        onChangeText={setCurrentColorInput} // Update temp state
+                        onSubmitEditing={handleAddColor} // Add on Enter
+                        blurOnSubmit={false} // Keeps keyboard open for next entry
+                      />
+                      <TouchableOpacity
+                        style={[styles.modernInput, { width: 50, paddingHorizontal: 12, justifyContent: 'center', alignItems: 'center' }]}
+                        onPress={handleAddColor}
+                      >
+                        <Plus size={20} color="#FF5722" strokeWidth={2.5} />
+                      </TouchableOpacity>
+                    </View>
+                    
+                    {/* Colors Pills - Only shows saved items */}
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                      {formData.colors.filter(c => c.trim()).map((color, index) => (
+                        <View key={`color-${index}`} style={styles.variationPillOrange}>
+                          <Text style={styles.variationTextOrange}>{color}</Text>
+                          <TouchableOpacity onPress={() => removeColorField(index)}>
+                            <X size={16} color="#EF4444" strokeWidth={2.5} />
+                          </TouchableOpacity>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+
+                  {/* Variations Subsection */}
+                  <View style={{ marginBottom: 0 }}>
+                    <Text style={[styles.inputLabel, { marginBottom: 10 }]}>Variations</Text>
+                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+                      <TextInput
+                        style={[styles.modernInput, { flex: 1 }]}
+                        placeholder="e.g. XL (Press Enter to add)"
+                        placeholderTextColor="#9CA3AF"
+                        value={currentSizeInput} // Use temp state
+                        onChangeText={setCurrentSizeInput} // Update temp state
+                        onSubmitEditing={handleAddSize} // Add on Enter
+                        blurOnSubmit={false}
+                      />
+                      <TouchableOpacity
+                        style={[styles.modernInput, { width: 50, paddingHorizontal: 12, justifyContent: 'center', alignItems: 'center' }]}
+                        onPress={handleAddSize}
+                      >
+                        <Plus size={20} color="#FF5722" strokeWidth={2.5} />
+                      </TouchableOpacity>
+                    </View>
+                    
+                    {/* Variations Pills - Only shows saved items */}
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                      {formData.sizes.filter(s => s.trim()).map((size, index) => (
+                        <View key={`size-${index}`} style={styles.variationPillBlue}>
+                          <Text style={styles.variationTextBlue}>{size}</Text>
+                          <TouchableOpacity onPress={() => removeSizeField(index)}>
+                            <X size={16} color="#EF4444" strokeWidth={2.5} />
+                          </TouchableOpacity>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                </View>
+
                 {/* QA Note */}
                 <View style={styles.qaNote}>
                   <Info size={16} color="#FF5722" strokeWidth={2.5} />
@@ -999,6 +1173,85 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
                     keyboardType="number-pad"
                   />
                 </View>
+
+                {/* Others Card with Colors and Variations */}
+                <View style={styles.sectionCard}>
+                  <View style={styles.sectionHeader}>
+                    <Text style={{ fontSize: 20 }}>✨</Text>
+                    <Text style={styles.sectionTitle}>Others</Text>
+                    <View style={styles.optionalBadge}>
+                      <Text style={styles.optionalBadgeText}>Optional</Text>
+                    </View>
+                  </View>
+
+                  {/* Colors Subsection */}
+                  <View style={{ marginBottom: 20 }}>
+                    <Text style={[styles.inputLabel, { marginBottom: 10 }]}>Colors</Text>
+                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+                      <TextInput
+                        style={[styles.modernInput, { flex: 1 }]}
+                        placeholder="e.g. Red, Blue, White"
+                        placeholderTextColor="#9CA3AF"
+                        value={currentColorInput} // Use temp state
+                        onChangeText={setCurrentColorInput} // Update temp state
+                        onSubmitEditing={handleAddColor} // Add on Enter
+                        blurOnSubmit={false} // Keeps keyboard open for next entry
+                      />
+                      <TouchableOpacity
+                        style={[styles.modernInput, { width: 50, paddingHorizontal: 12, justifyContent: 'center', alignItems: 'center' }]}
+                        onPress={handleAddColor}
+                      >
+                        <Plus size={20} color="#FF5722" strokeWidth={2.5} />
+                      </TouchableOpacity>
+                    </View>
+                    
+                    {/* Colors Pills - Only shows saved items */}
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                      {formData.colors.filter(c => c.trim()).map((color, index) => (
+                        <View key={`color-${index}`} style={styles.variationPillOrange}>
+                          <Text style={styles.variationTextOrange}>{color}</Text>
+                          <TouchableOpacity onPress={() => removeColorField(index)}>
+                            <X size={16} color="#EF4444" strokeWidth={2.5} />
+                          </TouchableOpacity>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+
+                  {/* Variations Subsection */}
+                  <View style={{ marginBottom: 0 }}>
+                    <Text style={[styles.inputLabel, { marginBottom: 10 }]}>Variations</Text>
+                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+                      <TextInput
+                        style={[styles.modernInput, { flex: 1 }]}
+                        placeholder="e.g. XL (Press Enter to add)"
+                        placeholderTextColor="#9CA3AF"
+                        value={currentSizeInput} // Use temp state
+                        onChangeText={setCurrentSizeInput} // Update temp state
+                        onSubmitEditing={handleAddSize} // Add on Enter
+                        blurOnSubmit={false}
+                      />
+                      <TouchableOpacity
+                        style={[styles.modernInput, { width: 50, paddingHorizontal: 12, justifyContent: 'center', alignItems: 'center' }]}
+                        onPress={handleAddSize}
+                      >
+                        <Plus size={20} color="#FF5722" strokeWidth={2.5} />
+                      </TouchableOpacity>
+                    </View>
+                    
+                    {/* Variations Pills - Only shows saved items */}
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                      {formData.sizes.filter(s => s.trim()).map((size, index) => (
+                        <View key={`size-${index}`} style={styles.variationPillBlue}>
+                          <Text style={styles.variationTextBlue}>{size}</Text>
+                          <TouchableOpacity onPress={() => removeSizeField(index)}>
+                            <X size={16} color="#EF4444" strokeWidth={2.5} />
+                          </TouchableOpacity>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                </View>
               </ScrollView>
 
               {/* Fixed Footer */}
@@ -1140,7 +1393,7 @@ const styles = StyleSheet.create({
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 11,
     marginBottom: 16,
   },
   iconContainer: {
@@ -1194,7 +1447,7 @@ const styles = StyleSheet.create({
   // Products List (Fixed Bottom Padding)
   productsList: {
     paddingHorizontal: 16,
-    paddingTop: 4,
+    paddingTop: 20,
     paddingBottom: 100, // Crucial: prevents last item from hiding behind tab bar
   },
   productCard: {
@@ -1478,6 +1731,7 @@ const styles = StyleSheet.create({
   },
   halfInput: {
     flex: 1,
+    marginBottom: 16,
   },
   // Image Management Buttons
   removeImageButton: {
@@ -1816,4 +2070,50 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     color: '#EF4444',
-  },});
+  },
+  optionalBadge: {
+    backgroundColor: '#F0F9FF',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#E0F2FE',
+  },
+  optionalBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#0284C7',
+  },
+  variationPillOrange: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 8,
+  backgroundColor: '#FFF7ED',
+  paddingHorizontal: 12,
+  paddingVertical: 8,
+  borderRadius: 20,
+  borderWidth: 1,
+  borderColor: '#FFEDD5',
+},
+variationTextOrange: {
+  fontSize: 14,
+  color: '#EA580C',
+  fontWeight: '600',
+},
+variationPillBlue: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 8,
+  backgroundColor: '#F0F9FF',
+  paddingHorizontal: 12,
+  paddingVertical: 8,
+  borderRadius: 20,
+  borderWidth: 1,
+  borderColor: '#E0F2FE',
+},
+variationTextBlue: {
+  fontSize: 14,
+  color: '#0284C7',
+  fontWeight: '600',
+},
+});
