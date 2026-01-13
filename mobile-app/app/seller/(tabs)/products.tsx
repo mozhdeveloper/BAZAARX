@@ -21,7 +21,9 @@ import { useProductQAStore } from '../../../src/stores/productQAStore';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { File, Paths } from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy'; //
 import * as Sharing from 'expo-sharing';
+import SellerDrawer from '../../../src/components/SellerDrawer';
 
 export default function SellerProductsScreen() {
   const { products, toggleProductStatus, deleteProduct, seller, updateProduct } = useSellerStore();
@@ -33,7 +35,14 @@ export default function SellerProductsScreen() {
   const [isBulkUploadModalOpen, setIsBulkUploadModalOpen] = useState(false);
   const [imageUploadMode, setImageUploadMode] = useState<'upload' | 'url'>('upload');
   const [editingProduct, setEditingProduct] = useState<SellerProduct | null>(null);
+  const [drawerVisible, setDrawerVisible] = useState(false);
 
+  // New temporary states for typing
+  const [currentColorInput, setCurrentColorInput] = useState('');
+  const [currentSizeInput, setCurrentSizeInput] = useState('');
+  const [bulkPreviewProducts, setBulkPreviewProducts] = useState<SellerProduct[]>([]);
+  const [isPreviewMode, setIsPreviewMode] = useState(false);
+  
   // Form state for adding products
   const [formData, setFormData] = useState({
     name: '',
@@ -43,6 +52,8 @@ export default function SellerProductsScreen() {
     stock: '',
     category: '',
     images: [''],
+    colors: [''],
+    sizes: [''],
   });
 
   const categories = [
@@ -67,6 +78,8 @@ export default function SellerProductsScreen() {
       stock: '',
       category: '',
       images: [''],
+      colors: [''],
+      sizes: [''],
     });
   };
 
@@ -123,6 +136,44 @@ export default function SellerProductsScreen() {
     }
   };
 
+  const removeColorField = (index: number) => {
+    const newColors = formData.colors.filter((_, i) => i !== index);
+    setFormData({
+      ...formData,
+      colors: newColors.length > 0 ? newColors : [''],
+    });
+  };
+
+  const removeSizeField = (index: number) => {
+    const newSizes = formData.sizes.filter((_, i) => i !== index);
+    setFormData({
+      ...formData,
+      sizes: newSizes.length > 0 ? newSizes : [''],
+    });
+  };
+
+  // Handle adding a Color
+  const handleAddColor = () => {
+    if (currentColorInput.trim()) {
+      setFormData({
+        ...formData,
+        colors: [...formData.colors.filter(c => c.trim() !== ''), currentColorInput.trim()],
+      });
+      setCurrentColorInput(''); // Clear the input
+    }
+  };
+
+  // Handle adding a Size
+  const handleAddSize = () => {
+    if (currentSizeInput.trim()) {
+      setFormData({
+        ...formData,
+        sizes: [...formData.sizes.filter(s => s.trim() !== ''), currentSizeInput.trim()],
+      });
+      setCurrentSizeInput(''); // Clear the input
+    }
+  };
+
   const validateForm = () => {
     if (!formData.name.trim()) {
       Alert.alert('Validation Error', 'Product name is required');
@@ -157,6 +208,8 @@ export default function SellerProductsScreen() {
 
     try {
       const validImages = formData.images.filter(img => img.trim() !== '');
+      const validColors = formData.colors.filter(color => color.trim() !== '');
+      const validSizes = formData.sizes.filter(size => size.trim() !== '');
       const firstImage = validImages[0] || 'https://placehold.co/400x400?text=' + encodeURIComponent(formData.name);
 
       const newProduct: SellerProduct = {
@@ -169,6 +222,8 @@ export default function SellerProductsScreen() {
         category: formData.category,
         image: firstImage,
         images: validImages,
+        colors: validColors.length > 0 ? validColors : undefined,
+        sizes: validSizes.length > 0 ? validSizes : undefined,
         isActive: true,
         sold: 0,
       };
@@ -227,6 +282,8 @@ export default function SellerProductsScreen() {
       stock: product.stock.toString(),
       category: product.category,
       images: product.images || [product.image],
+      colors: product.colors && product.colors.length > 0 ? product.colors : [''],
+      sizes: product.sizes && product.sizes.length > 0 ? product.sizes : [''],
     });
     setIsEditModalOpen(true);
   };
@@ -236,6 +293,8 @@ export default function SellerProductsScreen() {
 
     try {
       const validImages = formData.images.filter(img => img.trim() !== '');
+      const validColors = formData.colors.filter(color => color.trim() !== '');
+      const validSizes = formData.sizes.filter(size => size.trim() !== '');
       const firstImage = validImages[0] || editingProduct.image;
 
       const updatedProduct: SellerProduct = {
@@ -248,6 +307,8 @@ export default function SellerProductsScreen() {
         category: formData.category,
         image: firstImage,
         images: validImages,
+        colors: validColors.length > 0 ? validColors : undefined,
+        sizes: validSizes.length > 0 ? validSizes : undefined,
       };
 
       if (editingProduct) {
@@ -271,26 +332,65 @@ export default function SellerProductsScreen() {
   const handleBulkUploadCSV = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: 'text/csv',
+        type: ['text/csv', 'text/comma-separated-values', 'application/csv', 'application/vnd.ms-excel'],
         copyToCacheDirectory: true,
       });
 
-      if (result.canceled) {
-        return;
-      }
+      if (result.canceled) return;
 
-      Alert.alert(
-        'CSV Processing',
-        `CSV file "${result.assets[0].name}" selected. This feature will process your products in bulk.\n\nMake sure your CSV follows the format:\nname,description,price,originalPrice,stock,category,imageUrl\n\nProcessing will be implemented in the next update.`,
-        [{ text: 'OK' }]
-      );
+      const fileUri = result.assets[0].uri;
+      const csvString = await FileSystem.readAsStringAsync(fileUri);
+
+      const rows = csvString.split('\n').filter((row: string) => row.trim() !== '');
       
-      setIsBulkUploadModalOpen(false);
+      // Parse rows into temporary preview state
+      const parsedProducts: SellerProduct[] = rows.slice(1).map((row: string, index: number) => {
+        // Handles commas inside quotes
+        const columns = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+        
+        const price = parseFloat(columns[2]);
+        const stock = parseInt(columns[4]);
+
+        return {
+          id: `PREVIEW-${Date.now()}-${index}`,
+          name: columns[0]?.replace(/"/g, '').trim() || 'Untitled Product',
+          description: columns[1]?.replace(/"/g, '').trim() || '',
+          price: isNaN(price) ? 0 : price,
+          originalPrice: columns[3] ? parseFloat(columns[3]) : undefined,
+          stock: isNaN(stock) ? 0 : stock,
+          category: columns[5]?.trim() || 'Others',
+          image: columns[6]?.trim() || 'https://placehold.co/400x400',
+          isActive: true,
+          sold: 0,
+        };
+      });
+
+      setBulkPreviewProducts(parsedProducts);
+      setIsPreviewMode(true); // Switch to preview view
     } catch (error) {
-      Alert.alert('Error', 'Failed to upload CSV file');
+      Alert.alert('Error', 'Failed to process the CSV file.');
     }
   };
 
+  const confirmBulkUpload = () => {
+    const { addProduct } = useSellerStore.getState();
+    
+    bulkPreviewProducts.forEach(product => {
+      // Convert preview ID to actual ID
+      const finalProduct = { ...product, id: `PROD-${Date.now()}-${Math.random()}` };
+      
+      addProduct(finalProduct); //
+      addProductToQA({
+        ...finalProduct,
+        vendor: seller?.storeName || 'Tech Shop PH',
+      }); //
+    });
+
+    Alert.alert('Success', `${bulkPreviewProducts.length} products added to inventory.`);
+    setBulkPreviewProducts([]);
+    setIsPreviewMode(false);
+    setIsBulkUploadModalOpen(false);
+  };
   // Download CSV Template
   const downloadCSVTemplate = async () => {
     try {
@@ -415,14 +515,42 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
     </View>
   );
 
+  const renderPreviewCard = (item: SellerProduct) => (
+    <View style={styles.productCard}>
+      <Image source={{ uri: item.image }} style={styles.productImage} />
+      
+      <View style={styles.productInfo}>
+        <View style={styles.productHeader}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.productName} numberOfLines={1}>{item.name}</Text>
+            <Text style={styles.productCategory}>{item.category}</Text>
+          </View>
+        </View>
+
+        <View style={styles.productMeta}>
+          <View style={styles.priceContainer}>
+            <Text style={styles.productPrice}>₱{item.price.toLocaleString()}</Text>
+            <Text style={styles.productStock}>Stock: {item.stock}</Text>
+          </View>
+          {/* Removed 'sold' count here */}
+        </View>
+
+        {/* Removed 'productActions' section (Switch, Edit, and Delete buttons) */}
+      </View>
+    </View>
+  );
+
   return (
+    
     <View style={styles.container}>
+      <SellerDrawer visible={drawerVisible} onClose={() => setDrawerVisible(false)} />
+            
       {/* Bright Orange Edge-to-Edge Header */}
       <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <View style={styles.headerRow}>
-          <View style={styles.iconContainer}>
+          <TouchableOpacity style={{ backgroundColor: 'rgba(255,255,255,0.2)', padding: 12, borderRadius: 12 }} onPress={() => setDrawerVisible(true)}>
             <PackageIcon size={24} color="#FFFFFF" strokeWidth={2} />
-          </View>
+          </TouchableOpacity>
           <View style={styles.headerTextContainer}>
             <Text style={styles.headerTitle}>Inventory</Text>
             <Text style={styles.headerSubtitle}>Manage your products</Text>
@@ -739,6 +867,85 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
                   </View>
                 </View>
 
+                {/* Others Card with Colors and Variations */}
+                <View style={styles.sectionCard}>
+                  <View style={styles.sectionHeader}>
+                    <Text style={{ fontSize: 20 }}>✨</Text>
+                    <Text style={styles.sectionTitle}>Others</Text>
+                    <View style={styles.optionalBadge}>
+                      <Text style={styles.optionalBadgeText}>Optional</Text>
+                    </View>
+                  </View>
+
+                  {/* Colors Subsection */}
+                  <View style={{ marginBottom: 20 }}>
+                    <Text style={[styles.inputLabel, { marginBottom: 10 }]}>Colors</Text>
+                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+                      <TextInput
+                        style={[styles.modernInput, { flex: 1 }]}
+                        placeholder="e.g. Red, Blue, White"
+                        placeholderTextColor="#9CA3AF"
+                        value={currentColorInput} // Use temp state
+                        onChangeText={setCurrentColorInput} // Update temp state
+                        onSubmitEditing={handleAddColor} // Add on Enter
+                        blurOnSubmit={false} // Keeps keyboard open for next entry
+                      />
+                      <TouchableOpacity
+                        style={[styles.modernInput, { width: 50, paddingHorizontal: 12, justifyContent: 'center', alignItems: 'center' }]}
+                        onPress={handleAddColor}
+                      >
+                        <Plus size={20} color="#FF5722" strokeWidth={2.5} />
+                      </TouchableOpacity>
+                    </View>
+                    
+                    {/* Colors Pills - Only shows saved items */}
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                      {formData.colors.filter(c => c.trim()).map((color, index) => (
+                        <View key={`color-${index}`} style={styles.variationPillOrange}>
+                          <Text style={styles.variationTextOrange}>{color}</Text>
+                          <TouchableOpacity onPress={() => removeColorField(index)}>
+                            <X size={16} color="#EF4444" strokeWidth={2.5} />
+                          </TouchableOpacity>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+
+                  {/* Variations Subsection */}
+                  <View style={{ marginBottom: 0 }}>
+                    <Text style={[styles.inputLabel, { marginBottom: 10 }]}>Variations</Text>
+                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+                      <TextInput
+                        style={[styles.modernInput, { flex: 1 }]}
+                        placeholder="e.g. XL (Press Enter to add)"
+                        placeholderTextColor="#9CA3AF"
+                        value={currentSizeInput} // Use temp state
+                        onChangeText={setCurrentSizeInput} // Update temp state
+                        onSubmitEditing={handleAddSize} // Add on Enter
+                        blurOnSubmit={false}
+                      />
+                      <TouchableOpacity
+                        style={[styles.modernInput, { width: 50, paddingHorizontal: 12, justifyContent: 'center', alignItems: 'center' }]}
+                        onPress={handleAddSize}
+                      >
+                        <Plus size={20} color="#FF5722" strokeWidth={2.5} />
+                      </TouchableOpacity>
+                    </View>
+                    
+                    {/* Variations Pills - Only shows saved items */}
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                      {formData.sizes.filter(s => s.trim()).map((size, index) => (
+                        <View key={`size-${index}`} style={styles.variationPillBlue}>
+                          <Text style={styles.variationTextBlue}>{size}</Text>
+                          <TouchableOpacity onPress={() => removeSizeField(index)}>
+                            <X size={16} color="#EF4444" strokeWidth={2.5} />
+                          </TouchableOpacity>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                </View>
+
                 {/* QA Note */}
                 <View style={styles.qaNote}>
                   <Info size={16} color="#FF5722" strokeWidth={2.5} />
@@ -999,6 +1206,85 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
                     keyboardType="number-pad"
                   />
                 </View>
+
+                {/* Others Card with Colors and Variations */}
+                <View style={styles.sectionCard}>
+                  <View style={styles.sectionHeader}>
+                    <Text style={{ fontSize: 20 }}>✨</Text>
+                    <Text style={styles.sectionTitle}>Others</Text>
+                    <View style={styles.optionalBadge}>
+                      <Text style={styles.optionalBadgeText}>Optional</Text>
+                    </View>
+                  </View>
+
+                  {/* Colors Subsection */}
+                  <View style={{ marginBottom: 20 }}>
+                    <Text style={[styles.inputLabel, { marginBottom: 10 }]}>Colors</Text>
+                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+                      <TextInput
+                        style={[styles.modernInput, { flex: 1 }]}
+                        placeholder="e.g. Red, Blue, White"
+                        placeholderTextColor="#9CA3AF"
+                        value={currentColorInput} // Use temp state
+                        onChangeText={setCurrentColorInput} // Update temp state
+                        onSubmitEditing={handleAddColor} // Add on Enter
+                        blurOnSubmit={false} // Keeps keyboard open for next entry
+                      />
+                      <TouchableOpacity
+                        style={[styles.modernInput, { width: 50, paddingHorizontal: 12, justifyContent: 'center', alignItems: 'center' }]}
+                        onPress={handleAddColor}
+                      >
+                        <Plus size={20} color="#FF5722" strokeWidth={2.5} />
+                      </TouchableOpacity>
+                    </View>
+                    
+                    {/* Colors Pills - Only shows saved items */}
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                      {formData.colors.filter(c => c.trim()).map((color, index) => (
+                        <View key={`color-${index}`} style={styles.variationPillOrange}>
+                          <Text style={styles.variationTextOrange}>{color}</Text>
+                          <TouchableOpacity onPress={() => removeColorField(index)}>
+                            <X size={16} color="#EF4444" strokeWidth={2.5} />
+                          </TouchableOpacity>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+
+                  {/* Variations Subsection */}
+                  <View style={{ marginBottom: 0 }}>
+                    <Text style={[styles.inputLabel, { marginBottom: 10 }]}>Variations</Text>
+                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+                      <TextInput
+                        style={[styles.modernInput, { flex: 1 }]}
+                        placeholder="e.g. XL (Press Enter to add)"
+                        placeholderTextColor="#9CA3AF"
+                        value={currentSizeInput} // Use temp state
+                        onChangeText={setCurrentSizeInput} // Update temp state
+                        onSubmitEditing={handleAddSize} // Add on Enter
+                        blurOnSubmit={false}
+                      />
+                      <TouchableOpacity
+                        style={[styles.modernInput, { width: 50, paddingHorizontal: 12, justifyContent: 'center', alignItems: 'center' }]}
+                        onPress={handleAddSize}
+                      >
+                        <Plus size={20} color="#FF5722" strokeWidth={2.5} />
+                      </TouchableOpacity>
+                    </View>
+                    
+                    {/* Variations Pills - Only shows saved items */}
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                      {formData.sizes.filter(s => s.trim()).map((size, index) => (
+                        <View key={`size-${index}`} style={styles.variationPillBlue}>
+                          <Text style={styles.variationTextBlue}>{size}</Text>
+                          <TouchableOpacity onPress={() => removeSizeField(index)}>
+                            <X size={16} color="#EF4444" strokeWidth={2.5} />
+                          </TouchableOpacity>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                </View>
               </ScrollView>
 
               {/* Fixed Footer */}
@@ -1062,61 +1348,87 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
                 contentContainerStyle={styles.bulkUploadScrollContent}
                 bounces={true}
               >
-                {/* CSV Format Instructions */}
-                <View style={styles.csvInstructionsCard}>
-                  <View style={styles.csvHeader}>
-                    <FileText size={20} color="#FF5722" strokeWidth={2.5} />
-                    <Text style={styles.csvHeaderText}>CSV Format Requirements</Text>
+                {isPreviewMode ? (
+                  <View>
+                    <View style={styles.previewHeader}>
+                      <Text style={styles.previewTitle}>Preview ({bulkPreviewProducts.length} items)</Text>
+                      <TouchableOpacity onPress={() => setIsPreviewMode(false)}>
+                        <Text style={{ color: '#FF5722', fontWeight: '600' }}>Change File</Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    {bulkPreviewProducts.map((item) => (
+                      <View key={item.id}>
+                        {renderPreviewCard(item)}
+                      </View>
+                    ))}
+
+                    <TouchableOpacity
+                      style={[styles.csvUploadButton, { marginTop: 20 }]}
+                      onPress={confirmBulkUpload}
+                    >
+                      <Text style={styles.csvUploadButtonText}>Confirm & Add to Inventory</Text>
+                    </TouchableOpacity>
                   </View>
-                  
-                  <Text style={styles.csvDescription}>
-                    Your CSV file must include these 7 columns in order:
-                  </Text>
+                ) : (
+                  <View>
+                    {/* CSV Format Instructions */}
+                    <View style={styles.csvInstructionsCard}>
+                      <View style={styles.csvHeader}>
+                        <FileText size={20} color="#FF5722" strokeWidth={2.5} />
+                        <Text style={styles.csvHeaderText}>CSV Format Requirements</Text>
+                      </View>
+                      
+                      <Text style={styles.csvDescription}>
+                        Your CSV file must include these 7 columns in order:
+                      </Text>
 
-                  <View style={styles.csvColumnsList}>
-                    <Text style={styles.csvColumn}>1. name (required)</Text>
-                    <Text style={styles.csvColumn}>2. description (required)</Text>
-                    <Text style={styles.csvColumn}>3. price (required)</Text>
-                    <Text style={styles.csvColumn}>4. originalPrice (optional)</Text>
-                    <Text style={styles.csvColumn}>5. stock (required)</Text>
-                    <Text style={styles.csvColumn}>6. category (required)</Text>
-                    <Text style={styles.csvColumn}>7. imageUrl (required)</Text>
+                      <View style={styles.csvColumnsList}>
+                        <Text style={styles.csvColumn}>1. name (required)</Text>
+                        <Text style={styles.csvColumn}>2. description (required)</Text>
+                        <Text style={styles.csvColumn}>3. price (required)</Text>
+                        <Text style={styles.csvColumn}>4. originalPrice (optional)</Text>
+                        <Text style={styles.csvColumn}>5. stock (required)</Text>
+                        <Text style={styles.csvColumn}>6. category (required)</Text>
+                        <Text style={styles.csvColumn}>7. imageUrl (required)</Text>
+                      </View>
+
+                      <Text style={styles.csvDescription}>
+                        💡 Download the template below for correct format and examples.
+                      </Text>
+                    </View>
+
+                    {/* Download Template Button */}
+                    <TouchableOpacity
+                      style={styles.csvDownloadButton}
+                      onPress={downloadCSVTemplate}
+                      activeOpacity={0.9}
+                    >
+                      <FileText size={20} color="#FF5722" strokeWidth={2.5} />
+                      <Text style={styles.csvDownloadButtonText}>Download CSV Template</Text>
+                    </TouchableOpacity>
+
+                    {/* Upload Button */}
+                    <TouchableOpacity
+                      style={styles.csvUploadButton}
+                      onPress={handleBulkUploadCSV}
+                      activeOpacity={0.9}
+                    >
+                      <Upload size={20} color="#FFFFFF" strokeWidth={2.5} />
+                      <Text style={styles.csvUploadButtonText}>Select CSV File</Text>
+                    </TouchableOpacity>
+
+                    {/* Help Button */}
+                    <TouchableOpacity
+                      style={styles.csvHelpButton}
+                      onPress={showCSVFormat}
+                      activeOpacity={0.7}
+                    >
+                      <Info size={16} color="#FF5722" strokeWidth={2.5} />
+                      <Text style={styles.csvHelpButtonText}>Show CSV Format Help</Text>
+                    </TouchableOpacity>
                   </View>
-
-                  <Text style={styles.csvDescription}>
-                    💡 Download the template below for correct format and examples.
-                  </Text>
-                </View>
-
-                {/* Download Template Button */}
-                <TouchableOpacity
-                  style={styles.csvDownloadButton}
-                  onPress={downloadCSVTemplate}
-                  activeOpacity={0.9}
-                >
-                  <FileText size={20} color="#FF5722" strokeWidth={2.5} />
-                  <Text style={styles.csvDownloadButtonText}>Download CSV Template</Text>
-                </TouchableOpacity>
-
-                {/* Upload Button */}
-                <TouchableOpacity
-                  style={styles.csvUploadButton}
-                  onPress={handleBulkUploadCSV}
-                  activeOpacity={0.9}
-                >
-                  <Upload size={20} color="#FFFFFF" strokeWidth={2.5} />
-                  <Text style={styles.csvUploadButtonText}>Select CSV File</Text>
-                </TouchableOpacity>
-
-                {/* Help Button */}
-                <TouchableOpacity
-                  style={styles.csvHelpButton}
-                  onPress={showCSVFormat}
-                  activeOpacity={0.7}
-                >
-                  <Info size={16} color="#FF5722" strokeWidth={2.5} />
-                  <Text style={styles.csvHelpButtonText}>Show CSV Format Help</Text>
-                </TouchableOpacity>
+                )}               
               </ScrollView>
             </TouchableOpacity>
           </TouchableOpacity>
@@ -1140,7 +1452,7 @@ const styles = StyleSheet.create({
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 11,
     marginBottom: 16,
   },
   iconContainer: {
@@ -1194,7 +1506,7 @@ const styles = StyleSheet.create({
   // Products List (Fixed Bottom Padding)
   productsList: {
     paddingHorizontal: 16,
-    paddingTop: 4,
+    paddingTop: 20,
     paddingBottom: 100, // Crucial: prevents last item from hiding behind tab bar
   },
   productCard: {
@@ -1478,6 +1790,7 @@ const styles = StyleSheet.create({
   },
   halfInput: {
     flex: 1,
+    marginBottom: 16,
   },
   // Image Management Buttons
   removeImageButton: {
@@ -1618,6 +1931,18 @@ const styles = StyleSheet.create({
     width: 36,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  previewHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingHorizontal: 4,
+  },
+  previewTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
   },
   // CSV Bulk Upload Modal Styles
   csvInstructionsCard: {
@@ -1816,4 +2141,50 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     color: '#EF4444',
-  },});
+  },
+  optionalBadge: {
+    backgroundColor: '#F0F9FF',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#E0F2FE',
+  },
+  optionalBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#0284C7',
+  },
+  variationPillOrange: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 8,
+  backgroundColor: '#FFF7ED',
+  paddingHorizontal: 12,
+  paddingVertical: 8,
+  borderRadius: 20,
+  borderWidth: 1,
+  borderColor: '#FFEDD5',
+},
+variationTextOrange: {
+  fontSize: 14,
+  color: '#EA580C',
+  fontWeight: '600',
+},
+variationPillBlue: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 8,
+  backgroundColor: '#F0F9FF',
+  paddingHorizontal: 12,
+  paddingVertical: 8,
+  borderRadius: 20,
+  borderWidth: 1,
+  borderColor: '#E0F2FE',
+},
+variationTextBlue: {
+  fontSize: 14,
+  color: '#0284C7',
+  fontWeight: '600',
+},
+});
