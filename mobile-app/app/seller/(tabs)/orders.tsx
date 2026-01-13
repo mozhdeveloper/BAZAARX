@@ -13,6 +13,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useNavigation } from '@react-navigation/native';
 import { Package, ShoppingCart, Bell, X, Search, ChevronDown } from 'lucide-react-native';
 import { useSellerStore } from '../../../src/stores/sellerStore';
+import SellerDrawer from '../../../src/components/SellerDrawer';
 
 type OrderStatus = 'all' | 'pending' | 'to-ship' | 'completed';
 
@@ -20,6 +21,7 @@ export default function SellerOrdersScreen() {
   const { orders, updateOrderStatus } = useSellerStore();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
+  const [drawerVisible, setDrawerVisible] = useState(false);
   const [selectedTab, setSelectedTab] = useState<OrderStatus>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [walkFilter, setWalkFilter] = useState<'all' | 'walkin' | 'online'>('all');
@@ -107,13 +109,16 @@ export default function SellerOrdersScreen() {
 
   return (
     <View style={styles.container}>
+      {/* Seller Drawer */}
+      <SellerDrawer visible={drawerVisible} onClose={() => setDrawerVisible(false)} />
+
       {/* Immersive Edge-to-Edge Header */}
       <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <View style={styles.headerContent}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            <View style={styles.iconContainer}>
+            <Pressable style={styles.iconContainer} onPress={() => setDrawerVisible(true)}>
               <ShoppingCart size={24} color="#FFFFFF" strokeWidth={2} />
-            </View>
+            </Pressable>
             <View style={{ flex: 1 }}>
               <Text style={styles.headerTitle}>Orders</Text>
               <Text style={styles.headerSubtitle}>Order Management</Text>

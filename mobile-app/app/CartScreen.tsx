@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -22,9 +22,14 @@ type Props = CompositeScreenProps<
 >;
 
 export default function CartScreen({ navigation }: Props) {
-  const { items, removeItem, updateQuantity, getTotal, clearCart } = useCartStore();
+  const { items, removeItem, updateQuantity, getTotal, clearCart, clearQuickOrder } = useCartStore();
   const insets = useSafeAreaInsets();
   const BRAND_COLOR = '#FF5722';
+
+  // Clear quick order when user navigates to cart
+  useEffect(() => {
+    clearQuickOrder();
+  }, []);
 
   const [selectedIds, setSelectedIds] = useState<string[]>(items.map(item => item.id));
 
