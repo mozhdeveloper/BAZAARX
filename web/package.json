@@ -39,6 +39,7 @@
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.4.2",
     "@studio-freight/lenis": "^1.0.42",
+    "@supabase/supabase-js": "^2.90.1",
     "@types/leaflet": "^1.9.21",
     "@types/papaparse": "^5.5.2",
     "@types/react-router-dom": "^5.3.3",
