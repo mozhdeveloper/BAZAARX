@@ -10,10 +10,12 @@ import {
   ShoppingBag,
 } from "lucide-react";
 import { NotificationsDropdown } from "./NotificationsDropdown";
+import { useBuyerStore } from "../stores/buyerStore";
 
 const Header: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { profile, logout } = useBuyerStore();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement>(null);
 
@@ -166,46 +168,60 @@ const Header: React.FC = () => {
 
             {/* Profile */}
             <div className="relative" ref={profileMenuRef}>
-              <div
-                className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 rounded-lg p-2 transition-colors"
-                onClick={() => setShowProfileMenu(!showProfileMenu)}
-              >
-                <div className="w-8 h-8 bg-[var(--brand-primary)] rounded-full flex items-center justify-center">
-                  <span className="text-white text-sm font-semibold">J</span>
-                </div>
-                <div className="hidden sm:block">
-                  <p className="text-sm font-medium text-[var(--text-primary)]">
-                    John Doe
-                  </p>
-                  <p className="text-xs text-[var(--text-secondary)]">
-                    Premium Member
-                  </p>
-                </div>
-                <ChevronDown
-                  className={`h-4 w-4 text-gray-400 transition-transform ${
-                    showProfileMenu ? "rotate-180" : ""
-                  }`}
-                />
-              </div>
-
-              {/* Profile Dropdown */}
-              {showProfileMenu && (
-                <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
-                  <div className="p-3 border-b border-gray-100">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-[var(--brand-primary)] rounded-full flex items-center justify-center">
+              {profile ? (
+                <>
+                  <div
+                    className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 rounded-lg p-2 transition-colors"
+                    onClick={() => setShowProfileMenu(!showProfileMenu)}
+                  >
+                    <div className="w-8 h-8 bg-[var(--brand-primary)] rounded-full flex items-center justify-center overflow-hidden">
+                      {profile.avatar ? (
+                        <img src={profile.avatar} alt={profile.firstName} className="w-full h-full object-cover" />
+                      ) : (
                         <span className="text-white text-sm font-semibold">
-                          J
+                          {profile.firstName.charAt(0)}
                         </span>
-                      </div>
-                      <div>
-                        <p className="font-medium text-gray-900">John Doe</p>
-                        <p className="text-xs text-gray-500">
-                          john@example.com
-                        </p>
-                      </div>
+                      )}
                     </div>
+                    <div className="hidden sm:block">
+                      <p className="text-sm font-medium text-[var(--text-primary)]">
+                        {profile.firstName} {profile.lastName}
+                      </p>
+                      <p className="text-xs text-[var(--text-secondary)]">
+                        {profile.loyaltyPoints} Points
+                      </p>
+                    </div>
+                    <ChevronDown
+                      className={`h-4 w-4 text-gray-400 transition-transform ${
+                        showProfileMenu ? "rotate-180" : ""
+                      }`}
+                    />
                   </div>
+
+                  {/* Profile Dropdown */}
+                  {showProfileMenu && (
+                    <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
+                      <div className="p-3 border-b border-gray-100">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-[var(--brand-primary)] rounded-full flex items-center justify-center overflow-hidden">
+                            {profile.avatar ? (
+                              <img src={profile.avatar} alt={profile.firstName} className="w-full h-full object-cover" />
+                            ) : (
+                              <span className="text-white text-sm font-semibold">
+                                {profile.firstName.charAt(0)}
+                              </span>
+                            )}
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-900">
+                              {profile.firstName} {profile.lastName}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {profile.email}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
 
                   <div className="p-2">
                     <button
@@ -232,7 +248,7 @@ const Header: React.FC = () => {
 
                     <button
                       onClick={() => {
-                        navigate("/reviews");
+                        navigate("/my-reviews");
                         setShowProfileMenu(false);
                       }}
                       className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
@@ -241,24 +257,52 @@ const Header: React.FC = () => {
                       My Reviews
                     </button>
 
-                    <button className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors">
+                    <button
+                      onClick={() => {
+                        navigate("/following");
+                        setShowProfileMenu(false);
+                      }}
+                      className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
+                    >
                       <Heart className="h-4 w-4" />
                       Following
                     </button>
 
                     <div className="border-t border-gray-100 my-2"></div>
 
-                    <button className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors">
+                    <button
+                      onClick={() => {
+                        navigate("/settings");
+                        setShowProfileMenu(false);
+                      }}
+                      className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
+                    >
                       <Settings className="h-4 w-4" />
                       Settings
                     </button>
 
-                    <button className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                    <button
+                      onClick={() => {
+                        logout();
+                        setShowProfileMenu(false);
+                        navigate('/login');
+                      }}
+                      className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    >
                       <LogOut className="h-4 w-4" />
                       Sign Out
                     </button>
                   </div>
                 </div>
+              )}
+                </>
+              ) : (
+                <button
+                  onClick={() => navigate('/login')}
+                  className="px-4 py-2 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-medium rounded-lg transition-all"
+                >
+                  Sign In
+                </button>
               )}
             </div>
           </div>
