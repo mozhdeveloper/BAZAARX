@@ -10,6 +10,7 @@ import {
   TextInput,
   StatusBar,
   Alert,
+  Share,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -28,8 +29,11 @@ import {
   User
 } from 'lucide-react-native';
 import { ProductCard } from '../src/components/ProductCard';
+import CameraSearchModal from '../src/components/CameraSearchModal';
 import { useCartStore } from '../src/stores/cartStore';
+import { useWishlistStore } from '../src/stores/wishlistStore';
 import { trendingProducts } from '../src/data/products';
+import { officialStores } from '../src/data/stores';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import type { Product } from '../src/types';
@@ -70,10 +74,14 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   const BRAND_COLOR = '#FF5722';
   const { product } = route.params;
   const [activeTab, setActiveTab] = useState<'details' | 'support' | 'ratings'>('details');
+  const [showCameraSearch, setShowCameraSearch] = useState(false);
   const [quantity, setQuantity] = useState(1);
-  const [isFavorite, setIsFavorite] = useState(false);
+
   const addItem = useCartStore((state) => state.addItem);
   const setQuickOrder = useCartStore((state) => state.setQuickOrder);
+
+  const { addItem: addToWishlist, removeItem: removeFromWishlist, isInWishlist } = useWishlistStore();
+  const isFavorite = isInWishlist(product.id);
 
   const relatedProducts = trendingProducts.filter((p) => p.id !== product.id).slice(0, 4);
 
@@ -83,9 +91,43 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   };
 
   const handleBuyNow = () => {
-    // Set as quick order and navigate to checkout
     setQuickOrder(product, quantity);
     navigation.navigate('Checkout');
+  };
+
+  const handleShare = async () => {
+    try {
+      await Share.share({
+        message: `Check out ${product.name} on BazaarX! ₱${product.price}`,
+        title: product.name,
+      });
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const handleVisitStore = () => {
+    const store = officialStores.find(s => s.name === product.seller);
+    if (store) {
+      navigation.navigate('StoreDetail', { store });
+    } else {
+      // Fallback for demo if seller name doesn't match official store exactly
+      // In a real app, product would have a storeId
+      const fallbackStore = {
+        id: '999',
+        name: product.seller,
+        logo: product.seller[0],
+        banner: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8',
+        verified: product.sellerVerified || false,
+        rating: 4.5,
+        followers: 1000,
+        description: `Welcome to ${product.seller}'s official store on BazaarX!`,
+        location: 'Philippines',
+        products: [],
+        categories: ['General']
+      };
+      navigation.navigate('StoreDetail', { store: fallbackStore });
+    }
   };
 
   const renderStars = (rating: number) => {
@@ -117,7 +159,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
               placeholder="Search products..."
               placeholderTextColor="#9CA3AF"
             />
-            <Pressable>
+            <Pressable onPress={() => setShowCameraSearch(true)}>
               <Camera size={18} color={BRAND_COLOR} />
             </Pressable>
           </View>
@@ -140,8 +182,13 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
         <View style={styles.imageContainer}>
           <Image source={{ uri: product.image }} style={styles.productImage} resizeMode="cover" />
           <View style={styles.floatingIcons}>
-            <Pressable style={styles.floatingIconButton}><Share2 size={20} color={BRAND_COLOR} /></Pressable>
-            <Pressable style={styles.floatingIconButton} onPress={() => setIsFavorite(!isFavorite)}>
+            <Pressable style={styles.floatingIconButton} onPress={handleShare}>
+              <Share2 size={20} color={BRAND_COLOR} />
+            </Pressable>
+            <Pressable
+              style={styles.floatingIconButton}
+              onPress={() => isFavorite ? removeFromWishlist(product.id) : addToWishlist(product)}
+            >
               <Heart size={20} color={BRAND_COLOR} fill={isFavorite ? BRAND_COLOR : "none"} strokeWidth={2.5} />
             </Pressable>
           </View>
@@ -197,7 +244,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                 </View>
                 <Text style={styles.sellerSubtitle}>Official Store</Text>
               </View>
-              <Pressable style={[styles.viewStoreBtn, { borderColor: BRAND_COLOR }]}>
+              <Pressable style={[styles.viewStoreBtn, { borderColor: BRAND_COLOR }]} onPress={handleVisitStore}>
                 <Text style={{ color: BRAND_COLOR, fontWeight: '700', fontSize: 13 }}>Visit Store</Text>
               </Pressable>
             </View>
@@ -252,7 +299,16 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
           <Text style={styles.buyNowText}>Buy Now</Text>
         </Pressable>
       </View>
-    </View>
+
+      <CameraSearchModal
+        visible={showCameraSearch}
+        onClose={() => setShowCameraSearch(false)}
+        onProductSelect={(product) => {
+          setShowCameraSearch(false);
+          navigation.push('ProductDetail', { product });
+        }}
+      />
+    </View >
   );
 }
 

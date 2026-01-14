@@ -204,7 +204,14 @@ export default function ShopScreen({ navigation, route }: Props) {
         <View style={{ height: 100 }} />
       </ScrollView>
 
-      <CameraSearchModal visible={showCameraSearch} onClose={() => setShowCameraSearch(false)} />
+      <CameraSearchModal
+        visible={showCameraSearch}
+        onClose={() => setShowCameraSearch(false)}
+        onProductSelect={(product) => {
+          setShowCameraSearch(false);
+          navigation.navigate('ProductDetail', { product });
+        }}
+      />
 
       <Modal visible={showFiltersModal} animationType="slide" transparent={true}>
         <View style={styles.modalOverlay}>
