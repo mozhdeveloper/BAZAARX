@@ -54,6 +54,7 @@ export default function SellerDashboardScreen() {
     }
   };
 
+  const maxVal = Math.max(...chartData.map(d => d.value));
   return (
     <View style={styles.container}>
       {/* Seller Drawer */}
@@ -135,14 +136,18 @@ export default function SellerDashboardScreen() {
             <LineChart
               data={chartData}
               height={180}
-              width={width - 64}
+              width={width - 100}
+              maxValue={maxVal * 1.1}
+              adjustToWidth={true} 
+              scrollToEnd={false}
               color="#FF5722"
               thickness={3}
               startFillColor="rgba(255, 87, 34, 0.3)"
               endFillColor="rgba(255, 87, 34, 0.05)"
               startOpacity={0.9}
               endOpacity={0.2}
-              initialSpacing={0}
+              initialSpacing={15}
+              endSpacing={5}
               spacing={45}
               noOfSections={4}
               yAxisColor="#E5E7EB"
@@ -174,26 +179,34 @@ export default function SellerDashboardScreen() {
           {recentOrders.map((order) => (
             <View key={order.id} style={styles.orderCard}>
               <View style={styles.orderHeader}>
-                <View>
-                  <Text style={styles.orderId}>{order.orderId}</Text>
-                  <Text style={styles.customerName}>{order.customerName}</Text>
-                </View>
-                <View
-                  style={[
-                    styles.statusBadge,
-                    { backgroundColor: getStatusBgColor(order.status) },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.statusText,
-                      { color: getStatusColor(order.status) },
-                    ]}
-                  >
-                    {order.status.replace('-', ' ').toUpperCase()}
-                  </Text>
-                </View>
-              </View>
+  {/* The container for ID/Name must have flex: 1 and flexShrink: 1 */}
+  <View style={styles.orderTextContainer}> 
+    <Text style={styles.orderId} numberOfLines={1} ellipsizeMode="tail">
+      {order.orderId}
+    </Text>
+    <Text style={styles.customerName} numberOfLines={1} ellipsizeMode="tail">
+      {order.customerName}
+    </Text>
+  </View>
+
+  {/* The Badge needs flexShrink: 0 so it never gets squashed */}
+  <View
+    style={[
+      styles.statusBadge,
+      { backgroundColor: getStatusBgColor(order.status) },
+    ]}
+  >
+    <Text
+      style={[
+        styles.statusText,
+        { color: getStatusColor(order.status) },
+      ]}
+      numberOfLines={1}
+    >
+      {order.status.replace('-', ' ').toUpperCase()}
+    </Text>
+  </View>
+</View>
               <View style={styles.orderFooter}>
                 <Text style={styles.orderItems}>
                   {order.items.length} item{order.items.length > 1 ? 's' : ''}
@@ -348,7 +361,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 5,
   },
   viewAllText: {
     fontSize: 14,
@@ -369,8 +382,14 @@ const styles = StyleSheet.create({
   orderHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center', 
     marginBottom: 12,
+    width: '100%', 
+  },
+  orderTextContainer: {
+    flex: 1, 
+    flexShrink: 1, 
+    marginRight: 12,
   },
   orderId: {
     fontSize: 14,
@@ -386,6 +405,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 100,
+    flexShrink: 0,  
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   statusText: {
     fontSize: 11,

@@ -152,6 +152,7 @@ interface BuyerStore {
   profile: BuyerProfile | null;
   setProfile: (profile: BuyerProfile) => void;
   updateProfile: (updates: Partial<BuyerProfile>) => void;
+  logout: () => void;
 
   // Address Book
   addresses: Address[];
@@ -178,6 +179,12 @@ interface BuyerStore {
   getCartItemCount: () => number;
   getTotalCartItems: () => number;
   groupCartBySeller: () => void;
+
+  // Quick Order (Buy Now)
+  quickOrder: CartItem | null;
+  setQuickOrder: (product: Product, quantity?: number, variant?: ProductVariant) => void;
+  clearQuickOrder: () => void;
+  getQuickOrderTotal: () => number;
 
   // Voucher System
   availableVouchers: Voucher[];
@@ -242,6 +249,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
     updateProfile: (updates) => set((state) => ({
       profile: state.profile ? { ...state.profile, ...updates } : null
     })),
+    logout: () => set({ profile: null, cartItems: [], groupedCart: {}, appliedVouchers: {}, platformVoucher: null }),
 
     // Address Book
     addresses: [
@@ -308,6 +316,27 @@ export const useBuyerStore = create<BuyerStore>()(persist(
     // Enhanced Cart
     cartItems: [],
     groupedCart: {},
+
+    // Quick Order (Buy Now)
+    quickOrder: null,
+
+    setQuickOrder: (product, quantity = 1, variant) => {
+      set({
+        quickOrder: {
+          ...product,
+          quantity,
+          selectedVariant: variant
+        }
+      });
+    },
+
+    clearQuickOrder: () => set({ quickOrder: null }),
+
+    getQuickOrderTotal: () => {
+      const { quickOrder } = get();
+      if (!quickOrder) return 0;
+      return quickOrder.price * quickOrder.quantity;
+    },
 
     addToCart: (product, quantity = 1, variant) => {
       set((state) => {

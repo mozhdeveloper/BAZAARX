@@ -19,6 +19,9 @@ import {
   ShoppingBag,
   DollarSign,
   AlertCircle,
+  CheckCircle,
+  UserCheck,
+  Package,
 } from 'lucide-react-native';
 import { useAdminStats, useAdminSellers, useAdminProductQA } from '../../../src/stores/adminStore';
 import AdminDrawer from '../../../src/components/AdminDrawer';
@@ -30,6 +33,61 @@ export default function AdminDashboardScreen() {
   const { pendingSellers } = useAdminSellers();
   const { pendingDigitalReview, inQualityReview, loadProducts } = useAdminProductQA();
   const insets = useSafeAreaInsets();
+
+  const notifications = [
+    {
+      id: '1',
+      type: 'seller',
+      title: 'New Seller Application',
+      message: 'TechStore submitted a seller application for review.',
+      time: '2h ago',
+      icon: <UserCheck size={24} color="#3B82F6" />,
+      iconBg: '#DBEAFE',
+      unread: true,
+    },
+    {
+      id: '2',
+      type: 'product',
+      title: 'Product Pending Review',
+      message: 'Wireless Bluetooth Headphones needs digital review approval.',
+      time: '5h ago',
+      icon: <Package size={24} color="#F59E0B" />,
+      iconBg: '#FEF3C7',
+      unread: true,
+    },
+    {
+      id: '3',
+      type: 'qa',
+      title: 'QA Review Required',
+      message: 'Organic Cotton T-Shirt is in physical QA queue.',
+      time: '1d ago',
+      icon: <CheckCircle size={24} color="#10B981" />,
+      iconBg: '#D1FAE5',
+      unread: false,
+    },
+    {
+      id: '4',
+      type: 'seller',
+      title: 'Seller Approved',
+      message: 'Electronics Hub has been approved as a seller.',
+      time: '2d ago',
+      icon: <UserCheck size={24} color="#3B82F6" />,
+      iconBg: '#DBEAFE',
+      unread: false,
+    },
+    {
+      id: '5',
+      type: 'product',
+      title: 'Product Approved',
+      message: 'Smart Watch Pro has been approved and is now live.',
+      time: '3d ago',
+      icon: <CheckCircle size={24} color="#10B981" />,
+      iconBg: '#D1FAE5',
+      unread: false,
+    },
+  ];
+
+  const unreadCount = notifications.filter(n => n.unread).length;
 
   // Reload dashboard every time screen comes into focus (e.g., when switching accounts)
   useFocusEffect(

@@ -51,6 +51,8 @@ export interface SellerProduct {
   stock: number;
   category: string;
   images: string[];
+  sizes?: string[];
+  colors?: string[];
   isActive: boolean;
   sellerId: string;
   createdAt: string;
@@ -154,6 +156,7 @@ interface ProductStore {
   inventoryLedger: InventoryLedgerEntry[];
   lowStockAlerts: LowStockAlert[];
   addProduct: (product: Omit<SellerProduct, 'id' | 'createdAt' | 'updatedAt' | 'sales' | 'rating' | 'reviews'>) => void;
+  bulkAddProducts: (products: Array<{ name: string; description: string; price: number; originalPrice?: number; stock: number; category: string; imageUrl: string }>) => void;
   updateProduct: (id: string, updates: Partial<SellerProduct>) => void;
   deleteProduct: (id: string) => void;
   getProduct: (id: string) => SellerProduct | undefined;
@@ -490,7 +493,9 @@ export const useProductStore = create<ProductStore>()(
             rating: 0,
             reviews: 0,
             approvalStatus: 'pending',
-            vendorSubmittedCategory: product.category
+            vendorSubmittedCategory: product.category,
+            sizes: product.sizes || [],
+            colors: product.colors || []
           };
           
           set((state) => ({ products: [...state.products, newProduct] }));
@@ -535,6 +540,91 @@ export const useProductStore = create<ProductStore>()(
           }
         } catch (error) {
           console.error('Error adding product:', error);
+          throw error;
+        }
+      },
+
+      bulkAddProducts: (bulkProducts) => {
+        try {
+          const authStore = useAuthStore.getState();
+          const qaStore = useProductQAStore.getState();
+          const newProducts: SellerProduct[] = [];
+          const newLedgerEntries: InventoryLedgerEntry[] = [];
+
+          bulkProducts.forEach((productData) => {
+            const timestamp = Date.now();
+            const randomId = Math.random().toString(36).substr(2, 9);
+            const productId = `prod-${timestamp}-${randomId}`;
+
+            const newProduct: SellerProduct = {
+              id: productId,
+              name: productData.name,
+              description: productData.description,
+              price: productData.price,
+              originalPrice: productData.originalPrice,
+              stock: productData.stock,
+              category: productData.category,
+              images: [productData.imageUrl],
+              sizes: [],
+              colors: [],
+              isActive: true,
+              sellerId: authStore.seller?.id || 'seller-1',
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+              sales: 0,
+              rating: 0,
+              reviews: 0,
+              approvalStatus: 'pending',
+              vendorSubmittedCategory: productData.category,
+            };
+
+            newProducts.push(newProduct);
+
+            // Create ledger entry for initial stock
+            const ledgerEntry: InventoryLedgerEntry = {
+              id: `ledger-${timestamp}-${randomId}`,
+              timestamp: new Date().toISOString(),
+              productId: newProduct.id,
+              productName: newProduct.name,
+              changeType: 'ADDITION',
+              quantityBefore: 0,
+              quantityChange: productData.stock,
+              quantityAfter: productData.stock,
+              reason: 'STOCK_REPLENISHMENT',
+              referenceId: newProduct.id,
+              userId: authStore.seller?.id || 'SYSTEM',
+              notes: 'Initial stock from bulk upload',
+            };
+
+            newLedgerEntries.push(ledgerEntry);
+
+            // Add to QA flow store
+            try {
+              qaStore.addProductToQA({
+                id: newProduct.id,
+                name: newProduct.name,
+                description: newProduct.description,
+                vendor: authStore.seller?.name || 'Unknown Vendor',
+                price: newProduct.price,
+                originalPrice: newProduct.originalPrice,
+                category: newProduct.category,
+                image: newProduct.images[0],
+              });
+            } catch (qaError) {
+              console.error('Error adding product to QA flow:', qaError);
+            }
+          });
+
+          // Add all products and ledger entries at once
+          set((state) => ({
+            products: [...state.products, ...newProducts],
+            inventoryLedger: [...state.inventoryLedger, ...newLedgerEntries],
+          }));
+
+          // Check for low stock on new products
+          get().checkLowStock();
+        } catch (error) {
+          console.error('Error bulk adding products:', error);
           throw error;
         }
       },

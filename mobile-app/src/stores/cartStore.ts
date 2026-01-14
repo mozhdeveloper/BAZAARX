@@ -11,12 +11,19 @@ interface CartStore {
   clearCart: () => void;
   getTotal: () => number;
   getItemCount: () => number;
+
+  // Quick Order (Buy Now)
+  quickOrder: CartItem | null;
+  setQuickOrder: (product: Product, quantity?: number) => void;
+  clearQuickOrder: () => void;
+  getQuickOrderTotal: () => number;
 }
 
 export const useCartStore = create<CartStore>()(
   persist(
     (set, get) => ({
       items: [],
+      quickOrder: null,
 
       addItem: (product) => {
         const items = get().items;
@@ -65,6 +72,26 @@ export const useCartStore = create<CartStore>()(
 
       getItemCount: () => {
         return get().items.reduce((count, item) => count + item.quantity, 0);
+      },
+
+      // Quick Order (Buy Now) implementation
+      setQuickOrder: (product, quantity = 1) => {
+        set({
+          quickOrder: {
+            ...product,
+            quantity,
+          },
+        });
+      },
+
+      clearQuickOrder: () => {
+        set({ quickOrder: null });
+      },
+
+      getQuickOrderTotal: () => {
+        const { quickOrder } = get();
+        if (!quickOrder) return 0;
+        return quickOrder.price * quickOrder.quantity;
       },
     }),
     {

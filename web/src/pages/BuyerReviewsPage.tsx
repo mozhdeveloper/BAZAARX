@@ -1,0 +1,362 @@
+import { useState } from 'react';
+import { motion } from 'framer-motion';
+import Header from '../components/Header';
+import { BazaarFooter } from '../components/ui/bazaar-footer';
+import { Card, CardContent } from '../components/ui/card';
+import { Button } from '../components/ui/button';
+import { Badge } from '../components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+import { 
+  Star, 
+  Package, 
+  ThumbsUp,
+  MessageSquare,
+  Edit2,
+  Trash2,
+  Image as ImageIcon,
+  Filter
+} from 'lucide-react';
+
+// Mock reviews data
+const mockReviews = [
+  {
+    id: '1',
+    productId: 'p1',
+    productName: 'Premium Wireless Earbuds',
+    productImage: 'https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=200',
+    orderId: 'ORD-2024-001',
+    rating: 5,
+    comment: 'Excellent product! The sound quality is amazing and the battery life is outstanding. Highly recommend!',
+    images: ['https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=400'],
+    date: new Date('2024-01-05'),
+    sellerReply: 'Thank you for your positive feedback! We\'re glad you love the product.',
+    helpful: 12,
+    status: 'published'
+  },
+  {
+    id: '2',
+    productId: 'p2',
+    productName: 'Sustainable Water Bottle',
+    productImage: 'https://images.unsplash.com/photo-1602143407151-7111542de6e8?w=200',
+    orderId: 'ORD-2024-002',
+    rating: 4,
+    comment: 'Good quality bottle, keeps water cold for hours. Only issue is the cap is a bit tight.',
+    images: [],
+    date: new Date('2024-01-03'),
+    sellerReply: null,
+    helpful: 8,
+    status: 'published'
+  },
+  {
+    id: '3',
+    productId: 'p3',
+    productName: 'Leather Laptop Bag',
+    productImage: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=200',
+    orderId: 'ORD-2023-152',
+    rating: 5,
+    comment: 'Beautiful craftsmanship! The leather quality is top-notch and the design is very professional.',
+    images: ['https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=400'],
+    date: new Date('2023-12-28'),
+    sellerReply: 'We appreciate your kind words! Thank you for supporting local craftsmanship.',
+    helpful: 15,
+    status: 'published'
+  },
+  {
+    id: '4',
+    productId: 'p4',
+    productName: 'Organic Coffee Beans',
+    productImage: 'https://images.unsplash.com/photo-1559056199-641a0ac8b55e?w=200',
+    orderId: 'ORD-2023-145',
+    rating: 3,
+    comment: 'Decent coffee but a bit too strong for my taste. Packaging was good.',
+    images: [],
+    date: new Date('2023-12-20'),
+    sellerReply: null,
+    helpful: 3,
+    status: 'published'
+  }
+];
+
+export default function BuyerReviewsPage() {
+  const [activeTab, setActiveTab] = useState('all');
+  const [selectedRating, setSelectedRating] = useState<number | null>(null);
+
+  const filteredReviews = mockReviews.filter(review => {
+    if (selectedRating && review.rating !== selectedRating) return false;
+    if (activeTab === 'pending') return review.status === 'pending';
+    if (activeTab === 'published') return review.status === 'published';
+    return true;
+  });
+
+  const renderStars = (rating: number) => {
+    return (
+      <div className="flex gap-1">
+        {[1, 2, 3, 4, 5].map((star) => (
+          <Star
+            key={star}
+            className={`h-4 w-4 ${
+              star <= rating
+                ? 'fill-orange-400 text-orange-400'
+                : 'text-gray-300'
+            }`}
+          />
+        ))}
+      </div>
+    );
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <Header />
+
+      <div className="max-w-7xl mx-auto px-4 py-8">
+        {/* Page Header */}
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-8"
+        >
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">My Reviews</h1>
+          <p className="text-gray-600">Manage and view all your product reviews</p>
+        </motion.div>
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+          >
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-500 mb-1">Total Reviews</p>
+                    <p className="text-2xl font-bold text-gray-900">{mockReviews.length}</p>
+                  </div>
+                  <MessageSquare className="h-8 w-8 text-orange-500" />
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+          >
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-500 mb-1">Average Rating</p>
+                    <p className="text-2xl font-bold text-gray-900">
+                      {(mockReviews.reduce((acc, r) => acc + r.rating, 0) / mockReviews.length).toFixed(1)}
+                    </p>
+                  </div>
+                  <Star className="h-8 w-8 text-orange-500 fill-orange-500" />
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+          >
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-500 mb-1">Helpful Votes</p>
+                    <p className="text-2xl font-bold text-gray-900">
+                      {mockReviews.reduce((acc, r) => acc + r.helpful, 0)}
+                    </p>
+                  </div>
+                  <ThumbsUp className="h-8 w-8 text-orange-500" />
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+          >
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-500 mb-1">With Photos</p>
+                    <p className="text-2xl font-bold text-gray-900">
+                      {mockReviews.filter(r => r.images.length > 0).length}
+                    </p>
+                  </div>
+                  <ImageIcon className="h-8 w-8 text-orange-500" />
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        </div>
+
+        {/* Filters */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.5 }}
+          className="mb-6"
+        >
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between flex-wrap gap-4">
+                <div className="flex items-center gap-2">
+                  <Filter className="h-4 w-4 text-gray-500" />
+                  <span className="text-sm font-medium text-gray-700">Filter by Rating:</span>
+                  <div className="flex gap-2">
+                    <Button
+                      variant={selectedRating === null ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setSelectedRating(null)}
+                      className={selectedRating === null ? "bg-orange-500 hover:bg-orange-600" : ""}
+                    >
+                      All
+                    </Button>
+                    {[5, 4, 3, 2, 1].map(rating => (
+                      <Button
+                        key={rating}
+                        variant={selectedRating === rating ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setSelectedRating(rating)}
+                        className={selectedRating === rating ? "bg-orange-500 hover:bg-orange-600" : ""}
+                      >
+                        {rating} ⭐
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* Reviews Tabs */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+          <TabsList className="grid w-full grid-cols-2 max-w-md">
+            <TabsTrigger value="all">All Reviews</TabsTrigger>
+            <TabsTrigger value="published">Published</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value={activeTab}>
+            <div className="space-y-4">
+              {filteredReviews.length === 0 ? (
+                <Card>
+                  <CardContent className="p-12 text-center">
+                    <MessageSquare className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                    <p className="text-gray-500 text-lg">No reviews found</p>
+                    <p className="text-gray-400 text-sm">Start reviewing products you've purchased!</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                filteredReviews.map((review, index) => (
+                  <motion.div
+                    key={review.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                  >
+                    <Card className="hover:shadow-md transition-shadow">
+                      <CardContent className="p-6">
+                        <div className="flex gap-4">
+                          {/* Product Image */}
+                          <img
+                            src={review.productImage}
+                            alt={review.productName}
+                            className="w-20 h-20 object-cover rounded-lg flex-shrink-0"
+                          />
+
+                          {/* Review Content */}
+                          <div className="flex-1">
+                            <div className="flex items-start justify-between mb-2">
+                              <div>
+                                <h3 className="font-semibold text-gray-900 mb-1">
+                                  {review.productName}
+                                </h3>
+                                <div className="flex items-center gap-3 mb-2">
+                                  {renderStars(review.rating)}
+                                  <span className="text-sm text-gray-500">
+                                    {review.date.toLocaleDateString()}
+                                  </span>
+                                  <Badge variant="outline" className="text-xs">
+                                    <Package className="h-3 w-3 mr-1" />
+                                    {review.orderId}
+                                  </Badge>
+                                </div>
+                              </div>
+                              <div className="flex gap-2">
+                                <Button variant="ghost" size="sm">
+                                  <Edit2 className="h-4 w-4" />
+                                </Button>
+                                <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-600">
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+
+                            <p className="text-gray-700 mb-3">{review.comment}</p>
+
+                            {/* Review Images */}
+                            {review.images.length > 0 && (
+                              <div className="flex gap-2 mb-3">
+                                {review.images.map((img, idx) => (
+                                  <img
+                                    key={idx}
+                                    src={img}
+                                    alt={`Review ${idx + 1}`}
+                                    className="w-24 h-24 object-cover rounded-lg cursor-pointer hover:opacity-75 transition-opacity"
+                                  />
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Seller Reply */}
+                            {review.sellerReply && (
+                              <div className="bg-orange-50 rounded-lg p-4 mt-3 border-l-4 border-orange-500">
+                                <p className="text-sm font-medium text-gray-900 mb-1">Seller's Response:</p>
+                                <p className="text-sm text-gray-700">{review.sellerReply}</p>
+                              </div>
+                            )}
+
+                            {/* Footer */}
+                            <div className="flex items-center gap-4 mt-3 pt-3 border-t border-gray-100">
+                              <button className="flex items-center gap-1 text-sm text-gray-500 hover:text-orange-500">
+                                <ThumbsUp className="h-4 w-4" />
+                                <span>{review.helpful} found this helpful</span>
+                              </button>
+                              <Badge 
+                                className={
+                                  review.status === 'published' 
+                                    ? 'bg-green-100 text-green-700' 
+                                    : 'bg-yellow-100 text-yellow-700'
+                                }
+                              >
+                                {review.status === 'published' ? 'Published' : 'Pending'}
+                              </Badge>
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                ))
+              )}
+            </div>
+          </TabsContent>
+        </Tabs>
+      </div>
+
+      <BazaarFooter />
+    </div>
+  );
+}

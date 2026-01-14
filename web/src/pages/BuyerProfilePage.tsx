@@ -180,7 +180,7 @@ export default function BuyerProfilePage() {
                       </div>
                       <div className="flex items-center gap-3">
                         <Calendar className="h-4 w-4 text-gray-400" />
-                        <span>Member since {profile.memberSince.toLocaleDateString()}</span>
+                        <span>Member since {new Date(profile.memberSince).toLocaleDateString()}</span>
                       </div>
                     </>
                   )}

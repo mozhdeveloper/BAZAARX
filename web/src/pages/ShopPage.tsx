@@ -126,7 +126,7 @@ const sortOptions = [
 
 export default function ShopPage() {
   const navigate = useNavigate();
-  const { addToCart, cartItems } = useBuyerStore();
+  const { addToCart, setQuickOrder, cartItems } = useBuyerStore();
   const { products: sellerProducts } = useProductStore();
   const { products: qaProducts } = useProductQAStore();
 
@@ -637,7 +637,7 @@ export default function ShopPage() {
                   </div>
 
                   <div className="p-4 flex-1 flex flex-col">
-                    <h3 className="font-semibold text-gray-900 group-hover:text-[#FF5722] transition-colors duration-200 line-clamp-2">
+                    <h3 className="font-semibold text-gray-900 group-hover:text-[#FF5722] transition-colors duration-200 line-clamp-2 h-12">
                       {product.name}
                     </h3>
 
@@ -732,7 +732,7 @@ export default function ShopPage() {
                       <Button
                         onClick={(e) => {
                           e.stopPropagation();
-                          // Add to cart first
+                          // Create quick order item
                           const cartItem = {
                             ...product,
                             images: [product.image],
@@ -759,7 +759,7 @@ export default function ShopPage() {
                             variants: [],
                           };
 
-                          addToCart(cartItem, 1);
+                          setQuickOrder(cartItem, 1);
                           // Navigate to checkout
                           navigate("/checkout");
                         }}
