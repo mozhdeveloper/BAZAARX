@@ -1,10 +1,11 @@
-import React from 'react';
-import { View, Text, StyleSheet, Image, ScrollView, Pressable, StatusBar, Dimensions } from 'react-native';
+import { ArrowLeft, Search, MoreHorizontal, CheckCircle2, Star, MapPin, Grid, Heart, MessageCircle, UserPlus, Check, X, Share2, Flag, Info } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, Search, MoreHorizontal, CheckCircle2, Star, MapPin, Grid, Heart } from 'lucide-react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { ProductCard } from '../src/components/ProductCard';
 import { trendingProducts } from '../src/data/products'; // Placeholder products
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, Image, ScrollView, Pressable, StatusBar, Dimensions, Alert, LayoutAnimation, Platform, UIManager, Modal, TextInput } from 'react-native';
+import StoreChatModal from '../src/components/StoreChatModal';
 
 const { width } = Dimensions.get('window');
 
@@ -15,26 +16,195 @@ export default function StoreDetailScreen() {
     const { store } = route.params;
     const BRAND_COLOR = '#FF5722';
 
+    // State
+    const [isFollowing, setIsFollowing] = useState(false);
+    const [activeTab, setActiveTab] = useState('Shop');
+    const [searchVisible, setSearchVisible] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [menuVisible, setMenuVisible] = useState(false);
+    const [chatVisible, setChatVisible] = useState(false);
+
+    const [vouchers, setVouchers] = useState([
+        { id: '1', amount: '₱50 OFF', min: 'Min. Spend ₱500', claimed: false },
+        { id: '2', amount: '10% OFF', min: 'Min. Spend ₱1k', claimed: false },
+        { id: '3', amount: 'Free Shipping', min: 'Min. Spend ₱300', claimed: false },
+    ]);
+
     // Filter products for this store (simulated)
-    const storeProducts = trendingProducts;
+    const storeProducts = trendingProducts.filter(p =>
+        p.name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    if (Platform.OS === 'android') {
+        if (UIManager.setLayoutAnimationEnabledExperimental) {
+            UIManager.setLayoutAnimationEnabledExperimental(true);
+        }
+    }
+
+    const handleFollow = () => {
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+        setIsFollowing(!isFollowing);
+    };
+
+    const handleChat = () => {
+        setChatVisible(true);
+    };
+
+    const handleClaimVoucher = (id: string) => {
+        setVouchers(prev => prev.map(v => v.id === id ? { ...v, claimed: true } : v));
+        Alert.alert('Success', 'Voucher claimed! It will be applied at checkout.');
+    };
+
+    const renderTabContent = () => {
+        switch (activeTab) {
+            case 'Shop':
+                return (
+                    <>
+                        {/* Featured / Coupon Section */}
+                        <View style={styles.couponSection}>
+                            <Text style={styles.sectionTitle}>Vouchers from {store.name}</Text>
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingLeft: 16, paddingRight: 16 }}>
+                                {vouchers.map((voucher) => (
+                                    <View key={voucher.id} style={[styles.couponCard, voucher.claimed && styles.couponCardClaimed]}>
+                                        <View style={styles.couponLeft}>
+                                            <Text style={[styles.couponAmount, voucher.claimed && { color: '#9CA3AF' }]}>{voucher.amount}</Text>
+                                            <Text style={styles.couponMin}>{voucher.min}</Text>
+                                        </View>
+                                        <Pressable
+                                            style={[styles.claimButton, voucher.claimed && { backgroundColor: '#F3F4F6' }]}
+                                            onPress={() => !voucher.claimed && handleClaimVoucher(voucher.id)}
+                                            disabled={voucher.claimed}
+                                        >
+                                            <Text style={[styles.claimText, voucher.claimed && { color: '#9CA3AF' }]}>
+                                                {voucher.claimed ? 'Claimed' : 'Claim'}
+                                            </Text>
+                                        </Pressable>
+                                    </View>
+                                ))}
+                            </ScrollView>
+                        </View>
+
+                        {/* Products Grid */}
+                        <View style={styles.productsContainer}>
+                            <View style={styles.sectionHeader}>
+                                <Text style={styles.sectionTitle}>Featured Products</Text>
+                                <Text style={styles.seeAllText}>See All</Text>
+                            </View>
+                            <View style={styles.grid}>
+                                {storeProducts.slice(0, 4).map((p) => (
+                                    <View key={p.id} style={styles.productWrapper}>
+                                        <ProductCard product={p} onPress={() => navigation.navigate('ProductDetail', { product: p })} />
+                                    </View>
+                                ))}
+                            </View>
+                        </View>
+                    </>
+                );
+            case 'Products':
+                return (
+                    <View style={styles.productsContainer}>
+                        <Text style={styles.sectionTitle}>All Products ({storeProducts.length})</Text>
+                        <View style={styles.grid}>
+                            {storeProducts.map((p) => (
+                                <View key={p.id} style={styles.productWrapper}>
+                                    <ProductCard product={p} onPress={() => navigation.navigate('ProductDetail', { product: p })} />
+                                </View>
+                            ))}
+                        </View>
+                    </View>
+                );
+            case 'Categories':
+                return (
+                    <View style={styles.sectionContainer}>
+                        <Text style={styles.sectionTitle}>Store Categories</Text>
+                        <View style={styles.categoriesList}>
+                            {store.categories.map((cat: string, index: number) => (
+                                <Pressable key={index} style={styles.categoryRow}>
+                                    <Text style={styles.categoryName}>{cat}</Text>
+                                    <Grid size={20} color="#9CA3AF" />
+                                </Pressable>
+                            ))}
+                            {['Sale', 'New Arrivals', 'Bundles'].map((cat, index) => (
+                                <Pressable key={`extra-${index}`} style={styles.categoryRow}>
+                                    <Text style={styles.categoryName}>{cat}</Text>
+                                    <Grid size={20} color="#9CA3AF" />
+                                </Pressable>
+                            ))}
+                        </View>
+                    </View>
+                );
+            case 'About':
+                return (
+                    <View style={styles.sectionContainer}>
+                        <Text style={styles.sectionTitle}>About {store.name}</Text>
+                        <View style={styles.aboutCard}>
+                            <Text style={styles.aboutDescription}>{store.description}</Text>
+
+                            <View style={styles.divider} />
+
+                            <View style={styles.infoRow}>
+                                <MapPin size={18} color="#6B7280" />
+                                <Text style={styles.infoText}>{store.location}</Text>
+                            </View>
+                            <View style={styles.infoRow}>
+                                <Star size={18} color="#F59E0B" fill="#F59E0B" />
+                                <Text style={styles.infoText}>{store.rating} ({store.followers} Rating Count)</Text>
+                            </View>
+                            <View style={styles.infoRow}>
+                                <CheckCircle2 size={18} color={BRAND_COLOR} />
+                                <Text style={styles.infoText}>Verified Official Store</Text>
+                            </View>
+                            <View style={styles.infoRow}>
+                                <Text style={styles.infoLabel}>Joined:</Text>
+                                <Text style={styles.infoText}>January 2023</Text>
+                            </View>
+                        </View>
+                    </View>
+                );
+            default:
+                return null;
+        }
+    };
 
     return (
         <View style={styles.container}>
             <StatusBar barStyle="light-content" />
 
             {/* Custom Header */}
-            <View style={[styles.header, { paddingTop: insets.top }]}>
-                <Pressable onPress={() => navigation.goBack()} style={styles.iconButton}>
-                    <ArrowLeft size={24} color="#FFF" />
-                </Pressable>
-                <View style={styles.headerRight}>
-                    <Pressable style={styles.iconButton}>
-                        <Search size={24} color="#FFF" />
-                    </Pressable>
-                    <Pressable style={styles.iconButton}>
-                        <MoreHorizontal size={24} color="#FFF" />
-                    </Pressable>
-                </View>
+            <View style={[styles.header, { paddingTop: insets.top }, searchVisible && { backgroundColor: BRAND_COLOR, paddingBottom: 12 }]}>
+                {searchVisible ? (
+                    <View style={styles.searchHeader}>
+                        <View style={styles.searchBar}>
+                            <Search size={18} color="#9CA3AF" />
+                            <TextInput
+                                style={styles.searchInput}
+                                placeholder={`Search in ${store.name}`}
+                                value={searchQuery}
+                                onChangeText={setSearchQuery}
+                                autoFocus
+                                placeholderTextColor="#9CA3AF"
+                            />
+                            {searchQuery.length > 0 && <Pressable onPress={() => setSearchQuery('')}><X size={18} color="#9CA3AF" /></Pressable>}
+                        </View>
+                        <Pressable onPress={() => { setSearchVisible(false); setSearchQuery(''); }} style={styles.cancelSearch}>
+                            <Text style={styles.cancelText}>Cancel</Text>
+                        </Pressable>
+                    </View>
+                ) : (
+                    <>
+                        <Pressable onPress={() => navigation.goBack()} style={styles.iconButton}>
+                            <ArrowLeft size={24} color="#FFF" />
+                        </Pressable>
+                        <View style={styles.headerRight}>
+                            <Pressable style={styles.iconButton} onPress={() => setSearchVisible(true)}>
+                                <Search size={24} color="#FFF" />
+                            </Pressable>
+                            <Pressable style={styles.iconButton} onPress={() => setMenuVisible(true)}>
+                                <MoreHorizontal size={24} color="#FFF" />
+                            </Pressable>
+                        </View>
+                    </>
+                )}
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false}>
@@ -66,10 +236,24 @@ export default function StoreDetailScreen() {
                         </View>
 
                         <View style={styles.actionButtons}>
-                            <Pressable style={styles.followButton}>
-                                <Text style={styles.followButtonText}>+ Follow</Text>
+                            <Pressable
+                                style={[styles.followButton, isFollowing && styles.followingButton]}
+                                onPress={handleFollow}
+                            >
+                                {isFollowing ? (
+                                    <>
+                                        <Check size={16} color="#FFF" style={{ marginRight: 4 }} />
+                                        <Text style={styles.followButtonText}>Following</Text>
+                                    </>
+                                ) : (
+                                    <>
+                                        <UserPlus size={16} color="#FFF" style={{ marginRight: 4 }} />
+                                        <Text style={styles.followButtonText}>Follow</Text>
+                                    </>
+                                )}
                             </Pressable>
-                            <Pressable style={styles.chatButton}>
+                            <Pressable style={styles.chatButton} onPress={handleChat}>
+                                <MessageCircle size={18} color="#FFF" style={{ marginRight: 6 }} />
                                 <Text style={styles.chatButtonText}>Chat</Text>
                             </Pressable>
                         </View>
@@ -79,48 +263,46 @@ export default function StoreDetailScreen() {
                 {/* Categories / Tabs simulation */}
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabsScroll} contentContainerStyle={styles.tabsContent}>
                     {['Shop', 'Products', 'Categories', 'About'].map((tab, i) => (
-                        <Pressable key={tab} style={[styles.tabItem, i === 0 && styles.activeTabItem]}>
-                            <Text style={[styles.tabText, i === 0 && styles.activeTabText]}>{tab}</Text>
-                            {i === 0 && <View style={styles.activeIndicator} />}
+                        <Pressable
+                            key={tab}
+                            style={[styles.tabItem, activeTab === tab && styles.activeTabItem]}
+                            onPress={() => setActiveTab(tab)}
+                        >
+                            <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>{tab}</Text>
+                            {activeTab === tab && <View style={styles.activeIndicator} />}
                         </Pressable>
                     ))}
                 </ScrollView>
 
-                {/* Featured / Coupon Section */}
-                <View style={styles.couponSection}>
-                    <Text style={styles.sectionTitle}>Vouchers</Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingLeft: 16 }}>
-                        <View style={styles.couponCard}>
-                            <View style={styles.couponLeft}>
-                                <Text style={styles.couponAmount}>₱50 OFF</Text>
-                                <Text style={styles.couponMin}>Min. Spend ₱500</Text>
-                            </View>
-                            <Pressable style={styles.claimButton}><Text style={styles.claimText}>Claim</Text></Pressable>
-                        </View>
-                        <View style={styles.couponCard}>
-                            <View style={styles.couponLeft}>
-                                <Text style={styles.couponAmount}>10% OFF</Text>
-                                <Text style={styles.couponMin}>Min. Spend ₱1k</Text>
-                            </View>
-                            <Pressable style={styles.claimButton}><Text style={styles.claimText}>Claim</Text></Pressable>
-                        </View>
-                    </ScrollView>
-                </View>
-
-                {/* Products Grid */}
-                <View style={styles.productsContainer}>
-                    <Text style={styles.sectionTitle}>All Products</Text>
-                    <View style={styles.grid}>
-                        {storeProducts.map((p) => (
-                            <View key={p.id} style={styles.productWrapper}>
-                                <ProductCard product={p} onPress={() => navigation.navigate('ProductDetail', { product: p })} />
-                            </View>
-                        ))}
-                    </View>
-                </View>
+                {/* Dynamic Content */}
+                {renderTabContent()}
 
                 <View style={{ height: 40 }} />
             </ScrollView>
+
+            {/* Store Chat Modal */}
+            <StoreChatModal visible={chatVisible} onClose={() => setChatVisible(false)} storeName={store.name} />
+
+            {/* Menu Modal */}
+            <Modal visible={menuVisible} transparent animationType="fade" onRequestClose={() => setMenuVisible(false)}>
+                <Pressable style={styles.menuOverlay} onPress={() => setMenuVisible(false)}>
+                    <View style={[styles.menuContainer, { top: insets.top + 60 }]}>
+                        <Pressable style={styles.menuItem} onPress={() => { setMenuVisible(false); Alert.alert('Shared', 'Store link copied to clipboard'); }}>
+                            <Share2 size={20} color="#374151" />
+                            <Text style={styles.menuText}>Share this store</Text>
+                        </Pressable>
+                        <Pressable style={styles.menuItem} onPress={() => { setMenuVisible(false); navigation.navigate('HelpSupport'); }}>
+                            <Info size={20} color="#374151" />
+                            <Text style={styles.menuText}>Store Info</Text>
+                        </Pressable>
+                        <View style={styles.menuDivider} />
+                        <Pressable style={styles.menuItem} onPress={() => { setMenuVisible(false); Alert.alert('Report', 'Store reported to admins.'); }}>
+                            <Flag size={20} color="#EF4444" />
+                            <Text style={[styles.menuText, { color: '#EF4444' }]}>Report Store</Text>
+                        </Pressable>
+                    </View>
+                </Pressable>
+            </Modal>
         </View>
     );
 }
@@ -140,6 +322,38 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         paddingHorizontal: 16,
         paddingBottom: 10,
+        alignItems: 'center',
+    },
+    searchHeader: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        marginRight: 0,
+        padding: 0,
+    },
+    searchBar: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#FFFFFF',
+        borderRadius: 100,
+        paddingHorizontal: 16,
+        height: 40,
+        gap: 8,
+    },
+    searchInput: {
+        flex: 1,
+        fontSize: 14,
+        color: '#1F2937',
+        padding: 0,
+    },
+    cancelSearch: {
+        padding: 4,
+    },
+    cancelText: {
+        color: '#FFF',
+        fontWeight: '600',
     },
     headerRight: {
         flexDirection: 'row',
@@ -241,19 +455,26 @@ const styles = StyleSheet.create({
         backgroundColor: '#FF5722',
         paddingVertical: 10,
         borderRadius: 8,
+        flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'center',
     },
     followButtonText: {
         color: '#FFF',
         fontWeight: '700',
         fontSize: 14,
     },
+    followingButton: {
+        backgroundColor: '#6B7280', // Gray when following
+    },
     chatButton: {
         flex: 1,
         backgroundColor: 'rgba(255,255,255,0.2)',
         paddingVertical: 10,
         borderRadius: 8,
+        flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'center',
         borderWidth: 1,
         borderColor: '#FFF',
     },
@@ -301,6 +522,24 @@ const styles = StyleSheet.create({
         backgroundColor: '#FFF',
         paddingVertical: 16,
     },
+    sectionContainer: {
+        marginTop: 12,
+        backgroundColor: '#FFF',
+        padding: 16,
+        minHeight: 300,
+    },
+    sectionHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        marginBottom: 12,
+    },
+    seeAllText: {
+        color: '#FF5722',
+        fontWeight: '600',
+        fontSize: 13,
+    },
     sectionTitle: {
         fontSize: 16,
         fontWeight: '700',
@@ -346,6 +585,59 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         fontSize: 12,
     },
+    couponCardClaimed: {
+        backgroundColor: '#F3F4F6',
+        borderColor: '#E5E7EB',
+    },
+    categoriesList: {
+        marginTop: 8,
+        backgroundColor: '#FFF',
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#F3F4F6',
+    },
+    categoryRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F3F4F6',
+    },
+    categoryName: {
+        fontSize: 15,
+        color: '#374151',
+        fontWeight: '500',
+    },
+    aboutCard: {
+        backgroundColor: '#F9FAFB',
+        borderRadius: 16,
+        padding: 16,
+        marginTop: 8,
+    },
+    aboutDescription: {
+        fontSize: 14,
+        color: '#4B5563',
+        lineHeight: 22,
+        marginBottom: 16,
+    },
+    infoRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        marginBottom: 12,
+    },
+    infoText: {
+        fontSize: 14,
+        color: '#374151',
+        flex: 1,
+    },
+    infoLabel: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: '#374151',
+        width: 60,
+    },
     productsContainer: {
         marginTop: 12,
         backgroundColor: '#FFF',
@@ -360,5 +652,40 @@ const styles = StyleSheet.create({
     productWrapper: {
         width: (width - 48) / 2,
         marginBottom: 16,
-    }
+    },
+    // Menu Styles
+    menuOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+    },
+    menuContainer: {
+        position: 'absolute',
+        right: 16,
+        backgroundColor: '#FFF',
+        borderRadius: 12,
+        width: 200,
+        paddingVertical: 8,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 12,
+        elevation: 10,
+    },
+    menuItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+    },
+    menuText: {
+        fontSize: 15,
+        color: '#374151',
+        fontWeight: '500',
+    },
+    menuDivider: {
+        height: 1,
+        backgroundColor: '#F3F4F6',
+        marginVertical: 4,
+    },
 });

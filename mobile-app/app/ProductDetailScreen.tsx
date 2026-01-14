@@ -12,20 +12,20 @@ import {
   Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { 
-  ArrowLeft, 
-  ShoppingCart, 
-  Star, 
-  BadgeCheck, 
-  ShieldCheck, 
-  Search, 
-  Camera, 
-  Share2, 
-  Heart, 
-  Plus, 
-  Minus, 
+import {
+  ArrowLeft,
+  ShoppingCart,
+  Star,
+  BadgeCheck,
+  ShieldCheck,
+  Search,
+  Camera,
+  Share2,
+  Heart,
+  Plus,
+  Minus,
   CheckCircle,
-  User 
+  User
 } from 'lucide-react-native';
 import { ProductCard } from '../src/components/ProductCard';
 import { useCartStore } from '../src/stores/cartStore';
@@ -67,6 +67,7 @@ const demoReviews = [
 
 export default function ProductDetailScreen({ route, navigation }: Props) {
   const insets = useSafeAreaInsets();
+  const BRAND_COLOR = '#FF5722';
   const { product } = route.params;
   const [activeTab, setActiveTab] = useState<'details' | 'support' | 'ratings'>('details');
   const [quantity, setQuantity] = useState(1);
@@ -101,14 +102,14 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
-      
+
       {/* HEADER SECTION */}
       <View style={[styles.header, { paddingTop: insets.top + 10, backgroundColor: BRAND_COLOR }]}>
         <View style={styles.headerContent}>
           <Pressable onPress={() => navigation.goBack()} style={styles.headerIcon}>
             <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
           </Pressable>
-          
+
           <View style={styles.searchBarContainer}>
             <Search size={18} color="#9CA3AF" />
             <TextInput
@@ -132,7 +133,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
         </View>
       </View>
 
-      <ScrollView 
+      <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 140 }}
       >
@@ -266,38 +267,38 @@ const styles = StyleSheet.create({
   cartContainer: { position: 'relative', width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   cartBadge: { position: 'absolute', top: 2, right: 2, backgroundColor: '#FFFFFF', borderRadius: 10, minWidth: 16, height: 16, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
   cartBadgeText: { fontSize: 10, fontWeight: '900', color: '#FF5722' },
-  
+
   imageContainer: { width: width, height: width * 1.05, backgroundColor: '#FFF' },
   productImage: { width: '100%', height: '100%' },
   floatingIcons: { position: 'absolute', bottom: 50, right: 20, gap: 12 },
   floatingIconButton: { width: 46, height: 46, borderRadius: 23, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', elevation: 8, shadowOpacity: 0.1 },
   imageIndicator: { position: 'absolute', bottom: 50, left: 20, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 },
   imageIndicatorText: { color: '#FFF', fontSize: 12, fontWeight: '700' },
-  
+
   infoContainer: { backgroundColor: '#FFFFFF', borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 24, marginTop: -30, elevation: 20 },
   tagsRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
   bestsellerTag: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F3E8FF', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, gap: 4 },
   bestsellerText: { fontSize: 11, fontWeight: '700', color: '#8B5CF6' },
   discountTag: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
-  
+
   productName: { fontSize: 22, fontWeight: '800', color: '#111827', marginBottom: 10, lineHeight: 28 },
   priceRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
   price: { fontSize: 26, fontWeight: '900' },
   originalPrice: { fontSize: 16, color: '#9CA3AF', textDecorationLine: 'line-through', fontWeight: '500' },
-  
+
   ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 20 },
   stars: { flexDirection: 'row', gap: 2 },
   ratingText: { fontSize: 14, fontWeight: '700', color: '#1F2937' },
   soldText: { fontSize: 14, color: '#6B7280' },
-  
+
   divider: { height: 1, backgroundColor: '#F3F4F6', marginVertical: 18 },
   sectionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 },
   sectionTitle: { fontSize: 15, fontWeight: '700', color: '#111827' },
-  
+
   quantityContainer: { flexDirection: 'row', alignItems: 'center', gap: 18 },
   quantityBtn: { width: 34, height: 34, borderRadius: 17, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
   quantityText: { fontSize: 16, fontWeight: '800', color: '#111827', minWidth: 25, textAlign: 'center' },
-  
+
   sellerCard: { backgroundColor: '#F9FAFB', borderRadius: 20, padding: 18, marginBottom: 24, borderWidth: 1, borderColor: '#F1F1F1' },
   sellerMain: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   sellerAvatar: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#6B7280', alignItems: 'center', justifyContent: 'center' },
@@ -306,15 +307,15 @@ const styles = StyleSheet.create({
   verifiedIcon: { marginLeft: 4 },
   sellerSubtitle: { fontSize: 12, color: '#9CA3AF', fontWeight: '500' },
   viewStoreBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, borderWidth: 1.5 },
-  
+
   tabs: { flexDirection: 'row', backgroundColor: '#F3F4F6', padding: 4, borderRadius: 14, marginBottom: 20 },
   tab: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: 11 },
   tabText: { fontSize: 12, fontWeight: '700', color: '#9CA3AF' },
   activeTabText: { color: '#FFF' },
-  
+
   tabContent: { minHeight: 100 },
   description: { fontSize: 15, color: '#4B5563', lineHeight: 24 },
-  
+
   reviewsList: { gap: 16 },
   reviewCard: { borderBottomWidth: 1, borderBottomColor: '#F3F4F6', paddingBottom: 16 },
   reviewHeader: { flexDirection: 'row', gap: 12, marginBottom: 8 },
@@ -322,11 +323,11 @@ const styles = StyleSheet.create({
   reviewerName: { fontSize: 14, fontWeight: '700', color: '#111827' },
   starsRow: { flexDirection: 'row', marginTop: 2 },
   reviewComment: { fontSize: 14, color: '#4B5563', lineHeight: 20 },
-  
+
   relatedSection: { marginTop: 32 },
   relatedHeader: { fontSize: 17, fontWeight: '800', color: '#111827', marginBottom: 16 },
   relatedProductCard: { width: 160, marginRight: 16 },
-  
+
   bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#FFF', flexDirection: 'row', padding: 16, gap: 12, borderTopWidth: 1, borderTopColor: '#F3F4F6' },
   addToCartBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 14, borderWidth: 2, height: 54 },
   addToCartText: { fontSize: 15, fontWeight: '800' },

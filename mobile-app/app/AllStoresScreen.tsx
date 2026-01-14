@@ -28,34 +28,56 @@ export default function AllStoresScreen() {
             onPress={() => navigation.navigate('StoreDetail', { store: item })}
         >
             {/* Banner */}
-            <Image source={{ uri: item.banner }} style={styles.banner} resizeMode="cover" />
+            <View style={styles.bannerContainer}>
+                <Image source={{ uri: item.banner }} style={styles.banner} resizeMode="cover" />
+                <View style={styles.bannerOverlay} />
+            </View>
 
-            {/* Overlay Content */}
+            {/* Content Container */}
             <View style={styles.cardContent}>
-                <View style={styles.logoRow}>
+                <View style={styles.headerRow}>
+                    {/* Logo overlapping banner */}
                     <View style={styles.logoContainer}>
                         <Text style={styles.logoText}>{item.logo}</Text>
                     </View>
-                    <View style={styles.infoContainer}>
-                        <View style={styles.nameRow}>
-                            <Text style={styles.storeName}>{item.name}</Text>
-                            {item.verified && <CheckCircle2 size={16} color="#3B82F6" fill="#FFF" />}
-                        </View>
-                        <View style={styles.statsRow}>
-                            <Star size={12} color="#F59E0B" fill="#F59E0B" />
-                            <Text style={styles.statsText}>{item.rating} • {item.followers.toLocaleString()} Followers</Text>
-                        </View>
-                    </View>
-                    <Pressable style={styles.visitButton}>
-                        <Text style={styles.visitText}>Visit</Text>
-                    </Pressable>
                 </View>
 
-                {/* Product Previews */}
-                <View style={styles.productsRow}>
-                    {item.products.slice(0, 3).map((url: string, index: number) => (
-                        <Image key={index} source={{ uri: url }} style={styles.productThumb} />
-                    ))}
+                {/* Store Info */}
+                <View style={styles.storeInfo}>
+                    <View style={styles.nameRow}>
+                        <View style={styles.nameContainer}>
+                            <Text style={styles.storeName} numberOfLines={1}>{item.name}</Text>
+                            {item.verified && <CheckCircle2 size={16} color="#3B82F6" fill="#FFF" />}
+                        </View>
+                        <Pressable
+                            style={({ pressed }) => [styles.visitButton, pressed && { opacity: 0.8 }]}
+                            onPress={() => navigation.navigate('StoreDetail', { store: item })}
+                        >
+                            <Text style={styles.visitText}>Visit</Text>
+                        </Pressable>
+                    </View>
+
+                    <View style={styles.statsRow}>
+                        <View style={styles.statChip}>
+                            <Star size={12} color="#F59E0B" fill="#F59E0B" />
+                            <Text style={styles.statText}>{item.rating}</Text>
+                        </View>
+                        <Text style={styles.divider}>•</Text>
+                        <Text style={styles.followersText}>{item.followers > 1000 ? (item.followers / 1000).toFixed(1) + 'k' : item.followers} Followers</Text>
+                        <Text style={styles.divider}>•</Text>
+                        <Text style={styles.locationText}>{item.location}</Text>
+                    </View>
+                </View>
+
+                {/* Product Previews - Bento Grid Style */}
+                <View style={styles.productsContainer}>
+                    <View style={styles.mainProductContainer}>
+                        <Image source={{ uri: item.products[0] }} style={styles.mainProductImage} />
+                    </View>
+                    <View style={styles.sideProductsContainer}>
+                        <Image source={{ uri: item.products[1] }} style={styles.sideProductImage} />
+                        <Image source={{ uri: item.products[2] }} style={styles.sideProductImage} />
+                    </View>
                 </View>
             </View>
         </Pressable>
@@ -189,96 +211,154 @@ const styles = StyleSheet.create({
     },
     storeCard: {
         backgroundColor: '#FFFFFF',
-        borderRadius: 20,
-        marginBottom: 16,
+        borderRadius: 24,
+        marginBottom: 20,
         overflow: 'hidden',
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.05,
-        shadowRadius: 12,
-        elevation: 3,
-        borderWidth: 1,
-        borderColor: '#F3F4F6',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.12,
+        shadowRadius: 16,
+        elevation: 8,
+        borderWidth: 1.5,
+        borderColor: '#E5E7EB',
+    },
+    bannerContainer: {
+        height: 120,
+        width: '100%',
+        position: 'relative',
     },
     banner: {
         width: '100%',
-        height: 110,
-        backgroundColor: '#EEEEEE',
+        height: '100%',
+        backgroundColor: '#F3F4F6',
+    },
+    bannerOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(0,0,0,0.05)',
     },
     cardContent: {
-        padding: 16,
+        paddingHorizontal: 16,
+        paddingBottom: 20,
     },
-    logoRow: {
+    headerRow: {
         flexDirection: 'row',
-        alignItems: 'center',
-        marginTop: -45, // Pull up over banner
-        marginBottom: 16,
+        marginTop: -32, // Pull up overlap
+        marginBottom: 8,
     },
     logoContainer: {
-        width: 68,
-        height: 68,
-        borderRadius: 34,
+        width: 64,
+        height: 64,
+        borderRadius: 32,
         backgroundColor: '#FFFFFF',
         justifyContent: 'center',
         alignItems: 'center',
-        borderWidth: 4,
+        borderWidth: 3,
         borderColor: '#FFFFFF',
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
+        shadowOpacity: 0.08,
         shadowRadius: 4,
-        elevation: 4,
+        elevation: 3,
     },
     logoText: {
-        fontSize: 30,
-    },
-    infoContainer: {
-        flex: 1,
-        marginLeft: 12,
-        marginTop: 24, // Push down to align with bottom of logo
-    },
-    nameRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-    },
-    storeName: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#1F2937',
-    },
-    statsRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-        marginTop: 2,
-    },
-    statsText: {
-        fontSize: 12,
-        color: '#6B7280',
+        fontSize: 28,
     },
     visitButton: {
         backgroundColor: '#FFF5F0',
-        paddingHorizontal: 16,
-        paddingVertical: 8,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
         borderRadius: 20,
         borderWidth: 1,
         borderColor: '#FF5722',
-        marginTop: 24,
+        alignSelf: 'center',
     },
     visitText: {
         color: '#FF5722',
         fontSize: 12,
         fontWeight: '700',
     },
-    productsRow: {
+    storeInfo: {
+        marginBottom: 16,
+    },
+    nameRow: {
         flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 6,
         gap: 8,
     },
-    productThumb: {
+    nameContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
         flex: 1,
-        height: 80,
-        borderRadius: 8,
+    },
+    storeName: {
+        fontSize: 18,
+        fontWeight: '800',
+        color: '#1F2937',
+        letterSpacing: -0.5,
+    },
+    statsRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+    },
+    statChip: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        backgroundColor: '#FEF3C7',
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 6,
+    },
+    statText: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: '#B45309',
+    },
+    divider: {
+        marginHorizontal: 8,
+        color: '#D1D5DB',
+    },
+    followersText: {
+        fontSize: 13,
+        color: '#6B7280',
+        fontWeight: '500',
+    },
+    locationText: {
+        fontSize: 13,
+        color: '#9CA3AF',
+    },
+    productsContainer: {
+        flexDirection: 'row',
+        height: 100,
+        gap: 10,
+    },
+    mainProductContainer: {
+        flex: 2,
+        borderRadius: 12,
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: '#F3F4F6',
+    },
+    mainProductImage: {
+        width: '100%',
+        height: '100%',
         backgroundColor: '#F3F4F6',
+    },
+    sideProductsContainer: {
+        flex: 1,
+        flexDirection: 'column',
+        gap: 10,
+    },
+    sideProductImage: {
+        flex: 1,
+        width: '100%',
+        borderRadius: 10,
+        backgroundColor: '#F3F4F6',
+        borderWidth: 1,
+        borderColor: '#F3F4F6',
     },
 });
