@@ -37,7 +37,7 @@ const HomePage: React.FC = () => {
         {/* Bazaar history zoom parallax section */}
         <BazaarHistoryZoomParallax />
         
-        {/* Reveal words: trade / craft / gathering */}
+        {/* Bazaar: trade / craft / gathering */}
         <BazaarRevealWords />
 
         {/* Scroll Morph Hero - Categories Explorer */}
@@ -45,14 +45,15 @@ const HomePage: React.FC = () => {
           <ScrollMorphHero />
         </div>
 
+        {/* Mobile App Showcase */}
+        <MobileAppShowcase />
+
         {/* Transition Section */}
         <SectionTransition />
         
         {/* Trust & Quality Showcase */}
         <BazaarTrustShowcase />
 
-        {/* Mobile App Showcase */}
-        <MobileAppShowcase />
 
         {/* POS Lite Feature*/}
         <POSLiteFeature />
