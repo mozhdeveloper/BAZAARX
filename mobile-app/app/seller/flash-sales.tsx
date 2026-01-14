@@ -3,6 +3,7 @@ import {
   View,
   Text,
   StyleSheet,
+  TouchableOpacity,
   ScrollView,
   Pressable,
   Image,
@@ -101,17 +102,21 @@ export default function FlashSalesScreen() {
       {/* Immersive Edge-to-Edge Header */}
       <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <View style={styles.headerContent}>
-          <Pressable
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
-          </Pressable>
-          <View style={styles.headerTitleContainer}>
-            <Text style={styles.headerTitle}>Flash Sales</Text>
-            <Text style={styles.headerSubtitle}>Manage sale campaigns</Text>
+          <View style={styles.headerLeft}>
+            {/* Back/Menu Button */}
+            <TouchableOpacity 
+              style={styles.backContainer} 
+              onPress={() => navigation.goBack()}
+            >
+              <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2} />
+            </TouchableOpacity>
+            
+            {/* Title Stack */}
+            <View style={styles.titleContainer}>
+              <Text style={styles.headerTitle}>Flash Sales</Text>
+              <Text style={styles.headerSubtitle}>Manage sale campaigns</Text>
+            </View>
           </View>
-          <View style={{ width: 40 }} />
         </View>
       </View>
 
@@ -239,29 +244,40 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#FF5722',
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingBottom: 16,
+    // Shadow for elevation
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 4,
+    // The signature rounded bottom corners
+    borderBottomLeftRadius: 20, 
+    borderBottomRightRadius: 20,
   },
   headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start', // Keeps everything tucked to the left
   },
-  backButton: {
-    padding: 4,
-  },
-  headerTitleContainer: {
-    flex: 1,
+  headerLeft: {
+    flexDirection: 'row',
     alignItems: 'center',
-    gap: 2,
+    gap: 12,
+    flex: 1,
+  },
+  backContainer: {
+    backgroundColor: 'rgba(255,255,255,0.2)', // Translucent glass effect
+    padding: 12,
+    borderRadius: 12,
+  },
+  titleContainer: {
+    flex: 1,
+    justifyContent: 'center',
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '800',
     color: '#FFFFFF',
     letterSpacing: 0.3,
