@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Image, ActivityIndicator, TextInput } from 'react-native';
-import { ArrowLeft, Users, Search, ShoppingBag, DollarSign, CheckCircle, Ban, UserX, Phone, Mail, MapPin } from 'lucide-react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Image, ActivityIndicator, TextInput, Modal } from 'react-native';
+import { ArrowLeft, Users, Search, ShoppingBag, DollarSign, CheckCircle, Ban, UserX, Phone, Mail, MapPin, Eye, X, Calendar, Star, XCircle as CancelIcon, RotateCcw } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useAdminBuyers } from '../../../src/stores/adminStore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,6 +11,11 @@ export default function AdminBuyersScreen() {
   const { buyers, isLoading, loadBuyers } = useAdminBuyers();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'suspended' | 'banned'>('all');
+  const [modalVisible, setModalVisible] = useState(false);
+  const [selectedBuyer, setSelectedBuyer] = useState<any>(null);
+  const [suspendModalVisible, setSuspendModalVisible] = useState(false);
+  const [suspendReason, setSuspendReason] = useState('');
+  const [buyerToSuspend, setBuyerToSuspend] = useState<any>(null);
 
   useEffect(() => {
     loadBuyers();
@@ -45,6 +50,44 @@ export default function AdminBuyersScreen() {
   const formatDate = (date?: Date) => {
     if (!date) return 'N/A';
     return new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
+  const formatFullDate = (dateInput?: Date | string) => {
+    if (!dateInput) return 'N/A';
+    const date = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+    return date.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' });
+  };
+
+  const handleViewDetails = (buyer: any) => {
+    setSelectedBuyer(buyer);
+    setModalVisible(true);
+  };
+
+  const handleSuspend = (buyer: any) => {
+    setBuyerToSuspend(buyer);
+    setSuspendModalVisible(true);
+  };
+
+  const confirmSuspend = () => {
+    if (!buyerToSuspend) return;
+    
+    // Here you would typically make an API call to suspend the buyer
+    console.log('Suspending buyer:', buyerToSuspend.id, 'Reason:', suspendReason);
+    
+    // Update the buyer's status locally (you would do this after API success)
+    const updatedBuyers = buyers.map(b => 
+      b.id === buyerToSuspend.id 
+        ? { ...b, status: 'suspended', suspensionReason: suspendReason }
+        : b
+    );
+    
+    // Reset states
+    setSuspendModalVisible(false);
+    setSuspendReason('');
+    setBuyerToSuspend(null);
+    
+    // You might want to call loadBuyers() here to refresh from the server
+    // loadBuyers();
   };
 
   return (
@@ -105,6 +148,7 @@ export default function AdminBuyersScreen() {
                 <Image source={{ uri: buyer.avatar }} style={styles.avatar} />
                 <View style={styles.headerInfo}>
                   <Text style={styles.buyerName}>{buyer.firstName} {buyer.lastName}</Text>
+                  {getStatusBadge(buyer.status)}
                   <View style={styles.contactRow}>
                     <Mail size={12} color="#6B7280" />
                     <Text style={styles.contactText}>{buyer.email}</Text>
@@ -116,27 +160,23 @@ export default function AdminBuyersScreen() {
                     </View>
                   )}
                 </View>
-                {getStatusBadge(buyer.status)}
               </View>
 
               <View style={styles.statsRow}>
                 <View style={styles.statBox}>
-                  <View style={styles.statIconContainer}>
-                    <ShoppingBag size={16} color="#FF5722" />
-                  </View>
+                  <ShoppingBag size={16} color="#FF5722" />
                   <Text style={styles.statValue}>{buyer.metrics.totalOrders}</Text>
                   <Text style={styles.statLabel}>Orders</Text>
                 </View>
                 <View style={styles.statDivider} />
                 <View style={styles.statBox}>
-                  <View style={styles.statIconContainer}>
-                    <DollarSign size={16} color="#FF5722" />
-                  </View>
+                  <DollarSign size={16} color="#FF5722" />
                   <Text style={styles.statValue}>₱{(buyer.metrics.totalSpent / 1000).toFixed(1)}k</Text>
                   <Text style={styles.statLabel}>Spent</Text>
                 </View>
                 <View style={styles.statDivider} />
                 <View style={styles.statBox}>
+                  <Star size={16} color="#FF5722" />
                   <Text style={styles.statValue}>{buyer.metrics.loyaltyPoints}</Text>
                   <Text style={styles.statLabel}>Points</Text>
                 </View>
@@ -164,10 +204,227 @@ export default function AdminBuyersScreen() {
                   <Text style={styles.suspensionText}>{buyer.suspensionReason}</Text>
                 </View>
               )}
+
+              {/* Action Buttons */}
+              <View style={styles.actionButtons}>
+                <Pressable 
+                  style={styles.viewDetailsButton}
+                  onPress={() => handleViewDetails(buyer)}
+                >
+                  <Eye size={16} color="#FFFFFF" />
+                  <Text style={styles.viewDetailsText}>View Details</Text>
+                </Pressable>
+                <Pressable 
+                  style={styles.suspendButton}
+                  onPress={() => handleSuspend(buyer)}
+                >
+                  <Ban size={16} color="#DC2626" />
+                  <Text style={styles.suspendText}>Suspend</Text>
+                </Pressable>
+              </View>
             </View>
           ))
         )}
       </ScrollView>
+
+      {/* Buyer Details Modal */}
+      <Modal visible={modalVisible} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Buyer Details</Text>
+              <Pressable onPress={() => setModalVisible(false)}>
+                <X size={24} color="#6B7280" />
+              </Pressable>
+            </View>
+            {selectedBuyer && (
+              <ScrollView style={styles.modalBody}>
+                {/* Buyer Info Section */}
+                <View style={styles.modalSection}>
+                  <View style={styles.buyerInfoRow}>
+                    <Image source={{ uri: selectedBuyer.avatar }} style={styles.modalAvatar} />
+                    <View style={styles.buyerMainInfo}>
+                      <Text style={styles.modalBuyerName}>{selectedBuyer.firstName} {selectedBuyer.lastName}</Text>
+                      <Text style={styles.modalBuyerEmail}>{selectedBuyer.email}</Text>
+                      {getStatusBadge(selectedBuyer.status)}
+                    </View>
+                  </View>
+                </View>
+
+                {/* Contact Details */}
+                <View style={styles.modalSection}>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Phone</Text>
+                    <Text style={styles.detailValue}>{selectedBuyer.phone}</Text>
+                  </View>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Gender</Text>
+                    <Text style={styles.detailValue}>{selectedBuyer.gender || 'Female'}</Text>
+                  </View>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Date of Birth</Text>
+                    <Text style={styles.detailValue}>
+                      {selectedBuyer.dateOfBirth 
+                        ? (typeof selectedBuyer.dateOfBirth === 'string' 
+                            ? selectedBuyer.dateOfBirth 
+                            : formatFullDate(selectedBuyer.dateOfBirth))
+                        : '5/15/1990'}
+                    </Text>
+                  </View>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Join Date</Text>
+                    <Text style={styles.detailValue}>{formatFullDate(selectedBuyer.joinDate)}</Text>
+                  </View>
+                </View>
+
+                {/* Verification Status */}
+                <View style={styles.modalSection}>
+                  <Text style={styles.sectionTitle}>Verification Status</Text>
+                  <View style={styles.verificationBadges}>
+                    <View style={styles.verifiedBadge}>
+                      <CheckCircle size={14} color="#FFFFFF" />
+                      <Text style={styles.verifiedText}>Email Verified</Text>
+                    </View>
+                    <View style={styles.verifiedBadge}>
+                      <CheckCircle size={14} color="#FFFFFF" />
+                      <Text style={styles.verifiedText}>Phone Verified</Text>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Addresses */}
+                {selectedBuyer.addresses && selectedBuyer.addresses.length > 0 && (
+                  <View style={styles.modalSection}>
+                    <Text style={styles.sectionTitle}>Addresses</Text>
+                    {selectedBuyer.addresses.map((address: any, idx: number) => (
+                      <View key={idx} style={styles.addressCard}>
+                        <View style={styles.addressCardHeader}>
+                          <Text style={styles.addressType}>{address.type || 'Home'}</Text>
+                          {address.isDefault && (
+                            <View style={styles.defaultBadge}>
+                              <Text style={styles.defaultText}>Default</Text>
+                            </View>
+                          )}
+                        </View>
+                        <Text style={styles.fullAddress}>
+                          {address.street}, {address.barangay}, {address.city}, {address.province} {address.zipCode}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                {/* Shopping Activity */}
+                <View style={styles.modalSection}>
+                  <Text style={styles.sectionTitle}>Shopping Activity</Text>
+                  <View style={styles.activityGrid}>
+                    <View style={styles.activityCard}>
+                      <ShoppingBag size={24} color="#2563EB" />
+                      <Text style={styles.activityLabel}>Total Orders</Text>
+                      <Text style={styles.activityValue}>{selectedBuyer.metrics.totalOrders}</Text>
+                    </View>
+                    <View style={styles.activityCard}>
+                      <DollarSign size={24} color="#059669" />
+                      <Text style={styles.activityLabel}>Total Spent</Text>
+                      <Text style={styles.activityValue}>₱{selectedBuyer.metrics.totalSpent.toLocaleString()}</Text>
+                    </View>
+                  </View>
+                  <View style={styles.activityGrid}>
+                    <View style={styles.activityCard}>
+                      <Star size={24} color="#7C3AED" />
+                      <Text style={styles.activityLabel}>Average Order</Text>
+                      <Text style={styles.activityValue}>₱{selectedBuyer.metrics.averageOrderValue?.toLocaleString() || '1,908'}</Text>
+                    </View>
+                    <View style={styles.activityCard}>
+                      <Star size={24} color="#D97706" />
+                      <Text style={styles.activityLabel}>Loyalty Points</Text>
+                      <Text style={styles.activityValue}>{selectedBuyer.metrics.loyaltyPoints}</Text>
+                    </View>
+                  </View>
+                  <View style={styles.activityGrid}>
+                    <View style={styles.activityCard}>
+                      <CancelIcon size={24} color="#DC2626" />
+                      <Text style={styles.activityLabel}>Cancelled Orders</Text>
+                      <Text style={styles.activityValue}>{selectedBuyer.metrics.cancelledOrders || '2'}</Text>
+                    </View>
+                    <View style={styles.activityCard}>
+                      <RotateCcw size={24} color="#EA580C" />
+                      <Text style={styles.activityLabel}>Returned Orders</Text>
+                      <Text style={styles.activityValue}>{selectedBuyer.metrics.returnedOrders || '1'}</Text>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Close Button */}
+                <Pressable 
+                  style={styles.closeButton}
+                  onPress={() => setModalVisible(false)}
+                >
+                  <Text style={styles.closeButtonText}>Close</Text>
+                </Pressable>
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Suspend Confirmation Modal */}
+      <Modal visible={suspendModalVisible} animationType="fade" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.suspendModalContent}>
+            <View style={styles.suspendModalHeader}>
+              <Ban size={28} color="#DC2626" />
+              <Text style={styles.suspendModalTitle}>Suspend Buyer</Text>
+            </View>
+            
+            {buyerToSuspend && (
+              <View style={styles.suspendModalBody}>
+                <Text style={styles.suspendModalText}>
+                  Are you sure you want to suspend{' '}
+                  <Text style={styles.suspendModalBuyerName}>
+                    {buyerToSuspend.firstName} {buyerToSuspend.lastName}
+                  </Text>?
+                </Text>
+                
+                <View style={styles.reasonContainer}>
+                  <Text style={styles.reasonLabel}>Reason for suspension:</Text>
+                  <TextInput
+                    style={styles.reasonInput}
+                    placeholder="Enter reason..."
+                    value={suspendReason}
+                    onChangeText={setSuspendReason}
+                    multiline
+                    numberOfLines={4}
+                    textAlignVertical="top"
+                    placeholderTextColor="#9CA3AF"
+                  />
+                </View>
+
+                <View style={styles.suspendModalActions}>
+                  <Pressable 
+                    style={styles.cancelButton}
+                    onPress={() => {
+                      setSuspendModalVisible(false);
+                      setSuspendReason('');
+                      setBuyerToSuspend(null);
+                    }}
+                  >
+                    <Text style={styles.cancelButtonText}>Cancel</Text>
+                  </Pressable>
+                  <Pressable 
+                    style={[styles.confirmSuspendButton, !suspendReason.trim() && styles.confirmSuspendButtonDisabled]}
+                    onPress={confirmSuspend}
+                    disabled={!suspendReason.trim()}
+                  >
+                    <Ban size={16} color="#FFFFFF" />
+                    <Text style={styles.confirmSuspendButtonText}>Suspend</Text>
+                  </Pressable>
+                </View>
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -204,7 +461,6 @@ const styles = StyleSheet.create({
   statusText: { fontSize: 11, fontWeight: '600' },
   statsRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#E5E7EB' },
   statBox: { flex: 1, alignItems: 'center', gap: 4 },
-  statIconContainer: { width: 32, height: 32, borderRadius: 8, backgroundColor: '#FFF5F0', alignItems: 'center', justifyContent: 'center' },
   statValue: { fontSize: 16, fontWeight: 'bold', color: '#111827' },
   statLabel: { fontSize: 11, color: '#6B7280' },
   statDivider: { width: 1, height: 40, backgroundColor: '#E5E7EB' },
@@ -216,4 +472,54 @@ const styles = StyleSheet.create({
   suspensionBox: { marginTop: 12, backgroundColor: '#FEF3C7', padding: 10, borderRadius: 8, borderLeftWidth: 3, borderLeftColor: '#D97706' },
   suspensionLabel: { fontSize: 11, fontWeight: '600', color: '#92400E', marginBottom: 2 },
   suspensionText: { fontSize: 12, color: '#78350F' },
+  actionButtons: { flexDirection: 'row', gap: 8, marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#E5E7EB' },
+  viewDetailsButton: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#FF5722', paddingVertical: 10, borderRadius: 8 },
+  viewDetailsText: { color: '#FFFFFF', fontSize: 14, fontWeight: '600' },
+  suspendButton: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#DC2626', paddingVertical: 10, borderRadius: 8 },
+  suspendText: { color: '#DC2626', fontSize: 14, fontWeight: '600' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalContent: { backgroundColor: '#FFFFFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '90%' },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#E5E7EB' },
+  modalTitle: { fontSize: 20, fontWeight: '700', color: '#111827' },
+  modalBody: { padding: 20 },
+  modalSection: { marginBottom: 24 },
+  buyerInfoRow: { flexDirection: 'row', gap: 12, alignItems: 'center' },
+  modalAvatar: { width: 80, height: 80, borderRadius: 40 },
+  buyerMainInfo: { flex: 1, gap: 6 },
+  modalBuyerName: { fontSize: 18, fontWeight: '700', color: '#111827' },
+  modalBuyerEmail: { fontSize: 14, color: '#6B7280' },
+  detailRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
+  detailLabel: { fontSize: 14, color: '#6B7280', fontWeight: '500' },
+  detailValue: { fontSize: 14, color: '#111827', fontWeight: '600' },
+  sectionTitle: { fontSize: 16, fontWeight: '700', color: '#111827', marginBottom: 12 },
+  verificationBadges: { flexDirection: 'row', gap: 8 },
+  verifiedBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#FF5722', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
+  verifiedText: { color: '#FFFFFF', fontSize: 12, fontWeight: '600' },
+  addressCard: { backgroundColor: '#F9FAFB', padding: 12, borderRadius: 8, marginBottom: 8 },
+  addressCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  addressType: { fontSize: 14, fontWeight: '600', color: '#111827' },
+  defaultBadge: { backgroundColor: '#FCD34D', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 },
+  defaultText: { fontSize: 10, fontWeight: '700', color: '#78350F' },
+  fullAddress: { fontSize: 13, color: '#6B7280', lineHeight: 18 },
+  activityGrid: { flexDirection: 'row', gap: 12, marginBottom: 12 },
+  activityCard: { flex: 1, backgroundColor: '#F9FAFB', padding: 16, borderRadius: 12, alignItems: 'center', gap: 8 },
+  activityLabel: { fontSize: 12, color: '#6B7280', textAlign: 'center' },
+  activityValue: { fontSize: 18, fontWeight: '700', color: '#111827' },
+  closeButton: { backgroundColor: '#FF5722', paddingVertical: 14, borderRadius: 10, alignItems: 'center', marginTop: 8 },
+  closeButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
+  suspendModalContent: { backgroundColor: '#FFFFFF', borderRadius: 16, marginHorizontal: 10, padding: 24, maxWidth: 500, alignSelf: 'center' },
+  suspendModalHeader: { alignItems: 'center', marginBottom: 16 },
+  suspendModalTitle: { fontSize: 20, fontWeight: '700', color: '#111827', marginTop: 8 },
+  suspendModalBody: { gap: 16 },
+  suspendModalText: { fontSize: 15, color: '#6B7280', textAlign: 'center', lineHeight: 22 },
+  suspendModalBuyerName: { fontWeight: '700', color: '#111827' },
+  reasonContainer: { gap: 8 },
+  reasonLabel: { fontSize: 14, fontWeight: '600', color: '#111827' },
+  reasonInput: { borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8, padding: 12, fontSize: 14, color: '#111827', minHeight: 100 },
+  suspendModalActions: { flexDirection: 'row', gap: 12, marginTop: 8 },
+  cancelButton: { flex: 1, paddingVertical: 12, borderRadius: 8, backgroundColor: '#F3F4F6', alignItems: 'center' },
+  cancelButtonText: { fontSize: 15, fontWeight: '600', color: '#6B7280' },
+  confirmSuspendButton: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 8, backgroundColor: '#DC2626' },
+  confirmSuspendButtonDisabled: { backgroundColor: '#FCA5A5', opacity: 0.5 },
+  confirmSuspendButtonText: { fontSize: 15, fontWeight: '600', color: '#FFFFFF' },
 });

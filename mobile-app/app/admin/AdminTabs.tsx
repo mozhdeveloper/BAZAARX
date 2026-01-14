@@ -39,7 +39,7 @@ export default function AdminTabs() {
           backgroundColor: '#FFFFFF',
           borderTopWidth: 1,
           borderTopColor: '#E5E7EB',
-          height: 60,
+          height: 70,
           paddingBottom: 8,
           paddingTop: 8,
         },

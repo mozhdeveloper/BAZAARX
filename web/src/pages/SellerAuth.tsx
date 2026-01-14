@@ -37,6 +37,28 @@ export function SellerLogin() {
     }
   };
 
+  const handleDemoLogin = async () => {
+    // Auto-fill demo credentials
+    setEmail('seller@bazaarph.com');
+    setPassword('password');
+    setError('');
+    
+    // Auto-login after brief delay
+    setTimeout(async () => {
+      setIsLoading(true);
+      try {
+        const success = await login('seller@bazaarph.com', 'password');
+        if (success) {
+          navigate('/seller');
+        }
+      } catch (err) {
+        setError('Demo login failed. Please try again.');
+      } finally {
+        setIsLoading(false);
+      }
+    }, 500);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 to-orange-100 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
@@ -55,11 +77,38 @@ export function SellerLogin() {
           </div>
 
           {/* Demo Credentials */}
-          <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-6">
-            <h3 className="font-medium text-orange-800 mb-2">Demo Credentials:</h3>
-            <p className="text-sm text-orange-700">Email: seller@bazaarph.com</p>
-            <p className="text-sm text-orange-700">Password: password</p>
-          </div>
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="bg-gradient-to-r from-orange-50 to-orange-100/50 border border-orange-200 rounded-xl p-4 mb-6"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1">
+                <h3 className="font-semibold text-orange-900 mb-1.5 flex items-center gap-2">
+                  <Store className="w-4 h-4" />
+                  Demo Seller Account
+                </h3>
+                <div className="space-y-1 text-sm text-orange-700">
+                  <p className="font-mono">seller@bazaarph.com</p>
+                  <p className="font-mono">password</p>
+                </div>
+              </div>
+              <Button
+                type="button"
+                onClick={handleDemoLogin}
+                disabled={isLoading}
+                size="sm"
+                className="bg-orange-600 hover:bg-orange-700 text-white shadow-md hover:shadow-lg transition-all"
+              >
+                {isLoading ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  'Try Demo'
+                )}
+              </Button>
+            </div>
+          </motion.div>
 
           {error && (
             <motion.div

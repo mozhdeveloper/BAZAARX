@@ -19,6 +19,11 @@ import EnhancedCartPage from "./pages/EnhancedCartPage";
 import BuyerProfilePage from "./pages/BuyerProfilePage";
 import SellerStorefrontPage from "./pages/SellerStorefrontPage";
 import ReviewsPage from "./pages/ReviewsPage";
+import BuyerReviewsPage from "./pages/BuyerReviewsPage";
+import BuyerFollowingPage from "./pages/BuyerFollowingPage";
+import BuyerSettingsPage from "./pages/BuyerSettingsPage";
+import BuyerLoginPage from "./pages/BuyerLoginPage";
+import BuyerSignupPage from "./pages/BuyerSignupPage";
 
 // Seller Pages
 import { SellerLogin, SellerRegister } from "./pages/SellerAuth";
@@ -64,6 +69,8 @@ function App() {
         <Routes>
           {/* Buyer Routes */}
           <Route path="/" element={<HomePage />} />
+          <Route path="/login" element={<BuyerLoginPage />} />
+          <Route path="/signup" element={<BuyerSignupPage />} />
           <Route path="/shop" element={<ShopPage />} />
           <Route path="/search" element={<SearchPage />} />
           <Route path="/collections" element={<CollectionsPage />} />
@@ -84,6 +91,9 @@ function App() {
           <Route path="/profile" element={<BuyerProfilePage />} />
           <Route path="/seller/:sellerId" element={<SellerStorefrontPage />} />
           <Route path="/reviews" element={<ReviewsPage />} />
+          <Route path="/my-reviews" element={<BuyerReviewsPage />} />
+          <Route path="/following" element={<BuyerFollowingPage />} />
+          <Route path="/settings" element={<BuyerSettingsPage />} />
 
           {/* Seller Routes */}
           <Route path="/seller/auth" element={<SellerAuthChoice />} />

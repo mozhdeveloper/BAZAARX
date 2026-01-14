@@ -39,6 +39,22 @@ const AdminAuth: React.FC = () => {
     }
   };
 
+  const handleDemoLogin = async () => {
+    // Auto-fill demo credentials
+    setFormData({
+      email: 'admin@bazaarph.com',
+      password: 'admin123'
+    });
+    
+    // Auto-login after brief delay
+    setTimeout(async () => {
+      const success = await login('admin@bazaarph.com', 'admin123');
+      if (success) {
+        navigate('/admin', { replace: true });
+      }
+    }, 500);
+  };
+
   const containerVariants = {
     hidden: { opacity: 0, y: 20 },
     visible: {
@@ -104,6 +120,40 @@ const AdminAuth: React.FC = () => {
 
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-6">
+                {/* Demo Credentials */}
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 }}
+                  className="bg-gradient-to-r from-orange-50 to-orange-100/50 border border-orange-200 rounded-xl p-4"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-orange-900 mb-1.5 flex items-center gap-2">
+                        <Shield className="w-4 h-4" />
+                        Demo Admin Account
+                      </h3>
+                      <div className="space-y-1 text-sm text-orange-700">
+                        <p className="font-mono">admin@bazaarph.com</p>
+                        <p className="font-mono">admin123</p>
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      onClick={handleDemoLogin}
+                      disabled={isLoading}
+                      size="sm"
+                      className="bg-orange-600 hover:bg-orange-700 text-white shadow-md hover:shadow-lg transition-all"
+                    >
+                      {isLoading ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        'Try Demo'
+                      )}
+                    </Button>
+                  </div>
+                </motion.div>
+
                 {/* Error Alert */}
                 {error && (
                   <motion.div

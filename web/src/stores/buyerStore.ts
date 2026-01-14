@@ -152,6 +152,7 @@ interface BuyerStore {
   profile: BuyerProfile | null;
   setProfile: (profile: BuyerProfile) => void;
   updateProfile: (updates: Partial<BuyerProfile>) => void;
+  logout: () => void;
 
   // Address Book
   addresses: Address[];
@@ -248,6 +249,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
     updateProfile: (updates) => set((state) => ({
       profile: state.profile ? { ...state.profile, ...updates } : null
     })),
+    logout: () => set({ profile: null, cartItems: [], groupedCart: {}, appliedVouchers: {}, platformVoucher: null }),
 
     // Address Book
     addresses: [
