@@ -17,6 +17,7 @@ interface AuthState {
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
   completeOnboarding: () => void;
+  updateProfile: (updates: Partial<User>) => void;
 }
 
 // Dummy user credentials
@@ -73,6 +74,12 @@ export const useAuthStore = create<AuthState>()(
 
       completeOnboarding: () => {
         set({ hasCompletedOnboarding: true });
+      },
+
+      updateProfile: (updates: Partial<User>) => {
+        set((state) => ({
+          user: state.user ? { ...state.user, ...updates } : null,
+        }));
       },
     }),
     {

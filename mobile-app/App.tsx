@@ -32,6 +32,8 @@ import PrivacyPolicyScreen from './app/PrivacyPolicyScreen';
 import SellerLoginScreen from './app/seller/login';
 import SellerStack from './app/seller/SellerStack';
 import AdminStack from './app/admin/AdminStack';
+import AllStoresScreen from './app/AllStoresScreen';
+import StoreDetailScreen from './app/StoreDetailScreen';
 
 // Import types
 import type { Product, Order } from './src/types';
@@ -65,6 +67,8 @@ export type RootStackParamList = {
   PaymentMethods: undefined;
   HelpSupport: undefined;
   PrivacyPolicy: undefined;
+  AllStores: undefined;
+  StoreDetail: { store: any };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -156,33 +160,33 @@ export default function App() {
             animation: 'slide_from_right',
           }}
         >
-          <Stack.Screen 
-            name="Splash" 
+          <Stack.Screen
+            name="Splash"
             component={SplashScreen}
             options={{ animation: 'fade' }}
           />
-          <Stack.Screen 
-            name="Onboarding" 
+          <Stack.Screen
+            name="Onboarding"
             component={OnboardingScreen}
             options={{ animation: 'fade' }}
           />
-          <Stack.Screen 
-            name="Login" 
+          <Stack.Screen
+            name="Login"
             component={LoginScreen}
             options={{ animation: 'slide_from_bottom' }}
           />
-          <Stack.Screen 
-            name="SellerLogin" 
+          <Stack.Screen
+            name="SellerLogin"
             component={SellerLoginScreen}
             options={{ animation: 'slide_from_bottom' }}
           />
-          <Stack.Screen 
-            name="SellerStack" 
+          <Stack.Screen
+            name="SellerStack"
             component={SellerStack}
             options={{ headerShown: false }}
           />
-          <Stack.Screen 
-            name="AdminStack" 
+          <Stack.Screen
+            name="AdminStack"
             component={AdminStack}
             options={{ headerShown: false }}
           />
@@ -198,6 +202,7 @@ export default function App() {
           <Stack.Screen name="Settings" component={SettingsScreen} />
           <Stack.Screen name="Notifications" component={NotificationsScreen} />
           <Stack.Screen name="PaymentMethods" component={PaymentMethodsScreen} />
+          <Stack.Screen name="StoreDetail" component={StoreDetailScreen} />
           <Stack.Screen name="HelpSupport" component={HelpSupportScreen} />
           <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
         </Stack.Navigator>
