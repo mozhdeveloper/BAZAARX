@@ -1,12 +1,14 @@
 import React from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet, Alert, StatusBar, Modal, TextInput, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, Pressable, StyleSheet, Alert, StatusBar, Modal, TextInput, ActivityIndicator, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as ImagePicker from 'expo-image-picker';
 import { User, MapPin, CreditCard, Bell, HelpCircle, Shield, ChevronRight, Store, Star, Package, Heart, Settings, Edit2, Power, X, Camera } from 'lucide-react-native';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList, TabParamList } from '../App';
 import { useAuthStore } from '../src/stores/authStore';
+import { useWishlistStore } from '../src/stores/wishlistStore';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<TabParamList, 'Profile'>,
@@ -15,6 +17,7 @@ type Props = CompositeScreenProps<
 
 export default function ProfileScreen({ navigation }: Props) {
   const { user, logout, updateProfile } = useAuthStore();
+  const wishlistItems = useWishlistStore(state => state.items);
   const insets = useSafeAreaInsets();
   const BRAND_COLOR = '#FF5722';
 
@@ -24,6 +27,7 @@ export default function ProfileScreen({ navigation }: Props) {
   const [editLastName, setEditLastName] = React.useState('');
   const [editPhone, setEditPhone] = React.useState('');
   const [editEmail, setEditEmail] = React.useState('');
+  const [editAvatar, setEditAvatar] = React.useState('');
   const [isSaving, setIsSaving] = React.useState(false);
 
   const openEditModal = () => {
@@ -31,7 +35,21 @@ export default function ProfileScreen({ navigation }: Props) {
     setEditLastName(user?.name.split(' ').slice(1).join(' ') || '');
     setEditPhone(user?.phone || '');
     setEditEmail(user?.email || '');
+    setEditAvatar(user?.avatar || '');
     setEditModalVisible(true);
+  };
+
+  const handlePickImage = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.5,
+    });
+
+    if (!result.canceled) {
+      setEditAvatar(result.assets[0].uri);
+    }
   };
 
   const handleSaveProfile = () => {
@@ -45,7 +63,8 @@ export default function ProfileScreen({ navigation }: Props) {
       updateProfile({
         name: `${editFirstName} ${editLastName}`.trim(),
         phone: editPhone,
-        email: editEmail
+        email: editEmail,
+        avatar: editAvatar
       });
       setIsSaving(false);
       setEditModalVisible(false);
@@ -61,7 +80,7 @@ export default function ProfileScreen({ navigation }: Props) {
     memberSince: 'January 2024',
     totalOrders: 12,
     loyaltyPoints: 1250,
-    wishlistCount: 45,
+    wishlistCount: wishlistItems.length,
   };
 
   const handleLogout = () => {
@@ -84,7 +103,7 @@ export default function ProfileScreen({ navigation }: Props) {
 
   const accountMenuItems = [
     { icon: Package, label: 'My Orders', onPress: () => navigation.navigate('Orders', {}) },
-    { icon: Heart, label: 'Wishlist', onPress: () => navigation.navigate('Shop', { category: 'wishlist' }) },
+    { icon: Heart, label: 'Wishlist', onPress: () => navigation.navigate('Wishlist') },
     { icon: MapPin, label: 'My Addresses', onPress: () => navigation.navigate('Addresses') },
     { icon: Store, label: 'Following Shops', onPress: () => navigation.navigate('FollowingShops') },
   ];
@@ -109,7 +128,11 @@ export default function ProfileScreen({ navigation }: Props) {
         <View style={styles.profileHeader}>
           <View style={styles.avatarWrapper}>
             <View style={styles.avatarCircle}>
-              <User size={50} color={BRAND_COLOR} strokeWidth={1.5} />
+              {user?.avatar ? (
+                <Image source={{ uri: user.avatar }} style={styles.avatarImage} />
+              ) : (
+                <User size={50} color={BRAND_COLOR} strokeWidth={1.5} />
+              )}
             </View>
             <Pressable style={styles.editBtn} onPress={openEditModal}>
               <Edit2 size={14} color={BRAND_COLOR} strokeWidth={2.5} />
@@ -124,20 +147,29 @@ export default function ProfileScreen({ navigation }: Props) {
 
         {/* 2. STATS ROW (Integrated into Header Design) */}
         <View style={styles.statsCard}>
-          <View style={styles.statBox}>
+          <Pressable
+            style={({ pressed }) => [styles.statBox, pressed && { opacity: 0.7 }]}
+            onPress={() => navigation.navigate('Orders', { initialTab: 'active' })}
+          >
             <Text style={[styles.statVal, { color: BRAND_COLOR }]}>{profile.totalOrders}</Text>
             <Text style={styles.statLab}>Orders</Text>
-          </View>
+          </Pressable>
           <View style={styles.statDivider} />
-          <View style={styles.statBox}>
+          <Pressable
+            style={({ pressed }) => [styles.statBox, pressed && { opacity: 0.7 }]}
+            onPress={() => navigation.navigate('Wishlist')}
+          >
             <Text style={[styles.statVal, { color: BRAND_COLOR }]}>{profile.wishlistCount}</Text>
             <Text style={styles.statLab}>Wishlist</Text>
-          </View>
+          </Pressable>
           <View style={styles.statDivider} />
-          <View style={styles.statBox}>
+          <Pressable
+            style={({ pressed }) => [styles.statBox, pressed && { opacity: 0.7 }]}
+            onPress={() => Alert.alert('Loyalty Points', `You have ${profile.loyaltyPoints} points available to redeem!`)}
+          >
             <Text style={[styles.statVal, { color: BRAND_COLOR }]}>{profile.loyaltyPoints}</Text>
             <Text style={styles.statLab}>Points</Text>
-          </View>
+          </Pressable>
         </View>
       </View>
 
@@ -214,12 +246,16 @@ export default function ProfileScreen({ navigation }: Props) {
             <ScrollView contentContainerStyle={{ padding: 20 }}>
               {/* Avatar Section */}
               <View style={styles.avatarSection}>
-                <View style={styles.avatarContainer}>
-                  <User size={50} color={BRAND_COLOR} />
+                <Pressable style={styles.avatarContainer} onPress={handlePickImage}>
+                  {editAvatar ? (
+                    <Image source={{ uri: editAvatar }} style={styles.avatarImageLarge} />
+                  ) : (
+                    <User size={50} color={BRAND_COLOR} />
+                  )}
                   <View style={[styles.cameraBadge, { backgroundColor: BRAND_COLOR }]}>
                     <Camera size={12} color="#FFF" />
                   </View>
-                </View>
+                </Pressable>
                 <Text style={styles.changePhotoText}>Change Photo</Text>
               </View>
 
@@ -266,7 +302,13 @@ const styles = StyleSheet.create({
     shadowColor: '#000',
     shadowOpacity: 0.1,
     shadowRadius: 10,
-    elevation: 5
+
+    elevation: 5,
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
   },
   editBtn: {
     position: 'absolute',
@@ -332,7 +374,8 @@ const styles = StyleSheet.create({
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
   modalTitle: { fontSize: 18, fontWeight: '800', color: '#1F2937' },
   avatarSection: { alignItems: 'center', marginBottom: 20 },
-  avatarContainer: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+  avatarContainer: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center', marginBottom: 8, overflow: 'hidden' },
+  avatarImageLarge: { width: '100%', height: '100%' },
   cameraBadge: { position: 'absolute', bottom: 0, right: 0, width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#FFF' },
   changePhotoText: { fontSize: 13, color: '#6B7280', fontWeight: '600' },
   inputLabel: { fontSize: 13, fontWeight: '700', color: '#374151', marginBottom: 6, marginTop: 10 },

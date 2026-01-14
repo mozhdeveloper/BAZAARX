@@ -27,20 +27,21 @@ const { width, height } = Dimensions.get('window');
 interface CameraSearchModalProps {
   visible: boolean;
   onClose: () => void;
+  onProductSelect?: (product: Product) => void;
 }
 
-export default function CameraSearchModal({ visible, onClose }: CameraSearchModalProps) {
+export default function CameraSearchModal({ visible, onClose, onProductSelect }: CameraSearchModalProps) {
   const navigation = useNavigation<any>();
   const [facing, setFacing] = useState<CameraType>('back');
   const [permission, requestPermission] = useCameraPermissions();
   const [searching, setSearching] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [searchResults, setSearchResults] = useState<Product[]>([]);
-  
+
   const [showRequestForm, setShowRequestForm] = useState(false);
   const [requestSubmitted, setRequestSubmitted] = useState(false);
   const cameraRef = useRef<any>(null);
-  
+
   const BRAND_COLOR = '#FF5722';
 
   // Request form state
@@ -131,17 +132,17 @@ export default function CameraSearchModal({ visible, onClose }: CameraSearchModa
     return (
       <Modal visible={visible} animationType="slide">
         <View style={styles.permissionContainer}>
-           <View style={[styles.iconCircle, { backgroundColor: BRAND_COLOR + '15' }]}>
-              <CameraIcon size={40} color={BRAND_COLOR} />
-           </View>
-           <Text style={styles.permissionTitle}>Camera Permission Required</Text>
-           <Text style={styles.permissionSubtitle}>We need camera access to help you search for products using photos.</Text>
-           <Pressable onPress={handleGrantPermission} style={[styles.permissionButton, { backgroundColor: BRAND_COLOR }]}>
-             <Text style={styles.permissionButtonText}>Grant Permission</Text>
-           </Pressable>
-           <Pressable onPress={handleClose} style={styles.closeButton}>
-             <Text style={styles.closeButtonText}>Maybe Later</Text>
-           </Pressable>
+          <View style={[styles.iconCircle, { backgroundColor: BRAND_COLOR + '15' }]}>
+            <CameraIcon size={40} color={BRAND_COLOR} />
+          </View>
+          <Text style={styles.permissionTitle}>Camera Permission Required</Text>
+          <Text style={styles.permissionSubtitle}>We need camera access to help you search for products using photos.</Text>
+          <Pressable onPress={handleGrantPermission} style={[styles.permissionButton, { backgroundColor: BRAND_COLOR }]}>
+            <Text style={styles.permissionButtonText}>Grant Permission</Text>
+          </Pressable>
+          <Pressable onPress={handleClose} style={styles.closeButton}>
+            <Text style={styles.closeButtonText}>Maybe Later</Text>
+          </Pressable>
         </View>
       </Modal>
     );
@@ -207,7 +208,19 @@ export default function CameraSearchModal({ visible, onClose }: CameraSearchModa
             </View>
             <View style={styles.resultsGrid}>
               {searchResults.map((product) => (
-                <Pressable key={product.id} style={styles.resultCard} onPress={() => { handleClose(); navigation.navigate('ProductDetail', { product }); }}>
+                <Pressable
+                  key={product.id}
+                  style={styles.resultCard}
+                  onPress={() => {
+                    if (onProductSelect) {
+                      onProductSelect(product);
+                    } else {
+                      // Fallback if no callback provided
+                      onClose(); // Close first
+                      navigation.navigate('ProductDetail', { product });
+                    }
+                  }}
+                >
                   <Image source={{ uri: product.image }} style={styles.resultImage} />
                   <View style={styles.resultInfo}>
                     <Text style={styles.resultName} numberOfLines={2}>{product.name}</Text>
@@ -217,8 +230,8 @@ export default function CameraSearchModal({ visible, onClose }: CameraSearchModa
               ))}
             </View>
             <Pressable onPress={() => setShowResults(false)} style={[styles.scanAgainButton, { borderColor: BRAND_COLOR }]}>
-                <CameraIcon size={20} color={BRAND_COLOR} />
-                <Text style={[styles.scanAgainText, { color: BRAND_COLOR }]}>Scan Another Product</Text>
+              <CameraIcon size={20} color={BRAND_COLOR} />
+              <Text style={[styles.scanAgainText, { color: BRAND_COLOR }]}>Scan Another Product</Text>
             </Pressable>
           </ScrollView>
         </View>
@@ -245,15 +258,15 @@ export default function CameraSearchModal({ visible, onClose }: CameraSearchModa
               <ActivityIndicator size="large" color={BRAND_COLOR} />
             ) : (
               <View style={styles.uploadRow}>
-                  <Pressable onPress={handleUploadImageToSearch} style={[styles.galleryBtn, { backgroundColor: BRAND_COLOR }]}>
-                      <ImageIcon size={22} color="#FFF" /><Text style={styles.galleryBtnText}>Gallery</Text>
-                  </Pressable>
-                  <Pressable onPress={handleCapture} style={[styles.captureButton, { borderColor: BRAND_COLOR }]}>
-                      <View style={[styles.captureButtonInner, { backgroundColor: BRAND_COLOR }]} />
-                  </Pressable>
-                  <Pressable onPress={() => setShowRequestForm(true)} style={[styles.galleryBtn, { backgroundColor: '#333' }]}>
-                      <Plus size={22} color="#FFF" /><Text style={styles.galleryBtnText}>Request</Text>
-                  </Pressable>
+                <Pressable onPress={handleUploadImageToSearch} style={[styles.galleryBtn, { backgroundColor: BRAND_COLOR }]}>
+                  <ImageIcon size={22} color="#FFF" /><Text style={styles.galleryBtnText}>Gallery</Text>
+                </Pressable>
+                <Pressable onPress={handleCapture} style={[styles.captureButton, { borderColor: BRAND_COLOR }]}>
+                  <View style={[styles.captureButtonInner, { backgroundColor: BRAND_COLOR }]} />
+                </Pressable>
+                <Pressable onPress={() => setShowRequestForm(true)} style={[styles.galleryBtn, { backgroundColor: '#333' }]}>
+                  <Plus size={22} color="#FFF" /><Text style={styles.galleryBtnText}>Request</Text>
+                </Pressable>
               </View>
             )}
           </View>
