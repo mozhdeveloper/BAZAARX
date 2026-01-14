@@ -68,12 +68,15 @@ export default function CartScreen({ navigation }: Props) {
     return (
       <View style={styles.container}>
         <StatusBar barStyle="light-content" />
-        <View style={[styles.header, { paddingTop: insets.top + 16, backgroundColor: BRAND_COLOR }]}>
-          <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
-            <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
-          </Pressable>
-          <Text style={styles.headerTitle}>My Cart</Text>
-          <View style={{ width: 40 }} />
+        {/* ROUNDED HEADER STYLE COPIED FROM HOME */}
+        <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: BRAND_COLOR }]}>
+          <View style={styles.headerTop}>
+            <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
+              <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
+            </Pressable>
+            <Text style={styles.headerTitle}>My Cart</Text>
+            <View style={{ width: 40 }} />
+          </View>
         </View>
 
         <View style={styles.emptyContainer}>
@@ -94,15 +97,17 @@ export default function CartScreen({ navigation }: Props) {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
       
-      {/* 1. BRANDED ORANGE HEADER */}
-      <View style={[styles.header, { paddingTop: insets.top + 16, backgroundColor: BRAND_COLOR }]}>
-        <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
-          <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
-        </Pressable>
-        <Text style={styles.headerTitle}>My Cart ({items.length})</Text>
-        <Pressable onPress={clearCart} style={styles.clearButton}>
-          <Text style={styles.clearText}>Clear All</Text>
-        </Pressable>
+      {/* 1. BRANDED ROUNDED HEADER */}
+      <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: BRAND_COLOR }]}>
+        <View style={styles.headerTop}>
+          <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
+            <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
+          </Pressable>
+          <Text style={styles.headerTitle}>My Cart ({items.length})</Text>
+          <Pressable onPress={clearCart} style={styles.clearButton}>
+            <Text style={styles.clearText}>Clear All</Text>
+          </Pressable>
+        </View>
       </View>
 
       {/* 2. SELECT ALL BAR */}
@@ -167,7 +172,7 @@ export default function CartScreen({ navigation }: Props) {
           </View>
         )}
 
-        {/* ORDER SUMMARY */}
+        {/* ORDER SUMMARY BOX */}
         <View style={styles.summaryCard}>
           <View style={styles.summaryHeader}>
             <Tag size={18} color={BRAND_COLOR} strokeWidth={2.5} />
@@ -212,14 +217,19 @@ export default function CartScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F9FAFB' },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
+  // HEADER STYLE TO MATCH HOMESCREEN
+  headerContainer: { 
+    paddingHorizontal: 20, 
+    borderBottomLeftRadius: 20, 
+    borderBottomRightRadius: 20,
     paddingBottom: 20,
   },
-  backButton: { width: 40, height: 40, justifyContent: 'center' },
+  headerTop: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center',
+  },
+  headerIconButton: { padding: 4 },
   headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFFFFF' },
   clearButton: { paddingHorizontal: 12 },
   clearText: { fontSize: 14, fontWeight: '600', color: 'rgba(255,255,255,0.8)' },
@@ -246,10 +256,12 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     marginBottom: 12,
     paddingLeft: 12,
-    elevation: 3,
+    elevation: 4,
     shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    borderWidth: 1,
+    borderColor: '#F1F1F1'
   },
   itemCheckbox: { padding: 8 },
 
@@ -265,7 +277,7 @@ const styles = StyleSheet.create({
   successBanner: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F0FDF4', marginHorizontal: 16, padding: 16, borderRadius: 16, gap: 12 },
   successText: { flex: 1, fontSize: 14, color: '#166534', fontWeight: '600' },
 
-  summaryCard: { backgroundColor: '#FFFFFF', margin: 16, borderRadius: 24, padding: 20, elevation: 4, shadowOpacity: 0.05 },
+  summaryCard: { backgroundColor: '#FFFFFF', margin: 16, borderRadius: 24, padding: 20, elevation: 4, shadowOpacity: 0.05, borderWidth: 1, borderColor: '#F1F1F1' },
   summaryHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 15 },
   summaryTitle: { fontSize: 17, fontWeight: '800', color: '#1F2937' },
   divider: { height: 1, backgroundColor: '#F3F4F6', marginVertical: 12 },
@@ -276,7 +288,6 @@ const styles = StyleSheet.create({
   totalLabel: { fontSize: 16, fontWeight: '800', color: '#1F2937' },
   totalValue: { fontSize: 24, fontWeight: '900' },
 
-  // ENLARGED BOTTOM BAR
   bottomBar: { 
     position: 'absolute', 
     left: 12, 
