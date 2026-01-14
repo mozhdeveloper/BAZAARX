@@ -24,7 +24,7 @@ export const POSLiteFeature = () => {
             
             <h2 className="text-2xl lg:text-5xl font-black text-[#1a2b3b] leading-[1.1]">
               Your Store, <br />
-              <span className="text-[#FF5722]">Synchronized.</span>
+              <span className="text-[#FF6A00]">Synchronized.</span>
             </h2>
             
             <p className="text-gray-600 text-lg leading-relaxed max-w-lg">
