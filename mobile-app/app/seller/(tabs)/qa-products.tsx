@@ -204,7 +204,7 @@ export default function SellerProductQAScreen() {
       <SellerDrawer visible={drawerVisible} onClose={() => setDrawerVisible(false)} />
       
       {/* Header */}
-      <View style={{ backgroundColor: '#FF5722', paddingTop: insets.top + 16, paddingBottom: 20, paddingHorizontal: 20 }}>
+      <View style={{ backgroundColor: '#FF5722', paddingTop: insets.top + 16, paddingBottom: 20, paddingHorizontal: 20, borderBottomLeftRadius: 20, borderBottomRightRadius: 20,}}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
           <TouchableOpacity style={{ backgroundColor: 'rgba(255,255,255,0.2)', padding: 12, borderRadius: 12 }} onPress={() => setDrawerVisible(true)}>
             <FileCheck size={24} color="#FFFFFF" strokeWidth={2} />

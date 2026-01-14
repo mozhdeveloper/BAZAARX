@@ -73,6 +73,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   const [isFavorite, setIsFavorite] = useState(false);
   const addItem = useCartStore((state) => state.addItem);
   const setQuickOrder = useCartStore((state) => state.setQuickOrder);
+  const BRAND_COLOR = '#FF5722';
 
   const relatedProducts = trendingProducts.filter((p) => p.id !== product.id).slice(0, 4);
 
