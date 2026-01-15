@@ -11,7 +11,7 @@ export function MobileAppShowcase() {
         titleComponent={
           <div className="text-center space-y-6">
             <h2 className="text-4xl md:text-6xl font-bold text-gray-900 leading-tight">
-              Experience Bazaar
+              Experience <span className="font-fondamento">Bazaar</span>
               <span className="block text-[#FF6A00] mt-2">On Your Phone</span>
             </h2>
             <p className="text-xl md:text-2xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
