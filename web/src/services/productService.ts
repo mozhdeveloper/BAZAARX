@@ -11,7 +11,7 @@ type ProductInsert = Database['public']['Tables']['products']['Insert'];
 type ProductUpdate = Database['public']['Tables']['products']['Update'];
 
 // Mock data fallback (when Supabase is not configured)
-let mockProducts: Product[] = [];
+const mockProducts: Product[] = [];
 
 /**
  * Fetch products with optional filters
@@ -116,9 +116,14 @@ export const createProduct = async (product: ProductInsert): Promise<Product | n
 
     if (error) throw error;
     return data;
-  } catch (error) {
-    console.error('Error creating product:', error);
-    return null;
+  } catch (error: unknown) {
+    // Surface detailed error info instead of a generic Object log
+    const message =
+      error && typeof error === 'object' && 'message' in error
+        ? (error as { message: string }).message
+        : JSON.stringify(error, null, 2);
+    console.error('Error creating product:', message, error);
+    throw error;
   }
 };
 
