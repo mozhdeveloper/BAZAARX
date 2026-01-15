@@ -79,6 +79,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
   const addItem = useCartStore((state) => state.addItem);
   const setQuickOrder = useCartStore((state) => state.setQuickOrder);
+  const BRAND_COLOR = '#FF5722';
 
   const { addItem: addToWishlist, removeItem: removeFromWishlist, isInWishlist } = useWishlistStore();
   const isFavorite = isInWishlist(product.id);
