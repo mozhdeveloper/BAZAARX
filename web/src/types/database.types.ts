@@ -94,7 +94,7 @@ export interface Buyer {
   id: string; // UUID, references Profile
   shipping_addresses: ShippingAddress[];
   payment_methods: PaymentMethod[];
-  preferences: Record<string, any>;
+  preferences: Record<string, unknown>;
   followed_shops: string[]; // UUID[]
   created_at: string;
   updated_at: string;
@@ -134,7 +134,7 @@ export interface Seller {
 export interface Admin {
   id: string; // UUID, references Profile
   role: AdminRole;
-  permissions: Record<string, any>;
+  permissions: Record<string, unknown>;
   created_at: string;
   updated_at: string;
 }
@@ -166,7 +166,7 @@ export interface Product {
   sizes: string[];
   colors: string[];
   variants: ProductVariant[];
-  specifications: Record<string, any>;
+  specifications: Record<string, unknown>;
   // Status
   is_active: boolean;
   approval_status: ApprovalStatus;
@@ -298,7 +298,7 @@ export interface OrderItem {
   subtotal: number;
   // Variant Info
   selected_variant: ProductVariant | null;
-  personalized_options: Record<string, any> | null;
+  personalized_options: Record<string, unknown> | null;
   // Seller Info
   seller_id: string | null;
   seller_name: string | null;
@@ -322,7 +322,7 @@ export interface OrderStatusHistory {
   note: string | null;
   changed_by: string | null; // UUID
   changed_by_role: 'buyer' | 'seller' | 'admin' | 'system' | null;
-  metadata: Record<string, any> | null;
+  metadata: Record<string, unknown> | null;
   created_at: string;
 }
 
@@ -359,7 +359,7 @@ export interface CartItem {
   product_id: string;
   quantity: number;
   selected_variant: ProductVariant | null;
-  personalized_options: Record<string, any> | null;
+  personalized_options: Record<string, unknown> | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -488,7 +488,7 @@ export interface Notification {
   icon_bg: string | null;
   // Action
   action_url: string | null;
-  action_data: Record<string, any> | null;
+  action_data: Record<string, unknown> | null;
   // Status
   is_read: boolean;
   read_at: string | null;
@@ -572,7 +572,7 @@ export interface ShippingMethod {
 
 export interface PaymentMethod {
   type: 'gcash' | 'paymaya' | 'cod' | 'bank_transfer' | 'card';
-  details: Record<string, any>;
+  details: Record<string, unknown>;
 }
 
 // ============================================================================

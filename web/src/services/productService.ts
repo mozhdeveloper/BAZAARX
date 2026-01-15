@@ -109,6 +109,7 @@ export const createProduct = async (product: ProductInsert): Promise<Product | n
 
   try {
     const { data, error } = await supabase
+      // @ts-ignore - Database types need to be regenerated  
       .from('products')
       .insert(product)
       .select()
@@ -146,6 +147,7 @@ export const updateProduct = async (id: string, updates: ProductUpdate): Promise
 
   try {
     const { data, error } = await supabase
+      // @ts-ignore - Database types need to be regenerated
       .from('products')
       .update(updates)
       .eq('id', id)
@@ -175,6 +177,7 @@ export const deleteProduct = async (id: string): Promise<boolean> => {
 
   try {
     const { error } = await supabase
+      // @ts-ignore - Database types need to be regenerated
       .from('products')
       .update({ is_active: false })
       .eq('id', id);
@@ -208,6 +211,7 @@ export const deductStock = async (
 
   try {
     // Call database function to handle stock deduction atomically
+    // @ts-expect-error - RPC types not yet generated
     const { error } = await supabase.rpc('deduct_product_stock', {
       p_product_id: productId,
       p_quantity: quantity,
@@ -243,6 +247,7 @@ export const addStock = async (
   }
 
   try {
+    // @ts-expect-error - RPC types not yet generated
     const { error } = await supabase.rpc('add_product_stock', {
       p_product_id: productId,
       p_quantity: quantity,

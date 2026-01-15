@@ -52,6 +52,7 @@
     "framer-motion": "^12.26.1",
     "gsap": "^3.14.1",
     "leaflet": "^1.9.4",
+    "lenis": "^1.3.17",
     "lottie-react": "^2.4.1",
     "lucide-react": "^0.556.0",
     "motion": "^12.23.26",
