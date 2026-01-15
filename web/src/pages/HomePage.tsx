@@ -3,6 +3,7 @@ import { BazaarHero } from '../components/ui/bazaar-hero';
 import ScrollMorphHero from '../components/ui/scroll-morph-hero';
 import { SectionTransition } from '../components/ui/section-transition';
 import BazaarTrustShowcase from '../components/ui/bazaar-trust-showcase';
+import BazaarHistory from '../components/ui/bazaar-history';
 import { MobileAppShowcase } from '../components/ui/mobile-app-showcase';
 import { Hero195 } from '../components/ui/hero-195';
 import { BazaarFooter } from '../components/ui/bazaar-footer';
@@ -15,6 +16,8 @@ import CategoriesFooterStrip from '../components/CategoriesFooterStrip';
 import BazaarXTestimonials from '../components/sections/BazaarXTestimonials';
 import BrandTestimonials from '../components/sections/BrandTestimonials';
 import POSLiteFeature from '@/components/sections/PosLite';
+import BazaarHistoryZoomParallax from '@/components/ui/bazaar-history-zoom-parallax';
+import BazaarRevealWords from '@/components/ui/bazaar-history-reveal-words';
 
 // Data imports
 import { trendingProducts, bestSellerProducts, newArrivals } from '../data/products';
@@ -25,13 +28,25 @@ const HomePage: React.FC = () => {
     <SmoothScrollProvider>
       <div className="min-h-screen bg-white">
         
-        {/* New Bazaar Hero with integrated header */}
+        {/* Bazaar Hero */}
         <BazaarHero />
+
+        {/* Bazaar history section  */}
+        <BazaarHistory />
+
+        {/* Bazaar history zoom parallax section */}
+        <BazaarHistoryZoomParallax />
+        
+        {/* Bazaar: trade / craft / gathering */}
+        <BazaarRevealWords />
 
         {/* Scroll Morph Hero - Categories Explorer */}
         <div className="h-[120vh] w-full">
           <ScrollMorphHero />
         </div>
+
+        {/* Mobile App Showcase */}
+        <MobileAppShowcase />
 
         {/* Transition Section */}
         <SectionTransition />
@@ -39,8 +54,6 @@ const HomePage: React.FC = () => {
         {/* Trust & Quality Showcase */}
         <BazaarTrustShowcase />
 
-        {/* Mobile App Showcase */}
-        <MobileAppShowcase />
 
         {/* POS Lite Feature*/}
         <POSLiteFeature />

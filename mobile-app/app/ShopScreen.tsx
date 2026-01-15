@@ -35,7 +35,6 @@ const PADDING = 20;
 const GAP = 15;
 const ITEM_WIDTH = (width - (PADDING * 2) - GAP) / 2;
 
-// Enhanced Store Data with UX Trust Signals
 const officialStores = [
   {
     id: '1',
@@ -122,10 +121,9 @@ export default function ShopScreen({ navigation, route }: Props) {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
       
-      {/* BRANDED HEADER */}
-      <View style={[styles.header, { paddingTop: insets.top + 10, backgroundColor: BRAND_COLOR }]}>
-        <View style={styles.headerContent}>
-          <View style={styles.searchBar}>
+      <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: BRAND_COLOR }]}>
+        <View style={styles.headerTop}>
+          <View style={styles.searchBarWrapper}>
             <Search size={18} color="#9CA3AF" />
             <TextInput
               style={styles.searchInput}
@@ -135,36 +133,43 @@ export default function ShopScreen({ navigation, route }: Props) {
               placeholderTextColor="#9CA3AF"
             />
             <Pressable onPress={() => setShowCameraSearch(true)}>
-              <Camera size={18} color="#1F2937" />
+              <Camera size={18} color={BRAND_COLOR} />
             </Pressable>
           </View>
 
-          <View style={styles.headerIcons}>
-            <Pressable style={styles.iconBtn} onPress={() => navigation.navigate('Cart')}>
-              <ShoppingCart size={22} color="#FFFFFF" />
+          <View style={styles.headerRight}>
+            <Pressable style={styles.headerIconButton} onPress={() => navigation.navigate('Cart')}>
+              <ShoppingCart size={24} color="#FFFFFF" />
               {cartItems.length > 0 && (
                 <View style={[styles.badge, { backgroundColor: '#FFFFFF' }]}>
                   <Text style={[styles.badgeText, { color: BRAND_COLOR }]}>{cartItems.length}</Text>
                 </View>
               )}
             </Pressable>
-            <Pressable style={styles.iconBtn} onPress={() => setShowFiltersModal(true)}>
-              <SlidersHorizontal size={22} color="#FFFFFF" />
+            <Pressable style={styles.headerIconButton} onPress={() => setShowFiltersModal(true)}>
+              <SlidersHorizontal size={24} color="#FFFFFF" />
             </Pressable>
           </View>
         </View>
       </View>
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* EMPHASIZED OFFICIAL STORES SECTION */}
         <View style={styles.storesSection}>
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionTitle}>Verified Official Stores</Text>
-            <Pressable><Text style={{color: BRAND_COLOR, fontWeight: '700'}}>See All</Text></Pressable>
+            {/* SEE ALL IS NOW CLICKABLE */}
+            <Pressable onPress={() => console.log('Navigate to All Stores')}>
+              <Text style={{color: BRAND_COLOR, fontWeight: '700'}}>See All</Text>
+            </Pressable>
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.storesScroll}>
             {officialStores.map((store) => (
-              <View key={store.id} style={styles.storeCard}>
+              /* CLICKABLE STORE CARD */
+              <Pressable 
+                key={store.id} 
+                style={styles.storeCard}
+                onPress={() => console.log(`Maps to store: ${store.name}`)}
+              >
                 <View style={styles.storeHeader}>
                   <View style={styles.storeLogo}><Text style={{fontSize: 22}}>{store.logo}</Text></View>
                   <View style={styles.storeInfo}>
@@ -177,21 +182,20 @@ export default function ShopScreen({ navigation, route }: Props) {
                       <Text style={styles.ratingText}>{store.rating}</Text>
                     </View>
                   </View>
-                  <Pressable style={[styles.visitBtn, {borderColor: BRAND_COLOR}]}>
+                  <View style={[styles.visitBtn, {borderColor: BRAND_COLOR}]}>
                     <Text style={[styles.visitBtnText, {color: BRAND_COLOR}]}>Visit</Text>
-                  </Pressable>
+                  </View>
                 </View>
                 <View style={styles.storeProducts}>
                   {store.products.map((url, i) => (
                     <Image key={i} source={{ uri: url }} style={styles.storeProductThumb} />
                   ))}
                 </View>
-              </View>
+              </Pressable>
             ))}
           </ScrollView>
         </View>
 
-        {/* Category Chips */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryScroll}>
           {categories.map((cat) => (
             <Pressable
@@ -204,7 +208,6 @@ export default function ShopScreen({ navigation, route }: Props) {
           ))}
         </ScrollView>
 
-        {/* PRODUCT GRID */}
         <View style={styles.productsGrid}>
           {filteredProducts.map((product) => (
             <View key={product.id} style={styles.cardWrapper}>
@@ -240,21 +243,62 @@ export default function ShopScreen({ navigation, route }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFFFFF' },
-  header: { paddingBottom: 15 },
-  headerContent: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, gap: 12 },
-  searchBar: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 100, paddingHorizontal: 16, height: 45, gap: 10 },
+  container: { flex: 1, backgroundColor: '#F9FAFB' },
+  headerContainer: { 
+    paddingHorizontal: 20, 
+    borderBottomLeftRadius: 20, 
+    borderBottomRightRadius: 20,
+    paddingBottom: 15,
+  },
+  headerTop: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center',
+    gap: 12 
+  },
+  searchBarWrapper: { 
+    flex: 1, 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    backgroundColor: '#FFFFFF', 
+    borderRadius: 100, 
+    paddingHorizontal: 16, 
+    height: 45, 
+    gap: 10 
+  },
   searchInput: { flex: 1, fontSize: 14, color: '#1F2937' },
-  headerIcons: { flexDirection: 'row', gap: 12 },
-  iconBtn: { padding: 4, position: 'relative' },
-  badge: { position: 'absolute', top: 0, right: 0, width: 16, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  badgeText: { fontSize: 9, fontWeight: '800' },
+  headerRight: { flexDirection: 'row', gap: 10 },
+  headerIconButton: { padding: 4, position: 'relative' },
+  badge: { 
+    position: 'absolute', 
+    top: 0, 
+    right: 0, 
+    minWidth: 16, 
+    height: 16, 
+    borderRadius: 8, 
+    alignItems: 'center', 
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  badgeText: { fontSize: 9, fontWeight: '900' },
   scrollView: { flex: 1 },
   storesSection: { marginTop: 25 },
   sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 15 },
   sectionTitle: { fontSize: 19, fontWeight: '800', color: '#1F2937' },
   storesScroll: { paddingHorizontal: 20, gap: 15 },
-  storeCard: { width: 280, backgroundColor: '#FFF', borderRadius: 20, padding: 16, borderWidth: 1, borderColor: '#F3F4F6', elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 10 },
+  storeCard: { 
+    width: 280, 
+    backgroundColor: '#FFF', 
+    borderRadius: 20, 
+    padding: 16, 
+    borderWidth: 1, 
+    borderColor: '#F1F1F1', 
+    elevation: 4, 
+    shadowColor: '#000', 
+    shadowOffset: { width: 0, height: 4 }, 
+    shadowOpacity: 0.05, 
+    shadowRadius: 10 
+  },
   storeHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 15 },
   storeLogo: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#F9FAFB', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#F3F4F6' },
   storeInfo: { flex: 1 },
@@ -267,10 +311,21 @@ const styles = StyleSheet.create({
   storeProducts: { flexDirection: 'row', gap: 8 },
   storeProductThumb: { flex: 1, height: 70, borderRadius: 12, backgroundColor: '#F3F4F6' },
   categoryScroll: { paddingHorizontal: 20, paddingVertical: 20, gap: 10 },
-  chip: { paddingHorizontal: 18, paddingVertical: 9, borderRadius: 25, backgroundColor: '#F3F4F6', borderWidth: 1, borderColor: '#E5E7EB' },
+  chip: { paddingHorizontal: 18, paddingVertical: 9, borderRadius: 25, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB' },
   chipText: { fontSize: 13, fontWeight: '600', color: '#9CA3AF' },
   productsGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: PADDING, justifyContent: 'space-between' },
-  cardWrapper: { width: ITEM_WIDTH, marginBottom: 20 },
+  cardWrapper: { 
+    width: ITEM_WIDTH, 
+    marginBottom: 20,
+    backgroundColor: '#FFF',
+    borderRadius: 18,
+    padding: 2,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+  },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalContent: { backgroundColor: '#FFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: 40 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', padding: 24, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },

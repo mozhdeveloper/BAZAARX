@@ -60,11 +60,11 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
     }
 
     setStatus('processing');
-    
+
     // Simulate payment processing for 3 seconds
     setTimeout(() => {
       setStatus('approved');
-      
+
       // After showing "Payment Approved!", navigate to Track Order screen
       setTimeout(() => {
         navigation.replace('DeliveryTracking', { order });
@@ -89,14 +89,14 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
 
   return (
     <SafeAreaView style={styles.container} edges={['left', 'right']}>
-      <KeyboardAvoidingView 
+      <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
       >
         {/* Minimalist White Header */}
         <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
-          <Pressable 
-            onPress={() => navigation.goBack()} 
+          <Pressable
+            onPress={() => navigation.goBack()}
             style={styles.backButton}
             disabled={status === 'processing'}
           >
@@ -108,7 +108,7 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
           </View>
         </View>
 
-        <ScrollView 
+        <ScrollView
           style={styles.scrollContent}
           contentContainerStyle={{ paddingBottom: 140 }}
           showsVerticalScrollIndicator={false}
@@ -120,8 +120,8 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
               <Text style={styles.billAmount}>₱ {order.total.toLocaleString()}</Text>
             </View>
             <View style={styles.providerLogoContainer}>
-              <Image 
-                source={{ uri: getProviderLogo() }} 
+              <Image
+                source={{ uri: getProviderLogo() }}
                 style={styles.providerLogo}
                 resizeMode="contain"
               />
@@ -131,7 +131,7 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
           {/* Payment Form */}
           <View style={styles.formContainer}>
             <Text style={styles.formTitle}>Enter Payment Details</Text>
-            
+
             {/* Mobile Number Input */}
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Mobile Number</Text>
@@ -218,7 +218,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFFFFF',
   },
-  
+
   // Minimalist White Header
   header: {
     backgroundColor: '#FFFFFF',
@@ -249,12 +249,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#F0FDF4',
     borderRadius: 20,
   },
-  
+
   // Scroll Content
   scrollContent: {
     flex: 1,
   },
-  
+
   // Bill Summary Container
   billContainer: {
     backgroundColor: '#F9F9F9',
@@ -299,7 +299,7 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
   },
-  
+
   // Payment Form
   formContainer: {
     paddingHorizontal: 24,
@@ -370,7 +370,7 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     flex: 1,
   },
-  
+
   // Processing State
   processingContainer: {
     alignItems: 'center',
@@ -389,7 +389,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
     textAlign: 'center',
   },
-  
+
   // Fixed Footer Action Bar
   footerBar: {
     backgroundColor: '#FFFFFF',
@@ -438,7 +438,7 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     fontWeight: '500',
   },
-  
+
   // Success Screen
   successContainer: {
     flex: 1,
