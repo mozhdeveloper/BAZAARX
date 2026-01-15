@@ -6,13 +6,13 @@ const BazaarHistory: React.FC = () => {
     <section className="bg-transparent">
       <div className="container mx-auto">
         <HeroScrollVideo
-          title={"BAZAAR"}
+          title={<span className="font-fondamento font-bold tracking-wider">BAZAAR</span>}
           subtitle={"history"}
           media={'/bazaar.mp4'}
           overlay={{
             caption: "ORIGIN",
             heading: (
-              <span>bazaar</span>
+              <span className="font-fondamento font-bold">bazaar</span>
             ),
             paragraphs: [
               <div key="etymology-layout" style={{

@@ -15,26 +15,25 @@ const images = [
 export default function BazaarHistoryZoomParallax() {
   return (
     <section className="bg-white">
-      <div className="container mx-auto px-6 py-12">
-        <div className="max-w-3xl mx-auto text-center mb-8 overflow-visible">
-  <h2
-    className="inline-block text-4xl sm:text-5xl md:text-6xl lg:text-6xl font-extrabold tracking-tight bg-clip-text text-transparent leading-tight py-2"
-    style={{ backgroundImage: 'linear-gradient(180deg,#fff 0%, #f4a770 40%, var(--accent-2, #e57d45) 100%)' }}
-  >
-    Centers of Exchange
-  </h2>
+      <div className="container mx-auto px-20 py-12">
+        <div className="max-w-7xl mx-auto text-center mb-8 overflow-visible">
+          <h2
+            className="inline-block text-8xl sm:text-5xl md:text-8xl lg:text-8xl font-extrabold tracking-tight leading-tight py-4 font-fondamento whitespace-nowrap text-orange-500"
+          >
+            Centers of Exchange
+          </h2>
 
-  {/* Decorative divider */}
-  <div
-  aria-hidden="true"
-  className="w-80 h-1 rounded-full mx-auto mt-6 mb-6"
-  style={{ backgroundColor: 'var(--accent-2, #FF8A4D)' }}
-/>
+          {/* Decorative divider */}
+          <div
+            aria-hidden="true"
+            className="w-80 h-1 rounded-full mx-auto mt-6 mb-6"
+            style={{ backgroundColor: 'var(--accent-2, #FF8A4D)' }}
+          />
 
-<p className="mt-2 text-lg leading-relaxed text-[var(--text-primary)]">
-  As Persia became a key crossroads of the Silk Road, bazaars evolved into international trade hubs. Goods, ideas, and traditions flowed through their arcades, supported by surrounding mosques, bathhouses, 
-  schools, and caravanserais. These spaces shaped not only economic exchange, but also social interaction and political influence.
-</p>
+          <p className="mt-2 text-3xl leading-relaxed text-[var(--text-primary)]">
+            As Persia became a key crossroads of the Silk Road, bazaars evolved into international trade hubs. Goods, ideas, and traditions flowed through their arcades, supported by surrounding mosques, bathhouses,
+            schools, and caravanserais. These spaces shaped not only economic exchange, but also social interaction and political influence.
+          </p>
         </div>
       </div>
 

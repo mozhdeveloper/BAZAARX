@@ -82,7 +82,8 @@ export default {
 					'Inter',
 					'system-ui',
 					'sans-serif'
-				]
+				],
+				fondamento: ['Fondamento', 'cursive'],
 			},
 			borderRadius: {
 				DEFAULT: '8px',
