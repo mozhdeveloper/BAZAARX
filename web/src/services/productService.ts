@@ -109,8 +109,8 @@ export const createProduct = async (product: ProductInsert): Promise<Product | n
 
   try {
     const { data, error } = await supabase
-      // @ts-ignore - Database types need to be regenerated  
       .from('products')
+      // @ts-expect-error - Database types are out of sync with actual schema
       .insert(product)
       .select()
       .single();
@@ -147,8 +147,8 @@ export const updateProduct = async (id: string, updates: ProductUpdate): Promise
 
   try {
     const { data, error } = await supabase
-      // @ts-ignore - Database types need to be regenerated
       .from('products')
+      // @ts-expect-error - Database types are out of sync with actual schema
       .update(updates)
       .eq('id', id)
       .select()
@@ -177,8 +177,8 @@ export const deleteProduct = async (id: string): Promise<boolean> => {
 
   try {
     const { error } = await supabase
-      // @ts-ignore - Database types need to be regenerated
       .from('products')
+      // @ts-expect-error - Database types are out of sync with actual schema
       .update({ is_active: false })
       .eq('id', id);
 
