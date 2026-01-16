@@ -575,17 +575,21 @@ export const useAuthStore = create<AuthStore>()(
 
           if (error || !user) {
             console.error('Signup failed:', error);
+            // Check if it's a duplicate email error
+            if (error?.message?.includes('already registered') || error?.code === '23505') {
+              console.error('Email already exists. Please use a different email or try logging in.');
+            }
             return false;
           }
 
-          // 2) Create seller record
+          // 2) Create seller record (use upsert to handle conflicts)
           const sellerRow = {
             id: user.id,
             business_name: sellerData.businessName || sellerData.storeName || 'My Store',
             store_name: sellerData.storeName || 'My Store',
             store_description: sellerData.storeDescription || null,
             store_category: sellerData.storeCategory || ['General'],
-            business_type: sellerData.businessType || 'sole_prop',
+            business_type: sellerData.businessType || 'sole_proprietor',
             business_registration_number: sellerData.businessRegistrationNumber || null,
             tax_id_number: sellerData.taxIdNumber || null,
             business_address: sellerData.businessAddress || sellerData.storeAddress || '',
@@ -602,7 +606,11 @@ export const useAuthStore = create<AuthStore>()(
           };
 
           // @ts-expect-error - Database types need to be regenerated
-          const { error: sellerError } = await supabase.from('sellers').insert(sellerRow);
+          const { error: sellerError } = await supabase.from('sellers').upsert(sellerRow, {
+            onConflict: 'id',
+            ignoreDuplicates: false
+          });
+          
           if (sellerError) {
             console.error('Seller insert failed:', sellerError);
             return false;
