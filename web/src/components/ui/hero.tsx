@@ -11,12 +11,12 @@ interface Action {
   href?: string;
   onClick?: () => void;
   variant?:
-    | "default"
-    | "destructive"
-    | "outline"
-    | "secondary"
-    | "ghost"
-    | "link";
+  | "default"
+  | "destructive"
+  | "outline"
+  | "secondary"
+  | "ghost"
+  | "link";
 }
 
 interface HeroProps extends Omit<React.HTMLAttributes<HTMLElement>, "title"> {
@@ -56,9 +56,9 @@ const Hero = React.forwardRef<HTMLElement, HeroProps>(
         {...props}
       >
         {gradient && (
-          <div className="absolute top-0 isolate z-0 flex w-screen flex-1 items-start justify-center">
+          <div className="absolute top-0 isolate z-0 flex w-full flex-1 items-start justify-center">
             {blur && (
-              <div className="absolute top-0 z-50 h-48 w-screen bg-transparent opacity-10 backdrop-blur-md" />
+              <div className="absolute top-0 z-50 h-48 w-full bg-transparent opacity-10 backdrop-blur-md" />
             )}
 
             {/* Main glow */}
