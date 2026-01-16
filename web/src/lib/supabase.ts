@@ -24,23 +24,26 @@ if (!supabaseUrl || !supabaseAnonKey) {
  * - Realtime subscriptions
  * - Edge Functions
  */
-export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
-  },
-  realtime: {
-    params: {
-      eventsPerSecond: 10,
+export const supabase = createClient<Database>(
+  supabaseUrl || 'https://placeholder.supabase.co',
+  supabaseAnonKey || 'placeholder-key',
+  {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
     },
-  },
-  global: {
-    headers: {
-      'X-Client-Info': 'bazaarx-web',
+    realtime: {
+      params: {
+        eventsPerSecond: 10,
+      },
     },
-  },
-});
+    global: {
+      headers: {
+        'X-Client-Info': 'bazaarx-web',
+      },
+    },
+  });
 
 /**
  * Helper function to check if Supabase is configured

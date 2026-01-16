@@ -162,14 +162,9 @@ export function BazaarHero() {
                 BazaarX
               </span>
               <div className="h-40 w-px bg-gradient-to-b from-transparent via-[var(--brand-primary)] to-transparent" />
-              <div className="text-center text-4xl font-semibold text-[var(--text-primary)]">
-                Your Gateway
-                <br />
-                <span className="text-black">to Global Markets</span>
-              </div>
             </div>
           }
-          subtitle="Skip the middlemen and explore curated products from makers worldwide—delivered directly to you."
+          subtitle="Inspired by ancient bazaars. Reimagined as the modern crossroads of global trade."
           subtitleClassName="font-fondamento text-2xl mt-6 text-center"
           actions={[
             {

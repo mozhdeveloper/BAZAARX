@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import "./styles/globals.css";
 import { Toaster } from "./components/ui/toaster";
+import ScrollToTop from "./components/ScrollToTop";
 // import { OrderNotificationModal } from './components/OrderNotificationModal'; // Disabled for testing
 import HomePage from "./pages/HomePage";
 import ShopPage from "./pages/ShopPage";
@@ -66,6 +67,7 @@ function App() {
   return (
     <>
       <Router>
+        <ScrollToTop />
         <Routes>
           {/* Buyer Routes */}
           <Route path="/" element={<HomePage />} />

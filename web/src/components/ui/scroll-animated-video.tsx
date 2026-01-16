@@ -479,8 +479,8 @@ export const HeroScrollVideo: React.FC<HeroScrollVideoProps> = ({
               ) : null}
               <div className="hsv-overlay-content" ref={overlayContentRef}>
                 {overlay?.heading ? <h3>{overlay.heading}</h3> : null}
-                {overlay?.paragraphs?.map((p, i) => (
-                  <p key={i}>{p}</p>
+                {overlay?.paragraphs?.map((text, i) => (
+                  <div key={i} className="hsv-text">{text}</div>
                 ))}
                 {overlay?.extra}
               </div>
@@ -646,7 +646,7 @@ export const HeroScrollVideo: React.FC<HeroScrollVideoProps> = ({
           background: linear-gradient(90deg, var(--accent), var(--accent-2));
           opacity: 0.9;
         }
-        .hsv-overlay-content p {
+        .hsv-overlay-content .hsv-text {
           font-size: clamp(15px, 2.1vw, 19px);
           line-height: 1.75;
           margin: 0;
