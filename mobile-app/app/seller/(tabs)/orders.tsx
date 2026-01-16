@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { Package, ShoppingCart, Bell, X, Search, ChevronDown } from 'lucide-react-native';
+import { Package, ShoppingCart, Bell, X, Search, ChevronDown, Menu } from 'lucide-react-native';
 import { useSellerStore } from '../../../src/stores/sellerStore';
 import SellerDrawer from '../../../src/components/SellerDrawer';
 
@@ -117,7 +117,7 @@ export default function SellerOrdersScreen() {
         <View style={styles.headerContent}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
             <Pressable style={styles.iconContainer} onPress={() => setDrawerVisible(true)}>
-              <ShoppingCart size={24} color="#FFFFFF" strokeWidth={2} />
+              <Menu size={24} color="#FFFFFF" strokeWidth={2} />
             </Pressable>
             <View style={{ flex: 1 }}>
               <Text style={styles.headerTitle}>Orders</Text>

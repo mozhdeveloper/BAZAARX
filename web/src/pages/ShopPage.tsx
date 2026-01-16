@@ -46,6 +46,43 @@ import { categories } from "../data/categories";
 import { useBuyerStore } from "../stores/buyerStore";
 import { useProductStore, useAuthStore } from "../stores/sellerStore";
 import { useProductQAStore } from "../stores/productQAStore";
+import type { Product as BuyerProduct } from "../stores/buyerStore";
+
+type ShopProduct = {
+  id: string;
+  name: string;
+  price: number;
+  originalPrice?: number;
+  image: string;
+  rating: number;
+  sold: number;
+  category: string;
+  seller: string;
+  isVerified: boolean;
+  isFreeShipping?: boolean;
+  location?: string;
+  description?: string;
+  sellerRating?: number;
+  sellerVerified?: boolean;
+};
+
+type LegacyCatalogProduct = {
+  id: string;
+  name: string;
+  price: number;
+  originalPrice?: number;
+  image?: string;
+  rating?: number;
+  sold?: number;
+  category: string;
+  seller?: string;
+  sellerRating?: number;
+  sellerVerified?: boolean;
+  isFreeShipping?: boolean;
+  isVerified?: boolean;
+  location?: string;
+  description?: string | null;
+};
 
 interface FlashSaleProduct {
   id: string;
@@ -170,7 +207,7 @@ export default function ShopPage() {
   }, []);
 
   // Combine seller products (verified) with QA verified products and mock products
-  const allProducts = useMemo(() => {
+  const allProducts = useMemo<ShopProduct[]>(() => {
     // Convert seller products to shop format (only approved ones)
     const seller = useAuthStore.getState().seller;
     const sellerName =
@@ -218,23 +255,56 @@ export default function ShopPage() {
       }));
 
     // Generate mock products for variety
-    const mockProducts = [];
-    const allMockSources = [
+    const normalizeToShopProduct = (p: LegacyCatalogProduct): ShopProduct => ({
+      id: p.id,
+      name: p.name,
+      price: p.price,
+      originalPrice: p.originalPrice,
+      image: p.image || "https://placehold.co/400?text=Product",
+      rating: p.rating ?? 4.5,
+      sold: p.sold ?? 0,
+      category: p.category,
+      seller: p.seller || "Top Seller",
+      isVerified: p.isVerified ?? false,
+      isFreeShipping: p.isFreeShipping ?? true,
+      location: p.location || "Metro Manila",
+      description: p.description || p.name,
+      sellerRating: p.sellerRating ?? p.rating ?? 4.5,
+      sellerVerified: p.sellerVerified ?? false,
+    });
+
+    const baseMockSources: ShopProduct[] = [
       ...trendingProducts,
       ...bestSellerProducts,
       ...newArrivals,
-    ];
+    ].map(normalizeToShopProduct);
+
+    const mockProducts: ShopProduct[] = [];
 
     for (let i = 0; i < 3; i++) {
       mockProducts.push(
-        ...allMockSources.map((product) => ({
-          ...product,
-          id: `${product.id}-${i}`,
-          name: `${product.name} ${i > 0 ? `(Variant ${i + 1})` : ""}`,
-          price: Math.round(product.price * (0.8 + Math.random() * 0.4)),
-          sold: Math.round(product.sold * (0.5 + Math.random() * 1.5)),
-          isVerified: false,
-        }))
+        ...baseMockSources.map((product) => {
+          const baseSold = typeof product.sold === "number" ? product.sold : 0;
+          const baseRating =
+            typeof product.rating === "number" ? product.rating : 4.5;
+          return {
+            id: `${product.id}-${i}`,
+            name: `${product.name} ${i > 0 ? `(Variant ${i + 1})` : ""}`,
+            price: Math.round(product.price * (0.8 + Math.random() * 0.4)),
+            originalPrice: product.originalPrice,
+            image: product.image || "https://placehold.co/400?text=Product",
+            rating: baseRating,
+            sold: Math.round(baseSold * (0.5 + Math.random() * 1.5)),
+            category: product.category,
+            seller: product.seller,
+            isVerified: product.isVerified,
+            isFreeShipping: product.isFreeShipping,
+            location: product.location,
+            description: product.description || product.name,
+            sellerRating: product.sellerRating ?? baseRating,
+            sellerVerified: product.sellerVerified,
+          };
+        })
       );
     }
 
@@ -242,7 +312,7 @@ export default function ShopPage() {
     return [...verifiedSellerProducts, ...qaVerifiedProducts, ...mockProducts];
   }, [sellerProducts, qaProducts]);
 
-  const filteredProducts = useMemo(() => {
+  const filteredProducts = useMemo<ShopProduct[]>(() => {
     const filtered = allProducts.filter((product) => {
       const matchesSearch =
         product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -686,9 +756,15 @@ export default function ShopPage() {
                       <Button
                         onClick={(e) => {
                           e.stopPropagation();
+                          const sellerLocation =
+                            product.location || "Metro Manila";
                           // Transform simple Product to CartItem format
-                          const cartItem = {
-                            ...product,
+                          const cartItem: BuyerProduct = {
+                            id: product.id,
+                            name: product.name,
+                            price: product.price,
+                            originalPrice: product.originalPrice,
+                            image: product.image,
                             images: [product.image],
                             seller: {
                               id: `seller-${product.id}`,
@@ -699,7 +775,7 @@ export default function ShopPage() {
                               followers: 1000,
                               isVerified: product.sellerVerified || false,
                               description: "",
-                              location: product.location,
+                              location: sellerLocation,
                               established: "2020",
                               products: [],
                               badges: [],
@@ -707,7 +783,12 @@ export default function ShopPage() {
                               categories: [product.category],
                             },
                             sellerId: `seller-${product.id}`,
+                            rating: product.rating,
                             totalReviews: 100,
+                            category: product.category,
+                            sold: product.sold,
+                            isFreeShipping: product.isFreeShipping ?? true,
+                            location: sellerLocation,
                             description: product.description || "",
                             specifications: {},
                             variants: [],
@@ -732,9 +813,15 @@ export default function ShopPage() {
                       <Button
                         onClick={(e) => {
                           e.stopPropagation();
+                          const sellerLocation =
+                            product.location || "Metro Manila";
                           // Create quick order item
-                          const cartItem = {
-                            ...product,
+                          const quickOrderItem: BuyerProduct = {
+                            id: product.id,
+                            name: product.name,
+                            price: product.price,
+                            originalPrice: product.originalPrice,
+                            image: product.image,
                             images: [product.image],
                             seller: {
                               id: `seller-${product.id}`,
@@ -745,7 +832,7 @@ export default function ShopPage() {
                               followers: 1000,
                               isVerified: product.sellerVerified || false,
                               description: "",
-                              location: product.location,
+                              location: sellerLocation,
                               established: "2020",
                               products: [],
                               badges: [],
@@ -753,13 +840,18 @@ export default function ShopPage() {
                               categories: [product.category],
                             },
                             sellerId: `seller-${product.id}`,
+                            rating: product.rating,
                             totalReviews: 100,
+                            category: product.category,
+                            sold: product.sold,
+                            isFreeShipping: product.isFreeShipping ?? true,
+                            location: sellerLocation,
                             description: product.description || "",
                             specifications: {},
                             variants: [],
                           };
 
-                          setQuickOrder(cartItem, 1);
+                          setQuickOrder(quickOrderItem, 1);
                           // Navigate to checkout
                           navigate("/checkout");
                         }}

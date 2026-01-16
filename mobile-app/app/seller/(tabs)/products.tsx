@@ -15,7 +15,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Search, Plus, Edit, Trash2, X, Camera, Package as PackageIcon, Info, Link, Upload, FileText } from 'lucide-react-native';
+import { Search, Plus, Edit, Trash2, X, Camera, Package as PackageIcon, Info, Link, Upload, FileText, Menu } from 'lucide-react-native';
 import { useSellerStore, SellerProduct } from '../../../src/stores/sellerStore';
 import { useProductQAStore } from '../../../src/stores/productQAStore';
 import * as ImagePicker from 'expo-image-picker';
@@ -549,7 +549,7 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
       <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <View style={styles.headerRow}>
           <TouchableOpacity style={{ backgroundColor: 'rgba(255,255,255,0.2)', padding: 12, borderRadius: 12 }} onPress={() => setDrawerVisible(true)}>
-            <PackageIcon size={24} color="#FFFFFF" strokeWidth={2} />
+            <Menu size={24} color="#FFFFFF" strokeWidth={2} />
           </TouchableOpacity>
           <View style={styles.headerTextContainer}>
             <Text style={styles.headerTitle}>Inventory</Text>

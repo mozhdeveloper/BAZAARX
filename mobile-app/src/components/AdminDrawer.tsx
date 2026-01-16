@@ -85,7 +85,7 @@ export default function AdminDrawer({ visible, onClose }: AdminDrawerProps) {
               <Text style={styles.brandText}>BazaarPH Admin</Text>
             </View>
             <Pressable onPress={onClose} style={styles.closeButton}>
-              <X size={24} color="#6B7280" />
+              <X size={24} color="#FFFFFF" strokeWidth={2.5} />
             </Pressable>
           </View>
 

@@ -26,6 +26,7 @@ import {
   FileText,
   CheckCircle,
   Clock,
+  Menu,
 } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSellerStore } from '../../../src/stores/sellerStore';
@@ -568,7 +569,7 @@ export default function SellerSettingsScreen() {
         <View style={styles.headerContent}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
             <Pressable style={styles.iconContainer} onPress={() => setDrawerVisible(true)}>
-              <SettingsIcon size={24} color="#FFFFFF" strokeWidth={2} />
+              <Menu size={24} color="#FFFFFF" strokeWidth={2} />
             </Pressable>
             <View style={{ flex: 1 }}>
               <Text style={styles.headerTitle}>Store Settings</Text>

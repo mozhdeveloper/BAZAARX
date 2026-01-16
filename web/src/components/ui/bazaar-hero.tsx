@@ -164,6 +164,7 @@ export function BazaarHero() {
             </>
           }
           subtitle="Skip the middlemen and explore curated products from makers worldwide—delivered directly to you."
+          subtitleClassName="font-fondamento text-2xl mt-6 text-center"
           actions={[
             {
               label: "Start Shopping",
