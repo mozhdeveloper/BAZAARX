@@ -14,24 +14,30 @@ export function MobileAppShowcase() {
               Experience <span className="font-fondamento">Bazaar</span>
               <span className="block text-[#FF6A00] mt-2">On Your Phone</span>
             </h2>
-            <p className="text-xl md:text-2xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
+            <p className="text-l md:text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
               Shop anywhere, anytime with our powerful mobile app. Featuring AI-powered search,
               camera shopping, and seamless checkout experience.
             </p>
 
             {/* App Features */}
-            <div className="flex flex-wrap justify-center gap-6 mt-8">
-              <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-full shadow-md">
-                <Star className="w-5 h-5 text-yellow-500 fill-current" />
-                <span className="text-sm font-medium text-gray-700">4.9 Rating</span>
+            <div className="flex flex-wrap justify-center items-center gap-6 mt-8">
+              <div className="flex items-center gap-2 px-2">
+                <Star className="w-5 h-5 text-[var(--brand-primary)] fill-[var(--brand-primary)]" />
+                <span className="text-sm font-semibold text-gray-900">4.9 Rating</span>
               </div>
-              <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-full shadow-md">
-                <Download className="w-5 h-5 text-green-500" />
-                <span className="text-sm font-medium text-gray-700">50K+ Downloads</span>
+
+              <div className="hidden md:block w-px h-6 bg-gray-300"></div>
+
+              <div className="flex items-center gap-2 px-2">
+                <Download className="w-5 h-5 text-[var(--brand-primary)]" />
+                <span className="text-sm font-semibold text-gray-900">50K+ Downloads</span>
               </div>
-              <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-full shadow-md">
-                <Smartphone className="w-5 h-5 text-blue-500" />
-                <span className="text-sm font-medium text-gray-700">iOS & Android</span>
+
+              <div className="hidden md:block w-px h-6 bg-gray-300"></div>
+
+              <div className="flex items-center gap-2 px-2">
+                <Smartphone className="w-5 h-5 text-[var(--brand-primary)]" />
+                <span className="text-sm font-semibold text-gray-900">iOS & Android</span>
               </div>
             </div>
           </div>

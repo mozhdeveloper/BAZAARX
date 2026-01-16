@@ -18,19 +18,17 @@ export default function BazaarHistoryZoomParallax() {
       <div className="container mx-auto px-20 py-12">
         <div className="max-w-7xl mx-auto text-center mb-8 overflow-visible">
           <h2
-            className="inline-block text-8xl sm:text-5xl md:text-8xl lg:text-8xl font-extrabold tracking-tight leading-tight py-4 font-fondamento whitespace-nowrap text-orange-500"
+            className="inline-block text-8xl sm:text-5xl md:text-8xl lg:text-7xl font-extrabold tracking-tight leading-tight py-4 font-fondamento whitespace-nowrap text-orange-500"
           >
             Centers of Exchange
           </h2>
 
-          {/* Decorative divider */}
-          <div
-            aria-hidden="true"
-            className="w-80 h-1 rounded-full mx-auto mt-6 mb-6"
-            style={{ backgroundColor: 'var(--accent-2, #FF8A4D)' }}
-          />
+          {/* Decorative vertical divider */}
+          <div className="flex justify-center my-8">
+            <div className="h-32 w-px bg-gradient-to-b from-transparent via-[var(--brand-primary)] to-transparent"></div>
+          </div>
 
-          <p className="mt-2 text-3xl leading-relaxed text-[var(--text-primary)]">
+          <p className="mt-2 text-2xl leading-relaxed text-gray-600">
             As Persia became a key crossroads of the Silk Road, bazaars evolved into international trade hubs. Goods, ideas, and traditions flowed through their arcades, supported by surrounding mosques, bathhouses,
             schools, and caravanserais. These spaces shaped not only economic exchange, but also social interaction and political influence.
           </p>

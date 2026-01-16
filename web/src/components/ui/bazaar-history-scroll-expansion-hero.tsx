@@ -15,7 +15,7 @@ const BazaarXCrossroadsHero = () => {
         mediaType="image"
         mediaSrc="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQmZuouK6m6ZrZBycVXgyXEh5FcCkIk48iUPg&s"
         bgImageSrc="https://upload.wikimedia.org/wikipedia/commons/1/1c/Kashan_-_Timche-ye_Amin_od-Dowleh_-_20140512_-_JB.jpg"
-        title="The Modern Crossroads of Global Trade"
+        title="Your Modern Crossroads of Global Trade"
         date="From global factories directly to your doorstep"
       >
         <div className="max-w-4xl mx-auto space-y-8">
@@ -32,7 +32,7 @@ const BazaarXCrossroadsHero = () => {
           </p>
 
           <p className="text-lg md:text-xl leading-relaxed text-white/90">
-            By bringing products straight from the source to your screen,
+            By bringing products straight from the source to your home,
             BazaarX turns centuries of open exchange into a seamless digital
             marketplace.
           </p>
