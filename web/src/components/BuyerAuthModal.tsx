@@ -14,6 +14,8 @@ import {
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "./ui/button";
+import { signUp, signIn } from "../services/authService";
+import { supabase } from "../lib/supabase";
 
 interface BuyerAuthModalProps {
   isOpen: boolean;
@@ -21,14 +23,6 @@ interface BuyerAuthModalProps {
   initialMode?: "login" | "signup";
   onAuthSuccess?: (buyerId: string, email: string) => void;
 }
-
-// Demo credentials for testing
-const DEMO_BUYER = {
-  email: "buyer@bazaarx.ph",
-  password: "password",
-  id: "buyer-demo-001",
-  name: "John Doe",
-};
 
 export function BuyerAuthModal({
   isOpen,
@@ -47,11 +41,6 @@ export function BuyerAuthModal({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [isSuccess, setIsSuccess] = useState(false);
-
-  const fillDemoCredentials = () => {
-    setEmail(DEMO_BUYER.email);
-    setPassword(DEMO_BUYER.password);
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,75 +66,64 @@ export function BuyerAuthModal({
           return;
         }
 
-        // Simulate signup - store in localStorage for now
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        const newBuyer = {
-          id: `buyer-${Date.now()}`,
-          email,
-          password,
-          name: fullName,
-          createdAt: new Date().toISOString(),
-        };
+        // Supabase signup for buyer
+        const { user, error: signUpError } = await signUp(email, password, {
+          full_name: fullName,
+          user_type: "buyer",
+        });
 
-        // Store in localStorage
-        const buyers = JSON.parse(
-          localStorage.getItem("bazaarx_buyers") || "[]"
-        );
-        buyers.push(newBuyer);
-        localStorage.setItem("bazaarx_buyers", JSON.stringify(buyers));
-
-        // Mark as logged in
-        localStorage.setItem(
-          "bazaarx_current_buyer",
-          JSON.stringify({ id: newBuyer.id, email, name: fullName })
-        );
-
-        setIsSuccess(true);
-        onAuthSuccess?.(newBuyer.id, email);
-      } else {
-        // Login - check demo credentials or localStorage
-        await new Promise((resolve) => setTimeout(resolve, 800));
-
-        // Check demo credentials first
-        if (email === DEMO_BUYER.email && password === DEMO_BUYER.password) {
-          localStorage.setItem(
-            "bazaarx_current_buyer",
-            JSON.stringify({
-              id: DEMO_BUYER.id,
-              email: DEMO_BUYER.email,
-              name: DEMO_BUYER.name,
-            })
-          );
-          setIsSuccess(true);
-          onAuthSuccess?.(DEMO_BUYER.id, DEMO_BUYER.email);
+        if (signUpError) {
+          setError(signUpError.message || "Signup failed");
+          setIsLoading(false);
           return;
         }
 
-        // Check localStorage for registered buyers
-        const buyers = JSON.parse(
-          localStorage.getItem("bazaarx_buyers") || "[]"
-        );
-        const buyer = buyers.find((b: unknown) => {
-          const typedB = b as { email: string; password: string };
-          return typedB.email === email && typedB.password === password;
-        });
-
-        if (buyer) {
-          localStorage.setItem(
-            "bazaarx_current_buyer",
-            JSON.stringify({
-              id: buyer.id,
-              email: buyer.email,
-              name: buyer.name,
-            })
-          );
-          setIsSuccess(true);
-          onAuthSuccess?.(buyer.id, buyer.email);
-        } else {
-          setError("Invalid email or password");
+        if (!user) {
+          setError("Failed to create account");
+          setIsLoading(false);
+          return;
         }
+
+        // Buyer record is already created by authService.signUp()
+        // No need to create it again here
+
+        setIsSuccess(true);
+        onAuthSuccess?.(user.id, email);
+      } else {
+        // Login with Supabase
+        const { user, error: signInError } = await signIn(email, password);
+
+        if (signInError) {
+          setError("Invalid email or password");
+          setIsLoading(false);
+          return;
+        }
+
+        if (!user) {
+          setError("Login failed");
+          setIsLoading(false);
+          return;
+        }
+
+        // Verify user is a buyer
+        const { data: buyerData, error: buyerError } = await supabase
+          .from("buyers")
+          .select("*")
+          .eq("id", user.id)
+          .single();
+
+        if (buyerError || !buyerData) {
+          setError("This account is not registered as a buyer");
+          await supabase.auth.signOut();
+          setIsLoading(false);
+          return;
+        }
+
+        setIsSuccess(true);
+        onAuthSuccess?.(user.id, email);
       }
-    } catch {
+    } catch (err) {
+      console.error("Authentication error:", err);
       setError("Something went wrong. Please try again.");
     } finally {
       setIsLoading(false);
@@ -239,29 +217,6 @@ export function BuyerAuthModal({
 
               {/* Content */}
               <div className="px-6 py-6">
-                {/* Demo Credentials (Login Only) */}
-                {mode === "login" && (
-                  <button
-                    onClick={fillDemoCredentials}
-                    className="w-full bg-orange-50 border border-orange-200 rounded-xl p-4 mb-6 hover:bg-orange-100 transition-colors text-left"
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-bold text-orange-600">
-                        🎉 Demo Credentials
-                      </span>
-                      <span className="text-xs text-orange-600">
-                        Tap to auto-fill
-                      </span>
-                    </div>
-                    <p className="text-xs text-orange-700 font-mono">
-                      Email: buyer@bazaarx.ph
-                    </p>
-                    <p className="text-xs text-orange-700 font-mono">
-                      Password: password
-                    </p>
-                  </button>
-                )}
-
                 {error && (
                   <motion.div
                     initial={{ opacity: 0, scale: 0.95 }}
