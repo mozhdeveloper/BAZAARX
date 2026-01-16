@@ -30,7 +30,6 @@ import {
   Hash,
   CheckCircle,
   X,
-  Menu,
 } from 'lucide-react-native';
 import { useSellerStore } from '../../src/stores/sellerStore';
 import SellerDrawer from '../../src/components/SellerDrawer';
@@ -183,7 +182,7 @@ export default function POSScreen() {
         <View style={styles.headerContent}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
             <Pressable style={styles.iconContainer} onPress={() => setDrawerVisible(true)}>
-              <Menu size={24} color="#FFFFFF" strokeWidth={2} />
+              <CreditCard size={24} color="#FFFFFF" strokeWidth={2} />
             </Pressable>
             <View style={{ flex: 1 }}>
               <Text style={styles.headerTitle}>POS Lite</Text>
@@ -342,7 +341,7 @@ export default function POSScreen() {
                           style={styles.addButton}
                           onPress={() => addToCart(product)}
                         >
-                          <Plus size={14} color="#FFF" strokeWidth={2.5} />
+                          <Plus size={16} color="#FFF" strokeWidth={2.5} />
                         </TouchableOpacity>
                       )}
                     </View>
@@ -365,7 +364,7 @@ export default function POSScreen() {
           {/* Cart Header */}
           <View style={styles.cartHeader}>
             <View style={styles.cartHeaderLeft}>
-              <ShoppingCart size={20} color="#FF5722" />
+              <ShoppingCart size={22} color="#FF5722" />
               <Text style={styles.cartTitle}>Current Sale</Text>
               {cart.length > 0 && (
                 <View style={styles.cartItemCount}>
@@ -407,7 +406,7 @@ export default function POSScreen() {
                           style={styles.quantityButton}
                           onPress={() => updateQuantity(item.productId, -1)}
                         >
-                          <Minus size={14} color="#6B7280" strokeWidth={2.5} />
+                          <Minus size={15} color="#6B7280" strokeWidth={2.5} />
                         </TouchableOpacity>
                         <Text style={styles.quantityText}>{item.quantity}</Text>
                         <TouchableOpacity
@@ -415,14 +414,14 @@ export default function POSScreen() {
                           onPress={() => updateQuantity(item.productId, 1)}
                           disabled={item.quantity >= item.maxStock}
                         >
-                          <Plus size={14} color="#6B7280" strokeWidth={2.5} />
+                          <Plus size={15} color="#6B7280" strokeWidth={2.5} />
                         </TouchableOpacity>
 
                         <TouchableOpacity
                           style={styles.removeButton}
                           onPress={() => removeFromCart(item.productId)}
                         >
-                          <Trash2 size={14} color="#EF4444" strokeWidth={2} />
+                          <Trash2 size={15} color="#EF4444" strokeWidth={2} />
                         </TouchableOpacity>
                       </View>
                     </View>
@@ -720,7 +719,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   stockBadgeText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: 'bold',
     color: '#FFF',
   },
@@ -738,7 +737,7 @@ const styles = StyleSheet.create({
     borderColor: '#FFF',
   },
   cartQuantityText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: 'bold',
     color: '#FFF',
   },
@@ -746,14 +745,14 @@ const styles = StyleSheet.create({
     padding: 12,
   },
   productName: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '600',
     color: '#111827',
     minHeight: 36,
     marginBottom: 4,
   },
   productCategory: {
-    fontSize: 10,
+    fontSize: 11,
     color: '#6B7280',
     paddingHorizontal: 6,
     paddingVertical: 2,
@@ -853,7 +852,7 @@ const styles = StyleSheet.create({
   },
   cartItemCountText: {
     color: '#FFF',
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: 'bold',
   },
   cartTitle: {
@@ -916,13 +915,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   cartItemName: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '500',
     color: '#111827',
     marginBottom: 4,
   },
   cartItemPrice: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#6B7280',
     marginBottom: 8,
   },
@@ -942,7 +941,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFF',
   },
   quantityText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: 'bold',
     color: '#111827',
     width: 32,
@@ -957,7 +956,7 @@ const styles = StyleSheet.create({
     marginLeft: 'auto',
   },
   cartItemTotal: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: 'bold',
     color: '#111827',
   },

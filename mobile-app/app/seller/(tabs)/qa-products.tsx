@@ -193,7 +193,7 @@ export default function SellerProductQAScreen() {
       <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#111827', marginTop: 8 }}>
         {count}
       </Text>
-      <Text style={{ fontSize: 11, fontWeight: '600', color: '#6B7280', marginTop: 4 }}>
+      <Text style={{ fontSize: 12, fontWeight: '600', color: '#6B7280', marginTop: 4 }}>
         {label}
       </Text>
     </TouchableOpacity>
