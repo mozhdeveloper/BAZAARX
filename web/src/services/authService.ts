@@ -37,11 +37,11 @@ export const signUp = async (
 
     if (authError) throw authError;
 
-    // Create profile
+    // Create or update profile (use upsert to avoid conflicts)
     if (authData.user) {
       const { error: profileError } = await supabase
         .from('profiles')
-        .insert({
+        .upsert({
           id: authData.user.id,
           email,
           full_name: userData.full_name || null,
@@ -49,27 +49,37 @@ export const signUp = async (
           user_type: userData.user_type,
           avatar_url: null,
           last_login_at: null,
+        }, {
+          onConflict: 'id',
+          ignoreDuplicates: false
         });
 
-      if (profileError) throw profileError;
+      if (profileError) {
+        console.error('Profile upsert error:', profileError);
+        throw profileError;
+      }
 
       // Create user-type specific record
       if (userData.user_type === 'buyer') {
-        await supabase.from('buyers').insert({
+        const { error: buyerError } = await supabase.from('buyers').upsert({
           id: authData.user.id,
           shipping_addresses: [],
           payment_methods: [],
           preferences: {},
           followed_shops: [],
-        });
+        }, { onConflict: 'id' });
+        
+        if (buyerError) console.error('Buyer profile error:', buyerError);
       } else if (userData.user_type === 'seller') {
         // Seller record created separately during registration flow
       } else if (userData.user_type === 'admin') {
-        await supabase.from('admins').insert({
+        const { error: adminError } = await supabase.from('admins').upsert({
           id: authData.user.id,
           role: 'admin',
           permissions: {},
-        });
+        }, { onConflict: 'id' });
+        
+        if (adminError) console.error('Admin profile error:', adminError);
       }
     }
 
