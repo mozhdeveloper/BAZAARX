@@ -500,14 +500,14 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
               onPress={() => handleEditProduct(item)}
               activeOpacity={0.7}
             >
-              <Edit size={16} color="#FF5722" strokeWidth={2.5} />
+              <Edit size={20} color="#FF5722" strokeWidth={2.5} />
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.deleteButton}
               onPress={() => handleDeleteProduct(item.id, item.name)}
               activeOpacity={0.7}
             >
-              <Trash2 size={16} color="#EF4444" strokeWidth={2.5} />
+              <Trash2 size={20} color="#EF4444" strokeWidth={2.5} />
             </TouchableOpacity>
           </View>
         </View>
@@ -561,7 +561,7 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
               onPress={() => setIsBulkUploadModalOpen(true)}
               activeOpacity={0.8}
             >
-              <Upload size={16} color="#FFFFFF" strokeWidth={2.5} />
+              <Upload size={20} color="#FFFFFF" strokeWidth={2.5} />
             </TouchableOpacity>
             <TouchableOpacity 
               style={styles.addButton}
@@ -670,14 +670,14 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
                       style={[styles.modeButton, imageUploadMode === 'upload' && styles.modeButtonActive]}
                       onPress={() => setImageUploadMode('upload')}
                     >
-                      <Camera size={14} color={imageUploadMode === 'upload' ? '#FFFFFF' : '#6B7280'} />
+                      <Camera size={15} color={imageUploadMode === 'upload' ? '#FFFFFF' : '#6B7280'} />
                       <Text style={[styles.modeButtonText, imageUploadMode === 'upload' && styles.modeButtonTextActive]}>Upload</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={[styles.modeButton, imageUploadMode === 'url' && styles.modeButtonActive]}
                       onPress={() => setImageUploadMode('url')}
                     >
-                      <Link size={14} color={imageUploadMode === 'url' ? '#FFFFFF' : '#6B7280'} />
+                      <Link size={15} color={imageUploadMode === 'url' ? '#FFFFFF' : '#6B7280'} />
                       <Text style={[styles.modeButtonText, imageUploadMode === 'url' && styles.modeButtonTextActive]}>URL</Text>
                     </TouchableOpacity>
                   </View>
@@ -1541,13 +1541,13 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   productName: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
     color: '#111827',
     lineHeight: 18,
   },
   productCategory: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#6B7280',
     marginTop: 2,
     fontWeight: '500',
@@ -1558,7 +1558,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   statusText: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '700',
   },
   productMeta: {
@@ -1578,12 +1578,12 @@ const styles = StyleSheet.create({
     color: '#FF5722',
   },
   productStock: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#6B7280',
     fontWeight: '500',
   },
   productSold: {
-    fontSize: 10,
+    fontSize: 11,
     color: '#9CA3AF',
   },
   productActions: {
@@ -1596,16 +1596,16 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   editButton: {
-    width: 32,
-    height: 32,
+    width: 34,
+    height: 34,
     borderRadius: 8,
     backgroundColor: '#FFF5F0',
     alignItems: 'center',
     justifyContent: 'center',
   },
   deleteButton: {
-    width: 32,
-    height: 32,
+    width: 34,
+    height: 34,
     borderRadius: 8,
     backgroundColor: '#FEE2E2',
     alignItems: 'center',

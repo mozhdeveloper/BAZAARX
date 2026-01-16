@@ -27,6 +27,7 @@ import {
   CheckCircle,
   Clock,
   Menu,
+  Edit3,
 } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSellerStore } from '../../../src/stores/sellerStore';
@@ -40,6 +41,11 @@ export default function SellerSettingsScreen() {
   const insets = useSafeAreaInsets();
   const [selectedTab, setSelectedTab] = useState<SettingTab>('profile');
   const [drawerVisible, setDrawerVisible] = useState(false);
+  
+  // Edit modes
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [isEditingStore, setIsEditingStore] = useState(false);
+  const [isEditingPayments, setIsEditingPayments] = useState(false);
   
   // Profile
   const [ownerName, setOwnerName] = useState(seller.ownerName);
@@ -94,6 +100,10 @@ export default function SellerSettingsScreen() {
       accountName,
       accountNumber,
     });
+    // Reset edit modes
+    setIsEditingProfile(false);
+    setIsEditingStore(false);
+    setIsEditingPayments(false);
     Alert.alert('Success', 'Settings saved successfully!');
   };
 
@@ -122,41 +132,52 @@ export default function SellerSettingsScreen() {
         return (
           <View style={styles.formCard}>
             <View style={styles.formSection}>
-              <Text style={styles.sectionTitle}>Owner Information</Text>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Owner Information</Text>
+                <Pressable 
+                  style={styles.editButton}
+                  onPress={() => setIsEditingProfile(!isEditingProfile)}
+                >
+                  <Edit3 size={18} color={isEditingProfile ? '#FF5722' : '#6B7280'} strokeWidth={2.5} />
+                </Pressable>
+              </View>
               
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Full Name</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, !isEditingProfile && styles.inputDisabled]}
                   value={ownerName}
                   onChangeText={setOwnerName}
                   placeholder="Enter full name"
                   placeholderTextColor="#9CA3AF"
+                  editable={isEditingProfile}
                 />
               </View>
 
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Email Address</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, !isEditingProfile && styles.inputDisabled]}
                   value={email}
                   onChangeText={setEmail}
                   placeholder="Enter email"
                   placeholderTextColor="#9CA3AF"
                   keyboardType="email-address"
                   autoCapitalize="none"
+                  editable={isEditingProfile}
                 />
               </View>
 
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Phone Number</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, !isEditingProfile && styles.inputDisabled]}
                   value={phone}
                   onChangeText={setPhone}
                   placeholder="Enter phone number"
                   placeholderTextColor="#9CA3AF"
                   keyboardType="phone-pad"
+                  editable={isEditingProfile}
                 />
               </View>
             </View>
@@ -167,23 +188,32 @@ export default function SellerSettingsScreen() {
         return (
           <View style={styles.formCard}>
             <View style={styles.formSection}>
-              <Text style={styles.sectionTitle}>Store Details</Text>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Store Details</Text>
+                <Pressable 
+                  style={styles.editButton}
+                  onPress={() => setIsEditingStore(!isEditingStore)}
+                >
+                  <Edit3 size={18} color={isEditingStore ? '#FF5722' : '#6B7280'} strokeWidth={2.5} />
+                </Pressable>
+              </View>
               
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Store Name</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, !isEditingStore && styles.inputDisabled]}
                   value={storeName}
                   onChangeText={setStoreName}
                   placeholder="Enter store name"
                   placeholderTextColor="#9CA3AF"
+                  editable={isEditingStore}
                 />
               </View>
 
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Store Description</Text>
                 <TextInput
-                  style={[styles.input, styles.textArea]}
+                  style={[styles.input, styles.textArea, !isEditingStore && styles.inputDisabled]}
                   value={storeDescription}
                   onChangeText={setStoreDescription}
                   placeholder="Describe your store"
@@ -191,6 +221,7 @@ export default function SellerSettingsScreen() {
                   multiline
                   numberOfLines={4}
                   textAlignVertical="top"
+                  editable={isEditingStore}
                 />
               </View>
             </View>
@@ -201,44 +232,48 @@ export default function SellerSettingsScreen() {
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Business Name</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, !isEditingStore && styles.inputDisabled]}
                   value={businessName}
                   onChangeText={setBusinessName}
                   placeholder="Registered business name"
                   placeholderTextColor="#9CA3AF"
+                  editable={isEditingStore}
                 />
               </View>
 
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Business Type</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, !isEditingStore && styles.inputDisabled]}
                   value={businessType}
                   onChangeText={(text: any) => setBusinessType(text)}
                   placeholder="e.g. Sole Proprietorship"
                   placeholderTextColor="#9CA3AF"
+                  editable={isEditingStore}
                 />
               </View>
 
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Registration Number (DTI/SEC)</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, !isEditingStore && styles.inputDisabled]}
                   value={businessRegistrationNumber}
                   onChangeText={setBusinessRegistrationNumber}
                   placeholder="Enter registration number"
                   placeholderTextColor="#9CA3AF"
+                  editable={isEditingStore}
                 />
               </View>
 
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Tax ID Number (TIN)</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, !isEditingStore && styles.inputDisabled]}
                   value={taxIdNumber}
                   onChangeText={setTaxIdNumber}
                   placeholder="Enter TIN"
                   placeholderTextColor="#9CA3AF"
+                  editable={isEditingStore}
                 />
               </View>
             </View>
@@ -249,22 +284,24 @@ export default function SellerSettingsScreen() {
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Street Address</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, !isEditingStore && styles.inputDisabled]}
                   value={address}
                   onChangeText={setAddress}
                   placeholder="Enter street address"
                   placeholderTextColor="#9CA3AF"
+                  editable={isEditingStore}
                 />
               </View>
 
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>City</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, !isEditingStore && styles.inputDisabled]}
                   value={city}
                   onChangeText={setCity}
                   placeholder="Enter city"
                   placeholderTextColor="#9CA3AF"
+                  editable={isEditingStore}
                 />
               </View>
 
@@ -272,22 +309,24 @@ export default function SellerSettingsScreen() {
                 <View style={[styles.inputGroup, styles.flexInput]}>
                   <Text style={styles.inputLabel}>Province</Text>
                   <TextInput
-                    style={styles.input}
+                    style={[styles.input, !isEditingStore && styles.inputDisabled]}
                     value={province}
                     onChangeText={setProvince}
                     placeholder="Province"
                     placeholderTextColor="#9CA3AF"
+                    editable={isEditingStore}
                   />
                 </View>
                 <View style={[styles.inputGroup, styles.flexInput]}>
                   <Text style={styles.inputLabel}>Postal Code</Text>
                   <TextInput
-                    style={styles.input}
+                    style={[styles.input, !isEditingStore && styles.inputDisabled]}
                     value={postalCode}
                     onChangeText={setPostalCode}
                     placeholder="Zip Code"
                     placeholderTextColor="#9CA3AF"
                     keyboardType="number-pad"
+                    editable={isEditingStore}
                   />
                 </View>
               </View>
@@ -498,39 +537,50 @@ export default function SellerSettingsScreen() {
         return (
           <View style={styles.formCard}>
             <View style={styles.formSection}>
-              <Text style={styles.sectionTitle}>Bank Account</Text>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Bank Account</Text>
+                <Pressable 
+                  style={styles.editButton}
+                  onPress={() => setIsEditingPayments(!isEditingPayments)}
+                >
+                  <Edit3 size={18} color={isEditingPayments ? '#FF5722' : '#6B7280'} strokeWidth={2.5} />
+                </Pressable>
+              </View>
               
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Bank Name</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, !isEditingPayments && styles.inputDisabled]}
                   value={bankName}
                   onChangeText={setBankName}
                   placeholder="Enter bank name"
                   placeholderTextColor="#9CA3AF"
+                  editable={isEditingPayments}
                 />
               </View>
 
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Account Number</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, !isEditingPayments && styles.inputDisabled]}
                   value={accountNumber}
                   onChangeText={setAccountNumber}
                   placeholder="Enter account number"
                   placeholderTextColor="#9CA3AF"
                   keyboardType="number-pad"
+                  editable={isEditingPayments}
                 />
               </View>
 
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Account Name</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, !isEditingPayments && styles.inputDisabled]}
                   value={accountName}
                   onChangeText={setAccountName}
                   placeholder="Enter account name"
                   placeholderTextColor="#9CA3AF"
+                  editable={isEditingPayments}
                 />
               </View>
             </View>
@@ -541,12 +591,13 @@ export default function SellerSettingsScreen() {
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>GCash Number</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, !isEditingPayments && styles.inputDisabled]}
                   value={gcashNumber}
                   onChangeText={setGcashNumber}
                   placeholder="Enter GCash number"
                   placeholderTextColor="#9CA3AF"
                   keyboardType="phone-pad"
+                  editable={isEditingPayments}
                 />
               </View>
             </View>
@@ -938,11 +989,21 @@ const styles = StyleSheet.create({
   formSection: {
     marginBottom: 24,
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '700',
     color: '#1F2937',
-    marginBottom: 4,
+  },
+  editButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: '#F9FAFB',
   },
   sectionDescription: {
     fontSize: 13,
@@ -965,6 +1026,10 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     fontSize: 15,
     color: '#1F2937',
+  },
+  inputDisabled: {
+    backgroundColor: '#F3F4F6',
+    color: '#9CA3AF',
   },
   textArea: {
     minHeight: 100,
