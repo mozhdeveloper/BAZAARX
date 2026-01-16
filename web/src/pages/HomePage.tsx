@@ -10,6 +10,7 @@ import { BazaarFooter } from '../components/ui/bazaar-footer';
 import { SmoothScrollProvider } from '../components/ui/smooth-scroll-provider';
 import FeaturedCollections from '../components/FeaturedCollections';
 import ProductRail from '../components/sections/ProductRail';
+import TrendingSection from '../components/TrendingSection';
 import FeatureStrip from '../components/sections/FeatureStrip';
 import StoreRail from '../components/sections/StoreRail';
 import CategoriesFooterStrip from '../components/CategoriesFooterStrip';
@@ -111,12 +112,7 @@ const HomePage: React.FC = () => {
         <FeaturedCollections />
 
         {/* Trending Products Rail */}
-        <ProductRail
-          title="Trending Now"
-          subtitle="Discover what's popular among Filipino shoppers"
-          products={trendingProducts}
-          actionLabel="View All Trending"
-        />
+        <TrendingSection products={trendingProducts} />
 
         {/* Feature Strip 1 - Support Local */}
         <FeatureStrip
