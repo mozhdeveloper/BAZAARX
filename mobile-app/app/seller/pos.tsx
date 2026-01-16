@@ -30,6 +30,7 @@ import {
   Hash,
   CheckCircle,
   X,
+  Menu,
 } from 'lucide-react-native';
 import { useSellerStore } from '../../src/stores/sellerStore';
 import SellerDrawer from '../../src/components/SellerDrawer';
@@ -182,7 +183,7 @@ export default function POSScreen() {
         <View style={styles.headerContent}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
             <Pressable style={styles.iconContainer} onPress={() => setDrawerVisible(true)}>
-              <CreditCard size={24} color="#FFFFFF" strokeWidth={2} />
+              <Menu size={24} color="#FFFFFF" strokeWidth={2} />
             </Pressable>
             <View style={{ flex: 1 }}>
               <Text style={styles.headerTitle}>POS Lite</Text>
