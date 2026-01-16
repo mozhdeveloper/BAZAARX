@@ -157,13 +157,6 @@ export function BazaarHero() {
 
         <Hero
           title={
-            <div className="flex flex-col items-center gap-6 mt-24">
-              <span className="font-fondamento text-8xl text-[var(--brand-primary)]">BazaarX</span>
-              <div className="h-40 w-px bg-gradient-to-b from-transparent via-[var(--brand-primary)] to-transparent"></div>
-            </div>
-          }
-          subtitle="Inspired by ancient bazaars, reimagined as the modern crossroads of global trade."
-          subtitleClassName="font-fondamento text-3xl mt-8"
             <>
               Your Gateway
               <br />
