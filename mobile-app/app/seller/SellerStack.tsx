@@ -1,6 +1,7 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import SellerTabs from './SellerTabs';
+import SellerAnalyticsScreen from './(tabs)/analytics';
 import SellerStoreProfileScreen from './store-profile';
 import SellerEarningsScreen from './earnings';
 import SellerPOSScreen from './pos';
@@ -10,6 +11,7 @@ import SellerReviewsScreen from './reviews';
 
 export type SellerStackParamList = {
   SellerTabs: undefined;
+  Analytics: undefined;
   StoreProfile: undefined;
   Earnings: undefined;
   POS: undefined;
@@ -30,6 +32,7 @@ export default function SellerStack() {
       }}
     >
       <Stack.Screen name="SellerTabs" component={SellerTabs} />
+      <Stack.Screen name="Analytics" component={SellerAnalyticsScreen} />
       <Stack.Screen name="StoreProfile" component={SellerStoreProfileScreen} />
       <Stack.Screen name="Earnings" component={SellerEarningsScreen} />
       <Stack.Screen name="POS" component={SellerPOSScreen} />

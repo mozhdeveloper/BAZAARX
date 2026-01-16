@@ -1779,6 +1779,8 @@ export const useAdminBuyers = create<BuyersState>((set) => ({
 
 // Admin Orders Store
 interface OrderItem {
+  variant: string;
+  originalPrice: boolean;
   name: string;
   quantity: number;
   price: number;

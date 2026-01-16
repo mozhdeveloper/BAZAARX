@@ -6,17 +6,26 @@ import {
   ScrollView,
   Pressable,
   Image,
+  TextInput,
+  Modal,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Package, Menu, Bell } from 'lucide-react-native';
+import { useNavigation } from '@react-navigation/native';
+import { Package, ShoppingCart, Bell, X, Search, ChevronDown } from 'lucide-react-native';
 import { useSellerStore } from '../../../src/stores/sellerStore';
+import SellerDrawer from '../../../src/components/SellerDrawer';
 
 type OrderStatus = 'all' | 'pending' | 'to-ship' | 'completed';
 
 export default function SellerOrdersScreen() {
   const { orders, updateOrderStatus } = useSellerStore();
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation();
+  const [drawerVisible, setDrawerVisible] = useState(false);
   const [selectedTab, setSelectedTab] = useState<OrderStatus>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [walkFilter, setWalkFilter] = useState<'all' | 'walkin' | 'online'>('all');
+  const [isWalkFilterOpen, setIsWalkFilterOpen] = useState(false);
 
   // Count orders by status
   const orderCounts = {
@@ -26,10 +35,18 @@ export default function SellerOrdersScreen() {
     completed: orders.filter(o => o.status === 'completed').length,
   };
 
-  const filteredOrders =
-    selectedTab === 'all'
-      ? orders
-      : orders.filter((order) => order.status === selectedTab);
+  const filteredOrders = orders.filter((order) => {
+    const matchesTab = selectedTab === 'all' ? true : order.status === selectedTab;
+    const matchesWalk = walkFilter === 'all' ? true : (walkFilter === 'walkin' ? order.type === 'OFFLINE' : order.type === 'ONLINE');
+    const q = searchQuery.trim().toLowerCase();
+    const matchesSearch = !q ? true : (
+      (order.orderId && order.orderId.toLowerCase().includes(q)) ||
+      (order.customerName && order.customerName.toLowerCase().includes(q)) ||
+      (order.customerEmail && order.customerEmail.toLowerCase().includes(q))
+    );
+
+    return matchesTab && matchesWalk && matchesSearch;
+  });
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -92,66 +109,133 @@ export default function SellerOrdersScreen() {
 
   return (
     <View style={styles.container}>
+      {/* Seller Drawer */}
+      <SellerDrawer visible={drawerVisible} onClose={() => setDrawerVisible(false)} />
+
       {/* Immersive Edge-to-Edge Header */}
       <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <View style={styles.headerContent}>
-          <View style={styles.headerLeft}>
-            <Pressable style={styles.menuButton}>
-              <Menu size={24} color="#FFFFFF" strokeWidth={2.5} />
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <Pressable style={styles.iconContainer} onPress={() => setDrawerVisible(true)}>
+              <ShoppingCart size={24} color="#FFFFFF" strokeWidth={2} />
             </Pressable>
-            <View style={styles.headerTitleContainer}>
+            <View style={{ flex: 1 }}>
               <Text style={styles.headerTitle}>Orders</Text>
               <Text style={styles.headerSubtitle}>Order Management</Text>
             </View>
           </View>
-          <Pressable style={styles.notificationButton}>
-            <Bell size={22} color="#FFFFFF" strokeWidth={2.5} />
-            <View style={styles.notificationBadge} />
-          </Pressable>
         </View>
+
+        {/* Search Bar */}
+        <View style={styles.searchBar}>
+          <Search size={20} color="#9CA3AF" strokeWidth={2} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search orders..."
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholderTextColor="#9CA3AF"
+          />
+          {searchQuery.length > 0 && (
+            <Pressable onPress={() => setSearchQuery('')}>
+              <X size={20} color="#9CA3AF" />
+            </Pressable>
+          )}
+        </View>
+
+        {/* Notification (aligned to search end) */}
+        <Pressable
+          style={[styles.notificationButton, { position: 'absolute', right: 20, top: insets.top + 20 }]}
+          onPress={() => navigation.getParent()?.navigate('Notifications')}
+        >
+          <Bell size={22} color="#FFFFFF" strokeWidth={2.5} />
+          <View style={styles.notificationBadge} />
+        </Pressable>
       </View>
 
-      {/* Segmented Control */}
-      <View style={styles.segmentedControl}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.segmentedScrollContent}
-        >
-          {(['all', 'pending', 'to-ship', 'completed'] as OrderStatus[]).map(
-            (tab) => (
-              <Pressable
-                key={tab}
-                style={[
-                  styles.segmentButton,
-                  selectedTab === tab && styles.segmentButtonActive,
-                ]}
-                onPress={() => setSelectedTab(tab)}
-              >
-                <Text
+      {/* Segmented Control + Filter */}
+      <View style={styles.segmentedControlRow}>
+        <View style={{ flex: 1 }}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.segmentedScrollContent}
+          >
+            {(['all', 'pending', 'to-ship', 'completed'] as OrderStatus[]).map(
+              (tab) => (
+                <Pressable
+                  key={tab}
                   style={[
-                    styles.segmentButtonText,
-                    selectedTab === tab && styles.segmentButtonTextActive,
+                    styles.segmentButton,
+                    selectedTab === tab && styles.segmentButtonActive,
                   ]}
+                  onPress={() => setSelectedTab(tab)}
                 >
-                  {tab.charAt(0).toUpperCase() +
-                    tab.slice(1).replace('-', ' ')}
-                </Text>
-                <View style={[
-                  styles.countBadge,
-                  selectedTab === tab && styles.countBadgeActive,
-                ]}>
-                  <Text style={[
-                    styles.countBadgeText,
-                    selectedTab === tab && styles.countBadgeTextActive,
-                  ]}>
-                    {orderCounts[tab]}
+                  <Text
+                    style={[
+                      styles.segmentButtonText,
+                      selectedTab === tab && styles.segmentButtonTextActive,
+                    ]}
+                  >
+                    {tab.charAt(0).toUpperCase() +
+                      tab.slice(1).replace('-', ' ')}
                   </Text>
-                </View>
-              </Pressable>
-            )
+                  <View style={[
+                    styles.countBadge,
+                    selectedTab === tab && styles.countBadgeActive,
+                  ]}>
+                    <Text style={[
+                      styles.countBadgeText,
+                      selectedTab === tab && styles.countBadgeTextActive,
+                    ]}>
+                      {orderCounts[tab]}
+                    </Text>
+                  </View>
+                </Pressable>
+              )
+            )}
+          </ScrollView>
+        </View>
+
+        <View style={styles.segmentDivider} />
+
+        <View style={styles.filterWrapper}>
+          <Pressable
+            style={styles.filterDropdownButton}
+            onPress={() => setIsWalkFilterOpen((p) => !p)}
+          >
+            <Text style={styles.filterDropdownButtonText}>
+              {walkFilter === 'all' ? 'All' : walkFilter === 'walkin' ? 'Walk-in' : 'Online'}
+            </Text>
+            <ChevronDown size={16} color="#FFFFFF" />
+          </Pressable>
+
+          {isWalkFilterOpen && (
+            <>
+              <Pressable style={styles.dropdownOverlay} onPress={() => setIsWalkFilterOpen(false)} />
+              <View style={styles.filterDropdownMenu}>
+                <Pressable
+                  style={styles.filterDropdownItem}
+                  onPress={() => { setWalkFilter('all'); setIsWalkFilterOpen(false); }}
+                >
+                  <Text style={[styles.filterDropdownItemText, walkFilter === 'all' && styles.filterDropdownItemTextSelected]}>All</Text>
+                </Pressable>
+                <Pressable
+                  style={styles.filterDropdownItem}
+                  onPress={() => { setWalkFilter('walkin'); setIsWalkFilterOpen(false); }}
+                >
+                  <Text style={[styles.filterDropdownItemText, walkFilter === 'walkin' && styles.filterDropdownItemTextSelected]}>Walk-in</Text>
+                </Pressable>
+                <Pressable
+                  style={styles.filterDropdownItem}
+                  onPress={() => { setWalkFilter('online'); setIsWalkFilterOpen(false); }}
+                >
+                  <Text style={[styles.filterDropdownItemText, walkFilter === 'online' && styles.filterDropdownItemTextSelected]}>Online</Text>
+                </Pressable>
+              </View>
+            </>
           )}
-        </ScrollView>
+        </View>
       </View>
 
       <ScrollView
@@ -176,46 +260,61 @@ export default function SellerOrdersScreen() {
             <View key={order.id} style={styles.orderCard}>
               {/* Order Header */}
               <View style={styles.orderHeader}>
-                <View style={{ flex: 1 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                    <Text style={styles.orderId}>{order.orderId}</Text>
-                    {order.type === 'OFFLINE' && (
-                      <View style={styles.walkInBadge}>
-                        <Text style={styles.walkInBadgeText}>Walk-in</Text>
-                      </View>
-                    )}
-                    {order.type === 'ONLINE' && (
-                      <View style={styles.onlineBadge}>
-                        <Text style={styles.onlineBadgeText}>Online</Text>
-                      </View>
-                    )}
-                  </View>
-                  <Text style={styles.customerName}>{order.customerName}</Text>
-                  {order.posNote && (
-                    <Text style={styles.posNote}>Note: {order.posNote}</Text>
-                  )}
-                  {!order.posNote && (
-                    <Text style={styles.customerEmail}>
-                      {order.customerEmail}
-                    </Text>
-                  )}
-                </View>
-                <View
-                  style={[
-                    styles.statusBadge,
-                    { backgroundColor: getStatusBgColor(order.status) },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.statusText,
-                      { color: getStatusColor(order.status) },
-                    ]}
-                  >
-                    {order.status.replace('-', ' ').toUpperCase()}
-                  </Text>
-                </View>
-              </View>
+  {/* The Outer Left Container */}
+  <View style={{ flex: 1, marginRight: 10 }}> 
+    
+    {/* The Row with ID and Type Badge */}
+    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+      {/* 1. Wrap the ID in a View with flexShrink so it cuts off before hitting the status */}
+      <View style={{ flexShrink: 1 }}>
+        <Text style={styles.orderId} numberOfLines={1} ellipsizeMode="tail">
+          {order.orderId}
+        </Text>
+      </View>
+
+      {/* 2. Badge sits right beside it */}
+      <View style={{ marginLeft: 8 }}>
+        {order.type === 'OFFLINE' && (
+          <View style={styles.walkInBadge}>
+            <Text style={styles.walkInBadgeText}>Walk-in</Text>
+          </View>
+        )}
+        {order.type === 'ONLINE' && (
+          <View style={styles.onlineBadge}>
+            <Text style={styles.onlineBadgeText}>Online</Text>
+          </View>
+        )}
+      </View>
+    </View>
+
+    {/* Customer Details below the ID row */}
+    <Text style={styles.customerName}>{order.customerName}</Text>
+    {order.posNote ? (
+      <Text style={styles.posNote} numberOfLines={1}>Note: {order.posNote}</Text>
+    ) : (
+      <Text style={styles.customerEmail} numberOfLines={1}>
+        {order.customerEmail}
+      </Text>
+    )}
+  </View>
+
+  {/* Status Badge - Static Width */}
+  <View
+    style={[
+      styles.statusBadge,
+      { backgroundColor: getStatusBgColor(order.status), flexShrink: 0 },
+    ]}
+  >
+    <Text
+      style={[
+        styles.statusText,
+        { color: getStatusColor(order.status) },
+      ]}
+    >
+      {order.status.replace('-', ' ').toUpperCase()}
+    </Text>
+  </View>
+</View>
 
               {/* Product Thumbnails */}
               <ScrollView
@@ -264,13 +363,15 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#FF5722',
-    paddingHorizontal: 16,
-    paddingBottom: 16,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 4,
+    borderBottomLeftRadius: 20, 
+    borderBottomRightRadius: 20,
   },
   headerContent: {
     flexDirection: 'row',
@@ -289,7 +390,7 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '800',
     color: '#FFFFFF',
     letterSpacing: 0.3,
@@ -301,25 +402,127 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   notificationButton: {
-    padding: 4,
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
     position: 'relative',
+    zIndex: 5,
+    marginRight: 0,
   },
   notificationBadge: {
     position: 'absolute',
-    top: 4,
-    right: 4,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    top: 6,
+    right: 6,
+    width: 10,
+    height: 10,
+    borderRadius: 6,
     backgroundColor: '#EF4444',
     borderWidth: 1.5,
     borderColor: '#FF5722',
+  },
+  iconContainer: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    padding: 12,
+    borderRadius: 12,
   },
   segmentedControl: {
     backgroundColor: '#FFFFFF',
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
+  },
+  // Header search
+  searchBar: {
+    marginTop: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 48,
+    gap: 8,
+    marginBottom: 0,
+    marginHorizontal: 0,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: '#1F2937',
+  },
+  // Segmented + Filter Row
+  segmentedControlRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    gap: 3,
+    backgroundColor: '#FFFFFF',
+  },
+  segmentDivider: {
+    width: 1,
+    height: 36,
+    backgroundColor: '#E5E7EB',
+    marginHorizontal: 12,
+  },
+  filterWrapper: {
+    position: 'relative',
+  },
+  filterDropdownButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: '#FF5722',
+    borderRadius: 10,
+  },
+  filterDropdownButtonText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  filterDropdownMenu: {
+    position: 'absolute',
+    top: 48,
+    right: 0,
+    width: 140,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    paddingVertical: 6,
+    paddingHorizontal: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 3,
+    zIndex: 1000,
+  },
+  filterDropdownItem: {
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+  },
+  filterDropdownItemText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  filterDropdownItemTextSelected: {
+    color: '#FF5722',
+  },
+  dropdownOverlay: {
+    position: 'absolute',
+    top: 44,
+    left: -1000,
+    right: -1000,
+    bottom: -1000,
+    backgroundColor: 'transparent',
+    zIndex: 900,
   },
   segmentedScrollContent: {
     paddingHorizontal: 20,

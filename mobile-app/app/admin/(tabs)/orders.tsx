@@ -192,10 +192,24 @@ export default function AdminOrdersScreen() {
                 </View>
                 <View style={styles.detailSection}>
                   <Text style={styles.detailLabel}>Items</Text>
+                  
+                  {/* Product Items */}
                   {selectedOrder.items.map((item, idx) => (
-                    <View key={idx} style={styles.itemRow}>
-                      <Text style={styles.itemName}>{item.quantity}x {item.name}</Text>
-                      <Text style={styles.itemPrice}>₱{item.price}</Text>
+                    <View key={idx} style={styles.productItemCard}>
+                      <View style={styles.productImageContainer}>
+                        <Package size={32} color="#D1D5DB" />
+                      </View>
+                      <View style={styles.productDetails}>
+                        <Text style={styles.productName}>{item.name}</Text>
+                        <Text style={styles.productVariant}>{item.variant || 'Default variant'}</Text>
+                        <Text style={styles.productQuantity}>x{item.quantity}</Text>
+                      </View>
+                      <View style={styles.productPricing}>
+                        {item.originalPrice && typeof item.originalPrice === 'number' && item.originalPrice > item.price && (
+                          <Text style={styles.originalPrice}>₱{item.originalPrice}</Text>
+                        )}
+                        <Text style={styles.itemPrice}>₱{item.price}</Text>
+                      </View>
                     </View>
                   ))}
                 </View>
@@ -280,8 +294,14 @@ const styles = StyleSheet.create({
   detailValue: { fontSize: 15, color: '#111827', fontWeight: '500', marginBottom: 4 },
   contactRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
   contactText: { fontSize: 13, color: '#6B7280' },
-  itemRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 },
-  itemName: { fontSize: 14, color: '#374151', flex: 1 },
+  productItemCard: { flexDirection: 'row', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
+  productImageContainer: { width: 60, height: 60, backgroundColor: '#F9FAFB', borderRadius: 8, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+  productDetails: { flex: 1, justifyContent: 'center' },
+  productName: { fontSize: 14, color: '#111827', fontWeight: '500', marginBottom: 4 },
+  productVariant: { fontSize: 12, color: '#9CA3AF', marginBottom: 4 },
+  productQuantity: { fontSize: 12, color: '#6B7280' },
+  productPricing: { justifyContent: 'center', alignItems: 'flex-end' },
+  originalPrice: { fontSize: 11, color: '#9CA3AF', textDecorationLine: 'line-through', marginBottom: 2 },
   itemPrice: { fontSize: 14, color: '#111827', fontWeight: '500' },
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 },
   summaryLabel: { fontSize: 14, color: '#6B7280' },

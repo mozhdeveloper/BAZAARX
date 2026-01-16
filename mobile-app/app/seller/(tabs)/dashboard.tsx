@@ -54,6 +54,7 @@ export default function SellerDashboardScreen() {
     }
   };
 
+  const maxVal = Math.max(...chartData.map(d => d.value));
   return (
     <View style={styles.container}>
       {/* Seller Drawer */}
@@ -61,22 +62,27 @@ export default function SellerDashboardScreen() {
       
       {/* Immersive Edge-to-Edge Header */}
       <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
-        <View style={styles.headerContent}>
-          <View style={styles.headerLeft}>
-            <Pressable style={styles.menuButton} onPress={() => setDrawerVisible(true)}>
-              <Menu size={24} color="#FFFFFF" strokeWidth={2.5} />
-            </Pressable>
-            <View style={styles.headerTitleContainer}>
-              <Text style={styles.headerTitle}>Seller Hub</Text>
-              <Text style={styles.headerSubtitle}>{seller.storeName}</Text>
-            </View>
-          </View>
-          <Pressable style={styles.notificationButton}>
-            <Bell size={22} color="#FFFFFF" strokeWidth={2.5} />
-            <View style={styles.notificationBadge} />
-          </Pressable>
-        </View>
+  <View style={styles.headerContent}>
+    {/* Left Section: Menu & Title */}
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+      <Pressable style={styles.iconContainer} onPress={() => setDrawerVisible(true)}>
+        <Menu size={24} color="#FFFFFF" strokeWidth={2} />
+      </Pressable>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.headerTitle}>Seller Hub</Text>
+        <Text style={styles.headerSubtitle}>{seller.storeName}</Text>
       </View>
+    </View>
+  </View>
+
+  {/* Notification Button: Absolute positioned to match Settings */}
+  <Pressable
+    style={[styles.notificationButton, { position: 'absolute', right: 20, top: insets.top + 20 }]}
+  >
+    <Bell size={22} color="#FFFFFF" strokeWidth={2.5} />
+    <View style={styles.notificationBadge} />
+  </Pressable>
+</View>
 
       <ScrollView
         style={styles.scrollView}
@@ -135,14 +141,18 @@ export default function SellerDashboardScreen() {
             <LineChart
               data={chartData}
               height={180}
-              width={width - 64}
+              width={width - 100}
+              maxValue={maxVal * 1.1}
+              adjustToWidth={true} 
+              scrollToEnd={false}
               color="#FF5722"
               thickness={3}
               startFillColor="rgba(255, 87, 34, 0.3)"
               endFillColor="rgba(255, 87, 34, 0.05)"
               startOpacity={0.9}
               endOpacity={0.2}
-              initialSpacing={0}
+              initialSpacing={15}
+              endSpacing={5}
               spacing={45}
               noOfSections={4}
               yAxisColor="#E5E7EB"
@@ -174,26 +184,34 @@ export default function SellerDashboardScreen() {
           {recentOrders.map((order) => (
             <View key={order.id} style={styles.orderCard}>
               <View style={styles.orderHeader}>
-                <View>
-                  <Text style={styles.orderId}>{order.orderId}</Text>
-                  <Text style={styles.customerName}>{order.customerName}</Text>
-                </View>
-                <View
-                  style={[
-                    styles.statusBadge,
-                    { backgroundColor: getStatusBgColor(order.status) },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.statusText,
-                      { color: getStatusColor(order.status) },
-                    ]}
-                  >
-                    {order.status.replace('-', ' ').toUpperCase()}
-                  </Text>
-                </View>
-              </View>
+  {/* The container for ID/Name must have flex: 1 and flexShrink: 1 */}
+  <View style={styles.orderTextContainer}> 
+    <Text style={styles.orderId} numberOfLines={1} ellipsizeMode="tail">
+      {order.orderId}
+    </Text>
+    <Text style={styles.customerName} numberOfLines={1} ellipsizeMode="tail">
+      {order.customerName}
+    </Text>
+  </View>
+
+  {/* The Badge needs flexShrink: 0 so it never gets squashed */}
+  <View
+    style={[
+      styles.statusBadge,
+      { backgroundColor: getStatusBgColor(order.status) },
+    ]}
+  >
+    <Text
+      style={[
+        styles.statusText,
+        { color: getStatusColor(order.status) },
+      ]}
+      numberOfLines={1}
+    >
+      {order.status.replace('-', ' ').toUpperCase()}
+    </Text>
+  </View>
+</View>
               <View style={styles.orderFooter}>
                 <Text style={styles.orderItems}>
                   {order.items.length} item{order.items.length > 1 ? 's' : ''}
@@ -217,32 +235,29 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#FF5722',
-    paddingHorizontal: 16,
+    paddingHorizontal: 20, // Increased from 16 to 20
     paddingBottom: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 4,
+    borderBottomLeftRadius: 20, 
+    borderBottomRightRadius: 20,
   },
   headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  menuButton: {
-    padding: 4,
-  },
-  headerTitleContainer: {
-    gap: 2,
+  // Added the Settings icon container look
+  iconContainer: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    padding: 12,
+    borderRadius: 12,
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: 22, // Increased from 20 to 22
     fontWeight: '800',
     color: '#FFFFFF',
     letterSpacing: 0.3,
@@ -254,16 +269,20 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   notificationButton: {
-    padding: 4,
+    width: 40, // Consistent sizing
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
     position: 'relative',
+    zIndex: 5,
   },
   notificationBadge: {
     position: 'absolute',
-    top: 4,
-    right: 4,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    top: 6,
+    right: 6,
+    width: 10,
+    height: 10,
+    borderRadius: 10,
     backgroundColor: '#EF4444',
     borderWidth: 1.5,
     borderColor: '#FF5722',
@@ -348,7 +367,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 5,
   },
   viewAllText: {
     fontSize: 14,
@@ -369,8 +388,14 @@ const styles = StyleSheet.create({
   orderHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center', 
     marginBottom: 12,
+    width: '100%', 
+  },
+  orderTextContainer: {
+    flex: 1, 
+    flexShrink: 1, 
+    marginRight: 12,
   },
   orderId: {
     fontSize: 14,
@@ -386,6 +411,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 100,
+    flexShrink: 0,  
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   statusText: {
     fontSize: 11,

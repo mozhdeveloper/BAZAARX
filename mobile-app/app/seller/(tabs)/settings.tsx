@@ -20,7 +20,7 @@ import {
   CreditCard,
   LogOut,
   Camera,
-  Menu,
+  Settings as SettingsIcon,
   Eye,
   Save,
   FileText,
@@ -29,6 +29,7 @@ import {
 } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSellerStore } from '../../../src/stores/sellerStore';
+import SellerDrawer from '../../../src/components/SellerDrawer';
 
 type SettingTab = 'profile' | 'store' | 'documents' | 'notifications' | 'security' | 'payments';
 
@@ -37,6 +38,7 @@ export default function SellerSettingsScreen() {
   const { seller, updateSellerInfo } = useSellerStore();
   const insets = useSafeAreaInsets();
   const [selectedTab, setSelectedTab] = useState<SettingTab>('profile');
+  const [drawerVisible, setDrawerVisible] = useState(false);
   
   // Profile
   const [ownerName, setOwnerName] = useState(seller.ownerName);
@@ -558,23 +560,29 @@ export default function SellerSettingsScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={0}
     >
+      {/* Seller Drawer */}
+      <SellerDrawer visible={drawerVisible} onClose={() => setDrawerVisible(false)} />
+
       {/* Immersive Edge-to-Edge Header */}
       <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <View style={styles.headerContent}>
-          <View style={styles.headerLeft}>
-            <Pressable style={styles.menuButton}>
-              <Menu size={24} color="#FFFFFF" strokeWidth={2.5} />
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <Pressable style={styles.iconContainer} onPress={() => setDrawerVisible(true)}>
+              <SettingsIcon size={24} color="#FFFFFF" strokeWidth={2} />
             </Pressable>
-            <View style={styles.headerTitleContainer}>
+            <View style={{ flex: 1 }}>
               <Text style={styles.headerTitle}>Store Settings</Text>
               <Text style={styles.headerSubtitle}>Manage your store</Text>
             </View>
           </View>
-          <Pressable style={styles.notificationButton}>
-            <Bell size={22} color="#FFFFFF" strokeWidth={2.5} />
-            <View style={styles.notificationBadge} />
-          </Pressable>
         </View>
+        {/* Notification positioned absolutely to prevent cutoff */}
+        <Pressable
+          style={[styles.notificationButton, { position: 'absolute', right: 20, top: insets.top + 20 }]}
+        >
+          <Bell size={22} color="#FFFFFF" strokeWidth={2.5} />
+          <View style={styles.notificationBadge} />
+        </Pressable>
       </View>
 
       <ScrollView
@@ -603,8 +611,7 @@ export default function SellerSettingsScreen() {
 
             {/* Preview Button */}
             <Pressable style={styles.previewButton}>
-              <Eye size={16} color="#FF5722" strokeWidth={2.5} />
-              <Text style={styles.previewText}>Preview</Text>
+              <Eye size={20} color="#FF5722" strokeWidth={2.5} />
             </Pressable>
           </View>
         </View>
@@ -761,32 +768,28 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#FF5722',
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingBottom: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 4,
+    borderBottomLeftRadius: 20, 
+    borderBottomRightRadius: 20,
   },
   headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  menuButton: {
-    padding: 4,
-  },
-  headerTitleContainer: {
-    gap: 2,
+  iconContainer: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    padding: 12,
+    borderRadius: 12,
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '800',
     color: '#FFFFFF',
     letterSpacing: 0.3,
@@ -798,16 +801,20 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   notificationButton: {
-    padding: 4,
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
     position: 'relative',
+    zIndex: 5,
   },
   notificationBadge: {
     position: 'absolute',
-    top: 4,
-    right: 4,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    top: 6,
+    right: 6,
+    width: 10,
+    height: 10,
+    borderRadius: 10,
     backgroundColor: '#EF4444',
     borderWidth: 1.5,
     borderColor: '#FF5722',
@@ -822,7 +829,7 @@ const styles = StyleSheet.create({
   identityCard: {
     backgroundColor: '#FFFFFF',
     marginHorizontal: 20,
-    marginTop: -20,
+    marginTop: 20,
     marginBottom: 20,
     borderRadius: 20,
     padding: 20,

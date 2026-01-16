@@ -10,12 +10,11 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "./sheet";
-//import BazaarProductGallery3D from "./bazaar-product-gallery-3d";
 import { Button } from "./button";
 import { Separator } from "./separator";
-//import { motion } from "framer-motion";
-//import AIChatModal from "../AIChatModal";
 import { Hero } from "./hero";
+import AIChatModal from "../AIChatModal";
+import { BuyerAuthModal } from "../BuyerAuthModal";
 
 const navigation = [
   { name: "Home", href: "/" },
@@ -26,10 +25,10 @@ const navigation = [
 
 export function BazaarHero() {
   const [isAIChatOpen, setIsAIChatOpen] = useState(false);
+  const [isBuyerAuthOpen, setIsBuyerAuthOpen] = useState(false);
 
   return (
     <div className="w-full relative container px-2 mx-auto max-w-7xl min-h-screen">
-
       <div className="mt-6 bg-white rounded-2xl relative">
         <header className="flex items-center">
           <div className="w-full md:w-2/3 lg:w-1/2 bg-white backdrop-blur-sm p-4 rounded-br-2xl flex items-center gap-2">
@@ -52,7 +51,11 @@ export function BazaarHero() {
                 </Link>
               ))}
               <Link to="/search">
-                <Button variant="ghost" size="icon" className="cursor-pointer relative group hover:text-[var(--brand-primary)] transition-colors">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="cursor-pointer relative group hover:text-[var(--brand-primary)] transition-colors"
+                >
                   <Search className="w-5 h-5" />
                 </Button>
               </Link>
@@ -68,7 +71,11 @@ export function BazaarHero() {
 
             <Sheet>
               <SheetTrigger asChild className="lg:hidden ml-auto">
-                <Button variant="ghost" size="icon" className="hover:text-[var(--brand-primary)] transition-colors">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="hover:text-[var(--brand-primary)] transition-colors"
+                >
                   <Menu className="w-5 h-5" />
                 </Button>
               </SheetTrigger>
@@ -101,7 +108,10 @@ export function BazaarHero() {
                 <Separator className="mx-6" />
                 <div className="p-6 flex flex-col gap-4">
                   <Link to="/search">
-                    <Button variant="outline" className="w-full justify-start gap-2 h-12 hover:bg-accent transition-colors">
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start gap-2 h-12 hover:bg-accent transition-colors"
+                    >
                       <Search className="w-4 h-4" />
                       Search Products
                     </Button>
@@ -134,7 +144,9 @@ export function BazaarHero() {
                 variant="secondary"
                 className="cursor-pointer bg-white p-0 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 group"
               >
-                <span className="pl-4 py-2 text-sm font-medium text-[var(--text-primary)]">Start Selling</span>
+                <span className="pl-4 py-2 text-sm font-medium text-[var(--text-primary)]">
+                  Start Selling
+                </span>
                 <div className="rounded-full flex items-center justify-center m-auto bg-[var(--brand-primary)] w-10 h-10 ml-2 group-hover:scale-110 transition-transform duration-300">
                   <ArrowUpRight className="w-5 h-5 text-white" />
                 </div>
@@ -152,22 +164,41 @@ export function BazaarHero() {
           }
           subtitle="Inspired by ancient bazaars, reimagined as the modern crossroads of global trade."
           subtitleClassName="font-fondamento text-3xl mt-8"
+            <>
+              Your Gateway
+              <br />
+              <span className="text-black">to Global Markets</span>
+            </>
+          }
+          subtitle="Skip the middlemen and explore curated products from makers worldwide—delivered directly to you."
+          actions={[
+            {
+              label: "Start Shopping",
+              onClick: () => setIsBuyerAuthOpen(true),
+              variant: "default",
+            },
+            {
+              label: "Explore Stores",
+              href: "/stores",
+              variant: "outline",
+            },
+          ]}
           titleClassName="bg-gradient-to-r from-[var(--brand-primary)] via-[var(--brand-primary)]/90 to-[var(--brand-primary-dark)] bg-clip-text text-transparent"
         />
       </div>
 
-      {/* 3D Product Gallery Section
-      <motion.div
-        className="mt-16 -mx-6 md:-mx-8 lg:-mx-12"
-        initial={{ opacity: 0, y: 40 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.8, delay: 0.8, ease: "easeOut" }}
-      >
-        <BazaarProductGallery3D />
-      </motion.div>
-
       {/* AI Chat Modal */}
-      {/* <AIChatModal isOpen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} /> */}
+      <AIChatModal
+        isOpen={isAIChatOpen}
+        onClose={() => setIsAIChatOpen(false)}
+      />
+
+      {/* Buyer Auth Modal */}
+      <BuyerAuthModal
+        isOpen={isBuyerAuthOpen}
+        onClose={() => setIsBuyerAuthOpen(false)}
+        initialMode="login"
+      />
     </div>
   );
 }
