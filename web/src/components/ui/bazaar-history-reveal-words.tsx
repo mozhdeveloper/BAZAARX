@@ -54,7 +54,7 @@ export default function BazaarRevealWords() {
                   className="py-20 border-t-4 border-b-4"
                   style={{ borderColor: "var(--accent-2, #FF8A4D)" }}
                 >
-                  <p className="text-[var(--text-primary)] text-xl md:text-2xl leading-loose text-justify">
+                  <p className="text-gray-600 text-xl md:text-2xl leading-loose text-justify">
                     Over time, the Persian bazaar model spread across the Middle East, North Africa, and beyond, giving rise to iconic marketplaces such as the Turkish bazaars and the Arabic sūqs. Wherever it traveled, the bazaar retained its core purpose: a place where people come together. It thrived as a center of trade, showcased local craft, and fostered vibrant social gatherings—bringing goods, artisans, and communities into one shared space.
                   </p>
                 </div>

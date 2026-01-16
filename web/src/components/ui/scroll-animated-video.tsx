@@ -50,6 +50,8 @@ export type HeroScrollVideoProps = {
   smoothScroll?: boolean;    // initialize Lenis (default true)
   lenisOptions?: Record<string, unknown>;
 
+  bgTransition?: { from: string; to: string };
+
 
   className?: string;
   style?: CSSProperties;
@@ -113,6 +115,7 @@ export const HeroScrollVideo: React.FC<HeroScrollVideoProps> = ({
 
   smoothScroll = true,
   lenisOptions,
+  bgTransition,
 
   className,
   style,
@@ -336,6 +339,19 @@ export const HeroScrollVideo: React.FC<HeroScrollVideoProps> = ({
           overlayRevealDelay + 0.05
         );
 
+      // Background color transition
+      if (bgTransition && rootRef.current) {
+        gsap.set(rootRef.current, { backgroundColor: bgTransition.from });
+        mainTl.to(
+          rootRef.current,
+          {
+            backgroundColor: bgTransition.to,
+            ease: "power1.inOut",
+          },
+          0
+        );
+      }
+
       // Try to play video
       const videoEl = container.querySelector("video") as HTMLVideoElement | null;
       if (videoEl) {
@@ -391,6 +407,7 @@ export const HeroScrollVideo: React.FC<HeroScrollVideoProps> = ({
     showHeroExitAnimation,
     sticky,
     smoothScroll,
+    bgTransition,
     JSON.stringify(lenisOptions),
   ]);
 

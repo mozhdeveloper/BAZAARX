@@ -57,7 +57,7 @@ const HomePage: React.FC = () => {
             </p>
 
             <p className="text-lg md:text-xl leading-relaxed text-gray-700">
-              By bringing products straight from the source to your screen,
+              By bringing products straight from the source to your home,
               BazaarX turns centuries of open exchange into a seamless digital
               marketplace.
             </p>

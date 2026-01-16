@@ -36,11 +36,18 @@ const ScrollExpansionHero = ({
 
   const bgOpacity = useTransform(scrollYProgress, [0, 1], [1, 0]);
 
-  // Opacity for children content: starts appearing at 0.85
   const contentOpacity = useTransform(scrollYProgress, [0.8, 1], [0, 1]);
+  const backgroundColor = useTransform(scrollYProgress, [0, 0.8], ["#D94F00", "#FFFFFF"]);
+
+  const textY = useTransform(scrollYProgress, [0.6, 1], ["0%", "-20%"]);
+  const textOpacity = useTransform(scrollYProgress, [0.7, 0.95], [1, 0]);
 
   return (
-    <section ref={containerRef} className="relative h-[300vh] bg-white">
+    <motion.section
+      ref={containerRef}
+      className="relative h-[300vh]"
+      style={{ backgroundColor }}
+    >
       <div className="sticky top-0 h-screen overflow-hidden">
 
         {/* Background */}
@@ -53,7 +60,7 @@ const ScrollExpansionHero = ({
             alt="Background"
             className="w-full h-full object-cover"
           />
-          <div className="absolute inset-0 bg-white/30" />
+          <div className="absolute inset-0 bg-black/40" />
         </motion.div>
 
         {/* Center media */}
@@ -82,14 +89,15 @@ const ScrollExpansionHero = ({
         </div>
 
         {/* Text */}
-        <div
+        <motion.div
           className={`absolute inset-0 flex flex-col items-center justify-center text-center z-20 pointer-events-none ${textBlend ? 'mix-blend-difference' : ''
             }`}
+          style={{ y: textY, opacity: textOpacity }}
         >
           <motion.h1
-            className="text-5xl md:text-8xl font-bold text-white px-4 mb-6 font-fondamento"
+            className="text-5xl md:text-6xl font-bold text-white px-4 mb-6 font-fondamento"
             style={{
-              textShadow: '0 0 20px rgba(0, 0, 0, 0.8), 0 0 40px rgba(0, 0, 0, 0.5), 0 0 60px rgba(0, 0, 0, 0.3)',
+              textShadow: '0 0 20px rgba(0, 0, 0, 0.8)',
             }}
           >
             {title}
@@ -97,12 +105,12 @@ const ScrollExpansionHero = ({
 
           {date && (
             <motion.p
-              className="text-orange-500 text-3xl md:text-4xl tracking-wide font-bold"
+              className="text-white text-3xl md:text-4xl tracking-wide font-bold font-fondamento"
             >
               {date}
             </motion.p>
           )}
-        </div>
+        </motion.div>
 
         {/* Content revealed */}
         <motion.div
@@ -112,7 +120,7 @@ const ScrollExpansionHero = ({
           {children}
         </motion.div>
       </div>
-    </section>
+    </motion.section>
   );
 };
 
