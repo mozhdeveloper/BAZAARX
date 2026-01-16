@@ -158,19 +158,19 @@ export function BazaarHero() {
         <Hero
           title={
             <div className="flex flex-col items-center gap-6 mt-24">
-              <span className="font-fondamento text-8xl text-[var(--brand-primary)]">BazaarX</span>
-              <div className="h-40 w-px bg-gradient-to-b from-transparent via-[var(--brand-primary)] to-transparent"></div>
+              <span className="font-fondamento text-8xl text-[var(--brand-primary)]">
+                BazaarX
+              </span>
+              <div className="h-40 w-px bg-gradient-to-b from-transparent via-[var(--brand-primary)] to-transparent" />
+              <div className="text-center text-4xl font-semibold text-[var(--text-primary)]">
+                Your Gateway
+                <br />
+                <span className="text-black">to Global Markets</span>
+              </div>
             </div>
           }
-          subtitle="Inspired by ancient bazaars, reimagined as the modern crossroads of global trade."
-          subtitleClassName="font-fondamento text-3xl mt-8"
-            <>
-              Your Gateway
-              <br />
-              <span className="text-black">to Global Markets</span>
-            </>
-          }
           subtitle="Skip the middlemen and explore curated products from makers worldwide—delivered directly to you."
+          subtitleClassName="font-fondamento text-2xl mt-6 text-center"
           actions={[
             {
               label: "Start Shopping",
