@@ -14,24 +14,83 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Mail, Lock, Zap, CheckCircle, ArrowRight } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../App';
+import { supabase } from '../../src/lib/supabase';
+import { useSellerStore } from '../../src/stores/sellerStore';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SellerLogin'>;
 
 export default function SellerLoginScreen({ navigation }: Props) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
 
-  const handleLogin = () => {
-    if (email === 'seller@bazaarx.ph' && password === 'seller123') {
-      navigation.replace('SellerStack');
-    } else if (email === 'buyer@bazaarx.ph' && password === 'password') {
-      Alert.alert('Wrong Portal', 'These are buyer credentials. Please use seller credentials.');
-    } else {
-      Alert.alert('Login Failed', 'Invalid credentials. Use demo credentials below.');
+  const handleLogin = async () => {
+    if (!email || !password) {
+      Alert.alert('Error', 'Please enter your email and password.');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      // 1. Authenticate with Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password: password,
+      });
+
+      if (authError) throw authError;
+
+      if (authData.user) {
+        // 2. CHECK USER TYPE in 'profiles' table
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('user_type')
+          .eq('id', authData.user.id)
+          .single();
+
+        if (profileError || !profile) {
+          await supabase.auth.signOut();
+          Alert.alert('Profile Error', 'Could not retrieve user profile.');
+          return;
+        }
+
+        // 3. VALIDATE: Only allow 'seller' user_type
+        if (profile.user_type !== 'seller') {
+          await supabase.auth.signOut();
+          Alert.alert('Access Denied', 'This account is not a registered seller.');
+          return;
+        }
+
+        // 4. GET SHOP NAME from 'sellers' table
+        const { data: sellerData, error: sellerError } = await supabase
+          .from('sellers')
+          .select('store_name')
+          .eq('id', authData.user.id) // Assuming id matches auth.uid
+          .single();
+
+        if (sellerError || !sellerData) {
+          // If profile is seller but no seller record exists yet
+          Alert.alert('Error', 'Seller record not found.');
+        } else {
+          // 5. UPDATE STORE: Sync the real shop name to your Zustand store
+          useSellerStore.getState().updateSellerInfo({
+            storeName: sellerData.store_name,
+            email: authData.user.email
+          });
+        }
+
+        navigation.replace('SellerStack');
+      }
+    } catch (err: any) {
+      Alert.alert('Login Failed', err.message || 'An unexpected error occurred.');
+    } finally {
+      setLoading(false);
     }
   };
+
 
   const fillCredentials = (type: 'buyer' | 'seller') => {
     if (type === 'buyer') {
@@ -80,8 +139,8 @@ export default function SellerLoginScreen({ navigation }: Props) {
                 placeholder="seller@bazaarx.ph"
                 value={email}
                 onChangeText={setEmail}
-                onFocus={() => setEmailFocused(true)}
-                onBlur={() => setEmailFocused(false)}
+                // onFocus={() => setEmailFocused(true)}
+                // onBlur={() => setEmailFocused(false)}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 placeholderTextColor="#9CA3AF"
@@ -108,8 +167,8 @@ export default function SellerLoginScreen({ navigation }: Props) {
                 placeholder="Enter your password"
                 value={password}
                 onChangeText={setPassword}
-                onFocus={() => setPasswordFocused(true)}
-                onBlur={() => setPasswordFocused(false)}
+                // onFocus={() => setPasswordFocused(true)}
+                // onBlur={() => setPasswordFocused(false)}
                 secureTextEntry
                 placeholderTextColor="#9CA3AF"
               />
@@ -131,6 +190,12 @@ export default function SellerLoginScreen({ navigation }: Props) {
           <Pressable style={styles.forgotPassword}>
             <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
           </Pressable>
+          <View>
+            <Text>Don't have an account? </Text>
+            <Pressable onPress={() => navigation.navigate('SellerSignup')}>
+              <Text>Sign Up</Text>
+            </Pressable>
+          </View>
         </View>
 
         {/* Developer/Demo Access Section */}

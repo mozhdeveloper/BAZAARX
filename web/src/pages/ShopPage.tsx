@@ -20,12 +20,6 @@ import Header from "../components/Header";
 import { BazaarFooter } from "../components/ui/bazaar-footer";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "../components/ui/accordion";
 import { Slider } from "../components/ui/slider";
 import {
   Select,
@@ -44,8 +38,27 @@ import {
 } from "../data/products";
 import { categories } from "../data/categories";
 import { useBuyerStore } from "../stores/buyerStore";
-import { useProductStore, useAuthStore } from "../stores/sellerStore";
-import { useProductQAStore } from "../stores/productQAStore";
+import { useProductStore } from "../stores/sellerStore";
+// import { useProductQAStore } from "../stores/productQAStore";
+import type { Product as BuyerProduct } from "../stores/buyerStore";
+
+type ShopProduct = {
+  id: string;
+  name: string;
+  price: number;
+  originalPrice?: number;
+  image: string;
+  rating: number;
+  sold: number;
+  category: string;
+  seller: string;
+  isVerified: boolean;
+  isFreeShipping?: boolean;
+  location?: string;
+  description?: string;
+  sellerRating?: number;
+  sellerVerified?: boolean;
+};
 
 interface FlashSaleProduct {
   id: string;
@@ -127,13 +140,12 @@ const sortOptions = [
 export default function ShopPage() {
   const navigate = useNavigate();
   const { addToCart, setQuickOrder, cartItems } = useBuyerStore();
-  const { products: sellerProducts } = useProductStore();
-  const { products: qaProducts } = useProductQAStore();
+  const { products: sellerProducts, fetchProducts } = useProductStore();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All Categories");
   const [selectedSort, setSelectedSort] = useState("relevance");
-  const [priceRange, setPriceRange] = useState<number[]>([0, 10000]);
+  const [priceRange, setPriceRange] = useState<number[]>([0, 100000]);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [showFilters, setShowFilters] = useState(false);
   const [showCartModal, setShowCartModal] = useState(false);
@@ -169,80 +181,36 @@ export default function ShopPage() {
     return () => clearInterval(timer);
   }, []);
 
-  // Combine seller products (verified) with QA verified products and mock products
-  const allProducts = useMemo(() => {
-    // Convert seller products to shop format (only approved ones)
-    const seller = useAuthStore.getState().seller;
-    const sellerName =
-      seller?.businessName || seller?.storeName || "Verified Seller";
+  useEffect(() => {
+    // Fetch products from Supabase on component mount
+    fetchProducts();
+  }, [fetchProducts]);
 
-    const verifiedSellerProducts = sellerProducts
-      .filter((p) => p.approvalStatus === "approved" && p.isActive)
+  const allProducts = useMemo<ShopProduct[]>(() => {
+    const dbProducts = sellerProducts
+      .filter((p) => p.approvalStatus === "pending" && p.isActive)
       .map((p) => ({
         id: p.id,
         name: p.name,
         price: p.price,
         originalPrice: p.originalPrice,
-        image: p.images[0] || "https://placehold.co/400?text=Product",
+        image: p.images?.[0] || "https://placehold.co/400?text=Product",
         rating: p.rating || 0,
         sold: p.sales || 0,
         category: p.category,
-        seller: sellerName,
+        // 2. Map the seller name correctly
+        seller: p.sellerName || "Verified Seller",
         isVerified: true,
-        isFreeShipping: true,
         location: "Metro Manila",
         description: p.description,
-        sellerRating: p.rating || 0,
+        sellerRating: p.sellerRating || 0,
         sellerVerified: true,
       }));
 
-    // Convert QA verified products to shop format
-    const qaVerifiedProducts = qaProducts
-      .filter((p) => p.status === "ACTIVE_VERIFIED")
-      .map((p) => ({
-        id: p.id,
-        name: p.name,
-        price: p.price,
-        originalPrice: undefined,
-        image: p.image || "https://placehold.co/400?text=Product",
-        rating: 4.5, // Default rating for QA verified products
-        sold: 0, // New verified product
-        category: p.category,
-        seller: p.vendor,
-        isVerified: true,
-        isFreeShipping: true,
-        location: "Metro Manila",
-        description: `Quality verified ${p.name}`,
-        sellerRating: 4.5,
-        sellerVerified: true,
-      }));
+    return dbProducts;
+  }, [sellerProducts]);
 
-    // Generate mock products for variety
-    const mockProducts = [];
-    const allMockSources = [
-      ...trendingProducts,
-      ...bestSellerProducts,
-      ...newArrivals,
-    ];
-
-    for (let i = 0; i < 3; i++) {
-      mockProducts.push(
-        ...allMockSources.map((product) => ({
-          ...product,
-          id: `${product.id}-${i}`,
-          name: `${product.name} ${i > 0 ? `(Variant ${i + 1})` : ""}`,
-          price: Math.round(product.price * (0.8 + Math.random() * 0.4)),
-          sold: Math.round(product.sold * (0.5 + Math.random() * 1.5)),
-          isVerified: false,
-        }))
-      );
-    }
-
-    // Combine: verified products first (both seller and QA), then mock products
-    return [...verifiedSellerProducts, ...qaVerifiedProducts, ...mockProducts];
-  }, [sellerProducts, qaProducts]);
-
-  const filteredProducts = useMemo(() => {
+  const filteredProducts = useMemo<ShopProduct[]>(() => {
     const filtered = allProducts.filter((product) => {
       const matchesSearch =
         product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -286,7 +254,7 @@ export default function ShopPage() {
     setSearchQuery("");
     setSelectedCategory("All Categories");
     setSelectedSort("relevance");
-    setPriceRange([0, 10000]);
+    setPriceRange([0, 100000]);
   };
 
   return (
@@ -306,7 +274,7 @@ export default function ShopPage() {
                 Shop All Products
               </h1>
               <p className="text-gray-600 mt-1">
-                Discover amazing products from trusted Filipino sellers
+                Discover amazing products from trusted sellers
               </p>
             </div>
 
@@ -334,118 +302,85 @@ export default function ShopPage() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Flash Sale Section */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="mb-8 bg-gradient-to-r from-red-500 via-orange-500 to-yellow-500 rounded-2xl p-6 text-white relative overflow-hidden"
-        >
-          {/* Animated Background */}
-          <div className="absolute inset-0 opacity-20">
-            <div className="absolute top-0 left-0 w-64 h-64 bg-white rounded-full blur-3xl animate-pulse" />
-            <div
-              className="absolute bottom-0 right-0 w-96 h-96 bg-white rounded-full blur-3xl animate-pulse"
-              style={{ animationDelay: "1s" }}
-            />
-          </div>
-
-          <div className="relative z-10">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-white/20 backdrop-blur-sm rounded-xl">
-                  <Flame className="w-8 h-8" />
-                </div>
-                <div>
-                  <h2 className="text-3xl font-bold">Flash Sale</h2>
-                  <p className="text-white/90">Up to 50% OFF - Limited Time!</p>
-                </div>
+        <div className="mb-8 bg-white border-l-[12px] border-l-orange-500 rounded-3xl p-6 shadow-[0_4px_20px_rgba(0,0,0,0.08)] hover:shadow-[0_8px_30px_rgba(255,106,0,0.15)] transition-all">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-orange-50 rounded-xl text-orange-600">
+                <Flame className="w-6 h-6" />
               </div>
-
-              {/* Countdown Timer */}
-              <div className="flex items-center gap-3">
-                <Clock className="w-6 h-6" />
-                <div className="flex gap-2">
-                  {[
-                    { label: "Hours", value: timeLeft.hours },
-                    { label: "Mins", value: timeLeft.minutes },
-                    { label: "Secs", value: timeLeft.seconds },
-                  ].map((item, index) => (
-                    <div key={item.label} className="flex items-center">
-                      <div className="bg-white/30 backdrop-blur-md rounded-xl p-3 min-w-[70px] text-center border border-white/20 shadow-lg">
-                        <div className="text-2xl font-bold">
-                          {String(item.value).padStart(2, "0")}
-                        </div>
-                        <div className="text-xs text-white/90 font-medium">
-                          {item.label}
-                        </div>
-                      </div>
-                      {index < 2 && (
-                        <div className="text-2xl font-bold mx-2">:</div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <h2 className="text-4xl font-black text-orange-600 uppercase tracking-wide">FLASH SALE</h2>
             </div>
 
-            {/* Flash Sale Products */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {flashSaleProducts.map((product, index) => (
-                <motion.div
-                  key={product.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.1 }}
-                  className="bg-white rounded-xl p-4 text-gray-900 group cursor-pointer hover:shadow-xl transition-all"
-                  onClick={() => navigate(`/product/${product.id}`)}
-                >
-                  <div className="relative aspect-square mb-3 overflow-hidden rounded-lg">
-                    <img
-                      src={product.image}
-                      alt={product.name}
-                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                    />
-                    <div className="absolute top-2 left-2 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">
-                      -{product.discount}%
-                    </div>
-                    <div className="absolute bottom-0 left-0 right-0 bg-black/50 backdrop-blur-sm p-2">
-                      <div className="w-full bg-gray-200 rounded-full h-1.5 mb-1">
-                        <div
-                          className="bg-orange-500 h-1.5 rounded-full"
-                          style={{
-                            width: `${(product.sold / product.stock) * 100}%`,
-                          }}
-                        />
-                      </div>
-                      <div className="text-[10px] text-white text-center">
-                        {product.sold} sold
-                      </div>
-                    </div>
+            <div className="bg-orange-500 text-white rounded-xl px-5 py-2.5 flex items-center gap-3 shadow-sm border border-orange-400/20">
+              <Clock className="w-5 h-5 text-white" />
+              <div className="flex items-baseline gap-1">
+                <span className="text-xl font-bold font-mono tracking-widest">
+                  {String(timeLeft.hours).padStart(2, "0")}:{String(timeLeft.minutes).padStart(2, "0")}:{String(timeLeft.seconds).padStart(2, "0")}
+                </span>
+                <span className="text-[10px] text-white/90 font-medium uppercase tracking-wider ml-1">Left</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            {flashSaleProducts.map((product, index) => (
+              <motion.div
+                key={product.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.1 }}
+                className="bg-white rounded-xl overflow-hidden cursor-pointer hover:shadow-xl transition-all border border-gray-200 hover:border-orange-500 pb-2"
+                onClick={() => navigate(`/product/${product.id}`)}
+              >
+                <div className="relative aspect-square mb-2">
+                  <img
+                    src={product.image}
+                    alt={product.name}
+                    className="w-full h-full object-cover"
+                  />
+                  {/* Discount Badge - Mobile Style */}
+                  <div className="absolute top-0 right-0 bg-orange-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-bl-lg z-10">
+                    -{product.discount}%
                   </div>
-                  <h3 className="font-medium text-sm line-clamp-2 mb-2 group-hover:text-orange-600 transition-colors">
+                </div>
+
+                <div className="px-2">
+                  <h3 className="font-medium text-xs line-clamp-2 mb-1 text-gray-800 min-h-[2.5em]">
                     {product.name}
                   </h3>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-lg font-bold text-orange-600">
-                      ₱{product.salePrice}
-                    </span>
-                    <span className="text-xs text-gray-400 line-through">
-                      ₱{product.originalPrice}
-                    </span>
+
+                  {/* Rating */}
+                  <div className="flex items-center gap-1 mb-1">
+                    <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                    <span className="text-[10px] text-gray-500">{product.rating}</span>
                   </div>
-                </motion.div>
-              ))}
-            </div>
+
+                  <div className="flex flex-col gap-0.5">
+                    <div className="text-base font-bold text-orange-600 leading-none">
+                      ₱{product.salePrice.toLocaleString()}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="text-[10px] text-gray-400 line-through">
+                        ₱{product.originalPrice.toLocaleString()}
+                      </span>
+                      <span className="text-[10px] text-gray-500">
+                        {product.sold.toLocaleString()} sold
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
           </div>
-        </motion.div>
+        </div>
 
         <div className="flex flex-col lg:flex-row gap-8">
           {/* Filters Sidebar */}
           <motion.div
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
-            className={`lg:w-64 lg:sticky lg:top-20 lg:self-start ${
-              showFilters ? "block" : "hidden lg:block"
-            }`}
+            className={`lg:w-64 lg:sticky lg:top-20 lg:self-start ${showFilters ? "block" : "hidden lg:block"
+              }`}
           >
             <div className="bg-white rounded-2xl p-6 shadow-sm">
               <div className="flex items-center justify-between mb-6">
@@ -461,64 +396,63 @@ export default function ShopPage() {
                 </Button>
               </div>
 
-              <Accordion
-                type="multiple"
-                defaultValue={["categories", "price"]}
-                className="space-y-4"
-              >
-                {/* Categories */}
-                <AccordionItem value="categories" className="border-b-0">
-                  <AccordionTrigger className="text-sm font-medium text-gray-900 hover:no-underline py-2">
-                    Categories
-                  </AccordionTrigger>
-                  <AccordionContent>
-                    <div className="space-y-2 pt-2">
-                      {categoryOptions.map((category) => (
-                        <button
-                          key={category}
-                          onClick={() => setSelectedCategory(category)}
-                          className={`w-full text-left px-3 py-2 text-sm rounded-lg transition-all ${
-                            selectedCategory === category
-                              ? "bg-[#FF5722] text-white shadow-sm"
-                              : "text-gray-600 hover:bg-gray-50"
-                          }`}
-                        >
-                          {category}
-                        </button>
-                      ))}
-                    </div>
-                  </AccordionContent>
-                </AccordionItem>
-
-                {/* Price Range */}
-                <AccordionItem value="price" className="border-b-0">
-                  <AccordionTrigger className="text-sm font-medium text-gray-900 hover:no-underline py-2">
-                    Price Range
-                  </AccordionTrigger>
-                  <AccordionContent>
-                    <div className="space-y-4 pt-2">
-                      <div className="px-2">
-                        <Slider
-                          min={0}
-                          max={10000}
-                          step={100}
-                          value={priceRange}
-                          onValueChange={setPriceRange}
-                          className="w-full"
-                        />
-                        <div className="flex items-center justify-between mt-3 text-sm">
-                          <span className="text-gray-600">
-                            ₱{priceRange[0].toLocaleString()}
-                          </span>
-                          <span className="text-gray-600">
-                            ₱{priceRange[1].toLocaleString()}
+              <div className="flex flex-col h-[calc(100vh-140px)] gap-4">
+                {/* Vertical Layered Categories */}
+                <div className="flex-1 flex flex-col gap-1 min-h-0">
+                  <h3 className="text-sm font-semibold text-gray-900 px-1 mb-1">Categories</h3>
+                  {categoryOptions.map((category) => {
+                    const isSelected = selectedCategory === category;
+                    return (
+                      <div
+                        key={category}
+                        onClick={() => setSelectedCategory(category)}
+                        className={`relative rounded-2xl transition-all duration-500 ease-in-out cursor-pointer overflow-hidden border
+                          ${isSelected
+                            ? "flex-[12] bg-orange-500 border-orange-400 shadow-md"
+                            : "flex-1 bg-white border-gray-100 hover:bg-gray-50"
+                          }
+                        `}
+                      >
+                        <div className="absolute inset-0 flex items-center justify-center p-4">
+                          <span
+                            className={`transition-all duration-500 transform
+                                ${isSelected
+                                ? "font-bold -rotate-90 text-white text-3xl tracking-widest origin-center whitespace-normal text-center w-64 leading-none"
+                                : "font-medium text-gray-600 text-sm whitespace-nowrap"
+                              }
+                              `}
+                          >
+                            {category}
                           </span>
                         </div>
                       </div>
+                    );
+                  })}
+                </div>
+
+                {/* Price Range (Fixed at Bottom) */}
+                <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm shrink-0">
+                  <h3 className="text-sm font-medium text-gray-900 mb-4">Price Range</h3>
+                  <div className="px-2">
+                    <Slider
+                      min={0}
+                      max={100000}
+                      step={100}
+                      value={priceRange}
+                      onValueChange={setPriceRange}
+                      className="w-full"
+                    />
+                    <div className="flex items-center justify-between mt-3 text-sm">
+                      <span className="text-gray-600">
+                        ₱{priceRange[0].toLocaleString()}
+                      </span>
+                      <span className="text-gray-600">
+                        ₱{priceRange[1].toLocaleString()}
+                      </span>
                     </div>
-                  </AccordionContent>
-                </AccordionItem>
-              </Accordion>
+                  </div>
+                </div>
+              </div>
             </div>
           </motion.div>
 
@@ -564,21 +498,19 @@ export default function ShopPage() {
                   <div className="flex items-center bg-gray-100 rounded-lg p-1">
                     <button
                       onClick={() => setViewMode("grid")}
-                      className={`p-2 rounded-md transition-colors ${
-                        viewMode === "grid"
-                          ? "bg-white shadow-sm"
-                          : "text-gray-400"
-                      }`}
+                      className={`p-2 rounded-md transition-colors ${viewMode === "grid"
+                        ? "bg-white shadow-sm"
+                        : "text-gray-400"
+                        }`}
                     >
                       <Grid className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => setViewMode("list")}
-                      className={`p-2 rounded-md transition-colors ${
-                        viewMode === "list"
-                          ? "bg-white shadow-sm"
-                          : "text-gray-400"
-                      }`}
+                      className={`p-2 rounded-md transition-colors ${viewMode === "list"
+                        ? "bg-white shadow-sm"
+                        : "text-gray-400"
+                        }`}
                     >
                       <List className="w-4 h-4" />
                     </button>
@@ -604,9 +536,8 @@ export default function ShopPage() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.05 }}
-                  className={`bg-white rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden group cursor-pointer ${
-                    viewMode === "list" ? "flex" : ""
-                  }`}
+                  className={`bg-white rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden group cursor-pointer ${viewMode === "list" ? "flex" : ""
+                    }`}
                   onClick={() => navigate(`/product/${product.id}`)}
                 >
                   <div
@@ -623,7 +554,7 @@ export default function ShopPage() {
                           {Math.round(
                             ((product.originalPrice - product.price) /
                               product.originalPrice) *
-                              100
+                            100
                           )}
                           % OFF
                         </Badge>
@@ -686,9 +617,15 @@ export default function ShopPage() {
                       <Button
                         onClick={(e) => {
                           e.stopPropagation();
+                          const sellerLocation =
+                            product.location || "Metro Manila";
                           // Transform simple Product to CartItem format
-                          const cartItem = {
-                            ...product,
+                          const cartItem: BuyerProduct = {
+                            id: product.id,
+                            name: product.name,
+                            price: product.price,
+                            originalPrice: product.originalPrice,
+                            image: product.image,
                             images: [product.image],
                             seller: {
                               id: `seller-${product.id}`,
@@ -699,7 +636,7 @@ export default function ShopPage() {
                               followers: 1000,
                               isVerified: product.sellerVerified || false,
                               description: "",
-                              location: product.location,
+                              location: sellerLocation,
                               established: "2020",
                               products: [],
                               badges: [],
@@ -707,7 +644,12 @@ export default function ShopPage() {
                               categories: [product.category],
                             },
                             sellerId: `seller-${product.id}`,
+                            rating: product.rating,
                             totalReviews: 100,
+                            category: product.category,
+                            sold: product.sold,
+                            isFreeShipping: product.isFreeShipping ?? true,
+                            location: sellerLocation,
                             description: product.description || "",
                             specifications: {},
                             variants: [],
@@ -732,9 +674,15 @@ export default function ShopPage() {
                       <Button
                         onClick={(e) => {
                           e.stopPropagation();
+                          const sellerLocation =
+                            product.location || "Metro Manila";
                           // Create quick order item
-                          const cartItem = {
-                            ...product,
+                          const quickOrderItem: BuyerProduct = {
+                            id: product.id,
+                            name: product.name,
+                            price: product.price,
+                            originalPrice: product.originalPrice,
+                            image: product.image,
                             images: [product.image],
                             seller: {
                               id: `seller-${product.id}`,
@@ -745,7 +693,7 @@ export default function ShopPage() {
                               followers: 1000,
                               isVerified: product.sellerVerified || false,
                               description: "",
-                              location: product.location,
+                              location: sellerLocation,
                               established: "2020",
                               products: [],
                               badges: [],
@@ -753,13 +701,18 @@ export default function ShopPage() {
                               categories: [product.category],
                             },
                             sellerId: `seller-${product.id}`,
+                            rating: product.rating,
                             totalReviews: 100,
+                            category: product.category,
+                            sold: product.sold,
+                            isFreeShipping: product.isFreeShipping ?? true,
+                            location: sellerLocation,
                             description: product.description || "",
                             specifications: {},
                             variants: [],
                           };
 
-                          setQuickOrder(cartItem, 1);
+                          setQuickOrder(quickOrderItem, 1);
                           // Navigate to checkout
                           navigate("/checkout");
                         }}

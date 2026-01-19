@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -24,6 +24,7 @@ import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList, TabParamList } from '../App';
 import type { Product } from '../src/types';
+import { supabase } from '../src/lib/supabase';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<TabParamList, 'Home'>,
@@ -43,7 +44,7 @@ const categories = [
 export default function HomeScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const BRAND_COLOR = '#FF5722';
-  
+
   const [activeTab, setActiveTab] = useState<'Home' | 'Category'>('Home');
   const [showAIChat, setShowAIChat] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -54,17 +55,46 @@ export default function HomeScreen({ navigation }: Props) {
   const [deliveryAddress, setDeliveryAddress] = useState('123 Main St, Manila');
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [recentSearches] = useState(['wireless earbuds', 'leather bag']);
-  
-  // This name is used both in greeting and profile consistency
-  const username = 'Jonathan';
+  const [username, setUsername] = useState('Guest');
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+
+  useEffect(() => {
+    async function getProfile() {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+
+        if (user) {
+          const { data, error } = await supabase
+            .from('profiles')
+            .select('full_name')
+            .eq('id', user.id)
+            .single();
+
+          if (error) throw error;
+
+          if (data?.full_name) {
+            // Take just the first name for the greeting (optional)
+            const firstName = data.full_name.split(' ')[0];
+            setUsername(firstName);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading profile:', error);
+      } finally {
+        setIsLoadingProfile(false);
+      }
+    }
+
+    getProfile();
+  }, []);
 
   const notifications = [
     { id: '1', title: 'Order Shipped! 📦', message: 'Your order #A238567K has been shipped!', time: '2h ago', read: false, icon: Package, color: '#3B82F6' },
   ];
 
   const allProducts = [...trendingProducts, ...bestSellerProducts];
-  const filteredProducts = searchQuery.trim() 
-    ? allProducts.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase())) 
+  const filteredProducts = searchQuery.trim()
+    ? allProducts.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()))
     : [];
 
   const handleProductPress = (product: Product) => {
@@ -74,7 +104,7 @@ export default function HomeScreen({ navigation }: Props) {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
-      
+
       {/* 1. BRANDED HEADER */}
       <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: BRAND_COLOR }]}>
         <View style={styles.headerTop}>
@@ -83,7 +113,7 @@ export default function HomeScreen({ navigation }: Props) {
             <Pressable onPress={() => navigation.navigate('MainTabs', { screen: 'Profile' })}>
               <Image source={{ uri: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100' }} style={styles.avatar} />
             </Pressable>
-            
+
             <View style={styles.greetingContainer}>
               <Text style={[styles.greetingTitle, { color: '#FFF' }]}>Hi, {username}</Text>
               <Text style={[styles.greetingSubtitle, { color: 'rgba(255,255,255,0.8)' }]}>Let's go shopping</Text>
@@ -105,13 +135,13 @@ export default function HomeScreen({ navigation }: Props) {
             </Pressable>
             <View style={[styles.searchBarInner, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
               <Search size={18} color="#FFF" />
-              <TextInput 
-                style={[styles.searchInput, { color: '#FFF' }]} 
-                placeholder="Search products..." 
-                placeholderTextColor="rgba(255,255,255,0.7)" 
-                value={searchQuery} 
-                onChangeText={setSearchQuery} 
-                autoFocus 
+              <TextInput
+                style={[styles.searchInput, { color: '#FFF' }]}
+                placeholder="Search products..."
+                placeholderTextColor="rgba(255,255,255,0.7)"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                autoFocus
               />
               <Pressable onPress={() => setShowCameraSearch(true)}><Camera size={18} color="#FFF" /></Pressable>
             </View>
@@ -186,25 +216,25 @@ export default function HomeScreen({ navigation }: Props) {
             <View style={styles.flashSaleSection}>
               <View style={styles.flashHeader}>
                 <View style={styles.row}>
-                    <Text style={[styles.gridTitleText, { color: BRAND_COLOR }]}>FLASH SALE</Text>
-                    <View style={[styles.timerBox, { backgroundColor: '#333' }]}>
-                        <Timer size={14} color="#FFF" /><Text style={styles.timerText}>02:15:45</Text>
-                    </View>
+                  <Text style={[styles.gridTitleText, { color: BRAND_COLOR }]}>FLASH SALE</Text>
+                  <View style={[styles.timerBox, { backgroundColor: '#333' }]}>
+                    <Timer size={14} color="#FFF" /><Text style={styles.timerText}>02:15:45</Text>
+                  </View>
                 </View>
               </View>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingLeft: 20, paddingBottom: 10 }}>
                 {bestSellerProducts.map(p => (
-                    <View key={p.id} style={styles.itemBoxContainerHorizontal}>
-                        <ProductCard product={p} onPress={() => handleProductPress(p)} />
-                        <View style={[styles.discountTag, { backgroundColor: BRAND_COLOR }]}><Text style={styles.discountTagText}>-50%</Text></View>
-                    </View>
+                  <View key={p.id} style={styles.itemBoxContainerHorizontal}>
+                    <ProductCard product={p} onPress={() => handleProductPress(p)} />
+                    <View style={[styles.discountTag, { backgroundColor: BRAND_COLOR }]}><Text style={styles.discountTagText}>-50%</Text></View>
+                  </View>
                 ))}
               </ScrollView>
             </View>
 
             <View style={styles.section}>
-              <Pressable 
-                style={({ pressed }) => [styles.productRequestButton, pressed && styles.productRequestButtonPressed]} 
+              <Pressable
+                style={({ pressed }) => [styles.productRequestButton, pressed && styles.productRequestButtonPressed]}
                 onPress={() => setShowProductRequest(true)}
               >
                 <View style={styles.productRequestContent}>
@@ -257,7 +287,7 @@ export default function HomeScreen({ navigation }: Props) {
       <AIChatModal visible={showAIChat} onClose={() => setShowAIChat(false)} />
       <CameraSearchModal visible={showCameraSearch} onClose={() => setShowCameraSearch(false)} />
       <LocationModal visible={showLocationModal} onClose={() => setShowLocationModal(false)} onSelectLocation={setDeliveryAddress} currentAddress={deliveryAddress} />
-      
+
       <Modal visible={showNotifications} animationType="slide" transparent={true} onRequestClose={() => setShowNotifications(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.notificationModalContent}>
@@ -346,13 +376,13 @@ const styles = StyleSheet.create({
   categoryExpandedContent: { padding: 20 },
   categorySectionTitle: { fontSize: 18, fontWeight: '800', color: '#1F2937', marginBottom: 15 },
   categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-  categoryCardBox: { 
-    width: (width - 55) / 2, 
-    height: 100, 
-    borderRadius: 16, 
-    overflow: 'hidden', 
-    marginBottom: 15, 
-    justifyContent: 'center', 
+  categoryCardBox: {
+    width: (width - 55) / 2,
+    height: 100,
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginBottom: 15,
+    justifyContent: 'center',
     alignItems: 'center',
     elevation: 4,
     shadowColor: '#000',

@@ -3,6 +3,7 @@ import {
   View,
   Text,
   StyleSheet,
+  TouchableOpacity,
   ScrollView,
   Pressable,
   TextInput,
@@ -21,7 +22,7 @@ import {
   Paperclip,
   Phone,
   Video,
-  MoreVertical,
+  X
 } from 'lucide-react-native';
 
 interface Message {
@@ -45,7 +46,7 @@ interface Conversation {
 export default function MessagesScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<SellerStackParamList>>();
   const insets = useSafeAreaInsets();
-  const [selectedConversation, setSelectedConversation] = useState<string | null>('1');
+  const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -151,28 +152,39 @@ export default function MessagesScreen() {
     return (
       <View style={styles.container}>
         {/* Header */}
-        <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
-          <View style={styles.headerContent}>
-            <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
-              <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
-            </Pressable>
-            <View style={styles.headerTitleContainer}>
-              <Text style={styles.headerTitle}>Messages</Text>
-              <Text style={styles.headerSubtitle}>Customer chats</Text>
+        <View style={{ backgroundColor: '#FF5722', paddingTop: insets.top + 16, paddingBottom: 20, paddingHorizontal: 20, borderBottomLeftRadius: 20, borderBottomRightRadius: 20,}}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <TouchableOpacity 
+                          style={styles.iconContainer} 
+                          onPress={() => navigation.goBack()}
+                        >
+                          <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2} />
+                        </TouchableOpacity>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#FFFFFF' }}>
+                Messages
+              </Text>
+              <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.9)', marginTop: 2 }}>
+                Customer chats
+              </Text>
             </View>
-            <View style={{ width: 40 }} />
           </View>
 
           {/* Search Bar */}
-          <View style={styles.searchContainer}>
-            <Search size={18} color="#9CA3AF" strokeWidth={2} />
+          <View style={{ marginTop: 16, backgroundColor: '#FFFFFF', borderRadius: 12, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, height: 48 }}>
+            <Search size={20} color="#9CA3AF" strokeWidth={2} />
             <TextInput
-              style={styles.searchInput}
-              placeholder="Search messages..."
-              placeholderTextColor="#9CA3AF"
               value={searchQuery}
               onChangeText={setSearchQuery}
+              placeholder="Search messages..."
+              placeholderTextColor="#9CA3AF"
+              style={{ flex: 1, marginLeft: 8, fontSize: 15, color: '#111827' }}
             />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchQuery('')}>
+                <X size={20} color="#9CA3AF" />
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
@@ -319,30 +331,38 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#FF5722',
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingBottom: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 4,
+    borderBottomLeftRadius: 20, 
+    borderBottomRightRadius: 20,
   },
   headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 16,
+    justifyContent: 'flex-start', 
   },
-  backButton: {
-    padding: 4,
-  },
-  headerTitleContainer: {
-    flex: 1,
+  headerLeft: {
+    flexDirection: 'row',
     alignItems: 'center',
-    gap: 2,
+    gap: 12,
+    flex: 1,
+  },
+  iconContainer: {
+    backgroundColor: 'rgba(255,255,255,0.2)', 
+    padding: 12,
+    borderRadius: 12,
+  },
+  titleContainer: {
+    flex: 1,
+    justifyContent: 'center',
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '800',
     color: '#FFFFFF',
     letterSpacing: 0.3,
@@ -370,6 +390,9 @@ const styles = StyleSheet.create({
   },
   conversationsList: {
     flex: 1,
+  },
+  backButton: {
+    padding: 4,
   },
   conversationItem: {
     flexDirection: 'row',
@@ -440,6 +463,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#FF5722',
     paddingHorizontal: 16,
     paddingBottom: 12,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
   },
   chatHeaderContent: {
     flexDirection: 'row',

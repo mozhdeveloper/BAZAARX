@@ -36,7 +36,7 @@ export const MobileAppScroll = ({
 
   return (
     <div
-      className="h-[60rem] md:h-[70rem] flex items-center justify-center relative p-4 md:p-20 bg-white"
+      className="h-[60rem] md:h-[90rem] flex items-center justify-center relative p-4 md:p-20 bg-white overflow-hidden"
       ref={containerRef}
     >
       <div
@@ -82,23 +82,11 @@ export const PhoneCard = ({
       style={{
         rotateX: rotate,
         scale,
-        boxShadow:
-          "0 0 #0000001a, 0 12px 25px #0000001a, 0 25px 45px #00000012, 0 45px 65px #0000000a, 0 70px 80px #00000005, 0 100px 90px #00000002",
       }}
-      className="max-w-sm mx-auto h-[35rem] md:h-[45rem] w-full relative"
+      className="w-full flex justify-center items-center"
     >
-      {/* Phone Frame */}
-      <div className="h-full w-full bg-black rounded-[2.5rem] p-2 shadow-2xl relative">
-        {/* Notch */}
-        <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-black rounded-b-2xl z-20"></div>
-        
-        {/* Screen */}
-        <div className="h-full w-full bg-white rounded-[2rem] overflow-hidden relative">
-          {children}
-        </div>
-        
-        {/* Home indicator */}
-        <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 w-32 h-1 bg-gray-300 rounded-full"></div>
+      <div className="relative w-auto h-auto">
+        {children}
       </div>
     </motion.div>
   );

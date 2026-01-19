@@ -1,37 +1,57 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import { useAuthStore } from '@/stores/sellerStore';
-import { useAdminSellers, type Seller as AdminSeller } from '@/stores/adminStore';
-import { 
-  User, 
-  Building, 
-  MapPin, 
-  CreditCard, 
-  FileText, 
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
+import { useAuthStore } from "@/stores/sellerStore";
+import {
+  useAdminSellers,
+  type Seller as AdminSeller,
+} from "@/stores/adminStore";
+import {
+  User,
+  Building,
+  MapPin,
+  CreditCard,
+  FileText,
   CheckCircle,
   Upload,
   ChevronRight,
-  ChevronLeft
-} from 'lucide-react';
+  ChevronLeft,
+} from "lucide-react";
 
 const CATEGORIES = [
-  'Electronics', 'Fashion', 'Home & Living', 'Beauty & Personal Care',
-  'Sports & Outdoors', 'Toys & Hobbies', 'Books & Media', 'Food & Beverages',
-  'Automotive', 'Health & Wellness', 'Pet Supplies', 'Baby & Kids'
+  "Electronics",
+  "Fashion",
+  "Home & Living",
+  "Beauty & Personal Care",
+  "Sports & Outdoors",
+  "Toys & Hobbies",
+  "Books & Media",
+  "Food & Beverages",
+  "Automotive",
+  "Health & Wellness",
+  "Pet Supplies",
+  "Baby & Kids",
 ];
 
 const BUSINESS_TYPES = [
-  'Sole Proprietorship',
-  'Partnership',
-  'Corporation',
-  'Cooperative',
-  'Others'
+  "Sole Proprietorship",
+  "Partnership",
+  "Corporation",
+  "Cooperative",
+  "Others",
 ];
 
 const BANKS = [
-  'BDO', 'BPI', 'Metrobank', 'Landbank', 'PNB',
-  'Security Bank', 'RCBC', 'Unionbank', 'Chinabank', 'Others'
+  "BDO",
+  "BPI",
+  "Metrobank",
+  "Landbank",
+  "PNB",
+  "Security Bank",
+  "RCBC",
+  "Unionbank",
+  "Chinabank",
+  "Others",
 ];
 
 export function SellerOnboarding() {
@@ -46,61 +66,52 @@ export function SellerOnboarding() {
   // Form state
   const [formData, setFormData] = useState({
     // Personal Info
-    ownerName: '',
-    phone: '',
-    
+    ownerName: "",
+    phone: "",
+
     // Business Info
-    businessName: '',
-    storeName: '',
-    storeDescription: '',
+    businessName: "",
+    storeName: "",
+    storeDescription: "",
     storeCategory: [] as string[],
-    businessType: '',
-    businessRegistrationNumber: '',
-    taxIdNumber: '',
-    
+    businessType: "",
+    businessRegistrationNumber: "",
+    taxIdNumber: "",
+
     // Address
-    businessAddress: '',
-    city: '',
-    province: '',
-    postalCode: '',
-    
+    businessAddress: "",
+    city: "",
+    province: "",
+    postalCode: "",
+
     // Banking
-    bankName: '',
-    accountName: '',
-    accountNumber: '',
-    
-    // Documents
-    documents: {
-      businessPermit: null as File | null,
-      validId: null as File | null,
-      proofOfAddress: null as File | null,
-      dtiRegistration: null as File | null,
-      taxId: null as File | null,
-    }
+    bankName: "",
+    accountName: "",
+    accountNumber: "",
+
+    // Document URLs
+    businessPermitUrl: "",
+    validIdUrl: "",
+    proofOfAddressUrl: "",
+    dtiRegistrationUrl: "",
+    taxIdUrl: "",
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const handleInputChange = (field: string, value: any) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData((prev) => ({ ...prev, [field]: value }));
     if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: '' }));
+      setErrors((prev) => ({ ...prev, [field]: "" }));
     }
   };
 
   const handleCategoryToggle = (category: string) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       storeCategory: prev.storeCategory.includes(category)
-        ? prev.storeCategory.filter(c => c !== category)
-        : [...prev.storeCategory, category]
-    }));
-  };
-
-  const handleFileChange = (docType: keyof typeof formData.documents, file: File | null) => {
-    setFormData(prev => ({
-      ...prev,
-      documents: { ...prev.documents, [docType]: file }
+        ? prev.storeCategory.filter((c) => c !== category)
+        : [...prev.storeCategory, category],
     }));
   };
 
@@ -108,38 +119,48 @@ export function SellerOnboarding() {
     const newErrors: Record<string, string> = {};
 
     if (step === 1) {
-      if (!formData.ownerName.trim()) newErrors.ownerName = 'Owner name is required';
-      if (!formData.phone.trim()) newErrors.phone = 'Phone number is required';
+      if (!formData.ownerName.trim())
+        newErrors.ownerName = "Owner name is required";
+      if (!formData.phone.trim()) newErrors.phone = "Phone number is required";
       if (formData.phone && !/^09\d{9}$/.test(formData.phone)) {
-        newErrors.phone = 'Please enter a valid PH phone number (09xxxxxxxxx)';
+        newErrors.phone = "Please enter a valid PH phone number (09xxxxxxxxx)";
       }
     }
 
     if (step === 2) {
-      if (!formData.businessName.trim()) newErrors.businessName = 'Business name is required';
-      if (!formData.storeName.trim()) newErrors.storeName = 'Store name is required';
-      if (!formData.storeDescription.trim()) newErrors.storeDescription = 'Store description is required';
-      if (formData.storeCategory.length === 0) newErrors.storeCategory = 'Select at least one category';
-      if (!formData.businessType) newErrors.businessType = 'Business type is required';
+      if (!formData.businessName.trim())
+        newErrors.businessName = "Business name is required";
+      if (!formData.storeName.trim())
+        newErrors.storeName = "Store name is required";
+      if (!formData.storeDescription.trim())
+        newErrors.storeDescription = "Store description is required";
+      if (formData.storeCategory.length === 0)
+        newErrors.storeCategory = "Select at least one category";
+      if (!formData.businessType)
+        newErrors.businessType = "Business type is required";
     }
 
     if (step === 3) {
-      if (!formData.businessAddress.trim()) newErrors.businessAddress = 'Business address is required';
-      if (!formData.city.trim()) newErrors.city = 'City is required';
-      if (!formData.province.trim()) newErrors.province = 'Province is required';
-      if (!formData.postalCode.trim()) newErrors.postalCode = 'Postal code is required';
+      if (!formData.businessAddress.trim())
+        newErrors.businessAddress = "Business address is required";
+      if (!formData.city.trim()) newErrors.city = "City is required";
+      if (!formData.province.trim())
+        newErrors.province = "Province is required";
+      if (!formData.postalCode.trim())
+        newErrors.postalCode = "Postal code is required";
     }
 
     if (step === 4) {
-      if (!formData.bankName) newErrors.bankName = 'Bank name is required';
-      if (!formData.accountName.trim()) newErrors.accountName = 'Account name is required';
-      if (!formData.accountNumber.trim()) newErrors.accountNumber = 'Account number is required';
+      if (!formData.bankName) newErrors.bankName = "Bank name is required";
+      if (!formData.accountName.trim())
+        newErrors.accountName = "Account name is required";
+      if (!formData.accountNumber.trim())
+        newErrors.accountNumber = "Account number is required";
     }
 
     if (step === 5) {
-      if (!formData.documents.businessPermit) newErrors.businessPermit = 'Business permit is required';
-      if (!formData.documents.validId) newErrors.validId = 'Valid ID is required';
-      if (!formData.documents.proofOfAddress) newErrors.proofOfAddress = 'Proof of address is required';
+      // Documents are now optional for initial submission
+      // They can be uploaded later from seller profile
     }
 
     setErrors(newErrors);
@@ -148,23 +169,50 @@ export function SellerOnboarding() {
 
   const handleNext = () => {
     if (validateStep(currentStep)) {
-      setCurrentStep(prev => prev + 1);
+      setCurrentStep((prev) => prev + 1);
     }
   };
 
   const handleBack = () => {
-    setCurrentStep(prev => prev - 1);
+    setCurrentStep((prev) => prev - 1);
+  };
+
+  const fillTestData = () => {
+    setFormData({
+      ownerName: "Juan Dela Cruz",
+      phone: "09123456789",
+      businessName: "Test Store PH",
+      storeName: "Test Store PH",
+      storeDescription: "Premium quality products at affordable prices",
+      storeCategory: ["Electronics", "Fashion"],
+      businessType: "Sole Proprietorship",
+      businessRegistrationNumber: "DTI-2024-001234",
+      taxIdNumber: "123-456-789-012",
+      businessAddress: "123 Main Street, Barangay San Antonio",
+      city: "Quezon City",
+      province: "Metro Manila",
+      postalCode: "1100",
+      bankName: "BDO",
+      accountName: "Juan Dela Cruz",
+      accountNumber: "0123456789012345",
+      businessPermitUrl: "https://example.com/permit.pdf",
+      validIdUrl: "https://example.com/id.pdf",
+      proofOfAddressUrl: "https://example.com/proof.pdf",
+      dtiRegistrationUrl: "https://example.com/dti.pdf",
+      taxIdUrl: "https://example.com/tax.pdf",
+    });
+    setCurrentStep(1);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateStep(currentStep)) return;
 
     setIsSubmitting(true);
 
     // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise((resolve) => setTimeout(resolve, 1000));
 
     const fullAddress = `${formData.businessAddress}, ${formData.city}, ${formData.province} ${formData.postalCode}`;
 
@@ -187,8 +235,13 @@ export function SellerOnboarding() {
       bankName: formData.bankName,
       accountName: formData.accountName,
       accountNumber: formData.accountNumber,
+      businessPermitUrl: formData.businessPermitUrl,
+      validIdUrl: formData.validIdUrl,
+      proofOfAddressUrl: formData.proofOfAddressUrl,
+      dtiRegistrationUrl: formData.dtiRegistrationUrl,
+      taxIdUrl: formData.taxIdUrl,
       isVerified: false, // Not verified yet, waiting for admin
-      approvalStatus: 'pending' // Set to pending
+      approvalStatus: "pending", // Set to pending
     });
 
     // Also add seller to admin store so admin can see them
@@ -215,32 +268,44 @@ export function SellerOnboarding() {
         bankName: formData.bankName,
         accountName: formData.accountName,
         accountNumber: formData.accountNumber,
-        status: 'pending', // Status is pending approval
+        status: "pending", // Status is pending approval
         documents: [
-          {
-            id: `doc_${seller.id}_1`,
-            type: 'business_permit',
-            fileName: formData.documents.businessPermit?.name || 'business-permit.pdf',
-            url: '/documents/business-permit.pdf',
-            uploadDate: new Date(),
-            isVerified: false // Not verified yet
-          },
-          {
-            id: `doc_${seller.id}_2`,
-            type: 'valid_id',
-            fileName: formData.documents.validId?.name || 'valid-id.pdf',
-            url: '/documents/valid-id.pdf',
-            uploadDate: new Date(),
-            isVerified: false
-          },
-          {
-            id: `doc_${seller.id}_3`,
-            type: 'proof_of_address',
-            fileName: formData.documents.proofOfAddress?.name || 'proof-address.pdf',
-            url: '/documents/proof-address.pdf',
-            uploadDate: new Date(),
-            isVerified: false
-          }
+          ...(formData.businessPermitUrl
+            ? [
+                {
+                  id: `doc_${seller.id}_1`,
+                  type: "business_permit",
+                  fileName: "business-permit",
+                  url: formData.businessPermitUrl,
+                  uploadDate: new Date(),
+                  isVerified: false,
+                },
+              ]
+            : []),
+          ...(formData.validIdUrl
+            ? [
+                {
+                  id: `doc_${seller.id}_2`,
+                  type: "valid_id",
+                  fileName: "valid-id",
+                  url: formData.validIdUrl,
+                  uploadDate: new Date(),
+                  isVerified: false,
+                },
+              ]
+            : []),
+          ...(formData.proofOfAddressUrl
+            ? [
+                {
+                  id: `doc_${seller.id}_3`,
+                  type: "proof_of_address",
+                  fileName: "proof-of-address",
+                  url: formData.proofOfAddressUrl,
+                  uploadDate: new Date(),
+                  isVerified: false,
+                },
+              ]
+            : []),
         ],
         metrics: {
           totalProducts: 0,
@@ -248,9 +313,9 @@ export function SellerOnboarding() {
           totalRevenue: 0,
           rating: 0,
           responseRate: 100,
-          fulfillmentRate: 100
+          fulfillmentRate: 100,
         },
-        joinDate: new Date()
+        joinDate: new Date(),
       };
 
       addSeller(adminSellerData);
@@ -259,25 +324,25 @@ export function SellerOnboarding() {
     // Show verification animation
     setIsSubmitting(false);
     setIsVerifying(true);
-    
+
     // Simulate verification process (3 seconds)
     setTimeout(() => {
       setIsVerifying(false);
       setVerificationComplete(true);
-      
+
       // Redirect to approval pending page after 2 seconds
       setTimeout(() => {
-        navigate('/seller/pending-approval');
+        navigate("/seller/pending-approval");
       }, 2000);
     }, 3000);
   };
 
   const steps = [
-    { number: 1, title: 'Personal Info', icon: User },
-    { number: 2, title: 'Business Info', icon: Building },
-    { number: 3, title: 'Address', icon: MapPin },
-    { number: 4, title: 'Banking', icon: CreditCard },
-    { number: 5, title: 'Documents', icon: FileText },
+    { number: 1, title: "Personal Info", icon: User },
+    { number: 2, title: "Business Info", icon: Building },
+    { number: 3, title: "Address", icon: MapPin },
+    { number: 4, title: "Banking", icon: CreditCard },
+    { number: 5, title: "Documents", icon: FileText },
   ];
 
   // Show verification loading
@@ -292,13 +357,31 @@ export function SellerOnboarding() {
           >
             <div className="relative mb-6">
               <div className="h-20 w-20 mx-auto">
-                <svg className="animate-spin h-20 w-20 text-orange-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                <svg
+                  className="animate-spin h-20 w-20 text-orange-500"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  ></circle>
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
                 </svg>
               </div>
             </div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Processing Your Application...</h2>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">
+              Processing Your Application...
+            </h2>
             <p className="text-gray-600 mb-4">
               Please wait while we process your seller application
             </p>
@@ -343,7 +426,9 @@ export function SellerOnboarding() {
             >
               <CheckCircle className="h-10 w-10 text-white" />
             </motion.div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Application Submitted!</h2>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">
+              Application Submitted!
+            </h2>
             <p className="text-gray-600 mb-4">
               Your application has been submitted for admin review
             </p>
@@ -354,7 +439,9 @@ export function SellerOnboarding() {
                 transition={{ duration: 1, repeat: Infinity }}
                 className="flex gap-1"
               >
-                <span>.</span><span>.</span><span>.</span>
+                <span>.</span>
+                <span>.</span>
+                <span>.</span>
               </motion.div>
             </div>
           </motion.div>
@@ -368,8 +455,23 @@ export function SellerOnboarding() {
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">Complete Your Store Profile</h1>
-          <p className="text-gray-600">Tell us more about your business to start selling</p>
+          <h1 className="text-4xl font-bold text-gray-900 mb-2">
+            Complete Your Store Profile
+          </h1>
+          <p className="text-gray-600">
+            Tell us more about your business to start selling
+          </p>
+        </div>
+
+        {/* Test Data Button - For Development */}
+        <div className="mb-6 flex justify-center">
+          <button
+            type="button"
+            onClick={fillTestData}
+            className="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white text-sm font-medium rounded-lg transition-colors"
+          >
+            🧪 Fill Test Data
+          </button>
         </div>
 
         {/* Progress Steps */}
@@ -377,28 +479,36 @@ export function SellerOnboarding() {
           <div className="absolute top-5 left-0 right-0 h-0.5 bg-gray-200 -z-10">
             <div
               className="h-full bg-[#FF6A00] transition-all duration-500"
-              style={{ width: `${((currentStep - 1) / (steps.length - 1)) * 100}%` }}
+              style={{
+                width: `${((currentStep - 1) / (steps.length - 1)) * 100}%`,
+              }}
             />
           </div>
           {steps.map((step) => {
             const Icon = step.icon;
             const isCompleted = currentStep > step.number;
             const isCurrent = currentStep === step.number;
-            
+
             return (
               <div key={step.number} className="flex flex-col items-center">
                 <div
                   className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 ${
                     isCompleted
-                      ? 'bg-[#FF6A00] text-white'
+                      ? "bg-[#FF6A00] text-white"
                       : isCurrent
-                      ? 'bg-[#FF6A00] text-white ring-4 ring-orange-100'
-                      : 'bg-white border-2 border-gray-300 text-gray-400'
+                        ? "bg-[#FF6A00] text-white ring-4 ring-orange-100"
+                        : "bg-white border-2 border-gray-300 text-gray-400"
                   }`}
                 >
-                  {isCompleted ? <CheckCircle className="w-5 h-5" /> : <Icon className="w-5 h-5" />}
+                  {isCompleted ? (
+                    <CheckCircle className="w-5 h-5" />
+                  ) : (
+                    <Icon className="w-5 h-5" />
+                  )}
                 </div>
-                <p className={`mt-2 text-xs font-medium ${isCurrent ? 'text-[#FF6A00]' : 'text-gray-500'}`}>
+                <p
+                  className={`mt-2 text-xs font-medium ${isCurrent ? "text-[#FF6A00]" : "text-gray-500"}`}
+                >
                   {step.title}
                 </p>
               </div>
@@ -420,8 +530,10 @@ export function SellerOnboarding() {
                   className="space-y-6"
                 >
                   <div>
-                    <h3 className="text-2xl font-bold text-gray-900 mb-6">Personal Information</h3>
-                    
+                    <h3 className="text-2xl font-bold text-gray-900 mb-6">
+                      Personal Information
+                    </h3>
+
                     <div className="space-y-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -430,11 +542,17 @@ export function SellerOnboarding() {
                         <input
                           type="text"
                           value={formData.ownerName}
-                          onChange={(e) => handleInputChange('ownerName', e.target.value)}
+                          onChange={(e) =>
+                            handleInputChange("ownerName", e.target.value)
+                          }
                           className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                           placeholder="Juan Dela Cruz"
                         />
-                        {errors.ownerName && <p className="mt-1 text-sm text-red-600">{errors.ownerName}</p>}
+                        {errors.ownerName && (
+                          <p className="mt-1 text-sm text-red-600">
+                            {errors.ownerName}
+                          </p>
+                        )}
                       </div>
 
                       <div>
@@ -444,18 +562,27 @@ export function SellerOnboarding() {
                         <input
                           type="tel"
                           value={formData.phone}
-                          onChange={(e) => handleInputChange('phone', e.target.value)}
+                          onChange={(e) =>
+                            handleInputChange("phone", e.target.value)
+                          }
                           className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                           placeholder="09171234567"
                         />
-                        {errors.phone && <p className="mt-1 text-sm text-red-600">{errors.phone}</p>}
+                        {errors.phone && (
+                          <p className="mt-1 text-sm text-red-600">
+                            {errors.phone}
+                          </p>
+                        )}
                       </div>
 
                       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                         <p className="text-sm text-blue-800">
-                          <strong>Email:</strong> {seller?.email || 'Not available'}
+                          <strong>Email:</strong>{" "}
+                          {seller?.email || "Not available"}
                         </p>
-                        <p className="text-xs text-blue-600 mt-1">This is the email you registered with</p>
+                        <p className="text-xs text-blue-600 mt-1">
+                          This is the email you registered with
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -471,8 +598,10 @@ export function SellerOnboarding() {
                   exit={{ opacity: 0, x: -20 }}
                   className="space-y-6"
                 >
-                  <h3 className="text-2xl font-bold text-gray-900 mb-6">Business Information</h3>
-                  
+                  <h3 className="text-2xl font-bold text-gray-900 mb-6">
+                    Business Information
+                  </h3>
+
                   <div className="space-y-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -481,11 +610,17 @@ export function SellerOnboarding() {
                       <input
                         type="text"
                         value={formData.businessName}
-                        onChange={(e) => handleInputChange('businessName', e.target.value)}
+                        onChange={(e) =>
+                          handleInputChange("businessName", e.target.value)
+                        }
                         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                         placeholder="ABC Trading Co."
                       />
-                      {errors.businessName && <p className="mt-1 text-sm text-red-600">{errors.businessName}</p>}
+                      {errors.businessName && (
+                        <p className="mt-1 text-sm text-red-600">
+                          {errors.businessName}
+                        </p>
+                      )}
                     </div>
 
                     <div>
@@ -495,11 +630,17 @@ export function SellerOnboarding() {
                       <input
                         type="text"
                         value={formData.storeName}
-                        onChange={(e) => handleInputChange('storeName', e.target.value)}
+                        onChange={(e) =>
+                          handleInputChange("storeName", e.target.value)
+                        }
                         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                         placeholder="ABC Store"
                       />
-                      {errors.storeName && <p className="mt-1 text-sm text-red-600">{errors.storeName}</p>}
+                      {errors.storeName && (
+                        <p className="mt-1 text-sm text-red-600">
+                          {errors.storeName}
+                        </p>
+                      )}
                     </div>
 
                     <div>
@@ -508,12 +649,18 @@ export function SellerOnboarding() {
                       </label>
                       <textarea
                         value={formData.storeDescription}
-                        onChange={(e) => handleInputChange('storeDescription', e.target.value)}
+                        onChange={(e) =>
+                          handleInputChange("storeDescription", e.target.value)
+                        }
                         rows={4}
                         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                         placeholder="Describe your store and what you sell..."
                       />
-                      {errors.storeDescription && <p className="mt-1 text-sm text-red-600">{errors.storeDescription}</p>}
+                      {errors.storeDescription && (
+                        <p className="mt-1 text-sm text-red-600">
+                          {errors.storeDescription}
+                        </p>
+                      )}
                     </div>
 
                     <div>
@@ -521,22 +668,26 @@ export function SellerOnboarding() {
                         Store Categories * (Select all that apply)
                       </label>
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                        {CATEGORIES.map(category => (
+                        {CATEGORIES.map((category) => (
                           <button
                             key={category}
                             type="button"
                             onClick={() => handleCategoryToggle(category)}
                             className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                               formData.storeCategory.includes(category)
-                                ? 'bg-[#FF6A00] text-white'
-                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                ? "bg-[#FF6A00] text-white"
+                                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                             }`}
                           >
                             {category}
                           </button>
                         ))}
                       </div>
-                      {errors.storeCategory && <p className="mt-1 text-sm text-red-600">{errors.storeCategory}</p>}
+                      {errors.storeCategory && (
+                        <p className="mt-1 text-sm text-red-600">
+                          {errors.storeCategory}
+                        </p>
+                      )}
                     </div>
 
                     <div>
@@ -545,15 +696,23 @@ export function SellerOnboarding() {
                       </label>
                       <select
                         value={formData.businessType}
-                        onChange={(e) => handleInputChange('businessType', e.target.value)}
+                        onChange={(e) =>
+                          handleInputChange("businessType", e.target.value)
+                        }
                         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                       >
                         <option value="">Select business type</option>
-                        {BUSINESS_TYPES.map(type => (
-                          <option key={type} value={type}>{type}</option>
+                        {BUSINESS_TYPES.map((type) => (
+                          <option key={type} value={type}>
+                            {type}
+                          </option>
                         ))}
                       </select>
-                      {errors.businessType && <p className="mt-1 text-sm text-red-600">{errors.businessType}</p>}
+                      {errors.businessType && (
+                        <p className="mt-1 text-sm text-red-600">
+                          {errors.businessType}
+                        </p>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -564,7 +723,12 @@ export function SellerOnboarding() {
                         <input
                           type="text"
                           value={formData.businessRegistrationNumber}
-                          onChange={(e) => handleInputChange('businessRegistrationNumber', e.target.value)}
+                          onChange={(e) =>
+                            handleInputChange(
+                              "businessRegistrationNumber",
+                              e.target.value,
+                            )
+                          }
                           className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                           placeholder="DTI/SEC Number"
                         />
@@ -577,7 +741,9 @@ export function SellerOnboarding() {
                         <input
                           type="text"
                           value={formData.taxIdNumber}
-                          onChange={(e) => handleInputChange('taxIdNumber', e.target.value)}
+                          onChange={(e) =>
+                            handleInputChange("taxIdNumber", e.target.value)
+                          }
                           className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                           placeholder="000-000-000-000"
                         />
@@ -596,8 +762,10 @@ export function SellerOnboarding() {
                   exit={{ opacity: 0, x: -20 }}
                   className="space-y-6"
                 >
-                  <h3 className="text-2xl font-bold text-gray-900 mb-6">Business Address</h3>
-                  
+                  <h3 className="text-2xl font-bold text-gray-900 mb-6">
+                    Business Address
+                  </h3>
+
                   <div className="space-y-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -606,11 +774,17 @@ export function SellerOnboarding() {
                       <input
                         type="text"
                         value={formData.businessAddress}
-                        onChange={(e) => handleInputChange('businessAddress', e.target.value)}
+                        onChange={(e) =>
+                          handleInputChange("businessAddress", e.target.value)
+                        }
                         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                         placeholder="123 Main St, Brgy. San Antonio"
                       />
-                      {errors.businessAddress && <p className="mt-1 text-sm text-red-600">{errors.businessAddress}</p>}
+                      {errors.businessAddress && (
+                        <p className="mt-1 text-sm text-red-600">
+                          {errors.businessAddress}
+                        </p>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -621,11 +795,17 @@ export function SellerOnboarding() {
                         <input
                           type="text"
                           value={formData.city}
-                          onChange={(e) => handleInputChange('city', e.target.value)}
+                          onChange={(e) =>
+                            handleInputChange("city", e.target.value)
+                          }
                           className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                           placeholder="Quezon City"
                         />
-                        {errors.city && <p className="mt-1 text-sm text-red-600">{errors.city}</p>}
+                        {errors.city && (
+                          <p className="mt-1 text-sm text-red-600">
+                            {errors.city}
+                          </p>
+                        )}
                       </div>
 
                       <div>
@@ -635,11 +815,17 @@ export function SellerOnboarding() {
                         <input
                           type="text"
                           value={formData.province}
-                          onChange={(e) => handleInputChange('province', e.target.value)}
+                          onChange={(e) =>
+                            handleInputChange("province", e.target.value)
+                          }
                           className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                           placeholder="Metro Manila"
                         />
-                        {errors.province && <p className="mt-1 text-sm text-red-600">{errors.province}</p>}
+                        {errors.province && (
+                          <p className="mt-1 text-sm text-red-600">
+                            {errors.province}
+                          </p>
+                        )}
                       </div>
                     </div>
 
@@ -650,11 +836,17 @@ export function SellerOnboarding() {
                       <input
                         type="text"
                         value={formData.postalCode}
-                        onChange={(e) => handleInputChange('postalCode', e.target.value)}
+                        onChange={(e) =>
+                          handleInputChange("postalCode", e.target.value)
+                        }
                         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                         placeholder="1100"
                       />
-                      {errors.postalCode && <p className="mt-1 text-sm text-red-600">{errors.postalCode}</p>}
+                      {errors.postalCode && (
+                        <p className="mt-1 text-sm text-red-600">
+                          {errors.postalCode}
+                        </p>
+                      )}
                     </div>
                   </div>
                 </motion.div>
@@ -669,11 +861,14 @@ export function SellerOnboarding() {
                   exit={{ opacity: 0, x: -20 }}
                   className="space-y-6"
                 >
-                  <h3 className="text-2xl font-bold text-gray-900 mb-6">Banking Information</h3>
-                  
+                  <h3 className="text-2xl font-bold text-gray-900 mb-6">
+                    Banking Information
+                  </h3>
+
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
                     <p className="text-sm text-blue-800">
-                      <strong>🔒 Secure Information:</strong> Your banking details are encrypted and will only be used for payouts.
+                      <strong>🔒 Secure Information:</strong> Your banking
+                      details are encrypted and will only be used for payouts.
                     </p>
                   </div>
 
@@ -684,15 +879,23 @@ export function SellerOnboarding() {
                       </label>
                       <select
                         value={formData.bankName}
-                        onChange={(e) => handleInputChange('bankName', e.target.value)}
+                        onChange={(e) =>
+                          handleInputChange("bankName", e.target.value)
+                        }
                         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                       >
                         <option value="">Select bank</option>
-                        {BANKS.map(bank => (
-                          <option key={bank} value={bank}>{bank}</option>
+                        {BANKS.map((bank) => (
+                          <option key={bank} value={bank}>
+                            {bank}
+                          </option>
                         ))}
                       </select>
-                      {errors.bankName && <p className="mt-1 text-sm text-red-600">{errors.bankName}</p>}
+                      {errors.bankName && (
+                        <p className="mt-1 text-sm text-red-600">
+                          {errors.bankName}
+                        </p>
+                      )}
                     </div>
 
                     <div>
@@ -702,11 +905,17 @@ export function SellerOnboarding() {
                       <input
                         type="text"
                         value={formData.accountName}
-                        onChange={(e) => handleInputChange('accountName', e.target.value)}
+                        onChange={(e) =>
+                          handleInputChange("accountName", e.target.value)
+                        }
                         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                         placeholder="Juan Dela Cruz"
                       />
-                      {errors.accountName && <p className="mt-1 text-sm text-red-600">{errors.accountName}</p>}
+                      {errors.accountName && (
+                        <p className="mt-1 text-sm text-red-600">
+                          {errors.accountName}
+                        </p>
+                      )}
                     </div>
 
                     <div>
@@ -716,17 +925,23 @@ export function SellerOnboarding() {
                       <input
                         type="text"
                         value={formData.accountNumber}
-                        onChange={(e) => handleInputChange('accountNumber', e.target.value)}
+                        onChange={(e) =>
+                          handleInputChange("accountNumber", e.target.value)
+                        }
                         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                         placeholder="1234567890"
                       />
-                      {errors.accountNumber && <p className="mt-1 text-sm text-red-600">{errors.accountNumber}</p>}
+                      {errors.accountNumber && (
+                        <p className="mt-1 text-sm text-red-600">
+                          {errors.accountNumber}
+                        </p>
+                      )}
                     </div>
                   </div>
                 </motion.div>
               )}
 
-              {/* Step 5: Documents */}
+              {/* Step 5: Document URLs */}
               {currentStep === 5 && (
                 <motion.div
                   key="step5"
@@ -735,49 +950,60 @@ export function SellerOnboarding() {
                   exit={{ opacity: 0, x: -20 }}
                   className="space-y-6"
                 >
-                  <h3 className="text-2xl font-bold text-gray-900 mb-6">Upload Documents</h3>
-                  
-                  <div className="space-y-4">
-                    {[
-                      { key: 'businessPermit', label: 'Business Permit', required: true },
-                      { key: 'validId', label: 'Valid ID (Owner)', required: true },
-                      { key: 'proofOfAddress', label: 'Proof of Address', required: true },
-                      { key: 'dtiRegistration', label: 'DTI/SEC Registration', required: false },
-                      { key: 'taxId', label: 'BIR Certificate of Registration (TIN)', required: false },
-                    ].map(doc => (
-                      <div key={doc.key} className="border border-gray-300 rounded-lg p-4">
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          {doc.label} {doc.required && '*'}
-                        </label>
-                        <div className="flex items-center gap-4">
-                          <label className="flex-1 cursor-pointer">
-                            <div className="flex items-center gap-3 px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-orange-500 transition-colors">
-                              <Upload className="w-5 h-5 text-gray-400" />
-                              <span className="text-sm text-gray-600">
-                                {formData.documents[doc.key as keyof typeof formData.documents]?.name || 'Choose file...'}
-                              </span>
-                            </div>
-                            <input
-                              type="file"
-                              accept="image/*,.pdf"
-                              className="hidden"
-                              onChange={(e) => handleFileChange(doc.key as keyof typeof formData.documents, e.target.files?.[0] || null)}
-                            />
-                          </label>
-                          {formData.documents[doc.key as keyof typeof formData.documents] && (
-                            <CheckCircle className="w-5 h-5 text-green-600" />
-                          )}
-                        </div>
-                        {errors[doc.key] && <p className="mt-1 text-sm text-red-600">{errors[doc.key]}</p>}
-                      </div>
-                    ))}
+                  <h3 className="text-2xl font-bold text-gray-900 mb-6">
+                    Document URLs
+                  </h3>
+
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                    <p className="text-sm text-blue-800">
+                      <strong>📋 Optional for now:</strong> You can provide
+                      document URLs or upload them later from your seller
+                      profile.
+                    </p>
                   </div>
 
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                    <p className="text-sm text-yellow-800">
-                      <strong>📋 Document Requirements:</strong> Please ensure all documents are clear and readable. 
-                      Accepted formats: JPG, PNG, PDF (Max 5MB per file)
-                    </p>
+                  <div className="space-y-4">
+                    {[
+                      {
+                        key: "businessPermitUrl",
+                        label: "Business Permit URL",
+                      },
+                      { key: "validIdUrl", label: "Valid ID (Owner) URL" },
+                      {
+                        key: "proofOfAddressUrl",
+                        label: "Proof of Address URL",
+                      },
+                      {
+                        key: "dtiRegistrationUrl",
+                        label: "DTI/SEC Registration URL",
+                      },
+                      {
+                        key: "taxIdUrl",
+                        label: "BIR Certificate of Registration (TIN) URL",
+                      },
+                    ].map((doc) => (
+                      <div key={doc.key}>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          {doc.label}
+                        </label>
+                        <input
+                          type="text"
+                          value={
+                            formData[doc.key as keyof typeof formData] as string
+                          }
+                          onChange={(e) =>
+                            handleInputChange(doc.key, e.target.value)
+                          }
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                          placeholder="https://example.com/document.pdf"
+                        />
+                        {errors[doc.key] && (
+                          <p className="mt-1 text-sm text-red-600">
+                            {errors[doc.key]}
+                          </p>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 </motion.div>
               )}
@@ -795,7 +1021,7 @@ export function SellerOnboarding() {
                   Back
                 </button>
               )}
-              
+
               {currentStep < steps.length ? (
                 <button
                   type="button"
