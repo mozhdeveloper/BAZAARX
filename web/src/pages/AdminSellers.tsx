@@ -48,7 +48,8 @@ import {
   Ban,
   Loader2,
   User,
-  Building
+  Building,
+  RefreshCw
 } from 'lucide-react';
 
 const AdminSellers: React.FC = () => {
@@ -327,6 +328,16 @@ const AdminSellers: React.FC = () => {
               </p>
             </div>
             <div className="flex items-center gap-4">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => loadSellers()}
+                disabled={isLoading}
+                className="flex items-center gap-2"
+              >
+                <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
               <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200">
                 {pendingSellers.length} Pending Approvals
               </Badge>

@@ -42,13 +42,13 @@ const AdminAuth: React.FC = () => {
   const handleDemoLogin = async () => {
     // Auto-fill demo credentials
     setFormData({
-      email: 'admin@bazaarph.com',
-      password: 'admin123'
+      email: 'admin@gmail.com',
+      password: 'password'
     });
     
     // Auto-login after brief delay
     setTimeout(async () => {
-      const success = await login('admin@bazaarph.com', 'admin123');
+      const success = await login('admin@gmail.com', 'password');
       if (success) {
         navigate('/admin', { replace: true });
       }
@@ -134,8 +134,8 @@ const AdminAuth: React.FC = () => {
                         Demo Admin Account
                       </h3>
                       <div className="space-y-1 text-sm text-orange-700">
-                        <p className="font-mono">admin@bazaarph.com</p>
-                        <p className="font-mono">admin123</p>
+                        <p className="font-mono">admin@gmail.com</p>
+                        <p className="font-mono">password</p>
                       </div>
                     </div>
                     <Button
@@ -226,10 +226,10 @@ const AdminAuth: React.FC = () => {
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                   <p className="text-sm text-blue-800 font-medium mb-1">Demo Credentials:</p>
                   <p className="text-xs text-blue-700">
-                    Email: <code className="bg-blue-100 px-1 rounded">admin@bazaarph.com</code>
+                    Email: <code className="bg-blue-100 px-1 rounded">admin@gmail.com</code>
                   </p>
                   <p className="text-xs text-blue-700">
-                    Password: <code className="bg-blue-100 px-1 rounded">admin123</code>
+                    Password: <code className="bg-blue-100 px-1 rounded">password</code>
                   </p>
                 </div>
 
