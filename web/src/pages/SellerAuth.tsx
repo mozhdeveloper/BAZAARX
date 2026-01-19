@@ -1,17 +1,17 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { Eye, EyeOff, Mail, Lock, Store, ArrowRight } from 'lucide-react';
-import { useAuthStore } from '@/stores/sellerStore';
-import { Button } from '@/components/ui/button';
+import React, { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
+import { Eye, EyeOff, Mail, Lock, Store, ArrowRight } from "lucide-react";
+import { useAuthStore } from "@/stores/sellerStore";
+import { Button } from "@/components/ui/button";
 
 export function SellerLogin() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
-  
+  const [error, setError] = useState("");
+
   const { login } = useAuthStore();
   const navigate = useNavigate();
 
@@ -21,17 +21,17 @@ export function SellerLogin() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    setError('');
+    setError("");
 
     try {
       const success = await login(email, password);
       if (success) {
-        navigate('/seller');
+        navigate("/seller");
       } else {
-        setError('Invalid email or password');
+        setError("Invalid email or password");
       }
     } catch (err) {
-      setError('Something went wrong. Please try again.');
+      setError("Something went wrong. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -39,20 +39,20 @@ export function SellerLogin() {
 
   const handleDemoLogin = async () => {
     // Auto-fill demo credentials
-    setEmail('seller@bazaarph.com');
-    setPassword('password');
-    setError('');
-    
+    setEmail("seller@bazaarph.com");
+    setPassword("password");
+    setError("");
+
     // Auto-login after brief delay
     setTimeout(async () => {
       setIsLoading(true);
       try {
-        const success = await login('seller@bazaarph.com', 'password');
+        const success = await login("seller@bazaarph.com", "password");
         if (success) {
-          navigate('/seller');
+          navigate("/seller");
         }
       } catch (err) {
-        setError('Demo login failed. Please try again.');
+        setError("Demo login failed. Please try again.");
       } finally {
         setIsLoading(false);
       }
@@ -72,7 +72,9 @@ export function SellerLogin() {
             <div className="h-16 w-16 bg-orange-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
               <Store className="h-8 w-8 text-white" />
             </div>
-            <h1 className="text-2xl font-bold text-gray-900">BazaarPH Seller</h1>
+            <h1 className="text-2xl font-bold text-gray-900">
+              BazaarPH Seller
+            </h1>
             <p className="text-gray-600 mt-1">Sign in to your seller account</p>
           </div>
 
@@ -104,7 +106,7 @@ export function SellerLogin() {
                 {isLoading ? (
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 ) : (
-                  'Try Demo'
+                  "Try Demo"
                 )}
               </Button>
             </div>
@@ -123,7 +125,10 @@ export function SellerLogin() {
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Email */}
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+              <label
+                htmlFor="email"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
                 Email Address
               </label>
               <div className="relative">
@@ -142,14 +147,17 @@ export function SellerLogin() {
 
             {/* Password */}
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+              <label
+                htmlFor="password"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
                 Password
               </label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
                 <input
                   id="password"
-                  type={showPassword ? 'text' : 'password'}
+                  type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors"
@@ -161,7 +169,11 @@ export function SellerLogin() {
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                 >
-                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  {showPassword ? (
+                    <EyeOff className="h-5 w-5" />
+                  ) : (
+                    <Eye className="h-5 w-5" />
+                  )}
                 </button>
               </div>
             </div>
@@ -186,8 +198,11 @@ export function SellerLogin() {
           {/* Register Link */}
           <div className="text-center mt-6 pt-6 border-t border-gray-200">
             <p className="text-gray-600">
-              Don't have an account?{' '}
-              <Link to="/seller/register" className="text-orange-600 font-medium hover:text-orange-700">
+              Don't have an account?{" "}
+              <Link
+                to="/seller/register"
+                className="text-orange-600 font-medium hover:text-orange-700"
+              >
                 Register as seller
               </Link>
             </p>
@@ -207,47 +222,50 @@ export function SellerLogin() {
 
 export function SellerRegister() {
   const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-    confirmPassword: '',
-    storeName: '',
-    storeDescription: '',
-    phone: '',
-    storeAddress: ''
+    email: "",
+    password: "",
+    confirmPassword: "",
+    storeName: "",
+    storeDescription: "",
+    phone: "",
+    storeAddress: "",
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [step, setStep] = useState(1);
-  
+
   const { register } = useAuthStore();
   const navigate = useNavigate();
 
   // Allow access to registration page
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    setFormData(prev => ({
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+  ) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({
       ...prev,
-      [e.target.name]: e.target.value
+      [name]: value,
     }));
   };
 
   const handleNext = () => {
     if (step === 1) {
       if (!formData.email || !formData.password || !formData.confirmPassword) {
-        setError('Please fill in all fields');
+        setError("Please fill in all fields");
         return;
       }
       if (formData.password !== formData.confirmPassword) {
-        setError('Passwords do not match');
+        setError("Passwords do not match");
         return;
       }
       if (formData.password.length < 6) {
-        setError('Password must be at least 6 characters');
+        setError("Password must be at least 6 characters");
         return;
       }
-      setError('');
+      setError("");
       setStep(2);
     }
   };
@@ -255,30 +273,28 @@ export function SellerRegister() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.storeName) {
-      setError('Store name is required');
+      setError("Store name is required");
       return;
     }
 
     setIsLoading(true);
-    setError('');
+    setError("");
 
     try {
       const success = await register(formData);
       if (success) {
         // Redirect directly to onboarding
         setIsLoading(false);
-        navigate('/seller/onboarding');
+        navigate("/seller/onboarding");
       } else {
-        setError('Registration failed. Please try again.');
+        setError("Registration failed. Please try again.");
         setIsLoading(false);
       }
     } catch (err) {
-      setError('Something went wrong. Please try again.');
+      setError("Something went wrong. Please try again.");
       setIsLoading(false);
     }
   };
-
-
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 to-orange-100 flex items-center justify-center p-4">
@@ -299,15 +315,25 @@ export function SellerRegister() {
 
           {/* Progress Steps */}
           <div className="flex items-center justify-center mb-8">
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-              step >= 1 ? 'bg-orange-500 text-white' : 'bg-gray-200 text-gray-500'
-            }`}>
+            <div
+              className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                step >= 1
+                  ? "bg-orange-500 text-white"
+                  : "bg-gray-200 text-gray-500"
+              }`}
+            >
               1
             </div>
-            <div className={`w-12 h-1 ${step >= 2 ? 'bg-orange-500' : 'bg-gray-200'}`} />
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-              step >= 2 ? 'bg-orange-500 text-white' : 'bg-gray-200 text-gray-500'
-            }`}>
+            <div
+              className={`w-12 h-1 ${step >= 2 ? "bg-orange-500" : "bg-gray-200"}`}
+            />
+            <div
+              className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                step >= 2
+                  ? "bg-orange-500 text-white"
+                  : "bg-gray-200 text-gray-500"
+              }`}
+            >
               2
             </div>
           </div>
@@ -322,12 +348,25 @@ export function SellerRegister() {
             </motion.div>
           )}
 
-          <form onSubmit={step === 1 ? (e) => { e.preventDefault(); handleNext(); } : handleSubmit} className="space-y-6">
+          <form
+            onSubmit={
+              step === 1
+                ? (e) => {
+                    e.preventDefault();
+                    handleNext();
+                  }
+                : handleSubmit
+            }
+            className="space-y-6"
+          >
             {step === 1 ? (
               <>
                 {/* Email */}
                 <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label
+                    htmlFor="email"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                  >
                     Email Address
                   </label>
                   <div className="relative">
@@ -347,7 +386,10 @@ export function SellerRegister() {
 
                 {/* Password */}
                 <div>
-                  <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label
+                    htmlFor="password"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                  >
                     Password
                   </label>
                   <div className="relative">
@@ -355,7 +397,7 @@ export function SellerRegister() {
                     <input
                       id="password"
                       name="password"
-                      type={showPassword ? 'text' : 'password'}
+                      type={showPassword ? "text" : "password"}
                       value={formData.password}
                       onChange={handleChange}
                       className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors"
@@ -367,14 +409,21 @@ export function SellerRegister() {
                       onClick={() => setShowPassword(!showPassword)}
                       className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                     >
-                      {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                      {showPassword ? (
+                        <EyeOff className="h-5 w-5" />
+                      ) : (
+                        <Eye className="h-5 w-5" />
+                      )}
                     </button>
                   </div>
                 </div>
 
                 {/* Confirm Password */}
                 <div>
-                  <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label
+                    htmlFor="confirmPassword"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                  >
                     Confirm Password
                   </label>
                   <div className="relative">
@@ -382,7 +431,7 @@ export function SellerRegister() {
                     <input
                       id="confirmPassword"
                       name="confirmPassword"
-                      type={showConfirmPassword ? 'text' : 'password'}
+                      type={showConfirmPassword ? "text" : "password"}
                       value={formData.confirmPassword}
                       onChange={handleChange}
                       className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors"
@@ -391,10 +440,16 @@ export function SellerRegister() {
                     />
                     <button
                       type="button"
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      onClick={() =>
+                        setShowConfirmPassword(!showConfirmPassword)
+                      }
                       className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                     >
-                      {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                      {showConfirmPassword ? (
+                        <EyeOff className="h-5 w-5" />
+                      ) : (
+                        <Eye className="h-5 w-5" />
+                      )}
                     </button>
                   </div>
                 </div>
@@ -411,7 +466,10 @@ export function SellerRegister() {
               <>
                 {/* Store Name */}
                 <div>
-                  <label htmlFor="storeName" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label
+                    htmlFor="storeName"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                  >
                     Store Name *
                   </label>
                   <input
@@ -420,6 +478,7 @@ export function SellerRegister() {
                     type="text"
                     value={formData.storeName}
                     onChange={handleChange}
+                    autoComplete="off"
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors"
                     placeholder="Enter your store name"
                     required
@@ -428,7 +487,10 @@ export function SellerRegister() {
 
                 {/* Store Description */}
                 <div>
-                  <label htmlFor="storeDescription" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label
+                    htmlFor="storeDescription"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                  >
                     Store Description
                   </label>
                   <textarea
@@ -437,6 +499,7 @@ export function SellerRegister() {
                     value={formData.storeDescription}
                     onChange={handleChange}
                     rows={3}
+                    autoComplete="off"
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors"
                     placeholder="Describe your store and products"
                   />
@@ -444,7 +507,10 @@ export function SellerRegister() {
 
                 {/* Phone */}
                 <div>
-                  <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label
+                    htmlFor="phone"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                  >
                     Phone Number
                   </label>
                   <input
@@ -460,7 +526,10 @@ export function SellerRegister() {
 
                 {/* Address */}
                 <div>
-                  <label htmlFor="storeAddress" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label
+                    htmlFor="storeAddress"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                  >
                     Store Address
                   </label>
                   <input
@@ -491,7 +560,7 @@ export function SellerRegister() {
                     {isLoading ? (
                       <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                     ) : (
-                      'Create Account'
+                      "Create Account"
                     )}
                   </Button>
                 </div>
@@ -502,8 +571,11 @@ export function SellerRegister() {
           {/* Login Link */}
           <div className="text-center mt-6 pt-6 border-t border-gray-200">
             <p className="text-gray-600">
-              Already have an account?{' '}
-              <Link to="/seller/login" className="text-orange-600 font-medium hover:text-orange-700">
+              Already have an account?{" "}
+              <Link
+                to="/seller/login"
+                className="text-orange-600 font-medium hover:text-orange-700"
+              >
                 Sign in here
               </Link>
             </p>
