@@ -87,7 +87,7 @@ export default function BazaarXTestimonials() {
       <div className="container z-10 mx-auto px-4 sm:px-6 lg:px-8">
         {/* Main Grid Layout to match reference layout */}
         <div className="grid lg:grid-cols-12 gap-12 items-center">
-          
+
           {/* Left Side: Content Block */}
           <motion.div
             initial={{ opacity: 0, x: -20 }}
@@ -97,16 +97,16 @@ export default function BazaarXTestimonials() {
             className="lg:col-span-5 flex flex-col items-start text-left"
           >
             <span className="text-[#ff8555] font-bold tracking-widest text-sm uppercase mb-4">
-    Testimonials
-  </span>
+              Testimonials
+            </span>
 
             <h2 className="text-5xl lg:text-6xl font-extrabold text-[#1a2b3b] leading-tight">
               Trusted by <br />
-              <span className="text-[#ff8555]">Filipino Sellers</span>
+              <span className="text-[#ff8555]">Sellers</span>
             </h2>
-            
+
             <p className="mt-6 text-gray-600 text-lg max-w-md">
-              Join thousands of successful sellers who grew their business with BazaarX. 
+              Join thousands of successful sellers who grew their business with BazaarX.
               Real reviews from Google and Facebook.
             </p>
 

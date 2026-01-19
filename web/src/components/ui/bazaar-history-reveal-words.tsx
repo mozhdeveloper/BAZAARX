@@ -1,7 +1,8 @@
 'use client';
 
+
 import { useRef, useState } from 'react';
-import { useScroll, useMotionValueEvent } from 'framer-motion';
+import { useScroll, useMotionValueEvent, useTransform, motion } from 'framer-motion';
 import { RevealImageListItem, type ImageSource } from "./reveal-images";
 
 const TRADE_IMAGES: [[ImageSource, ImageSource], [ImageSource, ImageSource], [ImageSource, ImageSource]] = [
@@ -42,40 +43,88 @@ export default function BazaarRevealWords() {
     }
   });
 
+  // Background transition: Orange (#D94F00) -> White (#ffffff)
+  const backgroundColor = useTransform(scrollYProgress, [0.15, 0.25], ["#D94F00", "#ffffff"]);
+
+  // Reveal Words Color: White -> Orange (accent #FF6A00)
+  const revealTextColor = useTransform(scrollYProgress, [0.15, 0.25], ["#ffffff", "#FF6A00"]);
+
+  // Paragraph Color: White -> Gray 600 (#4b5563)
+  const paragraphColor = useTransform(scrollYProgress, [0.15, 0.25], ["#ffffff", "#4b5563"]);
+
+  // Border Color: White/Light Orange -> Orange (#FF8A4D)
+  const borderColor = useTransform(scrollYProgress, [0.15, 0.25], ["#ffffff", "#FF8A4D"]);
+
+  // Border Gradient: Uses the dynamic borderColor to create a fade-out gradient
+  const borderGradient = useTransform(borderColor, color => `linear-gradient(to right, transparent, ${color}, transparent)`);
+
   return (
-    <section ref={containerRef} className="relative h-[300vh] bg-white">
+    <motion.section
+      ref={containerRef}
+      className="relative h-[300vh]"
+      style={{ backgroundColor }}
+    >
       <div className="sticky top-0 h-screen flex items-center overflow-hidden">
         <div className="container mx-auto px-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
             {/* Left: paragraph */}
             <div className="order-2 md:order-1">
               <div className="max-w-3xl mx-auto">
-                <div
-                  className="py-20 border-t-4 border-b-4"
-                  style={{ borderColor: "var(--accent-2, #FF8A4D)" }}
+                <motion.div
+                  className="relative py-20"
                 >
-                  <p className="text-gray-600 text-xl md:text-2xl leading-loose text-justify">
+                  {/* Top Gradient Line */}
+                  <motion.div
+                    className="absolute top-0 left-0 w-full h-px"
+                    style={{ background: borderGradient }}
+                  />
+
+                  <motion.p
+                    className="text-xl md:text-2xl leading-loose text-justify"
+                    style={{ color: paragraphColor }}
+                  >
                     Over time, the Persian bazaar model spread across the Middle East, North Africa, and beyond, giving rise to iconic marketplaces such as the Turkish bazaars and the Arabic sūqs. Wherever it traveled, the bazaar retained its core purpose: a place where people come together. It thrived as a center of trade, showcased local craft, and fostered vibrant social gatherings—bringing goods, artisans, and communities into one shared space.
-                  </p>
-                </div>
+                  </motion.p>
+
+                  {/* Bottom Gradient Line */}
+                  <motion.div
+                    className="absolute bottom-0 left-0 w-full h-px"
+                    style={{ background: borderGradient }}
+                  />
+                </motion.div>
               </div>
             </div>
 
             {/* Right: stacked reveal words (responsive) */}
             <div className="order-1 md:order-2 flex flex-col gap-4 items-end">
               <div className="w-full md:w-auto">
-                <RevealImageListItem text="trade" images={TRADE_IMAGES[0]} isActive={activeIndex === 0} />
+                <RevealImageListItem
+                  text="trade"
+                  images={TRADE_IMAGES[0]}
+                  isActive={activeIndex === 0}
+                  style={{ color: revealTextColor }}
+                />
               </div>
               <div className="w-full md:w-auto">
-                <RevealImageListItem text="craft" images={TRADE_IMAGES[1]} isActive={activeIndex === 1} />
+                <RevealImageListItem
+                  text="craft"
+                  images={TRADE_IMAGES[1]}
+                  isActive={activeIndex === 1}
+                  style={{ color: revealTextColor }}
+                />
               </div>
               <div className="w-full md:w-auto">
-                <RevealImageListItem text="gathering" images={TRADE_IMAGES[2]} isActive={activeIndex === 2} />
+                <RevealImageListItem
+                  text="gathering"
+                  images={TRADE_IMAGES[2]}
+                  isActive={activeIndex === 2}
+                  style={{ color: revealTextColor }}
+                />
               </div>
             </div>
           </div>
         </div>
       </div>
-    </section>
+    </motion.section>
   );
 }

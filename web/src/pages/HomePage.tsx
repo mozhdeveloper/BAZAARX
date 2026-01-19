@@ -1,7 +1,7 @@
 import React from 'react';
 import { BazaarHero } from '../components/ui/bazaar-hero';
-import ScrollMorphHero from '../components/ui/scroll-morph-hero';
-import { SectionTransition } from '../components/ui/section-transition';
+//import ScrollMorphHero from '../components/ui/scroll-morph-hero';
+//import { SectionTransition } from '../components/ui/section-transition';
 import BazaarTrustShowcase from '../components/ui/bazaar-trust-showcase';
 import BazaarHistory from '../components/ui/bazaar-history';
 import { MobileAppShowcase } from '../components/ui/mobile-app-showcase';
@@ -20,6 +20,7 @@ import POSLiteFeature from '@/components/sections/PosLite';
 import BazaarHistoryZoomParallax from '@/components/ui/bazaar-history-zoom-parallax';
 import BazaarRevealWords from '@/components/ui/bazaar-history-reveal-words';
 import ScrollExpansionHero from '@/components/ui/scroll-expansion-hero';
+import BazaarMarketplaceIntro from '@/components/ui/bazaar-marketplace-intro';
 
 // Data imports
 import { trendingProducts, bestSellerProducts, newArrivals } from '../data/products';
@@ -34,7 +35,9 @@ const HomePage: React.FC = () => {
         <BazaarHero />
 
         {/* Bazaar history section  */}
-        <BazaarHistory />
+        <div id="bazaar-history">
+          <BazaarHistory />
+        </div>
 
         {/* Bazaar history zoom parallax section */}
         <BazaarHistoryZoomParallax />
@@ -48,49 +51,23 @@ const HomePage: React.FC = () => {
           bgImageSrc="https://magazine.surahotels.com/resize/fit-1150x670-95-1716885535924-dunyanin-en-unlu-kapalicarsilari-istanbul.jpg"
           mediaSrc="https://www.rucksackramblings.com/wp-content/uploads/2017/01/The-Bazaars-Of-Iran-21.jpg"
           title="Your Modern Crossroads of Global Trade"
-        >
-          <div className="max-w-4xl mx-auto space-y-4">
-            {/* Body copy */}
-            <p className="text-lg md:text-xl leading-relaxed text-gray-700">
-              Today, the spirit of the bazaar lives on—reimagined for a connected
-              world. BazaarX is where makers, manufacturers, and buyers meet
-              without unnecessary middlemen.
-            </p>
+        />
 
-            <p className="text-lg md:text-xl leading-relaxed text-gray-700">
-              By bringing products straight from the source to your home,
-              BazaarX turns centuries of open exchange into a seamless digital
-              marketplace.
-            </p>
-
-            {/* Subheadline with line */}
-            <div className="space-y-10 pt-4">
-              <div className="flex items-center gap-4">
-                <div className="h-0.5 bg-orange-500 w-32"></div>
-                <p className="text-lg md:text-2xl text-orange-500 italic whitespace-nowrap font-fondamento">
-                  Discover more. Pay less.
-                </p>
-              </div>
-              <div className="flex items-center gap-6 justify-center">
-                <p className="text-4xl md:text-6xl font-bold whitespace-nowrap font-fondamento">
-                  <span className="text-orange-500">From global factories </span>
-                  <span className="text-gray-900">directly to your doorstep</span>
-                </p>
-              </div>
-            </div>
-          </div>
-        </ScrollExpansionHero>
+        {/* Bazaar Marketplace Intro */}
+        <div id="bazaar-marketplace-intro">
+          <BazaarMarketplaceIntro />
+        </div>
 
         {/* Scroll Morph Hero - Categories Explorer */}
-        <div className="h-[120vh] w-full">
+        {/* <div className="h-[120vh] w-full">
           <ScrollMorphHero />
-        </div>
+        </div> */}
 
         {/* Mobile App Showcase */}
         <MobileAppShowcase />
 
-        {/* Transition Section */}
-        <SectionTransition />
+        {/* Transition Section
+        <SectionTransition /> */}
 
         {/* Trust & Quality Showcase */}
         <BazaarTrustShowcase />

@@ -29,18 +29,17 @@ const footerLinks = [
     title: "Customer Care",
     links: [
       { href: "#", label: "Help Center" },
-      { href: "#", label: "Track Your Order" },
+      { href: "#", label: "Track Order" },
       { href: "#", label: "Shipping Info" },
       { href: "#", label: "Returns & Refunds" },
-      { href: "#", label: "Size Guide" },
       { href: "#", label: "Payment Options" },
-      { href: "#", label: "Bazaar Guarantee" },
+      { href: "#", label: "BazaarX Guarantee" },
     ],
   },
   {
-    title: "About Bazaar",
+    title: "About BazaarX",
     links: [
-      { href: "#", label: "Our Story" },
+      { href: "#bazaar-history", label: "Our Story" },
       { href: "#", label: "Press & Media" },
       { href: "#", label: "Careers" },
       { href: "#", label: "Investor Relations" },
@@ -71,17 +70,22 @@ const socialLinks = [
 
 export function BazaarFooter() {
   return (
-    <footer className="bg-card/60 border-t">
-      <div className="max-w-6xl mx-auto px-4 lg:px-6">
-        {/* Grid container with headings and links */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-8 py-8">
+    <footer className="bg-[#FFFFFF] pt-8 pb-0 overflow-hidden min-h-screen flex flex-col justify-between">
+      <div className="max-w-7xl mx-auto px-4 lg:px-8 w-full flex flex-col flex-1">
+        {/* Links Container */}
+        <div className="flex flex-wrap justify-end gap-x-16 gap-y-12 mb-auto pr-2 lg:pr-12">
           {footerLinks.map((item, i) => (
-            <div key={i}>
-              <h3 className="mb-4 text-xs font-semibold text-orange-600 uppercase tracking-wider">{item.title}</h3>
-              <ul className="space-y-2 text-muted-foreground text-sm">
+            <div key={i} className="min-w-[160px]">
+              <h3 className="mb-6 text-sm font-bold text-orange-600 uppercase tracking-widest">
+                {item.title}
+              </h3>
+              <ul className="space-y-3 text-[#1a2b3b]/60 text-sm font-medium">
                 {item.links.map((link) => (
                   <li key={link.label}>
-                    <a href={link.href} className="hover:text-orange-600 hover:underline transition-colors">
+                    <a
+                      href={link.href}
+                      className="hover:text-orange-600 transition-colors block"
+                    >
                       {link.label}
                     </a>
                   </li>
@@ -90,43 +94,50 @@ export function BazaarFooter() {
             </div>
           ))}
         </div>
-        <div className="h-px bg-border" />
-        {/* Social Buttons + App Links */}
-        <div className="py-5 flex flex-wrap items-center justify-between gap-4">
-          <div className="flex gap-2 items-center">
+      </div>
+
+      {/* Bottom Section with Huge Text - Full Width */}
+      <div className="relative w-full">
+        <div className="w-full px-4 flex items-end mb-6 text-[10px] uppercase tracking-[0.2em]">
+          <span className="text-gray-500">© BazaarX {new Date().getFullYear()}</span>
+        </div>
+
+        <h1 className="font-fondamento text-[22vw] leading-[0.7] ml-2 text-[#FF6A00] text-left tracking-tighter pointer-events-none select-none -ml-2">
+          BazaarX
+        </h1>
+
+        {/* Social & App Links - Bottom Right */}
+        <div className="absolute bottom-6 right-6 z-20 flex flex-col items-end gap-4">
+          {/* Social Icons */}
+          <div className="flex gap-2">
             {socialLinks.map(({ icon: Icon, href }, i) => (
               <a
                 href={href}
                 className={buttonVariants({
-                  variant: "outline",
+                  variant: "ghost",
                   size: "icon",
+                  className: "rounded-full hover:bg-white text-gray-400 hover:text-orange-500"
                 })}
                 key={i}
               >
-                <Icon className="size-5 text-muted-foreground hover:text-orange-600 transition-colors" />
+                <Icon className="size-6" />
               </a>
             ))}
           </div>
 
-          <div className="flex gap-4">
-            <a href="#" className="transition-transform hover:scale-105">
+          {/* App Buttons */}
+          <div className="flex gap-3 items-center">
+            <a href="#" className="transition-transform hover:scale-105 opacity-80 hover:opacity-100 grayscale hover:grayscale-0">
               <AppStoreButton />
             </a>
-
-            <a href="#" className="transition-transform hover:scale-105">
+            <a href="#" className="transition-transform hover:scale-105 opacity-80 hover:opacity-100 grayscale hover:grayscale-0">
               <PlayStoreButton />
             </a>
           </div>
-        </div>
-        <div className="h-px bg-border" />
-        <div className="text-center text-xs text-muted-foreground py-4">
-          <p>
-            © {new Date().getFullYear()}{" "}
-            <span className="text-orange-600 font-semibold">
-              BazaarPH
-            </span>
-            . All rights reserved. | Connecting Filipino shoppers with amazing products.
-          </p>
+
+          <div className="w-full px-4 flex justify-between items-end text-[10.2px] uppercase tracking-[0.2em]">
+            <span className="text-orange-500 mt-4 font-bold">From global factories directly to your doorstep</span>
+          </div>
         </div>
       </div>
     </footer>
