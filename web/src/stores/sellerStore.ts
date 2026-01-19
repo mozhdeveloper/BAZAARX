@@ -44,6 +44,13 @@ interface Seller {
   accountName: string;
   accountNumber: string;
   
+  // Document URLs
+  businessPermitUrl?: string;
+  validIdUrl?: string;
+  proofOfAddressUrl?: string;
+  dtiRegistrationUrl?: string;
+  taxIdUrl?: string;
+  
   // Status
   isVerified: boolean;
   approvalStatus: 'pending' | 'approved' | 'rejected';
