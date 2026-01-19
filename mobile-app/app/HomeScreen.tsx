@@ -12,8 +12,10 @@ import {
   StatusBar,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Search, Bell, Camera, Bot, X, Package, Timer, MapPin, ChevronDown, ArrowLeft, Clock, MessageSquare } from 'lucide-react-native';
+import { Search, Bell, Camera, Bot, X, Package, Timer, MapPin, ChevronDown, ArrowLeft, Clock, MessageSquare, Flame } from 'lucide-react-native';
 import { ProductCard } from '../src/components/ProductCard';
+import { FlashSaleCard } from '../src/components/FlashSaleCard';
+import { LinearGradient } from 'expo-linear-gradient';
 import CameraSearchModal from '../src/components/CameraSearchModal';
 import AIChatModal from '../src/components/AIChatModal';
 import LocationModal from '../src/components/LocationModal';
@@ -183,23 +185,65 @@ export default function HomeScreen({ navigation }: Props) {
               </View>
             </View>
 
-            <View style={styles.flashSaleSection}>
-              <View style={styles.flashHeader}>
-                <View style={styles.row}>
-                    <Text style={[styles.gridTitleText, { color: BRAND_COLOR }]}>FLASH SALE</Text>
-                    <View style={[styles.timerBox, { backgroundColor: '#333' }]}>
-                        <Timer size={14} color="#FFF" /><Text style={styles.timerText}>02:15:45</Text>
+            <View style={styles.flashSaleContainer}>
+              <LinearGradient
+                colors={['#EF4444', '#F97316', '#EAB308']} // Red-500 -> Orange-500 -> Yellow-500
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.flashGradient}
+              >
+                {/* Background Decor */}
+                <View style={styles.flashDecorCircle1} />
+                <View style={styles.flashDecorCircle2} />
+
+                <View style={styles.flashContent}>
+                  <View style={styles.flashHeaderNew}>
+                    <View style={styles.flashTitleRow}>
+                      <View style={styles.flashIconBg}>
+                        <Flame size={20} color="#F97316" fill="#F97316" />
+                      </View>
+                      <View>
+                        <Text style={styles.flashTitleText}>Flash Sale</Text>
+                        <Text style={styles.flashSubtitleText}>Up to 50% OFF</Text>
+                      </View>
                     </View>
+
+                    <View style={styles.countdownRow}>
+                      <Clock size={16} color="#FFF" />
+                      <View style={styles.countdownBox}>
+                        <Text style={styles.countdownNum}>02</Text>
+                        <Text style={styles.countdownLabel}>Hrs</Text>
+                      </View>
+                      <Text style={styles.countdownSep}>:</Text>
+                      <View style={styles.countdownBox}>
+                        <Text style={styles.countdownNum}>45</Text>
+                        <Text style={styles.countdownLabel}>Min</Text>
+                      </View>
+                      <Text style={styles.countdownSep}>:</Text>
+                      <View style={styles.countdownBox}>
+                        <Text style={styles.countdownNum}>30</Text>
+                        <Text style={styles.countdownLabel}>Sec</Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  <ScrollView 
+                    horizontal 
+                    showsHorizontalScrollIndicator={false} 
+                    contentContainerStyle={styles.flashListContent}
+                  >
+                    {[...bestSellerProducts, ...trendingProducts].slice(0, 6).map((p, index) => (
+                      <FlashSaleCard 
+                        key={p.id} 
+                        product={{...p, originalPrice: p.price * 1.5}} 
+                        soldPercentage={0.4 + (index * 0.1)} 
+                        onPress={() => handleProductPress(p)}
+                        style={styles.flashHorizontalItem}
+                      />
+                    ))}
+                  </ScrollView>
                 </View>
-              </View>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingLeft: 20, paddingBottom: 10 }}>
-                {bestSellerProducts.map(p => (
-                    <View key={p.id} style={styles.itemBoxContainerHorizontal}>
-                        <ProductCard product={p} onPress={() => handleProductPress(p)} />
-                        <View style={[styles.discountTag, { backgroundColor: BRAND_COLOR }]}><Text style={styles.discountTagText}>-50%</Text></View>
-                    </View>
-                ))}
-              </ScrollView>
+              </LinearGradient>
             </View>
 
             <View style={styles.section}>
@@ -314,13 +358,27 @@ const styles = StyleSheet.create({
   promoBrandName: { fontSize: 12, fontWeight: '700', color: '#666', marginTop: 4 },
   promoImgPart: { width: 80, height: 100, borderRadius: 12, overflow: 'hidden' },
   promoImg: { width: '100%', height: '100%' },
-  flashSaleSection: { marginVertical: 15 },
-  flashHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 15, paddingHorizontal: 20 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  timerBox: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, gap: 4 },
-  timerText: { color: '#FFF', fontSize: 11, fontWeight: '700' },
-  itemBoxContainerHorizontal: { width: 160, marginRight: 15, backgroundColor: '#FFF', borderRadius: 18, padding: 2, elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.1, shadowRadius: 6 },
-  itemBoxContainerVertical: { width: (width - 55) / 2, marginBottom: 20, backgroundColor: '#FFF', borderRadius: 18, padding: 2, elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.1, shadowRadius: 6 },
+  flashSaleContainer: { marginVertical: 15, paddingHorizontal: 20 },
+  flashGradient: { borderRadius: 16, overflow: 'hidden', position: 'relative' },
+  flashDecorCircle1: { position: 'absolute', top: -50, left: -50, width: 150, height: 150, borderRadius: 75, backgroundColor: 'rgba(255,255,255,0.2)' },
+  flashDecorCircle2: { position: 'absolute', bottom: -50, right: -50, width: 200, height: 200, borderRadius: 100, backgroundColor: 'rgba(255,255,255,0.2)' },
+  flashContent: { padding: 16 },
+  flashHeaderNew: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  flashTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  flashIconBg: { padding: 8, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 12 },
+  flashTitleText: { fontSize: 20, fontWeight: '800', color: '#FFF' },
+  flashSubtitleText: { fontSize: 12, color: 'rgba(255,255,255,0.9)', fontWeight: '500' },
+  countdownRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  countdownBox: { backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 8, padding: 6, minWidth: 40, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
+  countdownNum: { fontSize: 14, fontWeight: '800', color: '#FFF' },
+  countdownLabel: { fontSize: 8, color: 'rgba(255,255,255,0.9)', fontWeight: '600', textTransform: 'uppercase' },
+  countdownSep: { fontSize: 16, fontWeight: '800', color: '#FFF', marginTop: -8 },
+  flashListContent: { paddingRight: 10 },
+  flashGridBody: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+  flashHorizontalItem: { width: 140, marginRight: 12 },
+  
+  itemBoxContainerHorizontal: { width: 160, marginRight: 15, backgroundColor: '#FFF', borderRadius: 18, elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.1, shadowRadius: 6 },
+  itemBoxContainerVertical: { width: (width - 55) / 2, marginBottom: 20, backgroundColor: '#FFF', borderRadius: 18, elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.1, shadowRadius: 6 },
   section: { paddingHorizontal: 20, marginVertical: 15 },
   productRequestButton: { backgroundColor: '#FFFFFF', borderRadius: 20, padding: 16, elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8 },
   productRequestButtonPressed: { opacity: 0.8, transform: [{ scale: 0.98 }] },

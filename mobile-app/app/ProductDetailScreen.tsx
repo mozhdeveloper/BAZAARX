@@ -30,6 +30,7 @@ import {
 } from 'lucide-react-native';
 import { ProductCard } from '../src/components/ProductCard';
 import CameraSearchModal from '../src/components/CameraSearchModal';
+import AddToCartModal from '../src/components/AddToCartModal';
 import { useCartStore } from '../src/stores/cartStore';
 import { useWishlistStore } from '../src/stores/wishlistStore';
 import { trendingProducts } from '../src/data/products';
@@ -75,11 +76,11 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   const { product } = route.params;
   const [activeTab, setActiveTab] = useState<'details' | 'support' | 'ratings'>('details');
   const [showCameraSearch, setShowCameraSearch] = useState(false);
+  const [showAddToCartModal, setShowAddToCartModal] = useState(false);
   const [quantity, setQuantity] = useState(1);
 
   const addItem = useCartStore((state) => state.addItem);
   const setQuickOrder = useCartStore((state) => state.setQuickOrder);
-
   const { addItem: addToWishlist, removeItem: removeFromWishlist, isInWishlist } = useWishlistStore();
   const isFavorite = isInWishlist(product.id);
 
@@ -87,7 +88,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
   const handleAddToCart = () => {
     addItem(product);
-    Alert.alert('Added to cart!');
+    setShowAddToCartModal(true);
   };
 
   const handleBuyNow = () => {
@@ -307,6 +308,11 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
           setShowCameraSearch(false);
           navigation.push('ProductDetail', { product });
         }}
+      />
+      <AddToCartModal
+        visible={showAddToCartModal}
+        onClose={() => setShowAddToCartModal(false)}
+        product={product}
       />
     </View >
   );

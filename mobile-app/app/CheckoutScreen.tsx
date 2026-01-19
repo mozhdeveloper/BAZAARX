@@ -54,6 +54,13 @@ export default function CheckoutScreen({ navigation }: Props) {
   });
 
   const [paymentMethod, setPaymentMethod] = useState<'cod' | 'gcash' | 'card' | 'paymongo'>('cod');
+  
+  // Payment Form Data
+  const [cardDetails, setCardDetails] = useState({ number: '', name: '', expiry: '', cvv: '' });
+  const [gcashNumber, setGcashNumber] = useState('');
+  const [paymayaNumber, setPaymayaNumber] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+
   const [voucherCode, setVoucherCode] = useState('');
   const [appliedVoucher, setAppliedVoucher] = useState<keyof typeof VOUCHERS | null>(null);
 
@@ -104,9 +111,23 @@ export default function CheckoutScreen({ navigation }: Props) {
   };
 
   const handlePlaceOrder = () => {
-    // Validate
+    // Validate Address
     if (!address.name || !address.phone || !address.address || !address.city) {
       Alert.alert('Error', 'Please fill in all required fields');
+      return;
+    }
+
+    // Validate Payment Details
+    if (paymentMethod === 'card') {
+      if (!cardDetails.number || !cardDetails.name || !cardDetails.expiry || !cardDetails.cvv) {
+        Alert.alert('Error', 'Please fill in all card details');
+        return;
+      }
+    } else if (paymentMethod === 'gcash' && !gcashNumber) {
+      Alert.alert('Error', 'Please provide your GCash number');
+      return;
+    } else if (paymentMethod === 'paymongo' && !paymayaNumber) { // Using paymongo as paymaya placeholder
+      Alert.alert('Error', 'Please provide your PayMaya number');
       return;
     }
 
@@ -117,32 +138,31 @@ export default function CheckoutScreen({ navigation }: Props) {
       return;
     }
 
-    // Create order
-    try {
-      const order = createOrder(checkoutItems, address, paymentMethod);
-      
-      // Clear buyer cart after successful order
-      clearCart();
+    setIsLoading(true);
 
-      // Clear quick order if it was used
-      if (isQuickCheckout) {
-        clearQuickOrder();
-      }
+    // Simulate Processing
+    setTimeout(() => {
+      try {
+        const order = createOrder(checkoutItems, address, paymentMethod);
+        
+        // Clear buyer cart after successful order
+        clearCart();
 
-      // Check if online payment (GCash, PayMongo, PayMaya, Card)
-      const isOnlinePayment = paymentMethod.toLowerCase() !== 'cod' && paymentMethod.toLowerCase() !== 'cash on delivery';
+        // Clear quick order if it was used
+        if (isQuickCheckout) {
+          clearQuickOrder();
+        }
 
-      if (isOnlinePayment) {
-        // Navigate to payment gateway simulation
-        navigation.navigate('PaymentGateway', { paymentMethod, order });
-      } else {
-        // COD - go directly to confirmation
+        setIsLoading(false);
+        // Navigate directly to Confirmation (skipping gateway simulation which was just a placeholder)
         navigation.navigate('OrderConfirmation', { order });
+        
+      } catch (error) {
+        setIsLoading(false);
+        Alert.alert('Error', 'Failed to place order. Please try again.');
+        console.error('Order creation error:', error);
       }
-    } catch (error) {
-      Alert.alert('Error', 'Failed to place order. Please try again.');
-      console.error('Order creation error:', error);
-    }
+    }, 2000);
   };
 
   const ProgressStepper = () => {
@@ -388,63 +408,159 @@ export default function CheckoutScreen({ navigation }: Props) {
             </View>
           </Pressable>
 
-          {/* Payment Status Info */}
-          <View style={styles.paymentInfoBanner}>
-            <Shield size={16} color={paymentMethod === 'cod' ? '#6B7280' : '#10B981'} />
-            <Text style={styles.paymentInfoText}>
-              {paymentMethod === 'cod' 
-                ? '💵 You will pay when you receive your order'
-                : '✅ Your payment will be processed instantly and securely'}
-            </Text>
-          </View>
-        </View>
-
-        {/* Voucher Code Card */}
-        <View style={styles.sectionCard}>
-          <View style={styles.sectionHeader}>
-            <Tag size={20} color="#FF5722" />
-            <Text style={[styles.sectionTitle, { marginLeft: 8 }]}>Voucher Code</Text>
-          </View>
-
-          {appliedVoucher ? (
-            <View style={styles.appliedVoucherContainer}>
-              <View style={styles.appliedVoucherBadge}>
-                <Tag size={16} color="#FF5722" />
-                <Text style={styles.appliedVoucherCode}>{appliedVoucher}</Text>
-                <Text style={styles.appliedVoucherDesc}>
-                  {VOUCHERS[appliedVoucher].description}
-                </Text>
+            {/* Inline Payment Forms */}
+            {paymentMethod === 'card' && (
+              <View style={styles.paymentForm}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Card Number"
+                  placeholderTextColor="#9CA3AF"
+                  keyboardType="numeric"
+                  value={cardDetails.number}
+                  onChangeText={(t) => setCardDetails({ ...cardDetails, number: t })}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Cardholder Name"
+                  placeholderTextColor="#9CA3AF"
+                  value={cardDetails.name}
+                  onChangeText={(t) => setCardDetails({ ...cardDetails, name: t })}
+                />
+                <View style={styles.row}>
+                  <TextInput
+                    style={[styles.input, styles.halfInput]}
+                    placeholder="Expiry (MM/YY)"
+                    placeholderTextColor="#9CA3AF"
+                    value={cardDetails.expiry}
+                    onChangeText={(t) => setCardDetails({ ...cardDetails, expiry: t })}
+                  />
+                  <TextInput
+                    style={[styles.input, styles.halfInput]}
+                    placeholder="CVV"
+                    placeholderTextColor="#9CA3AF"
+                    keyboardType="numeric"
+                    maxLength={3}
+                    value={cardDetails.cvv}
+                    onChangeText={(t) => setCardDetails({ ...cardDetails, cvv: t })}
+                  />
+                </View>
               </View>
-              <Pressable onPress={handleRemoveVoucher} style={styles.removeVoucherButton}>
-                <X size={18} color="#6B7280" />
-              </Pressable>
-            </View>
-          ) : (
-            <View style={styles.voucherInputContainer}>
-              <TextInput
-                style={styles.voucherInput}
-                placeholder="Enter voucher code"
-                placeholderTextColor="#9CA3AF"
-                value={voucherCode}
-                onChangeText={setVoucherCode}
-                autoCapitalize="characters"
-              />
-              <Pressable 
-                onPress={handleApplyVoucher}
-                style={[styles.applyButton, !voucherCode.trim() && styles.applyButtonDisabled]}
-                disabled={!voucherCode.trim()}
-              >
-                <Text style={styles.applyButtonText}>Apply</Text>
-              </Pressable>
-            </View>
-          )}
+            )}
 
-          {!appliedVoucher && (
-            <View style={styles.voucherHintContainer}>
-              <Text style={styles.voucherHint}>Try: WELCOME10, SAVE50, FREESHIP</Text>
+            {paymentMethod === 'gcash' && (
+              <View style={styles.paymentForm}>
+                 <TextInput
+                  style={styles.input}
+                  placeholder="GCash Number (09xxxxxxxxx)"
+                  placeholderTextColor="#9CA3AF"
+                  keyboardType="phone-pad"
+                  maxLength={11}
+                  value={gcashNumber}
+                  onChangeText={setGcashNumber}
+                />
+              </View>
+            )}
+
+            {paymentMethod === 'paymongo' && (
+              <View style={styles.paymentForm}>
+                 <TextInput
+                  style={styles.input}
+                  placeholder="PayMaya Number (09xxxxxxxxx)"
+                  placeholderTextColor="#9CA3AF"
+                  keyboardType="phone-pad"
+                  maxLength={11}
+                  value={paymayaNumber}
+                  onChangeText={setPaymayaNumber}
+                />
+              </View>
+            )}
+
+            {/* Payment Status Info */}
+            <View style={styles.paymentInfoBanner}>
+              <Shield size={16} color={paymentMethod === 'cod' ? '#6B7280' : '#10B981'} />
+              <Text style={styles.paymentInfoText}>
+                {paymentMethod === 'cod'
+                  ? '💵 You will pay when you receive your order'
+                  : '✅ Your payment will be processed instantly and securely'}
+              </Text>
             </View>
-          )}
-        </View>
+          </View>
+
+          {/* WEB-STYLE ORDER SUMMARY CARD */}
+          <View style={styles.sectionCard}>
+             <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Order Summary</Text>
+            </View>
+
+            {/* List of Items in Summary */}
+             <View style={styles.summaryItemsList}>
+              {checkoutItems.map((item) => (
+                <View key={item.id} style={styles.summaryItemRow}>
+                  <Text style={styles.summaryItemName} numberOfLines={1}>{item.name}</Text>
+                  <Text style={styles.summaryItemQty}>x{item.quantity}</Text>
+                  <Text style={styles.summaryItemPrice}>₱{(item.price * item.quantity).toLocaleString()}</Text>
+                </View>
+              ))}
+            </View>
+
+            {/* Voucher Section Integrated */}
+            <View style={styles.summaryVoucherSection}>
+               {appliedVoucher ? (
+                <View style={styles.appliedVoucherContainer}>
+                  <View style={styles.appliedVoucherBadge}>
+                    <Tag size={16} color="#FF5722" />
+                    <View style={{marginLeft: 8}}>
+                      <Text style={styles.appliedVoucherCode}>{appliedVoucher}</Text>
+                      <Text style={styles.appliedVoucherDesc}>{VOUCHERS[appliedVoucher].description}</Text>
+                    </View>
+                  </View>
+                  <Pressable onPress={handleRemoveVoucher} style={styles.removeVoucherButton}>
+                    <X size={18} color="#6B7280" />
+                  </Pressable>
+                </View>
+              ) : (
+                <View style={styles.voucherInputContainer}>
+                  <TextInput
+                    style={styles.voucherInput}
+                    placeholder="Voucher Code"
+                    placeholderTextColor="#9CA3AF"
+                    value={voucherCode}
+                    onChangeText={setVoucherCode}
+                    autoCapitalize="characters"
+                  />
+                  <Pressable
+                    onPress={handleApplyVoucher}
+                    style={[styles.applyButton, !voucherCode.trim() && styles.applyButtonDisabled]}
+                    disabled={!voucherCode.trim()}
+                  >
+                    <Text style={styles.applyButtonText}>Apply</Text>
+                  </Pressable>
+                </View>
+              )}
+            </View>
+
+            {/* Price Breakdown */}
+            <View style={styles.summaryDivider} />
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Subtotal</Text>
+              <Text style={styles.summaryValue}>₱{subtotal.toLocaleString()}</Text>
+            </View>
+             <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Shipping</Text>
+              <Text style={styles.summaryValue}>{shippingFee === 0 ? 'Free' : `₱${shippingFee}`}</Text>
+            </View>
+            {discount > 0 && (
+              <View style={styles.summaryRow}>
+                <Text style={[styles.summaryLabel, { color: '#FF5722' }]}>Discount</Text>
+                <Text style={[styles.summaryValue, { color: '#FF5722' }]}>-₱{discount.toLocaleString()}</Text>
+              </View>
+            )}
+             <View style={[styles.summaryDivider, { marginVertical: 12 }]} />
+             <View style={styles.summaryRow}>
+              <Text style={styles.summaryTotalLabel}>Total</Text>
+              <Text style={styles.summaryTotalValue}>₱{total.toLocaleString()}</Text>
+            </View>
+          </View>
         </ScrollView>
 
         {/* Bottom Action Bar */}
@@ -460,7 +576,9 @@ export default function CheckoutScreen({ navigation }: Props) {
               pressed && styles.checkoutButtonPressed
             ]}
           >
-            <Text style={styles.checkoutButtonText}>Place Order</Text>
+            <Text style={styles.checkoutButtonText}>
+              {isLoading ? 'Processing...' : 'Place Order'}
+            </Text>
           </Pressable>
         </View>
       </KeyboardAvoidingView>
@@ -680,20 +798,20 @@ const styles = StyleSheet.create({
     color: '#FF5722',
   },
   input: {
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#E5E7EB',
-    borderRadius: 12,
+    borderRadius: 8,
     paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 15,
+    paddingVertical: 12,
+    fontSize: 14,
     color: '#111827',
     marginBottom: 12,
   },
   textArea: {
     height: 80,
     textAlignVertical: 'top',
-    paddingTop: 14,
+    paddingTop: 12,
   },
   row: {
     flexDirection: 'row',
@@ -708,13 +826,13 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: '#E5E7EB',
+    borderColor: '#F3F4F6',
     marginBottom: 12,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFFFFF',
   },
   paymentOptionActive: {
     borderColor: '#FF5722',
-    backgroundColor: '#FFF4ED',
+    backgroundColor: '#FFF7ED', // orange-50 equivalent
   },
   radio: {
     width: 20,
@@ -868,6 +986,76 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
     letterSpacing: 0.5,
+  },
+
+  paymentForm: {
+    marginTop: 0,
+    marginBottom: 16,
+    padding: 16,
+    backgroundColor: '#FFF7ED', // Match active state
+    borderBottomLeftRadius: 12,
+    borderBottomRightRadius: 12,
+    borderWidth: 1,
+    borderTopWidth: 0,
+    borderColor: 'rgba(255, 87, 34, 0.2)',
+    marginLeft: 4,
+    marginRight: 4,
+  },
+  summaryItemsList: {
+    marginBottom: 16,
+    gap: 8,
+  },
+  summaryItemRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  summaryItemName: {
+    flex: 1,
+    fontSize: 13,
+    color: '#374151',
+    marginRight: 8,
+  },
+  summaryItemQty: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginRight: 12,
+  },
+  summaryItemPrice: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  summaryVoucherSection: {
+    marginBottom: 16,
+  },
+  summaryDivider: {
+    height: 1,
+    backgroundColor: '#E5E7EB',
+    marginVertical: 8,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  summaryLabel: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  summaryValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  summaryTotalLabel: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  summaryTotalValue: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#FF5722',
   },
 });
 
