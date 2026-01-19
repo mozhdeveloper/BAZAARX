@@ -19,6 +19,7 @@ import { ShoppingBag, Mail, Lock, Eye, EyeOff, ArrowRight, Store, Shield } from 
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import { useAuthStore } from '../src/stores/authStore';
+import { supabase } from '../src/lib/supabase';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Login'>;
 
@@ -36,17 +37,41 @@ export default function LoginScreen({ navigation }: Props) {
     }
 
     setIsLoading(true);
-    const success = await login(email, password);
-    setIsLoading(false);
 
-    if (success) {
-      navigation.replace('MainTabs', { screen: 'Home' });
-    } else {
-      Alert.alert(
-        'Login Failed',
-        'Invalid email or password. Please try again.',
-        [{ text: 'OK' }]
-      );
+    try {
+      // 2. Sign in with Supabase
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password: password,
+      });
+
+      if (error) {
+        Alert.alert('Login Error', error.message);
+        setIsLoading(false);
+        return;
+      }
+
+      if (data.user) {
+        // 3. Fetch the profile to check user_type (buyer/seller)
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('user_type')
+          .eq('id', data.user.id)
+          .single();
+
+        if (profileError) {
+          Alert.alert('Profile Error', 'Could not fetch user profile.');
+        } else if (profile.user_type === 'buyer') {
+          navigation.replace('MainTabs', { screen: 'Home' });
+        } else if (profile.user_type === 'seller') {
+          Alert.alert('Seller Account', 'This is the buyer portal. Please use the Seller Centre.');
+          await supabase.auth.signOut(); // Log them out if they are in the wrong place
+        }
+      }
+    } catch (err) {
+      Alert.alert('Error', 'An unexpected error occurred');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -169,7 +194,7 @@ export default function LoginScreen({ navigation }: Props) {
           {/* Register Link */}
           <View style={styles.registerSection}>
             <Text style={styles.registerText}>Don't have an account? </Text>
-            <Pressable>
+            <Pressable onPress={() => navigation.navigate('Signup')}>
               <Text style={styles.registerLink}>Sign Up</Text>
             </Pressable>
           </View>
