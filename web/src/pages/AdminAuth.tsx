@@ -1,21 +1,28 @@
-import React, { useState } from 'react';
-import { motion } from 'framer-motion';
-import { useNavigate, Navigate } from 'react-router-dom';
-import { useAdminAuth } from '../stores/adminStore';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Eye, EyeOff, Shield, Lock, Mail, Loader2 } from 'lucide-react';
+import React, { useState } from "react";
+import { motion } from "framer-motion";
+import { useNavigate, Navigate } from "react-router-dom";
+import { useAdminAuth } from "../stores/adminStore";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Eye, EyeOff, Shield, Lock, Mail, Loader2 } from "lucide-react";
 
 const AdminAuth: React.FC = () => {
   const navigate = useNavigate();
-  const { login, isAuthenticated, isLoading, error, clearError } = useAdminAuth();
+  const { login, isAuthenticated, isLoading, error, clearError } =
+    useAdminAuth();
 
   const [formData, setFormData] = useState({
-    email: '',
-    password: ''
+    email: "",
+    password: "",
   });
   const [showPassword, setShowPassword] = useState(false);
 
@@ -26,31 +33,31 @@ const AdminAuth: React.FC = () => {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
     if (error) clearError();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     const success = await login(formData.email, formData.password);
     if (success) {
-      navigate('/admin', { replace: true });
+      navigate("/admin", { replace: true });
     }
   };
 
   const handleDemoLogin = async () => {
     // Auto-fill demo credentials
     setFormData({
-      email: 'admin@gmail.com',
-      password: 'password'
+      email: "admin@gmail.com",
+      password: "password",
     });
-    
+
     // Auto-login after brief delay
     setTimeout(async () => {
-      const success = await login('admin@gmail.com', 'password');
+      const success = await login("admin@gmail.com", "password");
       if (success) {
-        navigate('/admin', { replace: true });
+        navigate("/admin", { replace: true });
       }
     }, 500);
   };
@@ -61,9 +68,9 @@ const AdminAuth: React.FC = () => {
       opacity: 1,
       y: 0,
       transition: {
-        duration: 0.6
-      }
-    }
+        duration: 0.6,
+      },
+    },
   };
 
   const cardVariants = {
@@ -73,9 +80,9 @@ const AdminAuth: React.FC = () => {
       opacity: 1,
       transition: {
         duration: 0.5,
-        delay: 0.2
-      }
-    }
+        delay: 0.2,
+      },
+    },
   };
 
   return (
@@ -87,7 +94,7 @@ const AdminAuth: React.FC = () => {
         className="w-full max-w-md"
       >
         {/* Logo and Header */}
-        <motion.div 
+        <motion.div
           className="text-center mb-8"
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -101,9 +108,7 @@ const AdminAuth: React.FC = () => {
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
             BazaarPH Admin
           </h1>
-          <p className="text-gray-600">
-            Access your administrative dashboard
-          </p>
+          <p className="text-gray-600">Access your administrative dashboard</p>
         </motion.div>
 
         {/* Login Card */}
@@ -148,7 +153,7 @@ const AdminAuth: React.FC = () => {
                       {isLoading ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
                       ) : (
-                        'Try Demo'
+                        "Try Demo"
                       )}
                     </Button>
                   </div>
@@ -158,7 +163,7 @@ const AdminAuth: React.FC = () => {
                 {error && (
                   <motion.div
                     initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
+                    animate={{ opacity: 1, height: "auto" }}
                     exit={{ opacity: 0, height: 0 }}
                   >
                     <Alert className="border-red-200 bg-red-50">
@@ -171,7 +176,10 @@ const AdminAuth: React.FC = () => {
 
                 {/* Email Field */}
                 <div className="space-y-2">
-                  <Label htmlFor="email" className="text-sm font-medium text-gray-700">
+                  <Label
+                    htmlFor="email"
+                    className="text-sm font-medium text-gray-700"
+                  >
                     Email Address
                   </Label>
                   <div className="relative">
@@ -191,14 +199,17 @@ const AdminAuth: React.FC = () => {
 
                 {/* Password Field */}
                 <div className="space-y-2">
-                  <Label htmlFor="password" className="text-sm font-medium text-gray-700">
+                  <Label
+                    htmlFor="password"
+                    className="text-sm font-medium text-gray-700"
+                  >
                     Password
                   </Label>
                   <div className="relative">
                     <Input
                       id="password"
                       name="password"
-                      type={showPassword ? 'text' : 'password'}
+                      type={showPassword ? "text" : "password"}
                       value={formData.password}
                       onChange={handleInputChange}
                       placeholder="Enter your password"
@@ -224,12 +235,18 @@ const AdminAuth: React.FC = () => {
 
                 {/* Demo Credentials */}
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                  <p className="text-sm text-blue-800 font-medium mb-1">Demo Credentials:</p>
-                  <p className="text-xs text-blue-700">
-                    Email: <code className="bg-blue-100 px-1 rounded">admin@gmail.com</code>
+                  <p className="text-sm text-blue-800 font-medium mb-1">
+                    Demo Credentials:
                   </p>
                   <p className="text-xs text-blue-700">
-                    Password: <code className="bg-blue-100 px-1 rounded">password</code>
+                    Email:{" "}
+                    <code className="bg-blue-100 px-1 rounded">
+                      admin@gmail.com
+                    </code>
+                  </p>
+                  <p className="text-xs text-blue-700">
+                    Password:{" "}
+                    <code className="bg-blue-100 px-1 rounded">password</code>
                   </p>
                 </div>
 
@@ -271,7 +288,8 @@ const AdminAuth: React.FC = () => {
           className="mt-6 text-center"
         >
           <p className="text-xs text-gray-500">
-            This is a secure administrative area. All access is logged and monitored.
+            This is a secure administrative area. All access is logged and
+            monitored.
           </p>
         </motion.div>
       </motion.div>

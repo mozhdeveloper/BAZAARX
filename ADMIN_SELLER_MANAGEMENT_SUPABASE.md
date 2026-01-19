@@ -14,17 +14,20 @@ Integrated the Admin Seller Management system with Supabase to display real-time
 ## Features Implemented
 
 ### 1. **Real-time Seller Data Loading**
+
 - Fetches sellers from Supabase `sellers` table
 - Joins with `profiles` table to get user information (email, full name, phone)
 - Displays all seller information including documents, business details, and banking info
 
 ### 2. **Admin Actions**
+
 - ✅ **Approve Seller** - Updates `approval_status` to 'approved' with timestamp
 - ❌ **Reject Seller** - Updates status to 'rejected' with reason
 - 🚫 **Suspend Seller** - Updates status to 'suspended' with reason
 - 👁️ **View Details** - Shows complete seller profile in modal
 
 ### 3. **Document Management**
+
 - Displays submitted document URLs:
   - Business Permit
   - Valid ID
@@ -33,11 +36,13 @@ Integrated the Admin Seller Management system with Supabase to display real-time
   - Tax ID
 
 ### 4. **Real-time Filtering**
+
 - Search by business name, owner name, or email
 - Filter by status: Pending, Approved, Rejected, Suspended
 - Real-time counts in tab headers
 
 ### 5. **Admin Authentication**
+
 - Integrated with Supabase Auth
 - Validates admin user type from profiles table
 - Secure session management
@@ -49,6 +54,7 @@ Integrated the Admin Seller Management system with Supabase to display real-time
 ### Admin User Creation
 
 **Step 1: Create Admin User in Supabase**
+
 1. Go to **Supabase Dashboard** → **Authentication** → **Users**
 2. Click **"Add user"**
 3. Enter credentials:
@@ -58,6 +64,7 @@ Integrated the Admin Seller Management system with Supabase to display real-time
 5. **Copy the generated User ID**
 
 **Step 2: Insert Admin Profile**
+
 ```sql
 INSERT INTO profiles (id, email, full_name, phone, user_type, avatar_url)
 VALUES (
@@ -73,6 +80,7 @@ VALUES (
 ### Row Level Security (RLS) Policies
 
 **Policy for Admins to View All Sellers:**
+
 ```sql
 CREATE POLICY "Admins can view all sellers"
 ON sellers
@@ -88,6 +96,7 @@ USING (
 ```
 
 **Policy for Admins to Update Sellers:**
+
 ```sql
 CREATE POLICY "Admins can update sellers"
 ON sellers
@@ -116,7 +125,9 @@ WITH CHECK (
 ### Files Modified
 
 #### 1. `web/src/stores/adminStore.ts`
+
 **Changes:**
+
 - Added Supabase import and integration
 - Updated `loadSellers()` to fetch from Supabase with LEFT JOIN on profiles
 - Updated `approveSeller()` to update approval_status in database
@@ -127,35 +138,40 @@ WITH CHECK (
 - Updated `logout()` to sign out from Supabase
 
 **Key Functions:**
+
 ```typescript
 loadSellers: async () => {
   // Fetches sellers with profile data
   const { data: sellersData } = await supabase
-    .from('sellers')
+    .from("sellers")
     .select(`*, profiles(email, full_name, phone)`)
-    .order('created_at', { ascending: false });
-}
+    .order("created_at", { ascending: false });
+};
 
 approveSeller: async (id) => {
   await supabase
-    .from('sellers')
+    .from("sellers")
     .update({
-      approval_status: 'approved',
+      approval_status: "approved",
       approved_at: new Date().toISOString(),
-      approved_by: 'admin'
+      approved_by: "admin",
     })
-    .eq('id', id);
-}
+    .eq("id", id);
+};
 ```
 
 #### 2. `web/src/pages/AdminSellers.tsx`
+
 **Changes:**
+
 - Added `RefreshCw` icon import
 - Added **Refresh** button to manually reload seller data
 - Button shows spinning animation when loading
 
 #### 3. `web/src/pages/AdminAuth.tsx`
+
 **Changes:**
+
 - Updated demo credentials to `admin@gmail.com` / `password`
 - Updated both credential displays (orange box and blue info box)
 
@@ -164,12 +180,14 @@ approveSeller: async (id) => {
 ## Data Flow
 
 ### Seller Registration Flow
+
 1. **Seller registers** at `/seller/register`
 2. Account created in `auth.users` table
 3. Profile created in `profiles` table with `user_type = 'seller'`
 4. Seller record created in `sellers` table with `approval_status = 'pending'`
 
 ### Admin Approval Flow
+
 1. **Admin logs in** at `/admin/login` with Supabase credentials
 2. System verifies `user_type = 'admin'` in profiles table
 3. **Admin views sellers** at `/admin/sellers`
@@ -184,39 +202,44 @@ approveSeller: async (id) => {
 ### Supabase Queries Used
 
 **Load All Sellers:**
+
 ```typescript
 const { data } = await supabase
-  .from('sellers')
-  .select(`
+  .from("sellers")
+  .select(
+    `
     *,
     profiles(email, full_name, phone)
-  `)
-  .order('created_at', { ascending: false });
+  `,
+  )
+  .order("created_at", { ascending: false });
 ```
 
 **Approve Seller:**
+
 ```typescript
 await supabase
-  .from('sellers')
+  .from("sellers")
   .update({
-    approval_status: 'approved',
+    approval_status: "approved",
     approved_at: new Date().toISOString(),
-    approved_by: 'admin'
+    approved_by: "admin",
   })
-  .eq('id', sellerId);
+  .eq("id", sellerId);
 ```
 
 **Reject Seller:**
+
 ```typescript
 await supabase
-  .from('sellers')
+  .from("sellers")
   .update({
-    approval_status: 'rejected',
+    approval_status: "rejected",
     rejected_at: new Date().toISOString(),
-    rejected_by: 'admin',
-    rejection_reason: reason
+    rejected_by: "admin",
+    rejection_reason: reason,
   })
-  .eq('id', sellerId);
+  .eq("id", sellerId);
 ```
 
 ---
@@ -224,23 +247,27 @@ await supabase
 ## Testing Guide
 
 ### 1. Create Test Seller
+
 1. Go to `/seller/register`
 2. Register a new seller account
 3. Complete registration (status will be 'pending')
 
 ### 2. Login as Admin
+
 1. Ensure admin user exists in Supabase
 2. Go to `/admin/login`
 3. Use credentials: `admin@gmail.com` / `password`
 4. Click "Sign In" or use "Use Demo Credentials" button
 
 ### 3. View Pending Sellers
+
 1. Navigate to `/admin/sellers`
 2. Click "Pending" tab
 3. Should see all sellers with `approval_status = 'pending'`
 4. Verify all 7 columns display correctly
 
 ### 4. Test Approval Flow
+
 1. Click "View Details" on any pending seller
 2. Verify all information displays correctly
 3. Click "Approve" button
@@ -249,6 +276,7 @@ await supabase
 6. Check database: `approval_status = 'approved'`
 
 ### 5. Test Rejection Flow
+
 1. Select a pending seller
 2. Click "Reject" button
 3. Enter rejection reason
@@ -261,18 +289,21 @@ await supabase
 ## Security Considerations
 
 ### Row Level Security (RLS)
+
 - ✅ RLS enabled on `sellers` table
 - ✅ Sellers can only view/update their own records
 - ✅ Admins can view all sellers
 - ✅ Only authenticated users with `user_type = 'admin'` can perform admin actions
 
 ### Authentication
+
 - ✅ Admin login requires valid Supabase credentials
 - ✅ Profile must have `user_type = 'admin'`
 - ✅ Session managed by Supabase Auth
 - ✅ Auto-logout on session expiry
 
 ### Data Validation
+
 - ✅ Rejection/suspension requires reason
 - ✅ All status changes logged with timestamp
 - ✅ Admin ID recorded for audit trail
@@ -303,6 +334,7 @@ VITE_SUPABASE_ANON_KEY=your-anon-key
 ## Future Enhancements
 
 ### Phase 2
+
 - [ ] Email notifications to sellers on status change
 - [ ] Document upload/download functionality with Supabase Storage
 - [ ] Bulk approve/reject actions
@@ -311,6 +343,7 @@ VITE_SUPABASE_ANON_KEY=your-anon-key
 - [ ] Comments/notes system for sellers
 
 ### Phase 3
+
 - [ ] Real-time seller metrics (products, orders, revenue)
 - [ ] Advanced filtering (by registration date, category, location)
 - [ ] Export seller data to CSV
@@ -326,6 +359,7 @@ VITE_SUPABASE_ANON_KEY=your-anon-key
 **Issue:** Only 1 seller shows instead of all 7
 
 **Solution:**
+
 1. Check if logged in as seller (will only see own record)
 2. Logout and login as admin
 3. Verify RLS policy exists: `\dp sellers` in SQL
@@ -337,6 +371,7 @@ VITE_SUPABASE_ANON_KEY=your-anon-key
 **Issue:** "Access denied. Admin account required."
 
 **Solution:**
+
 1. Verify admin user exists in `auth.users`
 2. Check profile has `user_type = 'admin'`
 3. Run: `SELECT * FROM profiles WHERE email = 'admin@gmail.com';`
@@ -347,6 +382,7 @@ VITE_SUPABASE_ANON_KEY=your-anon-key
 **Issue:** Approval button clicked but status doesn't change
 
 **Solution:**
+
 1. Check console for Supabase errors
 2. Verify RLS UPDATE policy exists for admins
 3. Check database directly: `SELECT approval_status FROM sellers;`
@@ -360,13 +396,14 @@ Added console logs for debugging:
 
 ```javascript
 // In adminStore.ts loadSellers()
-console.log('Raw sellers data from Supabase:', sellersData);
-console.log('Number of sellers fetched:', sellersData?.length);
-console.log('Mapped sellers:', sellers);
-console.log('Pending sellers:', pendingSellers);
+console.log("Raw sellers data from Supabase:", sellersData);
+console.log("Number of sellers fetched:", sellersData?.length);
+console.log("Mapped sellers:", sellers);
+console.log("Pending sellers:", pendingSellers);
 ```
 
 Check browser console (F12) to see:
+
 - Number of sellers fetched
 - Data transformation
 - RLS policy filtering
@@ -376,11 +413,13 @@ Check browser console (F12) to see:
 ## Admin Credentials
 
 **Production Admin:**
+
 - Email: `admin@gmail.com`
 - Password: `password`
 - User Type: `admin`
 
 **Demo Credentials:**
+
 - Displayed on login page
 - Auto-fill button available
 - Same as production for testing
@@ -399,6 +438,7 @@ Check browser console (F12) to see:
 ## Summary
 
 ✅ **Completed:**
+
 - Real-time seller data loading from Supabase
 - Admin authentication with Supabase Auth
 - Approve/Reject/Suspend functionality
@@ -408,6 +448,7 @@ Check browser console (F12) to see:
 - Updated admin credentials
 
 🎯 **Impact:**
+
 - Admins can now manage real seller applications
 - All 7 pending sellers visible in admin panel
 - Secure authentication and authorization
@@ -415,6 +456,7 @@ Check browser console (F12) to see:
 - Complete audit trail with timestamps
 
 🚀 **Next Steps:**
+
 1. Create admin user in Supabase Dashboard
 2. Add admin profile with `user_type = 'admin'`
 3. Create RLS policies for admin access
