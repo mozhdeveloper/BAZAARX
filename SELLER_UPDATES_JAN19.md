@@ -1,6 +1,7 @@
 # Seller Updates - January 19, 2026
 
 ## Summary
+
 Updated seller dashboard to remove mock data, improved email handling from database, and added seller requirement validation in admin panel.
 
 ---
@@ -8,10 +9,12 @@ Updated seller dashboard to remove mock data, improved email handling from datab
 ## 1. Removed Mock Data from Seller Dashboard
 
 **Files Modified:**
+
 - `web/src/stores/sellerStore.ts`
 - `web/src/pages/SellerDashboard.tsx`
 
 **Changes:**
+
 - Replaced hardcoded mock stats with dynamic calculations from real data
 - Implemented `refreshStats()` to calculate:
   - Total revenue from delivered orders
@@ -28,10 +31,12 @@ Updated seller dashboard to remove mock data, improved email handling from datab
 ## 2. Email Fetching from Profiles Table
 
 **Files Modified:**
+
 - `web/src/services/authService.ts`
 - `web/src/stores/sellerStore.ts`
 
 **Changes:**
+
 - Added `getEmailFromProfile(userId: string)` function in authService
   - Executes: `SELECT email FROM profiles WHERE id = $1`
   - Returns email or null
@@ -39,6 +44,7 @@ Updated seller dashboard to remove mock data, improved email handling from datab
 - Email is now properly merged into seller object during authentication
 
 **Database Schema:**
+
 ```
 auth.users → profiles (email) → sellers (business data)
 ```
@@ -48,9 +54,11 @@ auth.users → profiles (email) → sellers (business data)
 ## 3. Email Display in Seller Profile
 
 **Files Modified:**
+
 - `web/src/pages/SellerStoreProfile.tsx`
 
 **Changes:**
+
 - Email already displayed in "Owner & Contact Information" section
 - Added fallback text "Not provided" for consistency
 - Email shows in both view and edit modes
@@ -60,10 +68,12 @@ auth.users → profiles (email) → sellers (business data)
 ## 4. Seller Requirements Validation in Admin Panel
 
 **Files Modified:**
+
 - `web/src/stores/adminStore.ts`
 - `web/src/pages/AdminSellers.tsx`
 
 **Changes:**
+
 - Added `hasCompleteRequirements(seller: Seller)` method to adminStore
 - Validates seller has:
   - ✅ business_address (NOT NULL)
@@ -81,6 +91,7 @@ auth.users → profiles (email) → sellers (business data)
 ## Technical Details
 
 ### New Functions:
+
 ```typescript
 // authService.ts
 export const getEmailFromProfile(userId: string): Promise<string | null>
@@ -90,6 +101,7 @@ hasCompleteRequirements(seller: Seller): boolean
 ```
 
 ### Helper Functions (sellerStore.ts):
+
 ```typescript
 calculateMonthlyRevenue(orders: SellerOrder[])
 calculateTopProducts(products: SellerProduct[], orders: SellerOrder[])
