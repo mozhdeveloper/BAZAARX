@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { useProductQAStore } from './productQAStore';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import { signIn, signUp, getSellerProfile } from '@/services/authService';
+import { signIn, signUp, getSellerProfile, getEmailFromProfile } from '@/services/authService';
 import {
   addStock as addStockDb,
   createProduct as createProductDb,
@@ -530,7 +530,16 @@ export const useAuthStore = create<AuthStore>()(
             return false;
           }
 
-          set({ seller: mapDbSellerToSeller(sellerProfile), isAuthenticated: true });
+          // Fetch email from profiles table and merge with seller profile
+          const userEmail = await getEmailFromProfile(user.id);
+          const mappedSeller = mapDbSellerToSeller(sellerProfile);
+          
+          // Ensure email is set from profiles table
+          if (userEmail) {
+            mappedSeller.email = userEmail;
+          }
+
+          set({ seller: mappedSeller, isAuthenticated: true });
           return true;
         } catch (err) {
           console.error('Login error:', err);
@@ -1564,54 +1573,173 @@ export const useOrderStore = create<OrderStore>()(
 );
 
 // Stats Store
-export const useStatsStore = create<StatsStore>()(() => ({
+export const useStatsStore = create<StatsStore>()((set, get) => ({
   stats: {
-    totalRevenue: 1580000,
-    totalOrders: 256,
-    totalProducts: 45,
-    avgRating: 4.8,
-    monthlyRevenue: [
-      { month: 'Jan', revenue: 120000 },
-      { month: 'Feb', revenue: 150000 },
-      { month: 'Mar', revenue: 180000 },
-      { month: 'Apr', revenue: 200000 },
-      { month: 'May', revenue: 160000 },
-      { month: 'Jun', revenue: 220000 },
-      { month: 'Jul', revenue: 250000 },
-      { month: 'Aug', revenue: 180000 },
-      { month: 'Sep', revenue: 190000 },
-      { month: 'Oct', revenue: 210000 },
-      { month: 'Nov', revenue: 240000 },
-      { month: 'Dec', revenue: 170000 }
-    ],
-    topProducts: [
-      { name: 'iPhone 15 Pro Max', sales: 45, revenue: 4049550 },
-      { name: 'Samsung Galaxy S24 Ultra', sales: 32, revenue: 2559680 },
-      { name: 'MacBook Pro M3', sales: 18, revenue: 2339820 }
-    ],
-    recentActivity: [
-      {
-        id: '1',
-        type: 'order',
-        message: 'New order from Maria Santos',
-        time: '2 hours ago'
-      },
-      {
-        id: '2',
-        type: 'product',
-        message: 'iPhone 15 Pro Max stock is running low',
-        time: '4 hours ago'
-      },
-      {
-        id: '3',
-        type: 'review',
-        message: 'New 5-star review for MacBook Pro M3',
-        time: '1 day ago'
-      }
-    ]
+    totalRevenue: 0,
+    totalOrders: 0,
+    totalProducts: 0,
+    avgRating: 0,
+    monthlyRevenue: [],
+    topProducts: [],
+    recentActivity: []
   },
   refreshStats: () => {
-    // In a real app, this would fetch from API
-    console.log('Refreshing stats...');
+    const orderStore = useOrderStore.getState();
+    const productStore = useProductStore.getState();
+    const authStore = useAuthStore.getState();
+    
+    const orders = orderStore.orders;
+    const products = productStore.products;
+    const seller = authStore.seller;
+    
+    // Calculate total revenue from delivered orders
+    const totalRevenue = orders
+      .filter(order => order.status === 'delivered')
+      .reduce((sum, order) => sum + order.total, 0);
+    
+    // Total orders count
+    const totalOrders = orders.length;
+    
+    // Total products count
+    const totalProducts = products.length;
+    
+    // Calculate average rating from orders with ratings
+    const ordersWithRatings = orders.filter(order => order.rating);
+    const avgRating = ordersWithRatings.length > 0
+      ? ordersWithRatings.reduce((sum, order) => sum + (order.rating || 0), 0) / ordersWithRatings.length
+      : 0;
+    
+    // Calculate monthly revenue (last 12 months)
+    const monthlyRevenue = calculateMonthlyRevenue(orders);
+    
+    // Calculate top products by sales
+    const topProducts = calculateTopProducts(products, orders);
+    
+    // Generate recent activity from orders and products
+    const recentActivity = generateRecentActivity(orders, products);
+    
+    set({
+      stats: {
+        totalRevenue,
+        totalOrders,
+        totalProducts,
+        avgRating: Math.round(avgRating * 10) / 10,
+        monthlyRevenue,
+        topProducts,
+        recentActivity
+      }
+    });
   }
 }));
+
+// Helper function to calculate monthly revenue
+function calculateMonthlyRevenue(orders: SellerOrder[]): { month: string; revenue: number }[] {
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const currentDate = new Date();
+  const monthlyData: { month: string; revenue: number }[] = [];
+  
+  for (let i = 11; i >= 0; i--) {
+    const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
+    const monthName = months[date.getMonth()];
+    const year = date.getFullYear();
+    
+    const revenue = orders
+      .filter(order => {
+        const orderDate = new Date(order.orderDate);
+        return orderDate.getMonth() === date.getMonth() && 
+               orderDate.getFullYear() === year &&
+               order.status === 'delivered';
+      })
+      .reduce((sum, order) => sum + order.total, 0);
+    
+    monthlyData.push({ month: monthName, revenue });
+  }
+  
+  return monthlyData;
+}
+
+// Helper function to calculate top products
+function calculateTopProducts(products: SellerProduct[], orders: SellerOrder[]): { name: string; sales: number; revenue: number }[] {
+  const productStats = new Map<string, { name: string; sales: number; revenue: number }>();
+  
+  orders.forEach(order => {
+    order.items.forEach(item => {
+      const existing = productStats.get(item.productId) || { name: item.productName, sales: 0, revenue: 0 };
+      existing.sales += item.quantity;
+      existing.revenue += item.price * item.quantity;
+      productStats.set(item.productId, existing);
+    });
+  });
+  
+  return Array.from(productStats.values())
+    .sort((a, b) => b.revenue - a.revenue)
+    .slice(0, 3);
+}
+
+// Helper function to generate recent activity
+function generateRecentActivity(orders: SellerOrder[], products: SellerProduct[]): { id: string; type: 'order' | 'product' | 'review'; message: string; time: string }[] {
+  const activities: { id: string; type: 'order' | 'product' | 'review'; message: string; time: string; timestamp: Date }[] = [];
+  
+  // Add recent orders
+  orders
+    .slice(-5)
+    .forEach(order => {
+      activities.push({
+        id: order.id,
+        type: 'order',
+        message: `New order from ${order.buyerName}`,
+        time: getRelativeTime(order.orderDate),
+        timestamp: new Date(order.orderDate)
+      });
+    });
+  
+  // Add low stock alerts
+  products
+    .filter(p => p.stock < 10 && p.stock > 0)
+    .slice(0, 3)
+    .forEach(product => {
+      activities.push({
+        id: product.id,
+        type: 'product',
+        message: `${product.name} stock is running low (${product.stock} left)`,
+        time: getRelativeTime(product.updatedAt),
+        timestamp: new Date(product.updatedAt)
+      });
+    });
+  
+  // Add recent reviews
+  orders
+    .filter(order => order.rating && order.reviewDate)
+    .slice(-3)
+    .forEach(order => {
+      activities.push({
+        id: order.id,
+        type: 'review',
+        message: `New ${order.rating}-star review for ${order.items[0]?.productName}`,
+        time: getRelativeTime(order.reviewDate!),
+        timestamp: new Date(order.reviewDate!)
+      });
+    });
+  
+  // Sort by timestamp and return top 5
+  return activities
+    .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+    .slice(0, 5)
+    .map(({ timestamp, ...rest }) => rest);
+}
+
+// Helper function to get relative time
+function getRelativeTime(dateString: string): string {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+  
+  if (diffMins < 1) return 'Just now';
+  if (diffMins < 60) return `${diffMins} minute${diffMins > 1 ? 's' : ''} ago`;
+  if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+  if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+  return date.toLocaleDateString();
+}

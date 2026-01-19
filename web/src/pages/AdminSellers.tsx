@@ -64,6 +64,7 @@ const AdminSellers: React.FC = () => {
     rejectSeller,
     suspendSeller,
     selectSeller,
+    hasCompleteRequirements,
   } = useAdminSellers();
 
   const [open, setOpen] = useState(false);
@@ -288,17 +289,29 @@ const AdminSellers: React.FC = () => {
 
             {showActions && seller.status === "pending" && (
               <>
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    selectSeller(seller);
-                    setShowApproveDialog(true);
-                  }}
-                  className="bg-green-600 hover:bg-green-700 text-white"
-                >
-                  <CheckCircle className="w-4 h-4 mr-1" />
-                  Approve
-                </Button>
+                {hasCompleteRequirements(seller) ? (
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      selectSeller(seller);
+                      setShowApproveDialog(true);
+                    }}
+                    className="bg-green-600 hover:bg-green-700 text-white"
+                  >
+                    <CheckCircle className="w-4 h-4 mr-1" />
+                    Approve
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    disabled
+                    className="bg-gray-300 cursor-not-allowed"
+                    title="Seller has incomplete requirements"
+                  >
+                    <AlertTriangle className="w-4 h-4 mr-1" />
+                    Incomplete
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   size="sm"

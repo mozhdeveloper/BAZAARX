@@ -209,6 +209,30 @@ export const getSellerProfile = async (userId: string): Promise<Seller | null> =
 };
 
 /**
+ * Get email from profiles table by user ID
+ * Query: select email from profiles where id = $1
+ */
+export const getEmailFromProfile = async (userId: string): Promise<string | null> => {
+  if (!isSupabaseConfigured()) {
+    return null;
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('email')
+      .eq('id', userId)
+      .single();
+
+    if (error) throw error;
+    return data?.email || null;
+  } catch (error) {
+    console.error('Error fetching email from profile:', error);
+    return null;
+  }
+};
+
+/**
  * Update user profile
  */
 export const updateProfile = async (

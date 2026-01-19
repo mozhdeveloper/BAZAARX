@@ -298,7 +298,7 @@ export function SellerStoreProfile() {
                 </div>
                 <div>
                   <p className="text-sm text-gray-600 mb-1">Email Address</p>
-                  <p className="text-gray-900 font-medium">{seller?.email}</p>
+                  <p className="text-gray-900 font-medium">{seller?.email || 'Not provided'}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-600 mb-1">Phone Number</p>

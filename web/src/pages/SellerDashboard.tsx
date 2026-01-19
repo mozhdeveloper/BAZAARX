@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   LogOut,
   TrendingUp,
@@ -117,45 +117,50 @@ const LogoIcon = () => {
 };
 
 const Dashboard = () => {
-  const { stats } = useStatsStore();
+  const { stats, refreshStats } = useStatsStore();
   const { seller } = useAuthStore();
   const { orders } = useOrderStore();
   const { products } = useProductStore();
 
+  // Refresh stats when component mounts or when orders/products change
+  // useEffect(() => {
+  //   refreshStats();
+  // }, [orders, products, refreshStats]);
+
   const recentOrders = orders.slice(0, 4);
   const topProducts = products.slice(0, 4);
 
-  // Stats cards data
-  const statsCards = [
-    {
-      title: "Total Revenue",
-      value: `₱${(stats.totalRevenue / 1000).toFixed(0)}k`,
-      change: "+15.3%",
-      isPositive: true,
-      icon: <TrendingUp className="h-6 w-6 text-green-600" />
-    },
-    {
-      title: "Total Orders", 
-      value: stats.totalOrders.toLocaleString(),
-      change: "+10.8%",
-      isPositive: true,
-      icon: <ShoppingCart className="h-6 w-6 text-blue-600" />
-    },
-    {
-      title: "Total Products",
-      value: products.length.toString(),
-      change: "-3.2%",
-      isPositive: false,
-      icon: <Package className="h-6 w-6 text-orange-600" />
-    },
-    {
-      title: "Avg Rating",
-      value: stats.avgRating.toString(),
-      change: "+5.9%", 
-      isPositive: true,
-      icon: <Star className="h-6 w-6 text-yellow-600" />
-    }
-  ];
+  // Stats cards data - COMMENTED OUT TO REMOVE MOCK DATA
+  // const statsCards = [
+  //   {
+  //     title: "Total Revenue",
+  //     value: `₱${(stats.totalRevenue / 1000).toFixed(0)}k`,
+  //     change: "+15.3%",
+  //     isPositive: true,
+  //     icon: <TrendingUp className="h-6 w-6 text-green-600" />
+  //   },
+  //   {
+  //     title: "Total Orders", 
+  //     value: stats.totalOrders.toLocaleString(),
+  //     change: "+10.8%",
+  //     isPositive: true,
+  //     icon: <ShoppingCart className="h-6 w-6 text-blue-600" />
+  //   },
+  //   {
+  //     title: "Total Products",
+  //     value: products.length.toString(),
+  //     change: "-3.2%",
+  //     isPositive: false,
+  //     icon: <Package className="h-6 w-6 text-orange-600" />
+  //   },
+  //   {
+  //     title: "Avg Rating",
+  //     value: stats.avgRating.toString(),
+  //     change: "+5.9%", 
+  //     isPositive: true,
+  //     icon: <Star className="h-6 w-6 text-yellow-600" />
+  //   }
+  // ];
 
   return (
     <div className="flex flex-1 w-full">
@@ -185,8 +190,8 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* Stats Cards - COMMENTED OUT TO REMOVE MOCK DATA */}
+        {/* <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {statsCards.map((stat, index) => (
             <motion.div
               key={index}
@@ -217,12 +222,12 @@ const Dashboard = () => {
               </div>
             </motion.div>
           ))}
-        </div>
+        </div> */}
 
-        {/* Charts Row */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Charts Row - COMMENTED OUT TO REMOVE MOCK DATA */}
+        {/* <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Revenue Chart */}
-          <motion.div
+          {/* <motion.div
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             className="bg-white rounded-xl border border-gray-200 p-6"
@@ -263,10 +268,10 @@ const Dashboard = () => {
                 />
               </AreaChart>
             </ResponsiveContainer>
-          </motion.div>
+          </motion.div> */}
 
           {/* Recent Activity */}
-          <motion.div
+          {/* <motion.div
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             className="bg-white rounded-xl border border-gray-200 p-6"
@@ -289,7 +294,7 @@ const Dashboard = () => {
               ))}
             </div>
           </motion.div>
-        </div>
+        </div> */}
 
         {/* Bottom Section */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

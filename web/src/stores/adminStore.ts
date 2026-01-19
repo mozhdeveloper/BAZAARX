@@ -465,6 +465,7 @@ interface SellersState {
   selectSeller: (seller: Seller | null) => void;
   addSeller: (seller: Seller) => void;
   clearError: () => void;
+  hasCompleteRequirements: (seller: Seller) => boolean;
 }
 
 export const useAdminSellers = create<SellersState>()(
@@ -1014,7 +1015,21 @@ export const useAdminSellers = create<SellersState>()(
     }));
   },
   
-  clearError: () => set({ error: null })
+  clearError: () => set({ error: null }),
+
+  hasCompleteRequirements: (seller: Seller) => {
+    // Check if seller has all required documents
+    const requiredDocTypes = ['valid_id', 'proof_of_address', 'dti_registration', 'tax_id'];
+    const sellerDocTypes = seller.documents.map(doc => doc.type);
+    
+    // Check if all required documents exist
+    const hasAllDocs = requiredDocTypes.every(type => sellerDocTypes.includes(type as any));
+    
+    // Also check if business address exists
+    const hasBusinessAddress = seller.businessAddress && seller.businessAddress !== 'Not provided';
+    
+    return hasAllDocs && hasBusinessAddress;
+  }
     }),
     {
       name: 'admin-sellers-storage',
