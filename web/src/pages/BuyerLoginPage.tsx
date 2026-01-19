@@ -133,7 +133,7 @@ export default function BuyerLoginPage() {
 
   const handleDemoLogin = () => {
     setEmail("buyer@bazaarx.ph");
-    setPassword("buyer123");
+    setPassword("password");
     setError("");
   };
 
@@ -210,7 +210,7 @@ export default function BuyerLoginPage() {
                 </p>
                 <div className="flex flex-col gap-1 text-xs font-mono bg-white/50 p-2 rounded">
                   <span className="text-gray-600">📧 buyer@bazaarx.ph</span>
-                  <span className="text-gray-600">🔒 buyer123</span>
+                  <span className="text-gray-600">🔒 password</span>
                 </div>
               </div>
             </div>
