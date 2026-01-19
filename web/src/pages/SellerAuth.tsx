@@ -32,6 +32,7 @@ export function SellerLogin() {
       }
     } catch (err) {
       setError("Something went wrong. Please try again.");
+      console.log(err);
     } finally {
       setIsLoading(false);
     }
@@ -53,6 +54,7 @@ export function SellerLogin() {
         }
       } catch (err) {
         setError("Demo login failed. Please try again.");
+        console.log(err);
       } finally {
         setIsLoading(false);
       }
@@ -292,6 +294,7 @@ export function SellerRegister() {
       }
     } catch (err) {
       setError("Something went wrong. Please try again.");
+      console.log(err);
       setIsLoading(false);
     }
   };
