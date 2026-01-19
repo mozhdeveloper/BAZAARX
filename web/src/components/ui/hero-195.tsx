@@ -27,7 +27,7 @@ export function Hero195() {
                 Powerful Dashboard Preview
               </div>
 
-              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-[#1a2b3b] leading-[1.1] mb-6">
+              <h1 className="text-2xl lg:text-5xl font-black text-[#1a2b3b] leading-[1.1] mb-6">
                 Your Complete
                 <br />
                 <span className="text-[#FF6A00]">Seller Dashboard</span>

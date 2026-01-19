@@ -10,9 +10,8 @@ export function MobileAppShowcase() {
       <MobileAppScroll
         titleComponent={
           <div className="text-center space-y-6">
-            <h2 className="text-4xl md:text-6xl font-bold text-gray-900 leading-tight">
-              Experience <span className="font-fondamento">Bazaar</span>
-              <span className="block text-[#FF6A00] mt-2">On Your Phone</span>
+            <h2 className="text-4xl md:text-5xl font-bold text-gray-00">
+              <span className="text-[#FF6A00]">Experience <span className="font-fondamento">Bazaar</span></span> On Your Phone
             </h2>
             <p className="text-l md:text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
               Shop anywhere, anytime with our powerful mobile app. Featuring AI-powered search,

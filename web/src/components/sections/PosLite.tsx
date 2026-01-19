@@ -2,12 +2,12 @@ import { motion } from 'framer-motion';
 
 export const POSLiteFeature = () => {
   return (
-    <section className="h-auto w-full flex items-center justify-center bg-[#FFF5F2]-80 px-4 py-12 relative overflow-hidden border-y border-[#FF5722]/10">
+    <section className="h-auto w-full flex items-center justify-center bg-[#FFF5F2]/80 py-24 relative overflow-hidden border-y border-[#FF5722]/10">
 
       <div className="absolute -top-24 -right-24 w-96 h-96 bg-[#FF5722]/10 rounded-full blur-3xl opacity-50" />
       <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-[#FF5722]/10 rounded-full blur-3xl opacity-50" />
 
-      <div className="max-w-7xl mx-auto w-full relative z-10">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full relative z-10">
         <div className="grid lg:grid-cols-2 gap-16 items-center">
 
           {/* LEFT SIDE: Heading and Description */}

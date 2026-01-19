@@ -1,43 +1,58 @@
 'use client';
 
-import { ZoomParallax } from './bazaar-zoom-parallax';
+
 
 const images = [
-  { src: 'https://upload.wikimedia.org/wikipedia/commons/1/1c/Kashan_-_Timche-ye_Amin_od-Dowleh_-_20140512_-_JB.jpg', alt: 'center' },
-  { src: 'https://www.tappersia.com/blog/wp-content/uploads/2022/08/tehran-bazaar.jpg', alt: 'Cityscape' },
-  { src: 'https://surfiran.com/mag/wp-content/uploads/2024/01/Historical-Bazaar-of-Kermanshah-1.jpg', alt: 'Abstract' },
-  { src: 'https://media-cdn.tripadvisor.com/media/photo-s/18/ac/c7/21/isfahan-grand-bazaar.jpg', alt: 'Mountain' },
-  { src: 'https://bakuindex.ir/wp-content/uploads/2021/04/Iranian-bazaar.jpg', alt: 'Minimalist' },
-  { src: 'https://incredibleiran.com/wp-content/uploads/2023/10/Yazd-Bazaar-2.jpg', alt: 'Ocean' },
-  { src: 'https://thumbs.dreamstime.com/b/tehran-iran-october-grand-bazaar-best-place-to-enjoy-atmosphere-eastern-market-taste-local-sweets-nuts-feel-103623209.jpg', alt: 'Forest' },
+  { src: 'https://upload.wikimedia.org/wikipedia/commons/1/1c/Kashan_-_Timche-ye_Amin_od-Dowleh_-_20140512_-_JB.jpg', alt: '1' },
+  { src: 'https://www.rucksackramblings.com/wp-content/uploads/2017/01/The-Bazaars-Of-Iran-21.jpg', alt: '2' },
+  { src: 'https://thumbs.dreamstime.com/b/traditional-iranian-carpets-shop-vakil-bazaar-shiraz-iran-december-most-important-tourist-72782572.jpg', alt: '3' },
+  { src: 'https://springfieldmuseums.org/wp-content/uploads/2019/08/bazaar-iran.jpg', alt: '4' },
+  { src: 'https://media-cdn.tripadvisor.com/media/photo-s/0f/41/ea/ab/le-spezie-del-gran-bazar.jpg', alt: '5' },
+  { src: 'https://thumbs.dreamstime.com/b/bazar-teheran-iran-fruit-basar-fruits-nuits-vegetables-100839629.jpg', alt: '6' },
+  { src: 'https://res.cloudinary.com/ddjuftfy2/image/upload/f_webp,c_fill/multitenacy/wikis/2025-07-14-07-16-55-16874aee722375.jpeg', alt: '7' },
+  { src: 'https://vid.alarabiya.net/images/2018/07/30/446f7b7b-3d7c-4d4d-b239-5605511a9c58/446f7b7b-3d7c-4d4d-b239-5605511a9c58_16x9_1200x676.jpg', alt: '8' },
 ];
 
 export default function BazaarHistoryZoomParallax() {
   return (
-    <section className="bg-white">
-      <div className="container mx-auto px-20 py-12">
-        <div className="max-w-7xl mx-auto text-center mb-8 overflow-visible">
-          <h2
-            className="inline-block text-8xl sm:text-5xl md:text-8xl lg:text-7xl font-extrabold tracking-tight leading-tight py-4 font-fondamento whitespace-nowrap text-orange-500"
-          >
-            Centers of Exchange
-          </h2>
+    <section className="bg-[#D94F00] text-white">
+      <div className="flex flex-col md:flex-row">
+        {/* Left Section: Sticky Text */}
+        <div className="w-full md:w-1/2 md:h-screen sticky top-0 flex flex-col justify-center px-4 sm:px-8 md:px-12 lg:px-20 py-12 md:py-0">
+          <div className="max-w-xl">
+            {/* Decorative vertical divider */}
+            <div className="w-px h-52 bg-gradient-to-b from-transparent via-white/50 to-transparent mb-8"></div>
 
-          {/* Decorative vertical divider */}
-          <div className="flex justify-center my-8">
-            <div className="h-32 w-px bg-gradient-to-b from-transparent via-[var(--brand-primary)] to-transparent"></div>
+            <h2 className="text-5xl sm:text-6xl md:text-7xl font-extrabold tracking-tight leading-tight mb-8 font-fondamento text-white whitespace-nowrap">
+              Centers of Exchange
+            </h2>
+
+            <p className="text-lg sm:text-xl md:text-xl leading-relaxed text-white/90 mb-8">
+              As Persia became a key crossroads of the Silk Road, bazaars evolved
+              into international trade hubs. Goods, ideas, and traditions flowed
+              through their arcades, supported by surrounding mosques,
+              bathhouses, schools, and caravanserais. These spaces shaped not
+              only economic exchange, but also social interaction and political
+              influence.
+            </p>
+
+            {/* Decorative vertical divider */}
+            <div className="w-px h-52 bg-gradient-to-b from-transparent via-white/50 to-transparent"></div>
           </div>
-
-          <p className="mt-2 text-2xl leading-relaxed text-gray-600">
-            As Persia became a key crossroads of the Silk Road, bazaars evolved into international trade hubs. Goods, ideas, and traditions flowed through their arcades, supported by surrounding mosques, bathhouses,
-            schools, and caravanserais. These spaces shaped not only economic exchange, but also social interaction and political influence.
-          </p>
         </div>
-      </div>
 
-      {/* Parallax zoom section */}
-      <div className="w-full">
-        <ZoomParallax images={images} />
+        {/* Right Section: Scrollable Images */}
+        <div className="w-full md:w-1/2 p-4 sm:p-6 md:p-8 lg:p-10 flex flex-col gap-6 md:gap-12 bg-[#D94F00]">
+          {images.map((image, index) => (
+            <div key={index} className="w-full">
+              <img
+                src={image.src}
+                alt={image.alt}
+                className="w-full h-auto object-cover rounded-lg shadow-2xl"
+              />
+            </div>
+          ))}
+        </div>
       </div>
     </section>
   );

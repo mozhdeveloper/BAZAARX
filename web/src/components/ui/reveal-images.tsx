@@ -1,18 +1,21 @@
 // web/src/components/ui/reveal-images.tsx
 import { cn } from "@/lib/utils";
+import { motion, type MotionStyle } from "framer-motion";
 
 export interface ImageSource { src: string; alt?: string; }
 interface ShowImageListItemProps {
   text: string;
   images: [ImageSource, ImageSource];
   isActive?: boolean;
+  className?: string;
+  style?: MotionStyle;
 }
 
-export function RevealImageListItem({ text, images, isActive = false }: ShowImageListItemProps) {
+export function RevealImageListItem({ text, images, isActive = false, className, style }: ShowImageListItemProps) {
   if (!images || images.length < 2) {
     return (
       <div className="group relative h-fit w-fit overflow-visible py-6">
-        <h1 className="text-6xl sm:text-7xl font-black text-foreground">{text}</h1>
+        <motion.h1 className="text-6xl sm:text-7xl font-black text-foreground">{text}</motion.h1>
       </div>
     );
   }
@@ -26,12 +29,15 @@ export function RevealImageListItem({ text, images, isActive = false }: ShowImag
 
   return (
     <div className="group relative h-fit w-fit overflow-visible py-6">
-      <h1 className={cn(
-        "text-7xl sm:text-8xl md:text-9xl font-bold text-accent transition-all duration-500 leading-tight font-fondamento",
-        isActive ? "opacity-40" : "group-hover:opacity-40"
-      )}>
+      <motion.h1
+        style={style}
+        className={cn(
+          "text-7xl sm:text-8xl md:text-9xl font-bold text-accent transition-all duration-500 leading-tight font-fondamento",
+          isActive ? "opacity-40" : "group-hover:opacity-40",
+          className
+        )}>
         {text}
-      </h1>
+      </motion.h1>
 
       {/* Back preview — sits slightly above/behind */}
       <div className={containerBack}>

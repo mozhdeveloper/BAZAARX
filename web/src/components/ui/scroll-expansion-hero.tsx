@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, ReactNode } from 'react';
+import { useRef } from 'react';
 import { motion, useScroll, useTransform } from 'framer-motion';
 
 interface ScrollExpansionHeroProps {
@@ -9,8 +9,6 @@ interface ScrollExpansionHeroProps {
   bgImageSrc: string;
   title: string;
   date?: string;
-  children?: ReactNode;
-  textBlend?: boolean;
 }
 
 const ScrollExpansionHero = ({
@@ -19,8 +17,6 @@ const ScrollExpansionHero = ({
   bgImageSrc,
   title,
   date,
-  children,
-  textBlend = false,
 }: ScrollExpansionHeroProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll({
@@ -90,8 +86,7 @@ const ScrollExpansionHero = ({
 
         {/* Text */}
         <motion.div
-          className={`absolute inset-0 flex flex-col items-center justify-center text-center z-20 pointer-events-none ${textBlend ? 'mix-blend-difference' : ''
-            }`}
+          className="absolute inset-0 flex flex-col items-center justify-center text-center z-20 pointer-events-none"
           style={{ y: textY, opacity: textOpacity }}
         >
           <motion.h1
@@ -117,7 +112,36 @@ const ScrollExpansionHero = ({
           className="absolute bottom-0 left-0 right-0 z-30 bg-white px-8 py-16"
           style={{ opacity: contentOpacity }}
         >
-          {children}
+          <div className="max-w-4xl mx-auto space-y-4">
+            {/* Body copy */}
+            <p className="text-lg md:text-xl leading-relaxed text-gray-700">
+              Today, the spirit of the bazaar lives on—reimagined for a connected
+              world. BazaarX is where makers, manufacturers, and buyers meet
+              without unnecessary middlemen.
+            </p>
+
+            <p className="text-lg md:text-xl leading-relaxed text-gray-700">
+              By bringing products straight from the source to your home,
+              BazaarX turns centuries of open exchange into a seamless digital
+              marketplace.
+            </p>
+
+            {/* Subheadline with line */}
+            <div className="space-y-10 pt-4">
+              <div className="flex items-center gap-4">
+                <div className="h-0.5 bg-orange-500 w-32"></div>
+                <p className="text-lg md:text-2xl text-orange-500 italic whitespace-nowrap font-fondamento">
+                  Discover more. Pay less.
+                </p>
+              </div>
+              <div className="flex items-center gap-6 justify-center">
+                <p className="text-4xl md:text-6xl font-bold whitespace-nowrap font-fondamento">
+                  <span className="text-orange-500">From global factories </span>
+                  <span className="text-gray-900">directly to your doorstep</span>
+                </p>
+              </div>
+            </div>
+          </div>
         </motion.div>
       </div>
     </motion.section>
