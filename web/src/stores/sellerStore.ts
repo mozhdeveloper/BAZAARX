@@ -16,13 +16,13 @@ import type { Product as DBProduct, Seller as DBSeller, Database } from '@/types
 // Types
 interface Seller {
   id: string;
-  
+
   // Personal Info
   name: string;
   ownerName: string;
   email: string;
   phone: string;
-  
+
   // Business Info
   businessName: string;
   storeName: string;
@@ -31,26 +31,26 @@ interface Seller {
   businessType: string;
   businessRegistrationNumber: string;
   taxIdNumber: string;
-  
+
   // Address
   businessAddress: string;
   city: string;
   province: string;
   postalCode: string;
   storeAddress: string; // Combined address
-  
+
   // Banking
   bankName: string;
   accountName: string;
   accountNumber: string;
-  
+
   // Document URLs
   businessPermitUrl?: string;
   validIdUrl?: string;
   proofOfAddressUrl?: string;
   dtiRegistrationUrl?: string;
   taxIdUrl?: string;
-  
+
   // Status
   isVerified: boolean;
   approvalStatus: 'pending' | 'approved' | 'rejected';
@@ -82,6 +82,8 @@ export interface SellerProduct {
   rejectionReason?: string;
   vendorSubmittedCategory?: string;
   adminReclassifiedCategory?: string;
+  sellerName?: string;
+  sellerRating?: number;
 }
 
 interface SellerOrder {
@@ -150,11 +152,11 @@ interface SellerStats {
   avgRating: number;
   monthlyRevenue: { month: string; revenue: number }[];
   topProducts: { name: string; sales: number; revenue: number }[];
-  recentActivity: { 
-    id: string; 
-    type: 'order' | 'product' | 'review'; 
-    message: string; 
-    time: string; 
+  recentActivity: {
+    id: string;
+    type: 'order' | 'product' | 'review';
+    message: string;
+    time: string;
   }[];
 }
 
@@ -283,7 +285,7 @@ const mapDbSellerToSeller = (s: DBSeller): Seller => ({
   avatar: undefined,
 });
 
-const mapDbProductToSellerProduct = (p: DBProduct): SellerProduct => ({
+const mapDbProductToSellerProduct = (p: any): SellerProduct => ({
   id: p.id,
   name: p.name || '',
   description: p.description || '',
@@ -305,6 +307,8 @@ const mapDbProductToSellerProduct = (p: DBProduct): SellerProduct => ({
   rejectionReason: p.rejection_reason || undefined,
   vendorSubmittedCategory: p.vendor_submitted_category || undefined,
   adminReclassifiedCategory: p.admin_reclassified_category || undefined,
+  sellerName: p.seller?.store_name || p.seller?.business_name || 'Verified Seller',
+  sellerRating: p.seller?.rating || 0
 });
 
 const buildProductInsert = (product: Omit<SellerProduct, 'id' | 'createdAt' | 'updatedAt' | 'sales' | 'rating' | 'reviews'>, sellerId: string): ProductInsert => ({
@@ -626,7 +630,7 @@ export const useAuthStore = create<AuthStore>()(
             onConflict: 'id',
             ignoreDuplicates: false
           });
-          
+
           if (sellerError) {
             console.error('Seller insert failed:', sellerError);
             return false;
@@ -755,7 +759,7 @@ export const useProductStore = create<ProductStore>()(
               sellerId: resolvedSellerId,
             };
           }
-          
+
           set((state) => ({ products: [...state.products, newProduct] }));
 
           // Create ledger entry for initial stock
@@ -780,7 +784,7 @@ export const useProductStore = create<ProductStore>()(
 
           // Check for low stock on new product
           get().checkLowStock();
-          
+
           // Also add to QA flow store
           try {
             const qaStore = useProductQAStore.getState();
@@ -1325,7 +1329,7 @@ export const useOrderStore = create<OrderStore>()(
   persist(
     (set, get) => ({
       orders: dummyOrders,
-      
+
       addOrder: (orderData) => {
         try {
           // Validate order data
@@ -1360,7 +1364,7 @@ export const useOrderStore = create<OrderStore>()(
           throw error;
         }
       },
-      
+
       updateOrderStatus: (id, status) => {
         try {
           const order = get().orders.find(o => o.id === id);
@@ -1392,7 +1396,7 @@ export const useOrderStore = create<OrderStore>()(
           throw error;
         }
       },
-      
+
       updatePaymentStatus: (id, status) => {
         try {
           const order = get().orders.find(o => o.id === id);
@@ -1410,15 +1414,15 @@ export const useOrderStore = create<OrderStore>()(
           throw error;
         }
       },
-      
+
       getOrdersByStatus: (status) => {
         return get().orders.filter(order => order.status === status);
       },
-      
+
       getOrderById: (id) => {
         return get().orders.find(order => order.id === id);
       },
-      
+
       addTrackingNumber: (id, trackingNumber) => {
         try {
           const order = get().orders.find(o => o.id === id);
@@ -1440,7 +1444,7 @@ export const useOrderStore = create<OrderStore>()(
           throw error;
         }
       },
-      
+
       deleteOrder: (id) => {
         try {
           const order = get().orders.find(o => o.id === id);
@@ -1456,7 +1460,7 @@ export const useOrderStore = create<OrderStore>()(
           throw error;
         }
       },
-      
+
       addOrderRating: (id, rating, comment, images) => {
         try {
           const order = get().orders.find(o => o.id === id);
@@ -1470,16 +1474,16 @@ export const useOrderStore = create<OrderStore>()(
 
           set((state) => ({
             orders: state.orders.map(order =>
-              order.id === id 
-                ? { 
-                    ...order, 
-                    rating, 
-                    reviewComment: comment,
-                    reviewImages: images,
-                    reviewDate: new Date().toISOString(),
-                    status: 'delivered', // Ensure delivered when rated
-                    paymentStatus: 'paid' // Mark as paid after successful delivery
-                  } 
+              order.id === id
+                ? {
+                  ...order,
+                  rating,
+                  reviewComment: comment,
+                  reviewImages: images,
+                  reviewDate: new Date().toISOString(),
+                  status: 'delivered', // Ensure delivered when rated
+                  paymentStatus: 'paid' // Mark as paid after successful delivery
+                }
                 : order
             )
           }));
@@ -1549,10 +1553,10 @@ export const useOrderStore = create<OrderStore>()(
           // Deduct stock for each item with full audit trail
           for (const item of cartItems) {
             productStore.deductStock(
-              item.productId, 
-              item.quantity, 
-              'OFFLINE_SALE', 
-              orderId, 
+              item.productId,
+              item.quantity,
+              'OFFLINE_SALE',
+              orderId,
               `POS sale: ${item.productName} x${item.quantity}`
             );
           }

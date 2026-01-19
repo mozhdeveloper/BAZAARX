@@ -100,15 +100,24 @@ export function SellerProducts() {
     navigate("/seller/auth");
   };
 
+  // Find this block in your SellerProducts component
   const filteredProducts = products.filter((product) => {
+    // 1. Check if the product belongs to the currently logged-in seller
+    const matchesSeller = product.sellerId === seller?.id;
+
+    // 2. Existing search logic
     const matchesSearch = product.name
       .toLowerCase()
       .includes(searchQuery.toLowerCase());
+
+    // 3. Existing status filter logic
     const matchesFilter =
       filterStatus === "all" ||
       (filterStatus === "active" && product.isActive) ||
       (filterStatus === "inactive" && !product.isActive);
-    return matchesSearch && matchesFilter;
+
+    // Only return true if it belongs to the seller AND matches search/filters
+    return matchesSeller && matchesSearch && matchesFilter;
   });
 
   const handleToggleStatus = (id: string, currentStatus: boolean) => {
@@ -131,19 +140,30 @@ export function SellerProducts() {
     setIsEditDialogOpen(true);
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (editingProduct) {
-      updateProduct(editingProduct.id, {
-        name: editFormData.name,
-        price: editFormData.price,
-        stock: editFormData.stock,
-      });
-      toast({
-        title: "Product Updated",
-        description: `${editFormData.name} has been successfully updated.`,
-      });
-      setIsEditDialogOpen(false);
-      setEditingProduct(null);
+      try {
+        // Call the store function which now updates Supabase
+        await updateProduct(editingProduct.id, {
+          name: editFormData.name,
+          price: editFormData.price,
+          stock: editFormData.stock,
+        });
+
+        toast({
+          title: "Product Updated",
+          description: `${editFormData.name} has been successfully updated in the database.`,
+        });
+
+        setIsEditDialogOpen(false);
+        setEditingProduct(null);
+      } catch (error) {
+        toast({
+          title: "Update Failed",
+          description: "There was an error updating the product. Please try again.",
+          variant: "destructive",
+        });
+      }
     }
   };
 
