@@ -12,7 +12,7 @@ export type UserType = 'buyer' | 'seller' | 'admin';
 export type AdminRole = 'admin' | 'super_admin' | 'moderator';
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'reclassified';
 export type OrderType = 'ONLINE' | 'OFFLINE';
-export type OrderStatus = 
+export type OrderStatus =
   | 'pending_payment'
   | 'payment_failed'
   | 'paid'
@@ -27,6 +27,14 @@ export type OrderStatus =
   | 'disputed'
   | 'returned'
   | 'completed';
+
+export type ProductWithSeller = Product & {
+  seller?: {
+    business_name: string;
+    store_name: string;
+    rating: number;
+  }
+};
 
 export type PaymentStatus = 'pending' | 'paid' | 'failed' | 'refunded' | 'partially_refunded';
 export type ReturnStatus = 'requested' | 'approved' | 'denied' | 'completed';
@@ -43,7 +51,7 @@ export type ProductQAStatus =
 
 export type RejectionStage = 'digital' | 'physical';
 
-export type InventoryChangeType = 
+export type InventoryChangeType =
   | 'DEDUCTION'
   | 'ADDITION'
   | 'ADJUSTMENT'

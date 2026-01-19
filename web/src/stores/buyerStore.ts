@@ -284,7 +284,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
     })),
 
     updateAddress: (id, updates) => set((state) => ({
-      addresses: state.addresses.map(addr => 
+      addresses: state.addresses.map(addr =>
         addr.id === id ? { ...addr, ...updates } : addr
       )
     })),
@@ -340,8 +340,8 @@ export const useBuyerStore = create<BuyerStore>()(persist(
 
     addToCart: (product, quantity = 1, variant) => {
       set((state) => {
-        const existingItem = state.cartItems.find(item => 
-          item.id === product.id && 
+        const existingItem = state.cartItems.find(item =>
+          item.id === product.id &&
           item.selectedVariant?.id === variant?.id
         );
 
@@ -398,24 +398,24 @@ export const useBuyerStore = create<BuyerStore>()(persist(
     getCartTotal: () => {
       const { groupedCart, appliedVouchers, platformVoucher } = get();
       let total = 0;
-      
+
       Object.entries(groupedCart).forEach(([sellerId, group]) => {
         let groupTotal = group.subtotal + group.shippingFee;
-        
+
         // Apply seller voucher
         const sellerVoucher = appliedVouchers[sellerId];
         if (sellerVoucher) {
           groupTotal -= get().calculateDiscount(group.subtotal, sellerVoucher);
         }
-        
+
         total += groupTotal;
       });
-      
+
       // Apply platform voucher
       if (platformVoucher) {
         total -= get().calculateDiscount(total, platformVoucher);
       }
-      
+
       return Math.max(0, total);
     },
 
@@ -430,7 +430,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
     groupCartBySeller: () => {
       const { cartItems } = get();
       const grouped: GroupedCart = {};
-      
+
       cartItems.forEach(item => {
         const sellerId = item.sellerId;
         if (!grouped[sellerId]) {
@@ -442,16 +442,16 @@ export const useBuyerStore = create<BuyerStore>()(persist(
             freeShippingEligible: false
           };
         }
-        
+
         grouped[sellerId].items.push(item);
         grouped[sellerId].subtotal += (item.selectedVariant?.price || item.price) * item.quantity;
       });
-      
+
       // Calculate shipping fees and free shipping eligibility
       Object.entries(grouped).forEach(([, group]) => {
         const hasFreeShipping = group.items.some(item => item.isFreeShipping);
         const subtotalThreshold = 1000; // ₱1000 for free shipping
-        
+
         if (hasFreeShipping || group.subtotal >= subtotalThreshold) {
           group.shippingFee = 0;
           group.freeShippingEligible = true;
@@ -460,7 +460,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
           group.freeShippingEligible = false;
         }
       });
-      
+
       set({ groupedCart: grouped });
     },
 
@@ -502,24 +502,24 @@ export const useBuyerStore = create<BuyerStore>()(persist(
 
     validateVoucher: async (code, sellerId) => {
       const { availableVouchers, cartItems, groupedCart } = get();
-      const voucher = availableVouchers.find(v => 
-        v.code.toLowerCase() === code.toLowerCase() && 
+      const voucher = availableVouchers.find(v =>
+        v.code.toLowerCase() === code.toLowerCase() &&
         v.isActive &&
         new Date() >= v.validFrom &&
         new Date() <= v.validTo &&
         v.used < v.usageLimit &&
         (!v.sellerId || v.sellerId === sellerId)
       );
-      
+
       if (!voucher) return null;
-      
+
       // Check minimum order value
-      const relevantTotal = sellerId 
+      const relevantTotal = sellerId
         ? groupedCart[sellerId]?.subtotal || 0
         : cartItems.reduce((total, item) => total + (item.selectedVariant?.price || item.price) * item.quantity, 0);
-        
+
       if (relevantTotal < voucher.minOrderValue) return null;
-      
+
       return voucher;
     },
 
@@ -574,7 +574,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
         date: new Date(),
         helpful: 0
       };
-      
+
       set((state) => ({
         reviews: [...state.reviews, newReview],
         myReviews: [...state.myReviews, newReview],
@@ -589,7 +589,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
         date: new Date(),
         helpful: 0
       };
-      
+
       set((state) => ({
         reviews: [...state.reviews, newReview],
         myReviews: [...state.myReviews, newReview],
@@ -634,8 +634,8 @@ export const useBuyerStore = create<BuyerStore>()(persist(
     getSellerProducts: (sellerId, category) => {
       const seller = get().getSellerDetails(sellerId);
       if (!seller) return [];
-      
-      return category 
+
+      return category
         ? seller.products.filter(product => product.category === category)
         : seller.products;
     },
@@ -644,7 +644,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       set((state) => {
         const exists = state.viewedSellers.some(s => s.id === seller.id);
         if (exists) return state;
-        
+
         return {
           viewedSellers: [...state.viewedSellers, seller]
         };
