@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ArrowUpRight, Menu, Search, MessageCircle } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   Sheet,
   SheetContent,
@@ -14,7 +14,6 @@ import { Button } from "./button";
 import { Separator } from "./separator";
 import { Hero } from "./hero";
 import AIChatModal from "../AIChatModal";
-import { BuyerAuthModal } from "../BuyerAuthModal";
 
 const navigation = [
   { name: "Home", href: "/" },
@@ -25,7 +24,7 @@ const navigation = [
 
 export function BazaarHero() {
   const [isAIChatOpen, setIsAIChatOpen] = useState(false);
-  const [isBuyerAuthOpen, setIsBuyerAuthOpen] = useState(false);
+  const navigate = useNavigate();
 
   return (
     <div className="w-full relative container px-2 mx-auto max-w-7xl min-h-screen">
@@ -169,7 +168,7 @@ export function BazaarHero() {
           actions={[
             {
               label: "Start Shopping",
-              onClick: () => setIsBuyerAuthOpen(true),
+              onClick: () => navigate("/login"),
               variant: "default",
             },
             {
@@ -186,13 +185,6 @@ export function BazaarHero() {
       <AIChatModal
         isOpen={isAIChatOpen}
         onClose={() => setIsAIChatOpen(false)}
-      />
-
-      {/* Buyer Auth Modal */}
-      <BuyerAuthModal
-        isOpen={isBuyerAuthOpen}
-        onClose={() => setIsBuyerAuthOpen(false)}
-        initialMode="login"
       />
     </div>
   );
