@@ -11,6 +11,7 @@ import { Home, Store, ShoppingCart, Package, User } from 'lucide-react-native';
 import SplashScreen from './app/SplashScreen';
 import OnboardingScreen from './app/OnboardingScreen';
 import LoginScreen from './app/LoginScreen';
+import SignupScreen from './app/SignupScreen';
 import HomeScreen from './app/HomeScreen';
 import ShopScreen from './app/ShopScreen';
 import ProductDetailScreen from './app/ProductDetailScreen';
@@ -31,6 +32,7 @@ import PaymentMethodsScreen from './app/PaymentMethodsScreen';
 import HelpSupportScreen from './app/HelpSupportScreen';
 import PrivacyPolicyScreen from './app/PrivacyPolicyScreen';
 import SellerLoginScreen from './app/seller/login';
+import SellerSignupScreen from './app/seller/signup';
 import SellerStack from './app/seller/SellerStack';
 import AdminStack from './app/admin/AdminStack';
 import AllStoresScreen from './app/AllStoresScreen';
@@ -51,7 +53,9 @@ export type RootStackParamList = {
   Splash: undefined;
   Onboarding: undefined;
   Login: undefined;
+  Signup: undefined;
   SellerLogin: undefined;
+  SellerSignup: undefined;
   SellerStack: undefined;
   AdminStack: undefined;
   MainTabs: NavigatorScreenParams<TabParamList>;
@@ -178,8 +182,18 @@ export default function App() {
             options={{ animation: 'slide_from_bottom' }}
           />
           <Stack.Screen
+            name="Signup"
+            component={SignupScreen}
+            options={{ animation: 'slide_from_bottom' }}
+          />
+          <Stack.Screen
             name="SellerLogin"
             component={SellerLoginScreen}
+            options={{ animation: 'slide_from_bottom' }}
+          />
+          <Stack.Screen
+            name="SellerSignup"
+            component={SellerSignupScreen}
             options={{ animation: 'slide_from_bottom' }}
           />
           <Stack.Screen

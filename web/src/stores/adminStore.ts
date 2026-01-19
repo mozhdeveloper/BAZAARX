@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 // Admin Types
 export interface AdminUser {
@@ -158,7 +159,88 @@ export const useAdminAuth = create<AdminAuthState>()(
       login: async (email: string, password: string) => {
         set({ isLoading: true, error: null });
 
-        // Demo admin credentials
+        // Try Supabase authentication first
+        if (isSupabaseConfigured()) {
+          try {
+            // Sign in with Supabase
+            const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+              email,
+              password,
+            });
+
+            if (authError || !authData.user) {
+              console.error('Admin auth error:', authError);
+              set({ 
+                error: 'Invalid credentials',
+                isLoading: false 
+              });
+              return false;
+            }
+
+            // Fetch admin profile to verify user_type
+            const { data: profile, error: profileError } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', authData.user.id)
+              .single();
+
+            if (profileError || !profile) {
+              console.error('Profile fetch error:', profileError);
+              await supabase.auth.signOut();
+              set({ 
+                error: 'Admin profile not found',
+                isLoading: false 
+              });
+              return false;
+            }
+
+            // Verify user is an admin
+            if (profile.user_type !== 'admin') {
+              await supabase.auth.signOut();
+              set({ 
+                error: 'Access denied. Admin account required.',
+                isLoading: false 
+              });
+              return false;
+            }
+
+            // Create admin user object
+            const adminUser: AdminUser = {
+              id: authData.user.id,
+              email: profile.email || email,
+              name: profile.full_name || 'Admin User',
+              role: 'admin',
+              avatar: profile.avatar_url || `https://ui-avatars.io/api/?name=${encodeURIComponent(profile.full_name || 'Admin')}&background=FF6A00&color=fff`,
+              lastLogin: new Date(),
+              permissions: [
+                { id: '1', name: 'Full Access', resource: 'users', actions: ['read', 'write', 'delete'] },
+                { id: '2', name: 'Full Access', resource: 'sellers', actions: ['read', 'write', 'delete', 'approve'] },
+                { id: '3', name: 'Full Access', resource: 'categories', actions: ['read', 'write', 'delete'] },
+                { id: '4', name: 'Full Access', resource: 'products', actions: ['read', 'write', 'delete'] },
+                { id: '5', name: 'Full Access', resource: 'orders', actions: ['read', 'write', 'delete'] },
+                { id: '6', name: 'Full Access', resource: 'analytics', actions: ['read'] },
+              ]
+            };
+
+            set({
+              user: adminUser,
+              isAuthenticated: true,
+              isLoading: false,
+              error: null
+            });
+            return true;
+
+          } catch (err) {
+            console.error('Login error:', err);
+            set({ 
+              error: 'Login failed. Please try again.',
+              isLoading: false 
+            });
+            return false;
+          }
+        }
+
+        // Fallback to demo admin credentials if Supabase not configured
         const adminCredentials = [
           {
             email: 'admin@bazaarph.com',
@@ -203,7 +285,12 @@ export const useAdminAuth = create<AdminAuthState>()(
         }
       },
 
-      logout: () => {
+      logout: async () => {
+        // Sign out from Supabase if configured
+        if (isSupabaseConfigured()) {
+          await supabase.auth.signOut();
+        }
+        
         set({
           user: null,
           isAuthenticated: false,
@@ -378,6 +465,7 @@ interface SellersState {
   selectSeller: (seller: Seller | null) => void;
   addSeller: (seller: Seller) => void;
   clearError: () => void;
+  hasCompleteRequirements: (seller: Seller) => boolean;
 }
 
 export const useAdminSellers = create<SellersState>()(
@@ -390,19 +478,156 @@ export const useAdminSellers = create<SellersState>()(
       error: null,
 
       loadSellers: async () => {
-        set({ isLoading: true });
+        set({ isLoading: true, error: null });
 
-        // Check if we already have sellers (from persistence or previous loads)
-        const currentState = get();
-        if (currentState.sellers.length > 0) {
-          set({ 
-            isLoading: false,
-            pendingSellers: currentState.sellers.filter(s => s.status === 'pending')
-          });
-          return;
+        // Try to load from Supabase if configured
+        if (isSupabaseConfigured()) {
+          try {
+            // Fetch sellers from Supabase with profile data (left join to include sellers without profiles)
+            const { data: sellersData, error: sellersError } = await supabase
+              .from('sellers')
+              .select(`
+                *,
+                profiles(email, full_name, phone)
+              `)
+              .order('created_at', { ascending: false });
+
+            if (sellersError) {
+              console.error('Error loading sellers:', sellersError);
+              set({ error: 'Failed to load sellers', isLoading: false });
+              return;
+            }
+
+            console.log('Raw sellers data from Supabase:', sellersData);
+            console.log('Number of sellers fetched:', sellersData?.length);
+
+            // Map Supabase data to admin seller format
+            const sellers: Seller[] = (sellersData || []).map((seller: any) => {
+              // Build full address
+              const addressParts = [
+                seller.business_address,
+                seller.city,
+                seller.province,
+                seller.postal_code
+              ].filter(Boolean);
+              const fullAddress = addressParts.join(', ');
+
+              // Build documents array from document URL fields
+              const documents: SellerDocument[] = [];
+              if (seller.business_permit_url) {
+                documents.push({
+                  id: `doc_bp_${seller.id}`,
+                  type: 'business_permit',
+                  fileName: 'business-permit',
+                  url: seller.business_permit_url,
+                  uploadDate: new Date(seller.created_at),
+                  isVerified: seller.approval_status === 'approved'
+                });
+              }
+              if (seller.valid_id_url) {
+                documents.push({
+                  id: `doc_id_${seller.id}`,
+                  type: 'valid_id',
+                  fileName: 'valid-id',
+                  url: seller.valid_id_url,
+                  uploadDate: new Date(seller.created_at),
+                  isVerified: seller.approval_status === 'approved'
+                });
+              }
+              if (seller.proof_of_address_url) {
+                documents.push({
+                  id: `doc_poa_${seller.id}`,
+                  type: 'proof_of_address',
+                  fileName: 'proof-of-address',
+                  url: seller.proof_of_address_url,
+                  uploadDate: new Date(seller.created_at),
+                  isVerified: seller.approval_status === 'approved'
+                });
+              }
+              if (seller.dti_registration_url) {
+                documents.push({
+                  id: `doc_dti_${seller.id}`,
+                  type: 'dti_registration',
+                  fileName: 'dti-registration',
+                  url: seller.dti_registration_url,
+                  uploadDate: new Date(seller.created_at),
+                  isVerified: seller.approval_status === 'approved'
+                });
+              }
+              if (seller.tax_id_url) {
+                documents.push({
+                  id: `doc_tax_${seller.id}`,
+                  type: 'tax_id',
+                  fileName: 'tax-id',
+                  url: seller.tax_id_url,
+                  uploadDate: new Date(seller.created_at),
+                  isVerified: seller.approval_status === 'approved'
+                });
+              }
+
+              return {
+                id: seller.id,
+                businessName: seller.business_name || seller.store_name || 'Unknown Business',
+                storeName: seller.store_name || 'Unknown Store',
+                storeDescription: seller.store_description || '',
+                storeCategory: Array.isArray(seller.store_category) ? seller.store_category : ['General'],
+                businessType: seller.business_type || 'sole_proprietor',
+                businessRegistrationNumber: seller.business_registration_number || 'N/A',
+                taxIdNumber: seller.tax_id_number || 'N/A',
+                description: seller.store_description || '',
+                logo: `https://ui-avatars.io/api/?name=${encodeURIComponent(seller.store_name || 'S')}&background=FF6A00&color=fff`,
+                ownerName: seller.profiles?.full_name || seller.business_name || 'Unknown Owner',
+                email: seller.profiles?.email || 'No email',
+                phone: seller.profiles?.phone || 'No phone',
+                businessAddress: seller.business_address || 'Not provided',
+                city: seller.city || 'Not specified',
+                province: seller.province || 'Not specified',
+                postalCode: seller.postal_code || 'N/A',
+                address: fullAddress || seller.business_address || 'Address not provided',
+                bankName: seller.bank_name || 'Not provided',
+                accountName: seller.account_name || 'Not provided',
+                accountNumber: seller.account_number || 'Not provided',
+                status: seller.approval_status as 'pending' | 'approved' | 'rejected' | 'suspended',
+                documents: documents,
+                metrics: {
+                  totalProducts: 0,
+                  totalOrders: 0,
+                  totalRevenue: seller.total_sales || 0,
+                  rating: parseFloat(seller.rating) || 0,
+                  responseRate: 0,
+                  fulfillmentRate: 0
+                },
+                joinDate: new Date(seller.join_date || seller.created_at),
+                approvedAt: seller.approved_at ? new Date(seller.approved_at) : undefined,
+                approvedBy: seller.approved_by || undefined,
+                rejectedAt: seller.rejected_at ? new Date(seller.rejected_at) : undefined,
+                rejectedBy: seller.rejected_by || undefined,
+                rejectionReason: seller.rejection_reason || undefined,
+                suspendedAt: seller.suspended_at ? new Date(seller.suspended_at) : undefined,
+                suspendedBy: seller.suspended_by || undefined,
+                suspensionReason: seller.suspension_reason || undefined
+              };
+            });
+
+            const pendingSellers = sellers.filter(s => s.status === 'pending');
+            
+            console.log('Mapped sellers:', sellers);
+            console.log('Pending sellers:', pendingSellers);
+            
+            set({ 
+              sellers, 
+              pendingSellers,
+              isLoading: false 
+            });
+            return;
+          } catch (error) {
+            console.error('Error loading sellers from Supabase:', error);
+            set({ error: 'Failed to load sellers', isLoading: false });
+            return;
+          }
         }
 
-    // Demo sellers data
+        // Fallback to demo sellers data if Supabase not configured
     const demoSellers: Seller[] = [
       {
         id: 'seller_1',
@@ -592,6 +817,45 @@ export const useAdminSellers = create<SellersState>()(
   approveSeller: async (id) => {
     set({ isLoading: true });
     
+    if (isSupabaseConfigured()) {
+      try {
+        const { error } = await supabase
+          .from('sellers')
+          .update({
+            approval_status: 'approved',
+            approved_at: new Date().toISOString(),
+            approved_by: 'admin' // TODO: Get actual admin ID from auth
+          })
+          .eq('id', id);
+
+        if (error) {
+          console.error('Error approving seller:', error);
+          set({ error: 'Failed to approve seller', isLoading: false });
+          return;
+        }
+
+        // Update local state
+        set(state => {
+          const updatedSellers = state.sellers.map(seller =>
+            seller.id === id
+              ? { ...seller, status: 'approved' as const, approvedAt: new Date(), approvedBy: 'admin' }
+              : seller
+          );
+          
+          return {
+            sellers: updatedSellers,
+            pendingSellers: updatedSellers.filter(seller => seller.status === 'pending'),
+            isLoading: false
+          };
+        });
+      } catch (error) {
+        console.error('Error approving seller:', error);
+        set({ error: 'Failed to approve seller', isLoading: false });
+      }
+      return;
+    }
+
+    // Fallback to demo behavior
     await new Promise(resolve => setTimeout(resolve, 1200));
     
     set(state => {
@@ -612,6 +876,52 @@ export const useAdminSellers = create<SellersState>()(
   rejectSeller: async (id, reason) => {
     set({ isLoading: true });
     
+    if (isSupabaseConfigured()) {
+      try {
+        const { error } = await supabase
+          .from('sellers')
+          .update({
+            approval_status: 'rejected',
+            rejected_at: new Date().toISOString(),
+            rejected_by: 'admin', // TODO: Get actual admin ID from auth
+            rejection_reason: reason
+          })
+          .eq('id', id);
+
+        if (error) {
+          console.error('Error rejecting seller:', error);
+          set({ error: 'Failed to reject seller', isLoading: false });
+          return;
+        }
+
+        // Update local state
+        set(state => {
+          const updatedSellers = state.sellers.map(seller =>
+            seller.id === id
+              ? { 
+                  ...seller, 
+                  status: 'rejected' as const,
+                  rejectedAt: new Date(),
+                  rejectedBy: 'admin',
+                  rejectionReason: reason
+                }
+              : seller
+          );
+          
+          return {
+            sellers: updatedSellers,
+            pendingSellers: updatedSellers.filter(seller => seller.status === 'pending'),
+            isLoading: false
+          };
+        });
+      } catch (error) {
+        console.error('Error rejecting seller:', error);
+        set({ error: 'Failed to reject seller', isLoading: false });
+      }
+      return;
+    }
+
+    // Fallback to demo behavior
     await new Promise(resolve => setTimeout(resolve, 1000));
     
     set(state => {
@@ -638,6 +948,47 @@ export const useAdminSellers = create<SellersState>()(
   suspendSeller: async (id, reason) => {
     set({ isLoading: true });
     
+    if (isSupabaseConfigured()) {
+      try {
+        const { error } = await supabase
+          .from('sellers')
+          .update({
+            approval_status: 'suspended',
+            suspended_at: new Date().toISOString(),
+            suspended_by: 'admin', // TODO: Get actual admin ID from auth
+            suspension_reason: reason
+          })
+          .eq('id', id);
+
+        if (error) {
+          console.error('Error suspending seller:', error);
+          set({ error: 'Failed to suspend seller', isLoading: false });
+          return;
+        }
+
+        // Update local state
+        set(state => ({
+          sellers: state.sellers.map(seller =>
+            seller.id === id
+              ? { 
+                  ...seller, 
+                  status: 'suspended' as const,
+                  suspendedAt: new Date(),
+                  suspendedBy: 'admin',
+                  suspensionReason: reason
+                }
+              : seller
+          ),
+          isLoading: false
+        }));
+      } catch (error) {
+        console.error('Error suspending seller:', error);
+        set({ error: 'Failed to suspend seller', isLoading: false });
+      }
+      return;
+    }
+
+    // Fallback to demo behavior
     await new Promise(resolve => setTimeout(resolve, 1000));
     
     set(state => ({
@@ -664,10 +1015,28 @@ export const useAdminSellers = create<SellersState>()(
     }));
   },
   
-  clearError: () => set({ error: null })
+  clearError: () => set({ error: null }),
+
+  hasCompleteRequirements: (seller: Seller) => {
+    // Check if seller has all required documents
+    const requiredDocTypes = ['valid_id', 'proof_of_address', 'dti_registration', 'tax_id'];
+    const sellerDocTypes = seller.documents.map(doc => doc.type);
+    
+    // Check if all required documents exist
+    const hasAllDocs = requiredDocTypes.every(type => sellerDocTypes.includes(type as any));
+    
+    // Also check if business address exists
+    const hasBusinessAddress = seller.businessAddress && seller.businessAddress !== 'Not provided';
+    
+    return hasAllDocs && hasBusinessAddress;
+  }
     }),
     {
-      name: 'admin-sellers-storage'
+      name: 'admin-sellers-storage',
+      partialize: (state) => ({
+        // Don't persist sellers data - always fetch fresh from Supabase
+        selectedSeller: state.selectedSeller,
+      }),
     }
   )
 );

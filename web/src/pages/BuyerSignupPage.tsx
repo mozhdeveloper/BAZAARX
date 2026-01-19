@@ -1,29 +1,40 @@
-import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { Eye, EyeOff, Mail, Lock, User, Phone, AlertCircle, CheckCircle2 } from 'lucide-react';
-import { useBuyerStore } from '../stores/buyerStore';
-import { Button } from '../components/ui/button';
-import { Input } from '../components/ui/input';
-import { Label } from '../components/ui/label';
-import { Checkbox } from '../components/ui/checkbox';
+import { useState } from "react";
+import { useNavigate, Link } from "react-router-dom";
+import { motion } from "framer-motion";
+import {
+  Eye,
+  EyeOff,
+  Mail,
+  Lock,
+  User,
+  Phone,
+  AlertCircle,
+  CheckCircle2,
+} from "lucide-react";
+import { useBuyerStore } from "../stores/buyerStore";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Label } from "../components/ui/label";
+import { Checkbox } from "../components/ui/checkbox";
+import { signUp } from "../services/authService";
+import { supabase } from "../lib/supabase";
 
 export default function BuyerSignupPage() {
   const navigate = useNavigate();
   const { setProfile } = useBuyerStore();
-  
+
   const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
-    email: '',
-    phone: '',
-    password: '',
-    confirmPassword: ''
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "",
+    password: "",
+    confirmPassword: "",
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
   const validateEmail = (email: string) => {
@@ -32,95 +43,123 @@ export default function BuyerSignupPage() {
 
   const validatePhone = (phone: string) => {
     // Philippine phone number format
-    return /^(\+63|0)?9\d{9}$/.test(phone.replace(/\s/g, ''));
+    return /^(\+63|0)?9\d{9}$/.test(phone.replace(/\s/g, ""));
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value
+      [e.target.name]: e.target.value,
     });
   };
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    setError("");
 
     // Validation
     if (!formData.firstName || !formData.lastName) {
-      setError('Please enter your full name.');
+      setError("Please enter your full name.");
       return;
     }
 
     if (!formData.email || !validateEmail(formData.email)) {
-      setError('Please enter a valid email address.');
+      setError("Please enter a valid email address.");
       return;
     }
 
     if (!formData.phone || !validatePhone(formData.phone)) {
-      setError('Please enter a valid Philippine phone number.');
+      setError("Please enter a valid Philippine phone number.");
       return;
     }
 
     if (!formData.password || formData.password.length < 8) {
-      setError('Password must be at least 8 characters long.');
+      setError("Password must be at least 8 characters long.");
       return;
     }
 
     if (formData.password !== formData.confirmPassword) {
-      setError('Passwords do not match.');
+      setError("Passwords do not match.");
       return;
     }
 
     if (!agreedToTerms) {
-      setError('Please agree to the Terms of Service and Privacy Policy.');
+      setError("Please agree to the Terms of Service and Privacy Policy.");
       return;
     }
 
     setIsLoading(true);
 
-    // Simulate API call
-    setTimeout(() => {
-      // Mock registration - in production, this would be a real API call
-      const newBuyerProfile = {
-        id: 'buyer-' + Date.now(),
+    try {
+      const fullName = `${formData.firstName} ${formData.lastName}`;
+
+      const { user, error: signUpError } = await signUp(
+        formData.email,
+        formData.password,
+        {
+          full_name: fullName,
+          phone: formData.phone,
+          user_type: "buyer",
+        },
+      );
+
+      if (signUpError) {
+        console.error("Signup error:", signUpError);
+        setError(signUpError.message || "Signup failed. Please try again.");
+        setIsLoading(false);
+        return;
+      }
+
+      if (!user) {
+        setError("Signup failed. Please try again.");
+        setIsLoading(false);
+        return;
+      }
+
+      // Buyer record is already created by authService.signUp()
+      const buyerProfile = {
+        id: user.id,
         email: formData.email,
         firstName: formData.firstName,
         lastName: formData.lastName,
         phone: formData.phone,
-        avatar: `https://ui-avatars.com/api/?name=${formData.firstName}+${formData.lastName}&background=FF6B35&color=fff&size=150`,
+        avatar: `https://ui-avatars.com/api/?name=${fullName}&background=FF6B35&color=fff&size=150`,
         preferences: {
-          language: 'en',
-          currency: 'PHP',
+          language: "en",
+          currency: "PHP",
           notifications: {
             email: true,
             sms: true,
-            push: true
+            push: true,
           },
           privacy: {
             showProfile: true,
             showPurchases: false,
-            showFollowing: true
-          }
+            showFollowing: true,
+          },
         },
         memberSince: new Date(),
         totalOrders: 0,
         totalSpent: 0,
-        loyaltyPoints: 100 // Welcome bonus!
+        loyaltyPoints: 100,
       };
 
-      setProfile(newBuyerProfile);
+      setProfile(buyerProfile);
       setIsLoading(false);
-      
+
       // Show success message and redirect
-      alert('Welcome to BazaarX! You\'ve received 100 bonus points!');
-      navigate('/');
-    }, 1500);
+      alert("Welcome to BazaarX! You've received 100 bonus points!");
+      navigate("/shop");
+    } catch (err) {
+      console.error("Signup exception:", err);
+      setError("Something went wrong. Please try again.");
+      setIsLoading(false);
+    }
   };
 
   const handleGoogleSignup = () => {
-    setError('');
-    alert('Google Sign-Up integration coming soon!');
+    setError("");
+    alert("Google Sign-Up integration coming soon!");
   };
 
   return (
@@ -148,9 +187,9 @@ export default function BuyerSignupPage() {
               transition={{ type: "spring", stiffness: 200, damping: 15 }}
               className="w-20 h-20 rounded-2xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center shadow-lg"
             >
-              <img 
-                src="/Logo.png" 
-                alt="BazaarX Logo" 
+              <img
+                src="/Logo.png"
+                alt="BazaarX Logo"
                 className="w-16 h-16 object-contain"
               />
             </motion.div>
@@ -158,7 +197,9 @@ export default function BuyerSignupPage() {
 
           {/* Title */}
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Create Account</h1>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">
+              Create Account
+            </h1>
             <p className="text-gray-600">Join thousands of Filipino shoppers</p>
           </div>
 
@@ -179,7 +220,10 @@ export default function BuyerSignupPage() {
             {/* Name Fields */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label htmlFor="firstName" className="text-gray-700 font-medium mb-2 block text-sm">
+                <Label
+                  htmlFor="firstName"
+                  className="text-gray-700 font-medium mb-2 block text-sm"
+                >
                   First Name
                 </Label>
                 <div className="relative">
@@ -197,7 +241,10 @@ export default function BuyerSignupPage() {
                 </div>
               </div>
               <div>
-                <Label htmlFor="lastName" className="text-gray-700 font-medium mb-2 block text-sm">
+                <Label
+                  htmlFor="lastName"
+                  className="text-gray-700 font-medium mb-2 block text-sm"
+                >
                   Last Name
                 </Label>
                 <div className="relative">
@@ -218,7 +265,10 @@ export default function BuyerSignupPage() {
 
             {/* Email Input */}
             <div>
-              <Label htmlFor="email" className="text-gray-700 font-medium mb-2 block text-sm">
+              <Label
+                htmlFor="email"
+                className="text-gray-700 font-medium mb-2 block text-sm"
+              >
                 Email Address
               </Label>
               <div className="relative">
@@ -238,7 +288,10 @@ export default function BuyerSignupPage() {
 
             {/* Phone Input */}
             <div>
-              <Label htmlFor="phone" className="text-gray-700 font-medium mb-2 block text-sm">
+              <Label
+                htmlFor="phone"
+                className="text-gray-700 font-medium mb-2 block text-sm"
+              >
                 Phone Number
               </Label>
               <div className="relative">
@@ -258,7 +311,10 @@ export default function BuyerSignupPage() {
 
             {/* Password Input */}
             <div>
-              <Label htmlFor="password" className="text-gray-700 font-medium mb-2 block text-sm">
+              <Label
+                htmlFor="password"
+                className="text-gray-700 font-medium mb-2 block text-sm"
+              >
                 Password
               </Label>
               <div className="relative">
@@ -266,7 +322,7 @@ export default function BuyerSignupPage() {
                 <Input
                   id="password"
                   name="password"
-                  type={showPassword ? 'text' : 'password'}
+                  type={showPassword ? "text" : "password"}
                   placeholder="••••••••"
                   value={formData.password}
                   onChange={handleChange}
@@ -279,14 +335,21 @@ export default function BuyerSignupPage() {
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                   disabled={isLoading}
                 >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
                 </button>
               </div>
             </div>
 
             {/* Confirm Password Input */}
             <div>
-              <Label htmlFor="confirmPassword" className="text-gray-700 font-medium mb-2 block text-sm">
+              <Label
+                htmlFor="confirmPassword"
+                className="text-gray-700 font-medium mb-2 block text-sm"
+              >
                 Confirm Password
               </Label>
               <div className="relative">
@@ -294,7 +357,7 @@ export default function BuyerSignupPage() {
                 <Input
                   id="confirmPassword"
                   name="confirmPassword"
-                  type={showConfirmPassword ? 'text' : 'password'}
+                  type={showConfirmPassword ? "text" : "password"}
                   placeholder="••••••••"
                   value={formData.confirmPassword}
                   onChange={handleChange}
@@ -307,7 +370,11 @@ export default function BuyerSignupPage() {
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                   disabled={isLoading}
                 >
-                  {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {showConfirmPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
                 </button>
               </div>
             </div>
@@ -317,17 +384,28 @@ export default function BuyerSignupPage() {
               <Checkbox
                 id="terms"
                 checked={agreedToTerms}
-                onCheckedChange={(checked) => setAgreedToTerms(checked as boolean)}
+                onCheckedChange={(checked) =>
+                  setAgreedToTerms(checked as boolean)
+                }
                 className="mt-1"
                 disabled={isLoading}
               />
-              <label htmlFor="terms" className="text-sm text-gray-600 cursor-pointer">
-                I agree to the{' '}
-                <Link to="/terms" className="text-orange-600 hover:text-orange-700 font-medium">
+              <label
+                htmlFor="terms"
+                className="text-sm text-gray-600 cursor-pointer"
+              >
+                I agree to the{" "}
+                <Link
+                  to="/terms"
+                  className="text-orange-600 hover:text-orange-700 font-medium"
+                >
                   Terms of Service
-                </Link>{' '}
-                and{' '}
-                <Link to="/privacy" className="text-orange-600 hover:text-orange-700 font-medium">
+                </Link>{" "}
+                and{" "}
+                <Link
+                  to="/privacy"
+                  className="text-orange-600 hover:text-orange-700 font-medium"
+                >
                   Privacy Policy
                 </Link>
               </label>
@@ -358,7 +436,9 @@ export default function BuyerSignupPage() {
                 <div className="w-full border-t border-gray-200"></div>
               </div>
               <div className="relative flex justify-center text-xs">
-                <span className="px-3 bg-white text-gray-500">Or sign up with</span>
+                <span className="px-3 bg-white text-gray-500">
+                  Or sign up with
+                </span>
               </div>
             </div>
 
@@ -382,9 +462,9 @@ export default function BuyerSignupPage() {
           {/* Sign In Link */}
           <div className="mt-6 text-center">
             <p className="text-gray-600 text-sm">
-              Already have an account?{' '}
-              <Link 
-                to="/login" 
+              Already have an account?{" "}
+              <Link
+                to="/login"
                 className="text-orange-600 hover:text-orange-700 font-semibold"
               >
                 Sign in
@@ -400,7 +480,9 @@ export default function BuyerSignupPage() {
           transition={{ delay: 0.3 }}
           className="mt-6 bg-white/60 backdrop-blur-sm rounded-2xl p-4 border border-orange-100"
         >
-          <p className="text-sm font-semibold text-gray-700 mb-3 text-center">What you'll get:</p>
+          <p className="text-sm font-semibold text-gray-700 mb-3 text-center">
+            What you'll get:
+          </p>
           <div className="grid grid-cols-2 gap-3 text-xs">
             <div className="flex items-center gap-2">
               <CheckCircle2 className="h-4 w-4 text-orange-500 flex-shrink-0" />

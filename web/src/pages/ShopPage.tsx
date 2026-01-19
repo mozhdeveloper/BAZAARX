@@ -38,8 +38,8 @@ import {
 } from "../data/products";
 import { categories } from "../data/categories";
 import { useBuyerStore } from "../stores/buyerStore";
-import { useProductStore, useAuthStore } from "../stores/sellerStore";
-import { useProductQAStore } from "../stores/productQAStore";
+import { useProductStore } from "../stores/sellerStore";
+// import { useProductQAStore } from "../stores/productQAStore";
 import type { Product as BuyerProduct } from "../stores/buyerStore";
 
 type ShopProduct = {
@@ -58,24 +58,6 @@ type ShopProduct = {
   description?: string;
   sellerRating?: number;
   sellerVerified?: boolean;
-};
-
-type LegacyCatalogProduct = {
-  id: string;
-  name: string;
-  price: number;
-  originalPrice?: number;
-  image?: string;
-  rating?: number;
-  sold?: number;
-  category: string;
-  seller?: string;
-  sellerRating?: number;
-  sellerVerified?: boolean;
-  isFreeShipping?: boolean;
-  isVerified?: boolean;
-  location?: string;
-  description?: string | null;
 };
 
 interface FlashSaleProduct {
@@ -158,13 +140,12 @@ const sortOptions = [
 export default function ShopPage() {
   const navigate = useNavigate();
   const { addToCart, setQuickOrder, cartItems } = useBuyerStore();
-  const { products: sellerProducts } = useProductStore();
-  const { products: qaProducts } = useProductQAStore();
+  const { products: sellerProducts, fetchProducts } = useProductStore();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All Categories");
   const [selectedSort, setSelectedSort] = useState("relevance");
-  const [priceRange, setPriceRange] = useState<number[]>([0, 10000]);
+  const [priceRange, setPriceRange] = useState<number[]>([0, 100000]);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [showFilters, setShowFilters] = useState(false);
   const [showCartModal, setShowCartModal] = useState(false);
@@ -200,111 +181,34 @@ export default function ShopPage() {
     return () => clearInterval(timer);
   }, []);
 
-  // Combine seller products (verified) with QA verified products and mock products
-  const allProducts = useMemo<ShopProduct[]>(() => {
-    // Convert seller products to shop format (only approved ones)
-    const seller = useAuthStore.getState().seller;
-    const sellerName =
-      seller?.businessName || seller?.storeName || "Verified Seller";
+  useEffect(() => {
+    // Fetch products from Supabase on component mount
+    fetchProducts();
+  }, [fetchProducts]);
 
-    const verifiedSellerProducts = sellerProducts
-      .filter((p) => p.approvalStatus === "approved" && p.isActive)
+  const allProducts = useMemo<ShopProduct[]>(() => {
+    const dbProducts = sellerProducts
+      .filter((p) => p.approvalStatus === "pending" && p.isActive)
       .map((p) => ({
         id: p.id,
         name: p.name,
         price: p.price,
         originalPrice: p.originalPrice,
-        image: p.images[0] || "https://placehold.co/400?text=Product",
+        image: p.images?.[0] || "https://placehold.co/400?text=Product",
         rating: p.rating || 0,
         sold: p.sales || 0,
         category: p.category,
-        seller: sellerName,
+        // 2. Map the seller name correctly
+        seller: p.sellerName || "Verified Seller",
         isVerified: true,
-        isFreeShipping: true,
         location: "Metro Manila",
         description: p.description,
-        sellerRating: p.rating || 0,
+        sellerRating: p.sellerRating || 0,
         sellerVerified: true,
       }));
 
-    // Convert QA verified products to shop format
-    const qaVerifiedProducts = qaProducts
-      .filter((p) => p.status === "ACTIVE_VERIFIED")
-      .map((p) => ({
-        id: p.id,
-        name: p.name,
-        price: p.price,
-        originalPrice: undefined,
-        image: p.image || "https://placehold.co/400?text=Product",
-        rating: 4.5, // Default rating for QA verified products
-        sold: 0, // New verified product
-        category: p.category,
-        seller: p.vendor,
-        isVerified: true,
-        isFreeShipping: true,
-        location: "Metro Manila",
-        description: `Quality verified ${p.name}`,
-        sellerRating: 4.5,
-        sellerVerified: true,
-      }));
-
-    // Generate mock products for variety
-    const normalizeToShopProduct = (p: LegacyCatalogProduct): ShopProduct => ({
-      id: p.id,
-      name: p.name,
-      price: p.price,
-      originalPrice: p.originalPrice,
-      image: p.image || "https://placehold.co/400?text=Product",
-      rating: p.rating ?? 4.5,
-      sold: p.sold ?? 0,
-      category: p.category,
-      seller: p.seller || "Top Seller",
-      isVerified: p.isVerified ?? false,
-      isFreeShipping: p.isFreeShipping ?? true,
-      location: p.location || "Metro Manila",
-      description: p.description || p.name,
-      sellerRating: p.sellerRating ?? p.rating ?? 4.5,
-      sellerVerified: p.sellerVerified ?? false,
-    });
-
-    const baseMockSources: ShopProduct[] = [
-      ...trendingProducts,
-      ...bestSellerProducts,
-      ...newArrivals,
-    ].map(normalizeToShopProduct);
-
-    const mockProducts: ShopProduct[] = [];
-
-    for (let i = 0; i < 3; i++) {
-      mockProducts.push(
-        ...baseMockSources.map((product) => {
-          const baseSold = typeof product.sold === "number" ? product.sold : 0;
-          const baseRating =
-            typeof product.rating === "number" ? product.rating : 4.5;
-          return {
-            id: `${product.id}-${i}`,
-            name: `${product.name} ${i > 0 ? `(Variant ${i + 1})` : ""}`,
-            price: Math.round(product.price * (0.8 + Math.random() * 0.4)),
-            originalPrice: product.originalPrice,
-            image: product.image || "https://placehold.co/400?text=Product",
-            rating: baseRating,
-            sold: Math.round(baseSold * (0.5 + Math.random() * 1.5)),
-            category: product.category,
-            seller: product.seller,
-            isVerified: product.isVerified,
-            isFreeShipping: product.isFreeShipping,
-            location: product.location,
-            description: product.description || product.name,
-            sellerRating: product.sellerRating ?? baseRating,
-            sellerVerified: product.sellerVerified,
-          };
-        })
-      );
-    }
-
-    // Combine: verified products first (both seller and QA), then mock products
-    return [...verifiedSellerProducts, ...qaVerifiedProducts, ...mockProducts];
-  }, [sellerProducts, qaProducts]);
+    return dbProducts;
+  }, [sellerProducts]);
 
   const filteredProducts = useMemo<ShopProduct[]>(() => {
     const filtered = allProducts.filter((product) => {
@@ -350,7 +254,7 @@ export default function ShopPage() {
     setSearchQuery("");
     setSelectedCategory("All Categories");
     setSelectedSort("relevance");
-    setPriceRange([0, 10000]);
+    setPriceRange([0, 100000]);
   };
 
   return (
@@ -532,7 +436,7 @@ export default function ShopPage() {
                   <div className="px-2">
                     <Slider
                       min={0}
-                      max={10000}
+                      max={100000}
                       step={100}
                       value={priceRange}
                       onValueChange={setPriceRange}
