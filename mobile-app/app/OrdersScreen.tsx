@@ -18,7 +18,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Search, Package, Clock, Filter, X, ShoppingCart, Check } from 'lucide-react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useOrderStore } from '../src/stores/orderStore';
-import { useCartStore } from '../src/stores/cartStore'; 
+import { useCartStore } from '../src/stores/cartStore';
+import { COLORS } from '../src/constants/theme';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -48,7 +49,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
   const { getActiveOrders, getCompletedOrders, updateOrderStatus } = useOrderStore();
   const addItem = useCartStore((state) => state.addItem); 
   const insets = useSafeAreaInsets();
-  const BRAND_COLOR = '#FF5722';
+  const BRAND_COLOR = COLORS.primary;
 
   React.useEffect(() => {
     if (route.params?.initialTab) {
@@ -328,11 +329,11 @@ const styles = StyleSheet.create({
   totalAmount: { fontSize: 18, fontWeight: '900' },
   cardFooter: { borderTopWidth: 1, borderTopColor: '#F3F4F6', paddingTop: 12 },
   buttonRow: { flexDirection: 'row', gap: 10 },
-  primaryButton: { backgroundColor: '#FF5722', paddingVertical: 12, borderRadius: 12, alignItems: 'center', width: '100%' },
+  primaryButton: { backgroundColor: COLORS.primary, paddingVertical: 12, borderRadius: 12, alignItems: 'center', width: '100%' },
   primaryButtonText: { color: '#FFF', fontWeight: '700', fontSize: 14 },
   outlineButton: { borderWidth: 1, borderColor: '#E5E7EB', paddingVertical: 12, borderRadius: 12, alignItems: 'center' },
   outlineButtonText: { color: '#6B7280', fontWeight: '700' },
-  buyAgainButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1.5, borderColor: '#FF5722', paddingVertical: 12, borderRadius: 12 },
+  buyAgainButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1.5, borderColor: COLORS.primary, paddingVertical: 12, borderRadius: 12 },
   buyAgainText: { fontWeight: '800', fontSize: 14 },
   
   // RESTORED EMPTY STATE STYLES

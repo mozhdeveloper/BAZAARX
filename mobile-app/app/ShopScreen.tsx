@@ -24,6 +24,8 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList, TabParamList } from '../App';
 import type { Product } from '../src/types';
 import { useCartStore } from '../src/stores/cartStore';
+import { COLORS } from '../src/constants/theme';
+import { officialStores } from '../src/data/stores';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<TabParamList, 'Shop'>,
@@ -34,31 +36,6 @@ const { width } = Dimensions.get('window');
 const PADDING = 20;
 const GAP = 15;
 const ITEM_WIDTH = (width - (PADDING * 2) - GAP) / 2;
-
-const officialStores = [
-  {
-    id: '1',
-    name: 'Nike Official',
-    logo: '🏃',
-    verified: true,
-    rating: 4.9,
-    products: [
-      'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=200',
-      'https://images.unsplash.com/photo-1606107557195-0e29a4b5b4aa?w=200',
-    ],
-  },
-  {
-    id: '2',
-    name: 'Adidas Store',
-    logo: '👟',
-    verified: true,
-    rating: 4.8,
-    products: [
-      'https://images.unsplash.com/photo-1560769629-975ec94e6a86?w=200',
-      'https://images.unsplash.com/photo-1600185365926-3a2ce3cdb9eb?w=200',
-    ],
-  },
-];
 
 const categories = [
   { id: 'all', name: 'All' },
@@ -76,7 +53,7 @@ const sortOptions = [
 export default function ShopScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const cartItems = useCartStore((state) => state.items);
-  const BRAND_COLOR = '#FF5722';
+  const BRAND_COLOR = COLORS.primary;
   
   const qaProducts = useProductQAStore((state) => state.products);
   const verifiedQAProducts = qaProducts
@@ -158,7 +135,7 @@ export default function ShopScreen({ navigation, route }: Props) {
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionTitle}>Verified Official Stores</Text>
             {/* SEE ALL IS NOW CLICKABLE */}
-            <Pressable onPress={() => console.log('Navigate to All Stores')}>
+            <Pressable onPress={() => navigation.navigate('AllStores')}>
               <Text style={{color: BRAND_COLOR, fontWeight: '700'}}>See All</Text>
             </Pressable>
           </View>
@@ -168,7 +145,7 @@ export default function ShopScreen({ navigation, route }: Props) {
               <Pressable 
                 key={store.id} 
                 style={styles.storeCard}
-                onPress={() => console.log(`Maps to store: ${store.name}`)}
+                onPress={() => navigation.navigate('StoreDetail', { store })}
               >
                 <View style={styles.storeHeader}>
                   <View style={styles.storeLogo}><Text style={{fontSize: 22}}>{store.logo}</Text></View>
@@ -187,7 +164,7 @@ export default function ShopScreen({ navigation, route }: Props) {
                   </View>
                 </View>
                 <View style={styles.storeProducts}>
-                  {store.products.map((url, i) => (
+                  {store.products.slice(0, 2).map((url, i) => (
                     <Image key={i} source={{ uri: url }} style={styles.storeProductThumb} />
                   ))}
                 </View>
@@ -319,7 +296,6 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     backgroundColor: '#FFF',
     borderRadius: 18,
-    padding: 2,
     elevation: 5,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 3 },

@@ -117,6 +117,9 @@ export default function BuyerLoginPage() {
       };
 
       setProfile(buyerProfile);
+      // Initialize cart from database
+      await useBuyerStore.getState().initializeCart();
+
       setIsLoading(false);
       navigate("/shop");
     } catch (err) {

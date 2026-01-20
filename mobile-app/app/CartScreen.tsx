@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, ShoppingBag, Tag, Truck, CheckCircle2, Circle, CheckCircle } from 'lucide-react-native';
 import { CartItemRow } from '../src/components/CartItemRow';
 import { useCartStore } from '../src/stores/cartStore';
+import { COLORS } from '../src/constants/theme';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -24,7 +25,7 @@ type Props = CompositeScreenProps<
 export default function CartScreen({ navigation }: Props) {
   const { items, removeItem, updateQuantity, getTotal, clearCart, clearQuickOrder } = useCartStore();
   const insets = useSafeAreaInsets();
-  const BRAND_COLOR = '#FF5722';
+  const BRAND_COLOR = COLORS.primary;
 
   // Clear quick order when user navigates to cart
   useEffect(() => {

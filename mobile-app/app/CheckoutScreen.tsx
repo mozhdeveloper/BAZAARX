@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, MapPin, CreditCard, Shield, Tag, X, ChevronDown, Check } from 'lucide-react-native';
+import { COLORS } from '../src/constants/theme';
 
 // Dummy voucher codes
 const VOUCHERS = {
@@ -253,7 +254,7 @@ export default function CheckoutScreen({ navigation }: Props) {
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeaderWithBadge}>
             <View style={styles.sectionHeader}>
-              <MapPin size={20} color="#FF5722" />
+              <MapPin size={20} color={COLORS.primary} />
               <Text style={[styles.sectionTitle, { marginLeft: 8 }]}>Delivery Address</Text>
             </View>
             <View style={styles.shippingBadge}>
@@ -329,7 +330,7 @@ export default function CheckoutScreen({ navigation }: Props) {
         {/* Payment Method Card */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
-            <CreditCard size={20} color="#FF5722" />
+            <CreditCard size={20} color={COLORS.primary} />
             <Text style={[styles.sectionTitle, { marginLeft: 8 }]}>Payment Method</Text>
           </View>
 
@@ -402,14 +403,14 @@ export default function CheckoutScreen({ navigation }: Props) {
         {/* Voucher Code Card */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
-            <Tag size={20} color="#FF5722" />
+            <Tag size={20} color={COLORS.primary} />
             <Text style={[styles.sectionTitle, { marginLeft: 8 }]}>Voucher Code</Text>
           </View>
 
           {appliedVoucher ? (
             <View style={styles.appliedVoucherContainer}>
               <View style={styles.appliedVoucherBadge}>
-                <Tag size={16} color="#FF5722" />
+                <Tag size={16} color={COLORS.primary} />
                 <Text style={styles.appliedVoucherCode}>{appliedVoucher}</Text>
                 <Text style={styles.appliedVoucherDesc}>
                   {VOUCHERS[appliedVoucher].description}
@@ -445,6 +446,35 @@ export default function CheckoutScreen({ navigation }: Props) {
             </View>
           )}
         </View>
+
+        {/* Order Summary */}
+        <View style={styles.sectionCard}>
+          <Text style={[styles.sectionTitle, { marginBottom: 16 }]}>Order Summary</Text>
+          
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Merchandise Subtotal</Text>
+            <Text style={styles.summaryValue}>₱{subtotal.toLocaleString()}</Text>
+          </View>
+          
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Shipping Subtotal</Text>
+            <Text style={styles.summaryValue}>₱{shippingFee.toLocaleString()}</Text>
+          </View>
+
+          {discount > 0 && (
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Voucher Discount</Text>
+              <Text style={[styles.summaryValue, { color: '#10B981' }]}>-₱{discount.toLocaleString()}</Text>
+            </View>
+          )}
+
+          <View style={styles.divider} />
+          
+          <View style={styles.summaryRow}>
+            <Text style={styles.totalLabelLarge}>Total Payment</Text>
+            <Text style={styles.totalAmountLarge}>₱{total.toLocaleString()}</Text>
+          </View>
+        </View>
         </ScrollView>
 
         {/* Bottom Action Bar */}
@@ -474,9 +504,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F5F7',
   },
   header: {
-    backgroundColor: '#FF5722',
+    backgroundColor: COLORS.primary,
     paddingBottom: 12,
-    shadowColor: '#FF5722',
+    shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -540,7 +570,7 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.9)',
   },
   stepNumberActive: {
-    color: '#FF5722',
+    color: COLORS.primary,
     fontWeight: '700',
   },
   stepLabel: {
@@ -606,7 +636,7 @@ const styles = StyleSheet.create({
   shippingBadgeText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#FF5722',
+    color: COLORS.primary,
   },
   compactOrderItem: {
     flexDirection: 'row',
@@ -672,12 +702,12 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#FF5722',
+    borderColor: COLORS.primary,
   },
   autofillButtonText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#FF5722',
+    color: COLORS.primary,
   },
   input: {
     backgroundColor: '#F9FAFB',
@@ -713,7 +743,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F9FAFB',
   },
   paymentOptionActive: {
-    borderColor: '#FF5722',
+    borderColor: COLORS.primary,
     backgroundColor: '#FFF4ED',
   },
   radio: {
@@ -730,7 +760,7 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: '#FF5722',
+    backgroundColor: COLORS.primary,
   },
   paymentText: {
     fontSize: 15,
@@ -771,7 +801,7 @@ const styles = StyleSheet.create({
     color: '#111827',
   },
   applyButton: {
-    backgroundColor: '#FF5722',
+    backgroundColor: COLORS.primary,
     paddingHorizontal: 24,
     paddingVertical: 14,
     borderRadius: 12,
@@ -792,7 +822,7 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#FF5722',
+    borderColor: COLORS.primary,
   },
   appliedVoucherBadge: {
     flex: 1,
@@ -803,7 +833,7 @@ const styles = StyleSheet.create({
   appliedVoucherCode: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#FF5722',
+    color: COLORS.primary,
   },
   appliedVoucherDesc: {
     fontSize: 13,
@@ -853,7 +883,7 @@ const styles = StyleSheet.create({
     color: '#111827',
   },
   checkoutButton: {
-    backgroundColor: '#FF5722',
+    backgroundColor: COLORS.primary,
     paddingVertical: 16,
     borderRadius: 14,
     alignItems: 'center',
@@ -868,6 +898,35 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
     letterSpacing: 0.5,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  summaryLabel: {
+    fontSize: 14,
+    color: '#4B5563',
+  },
+  summaryValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#F3F4F6',
+    marginVertical: 12,
+  },
+  totalLabelLarge: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  totalAmountLarge: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: COLORS.primary,
   },
 });
 

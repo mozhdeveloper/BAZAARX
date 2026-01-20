@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, Image, Pressable, StyleSheet } from 'react-native';
 import { BadgeCheck, ShieldCheck, Star } from 'lucide-react-native';
 import { Product } from '../types';
+import { COLORS } from '../constants/theme';
 
 interface ProductCardProps {
   product: Product;
@@ -53,7 +54,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress }) =>
 
         {/* Rating */}
         <View style={styles.ratingContainer}>
-          <Star size={12} fill="#FF5722" color="#FF5722" />
+          <Star size={12} fill={COLORS.primary} color={COLORS.primary} />
           <Text style={styles.ratingText}>{product.rating}</Text>
         </View>
 
@@ -75,11 +76,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress }) =>
               {product.seller}
             </Text>
             {product.sellerVerified && (
-              <BadgeCheck size={12} color="#FF5722" />
+              <BadgeCheck size={12} color={COLORS.primary} />
             )}
           </View>
           <View style={styles.sellerRatingContainer}>
-            <Star size={10} fill="#FF5722" color="#FF5722" />
+            <Star size={10} fill={COLORS.primary} color={COLORS.primary} />
             <Text style={styles.sellerRating}>({product.sellerRating})</Text>
           </View>
         </View>
@@ -117,11 +118,11 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 12,
     left: 12,
-    backgroundColor: '#FF5722',
+    backgroundColor: COLORS.primary,
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 999,
-    shadowColor: '#FF5722',
+    shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
@@ -137,13 +138,13 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 12,
     right: 12,
-    backgroundColor: 'rgba(255, 87, 34, 0.15)',
+    backgroundColor: 'rgba(255, 106, 0, 0.15)', // Lightened Primary
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 999,
   },
   shippingText: {
-    color: '#FF5722',
+    color: COLORS.primary,
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 0.3,
@@ -154,7 +155,7 @@ const styles = StyleSheet.create({
   productName: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1F2937',
+    color: COLORS.gray900,
     marginBottom: 8,
     lineHeight: 18,
     letterSpacing: -0.1,
@@ -167,7 +168,7 @@ const styles = StyleSheet.create({
   },
   ratingText: {
     fontSize: 12,
-    color: '#6B7280',
+    color: COLORS.gray500,
   },
   priceContainer: {
     flexDirection: 'row',
@@ -178,17 +179,17 @@ const styles = StyleSheet.create({
   price: {
     fontSize: 20,
     fontWeight: '800',
-    color: '#FF5722',
+    color: COLORS.primary,
     letterSpacing: -0.5,
   },
   originalPrice: {
     fontSize: 11,
-    color: '#9CA3AF',
+    color: COLORS.gray400,
     textDecorationLine: 'line-through',
   },
   soldText: {
     fontSize: 11,
-    color: '#9CA3AF',
+    color: COLORS.gray400,
     marginBottom: 10,
   },
   sellerContainer: {
@@ -210,7 +211,7 @@ const styles = StyleSheet.create({
   },
   sellerName: {
     fontSize: 11,
-    color: '#6B7280',
+    color: COLORS.gray500,
     flex: 1,
   },
   sellerRatingContainer: {
@@ -220,6 +221,6 @@ const styles = StyleSheet.create({
   },
   sellerRating: {
     fontSize: 11,
-    color: '#6B7280',
+    color: COLORS.gray500,
   },
 });

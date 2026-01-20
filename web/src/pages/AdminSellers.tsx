@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Navigate } from "react-router-dom";
-import { useAdminAuth, useAdminSellers } from "../stores/adminStore";
+import { useAdminAuth, useAdminSellers, Seller } from "../stores/adminStore";
 import AdminSidebar from "../components/AdminSidebar";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -81,34 +81,55 @@ const AdminSellers: React.FC = () => {
     if (isAuthenticated) {
       loadSellers();
     }
-  }, [isAuthenticated, loadSellers]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated]);
+
+  const getFilteredSellers = useCallback(
+    (status?: string) => {
+      const sellersToFilter = status
+        ? sellers.filter((seller) => seller.status === status)
+        : sellers;
+      return sellersToFilter.filter(
+        (seller) =>
+          seller.businessName
+            .toLowerCase()
+            .includes(searchTerm.toLowerCase()) ||
+          seller.ownerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          seller.email.toLowerCase().includes(searchTerm.toLowerCase()),
+      );
+    },
+    [sellers, searchTerm],
+  );
+
+  const approvedSellers = useMemo(
+    () => getFilteredSellers("approved"),
+    [getFilteredSellers],
+  );
+  const rejectedSellers = useMemo(
+    () => getFilteredSellers("rejected"),
+    [getFilteredSellers],
+  );
+  const suspendedSellers = useMemo(
+    () => getFilteredSellers("suspended"),
+    [getFilteredSellers],
+  );
+  const filteredPendingSellers = useMemo(
+    () => getFilteredSellers("pending"),
+    [getFilteredSellers],
+  );
+
+  const handleViewDetails = useCallback(
+    (seller: Seller) => {
+      selectSeller(seller);
+      setShowDetailsDialog(true);
+    },
+    [selectSeller],
+  );
 
   // Redirect if not authenticated
   if (!isAuthenticated) {
     return <Navigate to="/admin/login" replace />;
   }
-
-  const getFilteredSellers = (status?: string) => {
-    const sellersToFilter = status
-      ? sellers.filter((seller) => seller.status === status)
-      : sellers;
-    return sellersToFilter.filter(
-      (seller) =>
-        seller.businessName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        seller.ownerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        seller.email.toLowerCase().includes(searchTerm.toLowerCase()),
-    );
-  };
-
-  const approvedSellers = getFilteredSellers("approved");
-  const rejectedSellers = getFilteredSellers("rejected");
-  const suspendedSellers = getFilteredSellers("suspended");
-  const filteredPendingSellers = getFilteredSellers("pending");
-
-  const handleViewDetails = (seller: any) => {
-    selectSeller(seller);
-    setShowDetailsDialog(true);
-  };
 
   const handleApprove = async () => {
     if (!selectedSeller) return;
@@ -123,6 +144,8 @@ const AdminSellers: React.FC = () => {
     setShowRejectDialog(false);
     setRejectReason("");
     selectSeller(null);
+    // Reload sellers to refresh the UI
+    await loadSellers();
   };
 
   const handleSuspend = async () => {
@@ -179,172 +202,174 @@ const AdminSellers: React.FC = () => {
     }
   };
 
-  const SellerCard = ({
-    seller,
-    showActions = false,
-  }: {
-    seller: any;
-    showActions?: boolean;
-  }) => (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      layout
-    >
-      <Card className="hover:shadow-lg transition-shadow duration-300">
-        <CardContent className="p-6">
-          <div className="flex items-start justify-between mb-4">
-            <div className="flex items-center">
-              <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center flex-shrink-0">
-                {seller.logo ? (
-                  <img
-                    src={seller.logo}
-                    alt={seller.businessName}
-                    className="w-12 h-12 rounded-xl object-cover"
-                  />
-                ) : (
-                  <Store className="w-6 h-6 text-white" />
-                )}
+  const SellerCard = React.memo(
+    ({
+      seller,
+      showActions = false,
+    }: {
+      seller: Seller;
+      showActions?: boolean;
+    }) => (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -20 }}
+        layout
+      >
+        <Card className="hover:shadow-lg transition-shadow duration-300">
+          <CardContent className="p-6">
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex items-center">
+                <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center flex-shrink-0">
+                  {seller.logo ? (
+                    <img
+                      src={seller.logo}
+                      alt={seller.businessName}
+                      className="w-12 h-12 rounded-xl object-cover"
+                    />
+                  ) : (
+                    <Store className="w-6 h-6 text-white" />
+                  )}
+                </div>
+                <div className="ml-4">
+                  <h3 className="font-semibold text-lg text-gray-900">
+                    {seller.businessName}
+                  </h3>
+                  <p className="text-gray-600">{seller.ownerName}</p>
+                </div>
               </div>
-              <div className="ml-4">
-                <h3 className="font-semibold text-lg text-gray-900">
-                  {seller.businessName}
-                </h3>
-                <p className="text-gray-600">{seller.ownerName}</p>
+              <div className="flex items-center gap-2">
+                {getStatusIcon(seller.status)}
+                {getStatusBadge(seller.status)}
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              {getStatusIcon(seller.status)}
-              {getStatusBadge(seller.status)}
-            </div>
-          </div>
 
-          <div className="space-y-2 mb-4">
-            <div className="flex items-center text-sm text-gray-600">
-              <Mail className="w-4 h-4 mr-2" />
-              {seller.email}
+            <div className="space-y-2 mb-4">
+              <div className="flex items-center text-sm text-gray-600">
+                <Mail className="w-4 h-4 mr-2" />
+                {seller.email}
+              </div>
+              <div className="flex items-center text-sm text-gray-600">
+                <Phone className="w-4 h-4 mr-2" />
+                {seller.phone}
+              </div>
+              <div className="flex items-center text-sm text-gray-600">
+                <MapPin className="w-4 h-4 mr-2" />
+                {seller.address}
+              </div>
+              <div className="flex items-center text-sm text-gray-600">
+                <Calendar className="w-4 h-4 mr-2" />
+                Joined {new Date(seller.joinDate).toLocaleDateString()}
+              </div>
             </div>
-            <div className="flex items-center text-sm text-gray-600">
-              <Phone className="w-4 h-4 mr-2" />
-              {seller.phone}
-            </div>
-            <div className="flex items-center text-sm text-gray-600">
-              <MapPin className="w-4 h-4 mr-2" />
-              {seller.address}
-            </div>
-            <div className="flex items-center text-sm text-gray-600">
-              <Calendar className="w-4 h-4 mr-2" />
-              Joined {new Date(seller.joinDate).toLocaleDateString()}
-            </div>
-          </div>
 
-          {seller.status === "approved" && (
-            <div className="bg-gray-50 rounded-lg p-4 mb-4">
-              <h4 className="font-medium text-gray-900 mb-2">
-                Performance Metrics
-              </h4>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="text-center">
-                  <p className="text-sm text-gray-600">Products</p>
-                  <p className="font-semibold text-gray-900">
-                    {seller.metrics.totalProducts}
-                  </p>
-                </div>
-                <div className="text-center">
-                  <p className="text-sm text-gray-600">Orders</p>
-                  <p className="font-semibold text-gray-900">
-                    {seller.metrics.totalOrders}
-                  </p>
-                </div>
-                <div className="text-center">
-                  <p className="text-sm text-gray-600">Revenue</p>
-                  <p className="font-semibold text-gray-900">
-                    ₱{seller.metrics.totalRevenue.toLocaleString()}
-                  </p>
-                </div>
-                <div className="text-center">
-                  <p className="text-sm text-gray-600">Rating</p>
-                  <div className="flex items-center justify-center">
-                    <Star className="w-4 h-4 text-yellow-500 mr-1" />
+            {seller.status === "approved" && (
+              <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                <h4 className="font-medium text-gray-900 mb-2">
+                  Performance Metrics
+                </h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="text-center">
+                    <p className="text-sm text-gray-600">Products</p>
                     <p className="font-semibold text-gray-900">
-                      {seller.metrics.rating}
+                      {seller.metrics.totalProducts}
                     </p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm text-gray-600">Orders</p>
+                    <p className="font-semibold text-gray-900">
+                      {seller.metrics.totalOrders}
+                    </p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm text-gray-600">Revenue</p>
+                    <p className="font-semibold text-gray-900">
+                      ₱{seller.metrics.totalRevenue.toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm text-gray-600">Rating</p>
+                    <div className="flex items-center justify-center">
+                      <Star className="w-4 h-4 text-yellow-500 mr-1" />
+                      <p className="font-semibold text-gray-900">
+                        {seller.metrics.rating}
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleViewDetails(seller)}
-              className="flex-1"
-            >
-              <Eye className="w-4 h-4 mr-1" />
-              View Details
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleViewDetails(seller)}
+                className="flex-1"
+              >
+                <Eye className="w-4 h-4 mr-1" />
+                View Details
+              </Button>
 
-            {showActions && seller.status === "pending" && (
-              <>
-                {hasCompleteRequirements(seller) ? (
+              {showActions && seller.status === "pending" && (
+                <>
+                  {hasCompleteRequirements(seller) ? (
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        selectSeller(seller);
+                        setShowApproveDialog(true);
+                      }}
+                      className="bg-green-600 hover:bg-green-700 text-white"
+                    >
+                      <CheckCircle className="w-4 h-4 mr-1" />
+                      Approve
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      disabled
+                      className="bg-gray-300 cursor-not-allowed"
+                      title="Seller has incomplete requirements"
+                    >
+                      <AlertTriangle className="w-4 h-4 mr-1" />
+                      Incomplete
+                    </Button>
+                  )}
                   <Button
+                    variant="outline"
                     size="sm"
                     onClick={() => {
                       selectSeller(seller);
-                      setShowApproveDialog(true);
+                      setShowRejectDialog(true);
                     }}
-                    className="bg-green-600 hover:bg-green-700 text-white"
+                    className="text-red-600 border-red-300 hover:bg-red-50"
                   >
-                    <CheckCircle className="w-4 h-4 mr-1" />
-                    Approve
+                    <XCircle className="w-4 h-4 mr-1" />
+                    Reject
                   </Button>
-                ) : (
-                  <Button
-                    size="sm"
-                    disabled
-                    className="bg-gray-300 cursor-not-allowed"
-                    title="Seller has incomplete requirements"
-                  >
-                    <AlertTriangle className="w-4 h-4 mr-1" />
-                    Incomplete
-                  </Button>
-                )}
+                </>
+              )}
+
+              {showActions && seller.status === "approved" && (
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => {
                     selectSeller(seller);
-                    setShowRejectDialog(true);
+                    setShowSuspendDialog(true);
                   }}
-                  className="text-red-600 border-red-300 hover:bg-red-50"
+                  className="text-orange-600 border-orange-300 hover:bg-orange-50"
                 >
-                  <XCircle className="w-4 h-4 mr-1" />
-                  Reject
+                  <Ban className="w-4 h-4 mr-1" />
+                  Suspend
                 </Button>
-              </>
-            )}
-
-            {showActions && seller.status === "approved" && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  selectSeller(seller);
-                  setShowSuspendDialog(true);
-                }}
-                className="text-orange-600 border-orange-300 hover:bg-orange-50"
-              >
-                <Ban className="w-4 h-4 mr-1" />
-                Suspend
-              </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-    </motion.div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
+    ),
   );
 
   if (isLoading && sellers.length === 0) {
@@ -444,7 +469,7 @@ const AdminSellers: React.FC = () => {
 
             <TabsContent value="pending">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <AnimatePresence>
+                <AnimatePresence mode="popLayout">
                   {filteredPendingSellers.map((seller) => (
                     <SellerCard
                       key={seller.id}
@@ -469,7 +494,7 @@ const AdminSellers: React.FC = () => {
 
             <TabsContent value="approved">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <AnimatePresence>
+                <AnimatePresence mode="popLayout">
                   {approvedSellers.map((seller) => (
                     <SellerCard
                       key={seller.id}
@@ -494,7 +519,7 @@ const AdminSellers: React.FC = () => {
 
             <TabsContent value="rejected">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <AnimatePresence>
+                <AnimatePresence mode="popLayout">
                   {rejectedSellers.map((seller) => (
                     <SellerCard key={seller.id} seller={seller} />
                   ))}
@@ -515,7 +540,7 @@ const AdminSellers: React.FC = () => {
 
             <TabsContent value="suspended">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <AnimatePresence>
+                <AnimatePresence mode="popLayout">
                   {suspendedSellers.map((seller) => (
                     <SellerCard key={seller.id} seller={seller} />
                   ))}
@@ -798,7 +823,7 @@ const AdminSellers: React.FC = () => {
                   Submitted Documents
                 </h4>
                 <div className="space-y-2">
-                  {selectedSeller.documents.map((doc: any) => (
+                  {selectedSeller.documents.map((doc) => (
                     <div
                       key={doc.id}
                       className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
