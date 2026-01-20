@@ -16,6 +16,7 @@ import { useAdminAuth } from '../../src/stores/adminStore';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { Shield, Mail, Lock, Eye, EyeOff } from 'lucide-react-native';
+import { COLORS } from '../../src/constants/theme';
 
 type RootStackParamList = {
   AdminTabs: undefined;
@@ -87,7 +88,7 @@ export default function AdminLoginScreen() {
           <View style={styles.header}>
             <View style={styles.logoContainer}>
               <View style={styles.shieldBg}>
-                <Shield size={48} color="#FF5722" strokeWidth={2} />
+                <Shield size={48} color={COLORS.primary} strokeWidth={2} />
               </View>
             </View>
             <Text style={styles.title}>Admin Portal</Text>
@@ -225,7 +226,7 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   header: {
-    backgroundColor: '#FF5722',
+    backgroundColor: COLORS.primary,
     paddingTop: 80,
     paddingBottom: 60,
     paddingHorizontal: 20,
@@ -334,13 +335,13 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   loginButton: {
-    backgroundColor: '#FF5722',
+    backgroundColor: COLORS.primary,
     borderRadius: 12,
     height: 56,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 8,
-    shadowColor: '#FF5722',
+    shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -377,7 +378,7 @@ const styles = StyleSheet.create({
   },
   demoBold: {
     fontWeight: '700',
-    color: '#FF5722',
+    color: COLORS.primary,
   },
   demoHint: {
     fontSize: 11,

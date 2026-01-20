@@ -1,50 +1,61 @@
 import React from 'react';
 import { View, Text, StyleSheet, FlatList, Image, Pressable, StatusBar } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, CheckCircle2, Star, MapPin } from 'lucide-react-native';
+import { ArrowLeft, Store, MapPin, Star, Users } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { officialStores } from '../src/data/stores';
+import { COLORS } from '../src/constants/theme';
 
 export default function AllStoresScreen() {
     const insets = useSafeAreaInsets();
     const navigation = useNavigation<any>();
-    const BRAND_COLOR = '#FF5722';
+    const BRAND_COLOR = COLORS.primary;
 
     const renderStoreItem = ({ item }: { item: any }) => (
-        <Pressable
-            style={styles.storeCard}
+        <Pressable 
+            style={styles.shopCard} 
             onPress={() => navigation.navigate('StoreDetail', { store: item })}
         >
-            {/* Banner */}
-            <Image source={{ uri: item.banner }} style={styles.banner} resizeMode="cover" />
-
-            {/* Overlay Content */}
-            <View style={styles.cardContent}>
-                <View style={styles.logoRow}>
-                    <View style={styles.logoContainer}>
-                        <Text style={styles.logoText}>{item.logo}</Text>
+            <Image source={{ uri: item.banner }} style={styles.shopImage} />
+            <View style={styles.overlay} />
+            <View style={styles.logoContainer}>
+                <Text style={{ fontSize: 24 }}>{item.logo}</Text>
+            </View>
+            <View style={styles.shopInfo}>
+                <View style={styles.shopHeader}>
+                    <Text style={styles.shopName}>{item.name}</Text>
+                    <View style={styles.ratingBadge}>
+                        <Star size={14} color="#FBBF24" fill="#FBBF24" />
+                        <Text style={styles.ratingText}>{item.rating}</Text>
                     </View>
-                    <View style={styles.infoContainer}>
-                        <View style={styles.nameRow}>
-                            <Text style={styles.storeName}>{item.name}</Text>
-                            {item.verified && <CheckCircle2 size={16} color="#3B82F6" fill="#FFF" />}
-                        </View>
-                        <View style={styles.statsRow}>
-                            <Star size={12} color="#F59E0B" fill="#F59E0B" />
-                            <Text style={styles.statsText}>{item.rating} • {item.followers.toLocaleString()} Followers</Text>
-                        </View>
-                    </View>
-                    <Pressable style={styles.visitButton}>
-                        <Text style={styles.visitText}>Visit</Text>
-                    </Pressable>
                 </View>
 
-                {/* Product Previews */}
-                <View style={styles.productsRow}>
-                    {item.products.slice(0, 3).map((url: string, index: number) => (
-                        <Image key={index} source={{ uri: url }} style={styles.productThumb} />
-                    ))}
+                <View style={styles.locationRow}>
+                    <MapPin size={14} color="#6B7280" />
+                    <Text style={styles.locationText}>{item.location}</Text>
                 </View>
+
+                <View style={styles.statsRow}>
+                    <View style={styles.statItem}>
+                        <Users size={14} color="#6B7280" />
+                        <Text style={styles.statText}>{item.followers > 1000 ? (item.followers / 1000).toFixed(1) + 'k' : item.followers} followers</Text>
+                    </View>
+                    <View style={styles.statItem}>
+                        <Store size={14} color="#6B7280" />
+                        <Text style={styles.statText}>{item.products.length} products</Text>
+                    </View>
+                </View>
+
+                <Pressable
+                    style={({ pressed }) => [
+                        styles.visitButton,
+                        { backgroundColor: BRAND_COLOR },
+                        pressed && styles.visitButtonPressed,
+                    ]}
+                    onPress={() => navigation.navigate('StoreDetail', { store: item })}
+                >
+                    <Text style={styles.visitButtonText}>Visit Shop</Text>
+                </Pressable>
             </View>
         </Pressable>
     );
@@ -100,7 +111,7 @@ const styles = StyleSheet.create({
         padding: 16,
         paddingBottom: 40,
     },
-    storeCard: {
+    shopCard: {
         backgroundColor: '#FFFFFF',
         borderRadius: 16,
         marginBottom: 16,
@@ -110,88 +121,97 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.05,
         shadowRadius: 8,
         elevation: 2,
-        borderWidth: 1,
-        borderColor: '#F3F4F6',
     },
-    banner: {
+    shopImage: {
         width: '100%',
-        height: 100,
-        backgroundColor: '#EEEEEE',
+        height: 120,
+        backgroundColor: '#F3F4F6',
     },
-    cardContent: {
-        padding: 16,
-    },
-    logoRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginTop: -40, // Pull up over banner
-        marginBottom: 16,
+    overlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(0,0,0,0.05)',
+        height: 120,
     },
     logoContainer: {
-        width: 64,
-        height: 64,
-        borderRadius: 32,
-        backgroundColor: '#FFFFFF',
+        position: 'absolute',
+        top: 80,
+        left: 16,
+        width: 60,
+        height: 60,
+        borderRadius: 30,
+        backgroundColor: '#FFF',
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 3,
-        borderColor: '#FFFFFF',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 4,
+        borderColor: '#FFF',
+        zIndex: 10,
     },
-    logoText: {
-        fontSize: 30,
+    shopInfo: {
+        padding: 16,
+        paddingTop: 24,
     },
-    infoContainer: {
+    shopHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 8,
+    },
+    shopName: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: '#111827',
         flex: 1,
-        marginLeft: 12,
-        marginTop: 24, // Push down to align with bottom of logo
     },
-    nameRow: {
+    ratingBadge: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 4,
+        backgroundColor: '#FEF3E8',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 8,
     },
-    storeName: {
-        fontSize: 16,
+    ratingText: {
+        fontSize: 12,
         fontWeight: '700',
-        color: '#1F2937',
+        color: '#FF6A00',
+    },
+    locationRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginBottom: 12,
+    },
+    locationText: {
+        fontSize: 13,
+        color: '#6B7280',
     },
     statsRow: {
         flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-        marginTop: 2,
+        gap: 16,
+        marginBottom: 16,
     },
-    statsText: {
-        fontSize: 12,
+    statItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
+    statText: {
+        fontSize: 13,
         color: '#6B7280',
     },
     visitButton: {
-        backgroundColor: '#FFF5F0',
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        borderRadius: 20,
-        borderWidth: 1,
-        borderColor: '#FF5722',
-        marginTop: 24,
+        width: '100%',
+        paddingVertical: 12,
+        borderRadius: 12,
+        alignItems: 'center',
     },
-    visitText: {
-        color: '#FF5722',
-        fontSize: 12,
+    visitButtonPressed: {
+        opacity: 0.9,
+    },
+    visitButtonText: {
+        fontSize: 14,
         fontWeight: '700',
-    },
-    productsRow: {
-        flexDirection: 'row',
-        gap: 8,
-    },
-    productThumb: {
-        flex: 1,
-        height: 80,
-        borderRadius: 8,
-        backgroundColor: '#F3F4F6',
+        color: '#FFFFFF',
     },
 });
