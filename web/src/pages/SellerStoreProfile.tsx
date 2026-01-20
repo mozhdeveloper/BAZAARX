@@ -23,6 +23,7 @@ import {
   Edit2,
   Eye,
   LogOut,
+  Download,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -120,6 +121,8 @@ export function SellerStoreProfile() {
         if (data) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const docData: any = data;
+
+          console.log("Fetched document URLs:", docData);
 
           setDocuments({
             businessPermitUrl: docData.business_permit_url || undefined,
@@ -231,6 +234,37 @@ export function SellerStoreProfile() {
   const handleSave = () => {
     updateSellerDetails(formData);
     setEditSection(null);
+  };
+
+  // Helper function to download document
+  const handleDownloadDocument = async (url: string, filename: string) => {
+    try {
+      console.log("Downloading document:", filename, "from URL:", url);
+
+      // Fetch the document
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error("Failed to fetch document");
+      }
+
+      // Convert to blob
+      const blob = await response.blob();
+
+      // Create download link
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+
+      console.log("Download complete");
+    } catch (error) {
+      console.error("Download failed:", error);
+      alert("Failed to download document. The file may not be accessible.");
+    }
   };
 
   return (
@@ -745,15 +779,75 @@ export function SellerStoreProfile() {
                               variant="outline"
                               size="sm"
                               className="gap-2"
-                              onClick={() =>
-                                window.open(
-                                  documents[doc.key as keyof typeof documents],
-                                  "_blank",
-                                )
-                              }
+                              onClick={() => {
+                                const docUrl =
+                                  documents[doc.key as keyof typeof documents];
+                                console.log(
+                                  "Opening document:",
+                                  doc.label,
+                                  "URL:",
+                                  docUrl,
+                                );
+
+                                if (!docUrl) {
+                                  alert("Document URL not found");
+                                  return;
+                                }
+
+                                // Handle different URL types
+                                if (docUrl.startsWith("mock://")) {
+                                  alert(
+                                    "Mock URL detected. This is a test URL. Please upload a real document.",
+                                  );
+                                  return;
+                                }
+
+                                // Open PDF in new tab with proper viewer
+                                const newWindow = window.open("", "_blank");
+                                if (newWindow) {
+                                  newWindow.document.write(`
+                                    <!DOCTYPE html>
+                                    <html>
+                                      <head>
+                                        <title>${doc.label} - BazaarPH</title>
+                                        <style>
+                                          body { margin: 0; overflow: hidden; }
+                                          iframe { width: 100%; height: 100vh; border: none; }
+                                        </style>
+                                      </head>
+                                      <body>
+                                        <iframe src="${docUrl}" type="application/pdf"></iframe>
+                                      </body>
+                                    </html>
+                                  `);
+                                  newWindow.document.close();
+                                } else {
+                                  alert(
+                                    "Pop-up blocked. Please allow pop-ups and try again.",
+                                  );
+                                }
+                              }}
                             >
                               <Eye className="h-4 w-4" />
                               View
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="gap-2"
+                              onClick={() => {
+                                const docUrl =
+                                  documents[doc.key as keyof typeof documents];
+                                if (docUrl && !docUrl.startsWith("mock://")) {
+                                  handleDownloadDocument(
+                                    docUrl,
+                                    `${doc.label.replace(/\s+/g, "_")}.pdf`,
+                                  );
+                                }
+                              }}
+                            >
+                              <Download className="h-4 w-4" />
+                              Download
                             </Button>
                             <Button
                               variant="outline"
