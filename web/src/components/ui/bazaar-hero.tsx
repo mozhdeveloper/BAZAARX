@@ -45,7 +45,7 @@ export function BazaarHero() {
   });
 
   return (
-    <div className="w-full relative container px-2 mx-auto max-w-7xl min-h-screen">
+    <div className="w-full relative container px-2 mx-auto max-w-7xl min-h-[100vh] pb-8">
       <div className="mt-0 bg-white rounded-2xl relative overflow-hidden">
         <AnimatePresence>
           {isHeaderVisible && (
@@ -190,15 +190,15 @@ export function BazaarHero() {
 
         <Hero
           title={
-            <div className="flex flex-col items-center gap-6 mt-36">
-              <span className="font-fondamento text-9xl lg:text-[10rem] text-[var(--brand-primary)]">
+            <div className="flex flex-col items-center gap-3 sm:gap-4 md:gap-6 mt-24 sm:mt-28 md:mt-36">
+              <span className="font-fondamento text-6xl sm:text-7xl md:text-8xl lg:text-9xl xl:text-[10rem] text-[var(--brand-primary)]">
                 BazaarX
               </span>
-              <div className="h-52 w-px bg-gradient-to-b from-transparent via-[var(--brand-primary)] to-transparent" />
+              <div className="h-32 sm:h-40 md:h-48 lg:h-52 w-px bg-gradient-to-b from-transparent via-[var(--brand-primary)] to-transparent" />
             </div>
           }
           subtitle="Inspired by ancient bazaars. Reimagined as the modern crossroads of global trade."
-          subtitleClassName="font-fondamento text-2xl mt-6 text-center"
+          subtitleClassName="font-fondamento text-lg sm:text-xl md:text-2xl mt-4 sm:mt-6 text-center px-4"
           actions={[
             {
               label: "Start Shopping",

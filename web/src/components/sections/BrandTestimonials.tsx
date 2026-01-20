@@ -43,12 +43,12 @@ function BrandTestimonials() {
 
         {/* LEFT COLUMN: STATIC CONTENT */}
         <div className="lg:w-2/5 space-y-6">
-          <span className="text-[#ff8555] font-bold tracking-widest text-sm uppercase">
+          <span className="text-[#ff6a00] font-bold tracking-widest text-sm uppercase">
             Testimonials
           </span>
           <h2 className="text-5xl lg:text-6xl font-extrabold text-[#1a2b3b] leading-tight">
             Trusted by Leading <br />
-            <span className="text-[#ff8555]">Brands</span>
+            <span className="text-[#ff6a00]">Brands</span>
           </h2>
           <p className="text-gray-600 text-lg max-w-md">
             See what business owners and entrepreneurs say about BazaarX.
@@ -71,7 +71,7 @@ function BrandTestimonials() {
               >
                 <div className="flex gap-1 mb-6">
                   {[...Array(5)].map((_, i) => (
-                    <Star key={i} className="w-5 h-5 fill-[#ff8555] text-[#ff8555]" />
+                    <Star key={i} className="w-5 h-5 fill-[#ff6a00] text-[#ff6a00]" />
                   ))}
                 </div>
 
@@ -98,7 +98,7 @@ function BrandTestimonials() {
             {TESTIMONIALS.map((_, i) => (
               <div
                 key={i}
-                className={`transition-all duration-300 rounded-full h-1.5 ${i === index ? "w-8 bg-[#ff8555]" : "w-2 bg-gray-300"}`}
+                className={`transition-all duration-300 rounded-full h-1.5 ${i === index ? "w-8 bg-[#FF6A00]" : "w-2 bg-gray-300"}`}
               />
             ))}
           </div>
@@ -107,15 +107,15 @@ function BrandTestimonials() {
             <div className="flex gap-4">
               <button
                 onClick={prev}
-                className="p-4 rounded-full border border-gray-200 bg-white hover:bg-gray-50 transition-all active:scale-95 shadow-sm"
+                className="p-4 rounded-full border border-gray-200 bg-white hover:bg-[#FF6A00] transition-all active:scale-95 shadow-sm group"
               >
-                <ArrowLeft className="w-6 h-6 text-gray-700" />
+                <ArrowLeft className="w-6 h-6 text-gray-700 group-hover:text-white transition-colors" />
               </button>
               <button
                 onClick={next}
-                className="p-4 rounded-full bg-[#ff8555] hover:bg-[#ff703d] transition-all active:scale-95 shadow-lg shadow-orange-200"
+                className="p-4 rounded-full border border-gray-200 bg-white hover:bg-[#FF6A00] transition-all active:scale-95 shadow-sm group"
               >
-                <ArrowRight className="w-6 h-6 text-white" />
+                <ArrowRight className="w-6 h-6 text-gray-700 group-hover:text-white transition-colors" />
               </button>
             </div>
           </div>
