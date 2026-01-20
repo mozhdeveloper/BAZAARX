@@ -270,7 +270,7 @@ export function SellerRegister() {
       const success = await register(formData);
       if (success) {
         setIsLoading(false);
-        navigate('/seller/onboarding');
+        navigate('/seller');
       } else {
         setError('Registration failed. Please try again.');
         setIsLoading(false);
