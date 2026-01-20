@@ -190,7 +190,7 @@ export function BazaarHero() {
 
         <Hero
           title={
-            <div className="flex flex-col items-center gap-3 sm:gap-4 md:gap-6 mt-24 sm:mt-28 md:mt-36">
+            <div className="flex flex-col items-center gap-3 sm:gap-4 md:gap-6 mt-10 sm:mt-14 md:mt-22">
               <span className="font-fondamento text-6xl sm:text-7xl md:text-8xl lg:text-9xl xl:text-[10rem] text-[var(--brand-primary)]">
                 BazaarX
               </span>
