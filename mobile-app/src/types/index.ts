@@ -4,9 +4,11 @@ export interface Product {
   price: number;
   originalPrice?: number;
   image: string;
+  images?: string[];
   rating: number;
   sold: number;
   seller: string;
+  sellerId?: string;
   sellerRating: number;
   sellerVerified: boolean;
   isFreeShipping: boolean;

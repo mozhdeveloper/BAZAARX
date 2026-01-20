@@ -25,6 +25,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList, TabParamList } from '../App';
 import type { Product } from '../src/types';
 import { supabase } from '../src/lib/supabase';
+import { COLORS } from '../src/constants/theme';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<TabParamList, 'Home'>,
@@ -43,7 +44,7 @@ const categories = [
 
 export default function HomeScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
-  const BRAND_COLOR = '#FF5722';
+  const BRAND_COLOR = COLORS.primary;
 
   const [activeTab, setActiveTab] = useState<'Home' | 'Category'>('Home');
   const [showAIChat, setShowAIChat] = useState(false);
@@ -321,7 +322,7 @@ const styles = StyleSheet.create({
   greetingSubtitle: { fontSize: 13 },
   headerRight: { flexDirection: 'row', gap: 16 },
   headerIconButton: { padding: 4 },
-  notifBadge: { position: 'absolute', top: 4, right: 4, width: 8, height: 8, borderRadius: 4, borderWidth: 1.5, borderColor: '#FF5722' },
+  notifBadge: { position: 'absolute', top: 4, right: 4, width: 8, height: 8, borderRadius: 4, borderWidth: 1.5, borderColor: COLORS.primary },
   searchBarWrapper: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 15 },
   searchBarInner: { flex: 1, flexDirection: 'row', alignItems: 'center', borderRadius: 12, paddingHorizontal: 15, height: 48, gap: 10 },
   searchInput: { flex: 1, fontSize: 14 },
@@ -349,8 +350,8 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   timerBox: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, gap: 4 },
   timerText: { color: '#FFF', fontSize: 11, fontWeight: '700' },
-  itemBoxContainerHorizontal: { width: 160, marginRight: 15, backgroundColor: '#FFF', borderRadius: 18, padding: 2, elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.1, shadowRadius: 6 },
-  itemBoxContainerVertical: { width: (width - 55) / 2, marginBottom: 20, backgroundColor: '#FFF', borderRadius: 18, padding: 2, elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.1, shadowRadius: 6 },
+  itemBoxContainerHorizontal: { width: 160, marginRight: 15, backgroundColor: '#FFF', borderRadius: 18, elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.1, shadowRadius: 6 },
+  itemBoxContainerVertical: { width: (width - 55) / 2, marginBottom: 20, backgroundColor: '#FFF', borderRadius: 18, elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.1, shadowRadius: 6 },
   section: { paddingHorizontal: 20, marginVertical: 15 },
   productRequestButton: { backgroundColor: '#FFFFFF', borderRadius: 20, padding: 16, elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8 },
   productRequestButtonPressed: { opacity: 0.8, transform: [{ scale: 0.98 }] },
@@ -364,7 +365,7 @@ const styles = StyleSheet.create({
   gridContainer: { paddingHorizontal: 20, marginBottom: 20 },
   gridHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   gridTitleText: { fontSize: 18, fontWeight: '900', color: '#1F2937' },
-  gridSeeAll: { fontSize: 14, fontWeight: '700', color: '#FF5722' },
+  gridSeeAll: { fontSize: 14, fontWeight: '700', color: COLORS.primary },
   gridBody: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
   aiFloatingButton: { position: 'absolute', right: 20, width: 60, height: 60, borderRadius: 30, justifyContent: 'center', alignItems: 'center', elevation: 8, shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 6 },
   searchDiscovery: { padding: 20 },
