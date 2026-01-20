@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useAuthStore } from "@/stores/sellerStore";
@@ -30,6 +30,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { uploadSellerDocument } from "@/utils/storage";
+import { supabase } from "@/lib/supabase";
 
 // Logo components defined outside of render
 const Logo = () => (
@@ -72,6 +74,14 @@ export function SellerStoreProfile() {
     null,
   );
   const navigate = useNavigate();
+  const [uploadingDoc, setUploadingDoc] = useState<string | null>(null);
+  const [documents, setDocuments] = useState<{
+    businessPermitUrl?: string;
+    validIdUrl?: string;
+    proofOfAddressUrl?: string;
+    dtiRegistrationUrl?: string;
+    taxIdUrl?: string;
+  }>({});
 
   const handleLogout = () => {
     logout();
@@ -87,6 +97,136 @@ export function SellerStoreProfile() {
   });
 
   const isVerified = seller?.isVerified || false;
+
+  // Fetch documents from Supabase on mount
+  React.useEffect(() => {
+    const fetchDocuments = async () => {
+      if (!seller?.id) return;
+
+      try {
+        const { data, error } = await supabase
+          .from("sellers")
+          .select(
+            "business_permit_url, valid_id_url, proof_of_address_url, dti_registration_url, tax_id_url",
+          )
+          .eq("id", seller.id)
+          .single();
+
+        if (error) {
+          console.error("Error fetching documents:", error);
+          return;
+        }
+
+        if (data) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const docData: any = data;
+
+          setDocuments({
+            businessPermitUrl: docData.business_permit_url || undefined,
+            validIdUrl: docData.valid_id_url || undefined,
+            proofOfAddressUrl: docData.proof_of_address_url || undefined,
+            dtiRegistrationUrl: docData.dti_registration_url || undefined,
+            taxIdUrl: docData.tax_id_url || undefined,
+          });
+        }
+      } catch (error) {
+        console.error("Error fetching documents:", error);
+      }
+    };
+
+    fetchDocuments();
+  }, [seller?.id]);
+
+  // Handle document upload
+  const handleDocumentUpload = async (
+    file: File,
+    docKey: string,
+    columnName: string,
+  ) => {
+    if (!seller?.id) return;
+
+    // Validate file type
+    if (file.type !== "application/pdf") {
+      alert("Please upload a PDF file only");
+      return;
+    }
+
+    // Validate file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      alert("File size must be less than 10MB");
+      return;
+    }
+
+    setUploadingDoc(docKey);
+
+    try {
+      // Upload to Supabase Storage
+      const documentUrl = await uploadSellerDocument(file, seller.id, docKey);
+
+      if (!documentUrl) {
+        throw new Error("Upload failed");
+      }
+
+      // Update Supabase database based on document type
+      // Using type casting due to Supabase typed client limitations with dynamic column updates
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const supabaseClient: any = supabase;
+      let updateQuery;
+      switch (columnName) {
+        case "business_permit_url":
+          updateQuery = supabaseClient
+            .from("sellers")
+            .update({ business_permit_url: documentUrl })
+            .eq("id", seller.id);
+          break;
+        case "valid_id_url":
+          updateQuery = supabaseClient
+            .from("sellers")
+            .update({ valid_id_url: documentUrl })
+            .eq("id", seller.id);
+          break;
+        case "proof_of_address_url":
+          updateQuery = supabaseClient
+            .from("sellers")
+            .update({ proof_of_address_url: documentUrl })
+            .eq("id", seller.id);
+          break;
+        case "dti_registration_url":
+          updateQuery = supabaseClient
+            .from("sellers")
+            .update({ dti_registration_url: documentUrl })
+            .eq("id", seller.id);
+          break;
+        case "tax_id_url":
+          updateQuery = supabaseClient
+            .from("sellers")
+            .update({ tax_id_url: documentUrl })
+            .eq("id", seller.id);
+          break;
+        default:
+          throw new Error("Invalid document type");
+      }
+
+      const { error } = await updateQuery;
+
+      if (error) {
+        throw error;
+      }
+
+      // Update local state
+      setDocuments((prev) => ({
+        ...prev,
+        [docKey]: documentUrl,
+      }));
+
+      alert("Document uploaded successfully!");
+    } catch (error) {
+      console.error("Error uploading document:", error);
+      alert("Failed to upload document. Please try again.");
+    } finally {
+      setUploadingDoc(null);
+    }
+  };
 
   const handleSave = () => {
     updateSellerDetails(formData);
@@ -498,7 +638,7 @@ export function SellerStoreProfile() {
               )}
             </Card>
 
-            {/* Submitted Documents (View Only) */}
+            {/* Verification Documents */}
             <Card className="p-6 mb-6">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-2">
@@ -521,113 +661,190 @@ export function SellerStoreProfile() {
               </div>
 
               <div className="space-y-4">
-                {/* Valid ID */}
-                <div className="p-4 border border-gray-200 rounded-lg hover:border-orange-300 transition-colors">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={`h-10 w-10 rounded-lg flex items-center justify-center ${isVerified ? "bg-green-100" : "bg-amber-100"}`}
-                      >
-                        <FileText
-                          className={`h-5 w-5 ${isVerified ? "text-green-600" : "text-amber-600"}`}
-                        />
-                      </div>
-                      <div>
-                        <p className="font-medium text-gray-900">
-                          Government-Issued ID
-                        </p>
-                        <p className="text-sm text-gray-500">
-                          Submitted during registration
-                        </p>
-                      </div>
-                    </div>
-                    <Button variant="outline" size="sm" className="gap-2">
-                      <Eye className="h-4 w-4" />
-                      View
-                    </Button>
-                  </div>
-                  {isVerified && (
-                    <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 px-3 py-2 rounded">
-                      <CheckCircle2 className="h-4 w-4" />
-                      Verified on{" "}
-                      {seller?.joinDate
-                        ? new Date(seller.joinDate).toLocaleDateString()
-                        : "N/A"}
-                    </div>
-                  )}
-                </div>
+                {/* Document Helper Function */}
+                {[
+                  {
+                    key: "businessPermitUrl",
+                    label: "Business Permit",
+                    description: "Mayor's permit or business registration",
+                    icon: Building2,
+                    column: "business_permit_url",
+                  },
+                  {
+                    key: "validIdUrl",
+                    label: "Government-Issued ID",
+                    description:
+                      "Owner's valid ID (Driver's License, Passport, etc.)",
+                    icon: User,
+                    column: "valid_id_url",
+                  },
+                  {
+                    key: "proofOfAddressUrl",
+                    label: "Proof of Address",
+                    description:
+                      "Utility bill or bank statement showing business address",
+                    icon: FileText,
+                    column: "proof_of_address_url",
+                  },
+                  {
+                    key: "dtiRegistrationUrl",
+                    label: "DTI/SEC Registration",
+                    description:
+                      "DTI certificate for sole proprietor or SEC for corporation",
+                    icon: Building2,
+                    column: "dti_registration_url",
+                  },
+                  {
+                    key: "taxIdUrl",
+                    label: "BIR Tax ID (TIN)",
+                    description: "Certificate of Registration from BIR",
+                    icon: CreditCard,
+                    column: "tax_id_url",
+                  },
+                ].map((doc) => {
+                  const hasDocument =
+                    documents[doc.key as keyof typeof documents];
+                  const Icon = doc.icon;
+                  const isUploading = uploadingDoc === doc.key;
 
-                {/* Business Permit */}
-                <div className="p-4 border border-gray-200 rounded-lg hover:border-orange-300 transition-colors">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={`h-10 w-10 rounded-lg flex items-center justify-center ${isVerified ? "bg-green-100" : "bg-amber-100"}`}
-                      >
-                        <Building2
-                          className={`h-5 w-5 ${isVerified ? "text-green-600" : "text-amber-600"}`}
-                        />
-                      </div>
-                      <div>
-                        <p className="font-medium text-gray-900">
-                          Business Permit/DTI
-                        </p>
-                        <p className="text-sm text-gray-500">
-                          Business registration document
-                        </p>
-                      </div>
-                    </div>
-                    <Button variant="outline" size="sm" className="gap-2">
-                      <Eye className="h-4 w-4" />
-                      View
-                    </Button>
-                  </div>
-                  {isVerified && (
-                    <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 px-3 py-2 rounded">
-                      <CheckCircle2 className="h-4 w-4" />
-                      Verified on{" "}
-                      {seller?.joinDate
-                        ? new Date(seller.joinDate).toLocaleDateString()
-                        : "N/A"}
-                    </div>
-                  )}
-                </div>
+                  return (
+                    <div
+                      key={doc.key}
+                      className={`p-4 border rounded-lg transition-colors ${
+                        hasDocument
+                          ? "border-green-200 bg-green-50/50 hover:border-green-300"
+                          : "border-gray-200 hover:border-orange-300"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`h-10 w-10 rounded-lg flex items-center justify-center ${
+                              hasDocument ? "bg-green-100" : "bg-gray-100"
+                            }`}
+                          >
+                            <Icon
+                              className={`h-5 w-5 ${
+                                hasDocument ? "text-green-600" : "text-gray-500"
+                              }`}
+                            />
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-900">
+                              {doc.label}
+                            </p>
+                            <p className="text-sm text-gray-500">
+                              {doc.description}
+                            </p>
+                          </div>
+                        </div>
 
-                {/* Bank Statement */}
-                <div className="p-4 border border-gray-200 rounded-lg hover:border-orange-300 transition-colors">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={`h-10 w-10 rounded-lg flex items-center justify-center ${isVerified ? "bg-green-100" : "bg-amber-100"}`}
-                      >
-                        <CreditCard
-                          className={`h-5 w-5 ${isVerified ? "text-green-600" : "text-amber-600"}`}
-                        />
+                        {hasDocument ? (
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="gap-2"
+                              onClick={() =>
+                                window.open(
+                                  documents[doc.key as keyof typeof documents],
+                                  "_blank",
+                                )
+                              }
+                            >
+                              <Eye className="h-4 w-4" />
+                              View
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="gap-2 text-orange-600 hover:text-orange-700"
+                              onClick={() => {
+                                const input = document.createElement("input");
+                                input.type = "file";
+                                input.accept = "application/pdf";
+                                input.onchange = async (e) => {
+                                  const file = (e.target as HTMLInputElement)
+                                    .files?.[0];
+                                  if (file && seller?.id) {
+                                    await handleDocumentUpload(
+                                      file,
+                                      doc.key,
+                                      doc.column,
+                                    );
+                                  }
+                                };
+                                input.click();
+                              }}
+                            >
+                              <Upload className="h-4 w-4" />
+                              Replace
+                            </Button>
+                          </div>
+                        ) : (
+                          <Button
+                            size="sm"
+                            className="gap-2 bg-[#FF6A00] hover:bg-orange-600"
+                            disabled={isUploading}
+                            onClick={() => {
+                              const input = document.createElement("input");
+                              input.type = "file";
+                              input.accept = "application/pdf";
+                              input.onchange = async (e) => {
+                                const file = (e.target as HTMLInputElement)
+                                  .files?.[0];
+                                if (file && seller?.id) {
+                                  await handleDocumentUpload(
+                                    file,
+                                    doc.key,
+                                    doc.column,
+                                  );
+                                }
+                              };
+                              input.click();
+                            }}
+                          >
+                            {isUploading ? (
+                              <>
+                                <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                Uploading...
+                              </>
+                            ) : (
+                              <>
+                                <Upload className="h-4 w-4" />
+                                Upload PDF
+                              </>
+                            )}
+                          </Button>
+                        )}
                       </div>
-                      <div>
-                        <p className="font-medium text-gray-900">
-                          Bank Account Verification
-                        </p>
-                        <p className="text-sm text-gray-500">
-                          Proof of bank account ownership
-                        </p>
-                      </div>
+
+                      {hasDocument && isVerified && (
+                        <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 px-3 py-2 rounded">
+                          <CheckCircle2 className="h-4 w-4" />
+                          Verified on{" "}
+                          {seller?.joinDate
+                            ? new Date(seller.joinDate).toLocaleDateString()
+                            : "N/A"}
+                        </div>
+                      )}
+
+                      {hasDocument && !isVerified && (
+                        <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 px-3 py-2 rounded">
+                          <Clock className="h-4 w-4" />
+                          Pending verification
+                        </div>
+                      )}
+
+                      {!hasDocument && (
+                        <div className="flex items-center gap-2 text-sm text-gray-500 bg-gray-50 px-3 py-2 rounded">
+                          <AlertCircle className="h-4 w-4" />
+                          Document not uploaded yet
+                        </div>
+                      )}
                     </div>
-                    <Button variant="outline" size="sm" className="gap-2">
-                      <Eye className="h-4 w-4" />
-                      View
-                    </Button>
-                  </div>
-                  {isVerified && (
-                    <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 px-3 py-2 rounded">
-                      <CheckCircle2 className="h-4 w-4" />
-                      Verified on{" "}
-                      {seller?.joinDate
-                        ? new Date(seller.joinDate).toLocaleDateString()
-                        : "N/A"}
-                    </div>
-                  )}
-                </div>
+                  );
+                })}
               </div>
 
               {!isVerified && (
