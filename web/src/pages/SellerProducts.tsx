@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -94,6 +94,13 @@ export function SellerProducts() {
     useProductStore();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { fetchProducts } = useProductStore();
+
+  useEffect(() => {
+    if (seller?.id) {
+      fetchProducts({ sellerId: seller.id });
+    }
+  }, [seller?.id, fetchProducts]);
 
   const handleLogout = () => {
     logout();
@@ -560,6 +567,7 @@ export function AddProduct() {
   const navigate = useNavigate();
   const { addProduct } = useProductStore();
   const { seller } = useAuthStore();
+  const { toast } = useToast();
 
   const [formData, setFormData] = useState({
     name: "",

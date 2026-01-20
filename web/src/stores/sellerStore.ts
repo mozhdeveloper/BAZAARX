@@ -12,7 +12,7 @@ import {
   getProducts as fetchProductsDb,
   updateProduct as updateProductDb,
 } from '@/services/productService';
-import type { Product as DBProduct, Seller as DBSeller, Database } from '@/types/database.types';
+import type { Seller as DBSeller, Database } from '@/types/database.types';
 
 // Types
 interface Seller {
@@ -308,8 +308,8 @@ const mapDbProductToSellerProduct = (p: any): SellerProduct => ({
   rejectionReason: p.rejection_reason || undefined,
   vendorSubmittedCategory: p.vendor_submitted_category || undefined,
   adminReclassifiedCategory: p.admin_reclassified_category || undefined,
-  sellerName: p.seller?.store_name || p.seller?.business_name || 'Verified Seller',
-  sellerRating: p.seller?.rating || 0
+  sellerName: p.seller?.store_name || p.seller?.business_name,
+  sellerRating: p.seller?.rating
 });
 
 const buildProductInsert = (product: Omit<SellerProduct, 'id' | 'createdAt' | 'updatedAt' | 'sales' | 'rating' | 'reviews'>, sellerId: string): ProductInsert => ({
@@ -346,109 +346,28 @@ const buildProductInsert = (product: Omit<SellerProduct, 'id' | 'createdAt' | 'u
   tags: [],
 });
 
-const mapSellerUpdatesToDb = (updates: Partial<SellerProduct>): ProductUpdate => ({
-  name: updates.name,
-  description: updates.description,
-  price: updates.price,
-  original_price: updates.originalPrice,
-  stock: updates.stock,
-  category: updates.category,
-  images: updates.images,
-  sizes: updates.sizes,
-  colors: updates.colors,
-  is_active: updates.isActive,
-  approval_status: updates.approvalStatus,
-  rejection_reason: updates.rejectionReason,
-  vendor_submitted_category: updates.vendorSubmittedCategory,
-  admin_reclassified_category: updates.adminReclassifiedCategory,
-});
+const mapSellerUpdatesToDb = (updates: Partial<SellerProduct>): ProductUpdate => {
+  const dbUpdates: ProductUpdate = {};
 
-// Dummy data
-const dummySeller: Seller = {
-  id: 'seller-1',
-  name: 'Juan Cruz',
-  ownerName: 'Juan Cruz',
-  email: 'seller@bazaarph.com',
-  phone: '+63 912 345 6789',
-  businessName: 'Cruz Electronics Corp.',
-  storeName: 'Cruz Electronics',
-  storeDescription: 'Premium electronics and gadgets for the modern Filipino family',
-  storeCategory: ['Electronics', 'Gadgets'],
-  businessType: 'corporation',
-  businessRegistrationNumber: 'SEC-2023-001234',
-  taxIdNumber: '123-456-789-000',
-  businessAddress: '123 Ayala Avenue, Brgy. Poblacion',
-  city: 'Makati City',
-  province: 'Metro Manila',
-  postalCode: '1200',
-  storeAddress: '123 Ayala Avenue, Makati City, Metro Manila 1200',
-  bankName: 'BDO',
-  accountName: 'Cruz Electronics Corp.',
-  accountNumber: '1234567890',
-  isVerified: true,
-  approvalStatus: 'approved',
-  rating: 4.8,
-  totalSales: 1580000,
-  joinDate: '2023-01-15',
-  avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face'
+  if (updates.name !== undefined) dbUpdates.name = updates.name;
+  if (updates.description !== undefined) dbUpdates.description = updates.description;
+  if (updates.price !== undefined) dbUpdates.price = updates.price;
+  if (updates.originalPrice !== undefined) dbUpdates.original_price = updates.originalPrice;
+  if (updates.stock !== undefined) dbUpdates.stock = updates.stock;
+  if (updates.category !== undefined) dbUpdates.category = updates.category;
+  if (updates.images !== undefined) dbUpdates.images = updates.images;
+  if (updates.sizes !== undefined) dbUpdates.sizes = updates.sizes;
+  if (updates.colors !== undefined) dbUpdates.colors = updates.colors;
+  if (updates.isActive !== undefined) dbUpdates.is_active = updates.isActive;
+  if (updates.approvalStatus !== undefined) dbUpdates.approval_status = updates.approvalStatus;
+  if (updates.rejectionReason !== undefined) dbUpdates.rejection_reason = updates.rejectionReason;
+  if (updates.vendorSubmittedCategory !== undefined) dbUpdates.vendor_submitted_category = updates.vendorSubmittedCategory;
+  if (updates.adminReclassifiedCategory !== undefined) dbUpdates.admin_reclassified_category = updates.adminReclassifiedCategory;
+
+  return dbUpdates;
 };
 
-const dummyProducts: SellerProduct[] = [
-  {
-    id: 'prod-1',
-    name: 'iPhone 15 Pro Max',
-    description: 'Latest iPhone with A17 Pro chip',
-    price: 89990,
-    originalPrice: 95990,
-    stock: 25,
-    category: 'Electronics',
-    images: ['https://images.unsplash.com/photo-1696446702188-41d37c5f1c9a?w=400'],
-    isActive: true,
-    sellerId: 'seller-1',
-    createdAt: '2024-12-01',
-    updatedAt: '2024-12-10',
-    sales: 45,
-    rating: 4.9,
-    reviews: 128,
-    approvalStatus: 'approved'
-  },
-  {
-    id: 'prod-2',
-    name: 'Samsung Galaxy S24 Ultra',
-    description: 'Flagship Android phone with S Pen',
-    price: 79990,
-    originalPrice: 85990,
-    stock: 18,
-    category: 'Electronics',
-    images: ['https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?w=400'],
-    isActive: true,
-    sellerId: 'seller-1',
-    createdAt: '2024-11-15',
-    updatedAt: '2024-12-08',
-    sales: 32,
-    rating: 4.7,
-    reviews: 89,
-    approvalStatus: 'pending'
-  },
-  {
-    id: 'prod-3',
-    name: 'MacBook Pro M3',
-    description: '14-inch MacBook Pro with M3 chip',
-    price: 129990,
-    originalPrice: 139990,
-    stock: 12,
-    category: 'Electronics',
-    images: ['https://images.unsplash.com/photo-1541807084-5c52b6b3adef?w=400'],
-    isActive: true,
-    sellerId: 'seller-1',
-    createdAt: '2024-11-20',
-    updatedAt: '2024-12-05',
-    sales: 18,
-    rating: 4.8,
-    reviews: 42,
-    approvalStatus: 'approved'
-  }
-];
+// Dummy data removed for database parity
 
 const dummyOrders: SellerOrder[] = [
   {
@@ -515,10 +434,7 @@ export const useAuthStore = create<AuthStore>()(
       login: async (email: string, password: string) => {
         if (!isSupabaseConfigured()) {
           await new Promise(resolve => setTimeout(resolve, 500));
-          if ((email === 'seller@bazaarph.com' || email === 'juan@example.com') && (password === 'password' || password === 'password123')) {
-            set({ seller: dummySeller, isAuthenticated: true });
-            return true;
-          }
+          console.warn('Mock login disabled - please configure Supabase');
           return false;
         }
 
@@ -685,7 +601,8 @@ export const useProductStore = create<ProductStore>()(
 
       fetchProducts: async (filters) => {
         if (!isSupabaseConfigured()) {
-          set({ products: dummyProducts, loading: false, error: null });
+          console.warn('Supabase not configured, showing empty product list');
+          set({ products: [], loading: false, error: null });
           return;
         }
 
