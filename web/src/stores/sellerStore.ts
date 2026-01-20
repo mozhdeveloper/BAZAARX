@@ -6,6 +6,7 @@ import { signIn, signUp, getSellerProfile, getEmailFromProfile } from '@/service
 import {
   addStock as addStockDb,
   createProduct as createProductDb,
+  createProducts as createProductsDb,
   deleteProduct as deleteProductDb,
   deductStock as deductStockDb,
   getProducts as fetchProductsDb,
@@ -537,7 +538,7 @@ export const useAuthStore = create<AuthStore>()(
           // Fetch email from profiles table and merge with seller profile
           const userEmail = await getEmailFromProfile(user.id);
           const mappedSeller = mapDbSellerToSeller(sellerProfile);
-          
+
           // Ensure email is set from profiles table
           if (userEmail) {
             mappedSeller.email = userEmail;
@@ -805,71 +806,95 @@ export const useProductStore = create<ProductStore>()(
         }
       },
 
-      bulkAddProducts: (bulkProducts) => {
+      bulkAddProducts: async (bulkProducts) => {
         try {
           const authStore = useAuthStore.getState();
           const qaStore = useProductQAStore.getState();
-          const newProducts: SellerProduct[] = [];
-          const newLedgerEntries: InventoryLedgerEntry[] = [];
+          const sellerId = isSupabaseConfigured()
+            ? authStore.seller?.id || fallbackSellerId
+            : authStore.seller?.id || 'seller-1';
 
-          bulkProducts.forEach((productData) => {
-            const timestamp = Date.now();
-            const randomId = Math.random().toString(36).substr(2, 9);
-            const productId = `prod-${timestamp}-${randomId}`;
+          const resolvedSellerId = sellerId ?? '';
 
-            const newProduct: SellerProduct = {
-              id: productId,
-              name: productData.name,
-              description: productData.description,
-              price: productData.price,
-              originalPrice: productData.originalPrice,
-              stock: productData.stock,
-              category: productData.category,
-              images: [productData.imageUrl],
-              sizes: [],
-              colors: [],
+          if (isSupabaseConfigured() && !resolvedSellerId) {
+            throw new Error('Missing seller ID for bulk upload. Please log in.');
+          }
+
+          let addedProducts: SellerProduct[] = [];
+
+          if (isSupabaseConfigured()) {
+            const productsToInsert = bulkProducts.map(p => buildProductInsert({
+              name: p.name,
+              description: p.description,
+              price: p.price,
+              originalPrice: p.originalPrice,
+              stock: p.stock,
+              category: p.category,
+              images: [p.imageUrl],
               isActive: true,
-              sellerId: authStore.seller?.id || 'seller-1',
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-              sales: 0,
-              rating: 0,
-              reviews: 0,
-              approvalStatus: 'pending',
-              vendorSubmittedCategory: productData.category,
-            };
+              sellerId: resolvedSellerId,
+              vendorSubmittedCategory: p.category
+            } as any, resolvedSellerId));
 
-            newProducts.push(newProduct);
+            const dbProducts = await createProductsDb(productsToInsert);
+            if (!dbProducts) throw new Error('Failed to create products in database');
+            addedProducts = dbProducts.map(mapDbProductToSellerProduct);
+          } else {
+            // Mock implementation
+            addedProducts = bulkProducts.map((productData) => {
+              const timestamp = Date.now();
+              const randomId = Math.random().toString(36).substr(2, 9);
+              return {
+                id: `prod-${timestamp}-${randomId}`,
+                name: productData.name,
+                description: productData.description,
+                price: productData.price,
+                originalPrice: productData.originalPrice,
+                stock: productData.stock,
+                category: productData.category,
+                images: [productData.imageUrl],
+                sizes: [],
+                colors: [],
+                isActive: true,
+                sellerId: resolvedSellerId,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                sales: 0,
+                rating: 0,
+                reviews: 0,
+                approvalStatus: 'pending',
+                vendorSubmittedCategory: productData.category,
+              };
+            });
+          }
 
-            // Create ledger entry for initial stock
-            const ledgerEntry: InventoryLedgerEntry = {
-              id: `ledger-${timestamp}-${randomId}`,
-              timestamp: new Date().toISOString(),
-              productId: newProduct.id,
-              productName: newProduct.name,
-              changeType: 'ADDITION',
-              quantityBefore: 0,
-              quantityChange: productData.stock,
-              quantityAfter: productData.stock,
-              reason: 'STOCK_REPLENISHMENT',
-              referenceId: newProduct.id,
-              userId: authStore.seller?.id || 'SYSTEM',
-              notes: 'Initial stock from bulk upload',
-            };
+          const newLedgerEntries: InventoryLedgerEntry[] = addedProducts.map(p => ({
+            id: `ledger-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            timestamp: new Date().toISOString(),
+            productId: p.id,
+            productName: p.name,
+            changeType: 'ADDITION',
+            quantityBefore: 0,
+            quantityChange: p.stock,
+            quantityAfter: p.stock,
+            reason: 'STOCK_REPLENISHMENT',
+            referenceId: p.id,
+            userId: resolvedSellerId || 'SYSTEM',
+            notes: 'Initial stock from bulk upload',
+          }));
 
-            newLedgerEntries.push(ledgerEntry);
-
-            // Add to QA flow store
+          // Add to QA flow store
+          addedProducts.forEach(p => {
             try {
               qaStore.addProductToQA({
-                id: newProduct.id,
-                name: newProduct.name,
-                description: newProduct.description,
+                id: p.id,
+                name: p.name,
+                description: p.description,
                 vendor: authStore.seller?.name || 'Unknown Vendor',
-                price: newProduct.price,
-                originalPrice: newProduct.originalPrice,
-                category: newProduct.category,
-                image: newProduct.images[0],
+                price: p.price,
+                originalPrice: p.originalPrice,
+                category: p.category,
+                image: p.images[0],
               });
             } catch (qaError) {
               console.error('Error adding product to QA flow:', qaError);
@@ -878,7 +903,7 @@ export const useProductStore = create<ProductStore>()(
 
           // Add all products and ledger entries at once
           set((state) => ({
-            products: [...state.products, ...newProducts],
+            products: [...state.products, ...addedProducts],
             inventoryLedger: [...state.inventoryLedger, ...newLedgerEntries],
           }));
 
@@ -1591,37 +1616,37 @@ export const useStatsStore = create<StatsStore>()((set, get) => ({
     const orderStore = useOrderStore.getState();
     const productStore = useProductStore.getState();
     const authStore = useAuthStore.getState();
-    
+
     const orders = orderStore.orders;
     const products = productStore.products;
     const seller = authStore.seller;
-    
+
     // Calculate total revenue from delivered orders
     const totalRevenue = orders
       .filter(order => order.status === 'delivered')
       .reduce((sum, order) => sum + order.total, 0);
-    
+
     // Total orders count
     const totalOrders = orders.length;
-    
+
     // Total products count
     const totalProducts = products.length;
-    
+
     // Calculate average rating from orders with ratings
     const ordersWithRatings = orders.filter(order => order.rating);
     const avgRating = ordersWithRatings.length > 0
       ? ordersWithRatings.reduce((sum, order) => sum + (order.rating || 0), 0) / ordersWithRatings.length
       : 0;
-    
+
     // Calculate monthly revenue (last 12 months)
     const monthlyRevenue = calculateMonthlyRevenue(orders);
-    
+
     // Calculate top products by sales
     const topProducts = calculateTopProducts(products, orders);
-    
+
     // Generate recent activity from orders and products
     const recentActivity = generateRecentActivity(orders, products);
-    
+
     set({
       stats: {
         totalRevenue,
@@ -1641,31 +1666,31 @@ function calculateMonthlyRevenue(orders: SellerOrder[]): { month: string; revenu
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const currentDate = new Date();
   const monthlyData: { month: string; revenue: number }[] = [];
-  
+
   for (let i = 11; i >= 0; i--) {
     const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
     const monthName = months[date.getMonth()];
     const year = date.getFullYear();
-    
+
     const revenue = orders
       .filter(order => {
         const orderDate = new Date(order.orderDate);
-        return orderDate.getMonth() === date.getMonth() && 
-               orderDate.getFullYear() === year &&
-               order.status === 'delivered';
+        return orderDate.getMonth() === date.getMonth() &&
+          orderDate.getFullYear() === year &&
+          order.status === 'delivered';
       })
       .reduce((sum, order) => sum + order.total, 0);
-    
+
     monthlyData.push({ month: monthName, revenue });
   }
-  
+
   return monthlyData;
 }
 
 // Helper function to calculate top products
 function calculateTopProducts(products: SellerProduct[], orders: SellerOrder[]): { name: string; sales: number; revenue: number }[] {
   const productStats = new Map<string, { name: string; sales: number; revenue: number }>();
-  
+
   orders.forEach(order => {
     order.items.forEach(item => {
       const existing = productStats.get(item.productId) || { name: item.productName, sales: 0, revenue: 0 };
@@ -1674,7 +1699,7 @@ function calculateTopProducts(products: SellerProduct[], orders: SellerOrder[]):
       productStats.set(item.productId, existing);
     });
   });
-  
+
   return Array.from(productStats.values())
     .sort((a, b) => b.revenue - a.revenue)
     .slice(0, 3);
@@ -1683,7 +1708,7 @@ function calculateTopProducts(products: SellerProduct[], orders: SellerOrder[]):
 // Helper function to generate recent activity
 function generateRecentActivity(orders: SellerOrder[], products: SellerProduct[]): { id: string; type: 'order' | 'product' | 'review'; message: string; time: string }[] {
   const activities: { id: string; type: 'order' | 'product' | 'review'; message: string; time: string; timestamp: Date }[] = [];
-  
+
   // Add recent orders
   orders
     .slice(-5)
@@ -1696,7 +1721,7 @@ function generateRecentActivity(orders: SellerOrder[], products: SellerProduct[]
         timestamp: new Date(order.orderDate)
       });
     });
-  
+
   // Add low stock alerts
   products
     .filter(p => p.stock < 10 && p.stock > 0)
@@ -1710,7 +1735,7 @@ function generateRecentActivity(orders: SellerOrder[], products: SellerProduct[]
         timestamp: new Date(product.updatedAt)
       });
     });
-  
+
   // Add recent reviews
   orders
     .filter(order => order.rating && order.reviewDate)
@@ -1724,7 +1749,7 @@ function generateRecentActivity(orders: SellerOrder[], products: SellerProduct[]
         timestamp: new Date(order.reviewDate!)
       });
     });
-  
+
   // Sort by timestamp and return top 5
   return activities
     .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
@@ -1740,7 +1765,7 @@ function getRelativeTime(dateString: string): string {
   const diffMins = Math.floor(diffMs / 60000);
   const diffHours = Math.floor(diffMs / 3600000);
   const diffDays = Math.floor(diffMs / 86400000);
-  
+
   if (diffMins < 1) return 'Just now';
   if (diffMins < 60) return `${diffMins} minute${diffMins > 1 ? 's' : ''} ago`;
   if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
