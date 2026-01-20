@@ -4,10 +4,8 @@
  */
 
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import type { Cart, CartItem, Database } from '@/types/database.types';
+import type { Cart, CartItem } from '@/types/database.types';
 
-type CartInsert = Database['public']['Tables']['carts']['Insert'];
-type CartItemInsert = Database['public']['Tables']['cart_items']['Insert'];
 
 // Mock data fallback
 let mockCart: Cart | null = null;
@@ -42,20 +40,19 @@ export const getOrCreateCart = async (buyerId: string): Promise<Cart | null> => 
 
   try {
     // Try to get existing cart
-    let { data: cart, error } = await supabase
+    const { data: cart } = await supabase
       .from('carts')
       .select('*')
       .eq('buyer_id', buyerId)
       .is('expires_at', null)
-      .single();
+      .maybeSingle();
 
     // If no cart exists, create one
-    if (error || !cart) {
-      const { data: newCart, error: createError } = await supabase
+    if (!cart) {
+      const { data: newCart, error: createError } = await (supabase as any)
         .from('carts')
         .insert({
           buyer_id: buyerId,
-          subtotal: 0,
           discount_amount: 0,
           shipping_cost: 0,
           tax_amount: 0,
@@ -70,7 +67,10 @@ export const getOrCreateCart = async (buyerId: string): Promise<Cart | null> => 
         .select()
         .single();
 
-      if (createError) throw createError;
+      if (createError) {
+        console.error('Error creating cart:', createError);
+        throw createError;
+      }
       return newCart;
     }
 
@@ -130,33 +130,55 @@ export const addToCart = async (
   }
 
   try {
-    // Check if item already exists
-    const { data: existing } = await supabase
+    // Get product price
+    const { data: product } = await supabase
+      .from('products')
+      .select('price')
+      .eq('id', productId)
+      .single();
+
+    const unitPrice = selectedVariant?.price || (product as any)?.price || 0;
+
+    // Check if item already exists with the same variant
+    let query = (supabase as any)
       .from('cart_items')
       .select('*')
       .eq('cart_id', cartId)
-      .eq('product_id', productId)
-      .single();
+      .eq('product_id', productId);
 
+    if (selectedVariant) {
+      query = query.eq('selected_variant', selectedVariant);
+    } else {
+      query = query.is('selected_variant', null);
+    }
+
+    const { data: existing } = await query.maybeSingle();
+
+    let result;
     if (existing) {
-      // Update quantity
-      const { data, error } = await supabase
+      // Update quantity and subtotal
+      const newQuantity = (existing as any).quantity + quantity;
+      const { data, error } = await (supabase as any)
         .from('cart_items')
-        .update({ quantity: existing.quantity + quantity })
-        .eq('id', existing.id)
+        .update({
+          quantity: newQuantity,
+          subtotal: newQuantity * unitPrice
+        })
+        .eq('id', (existing as any).id)
         .select()
         .single();
 
       if (error) throw error;
-      return data;
+      result = data;
     } else {
-      // Insert new item
-      const { data, error } = await supabase
+      // Insert new item with subtotal
+      const { data, error } = await (supabase as any)
         .from('cart_items')
         .insert({
           cart_id: cartId,
           product_id: productId,
           quantity,
+          subtotal: quantity * unitPrice,
           selected_variant: selectedVariant || null,
           personalized_options: null,
           notes: notes || null,
@@ -165,8 +187,12 @@ export const addToCart = async (
         .single();
 
       if (error) throw error;
-      return data;
+      result = data;
     }
+
+    // Recalculate cart totals
+    await recalculateCartTotals(cartId);
+    return result;
   } catch (error) {
     console.error('Error adding to cart:', error);
     return null;
@@ -190,12 +216,29 @@ export const updateCartItemQuantity = async (
   }
 
   try {
-    const { error } = await supabase
+    // Fetch item to get product price
+    const { data: item } = await (supabase as any)
       .from('cart_items')
-      .update({ quantity })
+      .select('*, product:products(price)')
+      .eq('id', itemId)
+      .single();
+
+    if (!item) return false;
+
+    const unitPrice = item.selected_variant?.price || item.product?.price || 0;
+
+    const { error } = await (supabase as any)
+      .from('cart_items')
+      .update({
+        quantity,
+        subtotal: quantity * unitPrice
+      })
       .eq('id', itemId);
 
     if (error) throw error;
+
+    // Recalculate cart totals
+    await recalculateCartTotals(item.cart_id);
     return true;
   } catch (error) {
     console.error('Error updating cart item:', error);
@@ -213,12 +256,23 @@ export const removeFromCart = async (itemId: string): Promise<boolean> => {
   }
 
   try {
+    // Fetch item to get cartId before deletion
+    const { data: item } = await supabase
+      .from('cart_items')
+      .select('cart_id')
+      .eq('id', itemId)
+      .single();
+
     const { error } = await supabase
       .from('cart_items')
       .delete()
       .eq('id', itemId);
 
     if (error) throw error;
+
+    if (item) {
+      await recalculateCartTotals((item as any).cart_id);
+    }
     return true;
   } catch (error) {
     console.error('Error removing from cart:', error);
@@ -236,12 +290,22 @@ export const clearCart = async (cartId: string): Promise<boolean> => {
   }
 
   try {
-    const { error } = await supabase
+    // Delete all items first
+    const { error: deleteItemsError } = await supabase
       .from('cart_items')
       .delete()
       .eq('cart_id', cartId);
 
-    if (error) throw error;
+    if (deleteItemsError) throw deleteItemsError;
+
+    // Then delete the cart itself (since it's now empty)
+    const { error: deleteCartError } = await supabase
+      .from('carts')
+      .delete()
+      .eq('id', cartId);
+
+    if (deleteCartError) throw deleteCartError;
+
     return true;
   } catch (error) {
     console.error('Error clearing cart:', error);
@@ -271,15 +335,60 @@ export const updateCartTotals = async (
   }
 
   try {
-    const { error } = await supabase
+    // Remove subtotal from the update payload as it doesn't exist in the carts table
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { subtotal, ...updatePayload } = totals;
+
+    const { error } = await (supabase as any)
       .from('carts')
-      .update(totals)
+      .update(updatePayload)
       .eq('id', cartId);
 
     if (error) throw error;
     return true;
   } catch (error) {
     console.error('Error updating cart totals:', error);
+    return false;
+  }
+};
+
+/**
+ * Recalculate cart totals
+ */
+export const recalculateCartTotals = async (cartId: string): Promise<boolean> => {
+  if (!isSupabaseConfigured()) {
+    if (mockCart) {
+      const subtotal = mockCartItems.reduce((acc, item) => acc + ((item as any).subtotal || 0), 0);
+      mockCart.subtotal = subtotal;
+      mockCart.total_amount = subtotal;
+      return true;
+    }
+    return false;
+  }
+
+  try {
+    const items = await getCartItems(cartId);
+
+    // If no items left, delete the cart
+    if (items.length === 0) {
+      const { error } = await supabase
+        .from('carts')
+        .delete()
+        .eq('id', cartId);
+
+      if (error) throw error;
+      return true;
+    }
+
+    const subtotal = items.reduce((acc, item) => acc + ((item as any).subtotal || 0), 0);
+
+    // For now: total_amount = subtotal (can add shipping/tax/discount later)
+    return updateCartTotals(cartId, {
+      subtotal,
+      total_amount: subtotal
+    });
+  } catch (error) {
+    console.error('Error recalculating cart totals:', error);
     return false;
   }
 };

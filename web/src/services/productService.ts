@@ -328,6 +328,6 @@ export const getPublicProducts = async (filters?: {
   return getProducts({
     ...filters,
     isActive: true,
-    approvalStatus: 'approved',
+    approvalStatus: 'pending',
   });
 };

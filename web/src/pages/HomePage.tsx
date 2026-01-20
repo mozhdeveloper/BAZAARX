@@ -50,11 +50,11 @@ const HomePage: React.FC = () => {
         sold: p.sales || 0,
         category: p.category,
         seller: p.sellerName || "Verified Seller",
-        isVerified: p.approvalStatus === "approved",
+        isVerified: p.approvalStatus === "pending",
         location: "Metro Manila",
         description: p.description,
         sellerRating: p.sellerRating || 0,
-        sellerVerified: p.approvalStatus === "approved",
+        sellerVerified: p.approvalStatus === "pending",
         isFreeShipping: true, // Default for now
       })) as any[];
   }, [sellerProducts]);

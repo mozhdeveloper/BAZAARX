@@ -204,6 +204,12 @@ interface ProductStore {
   checkLowStock: () => void;
   acknowledgeLowStockAlert: (alertId: string) => void;
   getLowStockThreshold: () => number;
+  subscribeToProducts: (filters?: {
+    category?: string;
+    sellerId?: string;
+    isActive?: boolean;
+    approvalStatus?: string;
+  }) => () => void;
 }
 
 interface OrderStore {
@@ -618,6 +624,40 @@ export const useProductStore = create<ProductStore>()(
           console.error('Error loading products from Supabase:', error);
           set({ error: (error as Error)?.message || 'Failed to load products', loading: false });
         }
+      },
+
+      subscribeToProducts: (filters) => {
+        if (!isSupabaseConfigured()) return () => { };
+
+        console.log('Subscribing to product changes...', filters);
+
+        const channel = supabase
+          .channel('public:products')
+          .on(
+            'postgres_changes',
+            {
+              event: '*',
+              schema: 'public',
+              table: 'products',
+              // Note: Supabase JS client handles basic equality filters on some versions,
+              // but for complex stuff we might need to refetch or filter client-side.
+              // For now, we'll refetch to ensure data consistency with relations (sellers).
+            },
+            async (payload) => {
+              console.log('Product change received:', payload);
+              // Refetch products to get updated list with joined seller data
+              // This is safer than manually patching the state because of relations
+              await get().fetchProducts(filters);
+            }
+          )
+          .subscribe((status) => {
+            console.log('Product subscription status:', status);
+          });
+
+        return () => {
+          console.log('Unsubscribing from products...');
+          supabase.removeChannel(channel);
+        };
       },
 
       addProduct: async (product) => {
