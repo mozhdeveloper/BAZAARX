@@ -822,9 +822,7 @@ export const useAdminSellers = create<SellersState>()(
         const { error } = await supabase
           .from('sellers')
           .update({
-            approval_status: 'approved',
-            approved_at: new Date().toISOString(),
-            approved_by: 'admin' // TODO: Get actual admin ID from auth
+            approval_status: 'approved'
           })
           .eq('id', id);
 
@@ -878,21 +876,24 @@ export const useAdminSellers = create<SellersState>()(
     
     if (isSupabaseConfigured()) {
       try {
+        console.log('Attempting to reject seller:', id, 'Reason:', reason);
         const { error } = await supabase
           .from('sellers')
           .update({
             approval_status: 'rejected',
-            rejected_at: new Date().toISOString(),
-            rejected_by: 'admin', // TODO: Get actual admin ID from auth
             rejection_reason: reason
           })
           .eq('id', id);
 
         if (error) {
-          console.error('Error rejecting seller:', error);
-          set({ error: 'Failed to reject seller', isLoading: false });
+          console.error('Error rejecting seller - Full error:', error);
+          console.error('Error message:', error.message);
+          console.error('Error details:', error.details);
+          set({ error: `Failed to reject seller: ${error.message}`, isLoading: false });
           return;
         }
+
+        console.log('Seller rejected successfully:', id);
 
         // Update local state
         set(state => {
@@ -911,7 +912,8 @@ export const useAdminSellers = create<SellersState>()(
           return {
             sellers: updatedSellers,
             pendingSellers: updatedSellers.filter(seller => seller.status === 'pending'),
-            isLoading: false
+            isLoading: false,
+            error: null
           };
         });
       } catch (error) {
