@@ -122,22 +122,19 @@ export default function CheckoutScreen({ navigation }: Props) {
     try {
       const order = createOrder(checkoutItems, address, paymentMethod);
       
-      // Clear buyer cart after successful order
-      clearCart();
-
-      // Clear quick order if it was used
-      if (isQuickCheckout) {
-        clearQuickOrder();
-      }
-
       // Check if online payment (GCash, PayMongo, PayMaya, Card)
       const isOnlinePayment = paymentMethod.toLowerCase() !== 'cod' && paymentMethod.toLowerCase() !== 'cash on delivery';
 
       if (isOnlinePayment) {
         // Navigate to payment gateway simulation
-        navigation.navigate('PaymentGateway', { paymentMethod, order });
+        // Pass isQuickCheckout flag so we know what to clear later
+        navigation.navigate('PaymentGateway', { paymentMethod, order, isQuickCheckout });
       } else {
-        // COD - go directly to confirmation
+        // COD - Clear cart immediately and go to confirmation
+        clearCart();
+        if (isQuickCheckout) {
+          clearQuickOrder();
+        }
         navigation.navigate('OrderConfirmation', { order });
       }
     } catch (error) {

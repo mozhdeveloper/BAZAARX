@@ -85,8 +85,10 @@ export default function ShopScreen({ navigation, route }: Props) {
   const filteredProducts = useMemo(() => {
     if (customResults && customResults.length > 0) return customResults;
     let filtered = allAvailableProducts.filter(product => {
-      const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesCategory = selectedCategory === 'all' || product.category.toLowerCase().replace(/\s+/g, '-') === selectedCategory;
+      const name = product.name || '';
+      const category = product.category || '';
+      const matchesSearch = name.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesCategory = selectedCategory === 'all' || category.toLowerCase().replace(/\s+/g, '-') === selectedCategory;
       return matchesSearch && matchesCategory;
     });
     if (selectedSort === 'price-low') filtered.sort((a, b) => a.price - b.price);
@@ -140,7 +142,7 @@ export default function ShopScreen({ navigation, route }: Props) {
             </Pressable>
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.storesScroll}>
-            {officialStores.map((store) => (
+            {(officialStores || []).map((store) => (
               /* CLICKABLE STORE CARD */
               <Pressable 
                 key={store.id} 
@@ -164,7 +166,7 @@ export default function ShopScreen({ navigation, route }: Props) {
                   </View>
                 </View>
                 <View style={styles.storeProducts}>
-                  {store.products.slice(0, 2).map((url, i) => (
+                  {(store.products || []).slice(0, 2).map((url, i) => (
                     <Image key={i} source={{ uri: url }} style={styles.storeProductThumb} />
                   ))}
                 </View>
@@ -174,7 +176,7 @@ export default function ShopScreen({ navigation, route }: Props) {
         </View>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryScroll}>
-          {categories.map((cat) => (
+          {(categories || []).map((cat) => (
             <Pressable
               key={cat.id}
               style={[styles.chip, selectedCategory === cat.id && { backgroundColor: BRAND_COLOR, borderColor: BRAND_COLOR }]}
@@ -186,7 +188,7 @@ export default function ShopScreen({ navigation, route }: Props) {
         </ScrollView>
 
         <View style={styles.productsGrid}>
-          {filteredProducts.map((product) => (
+          {(filteredProducts || []).map((product) => (
             <View key={product.id} style={styles.cardWrapper}>
               <ProductCard product={product} onPress={() => navigation.navigate('ProductDetail', { product })} />
             </View>
@@ -205,7 +207,7 @@ export default function ShopScreen({ navigation, route }: Props) {
               <Pressable onPress={() => setShowFiltersModal(false)}><X size={24} color="#1F2937" /></Pressable>
             </View>
             <View style={styles.modalBody}>
-              {sortOptions.map((opt) => (
+              {(sortOptions || []).map((opt) => (
                 <Pressable key={opt.value} style={styles.filterOption} onPress={() => { setSelectedSort(opt.value); setShowFiltersModal(false); }}>
                   <Text style={[styles.filterText, selectedSort === opt.value && { color: BRAND_COLOR }]}>{opt.label}</Text>
                   {selectedSort === opt.value && <Check size={20} color={BRAND_COLOR} />}
