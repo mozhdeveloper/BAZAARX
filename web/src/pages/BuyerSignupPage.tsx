@@ -145,6 +145,8 @@ export default function BuyerSignupPage() {
       };
 
       setProfile(buyerProfile);
+      // Initialize cart from database
+      await useBuyerStore.getState().initializeCart();
       setIsLoading(false);
 
       // Show success message and redirect

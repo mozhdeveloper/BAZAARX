@@ -9,6 +9,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList, TabParamList } from '../App';
 import { useAuthStore } from '../src/stores/authStore';
 import { useWishlistStore } from '../src/stores/wishlistStore';
+import { COLORS } from '../src/constants/theme';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<TabParamList, 'Profile'>,
@@ -19,7 +20,7 @@ export default function ProfileScreen({ navigation }: Props) {
   const { user, logout, updateProfile } = useAuthStore();
   const wishlistItems = useWishlistStore(state => state.items);
   const insets = useSafeAreaInsets();
-  const BRAND_COLOR = '#FF5722';
+  const BRAND_COLOR = COLORS.primary;
 
   // Edit State
   const [editModalVisible, setEditModalVisible] = React.useState(false);
@@ -321,7 +322,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: '#FF5722'
+    borderColor: COLORS.primary
   },
   headerInfo: { marginLeft: 20 },
   userName: { fontSize: 24, fontWeight: '800', color: '#FFFFFF', marginBottom: 4 },

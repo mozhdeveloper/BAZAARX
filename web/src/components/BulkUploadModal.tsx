@@ -370,29 +370,33 @@ Summer Floral Dress,Lightweight cotton dress perfect for warm weather,1299,,75,F
     [onUpload, onClose, toast, validateCSV]
   );
 
-  const handleConfirmUpload = useCallback(() => {
+  const handleConfirmUpload = useCallback(async () => {
     setIsUploading(true);
     setUploadProgress(25);
 
-    setTimeout(() => {
-      setUploadProgress(75);
+    try {
+      setUploadProgress(50);
+      await onUpload(previewProducts);
+      setUploadProgress(100);
 
-      onUpload(previewProducts);
+      toast({
+        title: "Success!",
+        description: `${previewProducts.length} product(s) uploaded successfully.`,
+      });
 
-      setTimeout(() => {
-        setUploadProgress(100);
-        setIsUploading(false);
-        setUploadProgress(0);
-        setShowPreview(false);
-        setPreviewProducts([]);
-
-        toast({
-          title: "Success!",
-          description: `${previewProducts.length} product(s) uploaded to Quality Assurance`,
-        });
-        onClose();
-      }, 300);
-    }, 300);
+      setShowPreview(false);
+      setPreviewProducts([]);
+      onClose();
+    } catch (error) {
+      toast({
+        title: "Upload Failed",
+        description: "There was an error during bulk upload. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
+      setUploadProgress(0);
+    }
   }, [previewProducts, onUpload, onClose, toast]);
 
   const handleBackToUpload = useCallback(() => {
@@ -497,7 +501,7 @@ Summer Floral Dress,Lightweight cotton dress perfect for warm weather,1299,,75,F
                                     {Math.round(
                                       ((product.originalPrice - product.price) /
                                         product.originalPrice) *
-                                        100
+                                      100
                                     )}
                                     % OFF
                                   </span>
@@ -658,9 +662,8 @@ Summer Floral Dress,Lightweight cotton dress perfect for warm weather,1299,,75,F
               {/* Upload Button / Dropzone */}
               <div
                 {...getRootProps()}
-                className={`w-full flex flex-col items-center justify-center gap-3 px-6 py-8 bg-orange-600 text-white font-bold rounded-xl cursor-pointer hover:bg-orange-700 transition-colors mb-3 ${
-                  isDragActive ? "bg-orange-500 ring-4 ring-orange-300" : ""
-                } ${isUploading ? "opacity-50 cursor-not-allowed" : ""}`}
+                className={`w-full flex flex-col items-center justify-center gap-3 px-6 py-8 bg-orange-600 text-white font-bold rounded-xl cursor-pointer hover:bg-orange-700 transition-colors mb-3 ${isDragActive ? "bg-orange-500 ring-4 ring-orange-300" : ""
+                  } ${isUploading ? "opacity-50 cursor-not-allowed" : ""}`}
               >
                 <input {...getInputProps()} />
                 <Upload size={32} />
@@ -668,8 +671,8 @@ Summer Floral Dress,Lightweight cotton dress perfect for warm weather,1299,,75,F
                   {isDragActive
                     ? "Drop CSV file here"
                     : isUploading
-                    ? "Uploading..."
-                    : "Select CSV File or Drag & Drop"}
+                      ? "Uploading..."
+                      : "Select CSV File or Drag & Drop"}
                 </span>
                 {!isUploading && (
                   <span className="text-sm font-normal opacity-90">

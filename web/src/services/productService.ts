@@ -129,14 +129,48 @@ export const createProduct = async (product: ProductInsert): Promise<Product | n
 };
 
 /**
+ * Create multiple products (bulk upload)
+ */
+export const createProducts = async (products: ProductInsert[]): Promise<Product[] | null> => {
+  if (!isSupabaseConfigured()) {
+    const newProducts = products.map(product => ({
+      ...product,
+      id: crypto.randomUUID(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })) as Product[];
+    mockProducts.push(...newProducts);
+    return newProducts;
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('products')
+      // @ts-expect-error - Database types are out of sync with actual schema
+      .insert(products)
+      .select();
+
+    if (error) throw error;
+    return data;
+  } catch (error: unknown) {
+    const message =
+      error && typeof error === 'object' && 'message' in error
+        ? (error as { message: string }).message
+        : JSON.stringify(error, null, 2);
+    console.error('Error bulk creating products:', message, error);
+    throw error;
+  }
+};
+
+/**
  * Update an existing product
  */
 export const updateProduct = async (id: string, updates: ProductUpdate): Promise<Product | null> => {
   if (!isSupabaseConfigured()) {
     const index = mockProducts.findIndex(p => p.id === id);
     if (index !== -1) {
-      mockProducts[index] = { 
-        ...mockProducts[index], 
+      mockProducts[index] = {
+        ...mockProducts[index],
         ...updates,
         updated_at: new Date().toISOString(),
       } as Product;
@@ -163,13 +197,13 @@ export const updateProduct = async (id: string, updates: ProductUpdate): Promise
 };
 
 /**
- * Delete a product (soft delete by setting is_active to false)
+ * Delete a product (hard delete from database)
  */
 export const deleteProduct = async (id: string): Promise<boolean> => {
   if (!isSupabaseConfigured()) {
     const index = mockProducts.findIndex(p => p.id === id);
     if (index !== -1) {
-      mockProducts[index].is_active = false;
+      mockProducts.splice(index, 1);
       return true;
     }
     return false;
@@ -178,8 +212,7 @@ export const deleteProduct = async (id: string): Promise<boolean> => {
   try {
     const { error } = await supabase
       .from('products')
-      // @ts-expect-error - Database types are out of sync with actual schema
-      .update({ is_active: false })
+      .delete()
       .eq('id', id);
 
     if (error) throw error;
