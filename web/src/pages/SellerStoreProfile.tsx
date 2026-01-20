@@ -71,9 +71,9 @@ const LogoIcon = () => (
 export function SellerStoreProfile() {
   const { seller, updateSellerDetails, logout } = useAuthStore();
   const [open, setOpen] = useState(false);
-  const [editSection, setEditSection] = useState<"basic" | "contact" | null>(
-    null,
-  );
+  const [editSection, setEditSection] = useState<
+    "basic" | "business" | "banking" | "categories" | null
+  >(null);
   const navigate = useNavigate();
   const [uploadingDoc, setUploadingDoc] = useState<string | null>(null);
   const [documents, setDocuments] = useState<{
@@ -96,25 +96,133 @@ export function SellerStoreProfile() {
     ownerName: seller?.ownerName || "",
     email: seller?.email || "",
   });
+  const [businessForm, setBusinessForm] = useState({
+    businessName: seller?.businessName || "",
+    businessType: seller?.businessType || "",
+    businessRegistrationNumber: seller?.businessRegistrationNumber || "",
+    taxIdNumber: seller?.taxIdNumber || "",
+    businessAddress: seller?.businessAddress || "",
+    city: seller?.city || "",
+    province: seller?.province || "",
+    postalCode: seller?.postalCode || "",
+  });
+  const [bankingForm, setBankingForm] = useState({
+    bankName: seller?.bankName || "",
+    accountName: seller?.accountName || "",
+    accountNumber: seller?.accountNumber || "",
+  });
+  const [categoriesForm, setCategoriesForm] = useState<string[]>(
+    seller?.storeCategory || [],
+  );
 
-  const isVerified = seller?.isVerified || false;
+  const [isVerified, setIsVerified] = useState(seller?.isVerified || false);
+  const [approvalStatus, setApprovalStatus] = useState<
+    "pending" | "approved" | "rejected"
+  >(seller?.approvalStatus || "pending");
+  const [reapplyLoading, setReapplyLoading] = useState(false);
 
-  // Fetch documents from Supabase on mount
+  // Helper: determine if a string field is effectively empty
+  const isEmptyField = (value?: string | null) => {
+    if (value === null || value === undefined) return true;
+    const v = String(value).trim();
+    if (v.length === 0) return true;
+    // Treat UI placeholders as empty for approval readiness
+    const placeholders = ["Not provided", "No description added"];
+    return placeholders.includes(v);
+  };
+
+  // Compute list of missing required items (fields + documents)
+  const getMissingItems = () => {
+    const missing: string[] = [];
+
+    // Basic + contact
+    if (isEmptyField(seller?.ownerName)) missing.push("Owner Name");
+    if (isEmptyField(seller?.email)) missing.push("Email Address");
+    if (isEmptyField(seller?.phone)) missing.push("Phone Number");
+    if (isEmptyField(seller?.storeName)) missing.push("Store Name");
+
+    // Business info
+    if (isEmptyField(seller?.businessName)) missing.push("Business Name");
+    if (isEmptyField(seller?.businessType)) missing.push("Business Type");
+    if (isEmptyField(seller?.businessRegistrationNumber))
+      missing.push("Business Registration Number");
+    if (isEmptyField(seller?.taxIdNumber)) missing.push("Tax ID Number (TIN)");
+    if (
+      isEmptyField(seller?.businessAddress) ||
+      isEmptyField(seller?.city) ||
+      isEmptyField(seller?.province) ||
+      isEmptyField(seller?.postalCode)
+    ) {
+      missing.push("Business Address (address, city, province, postal code)");
+    }
+
+    // Banking info
+    if (isEmptyField(seller?.bankName)) missing.push("Bank Name");
+    if (isEmptyField(seller?.accountName)) missing.push("Account Name");
+    if (isEmptyField(seller?.accountNumber)) missing.push("Account Number");
+
+    // Documents
+    if (!documents.businessPermitUrl) missing.push("Business Permit");
+    if (!documents.validIdUrl) missing.push("Government-Issued ID");
+    if (!documents.proofOfAddressUrl) missing.push("Proof of Address");
+    if (!documents.dtiRegistrationUrl) missing.push("DTI/SEC Registration");
+    if (!documents.taxIdUrl) missing.push("BIR Tax ID (TIN)");
+
+    return missing;
+  };
+
+  // Handler: reapply for verification (set approval_status back to pending)
+  const handleReapply = async () => {
+    if (!seller?.id) {
+      alert("Unable to reapply: seller ID missing.");
+      return;
+    }
+
+    const missing = getMissingItems();
+    if (missing.length > 0) {
+      alert(
+        `Please complete the following before reapplying:\n\n- ${missing.join("\n- ")}`,
+      );
+      return;
+    }
+
+    try {
+      setReapplyLoading(true);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const supabaseClient: any = supabase;
+      const { error } = await supabaseClient
+        .from("sellers")
+        .update({ approval_status: "pending" })
+        .eq("id", seller.id);
+
+      if (error) throw error;
+
+      setApprovalStatus("pending");
+      alert("Reapplication submitted. Your profile is now pending review.");
+    } catch (err) {
+      console.error("Failed to set approval_status to pending:", err);
+      alert("Failed to submit reapplication. Please try again later.");
+    } finally {
+      setReapplyLoading(false);
+    }
+  };
+
+  // Fetch documents and verification status from Supabase on mount
   React.useEffect(() => {
-    const fetchDocuments = async () => {
+    const fetchSellerData = async () => {
       if (!seller?.id) return;
 
       try {
         const { data, error } = await supabase
           .from("sellers")
           .select(
-            "business_permit_url, valid_id_url, proof_of_address_url, dti_registration_url, tax_id_url",
+            "business_permit_url, valid_id_url, proof_of_address_url, dti_registration_url, tax_id_url, is_verified, approval_status",
           )
           .eq("id", seller.id)
           .single();
 
         if (error) {
-          console.error("Error fetching documents:", error);
+          console.error("Error fetching seller data:", error);
           return;
         }
 
@@ -122,8 +230,13 @@ export function SellerStoreProfile() {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const docData: any = data;
 
-          console.log("Fetched document URLs:", docData);
+          console.log("Fetched seller data:", docData);
 
+          // Update verification status
+          setIsVerified(docData.is_verified || false);
+          setApprovalStatus(docData.approval_status || "pending");
+
+          // Update documents
           setDocuments({
             businessPermitUrl: docData.business_permit_url || undefined,
             validIdUrl: docData.valid_id_url || undefined,
@@ -133,11 +246,11 @@ export function SellerStoreProfile() {
           });
         }
       } catch (error) {
-        console.error("Error fetching documents:", error);
+        console.error("Error fetching seller data:", error);
       }
     };
 
-    fetchDocuments();
+    fetchSellerData();
   }, [seller?.id]);
 
   // Handle document upload
@@ -231,9 +344,127 @@ export function SellerStoreProfile() {
     }
   };
 
-  const handleSave = () => {
-    updateSellerDetails(formData);
-    setEditSection(null);
+  const handleSaveBasic = async () => {
+    if (!seller?.id) {
+      alert("Unable to save: seller ID missing.");
+      return;
+    }
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const supabaseClient: any = supabase;
+      const { error } = await supabaseClient
+        .from("sellers")
+        .update({
+          store_name: formData.storeName,
+          store_description: formData.storeDescription,
+        })
+        .eq("id", seller.id);
+      if (error) throw error;
+      updateSellerDetails({
+        storeName: formData.storeName,
+        storeDescription: formData.storeDescription,
+        phone: formData.phone,
+        ownerName: formData.ownerName,
+        email: formData.email,
+      });
+      setEditSection(null);
+      alert("Saved changes");
+    } catch (err) {
+      console.error("Failed to save basic info:", err);
+      alert("Failed to save. Please try again.");
+    }
+  };
+
+  const handleSaveBusiness = async () => {
+    if (!seller?.id) {
+      alert("Unable to save: seller ID missing.");
+      return;
+    }
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const supabaseClient: any = supabase;
+      const { error } = await supabaseClient
+        .from("sellers")
+        .update({
+          business_name: businessForm.businessName,
+          business_type: businessForm.businessType,
+          business_registration_number: businessForm.businessRegistrationNumber,
+          tax_id_number: businessForm.taxIdNumber,
+          business_address: businessForm.businessAddress,
+          city: businessForm.city,
+          province: businessForm.province,
+          postal_code: businessForm.postalCode,
+        })
+        .eq("id", seller.id);
+      if (error) throw error;
+      updateSellerDetails({
+        businessName: businessForm.businessName,
+        businessType: businessForm.businessType,
+        businessRegistrationNumber: businessForm.businessRegistrationNumber,
+        taxIdNumber: businessForm.taxIdNumber,
+        businessAddress: businessForm.businessAddress,
+        city: businessForm.city,
+        province: businessForm.province,
+        postalCode: businessForm.postalCode,
+      });
+      setEditSection(null);
+      alert("Saved business information");
+    } catch (err) {
+      console.error("Failed to save business info:", err);
+      alert("Failed to save. Please try again.");
+    }
+  };
+
+  const handleSaveBanking = async () => {
+    if (!seller?.id) {
+      alert("Unable to save: seller ID missing.");
+      return;
+    }
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const supabaseClient: any = supabase;
+      const { error } = await supabaseClient
+        .from("sellers")
+        .update({
+          bank_name: bankingForm.bankName,
+          account_name: bankingForm.accountName,
+          account_number: bankingForm.accountNumber,
+        })
+        .eq("id", seller.id);
+      if (error) throw error;
+      updateSellerDetails({
+        bankName: bankingForm.bankName,
+        accountName: bankingForm.accountName,
+        accountNumber: bankingForm.accountNumber,
+      });
+      setEditSection(null);
+      alert("Saved banking information");
+    } catch (err) {
+      console.error("Failed to save banking info:", err);
+      alert("Failed to save. Please try again.");
+    }
+  };
+
+  const handleSaveCategories = async () => {
+    if (!seller?.id) {
+      alert("Unable to save: seller ID missing.");
+      return;
+    }
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const supabaseClient: any = supabase;
+      const { error } = await supabaseClient
+        .from("sellers")
+        .update({ store_category: categoriesForm })
+        .eq("id", seller.id);
+      if (error) throw error;
+      updateSellerDetails({ storeCategory: categoriesForm });
+      setEditSection(null);
+      alert("Saved store categories");
+    } catch (err) {
+      console.error("Failed to save categories:", err);
+      alert("Failed to save. Please try again.");
+    }
   };
 
   // Helper function to download document
@@ -317,12 +548,42 @@ export function SellerStoreProfile() {
                   Manage your store's complete profile and verification
                 </p>
               </div>
-              {isVerified && (
-                <Badge className="bg-green-100 text-green-700 hover:bg-green-100 px-4 py-2">
-                  <CheckCircle2 className="h-4 w-4 mr-2" />
-                  Verified Seller
-                </Badge>
-              )}
+              <div className="flex gap-3">
+                {isVerified && (
+                  <Badge className="bg-green-100 text-green-700 hover:bg-green-100 px-4 py-2">
+                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                    Verified Seller
+                  </Badge>
+                )}
+                {approvalStatus === "pending" && !isVerified && (
+                  <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 px-4 py-2">
+                    <Clock className="h-4 w-4 mr-2" />
+                    Pending Approval
+                  </Badge>
+                )}
+                {approvalStatus === "rejected" && (
+                  <div className="flex items-center gap-2">
+                    <Badge className="bg-red-100 text-red-700 hover:bg-red-100 px-4 py-2">
+                      <AlertCircle className="h-4 w-4 mr-2" />
+                      Rejected
+                    </Badge>
+                    <Button
+                      size="sm"
+                      className="bg-[#FF6A00] hover:bg-orange-600"
+                      onClick={handleReapply}
+                      disabled={reapplyLoading}
+                    >
+                      {reapplyLoading ? "Reapplying…" : "Reapply"}
+                    </Button>
+                  </div>
+                )}
+                {approvalStatus === "approved" && !isVerified && (
+                  <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100 px-4 py-2">
+                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                    Approved
+                  </Badge>
+                )}
+              </div>
             </div>
 
             {/* Store Header Card */}
@@ -494,7 +755,7 @@ export function SellerStoreProfile() {
 
                   <div className="flex gap-3 pt-2">
                     <Button
-                      onClick={handleSave}
+                      onClick={handleSaveBasic}
                       className="bg-[#FF6A00] hover:bg-orange-600"
                     >
                       Save Changes
@@ -510,32 +771,70 @@ export function SellerStoreProfile() {
               ) : (
                 <div className="grid grid-cols-2 gap-6">
                   <div>
-                    <p className="text-sm text-gray-600 mb-1">Owner Name</p>
+                    <p className="text-sm text-gray-600 mb-1 flex items-center gap-2">
+                      Owner Name
+                      {isEmptyField(seller?.ownerName) && (
+                        <AlertCircle
+                          className="h-4 w-4 text-amber-500"
+                          aria-label="Required field"
+                        />
+                      )}
+                    </p>
                     <p className="text-gray-900 font-medium">
                       {seller?.ownerName || "Not provided"}
                     </p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-600 mb-1">Email Address</p>
+                    <p className="text-sm text-gray-600 mb-1 flex items-center gap-2">
+                      Email Address
+                      {isEmptyField(seller?.email) && (
+                        <AlertCircle
+                          className="h-4 w-4 text-amber-500"
+                          aria-label="Required field"
+                        />
+                      )}
+                    </p>
                     <p className="text-gray-900 font-medium">
                       {seller?.email || "Not provided"}
                     </p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-600 mb-1">Phone Number</p>
+                    <p className="text-sm text-gray-600 mb-1 flex items-center gap-2">
+                      Phone Number
+                      {isEmptyField(seller?.phone) && (
+                        <AlertCircle
+                          className="h-4 w-4 text-amber-500"
+                          aria-label="Required field"
+                        />
+                      )}
+                    </p>
                     <p className="text-gray-900 font-medium">
                       {seller?.phone || "Not provided"}
                     </p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-600 mb-1">Store Name</p>
+                    <p className="text-sm text-gray-600 mb-1 flex items-center gap-2">
+                      Store Name
+                      {isEmptyField(seller?.storeName) && (
+                        <AlertCircle
+                          className="h-4 w-4 text-amber-500"
+                          aria-label="Required field"
+                        />
+                      )}
+                    </p>
                     <p className="text-gray-900 font-medium">
                       {seller?.storeName || "Your Store"}
                     </p>
                   </div>
                   <div className="col-span-2">
-                    <p className="text-sm text-gray-600 mb-1">
+                    <p className="text-sm text-gray-600 mb-1 flex items-center gap-2">
                       Store Description
+                      {isEmptyField(seller?.storeDescription) && (
+                        <AlertCircle
+                          className="h-4 w-4 text-amber-500"
+                          aria-label="Recommended field"
+                        />
+                      )}
                     </p>
                     <p className="text-gray-900">
                       {seller?.storeDescription || "No description added"}
@@ -561,54 +860,219 @@ export function SellerStoreProfile() {
                   )}
                 </div>
                 {!isVerified && (
-                  <Badge className="bg-amber-100 text-amber-700">
-                    <AlertCircle className="h-3 w-3 mr-1" />
-                    Pending Verification
-                  </Badge>
+                  <Button
+                    onClick={() => setEditSection("business")}
+                    variant="outline"
+                    size="sm"
+                    className="gap-2"
+                  >
+                    <Edit2 className="h-4 w-4" />
+                    Edit
+                  </Button>
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-6">
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">Business Name</p>
-                  <p className="text-gray-900 font-medium">
-                    {seller?.businessName || "Not provided"}
-                  </p>
+              {editSection === "business" ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>Business Name</Label>
+                      <Input
+                        value={businessForm.businessName}
+                        onChange={(e) =>
+                          setBusinessForm({
+                            ...businessForm,
+                            businessName: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label>Business Type</Label>
+                      <Input
+                        value={businessForm.businessType}
+                        onChange={(e) =>
+                          setBusinessForm({
+                            ...businessForm,
+                            businessType: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>Business Registration Number</Label>
+                      <Input
+                        value={businessForm.businessRegistrationNumber}
+                        onChange={(e) =>
+                          setBusinessForm({
+                            ...businessForm,
+                            businessRegistrationNumber: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label>Tax ID Number (TIN)</Label>
+                      <Input
+                        value={businessForm.taxIdNumber}
+                        onChange={(e) =>
+                          setBusinessForm({
+                            ...businessForm,
+                            taxIdNumber: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 gap-4">
+                    <div className="col-span-2">
+                      <Label>Address</Label>
+                      <Input
+                        value={businessForm.businessAddress}
+                        onChange={(e) =>
+                          setBusinessForm({
+                            ...businessForm,
+                            businessAddress: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label>City</Label>
+                      <Input
+                        value={businessForm.city}
+                        onChange={(e) =>
+                          setBusinessForm({
+                            ...businessForm,
+                            city: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label>Province</Label>
+                      <Input
+                        value={businessForm.province}
+                        onChange={(e) =>
+                          setBusinessForm({
+                            ...businessForm,
+                            province: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label>Postal Code</Label>
+                      <Input
+                        value={businessForm.postalCode}
+                        onChange={(e) =>
+                          setBusinessForm({
+                            ...businessForm,
+                            postalCode: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
+                  <div className="flex gap-3 pt-2">
+                    <Button
+                      onClick={handleSaveBusiness}
+                      className="bg-[#FF6A00] hover:bg-orange-600"
+                    >
+                      Save Changes
+                    </Button>
+                    <Button
+                      onClick={() => setEditSection(null)}
+                      variant="outline"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">Business Type</p>
-                  <p className="text-gray-900 font-medium">
-                    {seller?.businessType || "Not provided"}
-                  </p>
+              ) : (
+                <div className="grid grid-cols-2 gap-6">
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1 flex items-center gap-2">
+                      Business Name
+                      {isEmptyField(seller?.businessName) && (
+                        <AlertCircle
+                          className="h-4 w-4 text-amber-500"
+                          aria-label="Required field"
+                        />
+                      )}
+                    </p>
+                    <p className="text-gray-900 font-medium">
+                      {seller?.businessName || "Not provided"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1 flex items-center gap-2">
+                      Business Type
+                      {isEmptyField(seller?.businessType) && (
+                        <AlertCircle
+                          className="h-4 w-4 text-amber-500"
+                          aria-label="Required field"
+                        />
+                      )}
+                    </p>
+                    <p className="text-gray-900 font-medium">
+                      {seller?.businessType || "Not provided"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1 flex items-center gap-2">
+                      Business Registration Number
+                      {isEmptyField(seller?.businessRegistrationNumber) && (
+                        <AlertCircle
+                          className="h-4 w-4 text-amber-500"
+                          aria-label="Required field"
+                        />
+                      )}
+                    </p>
+                    <p className="text-gray-900 font-medium font-mono">
+                      {seller?.businessRegistrationNumber || "Not provided"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1 flex items-center gap-2">
+                      Tax ID Number (TIN)
+                      {isEmptyField(seller?.taxIdNumber) && (
+                        <AlertCircle
+                          className="h-4 w-4 text-amber-500"
+                          aria-label="Required field"
+                        />
+                      )}
+                    </p>
+                    <p className="text-gray-900 font-medium font-mono">
+                      {seller?.taxIdNumber || "Not provided"}
+                    </p>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-sm text-gray-600 mb-1 flex items-center gap-2">
+                      Business Address
+                      {(isEmptyField(seller?.businessAddress) ||
+                        isEmptyField(seller?.city) ||
+                        isEmptyField(seller?.province) ||
+                        isEmptyField(seller?.postalCode)) && (
+                        <AlertCircle
+                          className="h-4 w-4 text-amber-500"
+                          aria-label="Required field"
+                        />
+                      )}
+                    </p>
+                    <p className="text-gray-900">
+                      {seller?.businessAddress &&
+                      seller?.city &&
+                      seller?.province &&
+                      seller?.postalCode
+                        ? `${seller.businessAddress}, ${seller.city}, ${seller.province} ${seller.postalCode}`
+                        : "Not provided"}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">
-                    Business Registration Number
-                  </p>
-                  <p className="text-gray-900 font-medium font-mono">
-                    {seller?.businessRegistrationNumber || "Not provided"}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">
-                    Tax ID Number (TIN)
-                  </p>
-                  <p className="text-gray-900 font-medium font-mono">
-                    {seller?.taxIdNumber || "Not provided"}
-                  </p>
-                </div>
-                <div className="col-span-2">
-                  <p className="text-sm text-gray-600 mb-1">Business Address</p>
-                  <p className="text-gray-900">
-                    {seller?.businessAddress &&
-                    seller?.city &&
-                    seller?.province &&
-                    seller?.postalCode
-                      ? `${seller.businessAddress}, ${seller.city}, ${seller.province} ${seller.postalCode}`
-                      : "Not provided"}
-                  </p>
-                </div>
-              </div>
+              )}
 
               {isVerified && (
                 <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
@@ -636,30 +1100,123 @@ export function SellerStoreProfile() {
                     </Badge>
                   )}
                 </div>
+                {!isVerified && (
+                  <Button
+                    onClick={() => setEditSection("banking")}
+                    variant="outline"
+                    size="sm"
+                    className="gap-2"
+                  >
+                    <Edit2 className="h-4 w-4" />
+                    Edit
+                  </Button>
+                )}
               </div>
 
-              <div className="grid grid-cols-2 gap-6">
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">Bank Name</p>
-                  <p className="text-gray-900 font-medium">
-                    {seller?.bankName || "Not provided"}
-                  </p>
+              {editSection === "banking" ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>Bank Name</Label>
+                      <Input
+                        value={bankingForm.bankName}
+                        onChange={(e) =>
+                          setBankingForm({
+                            ...bankingForm,
+                            bankName: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label>Account Name</Label>
+                      <Input
+                        value={bankingForm.accountName}
+                        onChange={(e) =>
+                          setBankingForm({
+                            ...bankingForm,
+                            accountName: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label>Account Number</Label>
+                    <Input
+                      value={bankingForm.accountNumber}
+                      onChange={(e) =>
+                        setBankingForm({
+                          ...bankingForm,
+                          accountNumber: e.target.value,
+                        })
+                      }
+                      placeholder="Enter your account number"
+                    />
+                  </div>
+                  <div className="flex gap-3 pt-2">
+                    <Button
+                      onClick={handleSaveBanking}
+                      className="bg-[#FF6A00] hover:bg-orange-600"
+                    >
+                      Save Changes
+                    </Button>
+                    <Button
+                      onClick={() => setEditSection(null)}
+                      variant="outline"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">Account Name</p>
-                  <p className="text-gray-900 font-medium">
-                    {seller?.accountName || "Not provided"}
-                  </p>
+              ) : (
+                <div className="grid grid-cols-2 gap-6">
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1 flex items-center gap-2">
+                      Bank Name
+                      {isEmptyField(seller?.bankName) && (
+                        <AlertCircle
+                          className="h-4 w-4 text-amber-500"
+                          aria-label="Required field"
+                        />
+                      )}
+                    </p>
+                    <p className="text-gray-900 font-medium">
+                      {seller?.bankName || "Not provided"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1 flex items-center gap-2">
+                      Account Name
+                      {isEmptyField(seller?.accountName) && (
+                        <AlertCircle
+                          className="h-4 w-4 text-amber-500"
+                          aria-label="Required field"
+                        />
+                      )}
+                    </p>
+                    <p className="text-gray-900 font-medium">
+                      {seller?.accountName || "Not provided"}
+                    </p>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-sm text-gray-600 mb-1 flex items-center gap-2">
+                      Account Number
+                      {isEmptyField(seller?.accountNumber) && (
+                        <AlertCircle
+                          className="h-4 w-4 text-amber-500"
+                          aria-label="Required field"
+                        />
+                      )}
+                    </p>
+                    <p className="text-gray-900 font-medium font-mono">
+                      {seller?.accountNumber
+                        ? `****${seller.accountNumber.slice(-4)}`
+                        : "Not provided"}
+                    </p>
+                  </div>
                 </div>
-                <div className="col-span-2">
-                  <p className="text-sm text-gray-600 mb-1">Account Number</p>
-                  <p className="text-gray-900 font-medium font-mono">
-                    {seller?.accountNumber
-                      ? `****${seller.accountNumber.slice(-4)}`
-                      : "Not provided"}
-                  </p>
-                </div>
-              </div>
+              )}
 
               {isVerified && (
                 <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
@@ -955,23 +1512,76 @@ export function SellerStoreProfile() {
 
             {/* Store Categories */}
             <Card className="p-6 mb-6">
-              <h3 className="text-xl font-bold text-gray-900 mb-4">
-                Store Categories
-              </h3>
-              <div className="flex flex-wrap gap-2">
-                {seller?.storeCategory && seller.storeCategory.length > 0 ? (
-                  seller.storeCategory.map((category, index) => (
-                    <span
-                      key={index}
-                      className="px-4 py-2 bg-orange-100 text-orange-700 rounded-full text-sm font-medium"
-                    >
-                      {category}
-                    </span>
-                  ))
-                ) : (
-                  <p className="text-gray-500">No categories selected</p>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold text-gray-900">
+                  Store Categories
+                </h3>
+                {editSection !== "categories" && (
+                  <Button
+                    onClick={() => setEditSection("categories")}
+                    variant="outline"
+                    size="sm"
+                    className="gap-2"
+                  >
+                    <Edit2 className="h-4 w-4" />
+                    Edit
+                  </Button>
                 )}
               </div>
+
+              {editSection === "categories" ? (
+                <div className="space-y-4">
+                  <div>
+                    <Label>Store Categories</Label>
+                    <p className="text-sm text-gray-600 mb-2">
+                      Enter categories separated by commas (e.g., Electronics,
+                      Fashion, Home & Garden)
+                    </p>
+                    <Textarea
+                      value={categoriesForm.join(", ")}
+                      onChange={(e) =>
+                        setCategoriesForm(
+                          e.target.value
+                            .split(",")
+                            .map((cat) => cat.trim())
+                            .filter((cat) => cat.length > 0),
+                        )
+                      }
+                      placeholder="Enter store categories..."
+                      rows={3}
+                    />
+                  </div>
+                  <div className="flex gap-3 pt-2">
+                    <Button
+                      onClick={handleSaveCategories}
+                      className="bg-[#FF6A00] hover:bg-orange-600"
+                    >
+                      Save Changes
+                    </Button>
+                    <Button
+                      onClick={() => setEditSection(null)}
+                      variant="outline"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {seller?.storeCategory && seller.storeCategory.length > 0 ? (
+                    seller.storeCategory.map((category, index) => (
+                      <span
+                        key={index}
+                        className="px-4 py-2 bg-orange-100 text-orange-700 rounded-full text-sm font-medium"
+                      >
+                        {category}
+                      </span>
+                    ))
+                  ) : (
+                    <p className="text-gray-500">No categories selected</p>
+                  )}
+                </div>
+              )}
             </Card>
 
             {/* Store Banner */}
