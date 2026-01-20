@@ -87,8 +87,7 @@ const Header: React.FC = () => {
                     if (e.key === "Enter") {
                       const query = (e.target as HTMLInputElement).value;
                       navigate(
-                        `/search${
-                          query ? "?q=" + encodeURIComponent(query) : ""
+                        `/search${query ? "?q=" + encodeURIComponent(query) : ""
                         }`
                       );
                     }
@@ -192,9 +191,8 @@ const Header: React.FC = () => {
                       </p>
                     </div>
                     <ChevronDown
-                      className={`h-4 w-4 text-gray-400 transition-transform ${
-                        showProfileMenu ? "rotate-180" : ""
-                      }`}
+                      className={`h-4 w-4 text-gray-400 transition-transform ${showProfileMenu ? "rotate-180" : ""
+                        }`}
                     />
                   </div>
 
@@ -223,78 +221,78 @@ const Header: React.FC = () => {
                         </div>
                       </div>
 
-                  <div className="p-2">
-                    <button
-                      onClick={() => {
-                        navigate("/profile");
-                        setShowProfileMenu(false);
-                      }}
-                      className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
-                    >
-                      <User className="h-4 w-4" />
-                      My Profile
-                    </button>
+                      <div className="p-2">
+                        <button
+                          onClick={() => {
+                            navigate("/profile");
+                            setShowProfileMenu(false);
+                          }}
+                          className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
+                        >
+                          <User className="h-4 w-4" />
+                          My Profile
+                        </button>
 
-                    <button
-                      onClick={() => {
-                        navigate("/orders");
-                        setShowProfileMenu(false);
-                      }}
-                      className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
-                    >
-                      <ShoppingBag className="h-4 w-4" />
-                      My Orders
-                    </button>
+                        <button
+                          onClick={() => {
+                            navigate("/orders");
+                            setShowProfileMenu(false);
+                          }}
+                          className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
+                        >
+                          <ShoppingBag className="h-4 w-4" />
+                          My Orders
+                        </button>
 
-                    <button
-                      onClick={() => {
-                        navigate("/my-reviews");
-                        setShowProfileMenu(false);
-                      }}
-                      className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
-                    >
-                      <Star className="h-4 w-4" />
-                      My Reviews
-                    </button>
+                        <button
+                          onClick={() => {
+                            navigate("/my-reviews");
+                            setShowProfileMenu(false);
+                          }}
+                          className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
+                        >
+                          <Star className="h-4 w-4" />
+                          My Reviews
+                        </button>
 
-                    <button
-                      onClick={() => {
-                        navigate("/following");
-                        setShowProfileMenu(false);
-                      }}
-                      className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
-                    >
-                      <Heart className="h-4 w-4" />
-                      Following
-                    </button>
+                        <button
+                          onClick={() => {
+                            navigate("/following");
+                            setShowProfileMenu(false);
+                          }}
+                          className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
+                        >
+                          <Heart className="h-4 w-4" />
+                          Following
+                        </button>
 
-                    <div className="border-t border-gray-100 my-2"></div>
+                        <div className="border-t border-gray-100 my-2"></div>
 
-                    <button
-                      onClick={() => {
-                        navigate("/settings");
-                        setShowProfileMenu(false);
-                      }}
-                      className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
-                    >
-                      <Settings className="h-4 w-4" />
-                      Settings
-                    </button>
+                        <button
+                          onClick={() => {
+                            navigate("/settings");
+                            setShowProfileMenu(false);
+                          }}
+                          className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
+                        >
+                          <Settings className="h-4 w-4" />
+                          Settings
+                        </button>
 
-                    <button
-                      onClick={() => {
-                        logout();
-                        setShowProfileMenu(false);
-                        navigate('/login');
-                      }}
-                      className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                    >
-                      <LogOut className="h-4 w-4" />
-                      Sign Out
-                    </button>
-                  </div>
-                </div>
-              )}
+                        <button
+                          onClick={() => {
+                            logout();
+                            setShowProfileMenu(false);
+                            navigate('/login');
+                          }}
+                          className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        >
+                          <LogOut className="h-4 w-4" />
+                          Sign Out
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </>
               ) : (
                 <button

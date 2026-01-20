@@ -23,9 +23,9 @@ const FeatureStrip: React.FC<FeatureStripProps> = ({
   return (
     <section className="py-12 lg:py-16 bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        
-        <div className={`grid lg:grid-cols-2 gap-12 items-center ${reverse ? 'lg:grid-flow-col-dense' : ''}`}>
-          
+
+        <div className={`grid lg:grid-cols-2 gap-8 sm:gap-12 items-center ${reverse ? 'lg:grid-flow-col-dense' : ''}`}>
+
           {/* Content */}
           <motion.div
             initial={{ opacity: 0, x: reverse ? 50 : -50 }}
@@ -40,7 +40,7 @@ const FeatureStrip: React.FC<FeatureStripProps> = ({
             <p className="text-lg text-[var(--text-secondary)] mb-8">
               {description}
             </p>
-            
+
             <div className="space-y-4 mb-8">
               {features.map((feature, index) => (
                 <motion.div
@@ -60,8 +60,8 @@ const FeatureStrip: React.FC<FeatureStripProps> = ({
                 </motion.div>
               ))}
             </div>
-            
-            <button 
+
+            <button
               onClick={buttonAction}
               className="btn-primary"
             >

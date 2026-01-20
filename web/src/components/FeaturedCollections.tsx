@@ -9,20 +9,9 @@ const FeaturedCollections: React.FC = () => {
     <section className="py-20 bg-[var(--bg-secondary)] overflow-hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="mb-16"
-        >
-          <h2 className="text-3xl lg:text-4xl font-bold text-[var(--text-primary)]">
-            Featured Collections
-          </h2>
-        </motion.div>
-
         <div className="grid lg:grid-cols-12 gap-10 items-center">
           {/* Left Side: Collection Cards */}
-          <div className="lg:col-span-8 flex flex-col md:flex-row gap-6">
+          <div className="lg:col-span-8 grid grid-cols-2 md:grid-cols-4 gap-4 lg:gap-6">
             {featuredCollections.slice(0, 4).map((collection, index) => (
               <CollectionCard
                 key={collection.id}
@@ -39,14 +28,17 @@ const FeaturedCollections: React.FC = () => {
             transition={{ duration: 0.8 }}
             className="lg:col-span-4"
           >
-            <span className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-[0.2em] mb-4 block">
-              Curated collections
-            </span>
-            <h3 className="text-4xl font-bold text-[var(--text-primary)] leading-tight mb-6">
-              Explore Curated Collections
-            </h3>
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6 }}
+            >
+              <h2 className="text-3xl lg:text-4xl font-bold text-[var(--text-primary)] mb-6">
+                Featured Collections
+              </h2>
+            </motion.div>
             <p className="text-lg text-[var(--text-secondary)] mb-8 leading-relaxed">
-              of the best products from verified sellers.
+              Curated collections of the best products from verified sellers.
             </p>
 
             <Link to="/collections" className="group flex items-center gap-2 text-[var(--text-primary)] font-bold text-lg hover:text-[var(--brand-primary)] transition-colors">
