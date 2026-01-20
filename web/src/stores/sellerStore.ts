@@ -1,17 +1,28 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { useProductQAStore } from './productQAStore';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { signIn, signUp, getSellerProfile, getEmailFromProfile } from '@/services/authService';
+import {
+  addStock as addStockDb,
+  createProduct as createProductDb,
+  deleteProduct as deleteProductDb,
+  deductStock as deductStockDb,
+  getProducts as fetchProductsDb,
+  updateProduct as updateProductDb,
+} from '@/services/productService';
+import type { Product as DBProduct, Seller as DBSeller, Database } from '@/types/database.types';
 
 // Types
 interface Seller {
   id: string;
-  
+
   // Personal Info
   name: string;
   ownerName: string;
   email: string;
   phone: string;
-  
+
   // Business Info
   businessName: string;
   storeName: string;
@@ -20,19 +31,26 @@ interface Seller {
   businessType: string;
   businessRegistrationNumber: string;
   taxIdNumber: string;
-  
+
   // Address
   businessAddress: string;
   city: string;
   province: string;
   postalCode: string;
   storeAddress: string; // Combined address
-  
+
   // Banking
   bankName: string;
   accountName: string;
   accountNumber: string;
-  
+
+  // Document URLs
+  businessPermitUrl?: string;
+  validIdUrl?: string;
+  proofOfAddressUrl?: string;
+  dtiRegistrationUrl?: string;
+  taxIdUrl?: string;
+
   // Status
   isVerified: boolean;
   approvalStatus: 'pending' | 'approved' | 'rejected';
@@ -64,6 +82,8 @@ export interface SellerProduct {
   rejectionReason?: string;
   vendorSubmittedCategory?: string;
   adminReclassifiedCategory?: string;
+  sellerName?: string;
+  sellerRating?: number;
 }
 
 interface SellerOrder {
@@ -132,11 +152,11 @@ interface SellerStats {
   avgRating: number;
   monthlyRevenue: { month: string; revenue: number }[];
   topProducts: { name: string; sales: number; revenue: number }[];
-  recentActivity: { 
-    id: string; 
-    type: 'order' | 'product' | 'review'; 
-    message: string; 
-    time: string; 
+  recentActivity: {
+    id: string;
+    type: 'order' | 'product' | 'review';
+    message: string;
+    time: string;
   }[];
 }
 
@@ -153,17 +173,28 @@ interface AuthStore {
 
 interface ProductStore {
   products: SellerProduct[];
+  loading: boolean;
+  error: string | null;
   inventoryLedger: InventoryLedgerEntry[];
   lowStockAlerts: LowStockAlert[];
-  addProduct: (product: Omit<SellerProduct, 'id' | 'createdAt' | 'updatedAt' | 'sales' | 'rating' | 'reviews'>) => void;
+  fetchProducts: (filters?: {
+    category?: string;
+    sellerId?: string;
+    isActive?: boolean;
+    approvalStatus?: string;
+    searchQuery?: string;
+    limit?: number;
+    offset?: number;
+  }) => Promise<void>;
+  addProduct: (product: Omit<SellerProduct, 'id' | 'createdAt' | 'updatedAt' | 'sales' | 'rating' | 'reviews'>) => Promise<void>;
   bulkAddProducts: (products: Array<{ name: string; description: string; price: number; originalPrice?: number; stock: number; category: string; imageUrl: string }>) => void;
-  updateProduct: (id: string, updates: Partial<SellerProduct>) => void;
-  deleteProduct: (id: string) => void;
+  updateProduct: (id: string, updates: Partial<SellerProduct>) => Promise<void>;
+  deleteProduct: (id: string) => Promise<void>;
   getProduct: (id: string) => SellerProduct | undefined;
   // POS-Lite: Deduct stock when offline sale is made
-  deductStock: (productId: string, quantity: number, reason: 'ONLINE_SALE' | 'OFFLINE_SALE', referenceId: string, notes?: string) => void;
+  deductStock: (productId: string, quantity: number, reason: 'ONLINE_SALE' | 'OFFLINE_SALE', referenceId: string, notes?: string) => Promise<void>;
   // Inventory management
-  addStock: (productId: string, quantity: number, reason: string, notes?: string) => void;
+  addStock: (productId: string, quantity: number, reason: string, notes?: string) => Promise<void>;
   adjustStock: (productId: string, newQuantity: number, reason: string, notes: string) => void;
   reserveStock: (productId: string, quantity: number, orderId: string) => void;
   releaseStock: (productId: string, quantity: number, orderId: string) => void;
@@ -218,6 +249,118 @@ interface StatsStore {
   stats: SellerStats;
   refreshStats: () => void;
 }
+
+type ProductInsert = Database['public']['Tables']['products']['Insert'];
+type ProductUpdate = Database['public']['Tables']['products']['Update'];
+
+// Optional fallback seller ID for Supabase inserts (set VITE_SUPABASE_SELLER_ID in .env for testing)
+const fallbackSellerId = (import.meta as { env?: { VITE_SUPABASE_SELLER_ID?: string } }).env?.VITE_SUPABASE_SELLER_ID;
+
+const mapDbSellerToSeller = (s: DBSeller): Seller => ({
+  id: s.id,
+  name: s.business_name || s.store_name || 'Seller',
+  ownerName: s.business_name || s.store_name || 'Seller',
+  email: '',
+  phone: s.business_address || '',
+  businessName: s.business_name || '',
+  storeName: s.store_name || '',
+  storeDescription: s.store_description || '',
+  storeCategory: s.store_category || [],
+  businessType: s.business_type || '',
+  businessRegistrationNumber: s.business_registration_number || '',
+  taxIdNumber: s.tax_id_number || '',
+  businessAddress: s.business_address || '',
+  city: s.city || '',
+  province: s.province || '',
+  postalCode: s.postal_code || '',
+  storeAddress: s.business_address || '',
+  bankName: s.bank_name || '',
+  accountName: s.account_name || '',
+  accountNumber: s.account_number || '',
+  isVerified: Boolean(s.is_verified),
+  approvalStatus: (s.approval_status as Seller['approvalStatus']) || 'pending',
+  rating: s.rating ?? 0,
+  totalSales: s.total_sales ?? 0,
+  joinDate: s.join_date || new Date().toISOString().split('T')[0],
+  avatar: undefined,
+});
+
+const mapDbProductToSellerProduct = (p: any): SellerProduct => ({
+  id: p.id,
+  name: p.name || '',
+  description: p.description || '',
+  price: Number(p.price ?? 0),
+  originalPrice: p.original_price ?? undefined,
+  stock: p.stock ?? 0,
+  category: p.category || '',
+  images: p.images || [],
+  sizes: p.sizes || [],
+  colors: p.colors || [],
+  isActive: Boolean(p.is_active),
+  sellerId: p.seller_id || '',
+  createdAt: p.created_at || '',
+  updatedAt: p.updated_at || '',
+  sales: p.sales_count ?? 0,
+  rating: Number(p.rating ?? 0),
+  reviews: p.review_count ?? 0,
+  approvalStatus: (p.approval_status as SellerProduct['approvalStatus']) || 'pending',
+  rejectionReason: p.rejection_reason || undefined,
+  vendorSubmittedCategory: p.vendor_submitted_category || undefined,
+  adminReclassifiedCategory: p.admin_reclassified_category || undefined,
+  sellerName: p.seller?.store_name || p.seller?.business_name || 'Verified Seller',
+  sellerRating: p.seller?.rating || 0
+});
+
+const buildProductInsert = (product: Omit<SellerProduct, 'id' | 'createdAt' | 'updatedAt' | 'sales' | 'rating' | 'reviews'>, sellerId: string): ProductInsert => ({
+  name: product.name,
+  description: product.description,
+  price: product.price,
+  original_price: product.originalPrice !== undefined ? product.originalPrice : null,
+  stock: product.stock,
+  category: product.category,
+  images: product.images,
+  sizes: product.sizes || [],
+  colors: product.colors || [],
+  is_active: product.isActive ?? true,
+  seller_id: sellerId,
+  approval_status: 'pending',
+  vendor_submitted_category: product.vendorSubmittedCategory || product.category,
+  // Optional fields with defaults
+  category_id: null,
+  brand: null,
+  sku: null,
+  low_stock_threshold: 10,
+  primary_image: product.images[0] || null,
+  variants: [],
+  specifications: {},
+  rejection_reason: null,
+  admin_reclassified_category: null,
+  rating: 0,
+  review_count: 0,
+  sales_count: 0,
+  view_count: 0,
+  weight: null,
+  dimensions: null,
+  is_free_shipping: false,
+  tags: [],
+});
+
+const mapSellerUpdatesToDb = (updates: Partial<SellerProduct>): ProductUpdate => ({
+  name: updates.name,
+  description: updates.description,
+  price: updates.price,
+  original_price: updates.originalPrice,
+  stock: updates.stock,
+  category: updates.category,
+  images: updates.images,
+  sizes: updates.sizes,
+  colors: updates.colors,
+  is_active: updates.isActive,
+  approval_status: updates.approvalStatus,
+  rejection_reason: updates.rejectionReason,
+  vendor_submitted_category: updates.vendorSubmittedCategory,
+  admin_reclassified_category: updates.adminReclassifiedCategory,
+});
 
 // Dummy data
 const dummySeller: Seller = {
@@ -369,65 +512,137 @@ export const useAuthStore = create<AuthStore>()(
       seller: null,
       isAuthenticated: false,
       login: async (email: string, password: string) => {
-        // Simulate API call
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        if ((email === 'seller@bazaarph.com' || email === 'juan@example.com') && (password === 'password' || password === 'password123')) {
-          set({ seller: dummySeller, isAuthenticated: true });
-          return true;
+        if (!isSupabaseConfigured()) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+          if ((email === 'seller@bazaarph.com' || email === 'juan@example.com') && (password === 'password' || password === 'password123')) {
+            set({ seller: dummySeller, isAuthenticated: true });
+            return true;
+          }
+          return false;
         }
-        return false;
+
+        try {
+          const { user, error } = await signIn(email, password);
+          if (error || !user) {
+            console.error('Supabase login failed:', error);
+            return false;
+          }
+
+          const sellerProfile = await getSellerProfile(user.id);
+          if (!sellerProfile) {
+            console.error('No seller profile found for user');
+            return false;
+          }
+
+          // Fetch email from profiles table and merge with seller profile
+          const userEmail = await getEmailFromProfile(user.id);
+          const mappedSeller = mapDbSellerToSeller(sellerProfile);
+          
+          // Ensure email is set from profiles table
+          if (userEmail) {
+            mappedSeller.email = userEmail;
+          }
+
+          set({ seller: mappedSeller, isAuthenticated: true });
+          return true;
+        } catch (err) {
+          console.error('Login error:', err);
+          return false;
+        }
       },
       register: async (sellerData) => {
-        // Simulate API call - in real app, this would submit to admin approval
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        
-        // Create full address
-        const fullAddress = `${sellerData.businessAddress}, ${sellerData.city}, ${sellerData.province} ${sellerData.postalCode}`;
-        
-        const newSeller: Seller = {
-          id: `seller-${Date.now()}`,
-          
-          // Personal Info
-          name: sellerData.ownerName || sellerData.email?.split('@')[0] || 'New Seller',
-          ownerName: sellerData.ownerName || '',
-          email: sellerData.email!,
-          phone: sellerData.phone || '',
-          
-          // Business Info
-          businessName: sellerData.businessName || '',
-          storeName: sellerData.storeName || 'My Store',
-          storeDescription: sellerData.storeDescription || '',
-          storeCategory: sellerData.storeCategory || [],
-          businessType: sellerData.businessType || '',
-          businessRegistrationNumber: sellerData.businessRegistrationNumber || '',
-          taxIdNumber: sellerData.taxIdNumber || '',
-          
-          // Address
-          businessAddress: sellerData.businessAddress || '',
-          city: sellerData.city || '',
-          province: sellerData.province || '',
-          postalCode: sellerData.postalCode || '',
-          storeAddress: fullAddress,
-          
-          // Banking
-          bankName: sellerData.bankName || '',
-          accountName: sellerData.accountName || '',
-          accountNumber: sellerData.accountNumber || '',
-          
-          // Status
-          isVerified: false,
-          approvalStatus: 'pending',  // Awaiting admin approval
-          rating: 0,
-          totalSales: 0,
-          joinDate: new Date().toISOString().split('T')[0]
-        };
-        
-        // In real app, seller would NOT be authenticated immediately
-        // They would need to wait for admin approval
-        // For demo purposes, we'll show a pending status message
-        set({ seller: newSeller, isAuthenticated: false });
-        
-        return true;
+        if (!isSupabaseConfigured()) {
+          // Existing mock flow
+          const fullAddress = `${sellerData.businessAddress}, ${sellerData.city}, ${sellerData.province} ${sellerData.postalCode}`;
+          const newSeller: Seller = {
+            id: `seller-${Date.now()}`,
+            name: sellerData.ownerName || sellerData.email?.split('@')[0] || 'New Seller',
+            ownerName: sellerData.ownerName || '',
+            email: sellerData.email!,
+            phone: sellerData.phone || '',
+            businessName: sellerData.businessName || '',
+            storeName: sellerData.storeName || 'My Store',
+            storeDescription: sellerData.storeDescription || '',
+            storeCategory: sellerData.storeCategory || [],
+            businessType: sellerData.businessType || '',
+            businessRegistrationNumber: sellerData.businessRegistrationNumber || '',
+            taxIdNumber: sellerData.taxIdNumber || '',
+            businessAddress: sellerData.businessAddress || '',
+            city: sellerData.city || '',
+            province: sellerData.province || '',
+            postalCode: sellerData.postalCode || '',
+            storeAddress: fullAddress,
+            bankName: sellerData.bankName || '',
+            accountName: sellerData.accountName || '',
+            accountNumber: sellerData.accountNumber || '',
+            isVerified: false,
+            approvalStatus: 'pending',
+            rating: 0,
+            totalSales: 0,
+            joinDate: new Date().toISOString().split('T')[0]
+          };
+          set({ seller: newSeller, isAuthenticated: false });
+          return true;
+        }
+
+        try {
+          // 1) Supabase Auth sign-up
+          const { user, error } = await signUp(sellerData.email!, sellerData.password!, {
+            full_name: sellerData.ownerName || sellerData.storeName || sellerData.email?.split('@')[0],
+            phone: sellerData.phone,
+            user_type: 'seller',
+          });
+
+          if (error || !user) {
+            console.error('Signup failed:', error);
+            // Check if it's a duplicate email error
+            if (error?.message?.includes('already registered') || error?.code === '23505') {
+              console.error('Email already exists. Please use a different email or try logging in.');
+            }
+            return false;
+          }
+
+          // 2) Create seller record (use upsert to handle conflicts)
+          const sellerRow = {
+            id: user.id,
+            business_name: sellerData.businessName || sellerData.storeName || 'My Store',
+            store_name: sellerData.storeName || 'My Store',
+            store_description: sellerData.storeDescription || null,
+            store_category: sellerData.storeCategory || ['General'],
+            business_type: sellerData.businessType || 'sole_proprietor',
+            business_registration_number: sellerData.businessRegistrationNumber || null,
+            tax_id_number: sellerData.taxIdNumber || null,
+            business_address: sellerData.businessAddress || sellerData.storeAddress || '',
+            city: sellerData.city || null,
+            province: sellerData.province || null,
+            postal_code: sellerData.postalCode || null,
+            bank_name: sellerData.bankName || null,
+            account_name: sellerData.accountName || null,
+            account_number: sellerData.accountNumber || null,
+            is_verified: false,
+            approval_status: 'pending' as const,
+            rating: 0,
+            total_sales: 0,
+          };
+
+          // @ts-expect-error - Database types need to be regenerated
+          const { error: sellerError } = await supabase.from('sellers').upsert(sellerRow, {
+            onConflict: 'id',
+            ignoreDuplicates: false
+          });
+
+          if (sellerError) {
+            console.error('Seller insert failed:', sellerError);
+            return false;
+          }
+
+          // 3) Set local auth state as pending (awaiting approval)
+          set({ seller: mapDbSellerToSeller(sellerRow as DBSeller), isAuthenticated: false });
+          return true;
+        } catch (err) {
+          console.error('Registration error:', err);
+          return false;
+        }
       },
       logout: () => {
         set({ seller: null, isAuthenticated: false });
@@ -461,11 +676,33 @@ export const useAuthStore = create<AuthStore>()(
 export const useProductStore = create<ProductStore>()(
   persist(
     (set, get) => ({
-      products: dummyProducts,
+      products: [],
+      loading: false,
+      error: null,
       inventoryLedger: [],
       lowStockAlerts: [],
 
-      addProduct: (product) => {
+      fetchProducts: async (filters) => {
+        if (!isSupabaseConfigured()) {
+          set({ products: dummyProducts, loading: false, error: null });
+          return;
+        }
+
+        set({ loading: true, error: null });
+        try {
+          const data = await fetchProductsDb(filters);
+          set({
+            products: (data || []).map(mapDbProductToSellerProduct),
+            loading: false,
+          });
+          get().checkLowStock();
+        } catch (error: unknown) {
+          console.error('Error loading products from Supabase:', error);
+          set({ error: (error as Error)?.message || 'Failed to load products', loading: false });
+        }
+      },
+
+      addProduct: async (product) => {
         try {
           // Validation
           if (!product.name || product.name.trim() === '') {
@@ -483,25 +720,49 @@ export const useProductStore = create<ProductStore>()(
           if (!product.images || product.images.length === 0) {
             throw new Error('At least one product image is required');
           }
-          
-          const newProduct: SellerProduct = {
-            ...product,
-            id: `prod-${Date.now()}`,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            sales: 0,
-            rating: 0,
-            reviews: 0,
-            approvalStatus: 'pending',
-            vendorSubmittedCategory: product.category,
-            sizes: product.sizes || [],
-            colors: product.colors || []
-          };
-          
+
+          const authStoreState = useAuthStore.getState();
+          const sellerId = isSupabaseConfigured()
+            ? authStoreState.seller?.id || fallbackSellerId
+            : authStoreState.seller?.id || 'seller-1';
+
+          const resolvedSellerId = sellerId ?? '';
+
+          if (isSupabaseConfigured() && !resolvedSellerId) {
+            throw new Error('Missing seller ID for Supabase insert. Set VITE_SUPABASE_SELLER_ID or log in with a seller linked to Supabase.');
+          }
+
+          let newProduct: SellerProduct;
+
+          // Use Supabase if configured
+          if (isSupabaseConfigured()) {
+            const insertData = buildProductInsert(product, resolvedSellerId);
+            const created = await createProductDb(insertData);
+            if (!created) {
+              throw new Error('Failed to create product in database');
+            }
+            newProduct = mapDbProductToSellerProduct(created);
+          } else {
+            // Fallback to local state
+            newProduct = {
+              ...product,
+              id: `prod-${Date.now()}`,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+              sales: 0,
+              rating: 0,
+              reviews: 0,
+              approvalStatus: 'pending',
+              vendorSubmittedCategory: product.category,
+              sizes: product.sizes || [],
+              colors: product.colors || [],
+              sellerId: resolvedSellerId,
+            };
+          }
+
           set((state) => ({ products: [...state.products, newProduct] }));
 
           // Create ledger entry for initial stock
-          const authStore = useAuthStore.getState();
           const ledgerEntry: InventoryLedgerEntry = {
             id: `ledger-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             timestamp: new Date().toISOString(),
@@ -513,7 +774,7 @@ export const useProductStore = create<ProductStore>()(
             quantityAfter: product.stock,
             reason: 'STOCK_REPLENISHMENT',
             referenceId: newProduct.id,
-            userId: authStore.seller?.id || 'SYSTEM',
+            userId: sellerId || 'SYSTEM',
             notes: 'Initial stock for new product'
           };
 
@@ -523,14 +784,14 @@ export const useProductStore = create<ProductStore>()(
 
           // Check for low stock on new product
           get().checkLowStock();
-          
+
           // Also add to QA flow store
           try {
             const qaStore = useProductQAStore.getState();
             qaStore.addProductToQA({
               id: newProduct.id,
               name: newProduct.name,
-              vendor: authStore.seller?.name || 'Unknown Vendor',
+              vendor: authStoreState.seller?.name || 'Unknown Vendor',
               price: newProduct.price,
               category: newProduct.category,
               image: newProduct.images[0] || 'https://placehold.co/100?text=Product',
@@ -629,18 +890,32 @@ export const useProductStore = create<ProductStore>()(
         }
       },
 
-      updateProduct: (id, updates) => {
+      updateProduct: async (id, updates) => {
         try {
           const product = get().products.find(p => p.id === id);
           if (!product) {
             console.error(`Product not found: ${id}`);
             throw new Error('Product not found');
           }
+
+          let updatedProduct: SellerProduct;
+
+          // Use Supabase if configured
+          if (isSupabaseConfigured()) {
+            const updateData = mapSellerUpdatesToDb(updates);
+            const updated = await updateProductDb(id, updateData);
+            if (!updated) {
+              throw new Error('Failed to update product in database');
+            }
+            updatedProduct = mapDbProductToSellerProduct(updated);
+          } else {
+            // Fallback to local state
+            updatedProduct = { ...product, ...updates, updatedAt: new Date().toISOString() };
+          }
+
           set((state) => ({
-            products: state.products.map(product =>
-              product.id === id
-                ? { ...product, ...updates, updatedAt: new Date().toISOString() }
-                : product
+            products: state.products.map(p =>
+              p.id === id ? updatedProduct : p
             )
           }));
         } catch (error) {
@@ -649,13 +924,22 @@ export const useProductStore = create<ProductStore>()(
         }
       },
 
-      deleteProduct: (id) => {
+      deleteProduct: async (id) => {
         try {
           const product = get().products.find(p => p.id === id);
           if (!product) {
             console.error(`Product not found: ${id}`);
             throw new Error('Product not found');
           }
+
+          // Use Supabase if configured
+          if (isSupabaseConfigured()) {
+            const success = await deleteProductDb(id);
+            if (!success) {
+              throw new Error('Failed to delete product from database');
+            }
+          }
+
           set((state) => ({
             products: state.products.filter(product => product.id !== id)
           }));
@@ -670,7 +954,7 @@ export const useProductStore = create<ProductStore>()(
       },
 
       // POS-Lite: Deduct stock with full audit trail
-      deductStock: (productId, quantity, reason, referenceId, notes) => {
+      deductStock: async (productId, quantity, reason, referenceId, notes) => {
         try {
           const product = get().products.find(p => p.id === productId);
           if (!product) {
@@ -683,16 +967,32 @@ export const useProductStore = create<ProductStore>()(
           }
 
           const newStock = product.stock - quantity;
-          const authStore = useAuthStore.getState();
+          const authStoreForStock = useAuthStore.getState();
 
-          // Update product stock
-          set((state) => ({
-            products: state.products.map(p =>
-              p.id === productId
-                ? { ...p, stock: newStock, sales: p.sales + quantity }
-                : p
-            )
-          }));
+          // Use Supabase if configured
+          if (isSupabaseConfigured()) {
+            const success = await deductStockDb(
+              productId,
+              quantity,
+              reason,
+              referenceId,
+              authStoreForStock.seller?.id
+            );
+            if (!success) {
+              throw new Error('Failed to deduct stock in database');
+            }
+            // Refresh from DB to get updated stock
+            await get().fetchProducts({ sellerId: authStoreForStock.seller?.id });
+          } else {
+            // Fallback: Update product stock locally
+            set((state) => ({
+              products: state.products.map(p =>
+                p.id === productId
+                  ? { ...p, stock: newStock, sales: p.sales + quantity }
+                  : p
+              )
+            }));
+          }
 
           // Create immutable ledger entry
           const ledgerEntry: InventoryLedgerEntry = {
@@ -706,7 +1006,7 @@ export const useProductStore = create<ProductStore>()(
             quantityAfter: newStock,
             reason,
             referenceId,
-            userId: authStore.seller?.id || 'SYSTEM',
+            userId: authStoreForStock.seller?.id || 'SYSTEM',
             notes: notes || `Stock deducted for ${reason.replace('_', ' ').toLowerCase()}`
           };
 
@@ -725,7 +1025,7 @@ export const useProductStore = create<ProductStore>()(
       },
 
       // Add stock (replenishment)
-      addStock: (productId, quantity, reason, notes) => {
+      addStock: async (productId, quantity, reason, notes) => {
         try {
           const product = get().products.find(p => p.id === productId);
           if (!product) {
@@ -737,15 +1037,31 @@ export const useProductStore = create<ProductStore>()(
           }
 
           const newStock = product.stock + quantity;
-          const authStore = useAuthStore.getState();
+          const authStoreForAdd = useAuthStore.getState();
 
-          set((state) => ({
-            products: state.products.map(p =>
-              p.id === productId
-                ? { ...p, stock: newStock }
-                : p
-            )
-          }));
+          // Use Supabase if configured
+          if (isSupabaseConfigured()) {
+            const success = await addStockDb(
+              productId,
+              quantity,
+              reason || 'STOCK_REPLENISHMENT',
+              authStoreForAdd.seller?.id
+            );
+            if (!success) {
+              throw new Error('Failed to add stock in database');
+            }
+            // Refresh from DB to get updated stock
+            await get().fetchProducts({ sellerId: authStoreForAdd.seller?.id });
+          } else {
+            // Fallback: Update locally
+            set((state) => ({
+              products: state.products.map(p =>
+                p.id === productId
+                  ? { ...p, stock: newStock }
+                  : p
+              )
+            }));
+          }
 
           // Create ledger entry
           const ledgerEntry: InventoryLedgerEntry = {
@@ -759,7 +1075,7 @@ export const useProductStore = create<ProductStore>()(
             quantityAfter: newStock,
             reason: 'STOCK_REPLENISHMENT',
             referenceId: `REPL-${Date.now()}`,
-            userId: authStore.seller?.id || 'SYSTEM',
+            userId: authStoreForAdd.seller?.id || 'SYSTEM',
             notes: notes || reason
           };
 
@@ -793,7 +1109,6 @@ export const useProductStore = create<ProductStore>()(
           }
 
           const quantityChange = newQuantity - product.stock;
-          const authStore = useAuthStore.getState();
 
           set((state) => ({
             products: state.products.map(p =>
@@ -815,7 +1130,7 @@ export const useProductStore = create<ProductStore>()(
             quantityAfter: newQuantity,
             reason: 'MANUAL_ADJUSTMENT',
             referenceId: `ADJ-${Date.now()}`,
-            userId: authStore.seller?.id || 'SYSTEM',
+            userId: useAuthStore.getState().seller?.id || 'SYSTEM',
             notes: `${reason}: ${notes}`
           };
 
@@ -845,7 +1160,6 @@ export const useProductStore = create<ProductStore>()(
           }
 
           const newStock = product.stock - quantity;
-          const authStore = useAuthStore.getState();
 
           set((state) => ({
             products: state.products.map(p =>
@@ -867,7 +1181,7 @@ export const useProductStore = create<ProductStore>()(
             quantityAfter: newStock,
             reason: 'RESERVATION',
             referenceId: orderId,
-            userId: authStore.seller?.id || 'SYSTEM',
+            userId: useAuthStore.getState().seller?.id || 'SYSTEM',
             notes: `Stock reserved for order ${orderId}`
           };
 
@@ -891,7 +1205,6 @@ export const useProductStore = create<ProductStore>()(
           }
 
           const newStock = product.stock + quantity;
-          const authStore = useAuthStore.getState();
 
           set((state) => ({
             products: state.products.map(p =>
@@ -913,7 +1226,7 @@ export const useProductStore = create<ProductStore>()(
             quantityAfter: newStock,
             reason: 'ORDER_CANCELLATION',
             referenceId: orderId,
-            userId: authStore.seller?.id || 'SYSTEM',
+            userId: useAuthStore.getState().seller?.id || 'SYSTEM',
             notes: `Stock released from cancelled order ${orderId}`
           };
 
@@ -991,7 +1304,22 @@ export const useProductStore = create<ProductStore>()(
       getLowStockThreshold: () => 10, // Can be made configurable later
     }),
     {
-      name: 'seller-products-storage'
+      name: 'seller-products-storage',
+      version: 2,
+      migrate: (state: unknown, version: number) => {
+        if (version < 2) {
+          const oldState = (state || {}) as Record<string, unknown>;
+          return {
+            ...oldState,
+            products: [],
+            inventoryLedger: [],
+            lowStockAlerts: [],
+            loading: false,
+            error: null,
+          };
+        }
+        return state as ProductStore;
+      },
     }
   )
 );
@@ -1001,7 +1329,7 @@ export const useOrderStore = create<OrderStore>()(
   persist(
     (set, get) => ({
       orders: dummyOrders,
-      
+
       addOrder: (orderData) => {
         try {
           // Validate order data
@@ -1036,7 +1364,7 @@ export const useOrderStore = create<OrderStore>()(
           throw error;
         }
       },
-      
+
       updateOrderStatus: (id, status) => {
         try {
           const order = get().orders.find(o => o.id === id);
@@ -1068,7 +1396,7 @@ export const useOrderStore = create<OrderStore>()(
           throw error;
         }
       },
-      
+
       updatePaymentStatus: (id, status) => {
         try {
           const order = get().orders.find(o => o.id === id);
@@ -1086,15 +1414,15 @@ export const useOrderStore = create<OrderStore>()(
           throw error;
         }
       },
-      
+
       getOrdersByStatus: (status) => {
         return get().orders.filter(order => order.status === status);
       },
-      
+
       getOrderById: (id) => {
         return get().orders.find(order => order.id === id);
       },
-      
+
       addTrackingNumber: (id, trackingNumber) => {
         try {
           const order = get().orders.find(o => o.id === id);
@@ -1116,7 +1444,7 @@ export const useOrderStore = create<OrderStore>()(
           throw error;
         }
       },
-      
+
       deleteOrder: (id) => {
         try {
           const order = get().orders.find(o => o.id === id);
@@ -1132,7 +1460,7 @@ export const useOrderStore = create<OrderStore>()(
           throw error;
         }
       },
-      
+
       addOrderRating: (id, rating, comment, images) => {
         try {
           const order = get().orders.find(o => o.id === id);
@@ -1146,16 +1474,16 @@ export const useOrderStore = create<OrderStore>()(
 
           set((state) => ({
             orders: state.orders.map(order =>
-              order.id === id 
-                ? { 
-                    ...order, 
-                    rating, 
-                    reviewComment: comment,
-                    reviewImages: images,
-                    reviewDate: new Date().toISOString(),
-                    status: 'delivered', // Ensure delivered when rated
-                    paymentStatus: 'paid' // Mark as paid after successful delivery
-                  } 
+              order.id === id
+                ? {
+                  ...order,
+                  rating,
+                  reviewComment: comment,
+                  reviewImages: images,
+                  reviewDate: new Date().toISOString(),
+                  status: 'delivered', // Ensure delivered when rated
+                  paymentStatus: 'paid' // Mark as paid after successful delivery
+                }
                 : order
             )
           }));
@@ -1225,10 +1553,10 @@ export const useOrderStore = create<OrderStore>()(
           // Deduct stock for each item with full audit trail
           for (const item of cartItems) {
             productStore.deductStock(
-              item.productId, 
-              item.quantity, 
-              'OFFLINE_SALE', 
-              orderId, 
+              item.productId,
+              item.quantity,
+              'OFFLINE_SALE',
+              orderId,
               `POS sale: ${item.productName} x${item.quantity}`
             );
           }
@@ -1249,54 +1577,173 @@ export const useOrderStore = create<OrderStore>()(
 );
 
 // Stats Store
-export const useStatsStore = create<StatsStore>()(() => ({
+export const useStatsStore = create<StatsStore>()((set, get) => ({
   stats: {
-    totalRevenue: 1580000,
-    totalOrders: 256,
-    totalProducts: 45,
-    avgRating: 4.8,
-    monthlyRevenue: [
-      { month: 'Jan', revenue: 120000 },
-      { month: 'Feb', revenue: 150000 },
-      { month: 'Mar', revenue: 180000 },
-      { month: 'Apr', revenue: 200000 },
-      { month: 'May', revenue: 160000 },
-      { month: 'Jun', revenue: 220000 },
-      { month: 'Jul', revenue: 250000 },
-      { month: 'Aug', revenue: 180000 },
-      { month: 'Sep', revenue: 190000 },
-      { month: 'Oct', revenue: 210000 },
-      { month: 'Nov', revenue: 240000 },
-      { month: 'Dec', revenue: 170000 }
-    ],
-    topProducts: [
-      { name: 'iPhone 15 Pro Max', sales: 45, revenue: 4049550 },
-      { name: 'Samsung Galaxy S24 Ultra', sales: 32, revenue: 2559680 },
-      { name: 'MacBook Pro M3', sales: 18, revenue: 2339820 }
-    ],
-    recentActivity: [
-      {
-        id: '1',
-        type: 'order',
-        message: 'New order from Maria Santos',
-        time: '2 hours ago'
-      },
-      {
-        id: '2',
-        type: 'product',
-        message: 'iPhone 15 Pro Max stock is running low',
-        time: '4 hours ago'
-      },
-      {
-        id: '3',
-        type: 'review',
-        message: 'New 5-star review for MacBook Pro M3',
-        time: '1 day ago'
-      }
-    ]
+    totalRevenue: 0,
+    totalOrders: 0,
+    totalProducts: 0,
+    avgRating: 0,
+    monthlyRevenue: [],
+    topProducts: [],
+    recentActivity: []
   },
   refreshStats: () => {
-    // In a real app, this would fetch from API
-    console.log('Refreshing stats...');
+    const orderStore = useOrderStore.getState();
+    const productStore = useProductStore.getState();
+    const authStore = useAuthStore.getState();
+    
+    const orders = orderStore.orders;
+    const products = productStore.products;
+    const seller = authStore.seller;
+    
+    // Calculate total revenue from delivered orders
+    const totalRevenue = orders
+      .filter(order => order.status === 'delivered')
+      .reduce((sum, order) => sum + order.total, 0);
+    
+    // Total orders count
+    const totalOrders = orders.length;
+    
+    // Total products count
+    const totalProducts = products.length;
+    
+    // Calculate average rating from orders with ratings
+    const ordersWithRatings = orders.filter(order => order.rating);
+    const avgRating = ordersWithRatings.length > 0
+      ? ordersWithRatings.reduce((sum, order) => sum + (order.rating || 0), 0) / ordersWithRatings.length
+      : 0;
+    
+    // Calculate monthly revenue (last 12 months)
+    const monthlyRevenue = calculateMonthlyRevenue(orders);
+    
+    // Calculate top products by sales
+    const topProducts = calculateTopProducts(products, orders);
+    
+    // Generate recent activity from orders and products
+    const recentActivity = generateRecentActivity(orders, products);
+    
+    set({
+      stats: {
+        totalRevenue,
+        totalOrders,
+        totalProducts,
+        avgRating: Math.round(avgRating * 10) / 10,
+        monthlyRevenue,
+        topProducts,
+        recentActivity
+      }
+    });
   }
 }));
+
+// Helper function to calculate monthly revenue
+function calculateMonthlyRevenue(orders: SellerOrder[]): { month: string; revenue: number }[] {
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const currentDate = new Date();
+  const monthlyData: { month: string; revenue: number }[] = [];
+  
+  for (let i = 11; i >= 0; i--) {
+    const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
+    const monthName = months[date.getMonth()];
+    const year = date.getFullYear();
+    
+    const revenue = orders
+      .filter(order => {
+        const orderDate = new Date(order.orderDate);
+        return orderDate.getMonth() === date.getMonth() && 
+               orderDate.getFullYear() === year &&
+               order.status === 'delivered';
+      })
+      .reduce((sum, order) => sum + order.total, 0);
+    
+    monthlyData.push({ month: monthName, revenue });
+  }
+  
+  return monthlyData;
+}
+
+// Helper function to calculate top products
+function calculateTopProducts(products: SellerProduct[], orders: SellerOrder[]): { name: string; sales: number; revenue: number }[] {
+  const productStats = new Map<string, { name: string; sales: number; revenue: number }>();
+  
+  orders.forEach(order => {
+    order.items.forEach(item => {
+      const existing = productStats.get(item.productId) || { name: item.productName, sales: 0, revenue: 0 };
+      existing.sales += item.quantity;
+      existing.revenue += item.price * item.quantity;
+      productStats.set(item.productId, existing);
+    });
+  });
+  
+  return Array.from(productStats.values())
+    .sort((a, b) => b.revenue - a.revenue)
+    .slice(0, 3);
+}
+
+// Helper function to generate recent activity
+function generateRecentActivity(orders: SellerOrder[], products: SellerProduct[]): { id: string; type: 'order' | 'product' | 'review'; message: string; time: string }[] {
+  const activities: { id: string; type: 'order' | 'product' | 'review'; message: string; time: string; timestamp: Date }[] = [];
+  
+  // Add recent orders
+  orders
+    .slice(-5)
+    .forEach(order => {
+      activities.push({
+        id: order.id,
+        type: 'order',
+        message: `New order from ${order.buyerName}`,
+        time: getRelativeTime(order.orderDate),
+        timestamp: new Date(order.orderDate)
+      });
+    });
+  
+  // Add low stock alerts
+  products
+    .filter(p => p.stock < 10 && p.stock > 0)
+    .slice(0, 3)
+    .forEach(product => {
+      activities.push({
+        id: product.id,
+        type: 'product',
+        message: `${product.name} stock is running low (${product.stock} left)`,
+        time: getRelativeTime(product.updatedAt),
+        timestamp: new Date(product.updatedAt)
+      });
+    });
+  
+  // Add recent reviews
+  orders
+    .filter(order => order.rating && order.reviewDate)
+    .slice(-3)
+    .forEach(order => {
+      activities.push({
+        id: order.id,
+        type: 'review',
+        message: `New ${order.rating}-star review for ${order.items[0]?.productName}`,
+        time: getRelativeTime(order.reviewDate!),
+        timestamp: new Date(order.reviewDate!)
+      });
+    });
+  
+  // Sort by timestamp and return top 5
+  return activities
+    .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+    .slice(0, 5)
+    .map(({ timestamp, ...rest }) => rest);
+}
+
+// Helper function to get relative time
+function getRelativeTime(dateString: string): string {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+  
+  if (diffMins < 1) return 'Just now';
+  if (diffMins < 60) return `${diffMins} minute${diffMins > 1 ? 's' : ''} ago`;
+  if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+  if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+  return date.toLocaleDateString();
+}

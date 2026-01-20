@@ -36,7 +36,7 @@ import { useSellerStore } from '../stores/sellerStore';
 interface MenuItem {
   icon: any;
   label: string;
-  route: keyof SellerStackParamList | 'Tab';
+  route: string;
   inTab?: boolean;
 }
 
@@ -94,12 +94,22 @@ export default function SellerDrawer({ visible, onClose }: SellerDrawerProps) {
     });
   };
 
-  const handleNavigation = (route: keyof SellerStackParamList | 'Tab') => {
-    if (route !== 'Tab') {
-      closeWithAnimation(() => navigation.navigate(route));
-    } else {
-      closeWithAnimation();
-    }
+  // SellerDrawer.tsx
+
+  const handleNavigation = (route: string) => {
+    closeWithAnimation(() => {
+      // List of routes that exist inside SellerTabs.tsx
+      const tabRoutes = ['Dashboard', 'Products', 'QA Products', 'Orders', 'Settings'];
+
+      if (tabRoutes.includes(route)) {
+        // Use the name defined in SellerStack.tsx ('SellerTabs')
+        // and pass the specific screen as a parameter
+        navigation.navigate('SellerTabs', { screen: route } as any);
+      } else {
+        // Standard navigation for items in SellerStack.tsx
+        navigation.navigate(route as any);
+      }
+    });
   };
 
   const handleLogout = () => {
@@ -111,23 +121,23 @@ export default function SellerDrawer({ visible, onClose }: SellerDrawerProps) {
   };
 
   const menuItems: MenuSection[] = [
-    {
-      label: 'Main Navigation',
-      items: [
-        { icon: LayoutDashboard, label: 'Dashboard', route: 'Tab', inTab: true },
-        { icon: Package, label: 'Products', route: 'Tab', inTab: true },
-        { icon: FileCheck, label: 'QA Products', route: 'Tab', inTab: true },
-        { icon: ShoppingCart, label: 'Orders', route: 'Tab', inTab: true },
-        { icon: TrendingUp, label: 'Analytics', route: 'Tab', inTab: true },
-      ],
-    },
+    // {
+    //   label: 'Main Navigation',
+    //   items: [
+    //     { icon: LayoutDashboard, label: 'Dashboard', route: 'Dashboard', inTab: true },
+    //     { icon: Package, label: 'Products', route: 'Products', inTab: true },
+    //     { icon: FileCheck, label: 'QA Products', route: 'QA Products', inTab: true },
+    //     { icon: ShoppingCart, label: 'Orders', route: 'Orders', inTab: true },
+    //     { icon: CreditCard, label: 'POS (Point of Sale)', route: 'POS', inTab: true },
+    //   ],
+    // },
     {
       label: 'Store Management',
       items: [
         { icon: Store, label: 'Store Profile', route: 'StoreProfile' },
         { icon: DollarSign, label: 'Earnings', route: 'Earnings' },
-        { icon: CreditCard, label: 'POS (Point of Sale)', route: 'POS' },
         { icon: Zap, label: 'Flash Sales', route: 'FlashSales' },
+        { icon: TrendingUp, label: 'Analytics', route: 'Analytics'}
       ],
     },
     {
@@ -154,20 +164,20 @@ export default function SellerDrawer({ visible, onClose }: SellerDrawerProps) {
       <Pressable style={styles.overlay} onPress={() => closeWithAnimation()}>
         <Animated.View style={[styles.drawer, { paddingTop: insets.top, transform: [{ translateX }] }]} onStartShouldSetResponder={() => true}>
           {/* Header */}
-          <View style={styles.drawerHeader}>
-            <TouchableOpacity style={styles.profileSection} onPress={() => handleNavigation('StoreProfile')} activeOpacity={0.8}>
-              <View style={styles.avatarCircle}>
-                <User size={28} color="#FF5722" strokeWidth={2} />
-              </View>
-              <View style={styles.profileInfo}>
-                <Text style={styles.storeName} numberOfLines={1} ellipsizeMode="tail">{seller.storeName}</Text>
-                <Text style={styles.sellerName} numberOfLines={1} ellipsizeMode="tail">{seller.ownerName}</Text>
-              </View>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => closeWithAnimation()} style={styles.closeButton}>
-              <X size={24} color="#6B7280" strokeWidth={2.5} />
-            </TouchableOpacity>
-          </View> 
+            <View style={styles.drawerHeader}>
+              <TouchableOpacity style={styles.profileSection} onPress={() => handleNavigation('StoreProfile')} activeOpacity={0.8}>
+                <View style={styles.avatarCircle}>
+                  <User size={28} color="#FF5722" strokeWidth={2} />
+                </View>
+                <View style={styles.profileInfo}>
+                  <Text style={styles.storeName} numberOfLines={1} ellipsizeMode="tail">{seller.storeName}</Text>
+                  <Text style={styles.sellerName} numberOfLines={1} ellipsizeMode="tail">{seller.ownerName}</Text>
+                </View>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => closeWithAnimation()} style={styles.closeButton}>
+                <X size={24} color="#6B7280" strokeWidth={2.5} />
+              </TouchableOpacity>
+            </View> 
 
           {/* Menu Items */}
           <ScrollView style={styles.menuScroll} showsVerticalScrollIndicator={false}>

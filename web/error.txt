@@ -1,0 +1,6 @@
+src/stores/cartStore.ts(538,7): error TS2322: Type 'Storage' is not assignable to type 'PersistStorage<CartStore, unknown>'.
+  The types returned by 'getItem(...)' are incompatible between these types.
+    Type 'string | null' is not assignable to type 'StorageValue<CartStore> | Promise<StorageValue<CartStore> | null> | null'.
+      Type 'string' is not assignable to type 'StorageValue<CartStore> | Promise<StorageValue<CartStore> | null> | null'.
+src/stores/cartStore.ts(539,7): error TS2322: Type '(state: CartStore) => { items: CartItem[]; orders: Order[]; }' is not assignable to type '(state: CartStore) => CartStore'.
+  Type '{ items: CartItem[]; orders: Order[]; }' is missing the following properties from type 'CartStore': notifications, addToCart, removeFromCart, updateQuantity, and 11 more.
