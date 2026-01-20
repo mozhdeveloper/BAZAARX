@@ -550,9 +550,10 @@ export const useBuyerStore = create<BuyerStore>()(persist(
 
     calculateDiscount: (subtotal, voucher) => {
       switch (voucher.type) {
-        case 'percentage':
+        case 'percentage': {
           const percentageDiscount = subtotal * (voucher.value / 100);
           return voucher.maxDiscount ? Math.min(percentageDiscount, voucher.maxDiscount) : percentageDiscount;
+        }
         case 'fixed':
           return Math.min(voucher.value, subtotal);
         case 'shipping':
