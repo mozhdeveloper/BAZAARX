@@ -2,10 +2,10 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { BadgeCheck, ShieldCheck } from 'lucide-react';
-import { Product } from '../types';
+
 
 interface ProductCardProps {
-  product: Product;
+  product: any;
   index?: number;
 }
 

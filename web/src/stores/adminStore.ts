@@ -470,7 +470,7 @@ interface SellersState {
 
 export const useAdminSellers = create<SellersState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       sellers: [],
       selectedSeller: null,
       pendingSellers: [],
@@ -1020,17 +1020,18 @@ export const useAdminSellers = create<SellersState>()(
   clearError: () => set({ error: null }),
 
   hasCompleteRequirements: (seller: Seller) => {
-    // Check if seller has all required documents
-    const requiredDocTypes = ['valid_id', 'proof_of_address', 'dti_registration', 'tax_id'];
-    const sellerDocTypes = seller.documents.map(doc => doc.type);
-    
-    // Check if all required documents exist
-    const hasAllDocs = requiredDocTypes.every(type => sellerDocTypes.includes(type as any));
-    
-    // Also check if business address exists
-    const hasBusinessAddress = seller.businessAddress && seller.businessAddress !== 'Not provided';
-    
-    return hasAllDocs && hasBusinessAddress;
+    // Check if critical fields are populated
+    return Boolean(
+      seller &&
+      seller.id &&
+      seller.businessName &&
+      seller.storeName &&
+      seller.email &&
+      seller.phone &&
+      seller.storeCategory && seller.storeCategory.length > 0 &&
+      seller.businessAddress &&
+      seller.documents && seller.documents.length >= 2 // Require at least 2 docs (e.g. Permit & ID)
+    );
   }
     }),
     {

@@ -1,15 +1,11 @@
-import { useState, useEffect } from "react";
+
+import { useState } from "react";
 import {
   LogOut,
-  TrendingUp,
-  ShoppingCart,
-  Package,
-  Star,
   Search,
-  ArrowUpRight,
-  ArrowDownRight,
   Filter,
   MoreHorizontal,
+  Star,
   Users,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
@@ -17,21 +13,12 @@ import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
 import {
-  useStatsStore,
+
   useAuthStore,
   useOrderStore,
   useProductStore,
 } from "@/stores/sellerStore";
 import { sellerLinks } from "@/config/sellerLinks";
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
 
 export function SellerDashboard() {
   const { seller, logout } = useAuthStore();
@@ -122,7 +109,7 @@ const LogoIcon = () => {
 };
 
 const Dashboard = () => {
-  const { stats, refreshStats } = useStatsStore();
+
   const { seller } = useAuthStore();
   const { orders } = useOrderStore();
   const { products } = useProductStore();
@@ -135,37 +122,7 @@ const Dashboard = () => {
   const recentOrders = orders.slice(0, 4);
   const topProducts = products.slice(0, 4);
 
-  // Stats cards data - COMMENTED OUT TO REMOVE MOCK DATA
-  // const statsCards = [
-  //   {
-  //     title: "Total Revenue",
-  //     value: `₱${(stats.totalRevenue / 1000).toFixed(0)}k`,
-  //     change: "+15.3%",
-  //     isPositive: true,
-  //     icon: <TrendingUp className="h-6 w-6 text-green-600" />
-  //   },
-  //   {
-  //     title: "Total Orders",
-  //     value: stats.totalOrders.toLocaleString(),
-  //     change: "+10.8%",
-  //     isPositive: true,
-  //     icon: <ShoppingCart className="h-6 w-6 text-blue-600" />
-  //   },
-  //   {
-  //     title: "Total Products",
-  //     value: products.length.toString(),
-  //     change: "-3.2%",
-  //     isPositive: false,
-  //     icon: <Package className="h-6 w-6 text-orange-600" />
-  //   },
-  //   {
-  //     title: "Avg Rating",
-  //     value: stats.avgRating.toString(),
-  //     change: "+5.9%",
-  //     isPositive: true,
-  //     icon: <Star className="h-6 w-6 text-yellow-600" />
-  //   }
-  // ];
+
 
   return (
     <div className="flex flex-1 w-full">
@@ -197,111 +154,7 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Stats Cards - COMMENTED OUT TO REMOVE MOCK DATA */}
-        {/* <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {statsCards.map((stat, index) => (
-            <motion.div
-              key={index}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1 }}
-              className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-lg transition-shadow duration-300"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  {stat.icon}
-                  <div>
-                    <p className="text-sm text-gray-600">{stat.title}</p>
-                    <p className="text-2xl font-semibold text-gray-900">{stat.value}</p>
-                  </div>
-                </div>
-                <div className={cn(
-                  "flex items-center gap-1 text-sm font-medium",
-                  stat.isPositive ? "text-green-600" : "text-red-600"
-                )}>
-                  {stat.isPositive ? (
-                    <ArrowUpRight className="h-4 w-4" />
-                  ) : (
-                    <ArrowDownRight className="h-4 w-4" />
-                  )}
-                  {stat.change}
-                </div>
-              </div>
-            </motion.div>
-          ))}
-        </div> */}
 
-        {/* Charts Row - COMMENTED OUT TO REMOVE MOCK DATA */}
-        {/* <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Revenue Chart */}
-        {/* <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="bg-white rounded-xl border border-gray-200 p-6"
-          >
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">Revenue Report</h3>
-                <p className="text-sm text-gray-600">Monthly revenue overview</p>
-              </div>
-              <select className="border border-gray-300 rounded-lg px-3 py-1 text-sm">
-                <option>6 Months</option>
-                <option>1 Year</option>
-              </select>
-            </div>
-            <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={stats.monthlyRevenue}>
-                <defs>
-                  <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#FF6A00" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#FF6A00" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="month" axisLine={false} tickLine={false} />
-                <YAxis axisLine={false} tickLine={false} />
-                <Tooltip 
-                  formatter={(value: number) => [`₱${value.toLocaleString()}`, 'Revenue']}
-                  labelStyle={{ color: '#374151' }}
-                  contentStyle={{ border: 'none', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
-                />
-                <Area 
-                  type="monotone" 
-                  dataKey="revenue" 
-                  stroke="#FF6A00" 
-                  fillOpacity={1} 
-                  fill="url(#colorRevenue)"
-                  strokeWidth={3}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </motion.div> */}
-
-        {/* Recent Activity */}
-        {/* <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="bg-white rounded-xl border border-gray-200 p-6"
-          >
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-semibold text-gray-900">Recent Activity</h3>
-              <button className="text-orange-600 text-sm font-medium hover:text-orange-700">
-                View All
-              </button>
-            </div>
-            <div className="space-y-4">
-              {stats.recentActivity.map((activity) => (
-                <div key={activity.id} className="flex items-start gap-3 p-3 hover:bg-gray-50 rounded-lg">
-                  <div className="h-2 w-2 bg-orange-500 rounded-full mt-2 flex-shrink-0"></div>
-                  <div className="flex-1">
-                    <p className="text-sm text-gray-900">{activity.message}</p>
-                    <p className="text-xs text-gray-500">{activity.time}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </motion.div>
-        </div> */}
 
         {/* Bottom Section */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

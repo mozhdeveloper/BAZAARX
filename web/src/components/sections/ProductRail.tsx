@@ -1,13 +1,13 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Product } from '../../types';
+
 import ProductCard from '../ProductCard';
 
 interface ProductRailProps {
   title: string;
   subtitle?: string;
-  products: Product[];
+  products: any[];
   actionLabel?: string;
   onActionClick?: () => void;
 }

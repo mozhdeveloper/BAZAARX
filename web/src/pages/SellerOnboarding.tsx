@@ -13,7 +13,6 @@ import {
   CreditCard,
   FileText,
   CheckCircle,
-  Upload,
   ChevronRight,
   ChevronLeft,
 } from "lucide-react";
@@ -274,7 +273,7 @@ export function SellerOnboarding() {
             ? [
                 {
                   id: `doc_${seller.id}_1`,
-                  type: "business_permit",
+                  type: "business_permit" as const,
                   fileName: "business-permit",
                   url: formData.businessPermitUrl,
                   uploadDate: new Date(),
@@ -286,7 +285,7 @@ export function SellerOnboarding() {
             ? [
                 {
                   id: `doc_${seller.id}_2`,
-                  type: "valid_id",
+                  type: "valid_id" as const,
                   fileName: "valid-id",
                   url: formData.validIdUrl,
                   uploadDate: new Date(),
@@ -298,7 +297,7 @@ export function SellerOnboarding() {
             ? [
                 {
                   id: `doc_${seller.id}_3`,
-                  type: "proof_of_address",
+                  type: "proof_of_address" as const,
                   fileName: "proof-of-address",
                   url: formData.proofOfAddressUrl,
                   uploadDate: new Date(),

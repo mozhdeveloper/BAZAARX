@@ -62,7 +62,7 @@ export const subscribeToNewOrders = (
  * Subscribe to low stock alerts
  */
 export const subscribeToLowStockAlerts = (
-  sellerId: string,
+  _sellerId: string,
   onAlert: (alert: any) => void
 ): RealtimeChannel => {
   const channel = supabase
