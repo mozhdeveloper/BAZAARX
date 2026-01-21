@@ -83,7 +83,6 @@ export default function ShopPage() {
   const [searchParams] = useSearchParams();
   const { addToCart, setQuickOrder, cartItems, profile } = useBuyerStore();
   const { toast } = useToast();
-  const { profile, addToCart, setQuickOrder, cartItems } = useBuyerStore();
   const { products: sellerProducts, fetchProducts, subscribeToProducts } = useProductStore();
 
   const [searchQuery, setSearchQuery] = useState(searchParams.get("q") || "");
