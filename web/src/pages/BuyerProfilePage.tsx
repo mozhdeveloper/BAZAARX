@@ -60,12 +60,63 @@ export default function BuyerProfilePage() {
                 alt="Profile"
                 className="w-24 h-24 rounded-full object-cover border-4 border-orange-100"
               />
-              <Button
-                size="sm"
-                className="absolute -bottom-2 -right-2 h-8 w-8 rounded-full p-0 bg-orange-500 hover:bg-orange-600"
-              >
-                <Camera className="h-4 w-4" />
-              </Button>
+               <div className="absolute -bottom-2 -right-2">
+                <input
+                  type="file"
+                  id="avatar-upload"
+                  className="hidden"
+                  accept="image/*"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+
+                    try {
+                      // Upload to Storage
+                      const fileExt = file.name.split('.').pop();
+                      const fileName = `avatar_${profile.id}_${Date.now()}.${fileExt}`;
+                      const filePath = `${fileName}`;
+
+                      const { error: uploadError } = await (await import('../lib/supabase')).supabase.storage
+                        .from('profile-avatars')
+                        .upload(filePath, file);
+
+                      if (uploadError) throw uploadError;
+
+                      // Get Public URL
+                      const { data } = (await import('../lib/supabase')).supabase.storage
+                        .from('profile-avatars')
+                        .getPublicUrl(filePath);
+
+                      const publicUrl = data.publicUrl;
+
+                      // Update Profile in DB
+                      const { error: dbError } = await (await import('../lib/supabase')).supabase
+                        .from('profiles')
+                        .update({ 
+                          avatar_url: publicUrl,
+                          updated_at: new Date()
+                        })
+                        .eq('id', profile.id);
+
+                      if (dbError) throw dbError;
+
+                      // Update Local Store
+                      updateProfile({ avatar: publicUrl });
+                      
+                    } catch (error) {
+                      console.error('Error uploading avatar:', error);
+                      alert('Failed to update profile picture.');
+                    }
+                  }}
+                />
+                <Button
+                  size="sm"
+                  className="h-8 w-8 rounded-full p-0 bg-orange-500 hover:bg-orange-600"
+                  onClick={() => document.getElementById('avatar-upload')?.click()}
+                >
+                  <Camera className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
             <div className="flex-1">
               <div className="flex items-center gap-3 mb-2">

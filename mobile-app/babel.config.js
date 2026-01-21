@@ -3,7 +3,6 @@ module.exports = function(api) {
   return {
     presets: ['babel-preset-expo'],
     plugins: [
-      'transform-inline-environment-variables',
       ['@babel/plugin-transform-react-jsx', { runtime: 'automatic' }],
     ],
   };
