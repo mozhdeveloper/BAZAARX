@@ -123,13 +123,7 @@ function App() {
               </ProtectedBuyerRoute>
             } 
           />
-          <Route path="/profile" 
-            element={
-              <ProtectedBuyerRoute>
-                <OrdersPage />
-              </ProtectedBuyerRoute>
-            } 
-          />
+
           <Route path="/profile" 
             element={
               <ProtectedBuyerRoute>

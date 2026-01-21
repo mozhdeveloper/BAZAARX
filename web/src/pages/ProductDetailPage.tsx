@@ -843,11 +843,9 @@ export default function ProductDetailPage({}: ProductDetailPageProps) {
         name: "Default",
         value: "#FF5722",
         image:
-          normalizedProduct && "images" in normalizedProduct
-            ? (normalizedProduct as { images?: string[] }).images?.[0] || ""
-            : normalizedProduct && "image" in normalizedProduct
-            ? (normalizedProduct as { image: string }).image
-            : "",
+          normalizedProduct && "image" in normalizedProduct
+            ? normalizedProduct.image
+            : (normalizedProduct as any)?.images?.[0] || "",
       },
     ],
     types: ["Standard"],

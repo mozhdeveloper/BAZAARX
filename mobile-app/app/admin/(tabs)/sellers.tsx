@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Menu, Bell, UserCheck, CheckCircle, XCircle, Clock } from 'lucide-react-native';
 import { useAdminSellers } from '../../../src/stores/adminStore';
+import { COLORS } from '../../../src/constants/theme';
 import AdminDrawer from '../../../src/components/AdminDrawer';
 
 export default function AdminSellersScreen() {
@@ -106,10 +107,10 @@ export default function AdminSellersScreen() {
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#FF5722']} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />}
       >
         {isLoading && !refreshing ? (
-          <ActivityIndicator size="large" color="#FF5722" style={{ marginTop: 40 }} />
+          <ActivityIndicator size="large" color={COLORS.primary} style={{ marginTop: 40 }} />
         ) : filteredSellers.length === 0 ? (
           <View style={styles.emptyState}>
             <UserCheck size={64} color="#D1D5DB" strokeWidth={1.5} />
@@ -183,9 +184,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F5F7',
   },
   header: {
-    backgroundColor: '#FF5722',
+    backgroundColor: COLORS.primary,
     paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingBottom: 24,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
   },
   headerContent: {
     flexDirection: 'row',
@@ -228,7 +231,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: '#FFFFFF',
     borderWidth: 1.5,
-    borderColor: '#FF5722',
+    borderColor: COLORS.primary,
   },
   tabs: {
     backgroundColor: '#FFFFFF',
@@ -250,7 +253,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   tabActive: {
-    backgroundColor: '#FF5722',
+    backgroundColor: COLORS.primary,
   },
   tabText: {
     fontSize: 14,
@@ -327,7 +330,7 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: '#FF5722',
+    backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },

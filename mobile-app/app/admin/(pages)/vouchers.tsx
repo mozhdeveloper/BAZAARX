@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, Pressable, TouchableOpacity, Modal,
 import { ArrowLeft, Plus, X, Percent, Copy, Calendar, Edit, Trash2, ChevronDown, AlertCircle, ShoppingBag } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { COLORS } from '../../../src/constants/theme';
 
 interface Voucher {
   id: string;
@@ -130,7 +131,7 @@ export default function AdminVouchersScreen() {
             <View key={voucher.id} style={[styles.voucherCard, expired && styles.expiredCard]}>
               <View style={styles.cardHeaderRow}>
                 <View style={styles.typeContainer}>
-                  <View style={[styles.orangeIconBox, expired && { backgroundColor: '#FF5722' }]}>
+                  <View style={[styles.orangeIconBox, expired && { backgroundColor: COLORS.primary }]}>
                     <Percent size={14} color="#FFF" strokeWidth={3} />
                   </View>
                   <View style={[styles.pillBadge, expired && { backgroundColor: '#F1F5F9' }]}>
@@ -314,7 +315,7 @@ export default function AdminVouchersScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F9FAFB' },
-  header: { backgroundColor: '#FF5722', paddingHorizontal: 20, paddingBottom: 20 },
+  header: { backgroundColor: COLORS.primary, paddingHorizontal: 20, paddingBottom: 24, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 },
   headerContent: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFFFFF' },
   headerSubtitle: { fontSize: 13, color: '#FFFFFF', opacity: 0.9 },
@@ -323,7 +324,7 @@ const styles = StyleSheet.create({
   expiredCard: { borderColor: '#FECACA', borderWidth: 2 },
   cardHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   typeContainer: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  orangeIconBox: { backgroundColor: '#FF5722', width: 32, height: 32, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
+  orangeIconBox: { backgroundColor: COLORS.primary, width: 32, height: 32, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
   pillBadge: { backgroundColor: '#DBEAFE', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20 },
   pillBadgeText: { color: '#2563EB', fontWeight: '600', fontSize: 13 },
   expiredLabel: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#FEF2F2', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
@@ -342,7 +343,7 @@ const styles = StyleSheet.create({
   usageLabel: { fontSize: 12, color: '#64748B' },
   usageCount: { fontSize: 12, fontWeight: '700' },
   progressBg: { height: 8, backgroundColor: '#E2E8F0', borderRadius: 4, overflow: 'hidden', marginBottom: 16 },
-  progressFill: { height: '100%', backgroundColor: '#FF5722' },
+  progressFill: { height: '100%', backgroundColor: COLORS.primary },
   dateContainer: { flexDirection: 'row', alignItems: 'center', marginBottom: 16, justifyContent: 'space-between' },
   dateSubRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   dateText: { fontSize: 13, color: '#475569' },
@@ -367,14 +368,14 @@ const styles = StyleSheet.create({
   dropdownMenu: { backgroundColor: '#FFF', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10, marginTop: 4, elevation: 3 },
   dropdownItem: { padding: 14, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
   dropdownItemText: { fontSize: 14 },
-  switchActive: { backgroundColor: '#FF5722' },
+  switchActive: { backgroundColor: COLORS.primary },
   switchSmall: { width: 44, height: 24, borderRadius: 12, backgroundColor: '#D1D5DB', padding: 2 },
   switchThumbSmall: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#FFF' },
   switchThumbActiveSmall: { alignSelf: 'flex-end' },
-  fab: { position: 'absolute', right: 20, width: 56, height: 56, borderRadius: 28, backgroundColor: '#FF5722', justifyContent: 'center', alignItems: 'center', elevation: 4 },
+  fab: { position: 'absolute', right: 20, width: 56, height: 56, borderRadius: 28, backgroundColor: COLORS.primary, justifyContent: 'center', alignItems: 'center', elevation: 4 },
   modalFooter: { flexDirection: 'row', gap: 12, padding: 20, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
   cancelButton: { flex: 1, padding: 14, borderRadius: 10, backgroundColor: '#F1F5F9', alignItems: 'center' },
   cancelButtonText: { color: '#475569', fontWeight: '700' },
-  submitButton: { flex: 1, padding: 14, borderRadius: 10, backgroundColor: '#FF5722', alignItems: 'center' },
+  submitButton: { flex: 1, padding: 14, borderRadius: 10, backgroundColor: COLORS.primary, alignItems: 'center' },
   submitButtonText: { color: '#FFF', fontWeight: '700' },
 });

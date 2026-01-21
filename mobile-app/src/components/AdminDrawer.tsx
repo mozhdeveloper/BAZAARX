@@ -24,6 +24,7 @@ import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { AdminStackParamList } from '../../app/admin/AdminStack';
 import { useAdminAuth } from '../stores/adminStore';
+import { COLORS } from '../constants/theme';
 
 type NavigationProp = StackNavigationProp<AdminStackParamList>;
 
@@ -168,7 +169,7 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   header: {
-    backgroundColor: '#FF5722',
+    backgroundColor: COLORS.primary,
     paddingTop: 50,
     paddingBottom: 20,
     paddingHorizontal: 20,
@@ -216,7 +217,7 @@ const styles = StyleSheet.create({
   avatarText: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#FF5722',
+    color: COLORS.primary,
   },
   userDetails: {
     flex: 1,
