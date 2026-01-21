@@ -9,6 +9,8 @@ import {
   StyleSheet,
   Dimensions,
   Image,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { X, Search, MapPin, Home, Briefcase, Heart, Target, Check } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -115,119 +117,124 @@ export default function LocationModal({
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <View style={styles.container}>
         {/* Header */}
-        <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
+        <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
           <Text style={styles.headerTitle}>Select Delivery Location</Text>
           <Pressable onPress={onClose} style={styles.closeButton}>
             <X size={22} color="#1F2937" strokeWidth={2.5} />
           </Pressable>
         </View>
 
-        <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
-          {/* Map Simulation Container */}
-          <View style={styles.mapContainer}>
-            {/* Map Background Image */}
-            <Image
-              source={{ uri: 'https://images.unsplash.com/photo-1524661135-423995f22d0b?w=800' }}
-              style={styles.mapBackground}
-              resizeMode="cover"
-            />
-            
-            {/* Map Overlay */}
-            <View style={styles.mapOverlay} />
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={{ flex: 1 }}
+        >
+          <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
+            {/* Map Simulation Container */}
+            <View style={styles.mapContainer}>
+              {/* Map Background Image */}
+              <Image
+                source={{ uri: 'https://images.unsplash.com/photo-1524661135-423995f22d0b?w=800' }}
+                style={styles.mapBackground}
+                resizeMode="cover"
+              />
+              
+              {/* Map Overlay */}
+              <View style={styles.mapOverlay} />
 
-            {/* Central Pin */}
-            <View style={styles.pinContainer}>
-              <View style={styles.pinTooltip}>
-                <Text style={styles.pinTooltipText}>Move map to pin location</Text>
-              </View>
-              <MapPin size={48} color="#FF5722" strokeWidth={2.5} fill="#FF5722" />
-            </View>
-
-            {/* Floating Search Bar */}
-            <View style={styles.searchContainer}>
-              <View style={styles.searchBar}>
-                <Search size={20} color="#9CA3AF" strokeWidth={2.5} />
-                <TextInput
-                  style={styles.searchInput}
-                  placeholder="Search new address..."
-                  placeholderTextColor="#9CA3AF"
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                  onFocus={handleSearchFocus}
-                  onBlur={handleSearchBlur}
-                />
-              </View>
-
-              {/* Address Suggestions Dropdown */}
-              {showSuggestions && searchQuery.length > 0 && (
-                <View style={styles.suggestionsDropdown}>
-                  {suggestedAddresses
-                    .filter((addr) =>
-                      addr.toLowerCase().includes(searchQuery.toLowerCase())
-                    )
-                    .map((suggestion, index) => (
-                      <Pressable
-                        key={index}
-                        style={styles.suggestionItem}
-                        onPress={() => handleSelectSuggestion(suggestion)}
-                      >
-                        <MapPin size={18} color="#9CA3AF" strokeWidth={2} />
-                        <Text style={styles.suggestionText}>{suggestion}</Text>
-                      </Pressable>
-                    ))}
+              {/* Central Pin */}
+              <View style={styles.pinContainer}>
+                <View style={styles.pinTooltip}>
+                  <Text style={styles.pinTooltipText}>Move map to pin</Text>
                 </View>
-              )}
-            </View>
-          </View>
+                <MapPin size={40} color="#FF5722" strokeWidth={2.5} fill="#FF5722" />
+              </View>
 
-          {/* Current Location Button */}
-          <Pressable
-            style={styles.currentLocationButton}
-            onPress={handleUseCurrentLocation}
-          >
-            <View style={styles.currentLocationIconContainer}>
-              <Target size={22} color="#FF5722" strokeWidth={2.5} />
-            </View>
-            <View style={styles.currentLocationTextContainer}>
-              <Text style={styles.currentLocationTitle}>Use Current Location</Text>
-              <Text style={styles.currentLocationSubtitle}>
-                Enable GPS for accurate location
-              </Text>
-            </View>
-          </Pressable>
+              {/* Floating Search Bar */}
+              <View style={styles.searchContainer}>
+                <View style={styles.searchBar}>
+                  <Search size={20} color="#9CA3AF" strokeWidth={2.5} />
+                  <TextInput
+                    style={styles.searchInput}
+                    placeholder="Search address..."
+                    placeholderTextColor="#9CA3AF"
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                    onFocus={handleSearchFocus}
+                    onBlur={handleSearchBlur}
+                  />
+                </View>
 
-          {/* Saved Addresses Section */}
-          <View style={styles.savedSection}>
-            <Text style={styles.savedTitle}>Saved Addresses</Text>
-            
-            {savedAddresses.map((address) => {
-              const isSelected = selectedAddressId === address.id;
-              return (
-                <Pressable
-                  key={address.id}
-                  style={[
-                    styles.addressCard,
-                    isSelected && styles.addressCardSelected,
-                  ]}
-                  onPress={() => handleSelectAddress(address.id, address.address)}
-                >
-                  <View style={styles.addressIconContainer}>
-                    {getAddressIcon(address.icon)}
+                {/* Address Suggestions Dropdown */}
+                {showSuggestions && searchQuery.length > 0 && (
+                  <View style={styles.suggestionsDropdown}>
+                    {suggestedAddresses
+                      .filter((addr) =>
+                        addr.toLowerCase().includes(searchQuery.toLowerCase())
+                      )
+                      .map((suggestion, index) => (
+                        <Pressable
+                          key={index}
+                          style={styles.suggestionItem}
+                          onPress={() => handleSelectSuggestion(suggestion)}
+                        >
+                          <MapPin size={16} color="#9CA3AF" strokeWidth={2} />
+                          <Text style={styles.suggestionText}>{suggestion}</Text>
+                        </Pressable>
+                      ))}
                   </View>
-                  <View style={styles.addressContent}>
-                    <Text style={styles.addressLabel}>{address.label}</Text>
-                    <Text style={styles.addressText}>{address.address}</Text>
-                  </View>
-                  {isSelected && (
-                    <View style={styles.checkmarkContainer}>
-                      <Check size={18} color="#FF5722" strokeWidth={3} />
+                )}
+              </View>
+            </View>
+
+            {/* Current Location Button */}
+            <Pressable
+              style={styles.currentLocationButton}
+              onPress={handleUseCurrentLocation}
+            >
+              <View style={styles.currentLocationIconContainer}>
+                <Target size={22} color="#FF5722" strokeWidth={2.5} />
+              </View>
+              <View style={styles.currentLocationTextContainer}>
+                <Text style={styles.currentLocationTitle}>Use Current Location</Text>
+                <Text style={styles.currentLocationSubtitle}>
+                  Enable GPS for accurate location
+                </Text>
+              </View>
+            </Pressable>
+
+            {/* Saved Addresses Section */}
+            <View style={styles.savedSection}>
+              <Text style={styles.savedTitle}>Saved Addresses</Text>
+              
+              {savedAddresses.map((address) => {
+                const isSelected = selectedAddressId === address.id;
+                return (
+                  <Pressable
+                    key={address.id}
+                    style={[
+                      styles.addressCard,
+                      isSelected && styles.addressCardSelected,
+                    ]}
+                    onPress={() => handleSelectAddress(address.id, address.address)}
+                  >
+                    <View style={styles.addressIconContainer}>
+                      {getAddressIcon(address.icon)}
                     </View>
-                  )}
-                </Pressable>
-              );
-            })}
-          </View>
-        </ScrollView>
+                    <View style={styles.addressContent}>
+                      <Text style={styles.addressLabel}>{address.label}</Text>
+                      <Text style={styles.addressText}>{address.address}</Text>
+                    </View>
+                    {isSelected && (
+                      <View style={styles.checkmarkContainer}>
+                        <Check size={18} color="#FF5722" strokeWidth={3} />
+                      </View>
+                    )}
+                  </Pressable>
+                );
+              })}
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
 
         {/* Confirm Button - Fixed at Bottom */}
         <View style={[styles.confirmContainer, { paddingBottom: insets.bottom + 16 }]}>
@@ -273,7 +280,7 @@ const styles = StyleSheet.create({
   },
   // Map Simulation
   mapContainer: {
-    height: height * 0.4,
+    height: height * 0.3,
     position: 'relative',
     backgroundColor: '#E5E7EB',
   },
@@ -316,6 +323,7 @@ const styles = StyleSheet.create({
     top: 20,
     left: 20,
     right: 20,
+    zIndex: 1,
   },
   searchBar: {
     flexDirection: 'row',
