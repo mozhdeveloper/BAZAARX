@@ -205,7 +205,6 @@ interface BuyerStore {
   validateVoucher: (code: string, sellerId?: string) => Promise<Voucher | null>;
   applyVoucher: (voucher: Voucher, sellerId?: string) => void;
   removeVoucher: (sellerId?: string) => void;
-  removeVoucher: (sellerId?: string) => void;
   calculateDiscount: (subtotal: number, voucher: Voucher) => number;
 
   // Cart Selection
