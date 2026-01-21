@@ -303,7 +303,11 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
             style={{ flex: 1 }}
           >
             <View style={styles.chatHeader}>
-              <Pressable onPress={() => setShowChatModal(false)} style={styles.closeButton}>
+              <Pressable 
+                onPress={() => setShowChatModal(false)} 
+                style={styles.closeButton}
+                hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+              >
                 <ArrowLeft size={24} color="#1F2937" />
               </Pressable>
               <View>
@@ -749,6 +753,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#D1D5DB',
   },
   closeButton: {
-    padding: 4,
+    padding: 12,
+    marginLeft: -8, // Compensate for extra padding to keep visual alignment
   },
 });

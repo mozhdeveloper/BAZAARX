@@ -42,6 +42,8 @@ const categories = [
   { id: 'electronics', name: 'Electronics' },
   { id: 'fashion', name: 'Fashion' },
   { id: 'home-garden', name: 'Home & Garden' },
+  { id: 'beauty', name: 'Beauty' },
+  { id: 'sports', name: 'Sports' },
 ];
 
 const sortOptions = [
@@ -69,9 +71,9 @@ export default function ShopScreen({ navigation, route }: Props) {
 
   const allAvailableProducts = [...verifiedQAProducts, ...trendingProducts, ...bestSellerProducts, ...newArrivals];
   
-  const { searchQuery: initialSearchQuery, customResults } = route.params || {};
+  const { searchQuery: initialSearchQuery, customResults, category: initialCategory } = route.params || {};
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery || '');
-  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedCategory, setSelectedCategory] = useState(initialCategory || 'all');
   const [selectedSort, setSelectedSort] = useState('relevance');
   const [showFiltersModal, setShowFiltersModal] = useState(false);
   const [showCameraSearch, setShowCameraSearch] = useState(false);
@@ -80,7 +82,10 @@ export default function ShopScreen({ navigation, route }: Props) {
     if (route.params?.searchQuery) {
       setSearchQuery(route.params.searchQuery);
     }
-  }, [route.params?.searchQuery]);
+    if (route.params?.category) {
+      setSelectedCategory(route.params.category);
+    }
+  }, [route.params?.searchQuery, route.params?.category]);
 
   const filteredProducts = useMemo(() => {
     if (customResults && customResults.length > 0) return customResults;

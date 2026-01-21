@@ -119,7 +119,7 @@ export default function StoreDetailScreen() {
                     <View style={styles.sectionContainer}>
                         <Text style={styles.sectionTitle}>Store Categories</Text>
                         <View style={styles.categoriesList}>
-                            {store.categories.map((cat: string, index: number) => (
+                            {(store.categories || []).map((cat: string, index: number) => (
                                 <Pressable key={index} style={styles.categoryRow}>
                                     <Text style={styles.categoryName}>{cat}</Text>
                                     <Grid size={20} color="#9CA3AF" />
