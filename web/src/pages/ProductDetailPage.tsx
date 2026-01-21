@@ -844,9 +844,9 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
   const productId = normalizedProduct?.id || id?.split("-")[0] || "1";
   const productData = enhancedProductData[productId] || {
     name: normalizedProduct?.name || "",
-    description: normalizedProduct?.description || "",
+    description: (normalizedProduct && 'description' in normalizedProduct ? normalizedProduct.description : "") || "",
     price: normalizedProduct?.price || 0,
-    originalPrice: normalizedProduct?.originalPrice,
+    originalPrice: (normalizedProduct && 'originalPrice' in normalizedProduct ? normalizedProduct.originalPrice : undefined),
     rating: normalizedProduct?.rating || 4.5,
     reviewCount: 100,
     colors: (normalizedProduct?.colors && normalizedProduct.colors.length > 0)
@@ -947,7 +947,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
       id: normalizedProduct.id,
       name: productData.name,
       price: productData.price,
-      originalPrice: normalizedProduct.originalPrice,
+      originalPrice: 'originalPrice' in normalizedProduct ? normalizedProduct.originalPrice : undefined,
       image: productImage,
       images: productData.images || productImages,
       // ... rest handled by spread or specific assignment if needed
@@ -1069,7 +1069,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
       id: normalizedProduct.id,
       name: productData.name,
       price: productData.price,
-      originalPrice: normalizedProduct.originalPrice,
+      originalPrice: 'originalPrice' in normalizedProduct ? normalizedProduct.originalPrice : undefined,
       image: productImage,
       images: productData.images || productImages,
       seller: {

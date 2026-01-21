@@ -1,0 +1,17 @@
+﻿src/components/ui/scroll-animated-video.tsx(168,26): error TS2339: Property 'default' does not exist on type '{}'.
+src/components/ui/scroll-animated-video.tsx(177,23): error TS2339: Property 'default' does not exist on type '{}'.
+src/components/ui/sidebar.tsx(78,27): error TS2352: Conversion of type 'Omit<HTMLMotionProps<"div">, "ref"> & RefAttributes<HTMLDivElement>' to type 'DetailedHTMLProps<HTMLAttributes<HTMLDivElement>, HTMLDivElement>' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type 'Omit<HTMLMotionProps<"div">, "ref"> & RefAttributes<HTMLDivElement>' is not comparable to type 'HTMLAttributes<HTMLDivElement>'.
+    Types of property 'onDrag' are incompatible.
+      Type '(event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => void' is not comparable to type 'DragEventHandler<HTMLDivElement>'.
+        Target signature provides too few arguments. Expected 2 or more, but got 1.
+src/pages/SellerOnboarding.tsx(272,9): error TS2322: Type '{ id: string; type: string; fileName: string; url: string; uploadDate: Date; isVerified: boolean; }[]' is not assignable to type 'SellerDocument[]'.
+  Type '{ id: string; type: string; fileName: string; url: string; uploadDate: Date; isVerified: boolean; }' is not assignable to type 'SellerDocument'.
+    Types of property 'type' are incompatible.
+      Type 'string' is not assignable to type '"other" | "business_permit" | "valid_id" | "proof_of_address" | "dti_registration" | "tax_id"'.
+src/services/productService.ts(113,7): error TS2578: Unused '@ts-expect-error' directive.
+src/services/productService.ts(151,7): error TS2578: Unused '@ts-expect-error' directive.
+src/services/productService.ts(181,7): error TS2578: Unused '@ts-expect-error' directive.
+src/services/productService.ts(214,5): error TS2578: Unused '@ts-expect-error' directive.
+src/services/productService.ts(250,5): error TS2578: Unused '@ts-expect-error' directive.
+src/stores/sellerStore.ts(628,11): error TS2578: Unused '@ts-expect-error' directive.

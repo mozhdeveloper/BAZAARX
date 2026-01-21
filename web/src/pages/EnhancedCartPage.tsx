@@ -5,6 +5,7 @@ import Header from "../components/Header";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Badge } from "../components/ui/badge";
+import { Checkbox } from "../components/ui/checkbox";
 import {
   Minus,
   Plus,
@@ -36,6 +37,11 @@ export default function EnhancedCartPage() {
     unfollowShop,
     isFollowing,
     clearQuickOrder,
+    toggleItemSelection,
+    toggleSellerSelection,
+    selectAllItems,
+    getSelectedTotal,
+    getSelectedCount,
   } = useBuyerStore();
 
   const [voucherCode, setVoucherCode] = useState("");
@@ -52,7 +58,13 @@ export default function EnhancedCartPage() {
   }, [cartItems]);
 
   const totalItems = getCartItemCount();
-  const totalAmount = getCartTotal();
+  const selectedCount = getSelectedCount();
+  const selectedTotal = getSelectedTotal();
+  const totalAmount = selectedTotal; // Use selected total for display
+
+  // Calculate "Select All" state
+  const allSelected = cartItems.length > 0 && cartItems.every(item => item.selected);
+  const someSelected = cartItems.some(item => item.selected) && !allSelected;
 
   const handleApplyVoucher = async (sellerId?: string) => {
     if (!voucherCode.trim()) {
@@ -122,15 +134,25 @@ export default function EnhancedCartPage() {
     <div className="min-h-screen bg-gray-50">
       <Header />
       <div className="max-w-7xl mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Shopping Cart
-          </h1>
-          <p className="text-gray-600">
-            {totalItems} {totalItems === 1 ? "item" : "items"} from{" "}
-            {Object.keys(groupedCart).length} seller
-            {Object.keys(groupedCart).length === 1 ? "" : "s"}
-          </p>
+        <div className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">
+              Shopping Cart
+            </h1>
+            <p className="text-gray-600">
+              {totalItems} {totalItems === 1 ? "item" : "items"} from{" "}
+              {Object.keys(groupedCart).length} seller
+              {Object.keys(groupedCart).length === 1 ? "" : "s"}
+            </p>
+          </div>
+          
+          <div className="flex items-center gap-2 bg-white px-4 py-3 rounded-lg border border-gray-200 shadow-sm">
+            <Checkbox 
+              checked={allSelected || (someSelected ? "indeterminate" : false)} 
+              onCheckedChange={(checked) => selectAllItems(checked === true)}
+            />
+            <span className="text-sm font-medium text-gray-700">Select All Items ({totalItems})</span>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -151,6 +173,10 @@ export default function EnhancedCartPage() {
                     <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
                       <div className="flex items-center justify-between gap-4">
                         <div className="flex items-center gap-3">
+                          <Checkbox 
+                            checked={group.items.every(item => item.selected)}
+                            onCheckedChange={(checked) => toggleSellerSelection(sellerId, checked === true)}
+                          />
                           <img
                             src={group.seller.avatar}
                             alt=""
@@ -230,6 +256,13 @@ export default function EnhancedCartPage() {
                           }}
                           className="flex gap-4 p-4 border border-gray-100 rounded-lg hover:border-gray-200 transition-colors"
                         >
+                          <div className="flex items-center h-full pt-8 mr-2">
+                            <Checkbox 
+                              checked={item.selected || false}
+                              onCheckedChange={() => toggleItemSelection(item.id, item.selectedVariant?.id)}
+                            />
+                          </div>
+
                           {/* Product Image */}
                           <img
                             src={item.image}
@@ -375,11 +408,12 @@ export default function EnhancedCartPage() {
 
               <div className="space-y-3 mb-6">
                 <div className="flex justify-between text-sm">
-                  <span>Items ({totalItems})</span>
+                  <span>Selected ({selectedCount})</span>
                   <span>
                     ₱
+                    {/* Only sum selected items subtotal */}
                     {Object.values(groupedCart)
-                      .reduce((sum, group) => sum + group.subtotal, 0)
+                      .reduce((sum, group) => sum + group.items.filter(i => i.selected).reduce((is, i) => is + (i.selectedVariant?.price || i.price) * i.quantity, 0), 0)
                       .toLocaleString()}
                   </span>
                 </div>
@@ -387,8 +421,12 @@ export default function EnhancedCartPage() {
                   <span>Shipping</span>
                   <span>
                     ₱
+                    {/* Only sum shipping for groups with selected items */}
                     {Object.values(groupedCart)
-                      .reduce((sum, group) => sum + group.shippingFee, 0)
+                      .reduce((sum, group) => {
+                        const hasSelected = group.items.some(i => i.selected);
+                        return sum + (hasSelected ? group.shippingFee : 0);
+                      }, 0)
                       .toLocaleString()}
                   </span>
                 </div>
@@ -403,9 +441,10 @@ export default function EnhancedCartPage() {
               <Button
                 onClick={() => navigate("/checkout")}
                 size="lg"
-                className="w-full bg-orange-500 hover:bg-orange-600 text-white"
+                disabled={selectedCount === 0}
+                className="w-full bg-orange-500 hover:bg-orange-600 text-white disabled:bg-gray-300 disabled:cursor-not-allowed"
               >
-                Proceed to Checkout
+                Proceed to Checkout ({selectedCount})
               </Button>
             </div>
           </motion.div>

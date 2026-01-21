@@ -1,20 +1,19 @@
 import { useState, useMemo, useEffect } from "react";
 import { motion } from "framer-motion";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
-  Search,
   Filter,
   Grid,
   List,
   Star,
   MapPin,
   Truck,
-  Camera,
   Flame,
   Clock,
   BadgeCheck,
   ShoppingCart,
   RotateCcw,
+  ChevronUp,
 } from "lucide-react";
 import Header from "../components/Header";
 import { BazaarFooter } from "../components/ui/bazaar-footer";
@@ -81,11 +80,13 @@ const sortOptions = [
 
 export default function ShopPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { addToCart, setQuickOrder, cartItems, profile } = useBuyerStore();
   const { toast } = useToast();
   const { profile, addToCart, setQuickOrder, cartItems } = useBuyerStore();
   const { products: sellerProducts, fetchProducts, subscribeToProducts } = useProductStore();
 
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(searchParams.get("q") || "");
   const [selectedCategory, setSelectedCategory] = useState("All Categories");
   const [selectedSort, setSelectedSort] = useState("relevance");
   const [priceRange, setPriceRange] = useState<number[]>([0, 100000]);
@@ -139,6 +140,11 @@ export default function ShopPage() {
       unsubscribe();
     };
   }, [fetchProducts, subscribeToProducts]);
+
+  // Sync search query from URL
+  useEffect(() => {
+    setSearchQuery(searchParams.get("q") || "");
+  }, [searchParams]);
 
   const allProducts = useMemo<ShopProduct[]>(() => {
     const dbProducts = sellerProducts
@@ -246,7 +252,7 @@ export default function ShopPage() {
       )}
 
       {/* Shop Header */}
-      <div className="bg-white border-b">
+      <div className="">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -262,24 +268,7 @@ export default function ShopPage() {
               </p>
             </div>
 
-            {/* Search Bar */}
-            <div className="relative max-w-md w-full lg:w-96">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-              <input
-                type="text"
-                placeholder="Search products, brands, or sellers..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-12 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)] focus:border-transparent"
-              />
-              <button
-                onClick={() => setShowVisualSearchModal(true)}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1.5 text-gray-400 hover:text-[var(--brand-primary)] hover:bg-orange-50 rounded-lg transition-colors"
-                title="Search by image"
-              >
-                <Camera className="w-5 h-5" />
-              </button>
-            </div>
+
           </motion.div>
         </div>
       </div>
@@ -382,43 +371,41 @@ export default function ShopPage() {
                 </Button>
               </div>
 
-              <div className="flex flex-col h-[calc(100vh-140px)] gap-4">
-                {/* Vertical Layered Categories */}
-                <div className="flex-1 flex flex-col gap-1 min-h-0">
-                  <h3 className="text-sm font-semibold text-gray-900 px-1 mb-1">Categories</h3>
-                  {categoryOptions.map((category) => {
-                    const isSelected = selectedCategory === category;
-                    return (
-                      <div
-                        key={category}
-                        onClick={() => setSelectedCategory(category)}
-                        className={`relative rounded-2xl transition-all duration-500 ease-in-out cursor-pointer overflow-hidden border
-                          ${isSelected
-                            ? "flex-[12] bg-orange-500 border-orange-400 shadow-md"
-                            : "flex-1 bg-white border-gray-100 hover:bg-gray-50"
-                          }
-                        `}
-                      >
-                        <div className="absolute inset-0 flex items-center justify-center p-4">
-                          <span
-                            className={`transition-all duration-500 transform
-                                ${isSelected
-                                ? "font-bold -rotate-90 text-white text-3xl tracking-widest origin-center whitespace-normal text-center w-64 leading-none"
-                                : "font-medium text-gray-600 text-sm whitespace-nowrap"
-                              }
-                              `}
-                          >
-                            {category}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
+              <div className="flex flex-col gap-6">
+                {/* Categories Section */}
+                <div>
+                  <div className="flex items-center justify-between mb-4 px-1">
+                    <h3 className="font-semibold text-gray-900">Categories</h3>
+                    <ChevronUp className="w-4 h-4 text-gray-500" />
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    {categoryOptions.map((category) => {
+                      const isSelected = selectedCategory === category;
+                      return (
+                        <button
+                          key={category}
+                          onClick={() => setSelectedCategory(category)}
+                          className={`w-full text-left px-4 py-2.5 rounded-lg text-sm transition-all duration-200
+                              ${isSelected
+                              ? "bg-[#ff6a00] text-white font-medium shadow-sm"
+                              : "text-gray-600 hover:bg-gray-50 hover:text-gray-900 font-normal"
+                            }
+                            `}
+                        >
+                          {category}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 {/* Price Range (Fixed at Bottom) */}
-                <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm shrink-0">
-                  <h3 className="text-sm font-medium text-gray-900 mb-4">Price Range</h3>
+                <div className="px-1">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-semibold text-gray-900">Price Range</h3>
+                    <ChevronUp className="w-4 h-4 text-gray-500" />
+                  </div>
                   <div className="px-2">
                     <Slider
                       min={0}

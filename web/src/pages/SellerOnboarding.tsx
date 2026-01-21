@@ -13,7 +13,6 @@ import {
   CreditCard,
   FileText,
   CheckCircle,
-  Upload,
   ChevronRight,
   ChevronLeft,
 } from "lucide-react";

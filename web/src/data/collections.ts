@@ -1,4 +1,6 @@
-export const collections = [
+import { Collection } from '../types';
+
+export const collections: Collection[] = [
   {
     id: '1',
     title: 'Tech Essentials',
@@ -61,7 +63,7 @@ export const collections = [
 
 export const featuredCollections: Collection[] = collections.slice(0, 4);
 
-export const categories: Category[] = [
+export const categories = [
   { id: '1', name: 'Electronics', icon: 'https://antdisplay.com/pub/media/Blog/3_1.png', count: 2341 },
   { id: '2', name: 'Fashion', icon: 'https://images.squarespace-cdn.com/content/v1/663106aa8729ca13650cbd51/1720548964054-VQYASPLKFNLO56R69O59/image-asset.jpeg', count: 1876 },
   { id: '3', name: 'Home & Garden', icon: 'https://images.unsplash.com/photo-1484101403633-562f891dc89a?w=800&h=600&fit=crop', count: 1543 },

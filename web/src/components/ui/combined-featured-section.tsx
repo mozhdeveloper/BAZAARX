@@ -17,8 +17,8 @@ export default function CombinedFeaturedSection() {
   }
 
   return (
-    <section className="py-24 bg-background">
-      <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 md:grid-cols-2 md:grid-rows-2">
+    <section className="py-16 sm:py-24 bg-background">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 grid grid-cols-1 md:grid-cols-2 md:grid-rows-2">
 
         {/* 1. MAP - Top Left */}
         <div className="relative rounded-none overflow-hidden bg-muted border border-gray-200 dark:border-gray-800 p-4">
@@ -226,7 +226,7 @@ const BazaarXFeaturedMessageCard = () => {
     <div className="w-full max-w-sm h-[280px] bg-white dark:bg-gray-900 p-2 overflow-hidden font-sans relative">
       {/* Fade shadow overlay */}
       <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-white dark:from-gray-900 to-transparent z-10"></div>
-      
+
       <div className="space-y-2 relative z-0">
         {messages.map((msg, i) => (
           <div
@@ -338,13 +338,13 @@ const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
             ([theme, prefix]) => `
 ${prefix} [data-chart=${id}] {
 ${colorConfig
-  .map(([key, itemConfig]) => {
-    const color =
-      itemConfig.theme?.[theme as keyof typeof itemConfig.theme] ||
-      itemConfig.color
-    return color ? `  --color-${key}: ${color};` : null
-  })
-  .join("\n")}
+                .map(([key, itemConfig]) => {
+                  const color =
+                    itemConfig.theme?.[theme as keyof typeof itemConfig.theme] ||
+                    itemConfig.color
+                  return color ? `  --color-${key}: ${color};` : null
+                })
+                .join("\n")}
 }
 `,
           )
@@ -527,11 +527,11 @@ function getPayloadConfigFromPayload(
   }
 
   const payloadObj = payload as Record<string, unknown>
-  
+
   const payloadPayload =
     "payload" in payloadObj &&
-    typeof payloadObj.payload === "object" &&
-    payloadObj.payload !== null
+      typeof payloadObj.payload === "object" &&
+      payloadObj.payload !== null
       ? payloadObj.payload as Record<string, unknown>
       : undefined
 

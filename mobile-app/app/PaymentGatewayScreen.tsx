@@ -12,58 +12,94 @@ import {
   ScrollView,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, Lock, CheckCircle, Shield } from 'lucide-react-native';
+import { ArrowLeft, Lock, CheckCircle, Shield, CreditCard } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import type { Order } from '../src/types';
+import { COLORS } from '../src/constants/theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'PaymentGateway'>;
 
+import { useCartStore } from '../src/stores/cartStore';
+
+// ... (existing imports)
+
 export default function PaymentGatewayScreen({ navigation, route }: Props) {
-  const { paymentMethod, order } = route.params as { paymentMethod: string; order: Order };
+  const { paymentMethod: rawPaymentMethod, order, isQuickCheckout } = route.params as { paymentMethod: string; order: Order; isQuickCheckout?: boolean };
+  const paymentMethod = rawPaymentMethod || 'card';
+  
+  const { clearCart, clearQuickOrder } = useCartStore();
   const [status, setStatus] = useState<'idle' | 'processing' | 'approved'>('idle');
+  
+  // E-Wallet State
   const [mobileNumber, setMobileNumber] = useState('');
   const [mpin, setMpin] = useState('');
+
+  // Card State
+  const [cardNumber, setCardNumber] = useState('');
+  const [expiryDate, setExpiryDate] = useState('');
+  const [cvv, setCvv] = useState('');
+  const [cardName, setCardName] = useState('');
+
   const insets = useSafeAreaInsets();
 
+  // Derived state for method type
+  const methodSlug = paymentMethod.toLowerCase();
+  const showCardForm = methodSlug === 'card' || methodSlug === 'paymongo';
+
   const getMethodName = () => {
-    switch (paymentMethod.toLowerCase()) {
+    switch (methodSlug) {
       case 'gcash':
         return 'GCash';
       case 'paymongo':
         return 'PayMongo';
       case 'paymaya':
-      case 'card':
         return 'Maya';
+      case 'card':
+        return 'Credit/Debit Card';
       default:
         return paymentMethod;
     }
   };
 
   const getProviderLogo = () => {
-    switch (paymentMethod.toLowerCase()) {
+    switch (methodSlug) {
       case 'gcash':
         return 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5c/GCash_logo.svg/1200px-GCash_logo.svg.png';
       case 'paymongo':
         return 'https://assets-global.website-files.com/5fa1ba98fbbf0c79e0e9b8e5/5fa2bbdd23434d02fd9fdfce_paymongo_logo.svg';
       case 'paymaya':
-      case 'card':
         return 'https://www.maya.ph/hubfs/maya-logo-2023.svg';
+      case 'card':
+        return 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Mastercard-logo.svg/1280px-Mastercard-logo.svg.png';
       default:
         return 'https://via.placeholder.com/80';
     }
   };
 
-  const handlePayment = () => {
-    if (!mobileNumber || !mpin) {
-      return;
+  const isFormValid = () => {
+    if (showCardForm) {
+      return cardNumber.length >= 16 && expiryDate.length >= 5 && cvv.length >= 3 && cardName.length > 3;
     }
+    // GCash/Maya validation
+    return mobileNumber.length >= 10 && mpin.length >= 4;
+  };
+
+  const handlePayment = () => {
+    if (!isFormValid()) return;
 
     setStatus('processing');
 
-    // Simulate payment processing for 3 seconds
+    // Simulate payment processing
     setTimeout(() => {
       setStatus('approved');
+      
+      // Clear cart/quick order after successful payment
+      if (isQuickCheckout) {
+        clearQuickOrder();
+      } else {
+        clearCart();
+      }
 
       // After showing "Payment Approved!", navigate to Track Order screen
       setTimeout(() => {
@@ -132,41 +168,123 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
           <View style={styles.formContainer}>
             <Text style={styles.formTitle}>Enter Payment Details</Text>
 
-            {/* Mobile Number Input */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Mobile Number</Text>
-              <View style={styles.inputWrapper}>
-                <View style={styles.prefix}>
-                  <Text style={styles.prefixText}>+63</Text>
+            {showCardForm ? (
+              // Credit/Debit Card Form (Card & PayMongo)
+              <>
+                {/* Card Number */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Card Number</Text>
+                  <View style={styles.inputWrapper}>
+                    <View style={[styles.prefix, { paddingHorizontal: 12 }]}>
+                      <CreditCard size={20} color="#6B7280" />
+                    </View>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="0000 0000 0000 0000"
+                      placeholderTextColor="#9CA3AF"
+                      value={cardNumber}
+                      onChangeText={(text) => setCardNumber(text.replace(/\D/g, '').substring(0, 16))}
+                      keyboardType="number-pad"
+                      maxLength={16}
+                      editable={status !== 'processing'}
+                    />
+                  </View>
                 </View>
-                <TextInput
-                  style={styles.input}
-                  placeholder="9XX XXX XXXX"
-                  placeholderTextColor="#9CA3AF"
-                  value={mobileNumber}
-                  onChangeText={setMobileNumber}
-                  keyboardType="phone-pad"
-                  maxLength={10}
-                  editable={status !== 'processing'}
-                />
-              </View>
-            </View>
 
-            {/* MPIN Input */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>MPIN / OTP</Text>
-              <TextInput
-                style={[styles.input, styles.fullWidthInput]}
-                placeholder="Enter your 6-digit PIN"
-                placeholderTextColor="#9CA3AF"
-                value={mpin}
-                onChangeText={setMpin}
-                secureTextEntry
-                keyboardType="number-pad"
-                maxLength={6}
-                editable={status !== 'processing'}
-              />
-            </View>
+                <View style={{ flexDirection: 'row', gap: 12 }}>
+                  {/* Expiry Date */}
+                  <View style={[styles.inputGroup, { flex: 1 }]}>
+                    <Text style={styles.inputLabel}>Expiry Date</Text>
+                    <TextInput
+                      style={[styles.input, styles.fullWidthInput]}
+                      placeholder="MM/YY"
+                      placeholderTextColor="#9CA3AF"
+                      value={expiryDate}
+                      onChangeText={setExpiryDate}
+                      keyboardType="number-pad"
+                      maxLength={5}
+                      editable={status !== 'processing'}
+                    />
+                  </View>
+
+                  {/* CVV */}
+                  <View style={[styles.inputGroup, { flex: 1 }]}>
+                    <Text style={styles.inputLabel}>CVV / CVC</Text>
+                    <View style={styles.inputWrapper}>
+                      <TextInput
+                        style={[styles.input, styles.fullWidthInput]}
+                        placeholder="123"
+                        placeholderTextColor="#9CA3AF"
+                        value={cvv}
+                        onChangeText={setCvv}
+                        keyboardType="number-pad"
+                        maxLength={4}
+                        secureTextEntry
+                        editable={status !== 'processing'}
+                      />
+                      <View style={styles.inputIconRight}>
+                        <Lock size={16} color="#9CA3AF" />
+                      </View>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Cardholder Name */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Cardholder Name</Text>
+                  <TextInput
+                    style={[styles.input, styles.fullWidthInput]}
+                    placeholder="Name on Card"
+                    placeholderTextColor="#9CA3AF"
+                    value={cardName}
+                    onChangeText={setCardName}
+                    autoCapitalize="characters"
+                    editable={status !== 'processing'}
+                  />
+                </View>
+              </>
+            ) : (
+              // E-Wallet Form (GCash / Maya)
+              <>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>
+                    {methodSlug === 'gcash' ? 'GCash Mobile Number' : 'Maya Mobile Number'}
+                  </Text>
+                  <View style={styles.inputWrapper}>
+                    <View style={styles.prefix}>
+                      <Text style={styles.prefixText}>+63</Text>
+                    </View>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="9XX XXX XXXX"
+                      placeholderTextColor="#9CA3AF"
+                      value={mobileNumber}
+                      onChangeText={setMobileNumber}
+                      keyboardType="phone-pad"
+                      maxLength={10}
+                      editable={status !== 'processing'}
+                    />
+                  </View>
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>
+                    {methodSlug === 'gcash' ? 'MPIN' : 'Password / OTP'}
+                  </Text>
+                  <TextInput
+                    style={[styles.input, styles.fullWidthInput]}
+                    placeholder={methodSlug === 'gcash' ? "Enter your 4-digit MPIN" : "Enter password"}
+                    placeholderTextColor="#9CA3AF"
+                    value={mpin}
+                    onChangeText={setMpin}
+                    secureTextEntry
+                    keyboardType="number-pad"
+                    maxLength={6}
+                    editable={status !== 'processing'}
+                  />
+                </View>
+              </>
+            )}
 
             {/* Provider Info */}
             <View style={styles.providerInfo}>
@@ -192,10 +310,10 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
           <Pressable
             style={[
               styles.payButton,
-              (!mobileNumber || !mpin || status === 'processing') && styles.payButtonDisabled
+              (!isFormValid() || status === 'processing') && styles.payButtonDisabled
             ]}
             onPress={handlePayment}
-            disabled={!mobileNumber || !mpin || status === 'processing'}
+            disabled={!isFormValid() || status === 'processing'}
           >
             <Text style={styles.payButtonText}>
               {status === 'processing' ? 'Processing...' : `Pay ₱${order.total.toLocaleString()}`}
@@ -404,12 +522,12 @@ const styles = StyleSheet.create({
     elevation: 10,
   },
   payButton: {
-    backgroundColor: '#FF5722',
+    backgroundColor: COLORS.primary,
     borderRadius: 12,
     paddingVertical: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#FF5722',
+    shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -466,5 +584,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#9CA3AF',
     textAlign: 'center',
+  },
+  inputIconRight: {
+    position: 'absolute',
+    right: 16,
+    height: '100%',
+    justifyContent: 'center',
   },
 });

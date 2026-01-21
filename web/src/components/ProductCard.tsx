@@ -1,7 +1,8 @@
-import React from "react";
-import { motion } from "framer-motion";
-import { useNavigate } from "react-router-dom";
-import { ShieldCheck } from "lucide-react";
+import React from 'react';
+import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
+import { BadgeCheck, ShieldCheck } from 'lucide-react';
+
 
 interface ProductCardProps {
   product: any;

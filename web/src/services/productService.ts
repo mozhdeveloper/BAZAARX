@@ -137,7 +137,7 @@ export const createProduct = async (product: ProductInsert): Promise<Product | n
   try {
     const { data, error } = await supabase
       .from('products')
-      // @ts-expect-error - Database types are out of sync with actual schema
+
       .insert(product)
       .select()
       .single();
@@ -173,7 +173,7 @@ export const createProducts = async (products: ProductInsert[]): Promise<Product
   try {
     const { data, error } = await supabase
       .from('products')
-      // @ts-expect-error - Database types are out of sync with actual schema
+
       .insert(products)
       .select();
 
@@ -209,7 +209,7 @@ export const updateProduct = async (id: string, updates: ProductUpdate): Promise
   try {
     const { data, error } = await supabase
       .from('products')
-      // @ts-expect-error - Database types are out of sync with actual schema
+
       .update(updates)
       .eq('id', id)
       .select()
@@ -239,7 +239,8 @@ export const deleteProduct = async (id: string): Promise<boolean> => {
   try {
     const { error } = await supabase
       .from('products')
-      .delete()
+
+      .update({ is_active: false })
       .eq('id', id);
 
     if (error) throw error;
@@ -271,7 +272,7 @@ export const deductStock = async (
 
   try {
     // Call database function to handle stock deduction atomically
-    // @ts-expect-error - RPC types not yet generated
+
     const { error } = await supabase.rpc('deduct_product_stock', {
       p_product_id: productId,
       p_quantity: quantity,
@@ -307,7 +308,7 @@ export const addStock = async (
   }
 
   try {
-    // @ts-expect-error - RPC types not yet generated
+
     const { error } = await supabase.rpc('add_product_stock', {
       p_product_id: productId,
       p_quantity: quantity,

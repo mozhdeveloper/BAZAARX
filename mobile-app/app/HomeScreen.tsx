@@ -25,6 +25,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList, TabParamList } from '../App';
 import type { Product } from '../src/types';
 import { supabase } from '../src/lib/supabase';
+import { useAuthStore } from '../src/stores/authStore';
 import { COLORS } from '../src/constants/theme';
 
 type Props = CompositeScreenProps<
@@ -35,16 +36,17 @@ type Props = CompositeScreenProps<
 const { width } = Dimensions.get('window');
 
 const categories = [
-  { id: '1', name: 'Electronics', image: 'https://images.unsplash.com/photo-1498049794561-7780e7231661?w=300' },
-  { id: '2', name: 'Fashion', image: 'https://images.unsplash.com/photo-1445205170230-053b83016050?w=300' },
-  { id: '3', name: 'Home & Living', image: 'https://images.unsplash.com/photo-1556911220-bff31c812dba?w=300' },
-  { id: '4', name: 'Beauty', image: 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=300' },
-  { id: '5', name: 'Sports', image: 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=300' },
+  { id: 'electronics', name: 'Electronics', image: 'https://images.unsplash.com/photo-1498049794561-7780e7231661?w=300' },
+  { id: 'fashion', name: 'Fashion', image: 'https://images.unsplash.com/photo-1445205170230-053b83016050?w=300' },
+  { id: 'home-garden', name: 'Home & Living', image: 'https://images.unsplash.com/photo-1556911220-bff31c812dba?w=300' },
+  { id: 'beauty', name: 'Beauty', image: 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=300' },
+  { id: 'sports', name: 'Sports', image: 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=300' },
 ];
 
 export default function HomeScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const BRAND_COLOR = COLORS.primary;
+  const { user } = useAuthStore(); // Use global auth store
 
   const [activeTab, setActiveTab] = useState<'Home' | 'Category'>('Home');
   const [showAIChat, setShowAIChat] = useState(false);
@@ -56,38 +58,9 @@ export default function HomeScreen({ navigation }: Props) {
   const [deliveryAddress, setDeliveryAddress] = useState('123 Main St, Manila');
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [recentSearches] = useState(['wireless earbuds', 'leather bag']);
-  const [username, setUsername] = useState('Guest');
-  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
-
-  useEffect(() => {
-    async function getProfile() {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-
-        if (user) {
-          const { data, error } = await supabase
-            .from('profiles')
-            .select('full_name')
-            .eq('id', user.id)
-            .single();
-
-          if (error) throw error;
-
-          if (data?.full_name) {
-            // Take just the first name for the greeting (optional)
-            const firstName = data.full_name.split(' ')[0];
-            setUsername(firstName);
-          }
-        }
-      } catch (error) {
-        console.error('Error loading profile:', error);
-      } finally {
-        setIsLoadingProfile(false);
-      }
-    }
-
-    getProfile();
-  }, []);
+  
+  // Display name logic
+  const username = user?.name ? user.name.split(' ')[0] : 'Guest';
 
   const notifications = [
     { id: '1', title: 'Order Shipped! 📦', message: 'Your order #A238567K has been shipped!', time: '2h ago', read: false, icon: Package, color: '#3B82F6' },
@@ -112,7 +85,10 @@ export default function HomeScreen({ navigation }: Props) {
           <View style={styles.headerLeft}>
             {/* PROFILE AVATAR CLICKABLE LOGIC */}
             <Pressable onPress={() => navigation.navigate('MainTabs', { screen: 'Profile' })}>
-              <Image source={{ uri: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100' }} style={styles.avatar} />
+              <Image 
+                source={{ uri: user?.avatar || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100' }} 
+                style={styles.avatar} 
+              />
             </Pressable>
 
             <View style={styles.greetingContainer}>
@@ -269,7 +245,11 @@ export default function HomeScreen({ navigation }: Props) {
             <Text style={styles.categorySectionTitle}>Shop by Category</Text>
             <View style={styles.categoryGrid}>
               {categories.map((item) => (
-                <Pressable key={item.id} style={styles.categoryCardBox}>
+                <Pressable 
+                  key={item.id} 
+                  style={styles.categoryCardBox}
+                  onPress={() => navigation.navigate('Shop', { category: item.id })}
+                >
                   <Image source={{ uri: item.image }} style={styles.categoryCardImage} />
                   <View style={styles.categoryCardOverlay} />
                   <Text style={styles.categoryCardText}>{item.name}</Text>

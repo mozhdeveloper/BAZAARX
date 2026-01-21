@@ -140,7 +140,7 @@ export default function BuyerSignupPage() {
         memberSince: new Date(),
         totalOrders: 0,
         totalSpent: 0,
-        loyaltyPoints: 100,
+        bazcoins: 0,
       };
 
       setProfile(buyerProfile);

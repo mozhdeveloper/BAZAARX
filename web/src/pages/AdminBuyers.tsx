@@ -538,9 +538,9 @@ const AdminBuyers: React.FC = () => {
                   <div className="bg-yellow-50 p-4 rounded-lg">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-yellow-600">Loyalty Points</p>
-                        <p className="text-2xl font-bold text-yellow-900">{selectedBuyer.metrics.loyaltyPoints}</p>
-                      </div>
+                  <div className="text-sm text-yellow-600 mb-1">Bazcoins</div>
+                  <p className="text-2xl font-bold text-yellow-900">{selectedBuyer.metrics.bazcoins}</p>
+                </div>
                       <Award className="w-8 h-8 text-yellow-500" />
                     </div>
                   </div>

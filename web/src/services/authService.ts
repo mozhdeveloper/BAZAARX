@@ -4,6 +4,9 @@
  */
 
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import type { Profile, Buyer, Seller } from '@/types/database.types';
+
+
 
 /**
  * Sign up a new user

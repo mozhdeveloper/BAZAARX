@@ -23,8 +23,9 @@ import { supabase } from '../src/lib/supabase';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Login'>;
 
+
 export default function LoginScreen({ navigation }: Props) {
-  const login = useAuthStore((state) => state.login);
+  // const login = useAuthStore((state) => state.login); // Deprecated
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -62,6 +63,24 @@ export default function LoginScreen({ navigation }: Props) {
         if (profileError) {
           Alert.alert('Profile Error', 'Could not fetch user profile.');
         } else if (profile.user_type === 'buyer') {
+          
+          // SYNC USER TO GLOBAL STORE
+          const { data: profileDetails } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', data.user.id)
+            .single();
+
+          if (profileDetails) {
+            useAuthStore.getState().setUser({
+              id: data.user.id,
+              name: profileDetails.full_name || 'BazaarX User',
+              email: data.user.email || '',
+              phone: profileDetails.phone || '',
+              avatar: profileDetails.avatar_url || ''
+            });
+          }
+
           navigation.replace('MainTabs', { screen: 'Home' });
         } else if (profile.user_type === 'seller') {
           Alert.alert('Seller Account', 'This is the buyer portal. Please use the Seller Centre.');

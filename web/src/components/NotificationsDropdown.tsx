@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   Popover,
   PopoverContent,
@@ -62,9 +61,6 @@ export function NotificationsDropdown() {
   const [open, setOpen] = useState(false);
   const unreadCount = notifications.filter((n) => n.read === false).length;
 
-  console.log("Notifications:", notifications);
-  console.log("Unread count:", unreadCount);
-
   const handleMarkAllAsRead = () => {
     notifications.forEach((notification) => {
       if (!notification.read) {
@@ -87,19 +83,17 @@ export function NotificationsDropdown() {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button
-          size="icon"
-          variant="ghost"
-          className="relative text-[var(--text-secondary)] hover:text-[var(--brand-primary)]"
+        <button
+          className="relative p-2 text-gray-700 hover:text-[#ff6a00] hover:bg-gray-50 rounded-full transition-colors outline-none"
           aria-label="Open notifications"
         >
-          <Bell size={20} strokeWidth={2} aria-hidden="true" />
+          <Bell className="w-6 h-6" strokeWidth={2} aria-hidden="true" />
           {unreadCount > 0 && (
-            <Badge className="absolute -top-1 -right-1 min-w-5 h-5 px-1 flex items-center justify-center bg-red-500 text-white border-none">
+            <Badge className="absolute top-0 right-0 min-w-[1.25rem] h-5 px-1 flex items-center justify-center bg-red-500 text-white border-none rounded-full text-xs">
               {unreadCount > 99 ? "99+" : unreadCount}
             </Badge>
           )}
-        </Button>
+        </button>
       </PopoverTrigger>
       <PopoverContent className="w-80 p-1" align="end">
         <div className="flex items-baseline justify-between gap-4 px-3 py-2">
@@ -156,6 +150,6 @@ export function NotificationsDropdown() {
           </div>
         )}
       </PopoverContent>
-    </Popover>
+    </Popover >
   );
 }

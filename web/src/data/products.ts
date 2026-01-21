@@ -94,7 +94,7 @@ export const trendingProducts = [
   },
 ];
 
-export const bestSellerProducts: Product[] = [
+export const bestSellerProducts = [
   {
     id: '7',
     name: 'Filipino Cookbook Collection - Traditional Recipes & Modern Twist',
@@ -157,7 +157,7 @@ export const bestSellerProducts: Product[] = [
   },
 ];
 
-export const newArrivals: Product[] = [
+export const newArrivals = [
   {
     id: '11',
     name: 'Artisan Coffee Mug - Handcrafted Ceramic, 350ml',
@@ -409,7 +409,7 @@ export const newArrivals: Product[] = [
 ];
 
 // Mouse Products for Camera Search
-export const mouseProducts: Product[] = [
+export const mouseProducts = [
   {
     id: 'mouse-1',
     name: 'Logitech MX Master 3S - Wireless Performance Mouse',
