@@ -147,6 +147,14 @@ export interface BuyerProfile {
   totalOrders: number;
   totalSpent: number;
   loyaltyPoints: number;
+  savedCards?: SavedCard[];
+}
+
+export interface SavedCard {
+  id: string;
+  last4: string;
+  brand: string;
+  expiry: string;
 }
 
 interface BuyerStore {
@@ -221,7 +229,16 @@ export const useBuyerStore = create<BuyerStore>()(persist(
     // Profile Management
     profile: null,
 
-    setProfile: (profile) => set({ profile }),
+    setProfile: (profile) => {
+      // Mock saved cards for demo
+      if (!profile.savedCards) {
+        profile.savedCards = [
+          { id: 'card_web_1', last4: '1111', brand: 'Visa', expiry: '05/30' },
+          { id: 'card_web_2', last4: '2222', brand: 'MasterCard', expiry: '09/25' },
+        ];
+      }
+      set({ profile });
+    },
     updateProfile: (updates) => set((state) => ({
       profile: state.profile ? { ...state.profile, ...updates } : null
     })),
