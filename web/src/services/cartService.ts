@@ -92,7 +92,19 @@ export const getCartItems = async (cartId: string): Promise<CartItem[]> => {
   try {
     const { data, error } = await supabase
       .from('cart_items')
-      .select('*, product:products(*)')
+      .select(`
+        *,
+        product:products (
+          *,
+          seller:sellers!products_seller_id_fkey (
+            business_name,
+            store_name,
+            business_address,
+            rating,
+            is_verified
+          )
+        )
+      `)
       .eq('cart_id', cartId);
 
     if (error) throw error;

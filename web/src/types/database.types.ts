@@ -33,6 +33,7 @@ export type ProductWithSeller = Product & {
     business_name: string;
     store_name: string;
     rating: number;
+    business_address: string;
   }
 };
 

@@ -5,7 +5,7 @@
  */
 
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import type { Product, Database } from '@/types/database.types';
+import type { Product, ProductWithSeller, Database } from '@/types/database.types';
 
 type ProductInsert = Database['public']['Tables']['products']['Insert'];
 type ProductUpdate = Database['public']['Tables']['products']['Update'];
@@ -24,16 +24,25 @@ export const getProducts = async (filters?: {
   searchQuery?: string;
   limit?: number;
   offset?: number;
-}): Promise<Product[]> => {
+}): Promise<ProductWithSeller[]> => {
   if (!isSupabaseConfigured()) {
     console.warn('Using mock data - Supabase not configured');
     return mockProducts;
   }
 
   try {
+    console.log('🔍 Fetching products with filters:', filters);
     let query = supabase
       .from('products')
-      .select('*, seller:sellers(business_name, store_name, rating)')
+      .select(`
+        *,
+        seller:sellers!products_seller_id_fkey (
+          business_name,
+          store_name,
+          rating,
+          business_address
+        )
+      `)
       .order('created_at', { ascending: false });
 
     // Apply filters
@@ -61,10 +70,20 @@ export const getProducts = async (filters?: {
 
     const { data, error } = await query;
 
-    if (error) throw error;
+    if (error) {
+      console.error('❌ Supabase query error:', error);
+      console.error('Error details:', JSON.stringify(error, null, 2));
+      throw error;
+    }
+    console.log('✅ Products fetched successfully:', data?.length, 'products');
     return data || [];
   } catch (error) {
-    console.error('Error fetching products:', error);
+    console.error('❌ Error fetching products:', error);
+    if (error && typeof error === 'object') {
+      console.error('Error message:', (error as any).message);
+      console.error('Error code:', (error as any).code);
+      console.error('Error details:', (error as any).details);
+    }
     throw error;
   }
 };
@@ -72,7 +91,7 @@ export const getProducts = async (filters?: {
 /**
  * Get a single product by ID
  */
-export const getProductById = async (id: string): Promise<Product | null> => {
+export const getProductById = async (id: string): Promise<ProductWithSeller | null> => {
   if (!isSupabaseConfigured()) {
     return mockProducts.find(p => p.id === id) || null;
   }
@@ -80,7 +99,15 @@ export const getProductById = async (id: string): Promise<Product | null> => {
   try {
     const { data, error } = await supabase
       .from('products')
-      .select('*, seller:sellers(business_name, store_name, rating)')
+      .select(`
+        *,
+        seller:sellers!products_seller_id_fkey (
+          business_name,
+          store_name,
+          rating,
+          business_address
+        )
+      `)
       .eq('id', id)
       .single();
 

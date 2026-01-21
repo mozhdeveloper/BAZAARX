@@ -85,6 +85,7 @@ export interface SellerProduct {
   adminReclassifiedCategory?: string;
   sellerName?: string;
   sellerRating?: number;
+  sellerLocation?: string;
 }
 
 interface SellerOrder {
@@ -315,7 +316,8 @@ const mapDbProductToSellerProduct = (p: any): SellerProduct => ({
   vendorSubmittedCategory: p.vendor_submitted_category || undefined,
   adminReclassifiedCategory: p.admin_reclassified_category || undefined,
   sellerName: p.seller?.store_name || p.seller?.business_name,
-  sellerRating: p.seller?.rating
+  sellerRating: p.seller?.rating,
+  sellerLocation: p.seller?.business_address
 });
 
 const buildProductInsert = (product: Omit<SellerProduct, 'id' | 'createdAt' | 'updatedAt' | 'sales' | 'rating' | 'reviews'>, sellerId: string): ProductInsert => ({
@@ -615,8 +617,13 @@ export const useProductStore = create<ProductStore>()(
         set({ loading: true, error: null });
         try {
           const data = await fetchProductsDb(filters);
+          console.log('🔍 Raw product data from DB:', data);
+          console.log('🔍 First product seller info:', data?.[0]?.seller);
+          const mappedProducts = (data || []).map(mapDbProductToSellerProduct);
+          console.log('🔍 Mapped products:', mappedProducts);
+          console.log('🔍 First mapped product:', mappedProducts[0]);
           set({
-            products: (data || []).map(mapDbProductToSellerProduct),
+            products: mappedProducts,
             loading: false,
           });
           get().checkLowStock();

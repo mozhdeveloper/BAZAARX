@@ -17,6 +17,7 @@ import {
   ChevronRight,
   ChevronLeft,
 } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 
 const CATEGORIES = [
   "Electronics",
@@ -206,135 +207,75 @@ export function SellerOnboarding() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
     if (!validateStep(currentStep)) return;
 
     setIsSubmitting(true);
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    try {
+      // 1. Map ALL form fields to your exact SQL schema columns
+      const sellerData = {
+        id: seller?.id, // Must match the authenticated user's profile ID
 
-    const fullAddress = `${formData.businessAddress}, ${formData.city}, ${formData.province} ${formData.postalCode}`;
+        // Basic Store Info
+        business_name: formData.businessName,
+        store_name: formData.storeName,
+        store_description: formData.storeDescription,
+        store_category: formData.storeCategory, // This is already an array
 
-    // Update seller details in seller store
-    updateSellerDetails({
-      ownerName: formData.ownerName,
-      phone: formData.phone,
-      businessName: formData.businessName,
-      storeName: formData.storeName,
-      storeDescription: formData.storeDescription,
-      storeCategory: formData.storeCategory,
-      businessType: formData.businessType,
-      businessRegistrationNumber: formData.businessRegistrationNumber,
-      taxIdNumber: formData.taxIdNumber,
-      businessAddress: formData.businessAddress,
-      city: formData.city,
-      province: formData.province,
-      postalCode: formData.postalCode,
-      storeAddress: fullAddress,
-      bankName: formData.bankName,
-      accountName: formData.accountName,
-      accountNumber: formData.accountNumber,
-      businessPermitUrl: formData.businessPermitUrl,
-      validIdUrl: formData.validIdUrl,
-      proofOfAddressUrl: formData.proofOfAddressUrl,
-      dtiRegistrationUrl: formData.dtiRegistrationUrl,
-      taxIdUrl: formData.taxIdUrl,
-      isVerified: false, // Not verified yet, waiting for admin
-      approvalStatus: "pending", // Set to pending
-    });
+        // Business Legal Info
+        business_type: formData.businessType,
+        business_registration_number: formData.businessRegistrationNumber,
+        tax_id_number: formData.taxIdNumber,
 
-    // Also add seller to admin store so admin can see them
-    if (seller) {
-      const adminSellerData: AdminSeller = {
-        id: seller.id,
-        businessName: formData.businessName,
-        storeName: formData.storeName,
-        storeDescription: formData.storeDescription,
-        storeCategory: formData.storeCategory,
-        businessType: formData.businessType,
-        businessRegistrationNumber: formData.businessRegistrationNumber,
-        taxIdNumber: formData.taxIdNumber,
-        description: formData.storeDescription,
-        logo: `https://ui-avatars.io/api/?name=${encodeURIComponent(formData.storeName)}&background=FF6A00&color=fff`,
-        ownerName: formData.ownerName,
-        email: seller.email,
-        phone: formData.phone,
-        businessAddress: formData.businessAddress,
+        // Address Details
+        business_address: formData.businessAddress,
         city: formData.city,
         province: formData.province,
-        postalCode: formData.postalCode,
-        address: fullAddress,
-        bankName: formData.bankName,
-        accountName: formData.accountName,
-        accountNumber: formData.accountNumber,
-        status: "pending", // Status is pending approval
-        documents: [
-          ...(formData.businessPermitUrl
-            ? [
-                {
-                  id: `doc_${seller.id}_1`,
-                  type: "business_permit",
-                  fileName: "business-permit",
-                  url: formData.businessPermitUrl,
-                  uploadDate: new Date(),
-                  isVerified: false,
-                },
-              ]
-            : []),
-          ...(formData.validIdUrl
-            ? [
-                {
-                  id: `doc_${seller.id}_2`,
-                  type: "valid_id",
-                  fileName: "valid-id",
-                  url: formData.validIdUrl,
-                  uploadDate: new Date(),
-                  isVerified: false,
-                },
-              ]
-            : []),
-          ...(formData.proofOfAddressUrl
-            ? [
-                {
-                  id: `doc_${seller.id}_3`,
-                  type: "proof_of_address",
-                  fileName: "proof-of-address",
-                  url: formData.proofOfAddressUrl,
-                  uploadDate: new Date(),
-                  isVerified: false,
-                },
-              ]
-            : []),
-        ],
-        metrics: {
-          totalProducts: 0,
-          totalOrders: 0,
-          totalRevenue: 0,
-          rating: 0,
-          responseRate: 100,
-          fulfillmentRate: 100,
-        },
-        joinDate: new Date(),
+        postal_code: formData.postalCode,
+
+        // Banking Details
+        bank_name: formData.bankName,
+        account_name: formData.accountName,
+        account_number: formData.accountNumber,
+
+        // Document URLs (from the final step)
+        business_permit_url: formData.businessPermitUrl,
+        valid_id_url: formData.validIdUrl,
+        proof_of_address_url: formData.proofOfAddressUrl,
+        dti_registration_url: formData.dtiRegistrationUrl,
+        tax_id_url: formData.taxIdUrl,
+
+        // Default Statuses
+        approval_status: 'pending',
+        is_verified: false,
+        join_date: new Date().toISOString(),
+        rating: 0.0,
+        total_sales: 0
       };
 
-      addSeller(adminSellerData);
-    }
+      // 2. Perform the upsert to the 'sellers' table
+      const { error } = await supabase
+        .from('sellers')
+        .upsert(sellerData as any);
 
-    // Show verification animation
-    setIsSubmitting(false);
-    setIsVerifying(true);
+      if (error) throw error;
 
-    // Simulate verification process (3 seconds)
-    setTimeout(() => {
-      setIsVerifying(false);
-      setVerificationComplete(true);
+      // 3. Update local state and proceed to success screens
+      updateSellerDetails({ ...formData, approvalStatus: "pending" });
+      setIsSubmitting(false);
+      setIsVerifying(true);
 
-      // Redirect to approval pending page after 2 seconds
       setTimeout(() => {
-        navigate("/seller/pending-approval");
-      }, 2000);
-    }, 3000);
+        setIsVerifying(false);
+        setVerificationComplete(true);
+        setTimeout(() => navigate("/seller/pending-approval"), 2000);
+      }, 3000);
+
+    } catch (error: any) {
+      console.error("Submission error:", error.message);
+      alert(`Registration failed: ${error.message}`);
+      setIsSubmitting(false);
+    }
   };
 
   const steps = [
@@ -492,13 +433,12 @@ export function SellerOnboarding() {
             return (
               <div key={step.number} className="flex flex-col items-center">
                 <div
-                  className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 ${
-                    isCompleted
-                      ? "bg-[#FF6A00] text-white"
-                      : isCurrent
-                        ? "bg-[#FF6A00] text-white ring-4 ring-orange-100"
-                        : "bg-white border-2 border-gray-300 text-gray-400"
-                  }`}
+                  className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 ${isCompleted
+                    ? "bg-[#FF6A00] text-white"
+                    : isCurrent
+                      ? "bg-[#FF6A00] text-white ring-4 ring-orange-100"
+                      : "bg-white border-2 border-gray-300 text-gray-400"
+                    }`}
                 >
                   {isCompleted ? (
                     <CheckCircle className="w-5 h-5" />
@@ -673,11 +613,10 @@ export function SellerOnboarding() {
                             key={category}
                             type="button"
                             onClick={() => handleCategoryToggle(category)}
-                            className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                              formData.storeCategory.includes(category)
-                                ? "bg-[#FF6A00] text-white"
-                                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                            }`}
+                            className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${formData.storeCategory.includes(category)
+                              ? "bg-[#FF6A00] text-white"
+                              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                              }`}
                           >
                             {category}
                           </button>

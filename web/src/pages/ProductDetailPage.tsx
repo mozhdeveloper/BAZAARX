@@ -928,13 +928,19 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
       colorName !== "Default" ? `Color: ${colorName}` : null
     ].filter(Boolean).join(", ") || "Standard";
 
-    const selectedVariant = {
-      id: `var-${normalizedProduct.id}-${selectedSize}-${colorName}`,
+    // Only create a variant object if there are actual variations selected
+    // or if the product inherently has variants.
+    // If it's just a standard product with no real options, pass null/undefined
+    // to match the ShopPage behavior and allow merging.
+    const hasVariations = selectedSize || colorName !== "Default" || (productData.sizes?.length > 0) || (productData.colors?.length > 0);
+
+    const selectedVariant = hasVariations ? {
+      id: `var-${normalizedProduct.id}-${selectedSize || 'default'}-${colorName}`,
       name: variantName,
       price: productData.price,
       stock: normalizedProduct.stock || 100,
       image: productData.colors[selectedColor]?.image || productImage
-    };
+    } : undefined;
 
     // Create proper product object for buyerStore
     const productForCart = {
@@ -973,7 +979,11 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
       variants: [],
     };
 
-    addToCart(productForCart as any, quantity, selectedVariant);
+    try {
+      addToCart(productForCart as any, quantity, selectedVariant);
+    } catch (error) {
+      console.error("Error calling addToCart:", error);
+    }
 
     // Show success notification and guide to cart
     const notification = document.createElement("div");
@@ -1287,14 +1297,20 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
               </label>
               <div className="flex items-center border border-gray-300 rounded-lg max-w-[140px]">
                 <button
-                  onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                  type="button"
+                  onClick={() => {
+                    setQuantity(Math.max(1, quantity - 1));
+                  }}
                   className="p-2 hover:bg-gray-100 transition-colors"
                 >
                   <Minus className="w-4 h-4" />
                 </button>
                 <span className="flex-1 text-center py-2">{quantity}</span>
                 <button
-                  onClick={() => setQuantity(quantity + 1)}
+                  type="button"
+                  onClick={() => {
+                    setQuantity(quantity + 1);
+                  }}
                   className="p-2 hover:bg-gray-100 transition-colors"
                 >
                   <Plus className="w-4 h-4" />

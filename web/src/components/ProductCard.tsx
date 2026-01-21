@@ -12,7 +12,7 @@ interface ProductCardProps {
 const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0 }) => {
   const navigate = useNavigate();
   const hasDiscount = product.originalPrice && product.originalPrice > product.price;
-  const discountPercent = hasDiscount 
+  const discountPercent = hasDiscount
     ? Math.round(((product.originalPrice! - product.price) / product.originalPrice!) * 100)
     : 0;
 
@@ -47,12 +47,12 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0 }) => {
           </div>
         )}
       </div>
-      
+
       <div className="p-3">
         <h3 className="font-medium text-[var(--text-primary)] text-sm mb-2 line-clamp-2 group-hover:text-[var(--brand-primary)] transition-colors leading-snug">
           {product.name}
         </h3>
-        
+
         <div className="flex items-center mb-2">
           <div className="flex text-yellow-400 text-xs mr-1">
             {[...Array(5)].map((_, i) => (

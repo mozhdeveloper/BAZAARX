@@ -52,6 +52,7 @@ type ShopProduct = {
   sold: number;
   category: string;
   seller: string;
+  sellerId: string;
   isVerified: boolean;
   isFreeShipping?: boolean;
   location?: string;
@@ -152,8 +153,9 @@ export default function ShopPage() {
         sold: p.sales || 0,
         category: p.category,
         seller: p.sellerName || "Verified Seller",
+        sellerId: p.sellerId,
         isVerified: p.approvalStatus === "pending",
-        location: "Metro Manila",
+        location: p.sellerLocation || "Metro Manila",
         description: p.description,
         sellerRating: p.sellerRating || 0,
         sellerVerified: p.approvalStatus === "pending",
@@ -620,7 +622,7 @@ export default function ShopPage() {
                             image: product.image,
                             images: [product.image],
                             seller: {
-                              id: `seller-${product.id}`,
+                              id: product.sellerId,
                               name: product.seller,
                               avatar: "",
                               rating: product.sellerRating || 0,
@@ -635,7 +637,7 @@ export default function ShopPage() {
                               responseTime: "1 hour",
                               categories: [product.category],
                             },
-                            sellerId: `seller-${product.id}`,
+                            sellerId: product.sellerId,
                             rating: product.rating,
                             totalReviews: 100,
                             category: product.category,
@@ -685,7 +687,7 @@ export default function ShopPage() {
                             image: product.image,
                             images: [product.image],
                             seller: {
-                              id: `seller-${product.id}`,
+                              id: product.sellerId,
                               name: product.seller,
                               avatar: "",
                               rating: product.sellerRating || 0,
@@ -700,7 +702,7 @@ export default function ShopPage() {
                               responseTime: "1 hour",
                               categories: [product.category],
                             },
-                            sellerId: `seller-${product.id}`,
+                            sellerId: product.sellerId,
                             rating: product.rating,
                             totalReviews: 100,
                             category: product.category,
