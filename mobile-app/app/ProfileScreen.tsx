@@ -1,13 +1,15 @@
 import React from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet, Alert } from 'react-native';
+import { View, Text, ScrollView, Pressable, StyleSheet, Alert, StatusBar, Modal, TextInput, ActivityIndicator, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { User, MapPin, CreditCard, Bell, HelpCircle, Shield, LogOut, ChevronRight, Store, Star, Package, Heart, Settings, Edit2, Power } from 'lucide-react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { User, MapPin, CreditCard, Bell, HelpCircle, Shield, ChevronRight, Store, Star, Package, Heart, Settings, Edit2, Power, X, Camera } from 'lucide-react-native';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList, TabParamList } from '../App';
 import { useAuthStore } from '../src/stores/authStore';
+import { useWishlistStore } from '../src/stores/wishlistStore';
+import { COLORS } from '../src/constants/theme';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<TabParamList, 'Profile'>,
@@ -15,22 +17,71 @@ type Props = CompositeScreenProps<
 >;
 
 export default function ProfileScreen({ navigation }: Props) {
-  const { user, logout } = useAuthStore();
+  const { user, logout, updateProfile } = useAuthStore();
+  const wishlistItems = useWishlistStore(state => state.items);
   const insets = useSafeAreaInsets();
-  
-  // Dummy profile data matching web version (use auth store user if available)
+  const BRAND_COLOR = COLORS.primary;
+
+  // Edit State
+  const [editModalVisible, setEditModalVisible] = React.useState(false);
+  const [editFirstName, setEditFirstName] = React.useState('');
+  const [editLastName, setEditLastName] = React.useState('');
+  const [editPhone, setEditPhone] = React.useState('');
+  const [editEmail, setEditEmail] = React.useState('');
+  const [editAvatar, setEditAvatar] = React.useState('');
+  const [isSaving, setIsSaving] = React.useState(false);
+
+  const openEditModal = () => {
+    setEditFirstName(user?.name.split(' ')[0] || '');
+    setEditLastName(user?.name.split(' ').slice(1).join(' ') || '');
+    setEditPhone(user?.phone || '');
+    setEditEmail(user?.email || '');
+    setEditAvatar(user?.avatar || '');
+    setEditModalVisible(true);
+  };
+
+  const handlePickImage = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.5,
+    });
+
+    if (!result.canceled) {
+      setEditAvatar(result.assets[0].uri);
+    }
+  };
+
+  const handleSaveProfile = () => {
+    if (!editFirstName.trim() || !editLastName.trim()) {
+      Alert.alert('Error', 'Name is required');
+      return;
+    }
+
+    setIsSaving(true);
+    setTimeout(() => {
+      updateProfile({
+        name: `${editFirstName} ${editLastName}`.trim(),
+        phone: editPhone,
+        email: editEmail,
+        avatar: editAvatar
+      });
+      setIsSaving(false);
+      setEditModalVisible(false);
+      Alert.alert('Success', 'Profile updated!');
+    }, 1000);
+  };
+
   const profile = {
-    firstName: user?.name.split(' ')[0] || 'John',
+    firstName: user?.name.split(' ')[0] || 'Jonathan',
     lastName: user?.name.split(' ')[1] || 'Doe',
-    email: user?.email || 'john.doe@example.com',
+    email: user?.email || 'jonathan.doe@example.com',
     phone: user?.phone || '+63 912 345 6789',
     memberSince: 'January 2024',
     totalOrders: 12,
-    totalSpent: 45280,
     loyaltyPoints: 1250,
-    averageRating: 4.8,
-    wishlistCount: 45,
-    followingCount: 8,
+    wishlistCount: wishlistItems.length,
   };
 
   const handleLogout = () => {
@@ -38,10 +89,7 @@ export default function ProfileScreen({ navigation }: Props) {
       'Logout',
       'Are you sure you want to logout?',
       [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
+        { text: 'Cancel', style: 'cancel' },
         {
           text: 'Logout',
           style: 'destructive',
@@ -55,401 +103,284 @@ export default function ProfileScreen({ navigation }: Props) {
   };
 
   const accountMenuItems = [
-    { icon: Package, label: 'My Orders', onPress: () => navigation.navigate('Orders', {}), color: '#FF5722' },
-    { icon: Heart, label: 'Wishlist', onPress: () => navigation.navigate('Shop', { category: 'wishlist' }), color: '#FF5722' },
-    { icon: MapPin, label: 'My Addresses', onPress: () => navigation.navigate('Addresses'), color: '#FF5722' },
-    { icon: Store, label: 'Following Shops', onPress: () => navigation.navigate('FollowingShops'), color: '#FF5722' },
+    { icon: Package, label: 'My Orders', onPress: () => navigation.navigate('Orders', {}) },
+    { icon: Heart, label: 'Wishlist', onPress: () => navigation.navigate('Wishlist') },
+    { icon: MapPin, label: 'My Addresses', onPress: () => navigation.navigate('Addresses') },
+    { icon: Store, label: 'Following Shops', onPress: () => navigation.navigate('FollowingShops') },
   ];
 
   const settingsMenuItems = [
-    { icon: CreditCard, label: 'Payment Methods', onPress: () => navigation.navigate('PaymentMethods'), color: '#6B7280' },
-    { icon: Bell, label: 'Notifications', onPress: () => navigation.navigate('Notifications'), color: '#6B7280' },
-    { icon: Settings, label: 'Account Settings', onPress: () => navigation.navigate('Settings'), color: '#6B7280' },
+    { icon: CreditCard, label: 'Payment Methods', onPress: () => navigation.navigate('PaymentMethods') },
+    { icon: Bell, label: 'Notifications', onPress: () => navigation.navigate('Notifications') },
+    { icon: Settings, label: 'Account Settings', onPress: () => navigation.navigate('Settings') },
   ];
 
   const supportMenuItems = [
-    { icon: HelpCircle, label: 'Help & Support', onPress: () => navigation.navigate('HelpSupport'), color: '#6B7280' },
-    { icon: Shield, label: 'Privacy Policy', onPress: () => navigation.navigate('PrivacyPolicy'), color: '#6B7280' },
+    { icon: HelpCircle, label: 'Help & Support', onPress: () => navigation.navigate('HelpSupport') },
+    { icon: Shield, label: 'Privacy Policy', onPress: () => navigation.navigate('PrivacyPolicy') },
   ];
 
   return (
     <View style={styles.container}>
-      {/* Edge-to-Edge Orange Header */}
-      <View style={[styles.header, { paddingTop: insets.top }]}>
-        <View style={styles.headerContent}>
-          {/* Profile Section Inside Orange Header */}
-          <View style={styles.profileContainer}>
-            {/* Avatar with White Border */}
-            <View style={styles.avatarContainer}>
-              <View style={styles.avatar}>
-                <User size={56} color="#FF5722" strokeWidth={1.5} />
-              </View>
-              {/* White Edit Button */}
-              <Pressable style={styles.editIconButton}>
-                <Edit2 size={16} color="#FF5722" strokeWidth={2.5} />
-              </Pressable>
-            </View>
+      <StatusBar barStyle="light-content" />
 
-            {/* User Info */}
-            <View style={styles.userInfo}>
-              <Text style={styles.userName}>{profile.firstName} {profile.lastName}</Text>
-              <Text style={styles.userEmail}>{profile.email}</Text>
-              <Text style={styles.userPhone}>{profile.phone}</Text>
+      {/* 1. BRANDED ORANGE HEADER */}
+      <View style={[styles.header, { paddingTop: insets.top + 20, backgroundColor: BRAND_COLOR }]}>
+        <View style={styles.profileHeader}>
+          <View style={styles.avatarWrapper}>
+            <View style={styles.avatarCircle}>
+              {user?.avatar ? (
+                <Image source={{ uri: user.avatar }} style={styles.avatarImage} />
+              ) : (
+                <User size={50} color={BRAND_COLOR} strokeWidth={1.5} />
+              )}
             </View>
+            <Pressable style={styles.editBtn} onPress={openEditModal}>
+              <Edit2 size={14} color={BRAND_COLOR} strokeWidth={2.5} />
+            </Pressable>
           </View>
+          <View style={styles.headerInfo}>
+            <Text style={styles.userName}>{profile.firstName} {profile.lastName}</Text>
+            <Text style={styles.userSub}>{profile.email}</Text>
+            <Text style={styles.userSub}>{profile.phone}</Text>
+          </View>
+        </View>
+
+        {/* 2. STATS ROW (Integrated into Header Design) */}
+        <View style={styles.statsCard}>
+          <Pressable
+            style={({ pressed }) => [styles.statBox, pressed && { opacity: 0.7 }]}
+            onPress={() => navigation.navigate('Orders', { initialTab: 'active' })}
+          >
+            <Text style={[styles.statVal, { color: BRAND_COLOR }]}>{profile.totalOrders}</Text>
+            <Text style={styles.statLab}>Orders</Text>
+          </Pressable>
+          <View style={styles.statDivider} />
+          <Pressable
+            style={({ pressed }) => [styles.statBox, pressed && { opacity: 0.7 }]}
+            onPress={() => navigation.navigate('Wishlist')}
+          >
+            <Text style={[styles.statVal, { color: BRAND_COLOR }]}>{profile.wishlistCount}</Text>
+            <Text style={styles.statLab}>Wishlist</Text>
+          </Pressable>
+          <View style={styles.statDivider} />
+          <Pressable
+            style={({ pressed }) => [styles.statBox, pressed && { opacity: 0.7 }]}
+            onPress={() => Alert.alert('Loyalty Points', `You have ${profile.loyaltyPoints} points available to redeem!`)}
+          >
+            <Text style={[styles.statVal, { color: BRAND_COLOR }]}>{profile.loyaltyPoints}</Text>
+            <Text style={styles.statLab}>Points</Text>
+          </Pressable>
         </View>
       </View>
 
-      <ScrollView 
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Quick Stats Card */}
-        <View style={styles.statsCard}>
-          <View style={styles.statItem}>
-            <View style={styles.statIconCircle}>
-              <Package size={20} color="#FF5722" strokeWidth={2} />
-            </View>
-            <Text style={styles.statValue}>{profile.totalOrders}</Text>
-            <Text style={styles.statLabel}>Orders</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <View style={styles.statIconCircle}>
-              <Heart size={20} color="#FF5722" strokeWidth={2} />
-            </View>
-            <Text style={styles.statValue}>{profile.wishlistCount}</Text>
-            <Text style={styles.statLabel}>Wishlist</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <View style={styles.statIconCircle}>
-              <Star size={20} color="#FF5722" strokeWidth={2} />
-            </View>
-            <Text style={styles.statValue}>{profile.loyaltyPoints}</Text>
-            <Text style={styles.statLabel}>Points</Text>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+
+        {/* 3. MENU GROUPS (Neat White Cards) */}
+        <View style={styles.menuGroup}>
+          <Text style={styles.groupTitle}>Activity</Text>
+          <View style={styles.card}>
+            {accountMenuItems.map((item, i) => (
+              <Pressable key={i} style={[styles.menuItem, i !== accountMenuItems.length - 1 && styles.borderBottom]} onPress={item.onPress}>
+                <View style={[styles.iconContainer, { backgroundColor: '#FFF5F0' }]}>
+                  <item.icon size={20} color={BRAND_COLOR} strokeWidth={2} />
+                </View>
+                <Text style={styles.menuLabel}>{item.label}</Text>
+                <ChevronRight size={18} color="#D1D5DB" />
+              </Pressable>
+            ))}
           </View>
         </View>
 
-        {/* My Account Card */}
-        <View style={styles.menuCard}>
-          <Text style={styles.cardTitle}>My Account</Text>
-          {accountMenuItems.map((item, index) => (
-            <Pressable
-              key={index}
-              style={({ pressed }) => [
-                styles.menuItem,
-                pressed && styles.menuItemPressed,
-              ]}
-              onPress={item.onPress}
-            >
-              <View style={styles.menuItemLeft}>
-                <View style={styles.menuIconContainer}>
-                  <item.icon size={20} color={item.color} strokeWidth={2} />
+        <View style={styles.menuGroup}>
+          <Text style={styles.groupTitle}>Settings</Text>
+          <View style={styles.card}>
+            {settingsMenuItems.map((item, i) => (
+              <Pressable key={i} style={[styles.menuItem, i !== settingsMenuItems.length - 1 && styles.borderBottom]} onPress={item.onPress}>
+                <View style={styles.iconContainer}>
+                  <item.icon size={20} color="#6B7280" strokeWidth={2} />
                 </View>
-                <Text style={styles.menuItemText}>{item.label}</Text>
-              </View>
-              <ChevronRight size={20} color="#D1D5DB" strokeWidth={2} />
-            </Pressable>
-          ))}
+                <Text style={styles.menuLabel}>{item.label}</Text>
+                <ChevronRight size={18} color="#D1D5DB" />
+              </Pressable>
+            ))}
+          </View>
         </View>
 
-        {/* Settings Card */}
-        <View style={styles.menuCard}>
-          <Text style={styles.cardTitle}>Settings</Text>
-          {settingsMenuItems.map((item, index) => (
-            <Pressable
-              key={index}
-              style={({ pressed }) => [
-                styles.menuItem,
-                pressed && styles.menuItemPressed,
-              ]}
-              onPress={item.onPress}
-            >
-              <View style={styles.menuItemLeft}>
-                <View style={styles.menuIconContainer}>
-                  <item.icon size={20} color={item.color} strokeWidth={2} />
+        <View style={styles.menuGroup}>
+          <Text style={styles.groupTitle}>Support</Text>
+          <View style={styles.card}>
+            {supportMenuItems.map((item, i) => (
+              <Pressable key={i} style={[styles.menuItem, i !== supportMenuItems.length - 1 && styles.borderBottom]} onPress={item.onPress}>
+                <View style={styles.iconContainer}>
+                  <item.icon size={20} color="#6B7280" strokeWidth={2} />
                 </View>
-                <Text style={styles.menuItemText}>{item.label}</Text>
-              </View>
-              <ChevronRight size={20} color="#D1D5DB" strokeWidth={2} />
-            </Pressable>
-          ))}
+                <Text style={styles.menuLabel}>{item.label}</Text>
+                <ChevronRight size={18} color="#D1D5DB" />
+              </Pressable>
+            ))}
+          </View>
         </View>
 
-        {/* Support Card */}
-        <View style={styles.menuCard}>
-          <Text style={styles.cardTitle}>Support</Text>
-          {supportMenuItems.map((item, index) => (
-            <Pressable
-              key={index}
-              style={({ pressed }) => [
-                styles.menuItem,
-                pressed && styles.menuItemPressed,
-              ]}
-              onPress={item.onPress}
-            >
-              <View style={styles.menuItemLeft}>
-                <View style={styles.menuIconContainer}>
-                  <item.icon size={20} color={item.color} strokeWidth={2} />
-                </View>
-                <Text style={styles.menuItemText}>{item.label}</Text>
-              </View>
-              <ChevronRight size={20} color="#D1D5DB" strokeWidth={2} />
-            </Pressable>
-          ))}
-        </View>
+        {/* 4. LOGOUT BUTTON */}
+        <Pressable style={styles.logoutBtn} onPress={handleLogout}>
+          <Power size={20} color="#EF4444" />
+          <Text style={styles.logoutText}>Log Out</Text>
+        </Pressable>
 
-        {/* Logout Card */}
-        <View style={styles.logoutCard}>
-          <Pressable
-            style={({ pressed }) => [
-              styles.logoutButton,
-              pressed && styles.logoutButtonPressed,
-            ]}
-            onPress={handleLogout}
-          >
-            <Power size={20} color="#EF4444" strokeWidth={2} />
-            <Text style={styles.logoutText}>Log Out</Text>
-          </Pressable>
-        </View>
-
-        {/* Footer */}
         <View style={styles.footer}>
           <Text style={styles.versionText}>Version 1.0.0</Text>
           <Text style={styles.footerText}>Member since {profile.memberSince}</Text>
         </View>
       </ScrollView>
-    </View>
+
+
+      {/* EDIT PROFILE MODAL */}
+      <Modal visible={editModalVisible} animationType="slide" transparent={true} onRequestClose={() => setEditModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { paddingBottom: insets.bottom + 20 }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Edit Profile</Text>
+              <Pressable onPress={() => setEditModalVisible(false)}><X size={24} color="#1F2937" /></Pressable>
+            </View>
+
+            <ScrollView contentContainerStyle={{ padding: 20 }}>
+              {/* Avatar Section */}
+              <View style={styles.avatarSection}>
+                <Pressable style={styles.avatarContainer} onPress={handlePickImage}>
+                  {editAvatar ? (
+                    <Image source={{ uri: editAvatar }} style={styles.avatarImageLarge} />
+                  ) : (
+                    <User size={50} color={BRAND_COLOR} />
+                  )}
+                  <View style={[styles.cameraBadge, { backgroundColor: BRAND_COLOR }]}>
+                    <Camera size={12} color="#FFF" />
+                  </View>
+                </Pressable>
+                <Text style={styles.changePhotoText}>Change Photo</Text>
+              </View>
+
+              <Text style={styles.inputLabel}>First Name</Text>
+              <TextInput style={styles.input} value={editFirstName} onChangeText={setEditFirstName} placeholder="First Name" />
+
+              <Text style={styles.inputLabel}>Last Name</Text>
+              <TextInput style={styles.input} value={editLastName} onChangeText={setEditLastName} placeholder="Last Name" />
+
+              <Text style={styles.inputLabel}>Phone</Text>
+              <TextInput style={styles.input} value={editPhone} onChangeText={setEditPhone} placeholder="Phone" keyboardType="phone-pad" />
+
+              <Text style={styles.inputLabel}>Email</Text>
+              <TextInput style={styles.input} value={editEmail} onChangeText={setEditEmail} placeholder="Email" keyboardType="email-address" />
+
+              <Pressable style={[styles.saveButton, { backgroundColor: BRAND_COLOR }]} onPress={handleSaveProfile} disabled={isSaving}>
+                {isSaving ? <ActivityIndicator color="#FFF" /> : <Text style={styles.saveButtonText}>Save Changes</Text>}
+              </Pressable>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+    </View >
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F5F5F7',
-  },
-  // ===== EDGE-TO-EDGE ORANGE HEADER =====
+  container: { flex: 1, backgroundColor: '#F9FAFB' },
   header: {
-    backgroundColor: '#FF5722',
-    paddingBottom: 32,
+    paddingHorizontal: 25,
+    paddingBottom: 40,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
   },
-  headerContent: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-  },
-  profileContainer: {
-    alignItems: 'center',
-  },
-  // Avatar with thick white border
-  avatarContainer: {
-    position: 'relative',
-    marginBottom: 16,
-  },
-  avatar: {
-    width: 110,
-    height: 110,
-    borderRadius: 100,
+  profileHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 25 },
+  avatarWrapper: { position: 'relative' },
+  avatarCircle: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
     backgroundColor: '#FFFFFF',
-    borderWidth: 4,
-    borderColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 6,
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+
+    elevation: 5,
+    overflow: 'hidden',
   },
-  // White circular edit button with orange icon
-  editIconButton: {
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+  },
+  editBtn: {
     position: 'absolute',
     bottom: 0,
     right: 0,
-    width: 36,
-    height: 36,
-    borderRadius: 100,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 3,
-    borderColor: '#FF5722',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  // User info in white text
-  userInfo: {
-    alignItems: 'center',
-  },
-  userName: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    marginBottom: 6,
-    letterSpacing: 0.3,
-  },
-  userEmail: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.95)',
-    marginBottom: 4,
-    fontWeight: '500',
-  },
-  userPhone: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.9)',
-    fontWeight: '500',
-  },
-  // ===== SCROLL VIEW =====
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingBottom: 32,
-  },
-  // ===== QUICK STATS CARD =====
-  statsCard: {
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: 16,
-    marginTop: 20,
-    marginBottom: 16,
-    borderRadius: 20,
-    padding: 20,
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
-  },
-  statItem: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  statIconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 100,
-    backgroundColor: '#FFF3F0',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 8,
-  },
-  statValue: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#6B7280',
-    fontWeight: '500',
-  },
-  statDivider: {
-    width: 1,
-    height: 48,
-    backgroundColor: '#E5E7EB',
-  },
-  // ===== MENU CARDS =====
-  menuCard: {
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: 16,
-    marginBottom: 16,
-    borderRadius: 20,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
-  },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginBottom: 16,
-    letterSpacing: 0.2,
-  },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 14,
-  },
-  menuItemPressed: {
-    opacity: 0.6,
-  },
-  menuItemLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    flex: 1,
-  },
-  menuIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 100,
-    backgroundColor: '#F5F5F7',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  menuItemText: {
-    fontSize: 15,
-    color: '#1F2937',
-    fontWeight: '600',
-  },
-  // ===== LOGOUT CARD (RED THEME) =====
-  logoutCard: {
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: 16,
-    marginTop: 8,
-    marginBottom: 16,
-    borderRadius: 20,
-    padding: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
-  },
-  logoutButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    paddingVertical: 14,
+    width: 32,
+    height: 32,
     borderRadius: 16,
-  },
-  logoutButtonPressed: {
-    backgroundColor: '#FEF2F2',
-  },
-  logoutText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#EF4444',
-    letterSpacing: 0.3,
-  },
-  // ===== FOOTER =====
-  footer: {
+    backgroundColor: '#FFF',
     alignItems: 'center',
-    paddingTop: 16,
-    paddingBottom: 24,
-    gap: 6,
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: COLORS.primary
   },
-  versionText: {
-    fontSize: 12,
-    color: '#9CA3AF',
-    fontWeight: '500',
+  headerInfo: { marginLeft: 20 },
+  userName: { fontSize: 24, fontWeight: '800', color: '#FFFFFF', marginBottom: 4 },
+  userSub: { fontSize: 13, color: 'rgba(255,255,255,0.85)', fontWeight: '500' },
+
+  statsCard: {
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    paddingVertical: 20,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 15,
+    elevation: 4
   },
-  footerText: {
-    fontSize: 12,
-    color: '#9CA3AF',
-    fontWeight: '500',
+  statBox: { flex: 1, alignItems: 'center' },
+  statVal: { fontSize: 20, fontWeight: '800', marginBottom: 2 },
+  statLab: { fontSize: 12, color: '#9CA3AF', fontWeight: '600' },
+  statDivider: { width: 1, height: '50%', backgroundColor: '#F3F4F6', alignSelf: 'center' },
+
+  scrollContent: { paddingHorizontal: 20, paddingBottom: 40, paddingTop: 20 },
+  menuGroup: { marginBottom: 25 },
+  groupTitle: { fontSize: 13, fontWeight: '700', color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 1, marginLeft: 10, marginBottom: 10 },
+  card: { backgroundColor: '#FFF', borderRadius: 20, paddingHorizontal: 15, shadowColor: '#000', shadowOpacity: 0.02, shadowRadius: 10, elevation: 2 },
+  menuItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 15 },
+  borderBottom: { borderBottomWidth: 1, borderBottomColor: '#F9FAFB' },
+  iconContainer: { width: 38, height: 38, borderRadius: 10, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center', marginRight: 15 },
+  menuLabel: { flex: 1, fontSize: 15, fontWeight: '600', color: '#374151' },
+
+  logoutBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFF',
+    paddingVertical: 16,
+    borderRadius: 20,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: '#FEE2E2'
   },
+  logoutText: { fontSize: 16, fontWeight: '700', color: '#EF4444' },
+
+  footer: { alignItems: 'center', marginTop: 30, gap: 4 },
+  versionText: { fontSize: 12, color: '#D1D5DB', fontWeight: '600' },
+  footerText: { fontSize: 12, color: '#D1D5DB', fontWeight: '500' },
+
+  // Modal Styles
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalContent: { backgroundColor: '#FFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '90%' },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
+  modalTitle: { fontSize: 18, fontWeight: '800', color: '#1F2937' },
+  avatarSection: { alignItems: 'center', marginBottom: 20 },
+  avatarContainer: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center', marginBottom: 8, overflow: 'hidden' },
+  avatarImageLarge: { width: '100%', height: '100%' },
+  cameraBadge: { position: 'absolute', bottom: 0, right: 0, width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#FFF' },
+  changePhotoText: { fontSize: 13, color: '#6B7280', fontWeight: '600' },
+  inputLabel: { fontSize: 13, fontWeight: '700', color: '#374151', marginBottom: 6, marginTop: 10 },
+  input: { backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12, paddingHorizontal: 15, paddingVertical: 12, fontSize: 15, color: '#1F2937' },
+  saveButton: { marginTop: 30, paddingVertical: 15, borderRadius: 16, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
+  saveButtonText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
 });

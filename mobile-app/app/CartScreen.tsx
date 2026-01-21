@@ -1,16 +1,17 @@
-import React from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
   ScrollView,
   StyleSheet,
   Pressable,
+  StatusBar,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { ArrowLeft, ShoppingBag, Tag, Truck, CheckCircle2 } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ArrowLeft, ShoppingBag, Tag, Truck, CheckCircle2, Circle, CheckCircle } from 'lucide-react-native';
 import { CartItemRow } from '../src/components/CartItemRow';
 import { useCartStore } from '../src/stores/cartStore';
+import { COLORS } from '../src/constants/theme';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -22,45 +23,70 @@ type Props = CompositeScreenProps<
 >;
 
 export default function CartScreen({ navigation }: Props) {
-  const { items, removeItem, updateQuantity, getTotal, clearCart } = useCartStore();
+  const { items, removeItem, updateQuantity, getTotal, clearCart, clearQuickOrder } = useCartStore();
   const insets = useSafeAreaInsets();
+  const BRAND_COLOR = COLORS.primary;
 
-  const subtotal = getTotal();
-  const shippingFee = subtotal > 500 ? 0 : 50;
+  // Clear quick order when user navigates to cart
+  useEffect(() => {
+    clearQuickOrder();
+  }, []);
+
+  const [selectedIds, setSelectedIds] = useState<string[]>(items.map(item => item.id));
+
+  const selectedItems = useMemo(() => items.filter(item => selectedIds.includes(item.id)), [items, selectedIds]);
+  const subtotal = selectedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const shippingFee = subtotal > 500 || subtotal === 0 ? 0 : 50;
   const total = subtotal + shippingFee;
+
+  const isAllSelected = items.length > 0 && selectedIds.length === items.length;
+
+  const toggleSelectAll = () => {
+    if (isAllSelected) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(items.map(item => item.id));
+    }
+  };
+
+  const toggleSelectItem = (id: string) => {
+    setSelectedIds(prev => 
+      prev.includes(id) ? prev.filter(itemId => itemId !== id) : [...prev, id]
+    );
+  };
 
   const handleIncrement = (productId: string) => {
     const item = items.find((i) => i.id === productId);
-    if (item) {
-      updateQuantity(productId, item.quantity + 1);
-    }
+    if (item) updateQuantity(productId, item.quantity + 1);
   };
 
   const handleDecrement = (productId: string) => {
     const item = items.find((i) => i.id === productId);
-    if (item && item.quantity > 1) {
-      updateQuantity(productId, item.quantity - 1);
-    }
+    if (item && item.quantity > 1) updateQuantity(productId, item.quantity - 1);
   };
 
   if (items.length === 0) {
     return (
       <View style={styles.container}>
-        <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-          <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
-            <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
-          </Pressable>
-          <Text style={styles.headerTitle}>My Cart</Text>
-          <View style={{ width: 70 }} />
+        <StatusBar barStyle="light-content" />
+        {/* ROUNDED HEADER STYLE COPIED FROM HOME */}
+        <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: BRAND_COLOR }]}>
+          <View style={styles.headerTop}>
+            <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
+              <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
+            </Pressable>
+            <Text style={styles.headerTitle}>My Cart</Text>
+            <View style={{ width: 40 }} />
+          </View>
         </View>
 
         <View style={styles.emptyContainer}>
           <View style={styles.emptyIconContainer}>
-            <ShoppingBag size={64} color="#FF5722" strokeWidth={1.5} />
+            <ShoppingBag size={64} color={BRAND_COLOR} strokeWidth={1.5} />
           </View>
           <Text style={styles.emptyTitle}>Your cart is empty</Text>
           <Text style={styles.emptyText}>Discover amazing products and deals</Text>
-          <Pressable onPress={() => navigation.navigate('Shop', {})} style={styles.shopButton}>
+          <Pressable onPress={() => navigation.navigate('Shop', {})} style={[styles.shopButton, { backgroundColor: BRAND_COLOR }]}>
             <Text style={styles.shopButtonText}>Explore Products</Text>
           </Pressable>
         </View>
@@ -70,95 +96,119 @@ export default function CartScreen({ navigation }: Props) {
 
   return (
     <View style={styles.container}>
-      {/* Edge-to-Edge Orange Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-        <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
-          <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
-        </Pressable>
-        <View style={styles.headerCenter}>
+      <StatusBar barStyle="light-content" />
+      
+      {/* 1. BRANDED ROUNDED HEADER */}
+      <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: BRAND_COLOR }]}>
+        <View style={styles.headerTop}>
+          <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
+            <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
+          </Pressable>
           <Text style={styles.headerTitle}>My Cart ({items.length})</Text>
+          <Pressable onPress={clearCart} style={styles.clearButton}>
+            <Text style={styles.clearText}>Clear All</Text>
+          </Pressable>
         </View>
-        <Pressable onPress={clearCart} style={styles.clearButton}>
-          <Text style={styles.clearText}>Clear</Text>
+      </View>
+
+      {/* 2. SELECT ALL BAR */}
+      <View style={styles.selectAllBar}>
+        <Pressable style={styles.checkboxWrapper} onPress={toggleSelectAll}>
+          {isAllSelected ? (
+            <CheckCircle size={22} color={BRAND_COLOR} fill={BRAND_COLOR + '15'} />
+          ) : (
+            <Circle size={22} color="#D1D5DB" />
+          )}
+          <Text style={styles.selectAllText}>Select All Items</Text>
         </Pressable>
+        {selectedIds.length > 0 && (
+          <Pressable onPress={() => setSelectedIds([])}>
+            <Text style={{ color: BRAND_COLOR, fontWeight: '700' }}>Deselect All</Text>
+          </Pressable>
+        )}
       </View>
 
       <ScrollView 
         style={styles.scrollContainer} 
-        contentContainerStyle={{ paddingBottom: 160 }}
+        contentContainerStyle={{ paddingBottom: 200 }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Cart Items */}
+        {/* 3. CART ITEMS */}
         <View style={styles.itemsContainer}>
           {items.map((item) => (
-            <CartItemRow
-              key={item.id}
-              item={item}
-              onIncrement={() => handleIncrement(item.id)}
-              onDecrement={() => handleDecrement(item.id)}
-              onRemove={() => removeItem(item.id)}
-            />
+            <View key={item.id} style={styles.itemRowCard}>
+              <Pressable style={styles.itemCheckbox} onPress={() => toggleSelectItem(item.id)}>
+                {selectedIds.includes(item.id) ? (
+                  <CheckCircle size={22} color={BRAND_COLOR} />
+                ) : (
+                  <Circle size={22} color="#D1D5DB" />
+                )}
+              </Pressable>
+              <View style={{ flex: 1 }}>
+                <CartItemRow
+                  item={item}
+                  onIncrement={() => handleIncrement(item.id)}
+                  onDecrement={() => handleDecrement(item.id)}
+                  onRemove={() => removeItem(item.id)}
+                />
+              </View>
+            </View>
           ))}
         </View>
 
-        {/* Premium Benefits Banner */}
-        {subtotal < 500 && (
+        {/* PROMO / BENEFITS */}
+        {subtotal > 0 && subtotal < 500 && (
           <View style={styles.benefitBanner}>
-            <Truck size={20} color="#FF5722" strokeWidth={2.5} />
+            <Truck size={20} color={BRAND_COLOR} strokeWidth={2.5} />
             <Text style={styles.benefitText}>
-              Add <Text style={styles.benefitAmount}>₱{(500 - subtotal).toLocaleString()}</Text> more for FREE shipping
+              Add <Text style={{ color: BRAND_COLOR, fontWeight: '800' }}>₱{(500 - subtotal).toLocaleString()}</Text> more for <Text style={{fontWeight: '800'}}>FREE</Text> shipping
             </Text>
           </View>
         )}
         
         {subtotal >= 500 && (
           <View style={styles.successBanner}>
-            <CheckCircle2 size={20} color="#FF5722" strokeWidth={2.5} />
-            <Text style={styles.successText}>You got FREE shipping! 🎉</Text>
+            <CheckCircle2 size={20} color="#166534" strokeWidth={2.5} />
+            <Text style={styles.successText}>You've unlocked FREE shipping! 🎉</Text>
           </View>
         )}
 
-        {/* Premium Summary Card */}
-        <View style={styles.summaryContainer}>
+        {/* ORDER SUMMARY BOX */}
+        <View style={styles.summaryCard}>
           <View style={styles.summaryHeader}>
-            <Tag size={20} color="#FF5722" strokeWidth={2.5} />
+            <Tag size={18} color={BRAND_COLOR} strokeWidth={2.5} />
             <Text style={styles.summaryTitle}>Order Summary</Text>
           </View>
-          
-          <View style={styles.summaryDivider} />
-          
+          <View style={styles.divider} />
+          <View style={styles.summaryRow}><Text style={styles.summaryLabel}>Subtotal</Text><Text style={styles.summaryValue}>₱{subtotal.toLocaleString()}</Text></View>
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Subtotal ({items.length} {items.length === 1 ? 'item' : 'items'})</Text>
-            <Text style={styles.summaryValue}>₱{subtotal.toLocaleString()}</Text>
+            <Text style={styles.summaryLabel}>Shipping</Text>
+            <Text style={[styles.summaryValue, shippingFee === 0 && { color: BRAND_COLOR, fontWeight: '800' }]}>{shippingFee === 0 ? 'FREE' : `₱${shippingFee}`}</Text>
           </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Shipping Fee</Text>
-            <Text style={[styles.summaryValue, shippingFee === 0 && styles.freeShippingValue]}>
-              {shippingFee === 0 ? 'FREE' : `₱${shippingFee}`}
-            </Text>
-          </View>
-          
-          <View style={styles.summaryDivider} />
-          
+          <View style={styles.divider} />
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Total Amount</Text>
-            <Text style={styles.totalValue}>₱{total.toLocaleString()}</Text>
+            <Text style={styles.totalLabel}>Grand Total</Text>
+            <Text style={[styles.totalValue, { color: BRAND_COLOR }]}>₱{total.toLocaleString()}</Text>
           </View>
         </View>
       </ScrollView>
 
-      {/* Floating Bottom Bar */}
-      <View style={[styles.bottomBar, { bottom: 70 }]}>
+      {/* 4. ENLARGED BRANDED FLOATING ACTION BAR */}
+      <View style={[styles.bottomBar, { bottom: insets.bottom + 20 }]}>
         <View style={styles.bottomBarContent}>
           <View style={styles.totalInfo}>
-            <Text style={styles.bottomTotalLabel}>Total Amount</Text>
-            <Text style={styles.bottomTotalValue}>₱{total.toLocaleString()}</Text>
+            <Text style={styles.totalInfoLabel}>Total Payment</Text>
+            <Text style={[styles.totalInfoPrice, { color: BRAND_COLOR }]}>₱{total.toLocaleString()}</Text>
           </View>
           <Pressable
             onPress={() => navigation.navigate('Checkout')}
-            style={styles.checkoutButton}
+            style={[
+              styles.checkoutBtn, 
+              { backgroundColor: BRAND_COLOR, opacity: selectedIds.length === 0 ? 0.6 : 1 }
+            ]}
+            disabled={selectedIds.length === 0}
           >
-            <Text style={styles.checkoutButtonText}>Checkout</Text>
+            <Text style={styles.checkoutBtnText}>Checkout ({selectedIds.length})</Text>
           </Pressable>
         </View>
       </View>
@@ -167,260 +217,94 @@ export default function CartScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F5F5F7',
+  container: { flex: 1, backgroundColor: '#F9FAFB' },
+  // HEADER STYLE TO MATCH HOMESCREEN
+  headerContainer: { 
+    paddingHorizontal: 20, 
+    borderBottomLeftRadius: 20, 
+    borderBottomRightRadius: 20,
+    paddingBottom: 20,
   },
-  header: {
+  headerTop: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center',
+  },
+  headerIconButton: { padding: 4 },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFFFFF' },
+  clearButton: { paddingHorizontal: 12 },
+  clearText: { fontSize: 14, fontWeight: '600', color: 'rgba(255,255,255,0.8)' },
+  
+  selectAllBar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-    backgroundColor: '#FF5722',
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerCenter: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: -0.3,
-  },
-  clearButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  clearText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: 'rgba(255, 255, 255, 0.95)',
-  },
-  emptyContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 32,
-  },
-  emptyIconContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: '#FFF5F0',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 24,
-  },
-  emptyTitle: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#1F2937',
-    marginBottom: 8,
-    letterSpacing: -0.5,
-  },
-  emptyText: {
-    fontSize: 16,
-    color: '#888888',
-    marginBottom: 32,
-    textAlign: 'center',
-  },
-  shopButton: {
-    backgroundColor: '#FF5722',
-    paddingHorizontal: 40,
-    paddingVertical: 16,
-    borderRadius: 999,
-    shadowColor: '#FF5722',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  shopButtonText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    letterSpacing: 0.5,
-  },
-  scrollContainer: {
-    flex: 1,
-  },
-  itemsContainer: {
-    paddingTop: 16,
-    paddingHorizontal: 16,
-    paddingBottom: 8,
-  },
-  benefitBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFF5F0',
-    marginHorizontal: 16,
-    marginTop: 16,
-    marginBottom: 12,
-    padding: 16,
-    borderRadius: 16,
-    shadowColor: '#FF5722',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  benefitText: {
-    flex: 1,
-    marginLeft: 12,
-    fontSize: 14,
-    color: '#1F2937',
-    fontWeight: '500',
-  },
-  benefitAmount: {
-    fontWeight: '800',
-    color: '#FF5722',
-  },
-  successBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFF5F0',
-    marginHorizontal: 16,
-    marginTop: 16,
-    marginBottom: 12,
-    padding: 16,
-    borderRadius: 16,
-    shadowColor: '#FF5722',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  successText: {
-    flex: 1,
-    marginLeft: 12,
-    fontSize: 14,
-    color: '#1F2937',
-    fontWeight: '600',
-  },
-  summaryContainer: {
     backgroundColor: '#FFFFFF',
-    marginHorizontal: 16,
-    marginBottom: 100,
-    borderRadius: 20,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-  summaryHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  summaryTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#1F2937',
-    marginLeft: 8,
-    letterSpacing: -0.3,
-  },
-  summaryDivider: {
-    height: 1,
-    backgroundColor: '#F3F4F6',
-    marginVertical: 12,
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 10,
-  },
-  summaryLabel: {
-    fontSize: 15,
-    color: '#6B7280',
-    fontWeight: '500',
-  },
-  summaryValue: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#1F2937',
-  },
-  freeShippingValue: {
-    color: '#FF5722',
-    fontWeight: '800',
-  },
-  totalRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingTop: 16,
-    paddingBottom: 4,
-  },
-  totalLabel: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#1F2937',
-    letterSpacing: -0.3,
-  },
-  totalValue: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#FF5722',
-    letterSpacing: -0.8,
-  },
-  bottomBar: {
-    position: 'absolute',
-    left: 16,
-    right: 16,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -8 },
-    shadowOpacity: 0.12,
-    shadowRadius: 20,
-    elevation: 16,
-  },
-  bottomBarContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 20,
-  },
-  totalInfo: {
-    flex: 1,
-    marginRight: 16,
-  },
-  bottomTotalLabel: {
-    fontSize: 13,
-    color: '#888888',
-    marginBottom: 4,
-    fontWeight: '500',
-  },
-  bottomTotalValue: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#FF5722',
-    letterSpacing: -0.8,
-  },
-  checkoutButton: {
-    backgroundColor: '#FF5722',
-    paddingHorizontal: 32,
     paddingVertical: 16,
-    borderRadius: 999,
-    shadowColor: '#FF5722',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  checkboxWrapper: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  selectAllText: { fontSize: 15, fontWeight: '700', color: '#1F2937' },
+
+  scrollContainer: { flex: 1 },
+  itemsContainer: { padding: 16 },
+  itemRowCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    marginBottom: 12,
+    paddingLeft: 12,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
     shadowRadius: 12,
-    elevation: 8,
+    borderWidth: 1,
+    borderColor: '#F1F1F1'
   },
-  checkoutButtonText: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: 0.3,
+  itemCheckbox: { padding: 8 },
+
+  emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40 },
+  emptyIconContainer: { width: 100, height: 100, borderRadius: 50, backgroundColor: '#FFF5F0', alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
+  emptyTitle: { fontSize: 22, fontWeight: '800', color: '#1F2937', marginBottom: 8 },
+  emptyText: { fontSize: 15, color: '#888', textAlign: 'center', marginBottom: 30 },
+  shopButton: { paddingHorizontal: 32, paddingVertical: 16, borderRadius: 100 },
+  shopButtonText: { color: '#FFF', fontWeight: '800', fontSize: 16 },
+
+  benefitBanner: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF5F0', marginHorizontal: 16, padding: 16, borderRadius: 16, gap: 12 },
+  benefitText: { flex: 1, fontSize: 14, color: '#4B5563' },
+  successBanner: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F0FDF4', marginHorizontal: 16, padding: 16, borderRadius: 16, gap: 12 },
+  successText: { flex: 1, fontSize: 14, color: '#166534', fontWeight: '600' },
+
+  summaryCard: { backgroundColor: '#FFFFFF', margin: 16, borderRadius: 24, padding: 20, elevation: 4, shadowOpacity: 0.05, borderWidth: 1, borderColor: '#F1F1F1' },
+  summaryHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 15 },
+  summaryTitle: { fontSize: 17, fontWeight: '800', color: '#1F2937' },
+  divider: { height: 1, backgroundColor: '#F3F4F6', marginVertical: 12 },
+  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
+  summaryLabel: { fontSize: 14, color: '#6B7280', fontWeight: '500' },
+  summaryValue: { fontSize: 14, fontWeight: '700', color: '#1F2937' },
+  totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 },
+  totalLabel: { fontSize: 16, fontWeight: '800', color: '#1F2937' },
+  totalValue: { fontSize: 24, fontWeight: '900' },
+
+  bottomBar: { 
+    position: 'absolute', 
+    left: 12, 
+    right: 12, 
+    backgroundColor: '#FFFFFF', 
+    borderRadius: 30, 
+    elevation: 20, 
+    shadowColor: '#000', 
+    shadowOpacity: 0.15, 
+    shadowRadius: 25,
+    paddingVertical: 4
   },
+  bottomBarContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20 },
+  totalInfo: { flex: 1 },
+  totalInfoLabel: { fontSize: 13, color: '#888', fontWeight: '600', marginBottom: 2 },
+  totalInfoPrice: { fontSize: 24, fontWeight: '900' },
+  checkoutBtn: { paddingHorizontal: 32, paddingVertical: 18, borderRadius: 100 },
+  checkoutBtnText: { color: '#FFF', fontWeight: '800', fontSize: 16 },
 });

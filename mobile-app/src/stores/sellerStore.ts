@@ -1,14 +1,22 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export interface SellerProduct {
   id: string;
   name: string;
+  description: string;
   price: number;
+  originalPrice?: number;
   stock: number;
   image: string;
+  images?: string[];
   category: string;
   isActive: boolean;
   sold: number;
+  // Optional product attributes
+  sizes?: string[];
+  colors?: string[];
 }
 
 export interface SellerOrder {
@@ -26,6 +34,8 @@ export interface SellerOrder {
   total: number;
   status: 'pending' | 'to-ship' | 'completed' | 'cancelled';
   createdAt: string;
+  type?: 'OFFLINE' | 'ONLINE'; // Mark walk-in vs online orders
+  posNote?: string; // Note for POS orders
 }
 
 export interface RevenueData {
@@ -107,6 +117,7 @@ interface SellerStore {
   // Orders
   orders: SellerOrder[];
   updateOrderStatus: (orderId: string, status: SellerOrder['status']) => void;
+  addOfflineOrder: (cartItems: { productId: string; productName: string; quantity: number; price: number; image: string }[], total: number, note?: string) => string;
   
   // Analytics
   revenueData: RevenueData[];
@@ -114,6 +125,7 @@ interface SellerStore {
   
   // Settings
   updateSellerInfo: (updates: Partial<SellerStore['seller']>) => void;
+  logout: () => void;
 }
 
 // Dummy Data
@@ -121,6 +133,7 @@ const dummyProducts: SellerProduct[] = [
   {
     id: '1',
     name: 'iPhone 15 Pro Max',
+    description: 'Latest iPhone with A17 Pro chip and titanium design',
     price: 75999,
     stock: 24,
     image: 'https://images.unsplash.com/photo-1696446702877-c040ff34b6d4?w=300',
@@ -131,6 +144,7 @@ const dummyProducts: SellerProduct[] = [
   {
     id: '2',
     name: 'Samsung Galaxy S24 Ultra',
+    description: 'Flagship Android phone with S Pen and 200MP camera',
     price: 69999,
     stock: 18,
     image: 'https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?w=300',
@@ -141,6 +155,7 @@ const dummyProducts: SellerProduct[] = [
   {
     id: '3',
     name: 'MacBook Pro M3',
+    description: 'Powerful laptop with M3 chip and Liquid Retina XDR display',
     price: 129999,
     stock: 12,
     image: 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=300',
@@ -151,6 +166,7 @@ const dummyProducts: SellerProduct[] = [
   {
     id: '4',
     name: 'AirPods Pro (2nd Gen)',
+    description: 'Premium wireless earbuds with active noise cancellation',
     price: 14999,
     stock: 45,
     image: 'https://images.unsplash.com/photo-1606841837239-c5a1a4a07af7?w=300',
@@ -161,6 +177,7 @@ const dummyProducts: SellerProduct[] = [
   {
     id: '5',
     name: 'iPad Air M2',
+    description: 'Versatile tablet with M2 chip and Apple Pencil support',
     price: 42999,
     stock: 8,
     image: 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=300',
@@ -171,6 +188,7 @@ const dummyProducts: SellerProduct[] = [
   {
     id: '6',
     name: 'Sony WH-1000XM5',
+    description: 'Industry-leading noise cancelling headphones',
     price: 19999,
     stock: 32,
     image: 'https://images.unsplash.com/photo-1618366712010-f4ae9c647dcf?w=300',
@@ -296,7 +314,9 @@ const dummyCategorySales: CategorySales[] = [
   { category: 'Wearables', value: 10, color: '#FFB74D' },
 ];
 
-export const useSellerStore = create<SellerStore>((set) => ({
+export const useSellerStore = create<SellerStore>()(
+  persist(
+    (set, get) => ({
   // Seller Info
   seller: {
     id: 'seller-001',
@@ -361,10 +381,30 @@ export const useSellerStore = create<SellerStore>((set) => ({
   // Products
   products: dummyProducts,
 
-  addProduct: (product) =>
-    set((state) => ({
-      products: [...state.products, product],
-    })),
+  addProduct: (product) => {
+    try {
+      // Validation
+      if (!product.name || product.name.trim() === '') {
+        throw new Error('Product name is required');
+      }
+      if (!product.price || product.price <= 0) {
+        throw new Error('Product price must be greater than 0');
+      }
+      if (product.stock < 0) {
+        throw new Error('Product stock cannot be negative');
+      }
+      if (!product.category || product.category.trim() === '') {
+        throw new Error('Product category is required');
+      }
+      
+      set((state) => ({
+        products: [...state.products, product],
+      }));
+    } catch (error) {
+      console.error('Error adding product:', error);
+      throw error;
+    }
+  },
 
   updateProduct: (id, updates) =>
     set((state) => ({
@@ -395,6 +435,76 @@ export const useSellerStore = create<SellerStore>((set) => ({
       ),
     })),
 
+  // POS: Add offline order (walk-in purchase)
+  addOfflineOrder: (cartItems, total, note) => {
+    try {
+      // Validate cart items
+      if (!cartItems || cartItems.length === 0) {
+        throw new Error('Cart is empty');
+      }
+
+      if (total <= 0) {
+        throw new Error('Invalid order total');
+      }
+
+      // Check stock availability for all items before proceeding
+      const state = get();
+      for (const item of cartItems) {
+        const product = state.products.find(p => p.id === item.productId);
+        if (!product) {
+          throw new Error(`Product ${item.productName} not found`);
+        }
+        if (product.stock < item.quantity) {
+          throw new Error(`Insufficient stock for ${product.name}. Available: ${product.stock}, Requested: ${item.quantity}`);
+        }
+      }
+
+      // Generate order ID
+      const orderId = `POS-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+      // Create offline order
+      const newOrder: SellerOrder = {
+        id: orderId,
+        orderId: orderId,
+        customerName: 'Walk-in Customer',
+        customerEmail: 'pos@offline.sale',
+        items: cartItems,
+        total,
+        status: 'completed', // POS orders are immediately completed
+        createdAt: new Date().toISOString(),
+        type: 'OFFLINE', // Mark as offline/walk-in order
+        posNote: note || 'In-Store Purchase',
+      };
+
+      // Add order to store and deduct stock
+      set((state) => {
+        // Update products stock
+        const updatedProducts = state.products.map(product => {
+          const cartItem = cartItems.find(item => item.productId === product.id);
+          if (cartItem) {
+            return {
+              ...product,
+              stock: product.stock - cartItem.quantity,
+              sold: product.sold + cartItem.quantity,
+            };
+          }
+          return product;
+        });
+
+        return {
+          orders: [newOrder, ...state.orders],
+          products: updatedProducts,
+        };
+      });
+
+      console.log(`✅ Offline order created: ${orderId}. Stock updated.`);
+      return orderId;
+    } catch (error) {
+      console.error('Failed to create offline order:', error);
+      throw error;
+    }
+  },
+
   // Analytics
   revenueData: dummyRevenueData,
   categorySales: dummyCategorySales,
@@ -404,4 +514,16 @@ export const useSellerStore = create<SellerStore>((set) => ({
     set((state) => ({
       seller: { ...state.seller, ...updates },
     })),
-}));
+  
+  // Auth
+  logout: () => {
+    // Clear seller data - can be enhanced to clear AsyncStorage if needed
+    console.log('Seller logged out');
+  },
+}),
+    {
+      name: 'seller-storage',
+      storage: createJSONStorage(() => AsyncStorage),
+    }
+  )
+);

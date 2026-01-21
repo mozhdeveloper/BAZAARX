@@ -3,13 +3,16 @@ import {
   View,
   Text,
   StyleSheet,
+  TouchableOpacity,
   ScrollView,
   Pressable,
   Dimensions,
-  StatusBar,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { TrendingUp, Download, Menu, Bell } from 'lucide-react-native';
+import { useNavigation } from '@react-navigation/native';
+import type { SellerStackParamList } from '../SellerStack';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { ArrowLeft, Bell } from 'lucide-react-native';
 import { LineChart, PieChart } from 'react-native-gifted-charts';
 import { useSellerStore } from '../../../src/stores/sellerStore';
 
@@ -18,6 +21,8 @@ const { width } = Dimensions.get('window');
 type TimeRange = '7d' | '30d' | '90d';
 
 export default function SellerAnalyticsScreen() {
+  const navigation = useNavigation<NativeStackNavigationProp<SellerStackParamList>>();
+  
   const { stats, revenueData, categorySales, products } = useSellerStore();
   const insets = useSafeAreaInsets();
   const [selectedRange, setSelectedRange] = useState<TimeRange>('7d');
@@ -39,25 +44,33 @@ export default function SellerAnalyticsScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#FF5722" />
-      
       {/* Immersive Edge-to-Edge Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <View style={styles.headerContent}>
-          <View style={styles.headerLeft}>
-            <Pressable style={styles.menuButton}>
-              <Menu size={24} color="#FFFFFF" strokeWidth={2.5} />
-            </Pressable>
-            <View style={styles.headerTitleContainer}>
+          {/* Left Section: Icon and Titles */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <TouchableOpacity 
+              style={styles.iconContainer} 
+              onPress={() => navigation.goBack()}
+            >
+              {/* Replace ArrowLeft with Menu or SettingsIcon depending on the screen */}
+              <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2} />
+            </TouchableOpacity>
+            
+            <View style={{ flex: 1 }}>
               <Text style={styles.headerTitle}>Analytics</Text>
-              <Text style={styles.headerSubtitle}>Store Performance</Text>
+              <Text style={styles.headerSubtitle}>Store performance</Text>
             </View>
           </View>
-          <Pressable style={styles.notificationButton}>
-            <Bell size={22} color="#FFFFFF" strokeWidth={2.5} />
-            <View style={styles.notificationBadge} />
-          </Pressable>
         </View>
+
+        {/* Notification Button: Positioned absolutely to match Settings.tsx */}
+        <Pressable
+          style={[styles.notificationButton, { position: 'absolute', right: 20, top: insets.top + 20 }]}
+        >
+          <Bell size={22} color="#FFFFFF" strokeWidth={2.5} />
+          <View style={styles.notificationBadge} />
+        </Pressable>
       </View>
 
       <ScrollView
@@ -93,27 +106,32 @@ export default function SellerAnalyticsScreen() {
 
         {/* Revenue Trend Chart */}
         <View style={styles.chartSection}>
-          <Text style={styles.sectionTitle}>Revenue Trend</Text>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>Revenue Trend</Text>
+          </View>          
           <View style={styles.chartCard}>
             <LineChart
               data={chartData}
-              height={200}
-              width={width - 72}
+              height={180}
+              width={width - 100}
               color="#FF5722"
               thickness={3}
               startFillColor="rgba(255, 87, 34, 0.4)"
               endFillColor="rgba(255, 87, 34, 0.1)"
               startOpacity={0.9}
               endOpacity={0.2}
-              initialSpacing={10}
+              initialSpacing={5}
+              endSpacing={5}
               spacing={50}
-              noOfSections={5}
+              maxValue={Math.max(...chartData.map(d => d.value)) * 1.1}
+              noOfSections={4}
               yAxisColor="#E5E7EB"
               xAxisColor="#E5E7EB"
               yAxisTextStyle={styles.chartAxisText}
               xAxisLabelTextStyle={styles.chartAxisText}
               curved
               areaChart
+              focusEnabled
               hideDataPoints={false}
               dataPointsColor="#FF5722"
               dataPointsRadius={6}
@@ -123,7 +141,9 @@ export default function SellerAnalyticsScreen() {
 
         {/* Category Sales Pie Chart */}
         <View style={styles.chartSection}>
-          <Text style={styles.sectionTitle}>Sales by Category</Text>
+          <View style={styles.sectionHeaderRow}>  
+            <Text style={styles.sectionTitle}>Sales by Category</Text>
+          </View>          
           <View style={styles.chartCard}>
             <View style={styles.pieChartContainer}>
               <PieChart
@@ -153,48 +173,40 @@ export default function SellerAnalyticsScreen() {
 
         {/* Top Products Table */}
         <View style={styles.tableSection}>
-          <Text style={styles.sectionTitle}>Top 5 Products</Text>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>Top 5 Products</Text>
+            <TouchableOpacity onPress={() => {/* Navigation logic */}}>
+              <Text style={styles.viewAllText}>View All</Text>
+            </TouchableOpacity>
+          </View>
+
           <View style={styles.tableCard}>
             {/* Table Header */}
             <View style={styles.tableHeader}>
-              <Text style={[styles.tableHeaderText, { flex: 2 }]}>
-                Product
-              </Text>
-              <Text style={[styles.tableHeaderText, { flex: 1 }]}>Sold</Text>
-              <Text
-                style={[
-                  styles.tableHeaderText,
-                  { flex: 1, textAlign: 'right' },
-                ]}
-              >
-                Revenue
-              </Text>
+              <Text style={[styles.tableHeaderText, { flex: 2.5 }]}>Product</Text>
+              <Text style={[styles.tableHeaderText, { flex: 1, textAlign: 'center' }]}>Sold</Text>
+              <Text style={[styles.tableHeaderText, { flex: 1.5, textAlign: 'right' }]}>Revenue</Text>
             </View>
 
             {/* Table Rows */}
             {topProducts.map((product, index) => (
               <View key={product.id} style={styles.tableRow}>
-                <View style={styles.rankBadge}>
-                  <Text style={styles.rankText}>{index + 1}</Text>
+                <View style={{ flex: 2.5, flexDirection: 'row', alignItems: 'center' }}>
+                  <View style={styles.rankBadge}>
+                    <Text style={styles.rankText}>{index + 1}</Text>
+                  </View>
+                  <Text style={styles.tableNameCell} numberOfLines={1}>
+                    {product.name}
+                  </Text>
                 </View>
-                <Text
-                  style={[styles.tableCell, { flex: 2 }]}
-                  numberOfLines={1}
-                >
-                  {product.name}
-                </Text>
-                <Text style={[styles.tableCell, { flex: 1 }]}>
+                <Text style={[styles.tableCell, { flex: 1, textAlign: 'center' }]}>
                   {product.sold}
                 </Text>
-                <Text
-                  style={[
-                    styles.tableCell,
-                    styles.tableCellRevenue,
-                    { flex: 1, textAlign: 'right' },
-                  ]}
-                >
-                  ₱{(product.price * product.sold).toLocaleString()}
-                </Text>
+                <View style={{ flex: 1.5 }}>
+                  <Text style={styles.tableCellRevenue} numberOfLines={1} ellipsizeMode="tail">
+                    ₱{(product.price * product.sold).toLocaleString()}
+                  </Text>
+                </View>
               </View>
             ))}
           </View>
@@ -212,33 +224,29 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F5F7',
   },
   header: {
-    backgroundColor: '#FF5722',
-    paddingHorizontal: 16,
+    backgroundColor: '#FF5722', // Theme Primary Orange
+    paddingHorizontal: 20,
     paddingBottom: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 4,
+    borderBottomLeftRadius: 20, 
+    borderBottomRightRadius: 20, // Rounded bottom corners for the "Card" look
   },
   headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  menuButton: {
-    padding: 4,
-  },
-  headerTitleContainer: {
-    gap: 2,
+  iconContainer: {
+    backgroundColor: 'rgba(255,255,255,0.2)', // Translucent white background
+    padding: 12,
+    borderRadius: 12,
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: 22, // Large bold title
     fontWeight: '800',
     color: '#FFFFFF',
     letterSpacing: 0.3,
@@ -250,19 +258,23 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   notificationButton: {
-    padding: 4,
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
     position: 'relative',
+    zIndex: 5,
   },
   notificationBadge: {
     position: 'absolute',
-    top: 4,
-    right: 4,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#EF4444',
+    top: 6,
+    right: 6,
+    width: 10,
+    height: 10,
+    borderRadius: 10,
+    backgroundColor: '#EF4444', // Red badge
     borderWidth: 1.5,
-    borderColor: '#FF5722',
+    borderColor: '#FF5722', // Border matches header background to prevent cutoff look
   },
   exportButton: {
     width: 40,
@@ -306,11 +318,35 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     marginBottom: 24,
   },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  viewAllText: {
+    color: '#FF5722',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  tableNameCell: {
+    flex: 1, // Allows text to fill space then truncate
+    fontSize: 13,
+    color: '#4B5563',
+    fontWeight: '500',
+    paddingRight: 8,
+  },
+  tableCellRevenue: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FF5722',
+    textAlign: 'right',
+  },
+  // Update sectionTitle to remove bottom margin since it's now in sectionHeaderRow
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: '#1F2937',
-    marginBottom: 16,
   },
   chartCard: {
     backgroundColor: '#FFFFFF',
@@ -397,9 +433,5 @@ const styles = StyleSheet.create({
   tableCell: {
     fontSize: 13,
     color: '#4B5563',
-  },
-  tableCellRevenue: {
-    fontWeight: '700',
-    color: '#FF5722',
   },
 });

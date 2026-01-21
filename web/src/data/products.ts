@@ -1,6 +1,6 @@
-import { Product } from '../types';
 
-export const trendingProducts: Product[] = [
+
+export const trendingProducts = [
   {
     id: '1',
     name: 'Premium Wireless Earbuds - Noise Cancelling, 24H Battery Life',
@@ -96,7 +96,7 @@ export const trendingProducts: Product[] = [
   },
 ];
 
-export const bestSellerProducts: Product[] = [
+export const bestSellerProducts = [
   {
     id: '7',
     name: 'Filipino Cookbook Collection - Traditional Recipes & Modern Twist',
@@ -159,7 +159,7 @@ export const bestSellerProducts: Product[] = [
   },
 ];
 
-export const newArrivals: Product[] = [
+export const newArrivals = [
   {
     id: '11',
     name: 'Artisan Coffee Mug - Handcrafted Ceramic, 350ml',
@@ -190,10 +190,228 @@ export const newArrivals: Product[] = [
     location: 'Quezon City',
     category: 'Music & Instruments'
   },
+  {
+    id: '13',
+    name: 'Professional Hiking Backpack - 65L Capacity, Weather-Resistant',
+    price: 3499,
+    originalPrice: 4999,
+    image: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=300&h=300&fit=crop',
+    rating: 4.7,
+    sold: 1856,
+    seller: 'Adventure Gear Philippines',
+    sellerRating: 4.8,
+    sellerVerified: true,
+    isFreeShipping: true,
+    isVerified: true,
+    location: 'Makati, Metro Manila',
+    category: 'Sports & Outdoors'
+  },
+  {
+    id: '14',
+    name: 'Portable Camping Tent - 4-Person, Lightweight & Waterproof',
+    price: 2799,
+    originalPrice: 3999,
+    image: 'https://images.unsplash.com/photo-1478131143081-80f7f84ca84d?w=300&h=300&fit=crop',
+    rating: 4.6,
+    sold: 1234,
+    seller: 'Outdoor Haven PH',
+    sellerRating: 4.7,
+    sellerVerified: true,
+    isFreeShipping: true,
+    isVerified: true,
+    location: 'Cebu City',
+    category: 'Sports & Outdoors'
+  },
+  {
+    id: '15',
+    name: 'Mountain Bike - 21-Speed, Full Suspension',
+    price: 8999,
+    originalPrice: 12999,
+    image: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=300&h=300&fit=crop',
+    rating: 4.8,
+    sold: 567,
+    seller: 'CyclePro Manila Official',
+    sellerRating: 4.9,
+    sellerVerified: true,
+    isFreeShipping: false,
+    isVerified: true,
+    location: 'Taguig, Metro Manila',
+    category: 'Sports & Outdoors'
+  },
+  {
+    id: '16',
+    name: 'Fishing Rod & Reel Set - Portable, Complete Setup',
+    price: 1899,
+    image: 'https://images.unsplash.com/photo-1559827260-dc66d52bef19?w=300&h=300&fit=crop',
+    rating: 4.5,
+    sold: 890,
+    seller: 'Anglers Paradise PH',
+    sellerRating: 4.6,
+    sellerVerified: true,
+    isFreeShipping: true,
+    isVerified: true,
+    location: 'Iloilo City',
+    category: 'Sports & Outdoors'
+  },
+  {
+    id: '17',
+    name: 'The Complete Guide to Filipino History & Culture',
+    price: 1299,
+    image: 'https://images.unsplash.com/photo-1507842217343-583f20270319?w=300&h=300&fit=crop',
+    rating: 4.7,
+    sold: 2145,
+    seller: 'Cultural Books PH',
+    sellerRating: 4.8,
+    sellerVerified: true,
+    isFreeShipping: true,
+    isVerified: true,
+    location: 'Manila',
+    category: 'Books & Media'
+  },
+  {
+    id: '18',
+    name: 'Filipino Classic Novel Collection - 5 Books Set',
+    price: 2499,
+    originalPrice: 3499,
+    image: 'https://images.unsplash.com/photo-1495446815901-a7297e1bfef5?w=300&h=300&fit=crop',
+    rating: 4.6,
+    sold: 1567,
+    seller: 'Literacy Plus Official',
+    sellerRating: 4.7,
+    sellerVerified: true,
+    isFreeShipping: true,
+    isVerified: true,
+    location: 'Quezon City',
+    category: 'Books & Media'
+  },
+  {
+    id: '19',
+    name: 'Premium Car Air Filter & Engine Oil Combo',
+    price: 1599,
+    image: 'https://images.unsplash.com/photo-1486262715619-67b519e0edd5?w=300&h=300&fit=crop',
+    rating: 4.5,
+    sold: 876,
+    seller: 'Auto Parts PH Official',
+    sellerRating: 4.6,
+    sellerVerified: true,
+    isFreeShipping: true,
+    isVerified: true,
+    location: 'Makati, Metro Manila',
+    category: 'Automotive'
+  },
+  {
+    id: '20',
+    name: 'Car Seat Covers Set - Premium Leather Look',
+    price: 2299,
+    originalPrice: 3499,
+    image: 'https://images.unsplash.com/photo-1489824904134-891ab64532f1?w=300&h=300&fit=crop',
+    rating: 4.7,
+    sold: 1234,
+    seller: 'CarComfort PH',
+    sellerRating: 4.8,
+    sellerVerified: true,
+    isFreeShipping: true,
+    isVerified: true,
+    location: 'Cebu City',
+    category: 'Automotive'
+  },
+  {
+    id: '21',
+    name: 'Organic Facial Care Kit - 5-Piece Natural Skincare',
+    price: 1899,
+    originalPrice: 2999,
+    image: 'https://images.unsplash.com/photo-1556228578-8c89e6adf883?w=300&h=300&fit=crop',
+    rating: 4.8,
+    sold: 2876,
+    seller: 'Beauty Haven Philippines',
+    sellerRating: 4.9,
+    sellerVerified: true,
+    isFreeShipping: true,
+    isVerified: true,
+    location: 'Pasig, Metro Manila',
+    category: 'Beauty & Personal Care'
+  },
+  {
+    id: '22',
+    name: 'Premium Hair Care Set - Shampoo, Conditioner & Oil',
+    price: 1299,
+    image: 'https://images.unsplash.com/photo-1597318925453-2c3ee5e6e0a3?w=300&h=300&fit=crop',
+    rating: 4.6,
+    sold: 1945,
+    seller: 'Lush Hair Solutions',
+    sellerRating: 4.7,
+    sellerVerified: true,
+    isFreeShipping: true,
+    isVerified: true,
+    location: 'Davao City',
+    category: 'Beauty & Personal Care'
+  },
+  {
+    id: '23',
+    name: 'STEM Building Blocks Set - 500 Pieces, Educational',
+    price: 1799,
+    originalPrice: 2499,
+    image: 'https://images.unsplash.com/photo-1566131206563-ef5be146beaf?w=300&h=300&fit=crop',
+    rating: 4.7,
+    sold: 1567,
+    seller: 'Smart Kids Toys PH',
+    sellerRating: 4.8,
+    sellerVerified: true,
+    isFreeShipping: true,
+    isVerified: true,
+    location: 'Makati, Metro Manila',
+    category: 'Toys & Games'
+  },
+  {
+    id: '24',
+    name: 'Board Game Collection - 3 Games Bundle Pack',
+    price: 2199,
+    image: 'https://images.unsplash.com/photo-1516975080664-ed2fc6a32937?w=300&h=300&fit=crop',
+    rating: 4.5,
+    sold: 945,
+    seller: 'Game Zone PH',
+    sellerRating: 4.6,
+    sellerVerified: true,
+    isFreeShipping: true,
+    isVerified: true,
+    location: 'Quezon City',
+    category: 'Toys & Games'
+  },
+  {
+    id: '25',
+    name: 'Handwoven Textile Wall Hanging - Traditional Filipino Design',
+    price: 2499,
+    image: 'https://images.unsplash.com/photo-1578749556568-bc2c40e68b61?w=300&h=300&fit=crop',
+    rating: 4.8,
+    sold: 1234,
+    seller: 'Ikat Weaving Heritage',
+    sellerRating: 4.9,
+    sellerVerified: true,
+    isFreeShipping: false,
+    isVerified: true,
+    location: 'Antique, Philippines',
+    category: 'Crafts & Handmade'
+  },
+  {
+    id: '26',
+    name: 'Hand-Painted Ceramic Dinnerware Set - 12 Pieces',
+    price: 3299,
+    originalPrice: 4499,
+    image: 'https://images.unsplash.com/photo-1578500494198-246f612d03b3?w=300&h=300&fit=crop',
+    rating: 4.7,
+    sold: 876,
+    seller: 'Pottery Studio Manila',
+    sellerRating: 4.8,
+    sellerVerified: true,
+    isFreeShipping: false,
+    isVerified: true,
+    location: 'Laguna',
+    category: 'Crafts & Handmade'
+  },
 ];
 
 // Mouse Products for Camera Search
-export const mouseProducts: Product[] = [
+export const mouseProducts = [
   {
     id: 'mouse-1',
     name: 'Logitech MX Master 3S - Wireless Performance Mouse',

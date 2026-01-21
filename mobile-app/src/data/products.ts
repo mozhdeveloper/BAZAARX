@@ -1,5 +1,25 @@
 import { Product } from '../types';
 
+/**
+ * BUYER-VISIBLE PRODUCTS - QA APPROVED ONLY
+ * 
+ * These products are visible to buyers because they have been approved
+ * through the admin QA process. All products shown here have:
+ * - isVerified: true (passed QA inspection)
+ * - Completed verification method (drop-off, courier, or onsite)
+ * - Been approved by admin and published to marketplace
+ * 
+ * QA Flow (matching web):
+ * 1. Seller submits product with verification method selection:
+ *    - Drop-off: Seller brings product to BazaarPH QA Center
+ *    - Courier: BazaarPH arranges pickup for inspection
+ *    - Onsite: Admin inspects product at seller's location
+ * 2. Admin reviews product details and conducts physical inspection
+ * 3. Admin approves/rejects based on quality, accuracy, and compliance
+ * 4. Only approved products (isVerified: true) appear in buyer listings
+ * 5. Rejected products remain hidden until resubmitted and approved
+ */
+
 export const trendingProducts: Product[] = [
   {
     id: '1',

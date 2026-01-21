@@ -11,13 +11,15 @@ import {
   Alert,
   ActivityIndicator,
   Linking,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ShoppingBag, Mail, Lock, Eye, EyeOff, ArrowRight, Store } from 'lucide-react-native';
+import { ShoppingBag, Mail, Lock, Eye, EyeOff, ArrowRight, Store, Shield } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import { useAuthStore } from '../src/stores/authStore';
+import { supabase } from '../src/lib/supabase';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Login'>;
 
@@ -35,17 +37,41 @@ export default function LoginScreen({ navigation }: Props) {
     }
 
     setIsLoading(true);
-    const success = await login(email, password);
-    setIsLoading(false);
 
-    if (success) {
-      navigation.replace('MainTabs', { screen: 'Home' });
-    } else {
-      Alert.alert(
-        'Login Failed',
-        'Invalid email or password. Please try again.',
-        [{ text: 'OK' }]
-      );
+    try {
+      // 2. Sign in with Supabase
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password: password,
+      });
+
+      if (error) {
+        Alert.alert('Login Error', error.message);
+        setIsLoading(false);
+        return;
+      }
+
+      if (data.user) {
+        // 3. Fetch the profile to check user_type (buyer/seller)
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('user_type')
+          .eq('id', data.user.id)
+          .single();
+
+        if (profileError) {
+          Alert.alert('Profile Error', 'Could not fetch user profile.');
+        } else if (profile.user_type === 'buyer') {
+          navigation.replace('MainTabs', { screen: 'Home' });
+        } else if (profile.user_type === 'seller') {
+          Alert.alert('Seller Account', 'This is the buyer portal. Please use the Seller Centre.');
+          await supabase.auth.signOut(); // Log them out if they are in the wrong place
+        }
+      }
+    } catch (err) {
+      Alert.alert('Error', 'An unexpected error occurred');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -67,12 +93,13 @@ export default function LoginScreen({ navigation }: Props) {
         >
           {/* Logo Section */}
           <View style={styles.logoSection}>
-            <LinearGradient
-              colors={['#FF6A00', '#FF8C42']}
-              style={styles.logoGradient}
-            >
-              <ShoppingBag size={48} color="#FFFFFF" strokeWidth={2.5} />
-            </LinearGradient>
+            <View style={styles.logoContainer}>
+              <Image
+                source={require('../assets/icon.png')}
+                style={styles.logo}
+                resizeMode="contain"
+              />
+            </View>
             <Text style={styles.brandName}>BazaarX</Text>
             <Text style={styles.welcomeText}>Welcome back!</Text>
             <Text style={styles.subtitle}>Sign in to continue shopping</Text>
@@ -167,7 +194,7 @@ export default function LoginScreen({ navigation }: Props) {
           {/* Register Link */}
           <View style={styles.registerSection}>
             <Text style={styles.registerText}>Don't have an account? </Text>
-            <Pressable>
+            <Pressable onPress={() => navigation.navigate('Signup')}>
               <Text style={styles.registerLink}>Sign Up</Text>
             </Pressable>
           </View>
@@ -185,6 +212,16 @@ export default function LoginScreen({ navigation }: Props) {
             <Store size={20} color="#FF5722" strokeWidth={2.5} />
             <Text style={styles.sellerPortalText}>Access Seller Portal</Text>
             <ArrowRight size={18} color="#FF5722" />
+          </Pressable>
+
+          {/* Admin Portal Link */}
+          <Pressable
+            style={styles.adminPortalButton}
+            onPress={() => navigation.navigate('AdminStack')}
+          >
+            <Shield size={20} color="#8B5CF6" strokeWidth={2.5} />
+            <Text style={styles.adminPortalText}>Admin Portal</Text>
+            <ArrowRight size={18} color="#8B5CF6" />
           </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -209,18 +246,14 @@ const styles = StyleSheet.create({
     marginTop: 20,
     marginBottom: 32,
   },
-  logoGradient: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
+  logoContainer: {
+    width: 120,
+    height: 120,
     marginBottom: 16,
-    shadowColor: '#FF6A00',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
+  },
+  logo: {
+    width: '100%',
+    height: '100%',
   },
   brandName: {
     fontSize: 32,
@@ -375,8 +408,30 @@ const styles = StyleSheet.create({
   },
   sellerPortalText: {
     fontSize: 16,
-    fontWeight: '800',
+    fontWeight: '700',
     color: '#FF5722',
-    letterSpacing: 0.3,
+  },
+  adminPortalButton: {
+    marginTop: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#F5F3FF',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#8B5CF6',
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  adminPortalText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#8B5CF6',
   },
 });

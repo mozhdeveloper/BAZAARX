@@ -250,7 +250,32 @@ export const useCartStore = create<CartStore>()(
     (set, get) => ({
       items: [],
       orders: [],
-      notifications: [],
+      notifications: [
+        {
+          id: 'notif-1',
+          orderId: 'order-001',
+          type: 'seller_confirmed',
+          message: 'Your order has been confirmed by the seller!',
+          timestamp: new Date(Date.now() - 5 * 60000), // 5 minutes ago
+          read: false,
+        },
+        {
+          id: 'notif-2',
+          orderId: 'order-002',
+          type: 'shipped',
+          message: 'Your order is on the way! Track your delivery.',
+          timestamp: new Date(Date.now() - 30 * 60000), // 30 minutes ago
+          read: false,
+        },
+        {
+          id: 'notif-3',
+          orderId: 'order-003',
+          type: 'delivered',
+          message: 'Your order has been delivered!',
+          timestamp: new Date(Date.now() - 2 * 3600000), // 2 hours ago
+          read: true,
+        },
+      ],
       
       addToCart: (product: Product) => {
         set((state) => {
@@ -510,6 +535,11 @@ export const useCartStore = create<CartStore>()(
           console.log('Cart store rehydrated with', state.items.length, 'items and', state.orders.length, 'orders');
         }
       },
+      partialize: (state) => ({
+        items: state.items,
+        orders: state.orders,
+        // notifications are NOT persisted - always use initial hardcoded values
+      }) as Partial<CartStore>,
     }
   )
 );

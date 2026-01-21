@@ -1,32 +1,24 @@
+
 import { useState } from "react";
-import { 
+import {
   LogOut,
-  TrendingUp,
-  ShoppingCart,
-  Package,
-  Star,
   Search,
-  ArrowUpRight,
-  ArrowDownRight,
   Filter,
   MoreHorizontal,
-  Users
+  Star,
+  Users,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
-import { useStatsStore, useAuthStore, useOrderStore, useProductStore } from "@/stores/sellerStore";
-import { sellerLinks } from "@/config/sellerLinks";
 import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer
-} from "recharts";
+
+  useAuthStore,
+  useOrderStore,
+  useProductStore,
+} from "@/stores/sellerStore";
+import { sellerLinks } from "@/config/sellerLinks";
 
 export function SellerDashboard() {
   const { seller, logout } = useAuthStore();
@@ -35,7 +27,7 @@ export function SellerDashboard() {
 
   const handleLogout = () => {
     logout();
-    navigate('/seller/auth');
+    navigate("/seller/auth");
   };
 
   return (
@@ -58,7 +50,7 @@ export function SellerDashboard() {
                 icon: (
                   <div className="h-7 w-7 flex-shrink-0 rounded-full bg-orange-500 flex items-center justify-center">
                     <span className="text-white text-xs font-medium">
-                      {seller?.name?.charAt(0) || 'S'}
+                      {seller?.name?.charAt(0) || "S"}
                     </span>
                   </div>
                 ),
@@ -85,9 +77,9 @@ const Logo = () => {
       to="/seller"
       className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20"
     >
-      <img 
-        src="/Logo.png" 
-        alt="BazaarPH Logo" 
+      <img
+        src="/Logo.png"
+        alt="BazaarPH Logo"
         className="h-8 w-8 object-contain flex-shrink-0"
       />
       <motion.span
@@ -107,9 +99,9 @@ const LogoIcon = () => {
       to="/seller"
       className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20"
     >
-      <img 
-        src="/Logo.png" 
-        alt="BazaarPH Logo" 
+      <img
+        src="/Logo.png"
+        alt="BazaarPH Logo"
         className="h-8 w-8 object-contain flex-shrink-0"
       />
     </Link>
@@ -117,45 +109,20 @@ const LogoIcon = () => {
 };
 
 const Dashboard = () => {
-  const { stats } = useStatsStore();
+
   const { seller } = useAuthStore();
   const { orders } = useOrderStore();
   const { products } = useProductStore();
 
+  // Refresh stats when component mounts or when orders/products change
+  // useEffect(() => {
+  //   refreshStats();
+  // }, [orders, products, refreshStats]);
+
   const recentOrders = orders.slice(0, 4);
   const topProducts = products.slice(0, 4);
 
-  // Stats cards data
-  const statsCards = [
-    {
-      title: "Total Revenue",
-      value: `₱${(stats.totalRevenue / 1000).toFixed(0)}k`,
-      change: "+15.3%",
-      isPositive: true,
-      icon: <TrendingUp className="h-6 w-6 text-green-600" />
-    },
-    {
-      title: "Total Orders", 
-      value: stats.totalOrders.toLocaleString(),
-      change: "+10.8%",
-      isPositive: true,
-      icon: <ShoppingCart className="h-6 w-6 text-blue-600" />
-    },
-    {
-      title: "Total Products",
-      value: products.length.toString(),
-      change: "-3.2%",
-      isPositive: false,
-      icon: <Package className="h-6 w-6 text-orange-600" />
-    },
-    {
-      title: "Avg Rating",
-      value: stats.avgRating.toString(),
-      change: "+5.9%", 
-      isPositive: true,
-      icon: <Star className="h-6 w-6 text-yellow-600" />
-    }
-  ];
+
 
   return (
     <div className="flex flex-1 w-full">
@@ -164,14 +131,16 @@ const Dashboard = () => {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-semibold text-gray-900">
-              Good morning, {seller?.name || 'Seller'}! 
+              Good morning, {seller?.name || "Seller"}!
             </h1>
-            <p className="text-gray-600 mt-1">Here's what's happening with your store today.</p>
+            <p className="text-gray-600 mt-1">
+              Here's what's happening with your store today.
+            </p>
           </div>
           <div className="flex items-center gap-3">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-              <input 
+              <input
                 type="text"
                 placeholder="Search..."
                 className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 w-64"
@@ -179,117 +148,13 @@ const Dashboard = () => {
             </div>
             <div className="h-8 w-8 bg-orange-500 rounded-full flex items-center justify-center">
               <span className="text-white text-sm font-medium">
-                {seller?.name?.charAt(0) || 'S'}
+                {seller?.name?.charAt(0) || "S"}
               </span>
             </div>
           </div>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {statsCards.map((stat, index) => (
-            <motion.div
-              key={index}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1 }}
-              className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-lg transition-shadow duration-300"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  {stat.icon}
-                  <div>
-                    <p className="text-sm text-gray-600">{stat.title}</p>
-                    <p className="text-2xl font-semibold text-gray-900">{stat.value}</p>
-                  </div>
-                </div>
-                <div className={cn(
-                  "flex items-center gap-1 text-sm font-medium",
-                  stat.isPositive ? "text-green-600" : "text-red-600"
-                )}>
-                  {stat.isPositive ? (
-                    <ArrowUpRight className="h-4 w-4" />
-                  ) : (
-                    <ArrowDownRight className="h-4 w-4" />
-                  )}
-                  {stat.change}
-                </div>
-              </div>
-            </motion.div>
-          ))}
-        </div>
 
-        {/* Charts Row */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Revenue Chart */}
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="bg-white rounded-xl border border-gray-200 p-6"
-          >
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">Revenue Report</h3>
-                <p className="text-sm text-gray-600">Monthly revenue overview</p>
-              </div>
-              <select className="border border-gray-300 rounded-lg px-3 py-1 text-sm">
-                <option>6 Months</option>
-                <option>1 Year</option>
-              </select>
-            </div>
-            <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={stats.monthlyRevenue}>
-                <defs>
-                  <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#FF6A00" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#FF6A00" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="month" axisLine={false} tickLine={false} />
-                <YAxis axisLine={false} tickLine={false} />
-                <Tooltip 
-                  formatter={(value: number) => [`₱${value.toLocaleString()}`, 'Revenue']}
-                  labelStyle={{ color: '#374151' }}
-                  contentStyle={{ border: 'none', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
-                />
-                <Area 
-                  type="monotone" 
-                  dataKey="revenue" 
-                  stroke="#FF6A00" 
-                  fillOpacity={1} 
-                  fill="url(#colorRevenue)"
-                  strokeWidth={3}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </motion.div>
-
-          {/* Recent Activity */}
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="bg-white rounded-xl border border-gray-200 p-6"
-          >
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-semibold text-gray-900">Recent Activity</h3>
-              <button className="text-orange-600 text-sm font-medium hover:text-orange-700">
-                View All
-              </button>
-            </div>
-            <div className="space-y-4">
-              {stats.recentActivity.map((activity) => (
-                <div key={activity.id} className="flex items-start gap-3 p-3 hover:bg-gray-50 rounded-lg">
-                  <div className="h-2 w-2 bg-orange-500 rounded-full mt-2 flex-shrink-0"></div>
-                  <div className="flex-1">
-                    <p className="text-sm text-gray-900">{activity.message}</p>
-                    <p className="text-xs text-gray-500">{activity.time}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </motion.div>
-        </div>
 
         {/* Bottom Section */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -301,8 +166,12 @@ const Dashboard = () => {
           >
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h3 className="text-lg font-semibold text-gray-900">Best Selling Products</h3>
-                <p className="text-sm text-gray-600">Top performing items this month</p>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Best Selling Products
+                </h3>
+                <p className="text-sm text-gray-600">
+                  Top performing items this month
+                </p>
               </div>
               <div className="flex gap-2">
                 <button className="p-2 hover:bg-gray-100 rounded-lg">
@@ -315,24 +184,37 @@ const Dashboard = () => {
             </div>
             <div className="space-y-4">
               {topProducts.map((product, index) => (
-                <div key={product.id} className="flex items-center gap-4 p-3 hover:bg-gray-50 rounded-lg">
-                  <div className="text-sm font-medium text-gray-500 w-8">#{index + 1}</div>
-                  <img 
-                    src={product.images[0]} 
+                <div
+                  key={product.id}
+                  className="flex items-center gap-4 p-3 hover:bg-gray-50 rounded-lg"
+                >
+                  <div className="text-sm font-medium text-gray-500 w-8">
+                    #{index + 1}
+                  </div>
+                  <img
+                    src={product.images[0]}
                     alt={product.name}
                     className="w-12 h-12 object-cover rounded-lg"
                   />
                   <div className="flex-1">
-                    <h4 className="font-medium text-gray-900">{product.name}</h4>
+                    <h4 className="font-medium text-gray-900">
+                      {product.name}
+                    </h4>
                     <p className="text-sm text-gray-600">{product.category}</p>
                   </div>
                   <div className="text-right">
-                    <p className="font-medium text-gray-900">₱{product.price.toLocaleString()}</p>
-                    <p className="text-sm text-gray-600">{product.sales} sold</p>
+                    <p className="font-medium text-gray-900">
+                      ₱{product.price.toLocaleString()}
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      {product.sales} sold
+                    </p>
                   </div>
                   <div className="flex items-center gap-1">
                     <Star className="h-4 w-4 text-yellow-500 fill-current" />
-                    <span className="text-sm text-gray-600">{product.rating}</span>
+                    <span className="text-sm text-gray-600">
+                      {product.rating}
+                    </span>
                   </div>
                 </div>
               ))}
@@ -347,10 +229,12 @@ const Dashboard = () => {
           >
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h3 className="text-lg font-semibold text-gray-900">Recent Orders</h3>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Recent Orders
+                </h3>
                 <p className="text-sm text-gray-600">Latest customer orders</p>
               </div>
-              <Link 
+              <Link
                 to="/seller/orders"
                 className="text-orange-600 text-sm font-medium hover:text-orange-700"
               >
@@ -359,27 +243,43 @@ const Dashboard = () => {
             </div>
             <div className="space-y-4">
               {recentOrders.map((order) => (
-                <div key={order.id} className="flex items-center gap-4 p-3 hover:bg-gray-50 rounded-lg">
+                <div
+                  key={order.id}
+                  className="flex items-center gap-4 p-3 hover:bg-gray-50 rounded-lg"
+                >
                   <div className="h-10 w-10 bg-gray-100 rounded-full flex items-center justify-center">
                     <Users className="h-5 w-5 text-gray-600" />
                   </div>
                   <div className="flex-1">
-                    <h4 className="font-medium text-gray-900">{order.buyerName}</h4>
+                    <h4 className="font-medium text-gray-900">
+                      {order.buyerName}
+                    </h4>
                     <p className="text-sm text-gray-600">
-                      {order.items.length} item{order.items.length > 1 ? 's' : ''}
+                      {order.items.length} item
+                      {order.items.length > 1 ? "s" : ""}
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="font-medium text-gray-900">₱{order.total.toLocaleString()}</p>
-                    <p className={cn(
-                      "text-xs font-medium px-2 py-1 rounded-full",
-                      order.status === 'pending' && "bg-yellow-100 text-yellow-700",
-                      order.status === 'confirmed' && "bg-blue-100 text-blue-700", 
-                      order.status === 'shipped' && "bg-purple-100 text-purple-700",
-                      order.status === 'delivered' && "bg-green-100 text-green-700",
-                      order.status === 'cancelled' && "bg-red-100 text-red-700"
-                    )}>
-                      {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+                    <p className="font-medium text-gray-900">
+                      ₱{order.total.toLocaleString()}
+                    </p>
+                    <p
+                      className={cn(
+                        "text-xs font-medium px-2 py-1 rounded-full",
+                        order.status === "pending" &&
+                          "bg-yellow-100 text-yellow-700",
+                        order.status === "confirmed" &&
+                          "bg-blue-100 text-blue-700",
+                        order.status === "shipped" &&
+                          "bg-purple-100 text-purple-700",
+                        order.status === "delivered" &&
+                          "bg-green-100 text-green-700",
+                        order.status === "cancelled" &&
+                          "bg-red-100 text-red-700",
+                      )}
+                    >
+                      {order.status.charAt(0).toUpperCase() +
+                        order.status.slice(1)}
                     </p>
                   </div>
                 </div>

@@ -7,7 +7,6 @@ import {
   Pressable,
   Switch,
   Alert,
-  StatusBar,
   TextInput,
   KeyboardAvoidingView,
   Platform,
@@ -21,15 +20,18 @@ import {
   CreditCard,
   LogOut,
   Camera,
-  Menu,
+  Settings as SettingsIcon,
   Eye,
   Save,
   FileText,
   CheckCircle,
   Clock,
+  Menu,
+  Edit3,
 } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSellerStore } from '../../../src/stores/sellerStore';
+import SellerDrawer from '../../../src/components/SellerDrawer';
 
 type SettingTab = 'profile' | 'store' | 'documents' | 'notifications' | 'security' | 'payments';
 
@@ -38,6 +40,12 @@ export default function SellerSettingsScreen() {
   const { seller, updateSellerInfo } = useSellerStore();
   const insets = useSafeAreaInsets();
   const [selectedTab, setSelectedTab] = useState<SettingTab>('profile');
+  const [drawerVisible, setDrawerVisible] = useState(false);
+  
+  // Edit modes
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [isEditingStore, setIsEditingStore] = useState(false);
+  const [isEditingPayments, setIsEditingPayments] = useState(false);
   
   // Profile
   const [ownerName, setOwnerName] = useState(seller.ownerName);
@@ -92,6 +100,10 @@ export default function SellerSettingsScreen() {
       accountName,
       accountNumber,
     });
+    // Reset edit modes
+    setIsEditingProfile(false);
+    setIsEditingStore(false);
+    setIsEditingPayments(false);
     Alert.alert('Success', 'Settings saved successfully!');
   };
 
@@ -101,7 +113,7 @@ export default function SellerSettingsScreen() {
       {
         text: 'Logout',
         style: 'destructive',
-        onPress: () => navigation.navigate('SellerLogin' as never),
+        onPress: () => navigation.navigate('Login' as never),
       },
     ]);
   };
@@ -120,41 +132,52 @@ export default function SellerSettingsScreen() {
         return (
           <View style={styles.formCard}>
             <View style={styles.formSection}>
-              <Text style={styles.sectionTitle}>Owner Information</Text>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Owner Information</Text>
+                <Pressable 
+                  style={styles.editButton}
+                  onPress={() => setIsEditingProfile(!isEditingProfile)}
+                >
+                  <Edit3 size={18} color={isEditingProfile ? '#FF5722' : '#6B7280'} strokeWidth={2.5} />
+                </Pressable>
+              </View>
               
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Full Name</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, !isEditingProfile && styles.inputDisabled]}
                   value={ownerName}
                   onChangeText={setOwnerName}
                   placeholder="Enter full name"
                   placeholderTextColor="#9CA3AF"
+                  editable={isEditingProfile}
                 />
               </View>
 
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Email Address</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, !isEditingProfile && styles.inputDisabled]}
                   value={email}
                   onChangeText={setEmail}
                   placeholder="Enter email"
                   placeholderTextColor="#9CA3AF"
                   keyboardType="email-address"
                   autoCapitalize="none"
+                  editable={isEditingProfile}
                 />
               </View>
 
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Phone Number</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, !isEditingProfile && styles.inputDisabled]}
                   value={phone}
                   onChangeText={setPhone}
                   placeholder="Enter phone number"
                   placeholderTextColor="#9CA3AF"
                   keyboardType="phone-pad"
+                  editable={isEditingProfile}
                 />
               </View>
             </View>
@@ -165,23 +188,32 @@ export default function SellerSettingsScreen() {
         return (
           <View style={styles.formCard}>
             <View style={styles.formSection}>
-              <Text style={styles.sectionTitle}>Store Details</Text>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Store Details</Text>
+                <Pressable 
+                  style={styles.editButton}
+                  onPress={() => setIsEditingStore(!isEditingStore)}
+                >
+                  <Edit3 size={18} color={isEditingStore ? '#FF5722' : '#6B7280'} strokeWidth={2.5} />
+                </Pressable>
+              </View>
               
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Store Name</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, !isEditingStore && styles.inputDisabled]}
                   value={storeName}
                   onChangeText={setStoreName}
                   placeholder="Enter store name"
                   placeholderTextColor="#9CA3AF"
+                  editable={isEditingStore}
                 />
               </View>
 
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Store Description</Text>
                 <TextInput
-                  style={[styles.input, styles.textArea]}
+                  style={[styles.input, styles.textArea, !isEditingStore && styles.inputDisabled]}
                   value={storeDescription}
                   onChangeText={setStoreDescription}
                   placeholder="Describe your store"
@@ -189,6 +221,7 @@ export default function SellerSettingsScreen() {
                   multiline
                   numberOfLines={4}
                   textAlignVertical="top"
+                  editable={isEditingStore}
                 />
               </View>
             </View>
@@ -199,44 +232,48 @@ export default function SellerSettingsScreen() {
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Business Name</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, !isEditingStore && styles.inputDisabled]}
                   value={businessName}
                   onChangeText={setBusinessName}
                   placeholder="Registered business name"
                   placeholderTextColor="#9CA3AF"
+                  editable={isEditingStore}
                 />
               </View>
 
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Business Type</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, !isEditingStore && styles.inputDisabled]}
                   value={businessType}
                   onChangeText={(text: any) => setBusinessType(text)}
                   placeholder="e.g. Sole Proprietorship"
                   placeholderTextColor="#9CA3AF"
+                  editable={isEditingStore}
                 />
               </View>
 
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Registration Number (DTI/SEC)</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, !isEditingStore && styles.inputDisabled]}
                   value={businessRegistrationNumber}
                   onChangeText={setBusinessRegistrationNumber}
                   placeholder="Enter registration number"
                   placeholderTextColor="#9CA3AF"
+                  editable={isEditingStore}
                 />
               </View>
 
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Tax ID Number (TIN)</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, !isEditingStore && styles.inputDisabled]}
                   value={taxIdNumber}
                   onChangeText={setTaxIdNumber}
                   placeholder="Enter TIN"
                   placeholderTextColor="#9CA3AF"
+                  editable={isEditingStore}
                 />
               </View>
             </View>
@@ -247,22 +284,24 @@ export default function SellerSettingsScreen() {
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Street Address</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, !isEditingStore && styles.inputDisabled]}
                   value={address}
                   onChangeText={setAddress}
                   placeholder="Enter street address"
                   placeholderTextColor="#9CA3AF"
+                  editable={isEditingStore}
                 />
               </View>
 
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>City</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, !isEditingStore && styles.inputDisabled]}
                   value={city}
                   onChangeText={setCity}
                   placeholder="Enter city"
                   placeholderTextColor="#9CA3AF"
+                  editable={isEditingStore}
                 />
               </View>
 
@@ -270,22 +309,24 @@ export default function SellerSettingsScreen() {
                 <View style={[styles.inputGroup, styles.flexInput]}>
                   <Text style={styles.inputLabel}>Province</Text>
                   <TextInput
-                    style={styles.input}
+                    style={[styles.input, !isEditingStore && styles.inputDisabled]}
                     value={province}
                     onChangeText={setProvince}
                     placeholder="Province"
                     placeholderTextColor="#9CA3AF"
+                    editable={isEditingStore}
                   />
                 </View>
                 <View style={[styles.inputGroup, styles.flexInput]}>
                   <Text style={styles.inputLabel}>Postal Code</Text>
                   <TextInput
-                    style={styles.input}
+                    style={[styles.input, !isEditingStore && styles.inputDisabled]}
                     value={postalCode}
                     onChangeText={setPostalCode}
                     placeholder="Zip Code"
                     placeholderTextColor="#9CA3AF"
                     keyboardType="number-pad"
+                    editable={isEditingStore}
                   />
                 </View>
               </View>
@@ -496,39 +537,50 @@ export default function SellerSettingsScreen() {
         return (
           <View style={styles.formCard}>
             <View style={styles.formSection}>
-              <Text style={styles.sectionTitle}>Bank Account</Text>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Bank Account</Text>
+                <Pressable 
+                  style={styles.editButton}
+                  onPress={() => setIsEditingPayments(!isEditingPayments)}
+                >
+                  <Edit3 size={18} color={isEditingPayments ? '#FF5722' : '#6B7280'} strokeWidth={2.5} />
+                </Pressable>
+              </View>
               
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Bank Name</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, !isEditingPayments && styles.inputDisabled]}
                   value={bankName}
                   onChangeText={setBankName}
                   placeholder="Enter bank name"
                   placeholderTextColor="#9CA3AF"
+                  editable={isEditingPayments}
                 />
               </View>
 
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Account Number</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, !isEditingPayments && styles.inputDisabled]}
                   value={accountNumber}
                   onChangeText={setAccountNumber}
                   placeholder="Enter account number"
                   placeholderTextColor="#9CA3AF"
                   keyboardType="number-pad"
+                  editable={isEditingPayments}
                 />
               </View>
 
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Account Name</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, !isEditingPayments && styles.inputDisabled]}
                   value={accountName}
                   onChangeText={setAccountName}
                   placeholder="Enter account name"
                   placeholderTextColor="#9CA3AF"
+                  editable={isEditingPayments}
                 />
               </View>
             </View>
@@ -539,12 +591,13 @@ export default function SellerSettingsScreen() {
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>GCash Number</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, !isEditingPayments && styles.inputDisabled]}
                   value={gcashNumber}
                   onChangeText={setGcashNumber}
                   placeholder="Enter GCash number"
                   placeholderTextColor="#9CA3AF"
                   keyboardType="phone-pad"
+                  editable={isEditingPayments}
                 />
               </View>
             </View>
@@ -559,25 +612,29 @@ export default function SellerSettingsScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={0}
     >
-      <StatusBar barStyle="light-content" backgroundColor="#FF5722" />
-      
+      {/* Seller Drawer */}
+      <SellerDrawer visible={drawerVisible} onClose={() => setDrawerVisible(false)} />
+
       {/* Immersive Edge-to-Edge Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <View style={styles.headerContent}>
-          <View style={styles.headerLeft}>
-            <Pressable style={styles.menuButton}>
-              <Menu size={24} color="#FFFFFF" strokeWidth={2.5} />
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <Pressable style={styles.iconContainer} onPress={() => setDrawerVisible(true)}>
+              <Menu size={24} color="#FFFFFF" strokeWidth={2} />
             </Pressable>
-            <View style={styles.headerTitleContainer}>
+            <View style={{ flex: 1 }}>
               <Text style={styles.headerTitle}>Store Settings</Text>
               <Text style={styles.headerSubtitle}>Manage your store</Text>
             </View>
           </View>
-          <Pressable style={styles.notificationButton}>
-            <Bell size={22} color="#FFFFFF" strokeWidth={2.5} />
-            <View style={styles.notificationBadge} />
-          </Pressable>
         </View>
+        {/* Notification positioned absolutely to prevent cutoff */}
+        <Pressable
+          style={[styles.notificationButton, { position: 'absolute', right: 20, top: insets.top + 20 }]}
+        >
+          <Bell size={22} color="#FFFFFF" strokeWidth={2.5} />
+          <View style={styles.notificationBadge} />
+        </Pressable>
       </View>
 
       <ScrollView
@@ -606,8 +663,7 @@ export default function SellerSettingsScreen() {
 
             {/* Preview Button */}
             <Pressable style={styles.previewButton}>
-              <Eye size={16} color="#FF5722" strokeWidth={2.5} />
-              <Text style={styles.previewText}>Preview</Text>
+              <Eye size={20} color="#FF5722" strokeWidth={2.5} />
             </Pressable>
           </View>
         </View>
@@ -764,32 +820,28 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#FF5722',
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingBottom: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 4,
+    borderBottomLeftRadius: 20, 
+    borderBottomRightRadius: 20,
   },
   headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  menuButton: {
-    padding: 4,
-  },
-  headerTitleContainer: {
-    gap: 2,
+  iconContainer: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    padding: 12,
+    borderRadius: 12,
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '800',
     color: '#FFFFFF',
     letterSpacing: 0.3,
@@ -801,16 +853,20 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   notificationButton: {
-    padding: 4,
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
     position: 'relative',
+    zIndex: 5,
   },
   notificationBadge: {
     position: 'absolute',
-    top: 4,
-    right: 4,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    top: 6,
+    right: 6,
+    width: 10,
+    height: 10,
+    borderRadius: 10,
     backgroundColor: '#EF4444',
     borderWidth: 1.5,
     borderColor: '#FF5722',
@@ -825,7 +881,7 @@ const styles = StyleSheet.create({
   identityCard: {
     backgroundColor: '#FFFFFF',
     marginHorizontal: 20,
-    marginTop: -20,
+    marginTop: 20,
     marginBottom: 20,
     borderRadius: 20,
     padding: 20,
@@ -933,11 +989,21 @@ const styles = StyleSheet.create({
   formSection: {
     marginBottom: 24,
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '700',
     color: '#1F2937',
-    marginBottom: 4,
+  },
+  editButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: '#F9FAFB',
   },
   sectionDescription: {
     fontSize: 13,
@@ -960,6 +1026,10 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     fontSize: 15,
     color: '#1F2937',
+  },
+  inputDisabled: {
+    backgroundColor: '#F3F4F6',
+    color: '#9CA3AF',
   },
   textArea: {
     minHeight: 100,

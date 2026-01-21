@@ -369,7 +369,47 @@ export const useOrderStore = create<OrderStore>()(
           createdAt: new Date().toISOString(),
         };
 
+        // Add to buyer's order list
         set({ orders: [...get().orders, newOrder] });
+
+        // SYNC TO SELLER: Also add to seller's order store
+        try {
+          // Dynamically import seller store to avoid circular dependency
+          import('./sellerStore').then(({ useSellerStore }) => {
+            const sellerStore = useSellerStore.getState();
+            
+            // Convert buyer order to seller order format
+            const sellerOrder: import('./sellerStore').SellerOrder = {
+              id: newOrder.id,
+              orderId: newOrder.transactionId,
+              customerName: shippingAddress.name,
+              customerEmail: shippingAddress.email,
+              items: validatedItems.map(item => ({
+                productId: item.id,
+                productName: item.name,
+                image: item.image,
+                quantity: item.quantity,
+                price: item.price,
+              })),
+              total: newOrder.total,
+              status: isPaidOrder ? 'to-ship' : 'pending',
+              createdAt: newOrder.createdAt,
+              type: 'ONLINE',
+            };
+
+            // Add to seller's orders
+            const currentSellerOrders = sellerStore.orders || [];
+            useSellerStore.setState({
+              orders: [sellerOrder, ...currentSellerOrders]
+            });
+
+            console.log('✅ Order synced to seller:', sellerOrder.orderId);
+          });
+        } catch (error) {
+          console.error('Failed to sync order to seller:', error);
+          // Don't throw - order is still created for buyer
+        }
+
         return newOrder;
       },
 

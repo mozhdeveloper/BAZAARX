@@ -11,6 +11,7 @@ import { Home, Store, ShoppingCart, Package, User } from 'lucide-react-native';
 import SplashScreen from './app/SplashScreen';
 import OnboardingScreen from './app/OnboardingScreen';
 import LoginScreen from './app/LoginScreen';
+import SignupScreen from './app/SignupScreen';
 import HomeScreen from './app/HomeScreen';
 import ShopScreen from './app/ShopScreen';
 import ProductDetailScreen from './app/ProductDetailScreen';
@@ -23,6 +24,7 @@ import OrderDetailScreen from './app/OrderDetailScreen';
 import DeliveryTrackingScreen from './app/DeliveryTrackingScreen';
 import ProfileScreen from './app/ProfileScreen';
 import FollowingShopsScreen from './app/FollowingShopsScreen';
+import WishlistScreen from './app/WishlistScreen';
 import AddressesScreen from './app/AddressesScreen';
 import SettingsScreen from './app/SettingsScreen';
 import NotificationsScreen from './app/NotificationsScreen';
@@ -30,7 +32,11 @@ import PaymentMethodsScreen from './app/PaymentMethodsScreen';
 import HelpSupportScreen from './app/HelpSupportScreen';
 import PrivacyPolicyScreen from './app/PrivacyPolicyScreen';
 import SellerLoginScreen from './app/seller/login';
-import SellerTabs from './app/seller/SellerTabs';
+import SellerSignupScreen from './app/seller/signup';
+import SellerStack from './app/seller/SellerStack';
+import AdminStack from './app/admin/AdminStack';
+import AllStoresScreen from './app/AllStoresScreen';
+import StoreDetailScreen from './app/StoreDetailScreen';
 
 // Import types
 import type { Product, Order } from './src/types';
@@ -47,22 +53,28 @@ export type RootStackParamList = {
   Splash: undefined;
   Onboarding: undefined;
   Login: undefined;
+  Signup: undefined;
   SellerLogin: undefined;
-  SellerTabs: undefined;
+  SellerSignup: undefined;
+  SellerStack: undefined;
+  AdminStack: undefined;
   MainTabs: NavigatorScreenParams<TabParamList>;
   ProductDetail: { product: Product };
   Checkout: undefined;
-  PaymentGateway: { paymentMethod: string; order: Order };
+  PaymentGateway: { paymentMethod: string; order: Order; isQuickCheckout?: boolean };
   OrderConfirmation: { order: Order };
   OrderDetail: { order: Order };
   DeliveryTracking: { order: Order };
   FollowingShops: undefined;
+  Wishlist: undefined;
   Addresses: undefined;
   Settings: undefined;
   Notifications: undefined;
   PaymentMethods: undefined;
   HelpSupport: undefined;
   PrivacyPolicy: undefined;
+  AllStores: undefined;
+  StoreDetail: { store: any };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -154,29 +166,44 @@ export default function App() {
             animation: 'slide_from_right',
           }}
         >
-          <Stack.Screen 
-            name="Splash" 
+          <Stack.Screen
+            name="Splash"
             component={SplashScreen}
             options={{ animation: 'fade' }}
           />
-          <Stack.Screen 
-            name="Onboarding" 
+          <Stack.Screen
+            name="Onboarding"
             component={OnboardingScreen}
             options={{ animation: 'fade' }}
           />
-          <Stack.Screen 
-            name="Login" 
+          <Stack.Screen
+            name="Login"
             component={LoginScreen}
             options={{ animation: 'slide_from_bottom' }}
           />
-          <Stack.Screen 
-            name="SellerLogin" 
+          <Stack.Screen
+            name="Signup"
+            component={SignupScreen}
+            options={{ animation: 'slide_from_bottom' }}
+          />
+          <Stack.Screen
+            name="SellerLogin"
             component={SellerLoginScreen}
             options={{ animation: 'slide_from_bottom' }}
           />
-          <Stack.Screen 
-            name="SellerTabs" 
-            component={SellerTabs}
+          <Stack.Screen
+            name="SellerSignup"
+            component={SellerSignupScreen}
+            options={{ animation: 'slide_from_bottom' }}
+          />
+          <Stack.Screen
+            name="SellerStack"
+            component={SellerStack}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="AdminStack"
+            component={AdminStack}
             options={{ headerShown: false }}
           />
           <Stack.Screen name="MainTabs" component={MainTabs} />
@@ -187,10 +214,13 @@ export default function App() {
           <Stack.Screen name="OrderDetail" component={OrderDetailScreen} />
           <Stack.Screen name="DeliveryTracking" component={DeliveryTrackingScreen} />
           <Stack.Screen name="FollowingShops" component={FollowingShopsScreen} />
+          <Stack.Screen name="Wishlist" component={WishlistScreen} />
           <Stack.Screen name="Addresses" component={AddressesScreen} />
           <Stack.Screen name="Settings" component={SettingsScreen} />
           <Stack.Screen name="Notifications" component={NotificationsScreen} />
           <Stack.Screen name="PaymentMethods" component={PaymentMethodsScreen} />
+          <Stack.Screen name="AllStores" component={AllStoresScreen} />
+          <Stack.Screen name="StoreDetail" component={StoreDetailScreen} />
           <Stack.Screen name="HelpSupport" component={HelpSupportScreen} />
           <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
         </Stack.Navigator>
