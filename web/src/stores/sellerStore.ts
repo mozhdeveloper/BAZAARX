@@ -1532,11 +1532,11 @@ export const useStatsStore = create<StatsStore>()((set) => ({
   refreshStats: () => {
     const orderStore = useOrderStore.getState();
     const productStore = useProductStore.getState();
-
+    const authStore = useAuthStore.getState();
 
     const orders = orderStore.orders;
     const products = productStore.products;
-    // const seller = authStore.seller;
+    const seller = authStore.seller;
 
     // Calculate total revenue from delivered orders
     const totalRevenue = orders
