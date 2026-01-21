@@ -6,12 +6,13 @@ import { signIn, signUp, getSellerProfile, getEmailFromProfile } from '@/service
 import {
   addStock as addStockDb,
   createProduct as createProductDb,
+  createProducts as createProductsDb,
   deleteProduct as deleteProductDb,
   deductStock as deductStockDb,
   getProducts as fetchProductsDb,
   updateProduct as updateProductDb,
 } from '@/services/productService';
-import type { Product as DBProduct, Seller as DBSeller, Database } from '@/types/database.types';
+import type { Seller as DBSeller, Database } from '@/types/database.types';
 
 // Types
 interface Seller {
@@ -307,8 +308,8 @@ const mapDbProductToSellerProduct = (p: any): SellerProduct => ({
   rejectionReason: p.rejection_reason || undefined,
   vendorSubmittedCategory: p.vendor_submitted_category || undefined,
   adminReclassifiedCategory: p.admin_reclassified_category || undefined,
-  sellerName: p.seller?.store_name || p.seller?.business_name || 'Verified Seller',
-  sellerRating: p.seller?.rating || 0
+  sellerName: p.seller?.store_name || p.seller?.business_name,
+  sellerRating: p.seller?.rating
 });
 
 const buildProductInsert = (product: Omit<SellerProduct, 'id' | 'createdAt' | 'updatedAt' | 'sales' | 'rating' | 'reviews'>, sellerId: string): ProductInsert => ({
@@ -345,109 +346,28 @@ const buildProductInsert = (product: Omit<SellerProduct, 'id' | 'createdAt' | 'u
   tags: [],
 });
 
-const mapSellerUpdatesToDb = (updates: Partial<SellerProduct>): ProductUpdate => ({
-  name: updates.name,
-  description: updates.description,
-  price: updates.price,
-  original_price: updates.originalPrice,
-  stock: updates.stock,
-  category: updates.category,
-  images: updates.images,
-  sizes: updates.sizes,
-  colors: updates.colors,
-  is_active: updates.isActive,
-  approval_status: updates.approvalStatus,
-  rejection_reason: updates.rejectionReason,
-  vendor_submitted_category: updates.vendorSubmittedCategory,
-  admin_reclassified_category: updates.adminReclassifiedCategory,
-});
+const mapSellerUpdatesToDb = (updates: Partial<SellerProduct>): ProductUpdate => {
+  const dbUpdates: ProductUpdate = {};
 
-// Dummy data
-const dummySeller: Seller = {
-  id: 'seller-1',
-  name: 'Juan Cruz',
-  ownerName: 'Juan Cruz',
-  email: 'seller@bazaarph.com',
-  phone: '+63 912 345 6789',
-  businessName: 'Cruz Electronics Corp.',
-  storeName: 'Cruz Electronics',
-  storeDescription: 'Premium electronics and gadgets for the modern Filipino family',
-  storeCategory: ['Electronics', 'Gadgets'],
-  businessType: 'corporation',
-  businessRegistrationNumber: 'SEC-2023-001234',
-  taxIdNumber: '123-456-789-000',
-  businessAddress: '123 Ayala Avenue, Brgy. Poblacion',
-  city: 'Makati City',
-  province: 'Metro Manila',
-  postalCode: '1200',
-  storeAddress: '123 Ayala Avenue, Makati City, Metro Manila 1200',
-  bankName: 'BDO',
-  accountName: 'Cruz Electronics Corp.',
-  accountNumber: '1234567890',
-  isVerified: true,
-  approvalStatus: 'approved',
-  rating: 4.8,
-  totalSales: 1580000,
-  joinDate: '2023-01-15',
-  avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face'
+  if (updates.name !== undefined) dbUpdates.name = updates.name;
+  if (updates.description !== undefined) dbUpdates.description = updates.description;
+  if (updates.price !== undefined) dbUpdates.price = updates.price;
+  if (updates.originalPrice !== undefined) dbUpdates.original_price = updates.originalPrice;
+  if (updates.stock !== undefined) dbUpdates.stock = updates.stock;
+  if (updates.category !== undefined) dbUpdates.category = updates.category;
+  if (updates.images !== undefined) dbUpdates.images = updates.images;
+  if (updates.sizes !== undefined) dbUpdates.sizes = updates.sizes;
+  if (updates.colors !== undefined) dbUpdates.colors = updates.colors;
+  if (updates.isActive !== undefined) dbUpdates.is_active = updates.isActive;
+  if (updates.approvalStatus !== undefined) dbUpdates.approval_status = updates.approvalStatus;
+  if (updates.rejectionReason !== undefined) dbUpdates.rejection_reason = updates.rejectionReason;
+  if (updates.vendorSubmittedCategory !== undefined) dbUpdates.vendor_submitted_category = updates.vendorSubmittedCategory;
+  if (updates.adminReclassifiedCategory !== undefined) dbUpdates.admin_reclassified_category = updates.adminReclassifiedCategory;
+
+  return dbUpdates;
 };
 
-const dummyProducts: SellerProduct[] = [
-  {
-    id: 'prod-1',
-    name: 'iPhone 15 Pro Max',
-    description: 'Latest iPhone with A17 Pro chip',
-    price: 89990,
-    originalPrice: 95990,
-    stock: 25,
-    category: 'Electronics',
-    images: ['https://images.unsplash.com/photo-1696446702188-41d37c5f1c9a?w=400'],
-    isActive: true,
-    sellerId: 'seller-1',
-    createdAt: '2024-12-01',
-    updatedAt: '2024-12-10',
-    sales: 45,
-    rating: 4.9,
-    reviews: 128,
-    approvalStatus: 'approved'
-  },
-  {
-    id: 'prod-2',
-    name: 'Samsung Galaxy S24 Ultra',
-    description: 'Flagship Android phone with S Pen',
-    price: 79990,
-    originalPrice: 85990,
-    stock: 18,
-    category: 'Electronics',
-    images: ['https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?w=400'],
-    isActive: true,
-    sellerId: 'seller-1',
-    createdAt: '2024-11-15',
-    updatedAt: '2024-12-08',
-    sales: 32,
-    rating: 4.7,
-    reviews: 89,
-    approvalStatus: 'pending'
-  },
-  {
-    id: 'prod-3',
-    name: 'MacBook Pro M3',
-    description: '14-inch MacBook Pro with M3 chip',
-    price: 129990,
-    originalPrice: 139990,
-    stock: 12,
-    category: 'Electronics',
-    images: ['https://images.unsplash.com/photo-1541807084-5c52b6b3adef?w=400'],
-    isActive: true,
-    sellerId: 'seller-1',
-    createdAt: '2024-11-20',
-    updatedAt: '2024-12-05',
-    sales: 18,
-    rating: 4.8,
-    reviews: 42,
-    approvalStatus: 'approved'
-  }
-];
+// Dummy data removed for database parity
 
 const dummyOrders: SellerOrder[] = [
   {
@@ -514,10 +434,7 @@ export const useAuthStore = create<AuthStore>()(
       login: async (email: string, password: string) => {
         if (!isSupabaseConfigured()) {
           await new Promise(resolve => setTimeout(resolve, 500));
-          if ((email === 'seller@bazaarph.com' || email === 'juan@example.com') && (password === 'password' || password === 'password123')) {
-            set({ seller: dummySeller, isAuthenticated: true });
-            return true;
-          }
+          console.warn('Mock login disabled - please configure Supabase');
           return false;
         }
 
@@ -684,7 +601,8 @@ export const useProductStore = create<ProductStore>()(
 
       fetchProducts: async (filters) => {
         if (!isSupabaseConfigured()) {
-          set({ products: dummyProducts, loading: false, error: null });
+          console.warn('Supabase not configured, showing empty product list');
+          set({ products: [], loading: false, error: null });
           return;
         }
 
@@ -805,71 +723,95 @@ export const useProductStore = create<ProductStore>()(
         }
       },
 
-      bulkAddProducts: (bulkProducts) => {
+      bulkAddProducts: async (bulkProducts) => {
         try {
           const authStore = useAuthStore.getState();
           const qaStore = useProductQAStore.getState();
-          const newProducts: SellerProduct[] = [];
-          const newLedgerEntries: InventoryLedgerEntry[] = [];
+          const sellerId = isSupabaseConfigured()
+            ? authStore.seller?.id || fallbackSellerId
+            : authStore.seller?.id || 'seller-1';
 
-          bulkProducts.forEach((productData) => {
-            const timestamp = Date.now();
-            const randomId = Math.random().toString(36).substr(2, 9);
-            const productId = `prod-${timestamp}-${randomId}`;
+          const resolvedSellerId = sellerId ?? '';
 
-            const newProduct: SellerProduct = {
-              id: productId,
-              name: productData.name,
-              description: productData.description,
-              price: productData.price,
-              originalPrice: productData.originalPrice,
-              stock: productData.stock,
-              category: productData.category,
-              images: [productData.imageUrl],
-              sizes: [],
-              colors: [],
+          if (isSupabaseConfigured() && !resolvedSellerId) {
+            throw new Error('Missing seller ID for bulk upload. Please log in.');
+          }
+
+          let addedProducts: SellerProduct[] = [];
+
+          if (isSupabaseConfigured()) {
+            const productsToInsert = bulkProducts.map(p => buildProductInsert({
+              name: p.name,
+              description: p.description,
+              price: p.price,
+              originalPrice: p.originalPrice,
+              stock: p.stock,
+              category: p.category,
+              images: [p.imageUrl],
               isActive: true,
-              sellerId: authStore.seller?.id || 'seller-1',
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-              sales: 0,
-              rating: 0,
-              reviews: 0,
-              approvalStatus: 'pending',
-              vendorSubmittedCategory: productData.category,
-            };
+              sellerId: resolvedSellerId,
+              vendorSubmittedCategory: p.category
+            } as any, resolvedSellerId));
 
-            newProducts.push(newProduct);
+            const dbProducts = await createProductsDb(productsToInsert);
+            if (!dbProducts) throw new Error('Failed to create products in database');
+            addedProducts = dbProducts.map(mapDbProductToSellerProduct);
+          } else {
+            // Mock implementation
+            addedProducts = bulkProducts.map((productData) => {
+              const timestamp = Date.now();
+              const randomId = Math.random().toString(36).substr(2, 9);
+              return {
+                id: `prod-${timestamp}-${randomId}`,
+                name: productData.name,
+                description: productData.description,
+                price: productData.price,
+                originalPrice: productData.originalPrice,
+                stock: productData.stock,
+                category: productData.category,
+                images: [productData.imageUrl],
+                sizes: [],
+                colors: [],
+                isActive: true,
+                sellerId: resolvedSellerId,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                sales: 0,
+                rating: 0,
+                reviews: 0,
+                approvalStatus: 'pending',
+                vendorSubmittedCategory: productData.category,
+              };
+            });
+          }
 
-            // Create ledger entry for initial stock
-            const ledgerEntry: InventoryLedgerEntry = {
-              id: `ledger-${timestamp}-${randomId}`,
-              timestamp: new Date().toISOString(),
-              productId: newProduct.id,
-              productName: newProduct.name,
-              changeType: 'ADDITION',
-              quantityBefore: 0,
-              quantityChange: productData.stock,
-              quantityAfter: productData.stock,
-              reason: 'STOCK_REPLENISHMENT',
-              referenceId: newProduct.id,
-              userId: authStore.seller?.id || 'SYSTEM',
-              notes: 'Initial stock from bulk upload',
-            };
+          const newLedgerEntries: InventoryLedgerEntry[] = addedProducts.map(p => ({
+            id: `ledger-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            timestamp: new Date().toISOString(),
+            productId: p.id,
+            productName: p.name,
+            changeType: 'ADDITION',
+            quantityBefore: 0,
+            quantityChange: p.stock,
+            quantityAfter: p.stock,
+            reason: 'STOCK_REPLENISHMENT',
+            referenceId: p.id,
+            userId: resolvedSellerId || 'SYSTEM',
+            notes: 'Initial stock from bulk upload',
+          }));
 
-            newLedgerEntries.push(ledgerEntry);
-
-            // Add to QA flow store
+          // Add to QA flow store
+          addedProducts.forEach(p => {
             try {
               qaStore.addProductToQA({
-                id: newProduct.id,
-                name: newProduct.name,
-                description: newProduct.description,
+                id: p.id,
+                name: p.name,
+                description: p.description,
                 vendor: authStore.seller?.name || 'Unknown Vendor',
-                price: newProduct.price,
-                originalPrice: newProduct.originalPrice,
-                category: newProduct.category,
-                image: newProduct.images[0],
+                price: p.price,
+                originalPrice: p.originalPrice,
+                category: p.category,
+                image: p.images[0],
               });
             } catch (qaError) {
               console.error('Error adding product to QA flow:', qaError);
@@ -878,7 +820,7 @@ export const useProductStore = create<ProductStore>()(
 
           // Add all products and ledger entries at once
           set((state) => ({
-            products: [...state.products, ...newProducts],
+            products: [...state.products, ...addedProducts],
             inventoryLedger: [...state.inventoryLedger, ...newLedgerEntries],
           }));
 
@@ -1577,7 +1519,7 @@ export const useOrderStore = create<OrderStore>()(
 );
 
 // Stats Store
-export const useStatsStore = create<StatsStore>()((set, get) => ({
+export const useStatsStore = create<StatsStore>()((set) => ({
   stats: {
     totalRevenue: 0,
     totalOrders: 0,
@@ -1663,7 +1605,7 @@ function calculateMonthlyRevenue(orders: SellerOrder[]): { month: string; revenu
 }
 
 // Helper function to calculate top products
-function calculateTopProducts(products: SellerProduct[], orders: SellerOrder[]): { name: string; sales: number; revenue: number }[] {
+function calculateTopProducts(_products: SellerProduct[], orders: SellerOrder[]): { name: string; sales: number; revenue: number }[] {
   const productStats = new Map<string, { name: string; sales: number; revenue: number }>();
 
   orders.forEach(order => {

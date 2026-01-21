@@ -809,8 +809,9 @@ export interface FlashSaleProduct {
   productId: string;
   productName: string;
   seller: string;
+  variant?: string;
   image: string;
-  originalPrice: number;
+  originalPrice?: number;
   flashPrice: number;
   discount: number;
   stock: number;
@@ -1779,11 +1780,11 @@ export const useAdminBuyers = create<BuyersState>((set) => ({
 
 // Admin Orders Store
 interface OrderItem {
-  variant: string;
-  originalPrice: boolean;
   name: string;
   quantity: number;
   price: number;
+  variant?: string;
+  originalPrice?: number;
 }
 
 interface OrderBuyer {

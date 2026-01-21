@@ -9,6 +9,9 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList, TabParamList } from '../App';
 import { useAuthStore } from '../src/stores/authStore';
 import { useWishlistStore } from '../src/stores/wishlistStore';
+import { supabase } from '../src/lib/supabase';
+import { COLORS } from '../src/constants/theme';
+import { decode } from 'base64-arraybuffer';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<TabParamList, 'Profile'>,
@@ -19,7 +22,7 @@ export default function ProfileScreen({ navigation }: Props) {
   const { user, logout, updateProfile } = useAuthStore();
   const wishlistItems = useWishlistStore(state => state.items);
   const insets = useSafeAreaInsets();
-  const BRAND_COLOR = '#FF5722';
+  const BRAND_COLOR = COLORS.primary;
 
   // Edit State
   const [editModalVisible, setEditModalVisible] = React.useState(false);
@@ -41,10 +44,11 @@ export default function ProfileScreen({ navigation }: Props) {
 
   const handlePickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.5,
+      base64: true,
     });
 
     if (!result.canceled) {
@@ -52,24 +56,85 @@ export default function ProfileScreen({ navigation }: Props) {
     }
   };
 
-  const handleSaveProfile = () => {
+  const uploadAvatar = async (uri: string, userId: string) => {
+    try {
+      // 1. Read file as base64 (ImagePicker can return base64)
+      // Since we requested base64 in launchImageLibraryAsync, looking for asset.base64
+      //However, if we only have URI, we need to read it. 
+      // Simplified approach: Re-read or assume we can upload via FormData if supported, 
+      // but React Native with Supabase usually works best with ArrayBuffer or Blob.
+      
+      // Let's use the fetch-blob polyfill method which is reliable in RN
+      const response = await fetch(uri);
+      const blob = await response.blob();
+      
+      const fileExt = uri.split('.').pop();
+      const fileName = `avatar_${userId}_${Date.now()}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('profile-avatars') // consistency with storage.ts
+        .upload(filePath, blob, {
+          contentType: 'image/jpeg', // Force jpeg if we can't detect
+          upsert: true
+        });
+
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage.from('profile-avatars').getPublicUrl(filePath);
+      return data.publicUrl;
+    } catch (error) {
+      console.error('Error uploading avatar:', error);
+      throw error;
+    }
+  };
+
+  const handleSaveProfile = async () => {
     if (!editFirstName.trim() || !editLastName.trim()) {
       Alert.alert('Error', 'Name is required');
       return;
     }
 
+    if (!user?.id) return;
+
     setIsSaving(true);
-    setTimeout(() => {
-      updateProfile({
-        name: `${editFirstName} ${editLastName}`.trim(),
+    try {
+      let avatarUrl = editAvatar;
+
+      // Check if avatar has changed and is a local file (file://)
+      if (editAvatar && editAvatar.startsWith('file://')) {
+        avatarUrl = await uploadAvatar(editAvatar, user.id);
+      }
+
+      const updates = {
+        full_name: `${editFirstName} ${editLastName}`.trim(),
         phone: editPhone,
-        email: editEmail,
-        avatar: editAvatar
+        avatar_url: avatarUrl,
+        updated_at: new Date(),
+      };
+
+      const { error } = await supabase
+        .from('profiles')
+        .update(updates)
+        .eq('id', user.id);
+
+      if (error) throw error;
+
+      updateProfile({
+        name: updates.full_name,
+        phone: updates.phone,
+        email: editEmail, // Email usually doesn't change here without re-auth, but keep it
+        avatar: avatarUrl
       });
-      setIsSaving(false);
+
       setEditModalVisible(false);
       Alert.alert('Success', 'Profile updated!');
-    }, 1000);
+    } catch (error) {
+       Alert.alert('Error', 'Failed to update profile');
+       console.error(error);
+    } finally {
+       setIsSaving(false);
+    }
   };
 
   const profile = {
@@ -321,7 +386,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: '#FF5722'
+    borderColor: COLORS.primary
   },
   headerInfo: { marginLeft: 20 },
   userName: { fontSize: 24, fontWeight: '800', color: '#FFFFFF', marginBottom: 4 },

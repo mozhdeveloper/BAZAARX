@@ -127,6 +127,12 @@ export interface Seller {
   bank_name: string | null;
   account_name: string | null;
   account_number: string | null;
+  // Document URLs
+  business_permit_url: string | null;
+  valid_id_url: string | null;
+  proof_of_address_url: string | null;
+  dti_registration_url: string | null;
+  tax_id_url: string | null;
   // Status
   is_verified: boolean;
   approval_status: ApprovalStatus;
@@ -698,5 +704,9 @@ export interface Database {
         Update: Partial<Omit<Address, 'id' | 'created_at'>>;
       };
     };
+    Views: Record<string, never>;
+    Functions: Record<string, never>;
+    Enums: Record<string, never>;
+    CompositeTypes: Record<string, never>;
   };
 }

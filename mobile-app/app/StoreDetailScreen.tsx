@@ -6,6 +6,7 @@ import { trendingProducts } from '../src/data/products'; // Placeholder products
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Image, ScrollView, Pressable, StatusBar, Dimensions, Alert, LayoutAnimation, Platform, UIManager, Modal, TextInput } from 'react-native';
 import StoreChatModal from '../src/components/StoreChatModal';
+import { COLORS } from '../src/constants/theme';
 
 const { width } = Dimensions.get('window');
 
@@ -14,7 +15,7 @@ export default function StoreDetailScreen() {
     const navigation = useNavigation<any>();
     const route = useRoute<any>();
     const { store } = route.params;
-    const BRAND_COLOR = '#FF5722';
+    const BRAND_COLOR = COLORS.primary;
 
     // State
     const [isFollowing, setIsFollowing] = useState(false);
@@ -118,7 +119,7 @@ export default function StoreDetailScreen() {
                     <View style={styles.sectionContainer}>
                         <Text style={styles.sectionTitle}>Store Categories</Text>
                         <View style={styles.categoriesList}>
-                            {store.categories.map((cat: string, index: number) => (
+                            {(store.categories || []).map((cat: string, index: number) => (
                                 <Pressable key={index} style={styles.categoryRow}>
                                     <Text style={styles.categoryName}>{cat}</Text>
                                     <Grid size={20} color="#9CA3AF" />
@@ -452,7 +453,7 @@ const styles = StyleSheet.create({
     },
     followButton: {
         flex: 1,
-        backgroundColor: '#FF5722',
+        backgroundColor: COLORS.primary,
         paddingVertical: 10,
         borderRadius: 8,
         flexDirection: 'row',
@@ -505,7 +506,7 @@ const styles = StyleSheet.create({
         fontWeight: '600',
     },
     activeTabText: {
-        color: '#FF5722',
+        color: COLORS.primary,
         fontWeight: '700',
     },
     activeIndicator: {
@@ -514,7 +515,7 @@ const styles = StyleSheet.create({
         left: 16,
         right: 16,
         height: 3,
-        backgroundColor: '#FF5722',
+        backgroundColor: COLORS.primary,
         borderRadius: 3,
     },
     couponSection: {
@@ -536,7 +537,7 @@ const styles = StyleSheet.create({
         marginBottom: 12,
     },
     seeAllText: {
-        color: '#FF5722',
+        color: COLORS.primary,
         fontWeight: '600',
         fontSize: 13,
     },
@@ -566,7 +567,7 @@ const styles = StyleSheet.create({
         borderStyle: 'dashed',
     },
     couponAmount: {
-        color: '#FF5722',
+        color: COLORS.primary,
         fontWeight: '800',
         fontSize: 16,
     },
@@ -581,7 +582,7 @@ const styles = StyleSheet.create({
         backgroundColor: '#FFF',
     },
     claimText: {
-        color: '#FF5722',
+        color: COLORS.primary,
         fontWeight: '700',
         fontSize: 12,
     },

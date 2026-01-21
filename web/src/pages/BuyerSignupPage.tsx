@@ -17,7 +17,7 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Checkbox } from "../components/ui/checkbox";
 import { signUp } from "../services/authService";
-import { supabase } from "../lib/supabase";
+
 
 export default function BuyerSignupPage() {
   const navigate = useNavigate();
@@ -145,6 +145,8 @@ export default function BuyerSignupPage() {
       };
 
       setProfile(buyerProfile);
+      // Initialize cart from database
+      await useBuyerStore.getState().initializeCart();
       setIsLoading(false);
 
       // Show success message and redirect

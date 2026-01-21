@@ -22,7 +22,7 @@ export const uploadProductImage = async (
     const fileExt = file.name.split('.').pop();
     const fileName = `${sellerId}/${productId}/${Date.now()}.${fileExt}`;
 
-    const { data, error } = await supabase.storage
+    const { data: _data, error } = await supabase.storage
       .from('product-images')
       .upload(fileName, file, {
         cacheControl: '3600',
@@ -97,7 +97,7 @@ export const uploadAvatar = async (
     const fileExt = file.name.split('.').pop();
     const fileName = `${userId}.${fileExt}`;
 
-    const { data, error } = await supabase.storage
+    const { data: _data, error } = await supabase.storage
       .from('profile-avatars')
       .upload(fileName, file, {
         cacheControl: '3600',
@@ -172,7 +172,7 @@ export const uploadSellerDocument = async (
     const fileExt = file.name.split('.').pop();
     const fileName = `${sellerId}/${documentType}.${fileExt}`;
 
-    const { data, error } = await supabase.storage
+    const { data: _data, error } = await supabase.storage
       .from('seller-documents')
       .upload(fileName, file, {
         cacheControl: '3600',

@@ -18,16 +18,16 @@ export default function BazaarHistoryZoomParallax() {
     <section className="bg-[#D94F00] text-white">
       <div className="flex flex-col md:flex-row">
         {/* Left Section: Sticky Text */}
-        <div className="w-full md:w-1/2 md:h-screen sticky top-0 flex flex-col justify-center px-4 sm:px-8 md:px-12 lg:px-20 py-12 md:py-0">
+        <div className="w-full md:w-1/2 md:h-screen md:sticky md:top-0 flex flex-col justify-center px-6 sm:px-8 md:px-10 lg:px-16 xl:px-20 py-16 sm:py-20 md:py-0">
           <div className="max-w-xl">
             {/* Decorative vertical divider */}
-            <div className="w-px h-52 bg-gradient-to-b from-transparent via-white/50 to-transparent mb-8"></div>
+            <div className="w-px h-32 sm:h-40 md:h-48 lg:h-52 bg-gradient-to-b from-transparent via-white/50 to-transparent mb-6 sm:mb-8"></div>
 
-            <h2 className="text-5xl sm:text-6xl md:text-7xl font-extrabold tracking-tight leading-tight mb-8 font-fondamento text-white whitespace-nowrap">
+            <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-extrabold tracking-tight leading-tight mb-6 sm:mb-8 font-fondamento text-white">
               Centers of Exchange
             </h2>
 
-            <p className="text-lg sm:text-xl md:text-xl leading-relaxed text-white/90 mb-8">
+            <p className="text-base sm:text-lg md:text-xl leading-relaxed text-white/90 mb-6 sm:mb-8">
               As Persia became a key crossroads of the Silk Road, bazaars evolved
               into international trade hubs. Goods, ideas, and traditions flowed
               through their arcades, supported by surrounding mosques,
@@ -37,12 +37,12 @@ export default function BazaarHistoryZoomParallax() {
             </p>
 
             {/* Decorative vertical divider */}
-            <div className="w-px h-52 bg-gradient-to-b from-transparent via-white/50 to-transparent"></div>
+            <div className="w-px h-32 sm:h-40 md:h-48 lg:h-52 bg-gradient-to-b from-transparent via-white/50 to-transparent"></div>
           </div>
         </div>
 
         {/* Right Section: Scrollable Images */}
-        <div className="w-full md:w-1/2 p-4 sm:p-6 md:p-8 lg:p-10 flex flex-col gap-6 md:gap-12 bg-[#D94F00]">
+        <div className="w-full md:w-1/2 p-4 sm:p-6 md:p-8 lg:p-10 flex flex-col gap-4 sm:gap-6 md:gap-8 lg:gap-12 bg-[#D94F00]">
           {images.map((image, index) => (
             <div key={index} className="w-full">
               <img

@@ -25,6 +25,8 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList, TabParamList } from '../App';
 import type { Product } from '../src/types';
 import { supabase } from '../src/lib/supabase';
+import { useAuthStore } from '../src/stores/authStore';
+import { COLORS } from '../src/constants/theme';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<TabParamList, 'Home'>,
@@ -34,16 +36,17 @@ type Props = CompositeScreenProps<
 const { width } = Dimensions.get('window');
 
 const categories = [
-  { id: '1', name: 'Electronics', image: 'https://images.unsplash.com/photo-1498049794561-7780e7231661?w=300' },
-  { id: '2', name: 'Fashion', image: 'https://images.unsplash.com/photo-1445205170230-053b83016050?w=300' },
-  { id: '3', name: 'Home & Living', image: 'https://images.unsplash.com/photo-1556911220-bff31c812dba?w=300' },
-  { id: '4', name: 'Beauty', image: 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=300' },
-  { id: '5', name: 'Sports', image: 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=300' },
+  { id: 'electronics', name: 'Electronics', image: 'https://images.unsplash.com/photo-1498049794561-7780e7231661?w=300' },
+  { id: 'fashion', name: 'Fashion', image: 'https://images.unsplash.com/photo-1445205170230-053b83016050?w=300' },
+  { id: 'home-garden', name: 'Home & Living', image: 'https://images.unsplash.com/photo-1556911220-bff31c812dba?w=300' },
+  { id: 'beauty', name: 'Beauty', image: 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=300' },
+  { id: 'sports', name: 'Sports', image: 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=300' },
 ];
 
 export default function HomeScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
-  const BRAND_COLOR = '#FF5722';
+  const BRAND_COLOR = COLORS.primary;
+  const { user } = useAuthStore(); // Use global auth store
 
   const [activeTab, setActiveTab] = useState<'Home' | 'Category'>('Home');
   const [showAIChat, setShowAIChat] = useState(false);
@@ -55,38 +58,9 @@ export default function HomeScreen({ navigation }: Props) {
   const [deliveryAddress, setDeliveryAddress] = useState('123 Main St, Manila');
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [recentSearches] = useState(['wireless earbuds', 'leather bag']);
-  const [username, setUsername] = useState('Guest');
-  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
-
-  useEffect(() => {
-    async function getProfile() {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-
-        if (user) {
-          const { data, error } = await supabase
-            .from('profiles')
-            .select('full_name')
-            .eq('id', user.id)
-            .single();
-
-          if (error) throw error;
-
-          if (data?.full_name) {
-            // Take just the first name for the greeting (optional)
-            const firstName = data.full_name.split(' ')[0];
-            setUsername(firstName);
-          }
-        }
-      } catch (error) {
-        console.error('Error loading profile:', error);
-      } finally {
-        setIsLoadingProfile(false);
-      }
-    }
-
-    getProfile();
-  }, []);
+  
+  // Display name logic
+  const username = user?.name ? user.name.split(' ')[0] : 'Guest';
 
   const notifications = [
     { id: '1', title: 'Order Shipped! 📦', message: 'Your order #A238567K has been shipped!', time: '2h ago', read: false, icon: Package, color: '#3B82F6' },
@@ -111,7 +85,10 @@ export default function HomeScreen({ navigation }: Props) {
           <View style={styles.headerLeft}>
             {/* PROFILE AVATAR CLICKABLE LOGIC */}
             <Pressable onPress={() => navigation.navigate('MainTabs', { screen: 'Profile' })}>
-              <Image source={{ uri: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100' }} style={styles.avatar} />
+              <Image 
+                source={{ uri: user?.avatar || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100' }} 
+                style={styles.avatar} 
+              />
             </Pressable>
 
             <View style={styles.greetingContainer}>
@@ -268,7 +245,11 @@ export default function HomeScreen({ navigation }: Props) {
             <Text style={styles.categorySectionTitle}>Shop by Category</Text>
             <View style={styles.categoryGrid}>
               {categories.map((item) => (
-                <Pressable key={item.id} style={styles.categoryCardBox}>
+                <Pressable 
+                  key={item.id} 
+                  style={styles.categoryCardBox}
+                  onPress={() => navigation.navigate('Shop', { category: item.id })}
+                >
                   <Image source={{ uri: item.image }} style={styles.categoryCardImage} />
                   <View style={styles.categoryCardOverlay} />
                   <Text style={styles.categoryCardText}>{item.name}</Text>
@@ -321,7 +302,7 @@ const styles = StyleSheet.create({
   greetingSubtitle: { fontSize: 13 },
   headerRight: { flexDirection: 'row', gap: 16 },
   headerIconButton: { padding: 4 },
-  notifBadge: { position: 'absolute', top: 4, right: 4, width: 8, height: 8, borderRadius: 4, borderWidth: 1.5, borderColor: '#FF5722' },
+  notifBadge: { position: 'absolute', top: 4, right: 4, width: 8, height: 8, borderRadius: 4, borderWidth: 1.5, borderColor: COLORS.primary },
   searchBarWrapper: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 15 },
   searchBarInner: { flex: 1, flexDirection: 'row', alignItems: 'center', borderRadius: 12, paddingHorizontal: 15, height: 48, gap: 10 },
   searchInput: { flex: 1, fontSize: 14 },
@@ -349,8 +330,8 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   timerBox: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, gap: 4 },
   timerText: { color: '#FFF', fontSize: 11, fontWeight: '700' },
-  itemBoxContainerHorizontal: { width: 160, marginRight: 15, backgroundColor: '#FFF', borderRadius: 18, padding: 2, elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.1, shadowRadius: 6 },
-  itemBoxContainerVertical: { width: (width - 55) / 2, marginBottom: 20, backgroundColor: '#FFF', borderRadius: 18, padding: 2, elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.1, shadowRadius: 6 },
+  itemBoxContainerHorizontal: { width: 160, marginRight: 15, backgroundColor: '#FFF', borderRadius: 18, elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.1, shadowRadius: 6 },
+  itemBoxContainerVertical: { width: (width - 55) / 2, marginBottom: 20, backgroundColor: '#FFF', borderRadius: 18, elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.1, shadowRadius: 6 },
   section: { paddingHorizontal: 20, marginVertical: 15 },
   productRequestButton: { backgroundColor: '#FFFFFF', borderRadius: 20, padding: 16, elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8 },
   productRequestButtonPressed: { opacity: 0.8, transform: [{ scale: 0.98 }] },
@@ -364,7 +345,7 @@ const styles = StyleSheet.create({
   gridContainer: { paddingHorizontal: 20, marginBottom: 20 },
   gridHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   gridTitleText: { fontSize: 18, fontWeight: '900', color: '#1F2937' },
-  gridSeeAll: { fontSize: 14, fontWeight: '700', color: '#FF5722' },
+  gridSeeAll: { fontSize: 14, fontWeight: '700', color: COLORS.primary },
   gridBody: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
   aiFloatingButton: { position: 'absolute', right: 20, width: 60, height: 60, borderRadius: 30, justifyContent: 'center', alignItems: 'center', elevation: 8, shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 6 },
   searchDiscovery: { padding: 20 },

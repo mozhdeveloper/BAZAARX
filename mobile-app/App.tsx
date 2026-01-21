@@ -61,7 +61,7 @@ export type RootStackParamList = {
   MainTabs: NavigatorScreenParams<TabParamList>;
   ProductDetail: { product: Product };
   Checkout: undefined;
-  PaymentGateway: { paymentMethod: string; order: Order };
+  PaymentGateway: { paymentMethod: string; order: Order; isQuickCheckout?: boolean };
   OrderConfirmation: { order: Order };
   OrderDetail: { order: Order };
   DeliveryTracking: { order: Order };

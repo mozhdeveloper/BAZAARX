@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import * as cartService from '@/services/cartService';
+import { getCurrentUser } from '@/lib/supabase';
 
 // Enhanced interfaces for buyer features
 export interface Seller {
@@ -145,6 +147,14 @@ export interface BuyerProfile {
   totalOrders: number;
   totalSpent: number;
   loyaltyPoints: number;
+  savedCards?: SavedCard[];
+}
+
+export interface SavedCard {
+  id: string;
+  last4: string;
+  brand: string;
+  expiry: string;
 }
 
 interface BuyerStore {
@@ -153,6 +163,7 @@ interface BuyerStore {
   setProfile: (profile: BuyerProfile) => void;
   updateProfile: (updates: Partial<BuyerProfile>) => void;
   logout: () => void;
+  initializeCart: () => Promise<void>;
 
   // Address Book
   addresses: Address[];
@@ -216,36 +227,18 @@ interface BuyerStore {
 export const useBuyerStore = create<BuyerStore>()(persist(
   (set, get) => ({
     // Profile Management
-    profile: {
-      id: 'buyer-001',
-      email: 'buyer@example.com',
-      firstName: 'Maria',
-      lastName: 'Santos',
-      phone: '+63917123456',
-      avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b5e5?w=150&h=150&fit=crop&crop=face',
-      birthdate: new Date('1995-06-15'),
-      gender: 'female',
-      preferences: {
-        language: 'en',
-        currency: 'PHP',
-        notifications: {
-          email: true,
-          sms: true,
-          push: true
-        },
-        privacy: {
-          showProfile: true,
-          showPurchases: false,
-          showFollowing: true
-        }
-      },
-      memberSince: new Date('2022-01-15'),
-      totalOrders: 45,
-      totalSpent: 125000,
-      loyaltyPoints: 2500
-    },
+    profile: null,
 
-    setProfile: (profile) => set({ profile }),
+    setProfile: (profile) => {
+      // Mock saved cards for demo
+      if (!profile.savedCards) {
+        profile.savedCards = [
+          { id: 'card_web_1', last4: '1111', brand: 'Visa', expiry: '05/30' },
+          { id: 'card_web_2', last4: '2222', brand: 'MasterCard', expiry: '09/25' },
+        ];
+      }
+      set({ profile });
+    },
     updateProfile: (updates) => set((state) => ({
       profile: state.profile ? { ...state.profile, ...updates } : null
     })),
@@ -338,7 +331,26 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       return quickOrder.price * quickOrder.quantity;
     },
 
-    addToCart: (product, quantity = 1, variant) => {
+    addToCart: async (product, quantity = 1, variant) => {
+      // Check if user is logged in
+      const user = await getCurrentUser();
+
+      if (user) {
+        try {
+          const cart = await cartService.getOrCreateCart(user.id);
+          if (cart) {
+            await cartService.addToCart(
+              cart.id,
+              product.id,
+              quantity,
+              variant
+            );
+          }
+        } catch (error) {
+          console.error('Error adding to database cart:', error);
+        }
+      }
+
       set((state) => {
         const existingItem = state.cartItems.find(item =>
           item.id === product.id &&
@@ -365,18 +377,51 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       get().groupCartBySeller();
     },
 
-    removeFromCart: (productId) => {
+    removeFromCart: async (productId) => {
+      const user = await getCurrentUser();
+      if (user) {
+        try {
+          const cart = await cartService.getOrCreateCart(user.id);
+          if (cart) {
+            const items = await cartService.getCartItems(cart.id);
+            const itemToDelete = items.find(i => i.product_id === productId);
+            if (itemToDelete) {
+              await cartService.removeFromCart(itemToDelete.id);
+            }
+          }
+        } catch (error) {
+          console.error('Error removing from database cart:', error);
+        }
+      }
+
       set((state) => ({
         cartItems: state.cartItems.filter(item => item.id !== productId)
       }));
       get().groupCartBySeller();
     },
 
-    updateCartQuantity: (productId, quantity) => {
+    updateCartQuantity: async (productId, quantity) => {
       if (quantity <= 0) {
         get().removeFromCart(productId);
         return;
       }
+
+      const user = await getCurrentUser();
+      if (user) {
+        try {
+          const cart = await cartService.getOrCreateCart(user.id);
+          if (cart) {
+            const items = await cartService.getCartItems(cart.id);
+            const itemToUpdate = items.find(i => i.product_id === productId);
+            if (itemToUpdate) {
+              await cartService.updateCartItemQuantity(itemToUpdate.id, quantity);
+            }
+          }
+        } catch (error) {
+          console.error('Error updating database cart quantity:', error);
+        }
+      }
+
       set((state) => ({
         cartItems: state.cartItems.map(item =>
           item.id === productId ? { ...item, quantity } : item
@@ -550,9 +595,10 @@ export const useBuyerStore = create<BuyerStore>()(persist(
 
     calculateDiscount: (subtotal, voucher) => {
       switch (voucher.type) {
-        case 'percentage':
+        case 'percentage': {
           const percentageDiscount = subtotal * (voucher.value / 100);
           return voucher.maxDiscount ? Math.min(percentageDiscount, voucher.maxDiscount) : percentageDiscount;
+        }
         case 'fixed':
           return Math.min(voucher.value, subtotal);
         case 'shipping':
@@ -649,6 +695,67 @@ export const useBuyerStore = create<BuyerStore>()(persist(
           viewedSellers: [...state.viewedSellers, seller]
         };
       });
+    },
+
+    initializeCart: async () => {
+      const user = await getCurrentUser();
+      if (!user) return;
+
+      try {
+        const cart = await cartService.getOrCreateCart(user.id);
+        if (cart) {
+          const dbItems = await cartService.getCartItems(cart.id);
+
+          // Map DB items to store items
+          const mappedItems: CartItem[] = dbItems.map((item: any) => {
+            const product = item.product;
+            if (!product) return null;
+
+            return {
+              id: product.id,
+              name: product.name,
+              price: product.price,
+              originalPrice: product.original_price,
+              image: product.primary_image || (product.images && product.images[0]) || "",
+              images: product.images || [],
+              seller: {
+                id: product.seller_id,
+                name: "Verified Seller", // We might need to join with sellers table
+                avatar: "",
+                rating: 0,
+                totalReviews: 0,
+                followers: 0,
+                isVerified: true,
+                description: "",
+                location: "Metro Manila",
+                established: "",
+                products: [],
+                badges: [],
+                responseTime: "",
+                categories: []
+              },
+              sellerId: product.seller_id,
+              rating: product.rating || 0,
+              totalReviews: product.review_count || 0,
+              category: product.category || "",
+              sold: product.sales_count || 0,
+              isFreeShipping: product.is_free_shipping || false,
+              location: "Metro Manila",
+              description: product.description || "",
+              specifications: product.specifications || {},
+              variants: product.variants || [],
+              quantity: item.quantity,
+              selectedVariant: item.selected_variant,
+              notes: item.notes
+            } as CartItem;
+          }).filter(Boolean) as CartItem[];
+
+          set({ cartItems: mappedItems });
+          get().groupCartBySeller();
+        }
+      } catch (error) {
+        console.error('Error initializing cart from DB:', error);
+      }
     }
   }),
   {

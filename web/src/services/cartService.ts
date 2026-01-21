@@ -4,10 +4,9 @@
  */
 
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import type { Cart, CartItem, Database } from '@/types/database.types';
+import type { Cart, CartItem } from '@/types/database.types';
 
-type CartInsert = Database['public']['Tables']['carts']['Insert'];
-type CartItemInsert = Database['public']['Tables']['cart_items']['Insert'];
+
 
 // Mock data fallback
 let mockCart: Cart | null = null;

@@ -103,6 +103,7 @@ export default function CheckoutPage() {
     quickOrder,
     clearQuickOrder,
     getQuickOrderTotal,
+    profile,
   } = useBuyerStore();
 
   // Determine which items to checkout: quick order takes precedence
@@ -120,6 +121,18 @@ export default function CheckoutPage() {
     paymentMethod: "card",
   });
 
+  // Demo: Ensure saved cards exist
+  useEffect(() => {
+    if (profile && (!profile.savedCards || profile.savedCards.length === 0)) {
+        useBuyerStore.getState().updateProfile({
+            savedCards: [
+                { id: 'card_demo_1', last4: '4242', brand: 'Visa', expiry: '12/28' },
+                { id: 'card_demo_2', last4: '8888', brand: 'MasterCard', expiry: '10/26' },
+            ]
+        });
+    }
+  }, [profile]);
+
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Partial<CheckoutFormData>>({});
   const [voucherCode, setVoucherCode] = useState("");
@@ -128,6 +141,36 @@ export default function CheckoutPage() {
   >(null);
 
   const totalPrice = checkoutTotal;
+
+  const DEFAULT_ADDRESS: CheckoutFormData = {
+    fullName: "Juan Dela Cruz",
+    street: "123 Rizal Street",
+    city: "Quezon City",
+    province: "Metro Manila",
+    postalCode: "1100",
+    phone: "+63 912 345 6789",
+    paymentMethod: "card",
+  };
+
+  const [useDefaultAddress, setUseDefaultAddress] = useState(true);
+
+  // Initialize with default address if enabled
+  useEffect(() => {
+    if (useDefaultAddress) {
+      setFormData(prev => ({
+        ...prev,
+        fullName: DEFAULT_ADDRESS.fullName,
+        street: DEFAULT_ADDRESS.street,
+        city: DEFAULT_ADDRESS.city,
+        province: DEFAULT_ADDRESS.province,
+        postalCode: DEFAULT_ADDRESS.postalCode,
+        phone: DEFAULT_ADDRESS.phone,
+      }));
+       // Clear errors when switching to default
+       setErrors({});
+    }
+  }, [useDefaultAddress]);
+
   let shippingFee =
     checkoutItems.length > 0 &&
     !checkoutItems.every((item) => item.isFreeShipping)
@@ -335,16 +378,53 @@ export default function CheckoutPage() {
                 animate={{ opacity: 1, y: 0 }}
                 className="bg-white border border-gray-200 rounded-xl p-6"
               >
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="w-8 h-8 bg-[var(--brand-primary)] rounded-full flex items-center justify-center">
-                    <MapPin className="w-4 h-4 text-white" />
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-[var(--brand-primary)] rounded-full flex items-center justify-center">
+                      <MapPin className="w-4 h-4 text-white" />
+                    </div>
+                    <h2 className="text-xl font-semibold text-gray-900">
+                      Shipping Information
+                    </h2>
                   </div>
-                  <h2 className="text-xl font-semibold text-gray-900">
-                    Shipping Information
-                  </h2>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Address Selection Toggle */}
+                <div className="mb-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                    <label className="flex items-center gap-3 cursor-pointer">
+                        <div className="relative">
+                            <input 
+                                type="checkbox" 
+                                className="sr-only peer"
+                                checked={useDefaultAddress}
+                                onChange={() => setUseDefaultAddress(!useDefaultAddress)}
+                            />
+                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--brand-primary)]"></div>
+                        </div>
+                        <span className="text-sm font-medium text-gray-900">Use Default / Home Address</span>
+                    </label>
+                </div>
+
+                {useDefaultAddress ? (
+                    <div className="bg-orange-50 border border-orange-100 rounded-lg p-4">
+                        <div className="flex justify-between items-start">
+                             <div>
+                                <p className="font-bold text-gray-900">{DEFAULT_ADDRESS.fullName}</p>
+                                <p className="text-gray-600 text-sm mt-1">{DEFAULT_ADDRESS.phone}</p>
+                                <p className="text-gray-600 text-sm mt-1">
+                                    {DEFAULT_ADDRESS.street}, {DEFAULT_ADDRESS.city}
+                                </p>
+                                <p className="text-gray-600 text-sm">
+                                    {DEFAULT_ADDRESS.province}, {DEFAULT_ADDRESS.postalCode}
+                                </p>
+                             </div>
+                             <span className="bg-[var(--brand-primary)] text-white text-xs px-2 py-1 rounded">
+                                 Default
+                             </span>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-4 duration-300">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Full Name *
@@ -480,6 +560,7 @@ export default function CheckoutPage() {
                     )}
                   </div>
                 </div>
+                )}
               </motion.section>
 
               {/* Payment Method */}
@@ -540,7 +621,47 @@ export default function CheckoutPage() {
                 {/* Payment Details */}
                 {formData.paymentMethod === "card" && (
                   <div className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {profile?.savedCards && profile.savedCards.length > 0 && (
+                        <div className="mb-4">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Saved Cards</label>
+                            <div className="space-y-2">
+                                {profile.savedCards.map((card) => (
+                                    <div 
+                                        key={card.id}
+                                        onClick={() => {
+                                            handleInputChange("cardNumber", `**** **** **** ${card.last4}`);
+                                            handleInputChange("expiryDate", card.expiry);
+                                            handleInputChange("cvv", "***"); 
+                                            // In a real app we wouldn't auto-fill CVV, requiring user input
+                                        }}
+                                        className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
+                                    >
+                                        <div className={`w-4 h-4 rounded-full border mr-3 flex items-center justify-center ${
+                                            formData.cardNumber?.endsWith(card.last4) ? "border-[var(--brand-primary)] bg-[var(--brand-primary)]" : "border-gray-300"
+                                        }`}>
+                                            {formData.cardNumber?.endsWith(card.last4) && <Check className="w-3 h-3 text-white" />}
+                                        </div>
+                                        <div className="flex-1">
+                                            <p className="font-medium text-gray-900">{card.brand} ending in {card.last4}</p>
+                                            <p className="text-xs text-gray-500">Expires {card.expiry}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                                <div 
+                                    onClick={() => {
+                                        handleInputChange("cardNumber", "");
+                                        handleInputChange("expiryDate", "");
+                                        handleInputChange("cvv", "");
+                                    }}
+                                    className="text-sm text-[var(--brand-primary)] font-medium cursor-pointer mt-2 hover:underline"
+                                >
+                                    + Use a new card
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2">
                       <div className="md:col-span-2">
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                           Card Number *

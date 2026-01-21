@@ -13,6 +13,7 @@ import {
   BadgeCheck,
   ShoppingCart,
   RotateCcw,
+  ChevronUp,
 } from "lucide-react";
 import Header from "../components/Header";
 import { BazaarFooter } from "../components/ui/bazaar-footer";
@@ -29,16 +30,13 @@ import {
 import { CartModal } from "../components/ui/cart-modal";
 import ProductRequestModal from "../components/ProductRequestModal";
 import VisualSearchModal from "../components/VisualSearchModal";
-import {
-  trendingProducts,
-  bestSellerProducts,
-  newArrivals,
-} from "../data/products";
+import { useToast } from "../hooks/use-toast";
+// Hardcoded imports removed for database parity
 import { categories } from "../data/categories";
 import { useBuyerStore } from "../stores/buyerStore";
 import { useProductStore } from "../stores/sellerStore";
 // import { useProductQAStore } from "../stores/productQAStore";
-import type { Product as BuyerProduct } from "../stores/buyerStore";
+
 
 type ShopProduct = {
   id: string;
@@ -58,68 +56,9 @@ type ShopProduct = {
   sellerVerified?: boolean;
 };
 
-interface FlashSaleProduct {
-  id: string;
-  name: string;
-  image: string;
-  originalPrice: number;
-  salePrice: number;
-  discount: number;
-  sold: number;
-  stock: number;
-  rating: number;
-}
+// FlashSaleProduct interface removed
 
-const flashSaleProducts: FlashSaleProduct[] = [
-  {
-    id: "fs1",
-    name: "Wireless Earbuds Pro",
-    image:
-      "https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=400&h=400&fit=crop",
-    originalPrice: 2999,
-    salePrice: 1499,
-    discount: 50,
-    sold: 234,
-    stock: 500,
-    rating: 4.8,
-  },
-  {
-    id: "fs2",
-    name: "Smart Watch Fitness Tracker",
-    image:
-      "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=400&fit=crop",
-    originalPrice: 4999,
-    salePrice: 2999,
-    discount: 40,
-    sold: 189,
-    stock: 300,
-    rating: 4.7,
-  },
-  {
-    id: "fs3",
-    name: "Portable Power Bank 20000mAh",
-    image:
-      "https://images.unsplash.com/photo-1609091839311-d5365f9ff1c5?w=400&h=400&fit=crop",
-    originalPrice: 1999,
-    salePrice: 999,
-    discount: 50,
-    sold: 456,
-    stock: 200,
-    rating: 4.9,
-  },
-  {
-    id: "fs4",
-    name: "LED Desk Lamp with USB",
-    image:
-      "https://images.unsplash.com/photo-1507473885765-e6ed057f782c?w=400&h=400&fit=crop",
-    originalPrice: 1499,
-    salePrice: 799,
-    discount: 47,
-    sold: 321,
-    stock: 150,
-    rating: 4.6,
-  },
-];
+// Flash sale products are now derived from real products in the component
 
 const categoryOptions = [
   "All Categories",
@@ -181,8 +120,11 @@ export default function ShopPage() {
   }, []);
 
   useEffect(() => {
-    // Fetch products from Supabase on component mount
-    fetchProducts();
+    // Fetch products for the shop page
+    // We remove the specific approvalStatus filter to show more products
+    fetchProducts({
+      isActive: true,
+    });
   }, [fetchProducts]);
 
   // Sync search query from URL
@@ -192,7 +134,7 @@ export default function ShopPage() {
 
   const allProducts = useMemo<ShopProduct[]>(() => {
     const dbProducts = sellerProducts
-      .filter((p) => p.approvalStatus === "pending" && p.isActive)
+      .filter((p) => (p.approvalStatus === "approved" || p.approvalStatus === "pending") && p.isActive)
       .map((p) => ({
         id: p.id,
         name: p.name,
@@ -202,17 +144,34 @@ export default function ShopPage() {
         rating: p.rating || 0,
         sold: p.sales || 0,
         category: p.category,
-        // 2. Map the seller name correctly
         seller: p.sellerName || "Verified Seller",
-        isVerified: true,
+        isVerified: p.approvalStatus === "approved",
         location: "Metro Manila",
         description: p.description,
         sellerRating: p.sellerRating || 0,
-        sellerVerified: true,
+        sellerVerified: p.approvalStatus === "approved",
       }));
 
     return dbProducts;
   }, [sellerProducts]);
+
+  const flashSales = useMemo(() => {
+    return allProducts
+      .filter((p) => (p.originalPrice || 0) > p.price)
+      .sort((a, b) => {
+        const discountA = a.originalPrice ? (a.originalPrice - a.price) / a.originalPrice : 0;
+        const discountB = b.originalPrice ? (b.originalPrice - b.price) / b.originalPrice : 0;
+        return discountB - discountA;
+      })
+      .slice(0, 4)
+      .map((p) => ({
+        ...p,
+        endTime: new Date(Date.now() + 3600000 * 5).toISOString(), // 5 hours from now
+        discount: p.originalPrice
+          ? Math.round(((p.originalPrice - p.price) / p.originalPrice) * 100)
+          : 0,
+      }));
+  }, [allProducts]);
 
   const filteredProducts = useMemo<ShopProduct[]>(() => {
     const filtered = allProducts.filter((product) => {
@@ -310,7 +269,7 @@ export default function ShopPage() {
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            {flashSaleProducts.map((product, index) => (
+            {flashSales.map((product: any, index: number) => (
               <motion.div
                 key={product.id}
                 initial={{ opacity: 0, y: 20 }}
@@ -344,14 +303,16 @@ export default function ShopPage() {
 
                   <div className="flex flex-col gap-0.5">
                     <div className="text-base font-bold text-orange-600 leading-none">
-                      ₱{product.salePrice.toLocaleString()}
+                      ₱{product.price.toLocaleString()}
                     </div>
                     <div className="flex items-center gap-1">
-                      <span className="text-[10px] text-gray-400 line-through">
-                        ₱{product.originalPrice.toLocaleString()}
-                      </span>
+                      {product.originalPrice && (
+                        <span className="text-[10px] text-gray-400 line-through">
+                          ₱{product.originalPrice.toLocaleString()}
+                        </span>
+                      )}
                       <span className="text-[10px] text-gray-500">
-                        {product.sold.toLocaleString()} sold
+                        {(product.sold || 0).toLocaleString()} sold
                       </span>
                     </div>
                   </div>
@@ -383,43 +344,41 @@ export default function ShopPage() {
                 </Button>
               </div>
 
-              <div className="flex flex-col h-[calc(100vh-140px)] gap-4">
-                {/* Vertical Layered Categories */}
-                <div className="flex-1 flex flex-col gap-1 min-h-0">
-                  <h3 className="text-sm font-semibold text-gray-900 px-1 mb-1">Categories</h3>
-                  {categoryOptions.map((category) => {
-                    const isSelected = selectedCategory === category;
-                    return (
-                      <div
-                        key={category}
-                        onClick={() => setSelectedCategory(category)}
-                        className={`relative rounded-2xl transition-all duration-500 ease-in-out cursor-pointer overflow-hidden border
-                          ${isSelected
-                            ? "flex-[12] bg-orange-500 border-orange-400 shadow-md"
-                            : "flex-1 bg-white border-gray-100 hover:bg-gray-50"
-                          }
-                        `}
-                      >
-                        <div className="absolute inset-0 flex items-center justify-center p-4">
-                          <span
-                            className={`transition-all duration-500 transform
-                                ${isSelected
-                                ? "font-bold -rotate-90 text-white text-3xl tracking-widest origin-center whitespace-normal text-center w-64 leading-none"
-                                : "font-medium text-gray-600 text-sm whitespace-nowrap"
-                              }
-                              `}
-                          >
-                            {category}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
+              <div className="flex flex-col gap-6">
+                {/* Categories Section */}
+                <div>
+                  <div className="flex items-center justify-between mb-4 px-1">
+                    <h3 className="font-semibold text-gray-900">Categories</h3>
+                    <ChevronUp className="w-4 h-4 text-gray-500" />
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    {categoryOptions.map((category) => {
+                      const isSelected = selectedCategory === category;
+                      return (
+                        <button
+                          key={category}
+                          onClick={() => setSelectedCategory(category)}
+                          className={`w-full text-left px-4 py-2.5 rounded-lg text-sm transition-all duration-200
+                              ${isSelected
+                              ? "bg-[#ff6a00] text-white font-medium shadow-sm"
+                              : "text-gray-600 hover:bg-gray-50 hover:text-gray-900 font-normal"
+                            }
+                            `}
+                        >
+                          {category}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 {/* Price Range (Fixed at Bottom) */}
-                <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm shrink-0">
-                  <h3 className="text-sm font-medium text-gray-900 mb-4">Price Range</h3>
+                <div className="px-1">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-semibold text-gray-900">Price Range</h3>
+                    <ChevronUp className="w-4 h-4 text-gray-500" />
+                  </div>
                   <div className="px-2">
                     <Slider
                       min={0}
@@ -590,7 +549,7 @@ export default function ShopPage() {
                       </div>
                     </div>
 
-                    <div className="mt-2 flex items-center text-sm text-gray-500">
+                    <div className="mt-2 text-sm text-gray-500">
                       <MapPin className="w-3 h-3 mr-1" />
                       {product.location}
                     </div>
@@ -604,10 +563,18 @@ export default function ShopPage() {
                       <Button
                         onClick={(e) => {
                           e.stopPropagation();
-                          const sellerLocation =
-                            product.location || "Metro Manila";
-                          // Transform simple Product to CartItem format
-                          const cartItem: BuyerProduct = {
+                          if (!profile) {
+                            toast({
+                              title: "Login Required",
+                              description: "Please sign in to add items to your cart.",
+                              variant: "destructive",
+                            });
+                            navigate("/login");
+                            return;
+                          }
+
+                          const sellerLocation = product.location || "Metro Manila";
+                          const cartItem: any = {
                             id: product.id,
                             name: product.name,
                             price: product.price,
@@ -652,7 +619,7 @@ export default function ShopPage() {
                           setShowCartModal(true);
                         }}
                         variant="outline"
-                        className="w-full border-[#FF5722] text-[#FF5722] hover:bg-[#FF5722] hover:text-white rounded-xl gap-2"
+                        className="w-full border-[#FF5722] text-[#FF5722] hover:bg-[#FF5722] hover:text-white rounded-xl gap-2 transition-all active:scale-95"
                       >
                         <ShoppingCart className="w-4 h-4" />
                         Add to Cart
@@ -661,10 +628,18 @@ export default function ShopPage() {
                       <Button
                         onClick={(e) => {
                           e.stopPropagation();
-                          const sellerLocation =
-                            product.location || "Metro Manila";
-                          // Create quick order item
-                          const quickOrderItem: BuyerProduct = {
+                          if (!profile) {
+                            toast({
+                              title: "Login Required",
+                              description: "Please sign in to buy this product.",
+                              variant: "destructive",
+                            });
+                            navigate("/login");
+                            return;
+                          }
+
+                          const sellerLocation = product.location || "Metro Manila";
+                          const quickOrderItem: any = {
                             id: product.id,
                             name: product.name,
                             price: product.price,
@@ -703,7 +678,7 @@ export default function ShopPage() {
                           // Navigate to checkout
                           navigate("/checkout");
                         }}
-                        className="w-full bg-[#FF5722] hover:bg-[#E64A19] text-white rounded-xl"
+                        className="w-full bg-[#FF5722] hover:bg-[#E64A19] text-white rounded-xl transition-all active:scale-95"
                       >
                         Buy Now
                       </Button>
@@ -736,7 +711,7 @@ export default function ShopPage() {
       <BazaarFooter />
 
       {/* Cart Modal */}
-      {addedProduct && (
+      {addedProduct && showCartModal && (
         <CartModal
           isOpen={showCartModal}
           onClose={() => setShowCartModal(false)}
@@ -754,7 +729,7 @@ export default function ShopPage() {
           setShowVisualSearchModal(false);
           setShowRequestModal(true);
         }}
-        products={[...trendingProducts, ...bestSellerProducts, ...newArrivals]}
+        products={allProducts as any}
       />
 
       {/* Product Request Modal */}

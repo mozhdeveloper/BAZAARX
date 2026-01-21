@@ -470,7 +470,7 @@ interface SellersState {
 
 export const useAdminSellers = create<SellersState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       sellers: [],
       selectedSeller: null,
       pendingSellers: [],
@@ -940,7 +940,8 @@ export const useAdminSellers = create<SellersState>()(
           return {
             sellers: updatedSellers,
             pendingSellers: updatedSellers.filter(seller => seller.status === 'pending'),
-            isLoading: false
+            isLoading: false,
+            error: null
           };
         });
       },
