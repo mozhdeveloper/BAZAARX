@@ -212,7 +212,8 @@ export const deleteProduct = async (id: string): Promise<boolean> => {
   try {
     const { error } = await supabase
       .from('products')
-      .delete()
+
+      .update({ is_active: false })
       .eq('id', id);
 
     if (error) throw error;
