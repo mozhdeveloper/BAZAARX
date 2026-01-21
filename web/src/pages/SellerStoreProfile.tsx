@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useAuthStore } from "@/stores/sellerStore";
@@ -24,6 +24,7 @@ import {
   Eye,
   LogOut,
   Download,
+  Loader,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -83,10 +84,122 @@ export function SellerStoreProfile() {
     dtiRegistrationUrl?: string;
     taxIdUrl?: string;
   }>({});
+  const [avatarLoading, setAvatarLoading] = useState(false);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   const handleLogout = () => {
     logout();
     navigate("/seller/auth");
+  };
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !seller?.id) {
+      setAvatarError("No file selected or seller ID missing");
+      return;
+    }
+
+    // Validate file type
+    const validTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+    if (!validTypes.includes(file.type)) {
+      setAvatarError(
+        "Please upload a valid image file (JPEG, PNG, WebP, or GIF)",
+      );
+      return;
+    }
+
+    // Validate file size (5MB max)
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    if (file.size > maxSize) {
+      setAvatarError("File size must be less than 5MB");
+      return;
+    }
+
+    try {
+      setAvatarLoading(true);
+      setAvatarError(null);
+
+      console.log("Starting avatar upload...", {
+        filename: file.name,
+        filesize: file.size,
+        fileType: file.type,
+        sellerId: seller.id,
+      });
+
+      // Create a unique filename
+      const timestamp = Date.now();
+      const ext = file.name.split(".").pop();
+      const filename = `${seller.id}-${timestamp}.${ext}`;
+
+      // Upload to Supabase Storage
+      const { data, error: uploadError } = await supabase.storage
+        .from("profile-avatars")
+        .upload(filename, file, {
+          cacheControl: "3600",
+          upsert: true,
+        });
+
+      if (uploadError) {
+        const errorDetails = {
+          message: uploadError.message,
+          name: uploadError.name,
+          statusCode: (uploadError as any).statusCode,
+          status: (uploadError as any).status,
+        };
+        console.error("Upload error details:", errorDetails);
+        throw new Error(
+          `Upload failed: ${uploadError.message} | Bucket: profile-avatars | File: ${filename}`,
+        );
+      }
+
+      console.log("Upload successful", { data });
+
+      // Get public URL
+      const { data: publicData } = supabase.storage
+        .from("profile-avatars")
+        .getPublicUrl(filename);
+
+      const avatarUrl = publicData.publicUrl;
+      console.log("Generated public URL:", avatarUrl);
+
+      // Update profile in database
+      const { error: updateError, data: updateData } = await supabase
+        .from("profiles")
+        .update({ avatar_url: avatarUrl })
+        .eq("id", seller.id);
+
+      if (updateError) {
+        const dbErrorDetails = {
+          message: updateError.message,
+          code: (updateError as any).code,
+          details: (updateError as any).details,
+        };
+        console.error("Database update error:", dbErrorDetails);
+        throw new Error(
+          `Database update failed: ${updateError.message} | Profile ID: ${seller.id}`,
+        );
+      }
+
+      console.log("Database update successful", { updateData });
+
+      // Update local state
+      updateSellerDetails({ ...seller, avatar: avatarUrl });
+
+      // Reset input
+      if (avatarInputRef.current) {
+        avatarInputRef.current.value = "";
+      }
+
+      console.log("Avatar upload completed successfully");
+      setAvatarLoading(false);
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to upload avatar";
+      console.error("Avatar upload error:", errorMessage, err);
+      setAvatarError(errorMessage);
+      setAvatarLoading(false);
+    }
   };
 
   const [formData, setFormData] = useState({
@@ -229,8 +342,6 @@ export function SellerStoreProfile() {
         if (data) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const docData: any = data;
-
-          console.log("Fetched seller data:", docData);
 
           // Update verification status
           setIsVerified(docData.is_verified || false);
@@ -602,14 +713,38 @@ export function SellerStoreProfile() {
                       {seller?.storeName?.charAt(0) || "S"}
                     </div>
                   )}
-                  <label className="absolute -bottom-2 -right-2 h-8 w-8 rounded-full bg-[#FF6A00] text-white flex items-center justify-center shadow-lg hover:bg-orange-600 transition-colors cursor-pointer">
-                    <Camera className="h-4 w-4" />
-                    <input type="file" className="hidden" accept="image/*" />
+                  <label className="absolute -bottom-2 -right-2 h-8 w-8 rounded-full bg-[#FF6A00] text-white flex items-center justify-center shadow-lg hover:bg-orange-600 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+                    {avatarLoading ? (
+                      <Loader className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Camera className="h-4 w-4" />
+                    )}
+                    <input
+                      ref={avatarInputRef}
+                      type="file"
+                      className="hidden"
+                      accept="image/*"
+                      onChange={handleAvatarUpload}
+                      disabled={avatarLoading}
+                    />
                   </label>
                 </div>
 
                 {/* Store Info */}
                 <div className="flex-1">
+                  {avatarError && (
+                    <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
+                      <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-medium text-red-900">
+                          Upload Failed
+                        </p>
+                        <p className="text-sm text-red-700 mt-1">
+                          {avatarError}
+                        </p>
+                      </div>
+                    </div>
+                  )}
                   <div className="flex items-start justify-between mb-4">
                     <div>
                       <h2 className="text-2xl font-bold text-gray-900">
