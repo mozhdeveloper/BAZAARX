@@ -31,6 +31,7 @@ import {
 } from 'lucide-react-native';
 import AdminDrawer from '../../../src/components/AdminDrawer';
 import { useAdminProductQA } from '../../../src/stores/adminStore';
+import { COLORS } from '../../../src/constants/theme';
 
 type TabType = 'digital' | 'physical' | 'history';
 
@@ -234,7 +235,7 @@ export default function AdminProductApprovalsScreen() {
       {selectedTab === 'physical' && product.logisticsMethod && (
         <View style={styles.logisticsBox}>
           <View style={styles.logisticsHeader}>
-            <Truck size={16} color="#FF5722" />
+            <Truck size={16} color={COLORS.primary} />
             <Text style={styles.logisticsTitle}>Sample Logistics</Text>
           </View>
           <Text style={styles.logisticsMethodText}>
@@ -248,7 +249,7 @@ export default function AdminProductApprovalsScreen() {
           )}
           {product.logisticsNotes && (
             <View style={styles.logisticsNotesBox}>
-              <AlertCircle size={14} color="#FF5722" />
+              <AlertCircle size={14} color={COLORS.primary} />
               <Text style={styles.logisticsNotesText}>{product.logisticsNotes}</Text>
             </View>
           )}
@@ -476,9 +477,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F5F7',
   },
   header: {
-    backgroundColor: '#FF5722',
+    backgroundColor: COLORS.primary,
     paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingBottom: 24,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
   },
   headerContent: {
     flexDirection: 'row',
@@ -526,10 +529,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 4,
     borderWidth: 2,
-    borderColor: '#FF5722',
+    borderColor: COLORS.primary,
   },
   badgeText: {
-    color: '#FF5722',
+    color: COLORS.primary,
     fontSize: 10,
     fontWeight: '700',
   },
@@ -553,7 +556,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F3F4F6',
   },
   activeTab: {
-    backgroundColor: '#FF5722',
+    backgroundColor: COLORS.primary,
   },
   tabText: {
     fontSize: 14,
@@ -582,7 +585,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   activeCountText: {
-    color: '#FF5722',
+    color: COLORS.primary,
   },
   content: {
     flex: 1,
@@ -618,7 +621,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#FF5722',
+    backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -711,7 +714,7 @@ const styles = StyleSheet.create({
   priceText: {
     fontSize: 20,
     fontWeight: '800',
-    color: '#FF5722',
+    color: COLORS.primary,
   },
   comparePriceText: {
     fontSize: 14,
@@ -726,7 +729,7 @@ const styles = StyleSheet.create({
     padding: 14,
     borderRadius: 10,
     borderLeftWidth: 4,
-    borderLeftColor: '#FF5722',
+    borderLeftColor: COLORS.primary,
   },
   logisticsHeader: {
     flexDirection: 'row',
@@ -742,7 +745,7 @@ const styles = StyleSheet.create({
   logisticsMethodText: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#FF5722',
+    color: COLORS.primary,
     marginBottom: 6,
   },
   addressRow: {

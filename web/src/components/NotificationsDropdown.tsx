@@ -61,9 +61,6 @@ export function NotificationsDropdown() {
   const [open, setOpen] = useState(false);
   const unreadCount = notifications.filter((n) => n.read === false).length;
 
-  console.log("Notifications:", notifications);
-  console.log("Unread count:", unreadCount);
-
   const handleMarkAllAsRead = () => {
     notifications.forEach((notification) => {
       if (!notification.read) {

@@ -4,6 +4,7 @@ import { ArrowLeft, User, Mail, Shield, Clock, LogOut, CheckCircle } from 'lucid
 import { useNavigation } from '@react-navigation/native';
 import { useAdminAuth } from '../../../src/stores/adminStore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { COLORS } from '../../../src/constants/theme';
 
 export default function AdminProfileScreen() {
   const navigation = useNavigation();
@@ -49,7 +50,7 @@ export default function AdminProfileScreen() {
           <Text style={styles.userName}>{user?.name || 'Admin User'}</Text>
           <Text style={styles.userEmail}>{user?.email || 'admin@bazaarph.com'}</Text>
           <View style={styles.roleBadge}>
-            <Shield size={14} color="#FF5722" />
+            <Shield size={14} color={COLORS.primary} />
             <Text style={styles.roleText}>{user?.role?.replace('_', ' ').toUpperCase() || 'SUPER ADMIN'}</Text>
           </View>
         </View>
@@ -139,7 +140,7 @@ export default function AdminProfileScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F5F5F7' },
-  header: { backgroundColor: '#FF5722', paddingHorizontal: 20, paddingBottom: 20 },
+  header: { backgroundColor: COLORS.primary, paddingHorizontal: 20, paddingBottom: 24, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 },
   headerContent: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   backButton: { padding: 4 },
   headerTitleContainer: { gap: 2 },
@@ -149,12 +150,12 @@ const styles = StyleSheet.create({
   profileCard: { backgroundColor: '#FFFFFF', borderRadius: 12, padding: 24, marginBottom: 16, alignItems: 'center', elevation: 2 },
   avatarContainer: { marginBottom: 16 },
   avatar: { width: 80, height: 80, borderRadius: 40 },
-  avatarPlaceholder: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#FF5722', alignItems: 'center', justifyContent: 'center' },
+  avatarPlaceholder: { width: 80, height: 80, borderRadius: 40, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
   avatarText: { fontSize: 32, fontWeight: 'bold', color: '#FFFFFF' },
   userName: { fontSize: 20, fontWeight: '700', color: '#111827', marginBottom: 4 },
   userEmail: { fontSize: 14, color: '#6B7280', marginBottom: 12 },
   roleBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: '#FFF5F0' },
-  roleText: { fontSize: 12, fontWeight: '700', color: '#FF5722' },
+  roleText: { fontSize: 12, fontWeight: '700', color: COLORS.primary },
   infoCard: { backgroundColor: '#FFFFFF', borderRadius: 12, padding: 16, marginBottom: 16, elevation: 2 },
   cardTitle: { fontSize: 16, fontWeight: '700', color: '#111827', marginBottom: 4 },
   cardDescription: { fontSize: 13, color: '#6B7280', marginBottom: 16 },

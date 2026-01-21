@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, Pressable, Switch, TextInput } from
 import { ArrowLeft, Settings as SettingsIcon, Bell, Shield, Globe, Palette, Mail, Save, Key } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { COLORS } from '../../../src/constants/theme';
 
 export default function AdminSettingsScreen() {
   const navigation = useNavigation();
@@ -66,7 +67,7 @@ export default function AdminSettingsScreen() {
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
             <View style={styles.sectionIconContainer}>
-              <Globe size={20} color="#FF5722" />
+              <Globe size={20} color={COLORS.primary} />
             </View>
             <Text style={styles.sectionTitle}>General Settings</Text>
           </View>
@@ -103,7 +104,7 @@ export default function AdminSettingsScreen() {
               value={maintenanceMode}
               onValueChange={setMaintenanceMode}
               trackColor={{ false: '#E5E7EB', true: '#FED7AA' }}
-              thumbColor={maintenanceMode ? '#FF5722' : '#F3F4F6'}
+              thumbColor={maintenanceMode ? COLORS.primary : '#F3F4F6'}
             />
           </View>
         </View>
@@ -112,7 +113,7 @@ export default function AdminSettingsScreen() {
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
             <View style={styles.sectionIconContainer}>
-              <Bell size={20} color="#FF5722" />
+              <Bell size={20} color={COLORS.primary} />
             </View>
             <Text style={styles.sectionTitle}>Notifications</Text>
           </View>
@@ -126,7 +127,7 @@ export default function AdminSettingsScreen() {
               value={emailNotifications}
               onValueChange={setEmailNotifications}
               trackColor={{ false: '#E5E7EB', true: '#FED7AA' }}
-              thumbColor={emailNotifications ? '#FF5722' : '#F3F4F6'}
+              thumbColor={emailNotifications ? COLORS.primary : '#F3F4F6'}
             />
           </View>
 
@@ -139,7 +140,7 @@ export default function AdminSettingsScreen() {
               value={orderNotifications}
               onValueChange={setOrderNotifications}
               trackColor={{ false: '#E5E7EB', true: '#FED7AA' }}
-              thumbColor={orderNotifications ? '#FF5722' : '#F3F4F6'}
+              thumbColor={orderNotifications ? COLORS.primary : '#F3F4F6'}
             />
           </View>
 
@@ -152,7 +153,7 @@ export default function AdminSettingsScreen() {
               value={sellerNotifications}
               onValueChange={setSellerNotifications}
               trackColor={{ false: '#E5E7EB', true: '#FED7AA' }}
-              thumbColor={sellerNotifications ? '#FF5722' : '#F3F4F6'}
+              thumbColor={sellerNotifications ? COLORS.primary : '#F3F4F6'}
             />
           </View>
         </View>
@@ -161,7 +162,7 @@ export default function AdminSettingsScreen() {
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
             <View style={styles.sectionIconContainer}>
-              <Shield size={20} color="#FF5722" />
+              <Shield size={20} color={COLORS.primary} />
             </View>
             <Text style={styles.sectionTitle}>Security</Text>
           </View>
@@ -175,7 +176,7 @@ export default function AdminSettingsScreen() {
               value={twoFactorAuth}
               onValueChange={setTwoFactorAuth}
               trackColor={{ false: '#E5E7EB', true: '#FED7AA' }}
-              thumbColor={twoFactorAuth ? '#FF5722' : '#F3F4F6'}
+              thumbColor={twoFactorAuth ? COLORS.primary : '#F3F4F6'}
             />
           </View>
 
@@ -196,7 +197,7 @@ export default function AdminSettingsScreen() {
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
             <View style={styles.sectionIconContainer}>
-              <Palette size={20} color="#FF5722" />
+              <Palette size={20} color={COLORS.primary} />
             </View>
             <Text style={styles.sectionTitle}>Appearance</Text>
           </View>
@@ -204,7 +205,7 @@ export default function AdminSettingsScreen() {
           <View style={styles.colorPreview}>
             <Text style={styles.colorLabel}>Primary Brand Color</Text>
             <View style={styles.colorBox}>
-              <View style={[styles.colorSwatch, { backgroundColor: '#FF5722' }]} />
+              <View style={[styles.colorSwatch, { backgroundColor: COLORS.primary }]} />
               <Text style={styles.colorValue}>#FF5722</Text>
             </View>
           </View>
@@ -214,7 +215,7 @@ export default function AdminSettingsScreen() {
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
             <View style={styles.sectionIconContainer}>
-              <Mail size={20} color="#FF5722" />
+              <Mail size={20} color={COLORS.primary} />
             </View>
             <Text style={styles.sectionTitle}>Email Configuration</Text>
           </View>
@@ -257,7 +258,7 @@ export default function AdminSettingsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F5F5F7' },
-  header: { backgroundColor: '#FF5722', paddingHorizontal: 20, paddingBottom: 20 },
+  header: { backgroundColor: COLORS.primary, paddingHorizontal: 20, paddingBottom: 24, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 },
   headerContent: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   backButton: { padding: 4 },
   headerTitleContainer: { gap: 2 },
@@ -280,7 +281,7 @@ const styles = StyleSheet.create({
   colorBox: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, backgroundColor: '#F9FAFB', borderRadius: 8 },
   colorSwatch: { width: 40, height: 40, borderRadius: 8, borderWidth: 2, borderColor: '#E5E7EB' },
   colorValue: { fontSize: 14, fontWeight: '500', color: '#111827' },
-  saveButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: '#FF5722', paddingVertical: 14, borderRadius: 10, marginBottom: 24, elevation: 2 },
+  saveButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: COLORS.primary, paddingVertical: 14, borderRadius: 10, marginBottom: 24, elevation: 2 },
   saveButtonDisabled: { backgroundColor: '#FCA5A5', opacity: 0.7 },
   saveButtonText: { fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
 });

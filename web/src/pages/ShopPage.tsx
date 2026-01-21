@@ -35,6 +35,9 @@ import { useToast } from "../hooks/use-toast";
 import { categories } from "../data/categories";
 import { useBuyerStore } from "../stores/buyerStore";
 import { useProductStore } from "../stores/sellerStore";
+import { isSupabaseConfigured } from "@/lib/supabase";
+import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert";
+import { AlertCircle } from "lucide-react";
 // import { useProductQAStore } from "../stores/productQAStore";
 
 
@@ -48,6 +51,7 @@ type ShopProduct = {
   sold: number;
   category: string;
   seller: string;
+  sellerId: string;
   isVerified: boolean;
   isFreeShipping?: boolean;
   location?: string;
@@ -79,7 +83,7 @@ export default function ShopPage() {
   const [searchParams] = useSearchParams();
   const { addToCart, setQuickOrder, cartItems, profile } = useBuyerStore();
   const { toast } = useToast();
-  const { products: sellerProducts, fetchProducts } = useProductStore();
+  const { products: sellerProducts, fetchProducts, subscribeToProducts } = useProductStore();
 
   const [searchQuery, setSearchQuery] = useState(searchParams.get("q") || "");
   const [selectedCategory, setSelectedCategory] = useState("All Categories");
@@ -121,12 +125,20 @@ export default function ShopPage() {
   }, []);
 
   useEffect(() => {
-    // Fetch products for the shop page
-    // We remove the specific approvalStatus filter to show more products
-    fetchProducts({
+    // Fetch initial products
+    const filters = {
       isActive: true,
-    });
-  }, [fetchProducts]);
+    };
+    fetchProducts(filters);
+
+    // Subscribe to real-time updates
+    const unsubscribe = subscribeToProducts(filters);
+
+    // Cleanup subscription on unmount
+    return () => {
+      unsubscribe();
+    };
+  }, [fetchProducts, subscribeToProducts]);
 
   // Sync search query from URL
   useEffect(() => {
@@ -146,11 +158,12 @@ export default function ShopPage() {
         sold: p.sales || 0,
         category: p.category,
         seller: p.sellerName || "Verified Seller",
-        isVerified: p.approvalStatus === "approved",
-        location: "Metro Manila",
+        sellerId: p.sellerId,
+        isVerified: p.approvalStatus === "pending",
+        location: p.sellerLocation || "Metro Manila",
         description: p.description,
         sellerRating: p.sellerRating || 0,
-        sellerVerified: p.approvalStatus === "approved",
+        sellerVerified: p.approvalStatus === "pending",
       }));
 
     return dbProducts;
@@ -224,6 +237,18 @@ export default function ShopPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
+
+      {!isSupabaseConfigured() && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
+          <Alert variant="destructive" className="bg-red-50 border-red-200">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Database Not Configured</AlertTitle>
+            <AlertDescription>
+              Supabase environment variables are missing. Collaborators: please ensure you have a <code>.env</code> file with <code>VITE_SUPABASE_URL</code> and <code>VITE_SUPABASE_ANON_KEY</code>.
+            </AlertDescription>
+          </Alert>
+        </div>
+      )}
 
       {/* Shop Header */}
       <div className="">
@@ -583,7 +608,7 @@ export default function ShopPage() {
                             image: product.image,
                             images: [product.image],
                             seller: {
-                              id: `seller-${product.id}`,
+                              id: product.sellerId,
                               name: product.seller,
                               avatar: "",
                               rating: product.sellerRating || 0,
@@ -598,7 +623,7 @@ export default function ShopPage() {
                               responseTime: "1 hour",
                               categories: [product.category],
                             },
-                            sellerId: `seller-${product.id}`,
+                            sellerId: product.sellerId,
                             rating: product.rating,
                             totalReviews: 100,
                             category: product.category,
@@ -648,7 +673,7 @@ export default function ShopPage() {
                             image: product.image,
                             images: [product.image],
                             seller: {
-                              id: `seller-${product.id}`,
+                              id: product.sellerId,
                               name: product.seller,
                               avatar: "",
                               rating: product.sellerRating || 0,
@@ -663,7 +688,7 @@ export default function ShopPage() {
                               responseTime: "1 hour",
                               categories: [product.category],
                             },
-                            sellerId: `seller-${product.id}`,
+                            sellerId: product.sellerId,
                             rating: product.rating,
                             totalReviews: 100,
                             category: product.category,

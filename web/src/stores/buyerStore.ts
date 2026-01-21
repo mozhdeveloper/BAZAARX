@@ -53,6 +53,7 @@ export interface CartItem extends Product {
   quantity: number;
   selectedVariant?: ProductVariant;
   notes?: string;
+  selected?: boolean;
 }
 
 export interface GroupedCart {
@@ -146,7 +147,7 @@ export interface BuyerProfile {
   memberSince: Date;
   totalOrders: number;
   totalSpent: number;
-  loyaltyPoints: number;
+  bazcoins: number;
   savedCards?: SavedCard[];
 }
 
@@ -206,6 +207,14 @@ interface BuyerStore {
   removeVoucher: (sellerId?: string) => void;
   calculateDiscount: (subtotal: number, voucher: Voucher) => number;
 
+  // Cart Selection
+  toggleItemSelection: (productId: string, variantId?: string) => void;
+  toggleSellerSelection: (sellerId: string, selected: boolean) => void;
+  selectAllItems: (selected: boolean) => void;
+  removeSelectedItems: () => void;
+  getSelectedTotal: () => number;
+  getSelectedCount: () => number;
+
   // Reviews & Ratings
   reviews: Review[];
   pendingReviews: string[]; // product IDs
@@ -223,6 +232,51 @@ interface BuyerStore {
   getSellerProducts: (sellerId: string, category?: string) => Product[];
   addViewedSeller: (seller: Seller) => void;
 }
+
+const mapDbItemToCartItem = (item: any): CartItem | null => {
+  const dbProduct = item.product;
+  if (!dbProduct) return null;
+
+  const sellerData = dbProduct.seller;
+
+  return {
+    id: dbProduct.id,
+    name: dbProduct.name,
+    price: dbProduct.price,
+    originalPrice: dbProduct.original_price,
+    image: dbProduct.primary_image || (dbProduct.images && dbProduct.images[0]) || "",
+    images: dbProduct.images || [],
+    seller: {
+      id: dbProduct.seller_id,
+      name: sellerData?.store_name || sellerData?.business_name || "Verified Seller",
+      avatar: "",
+      rating: sellerData?.rating || 0,
+      totalReviews: 0,
+      followers: 0,
+      isVerified: sellerData?.is_verified ?? true,
+      description: "",
+      location: sellerData?.business_address || "Metro Manila",
+      established: "",
+      products: [],
+      badges: [],
+      responseTime: "",
+      categories: []
+    },
+    sellerId: dbProduct.seller_id,
+    rating: dbProduct.rating || 0,
+    totalReviews: dbProduct.review_count || 0,
+    category: dbProduct.category || "",
+    sold: dbProduct.sales_count || 0,
+    isFreeShipping: dbProduct.is_free_shipping || false,
+    location: sellerData?.business_address || "Metro Manila",
+    description: dbProduct.description || "",
+    specifications: dbProduct.specifications || {},
+    variants: dbProduct.variants || [],
+    quantity: item.quantity,
+    selectedVariant: item.selected_variant,
+    notes: item.notes
+  } as CartItem;
+};
 
 export const useBuyerStore = create<BuyerStore>()(persist(
   (set, get) => ({
@@ -339,18 +393,30 @@ export const useBuyerStore = create<BuyerStore>()(persist(
         try {
           const cart = await cartService.getOrCreateCart(user.id);
           if (cart) {
+            // Add to database - this already handles duplicates correctly
             await cartService.addToCart(
               cart.id,
               product.id,
               quantity,
               variant
             );
+
+            // Refetch cart items from database to sync state
+            const dbItems = await cartService.getCartItems(cart.id);
+
+            // Map DB items to store items
+            const mappedItems: CartItem[] = dbItems.map(mapDbItemToCartItem).filter(Boolean) as CartItem[];
+
+            set({ cartItems: mappedItems });
+            get().groupCartBySeller();
+            return;
           }
         } catch (error) {
           console.error('Error adding to database cart:', error);
         }
       }
 
+      // Fallback to local state if not logged in or database operation failed
       set((state) => {
         const existingItem = state.cartItems.find(item =>
           item.id === product.id &&
@@ -368,7 +434,8 @@ export const useBuyerStore = create<BuyerStore>()(persist(
           newCartItems = [...state.cartItems, {
             ...product,
             quantity,
-            selectedVariant: variant
+            selectedVariant: variant,
+            selected: true // Default to selected
           }];
         }
 
@@ -387,6 +454,14 @@ export const useBuyerStore = create<BuyerStore>()(persist(
             const itemToDelete = items.find(i => i.product_id === productId);
             if (itemToDelete) {
               await cartService.removeFromCart(itemToDelete.id);
+
+              // Refetch cart items from database to sync state
+              const dbItems = await cartService.getCartItems(cart.id);
+              const mappedItems: CartItem[] = dbItems.map(mapDbItemToCartItem).filter(Boolean) as CartItem[];
+
+              set({ cartItems: mappedItems });
+              get().groupCartBySeller();
+              return;
             }
           }
         } catch (error) {
@@ -394,6 +469,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
         }
       }
 
+      // Fallback to local state
       set((state) => ({
         cartItems: state.cartItems.filter(item => item.id !== productId)
       }));
@@ -415,6 +491,14 @@ export const useBuyerStore = create<BuyerStore>()(persist(
             const itemToUpdate = items.find(i => i.product_id === productId);
             if (itemToUpdate) {
               await cartService.updateCartItemQuantity(itemToUpdate.id, quantity);
+
+              // Refetch cart items from database to sync state
+              const dbItems = await cartService.getCartItems(cart.id);
+              const mappedItems: CartItem[] = dbItems.map(mapDbItemToCartItem).filter(Boolean) as CartItem[];
+
+              set({ cartItems: mappedItems });
+              get().groupCartBySeller();
+              return;
             }
           }
         } catch (error) {
@@ -422,6 +506,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
         }
       }
 
+      // Fallback to local state
       set((state) => ({
         cartItems: state.cartItems.map(item =>
           item.id === productId ? { ...item, quantity } : item
@@ -608,6 +693,107 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       }
     },
 
+    // Cart Selection Actions
+    toggleItemSelection: (productId, variantId) => {
+      set((state) => ({
+        cartItems: state.cartItems.map(item => 
+          item.id === productId && item.selectedVariant?.id === variantId
+            ? { ...item, selected: !item.selected }
+            : item
+        )
+      }));
+      get().groupCartBySeller();
+    },
+
+    toggleSellerSelection: (sellerId, selected) => {
+      set((state) => ({
+        cartItems: state.cartItems.map(item => 
+          item.sellerId === sellerId
+            ? { ...item, selected }
+            : item
+        )
+      }));
+      get().groupCartBySeller();
+    },
+
+    selectAllItems: (selected) => {
+      set((state) => ({
+        cartItems: state.cartItems.map(item => ({ ...item, selected }))
+      }));
+      get().groupCartBySeller();
+    },
+
+    removeSelectedItems: async () => {
+        const user = await getCurrentUser();
+        const selectedItems = get().cartItems.filter(item => item.selected);
+        
+        if (user) {
+            try {
+                const cart = await cartService.getOrCreateCart(user.id);
+                if (cart) {
+                    const dbItems = await cartService.getCartItems(cart.id);
+                    // Match selected items with DB items to delete
+                    // Ideally we should have the DB ID in cartItems, leveraging product_id matching for now
+                    for (const item of selectedItems) {
+                         const dbItem = dbItems.find(i => i.product_id === item.id && i.selected_variant?.id === item.selectedVariant?.id);
+                         if (dbItem) {
+                             await cartService.removeFromCart(dbItem.id);
+                         }
+                    }
+                }
+            } catch (error) {
+                console.error('Error removing selected items from DB:', error);
+            }
+        }
+
+        set((state) => ({
+            cartItems: state.cartItems.filter(item => !item.selected)
+        }));
+        get().groupCartBySeller();
+    },
+
+    getSelectedTotal: () => {
+        const { groupedCart, appliedVouchers, platformVoucher } = get();
+        let total = 0;
+  
+        Object.entries(groupedCart).forEach(([sellerId, group]) => {
+          // Calculate subtotal for SELECTED items in this group
+          const selectedSubtotal = group.items
+            .filter(item => item.selected)
+            .reduce((sum, item) => sum + (item.selectedVariant?.price || item.price) * item.quantity, 0);
+
+           if (selectedSubtotal === 0) return;
+
+          let groupTotal = selectedSubtotal;
+          
+          // Only add shipping if there are selected items
+          // Assuming shipping fee logic might need adjustment if partial items selected -> simplest is keep shipping if ANY item in group selected
+           const hasSelectedItems = group.items.some(item => item.selected);
+           if (hasSelectedItems) {
+               groupTotal += group.shippingFee;
+           }
+  
+          // Apply seller voucher
+          const sellerVoucher = appliedVouchers[sellerId];
+          if (sellerVoucher) {
+            groupTotal -= get().calculateDiscount(selectedSubtotal, sellerVoucher);
+          }
+  
+          total += groupTotal;
+        });
+  
+        // Apply platform voucher
+        if (platformVoucher) {
+          total -= get().calculateDiscount(total, platformVoucher);
+        }
+  
+        return Math.max(0, total);
+    },
+
+    getSelectedCount: () => {
+        return get().cartItems.filter(item => item.selected).reduce((total, item) => total + item.quantity, 0);
+    },
+
     // Reviews & Ratings
     reviews: [],
     pendingReviews: [],
@@ -707,48 +893,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
           const dbItems = await cartService.getCartItems(cart.id);
 
           // Map DB items to store items
-          const mappedItems: CartItem[] = dbItems.map((item: any) => {
-            const product = item.product;
-            if (!product) return null;
-
-            return {
-              id: product.id,
-              name: product.name,
-              price: product.price,
-              originalPrice: product.original_price,
-              image: product.primary_image || (product.images && product.images[0]) || "",
-              images: product.images || [],
-              seller: {
-                id: product.seller_id,
-                name: "Verified Seller", // We might need to join with sellers table
-                avatar: "",
-                rating: 0,
-                totalReviews: 0,
-                followers: 0,
-                isVerified: true,
-                description: "",
-                location: "Metro Manila",
-                established: "",
-                products: [],
-                badges: [],
-                responseTime: "",
-                categories: []
-              },
-              sellerId: product.seller_id,
-              rating: product.rating || 0,
-              totalReviews: product.review_count || 0,
-              category: product.category || "",
-              sold: product.sales_count || 0,
-              isFreeShipping: product.is_free_shipping || false,
-              location: "Metro Manila",
-              description: product.description || "",
-              specifications: product.specifications || {},
-              variants: product.variants || [],
-              quantity: item.quantity,
-              selectedVariant: item.selected_variant,
-              notes: item.notes
-            } as CartItem;
-          }).filter(Boolean) as CartItem[];
+          const mappedItems: CartItem[] = dbItems.map(mapDbItemToCartItem).filter(Boolean) as CartItem[];
 
           set({ cartItems: mappedItems });
           get().groupCartBySeller();
