@@ -1,9 +1,9 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Category } from '../types';
+
 
 interface CategoryCardProps {
-  category: Category;
+  category: any;
   rotation: number;
   xOffset: number;
 }

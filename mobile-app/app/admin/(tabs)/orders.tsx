@@ -14,6 +14,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Menu, Bell, ShoppingBag, Search, Package, Truck, CheckCircle, XCircle, Phone, Mail } from 'lucide-react-native';
 import AdminDrawer from '../../../src/components/AdminDrawer';
 import { useAdminOrders } from '../../../src/stores/adminStore';
+import { COLORS } from '../../../src/constants/theme';
 
 export default function AdminOrdersScreen() {
   const [drawerVisible, setDrawerVisible] = useState(false);
@@ -105,7 +106,7 @@ export default function AdminOrdersScreen() {
       <ScrollView style={styles.scrollView}>
         {isLoading ? (
           <View style={styles.centerContent}>
-            <ActivityIndicator size="large" color="#FF5722" />
+            <ActivityIndicator size="large" color={COLORS.primary} />
             <Text style={styles.loadingText}>Loading orders...</Text>
           </View>
         ) : filteredOrders.length === 0 ? (
@@ -246,7 +247,7 @@ export default function AdminOrdersScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F5F5F7' },
-  header: { backgroundColor: '#FF5722', paddingHorizontal: 20, paddingBottom: 20 },
+  header: { backgroundColor: COLORS.primary, paddingHorizontal: 20, paddingBottom: 24, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 },
   headerContent: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   menuButton: { padding: 4 },
@@ -260,7 +261,7 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, height: 44, fontSize: 15, color: '#111827' },
   filterScrollView: { flexGrow: 0 },
   filterChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: '#F3F4F6', marginRight: 8 },
-  filterChipActive: { backgroundColor: '#FF5722' },
+  filterChipActive: { backgroundColor: COLORS.primary },
   filterChipText: { fontSize: 14, color: '#6B7280', fontWeight: '500' },
   filterChipTextActive: { color: '#FFFFFF' },
   scrollView: { flex: 1, padding: 16 },
@@ -282,7 +283,7 @@ const styles = StyleSheet.create({
   cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 12, borderTopWidth: 1, borderTopColor: '#E5E7EB' },
   totalContainer: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   totalLabel: { fontSize: 13, color: '#6B7280', fontWeight: '500' },
-  totalAmount: { fontSize: 18, fontWeight: 'bold', color: '#FF5722' },
+  totalAmount: { fontSize: 18, fontWeight: 'bold', color: COLORS.primary },
   paymentMethod: { fontSize: 12, color: '#6B7280', fontWeight: '500' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalContent: { backgroundColor: '#FFFFFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '85%' },

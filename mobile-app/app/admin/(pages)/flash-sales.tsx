@@ -4,6 +4,7 @@ import { ArrowLeft, Zap, Search, Calendar, TrendingUp } from 'lucide-react-nativ
 import { useNavigation } from '@react-navigation/native';
 import { useAdminFlashSales } from '../../../src/stores/adminStore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { COLORS } from '../../../src/constants/theme';
 
 export default function AdminFlashSalesScreen() {
   const navigation = useNavigation();
@@ -82,7 +83,7 @@ export default function AdminFlashSalesScreen() {
       <ScrollView style={styles.scrollView}>
         {isLoading ? (
           <View style={styles.centerContent}>
-            <ActivityIndicator size="large" color="#FF5722" />
+            <ActivityIndicator size="large" color={COLORS.primary} />
             <Text style={styles.loadingText}>Loading flash sales...</Text>
           </View>
         ) : filteredFlashSales.length === 0 ? (
@@ -126,7 +127,7 @@ export default function AdminFlashSalesScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F5F5F7' },
-  header: { backgroundColor: '#FF5722', paddingHorizontal: 20, paddingBottom: 20 },
+  header: { backgroundColor: COLORS.primary, paddingHorizontal: 20, paddingBottom: 24, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 },
   headerContent: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   backButton: { padding: 4 },
   headerTitleContainer: { gap: 2 },
@@ -138,7 +139,7 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, height: 44, fontSize: 15, color: '#111827' },
   filterScrollView: { flexGrow: 0 },
   filterChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: '#F3F4F6', marginRight: 8 },
-  filterChipActive: { backgroundColor: '#FF5722' },
+  filterChipActive: { backgroundColor: COLORS.primary },
   filterChipText: { fontSize: 14, color: '#6B7280', fontWeight: '500' },
   filterChipTextActive: { color: '#FFFFFF' },
   scrollView: { flex: 1, padding: 16 },
@@ -155,7 +156,7 @@ const styles = StyleSheet.create({
   statusText: { fontSize: 12, fontWeight: '600' },
   statsRow: { flexDirection: 'row', alignItems: 'center', paddingTop: 12, borderTopWidth: 1, borderTopColor: '#E5E7EB' },
   statItem: { flex: 1, alignItems: 'center' },
-  statValue: { fontSize: 18, fontWeight: 'bold', color: '#FF5722', marginBottom: 4 },
+  statValue: { fontSize: 18, fontWeight: 'bold', color: COLORS.primary, marginBottom: 4 },
   statLabel: { fontSize: 12, color: '#6B7280' },
   statDivider: { width: 1, height: 40, backgroundColor: '#E5E7EB' },
 });

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react';
+import React from 'react';
 import { BazaarHero } from '../components/ui/bazaar-hero';
 //import ScrollMorphHero from '../components/ui/scroll-morph-hero';
 //import { SectionTransition } from '../components/ui/section-transition';
@@ -10,7 +10,6 @@ import { BazaarFooter } from '../components/ui/bazaar-footer';
 import { SmoothScrollProvider } from '../components/ui/smooth-scroll-provider';
 import FeaturedCollections from '../components/FeaturedCollections';
 import ProductRail from '../components/sections/ProductRail';
-import TrendingSection from '../components/TrendingSection';
 import FeatureStrip from '../components/sections/FeatureStrip';
 import StoreRail from '../components/sections/StoreRail';
 import CategoriesFooterStrip from '../components/CategoriesFooterStrip';
@@ -23,48 +22,10 @@ import ScrollExpansionHero from '@/components/ui/scroll-expansion-hero';
 import BazaarMarketplaceIntro from '@/components/ui/bazaar-marketplace-intro';
 
 // Data imports
-// import { trendingProducts, bestSellerProducts, newArrivals } from '../data/products';
+import { bestSellerProducts, newArrivals } from '../data/products';
 import { featuredStores } from '../data/stores';
-import { useProductStore } from '../stores/sellerStore';
-import { Product as BuyerProduct } from '../stores/buyerStore';
 
 const HomePage: React.FC = () => {
-  const { products: sellerProducts, fetchProducts } = useProductStore();
-
-  useEffect(() => {
-    // Fetch products on mount if they aren't loaded or to ensure freshness
-    fetchProducts({ isActive: true });
-  }, [fetchProducts]);
-
-  // Map SellerProduct to the Product format expected by components
-  const allProducts = useMemo(() => {
-    return sellerProducts
-      .filter((p) => (p.approvalStatus === "approved" || p.approvalStatus === "pending") && p.isActive)
-      .map((p) => ({
-        id: p.id,
-        name: p.name,
-        price: p.price,
-        originalPrice: p.originalPrice,
-        image: p.images?.[0] || "https://placehold.co/400?text=Product",
-        rating: p.rating || 0,
-        sold: p.sales || 0,
-        category: p.category,
-        seller: p.sellerName || "Verified Seller",
-        isVerified: p.approvalStatus === "approved",
-        location: "Metro Manila",
-        description: p.description,
-        sellerRating: p.sellerRating || 0,
-        sellerVerified: p.approvalStatus === "approved",
-        isFreeShipping: true, // Default for now
-      })) as any[];
-  }, [sellerProducts]);
-
-  const trendingProducts = useMemo(() => allProducts.slice(0, 6), [allProducts]);
-  const bestSellerProducts = useMemo(() =>
-    [...allProducts].sort((a, b) => (b.sold || 0) - (a.sold || 0)).slice(0, 8)
-    , [allProducts]);
-  const newArrivals = useMemo(() => allProducts.slice(-8).reverse(), [allProducts]);
-
   return (
     <SmoothScrollProvider>
       <div className="min-h-screen bg-white">
@@ -126,10 +87,7 @@ const HomePage: React.FC = () => {
         {/* Featured Collections */}
         <FeaturedCollections />
 
-        {/* Trending Products Rail */}
-        <TrendingSection products={trendingProducts} />
-
-        {/* Feature Strip 1 - Support Local */}
+        {/* Feature Strip 1 - Support Local
         <FeatureStrip
           title="Support Local Filipino Businesses"
           description="Every purchase helps strengthen Filipino communities and preserves traditional craftsmanship while supporting local entrepreneurs."
@@ -141,7 +99,7 @@ const HomePage: React.FC = () => {
             "Sustainable business practices"
           ]}
           buttonText="Discover Local Sellers"
-        />
+        /> */}
 
         {/* Best Sellers Rail */}
         <ProductRail
@@ -159,6 +117,14 @@ const HomePage: React.FC = () => {
           actionLabel="Explore All Stores"
         />
 
+        {/* New Arrivals Rail */}
+        <ProductRail
+          title="New Arrivals"
+          subtitle="Fresh finds from our newest sellers and latest collections"
+          products={newArrivals.slice(0, 4)}
+          actionLabel="Explore New Products"
+        />
+
         {/* Feature Strip 2 - Secure Shopping */}
         <FeatureStrip
           title="Shop with Complete Confidence"
@@ -172,14 +138,6 @@ const HomePage: React.FC = () => {
           ]}
           buttonText="Learn About Protection"
           reverse={true}
-        />
-
-        {/* New Arrivals Rail */}
-        <ProductRail
-          title="New Arrivals"
-          subtitle="Fresh finds from our newest sellers and latest collections"
-          products={newArrivals}
-          actionLabel="Explore New Products"
         />
 
         {/* Categories Footer Strip */}

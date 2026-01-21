@@ -61,17 +61,17 @@ export default function BazaarRevealWords() {
   return (
     <motion.section
       ref={containerRef}
-      className="relative h-[300vh]"
+      className="relative h-[400vh]"
       style={{ backgroundColor }}
     >
       <div className="sticky top-0 h-screen flex items-center overflow-hidden">
-        <div className="container mx-auto px-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 lg:gap-12 items-center">
             {/* Left: paragraph */}
             <div className="order-2 md:order-1">
               <div className="max-w-3xl mx-auto">
                 <motion.div
-                  className="relative py-20"
+                  className="relative py-12 sm:py-16 md:py-20"
                 >
                   {/* Top Gradient Line */}
                   <motion.div
@@ -80,7 +80,7 @@ export default function BazaarRevealWords() {
                   />
 
                   <motion.p
-                    className="text-xl md:text-2xl leading-loose text-justify"
+                    className="text-base sm:text-lg md:text-xl lg:text-2xl leading-relaxed sm:leading-loose text-justify px-2 sm:px-0"
                     style={{ color: paragraphColor }}
                   >
                     Over time, the Persian bazaar model spread across the Middle East, North Africa, and beyond, giving rise to iconic marketplaces such as the Turkish bazaars and the Arabic sūqs. Wherever it traveled, the bazaar retained its core purpose: a place where people come together. It thrived as a center of trade, showcased local craft, and fostered vibrant social gatherings—bringing goods, artisans, and communities into one shared space.
@@ -96,7 +96,7 @@ export default function BazaarRevealWords() {
             </div>
 
             {/* Right: stacked reveal words (responsive) */}
-            <div className="order-1 md:order-2 flex flex-col gap-4 items-end">
+            <div className="order-1 md:order-2 flex flex-col gap-3 sm:gap-4 items-end">
               <div className="w-full md:w-auto">
                 <RevealImageListItem
                   text="trade"

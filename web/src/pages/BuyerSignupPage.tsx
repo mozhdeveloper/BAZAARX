@@ -17,7 +17,7 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Checkbox } from "../components/ui/checkbox";
 import { signUp } from "../services/authService";
-import { supabase } from "../lib/supabase";
+
 
 export default function BuyerSignupPage() {
   const navigate = useNavigate();
@@ -141,7 +141,7 @@ export default function BuyerSignupPage() {
         memberSince: new Date(),
         totalOrders: 0,
         totalSpent: 0,
-        loyaltyPoints: 100,
+        bazcoins: 0,
       };
 
       setProfile(buyerProfile);

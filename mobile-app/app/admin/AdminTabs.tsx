@@ -8,6 +8,7 @@ import {
   ShoppingBag,
   Settings,
 } from 'lucide-react-native';
+import { COLORS } from '../../src/constants/theme';
 
 // Tab Screens
 import AdminDashboardScreen from './(tabs)/dashboard';
@@ -33,7 +34,7 @@ export default function AdminTabs() {
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: '#FF5722',
+        tabBarActiveTintColor: COLORS.primary,
         tabBarInactiveTintColor: '#9CA3AF',
         tabBarStyle: {
           backgroundColor: '#FFFFFF',

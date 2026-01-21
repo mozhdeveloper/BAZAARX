@@ -10,9 +10,11 @@ import {
   KeyboardAvoidingView,
   Platform,
   Image,
+  Switch,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, MapPin, CreditCard, Shield, Tag, X, ChevronDown, Check } from 'lucide-react-native';
+import { ArrowLeft, MapPin, CreditCard, Shield, Tag, X, ChevronDown, Check, Plus } from 'lucide-react-native';
+import { COLORS } from '../src/constants/theme';
 
 // Dummy voucher codes
 const VOUCHERS = {
@@ -21,8 +23,9 @@ const VOUCHERS = {
   'FREESHIP': { type: 'shipping', value: 0, description: 'Free shipping' },
   'NEWYEAR25': { type: 'percentage', value: 25, description: '25% off New Year' },
   'FLASH100': { type: 'fixed', value: 100, description: '₱100 flash discount' },
-};
+} as const;
 import { useCartStore } from '../src/stores/cartStore';
+import { useAuthStore } from '../src/stores/authStore';
 import { useOrderStore } from '../src/stores/orderStore';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
@@ -35,6 +38,7 @@ type CheckoutStep = 'shipping' | 'payment' | 'confirmation';
 export default function CheckoutScreen({ navigation }: Props) {
   const { items, getTotal, clearCart, quickOrder, clearQuickOrder, getQuickOrderTotal } = useCartStore();
   const createOrder = useOrderStore((state) => state.createOrder);
+  const { user } = useAuthStore();
   const insets = useSafeAreaInsets();
 
   // Determine which items to checkout: quick order takes precedence
@@ -43,19 +47,40 @@ export default function CheckoutScreen({ navigation }: Props) {
   const isQuickCheckout = quickOrder !== null;
 
   const [currentStep, setCurrentStep] = useState<CheckoutStep>('payment');
-  const [address, setAddress] = useState<ShippingAddress>({
-    name: '',
-    email: '',
-    phone: '',
-    address: '',
-    city: '',
-    region: '',
-    postalCode: '',
-  });
+  const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
+  
+  const DEFAULT_ADDRESS: ShippingAddress = {
+    name: 'Juan Dela Cruz',
+    email: 'juan@example.com',
+    phone: '+63 912 345 6789',
+    address: '123 Rizal Street, Brgy. San Jose',
+    city: 'Quezon City',
+    region: 'Metro Manila',
+    postalCode: '1100',
+  };
+
+  const [useDefaultAddress, setUseDefaultAddress] = useState(true);
+
+  const [address, setAddress] = useState<ShippingAddress>(DEFAULT_ADDRESS);
+
+  // Update address when toggle changes
+  React.useEffect(() => {
+    if (useDefaultAddress) {
+      setAddress(DEFAULT_ADDRESS);
+    }
+  }, [useDefaultAddress]);
 
   const [paymentMethod, setPaymentMethod] = useState<'cod' | 'gcash' | 'card' | 'paymongo'>('cod');
   const [voucherCode, setVoucherCode] = useState('');
   const [appliedVoucher, setAppliedVoucher] = useState<keyof typeof VOUCHERS | null>(null);
+
+  // Bazcoins Logic
+  const earnedBazcoins = Math.floor(checkoutSubtotal / 10);
+  const [useBazcoins, setUseBazcoins] = useState(false);
+  // Mock available bazcoins (should come from user profile)
+  const availableBazcoins = 1250; 
+  const maxRedeemableBazcoins = Math.min(availableBazcoins, checkoutSubtotal);
+  const bazcoinDiscount = useBazcoins ? maxRedeemableBazcoins : 0;
 
   const subtotal = checkoutSubtotal;
   let shippingFee = subtotal > 500 ? 0 : 50;
@@ -73,7 +98,7 @@ export default function CheckoutScreen({ navigation }: Props) {
     }
   }
 
-  const total = subtotal + shippingFee - discount;
+  const total = Math.max(0, subtotal + shippingFee - discount - bazcoinDiscount);
 
   const handleApplyVoucher = () => {
     const code = voucherCode.trim().toUpperCase();
@@ -121,22 +146,19 @@ export default function CheckoutScreen({ navigation }: Props) {
     try {
       const order = createOrder(checkoutItems, address, paymentMethod);
       
-      // Clear buyer cart after successful order
-      clearCart();
-
-      // Clear quick order if it was used
-      if (isQuickCheckout) {
-        clearQuickOrder();
-      }
-
       // Check if online payment (GCash, PayMongo, PayMaya, Card)
       const isOnlinePayment = paymentMethod.toLowerCase() !== 'cod' && paymentMethod.toLowerCase() !== 'cash on delivery';
 
       if (isOnlinePayment) {
         // Navigate to payment gateway simulation
-        navigation.navigate('PaymentGateway', { paymentMethod, order });
+        // Pass isQuickCheckout flag so we know what to clear later
+        navigation.navigate('PaymentGateway', { paymentMethod, order, isQuickCheckout });
       } else {
-        // COD - go directly to confirmation
+        // COD - Clear cart immediately and go to confirmation
+        clearCart();
+        if (isQuickCheckout) {
+          clearQuickOrder();
+        }
         navigation.navigate('OrderConfirmation', { order });
       }
     } catch (error) {
@@ -253,7 +275,7 @@ export default function CheckoutScreen({ navigation }: Props) {
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeaderWithBadge}>
             <View style={styles.sectionHeader}>
-              <MapPin size={20} color="#FF5722" />
+              <MapPin size={20} color={COLORS.primary} />
               <Text style={[styles.sectionTitle, { marginLeft: 8 }]}>Delivery Address</Text>
             </View>
             <View style={styles.shippingBadge}>
@@ -261,75 +283,98 @@ export default function CheckoutScreen({ navigation }: Props) {
             </View>
           </View>
 
-          <Pressable
-            onPress={handleAutofill}
-            style={styles.autofillButton}
-          >
-            <Text style={styles.autofillButtonText}>Use Demo Data</Text>
-          </Pressable>
-
-          <TextInput
-            style={styles.input}
-            placeholder="Full Name *"
-            placeholderTextColor="#9CA3AF"
-            value={address.name}
-            onChangeText={(text) => setAddress({ ...address, name: text })}
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="Email"
-            placeholderTextColor="#9CA3AF"
-            value={address.email}
-            onChangeText={(text) => setAddress({ ...address, email: text })}
-            keyboardType="email-address"
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="Phone Number *"
-            placeholderTextColor="#9CA3AF"
-            value={address.phone}
-            onChangeText={(text) => setAddress({ ...address, phone: text })}
-            keyboardType="phone-pad"
-          />
-          <TextInput
-            style={[styles.input, styles.textArea]}
-            placeholder="Complete Address *"
-            placeholderTextColor="#9CA3AF"
-            value={address.address}
-            onChangeText={(text) => setAddress({ ...address, address: text })}
-            multiline
-            numberOfLines={3}
-          />
-          <View style={styles.row}>
-            <TextInput
-              style={[styles.input, styles.halfInput]}
-              placeholder="City *"
-              placeholderTextColor="#9CA3AF"
-              value={address.city}
-              onChangeText={(text) => setAddress({ ...address, city: text })}
-            />
-            <TextInput
-              style={[styles.input, styles.halfInput]}
-              placeholder="Region"
-              placeholderTextColor="#9CA3AF"
-              value={address.region}
-              onChangeText={(text) => setAddress({ ...address, region: text })}
+          {/* Toggle Default Address */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, backgroundColor: '#F9FAFB', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB' }}>
+            <Text style={{ fontSize: 14, fontWeight: '600', color: '#111827' }}>Use Default / Home Address</Text>
+            <Switch
+              trackColor={{ false: '#D1D5DB', true: COLORS.primary }}
+              thumbColor={useDefaultAddress ? '#FFFFFF' : '#f4f3f4'}
+              ios_backgroundColor="#3e3e3e"
+              onValueChange={() => setUseDefaultAddress(prev => !prev)}
+              value={useDefaultAddress}
             />
           </View>
-          <TextInput
-            style={styles.input}
-            placeholder="Postal Code"
-            placeholderTextColor="#9CA3AF"
-            value={address.postalCode}
-            onChangeText={(text) => setAddress({ ...address, postalCode: text })}
-            keyboardType="number-pad"
-          />
+
+          {useDefaultAddress ? (
+             <View style={{ backgroundColor: '#FFF4ED', borderRadius: 12, padding: 16, borderWidth: 1, borderColor: '#FFE4E6' }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                   <View style={{ flex: 1 }}>
+                       <Text style={{ fontSize: 16, fontWeight: '700', color: '#111827', marginBottom: 4 }}>{DEFAULT_ADDRESS.name}</Text>
+                       <Text style={{ fontSize: 14, color: '#4B5563', marginBottom: 2 }}>{DEFAULT_ADDRESS.phone}</Text>
+                       <Text style={{ fontSize: 14, color: '#4B5563', marginBottom: 2 }}>{DEFAULT_ADDRESS.address}</Text>
+                       <Text style={{ fontSize: 14, color: '#4B5563' }}>{DEFAULT_ADDRESS.city}, {DEFAULT_ADDRESS.region}, {DEFAULT_ADDRESS.postalCode}</Text>
+                   </View>
+                   <View style={{ backgroundColor: COLORS.primary, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4 }}>
+                       <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>Default</Text>
+                   </View>
+                </View>
+             </View>
+          ) : (
+             <View>
+                <TextInput
+                    style={styles.input}
+                    placeholder="Full Name *"
+                    placeholderTextColor="#9CA3AF"
+                    value={address.name}
+                    onChangeText={(text) => setAddress({ ...address, name: text })}
+                />
+                <TextInput
+                    style={styles.input}
+                    placeholder="Email"
+                    placeholderTextColor="#9CA3AF"
+                    value={address.email}
+                    onChangeText={(text) => setAddress({ ...address, email: text })}
+                    keyboardType="email-address"
+                />
+                <TextInput
+                    style={styles.input}
+                    placeholder="Phone Number *"
+                    placeholderTextColor="#9CA3AF"
+                    value={address.phone}
+                    onChangeText={(text) => setAddress({ ...address, phone: text })}
+                    keyboardType="phone-pad"
+                />
+                <TextInput
+                    style={[styles.input, styles.textArea]}
+                    placeholder="Complete Address *"
+                    placeholderTextColor="#9CA3AF"
+                    value={address.address}
+                    onChangeText={(text) => setAddress({ ...address, address: text })}
+                    multiline
+                    numberOfLines={3}
+                />
+                <View style={styles.row}>
+                    <TextInput
+                    style={[styles.input, styles.halfInput]}
+                    placeholder="City *"
+                    placeholderTextColor="#9CA3AF"
+                    value={address.city}
+                    onChangeText={(text) => setAddress({ ...address, city: text })}
+                    />
+                    <TextInput
+                    style={[styles.input, styles.halfInput]}
+                    placeholder="Region"
+                    placeholderTextColor="#9CA3AF"
+                    value={address.region}
+                    onChangeText={(text) => setAddress({ ...address, region: text })}
+                    />
+                </View>
+                <TextInput
+                    style={styles.input}
+                    placeholder="Postal Code"
+                    placeholderTextColor="#9CA3AF"
+                    value={address.postalCode}
+                    onChangeText={(text) => setAddress({ ...address, postalCode: text })}
+                    keyboardType="number-pad"
+                />
+             </View>
+          )}
         </View>
 
         {/* Payment Method Card */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
-            <CreditCard size={20} color="#FF5722" />
+            <CreditCard size={20} color={COLORS.primary} />
             <Text style={[styles.sectionTitle, { marginLeft: 8 }]}>Payment Method</Text>
           </View>
 
@@ -361,19 +406,60 @@ export default function CheckoutScreen({ navigation }: Props) {
             <Shield size={16} color="#10B981" />
           </Pressable>
 
-          <Pressable
-            onPress={() => setPaymentMethod('card')}
-            style={[styles.paymentOption, paymentMethod === 'card' && styles.paymentOptionActive]}
-          >
-            <View style={styles.radio}>
-              {paymentMethod === 'card' && <View style={styles.radioInner} />}
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.paymentText}>Credit/Debit Card</Text>
-              <Text style={styles.paymentSubtext}>Instantly paid online</Text>
-            </View>
-            <Shield size={16} color="#10B981" />
-          </Pressable>
+          <View>
+            <Pressable
+              onPress={() => setPaymentMethod('card')}
+              style={[styles.paymentOption, paymentMethod === 'card' && styles.paymentOptionActive]}
+            >
+              <View style={styles.radio}>
+                {paymentMethod === 'card' && <View style={styles.radioInner} />}
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.paymentText}>Credit/Debit Card</Text>
+                <Text style={styles.paymentSubtext}>Instantly paid online</Text>
+              </View>
+              <CreditCard size={16} color="#10B981" />
+            </Pressable>
+
+            {/* Saved Cards List */}
+            {paymentMethod === 'card' && user?.savedCards && user.savedCards.length > 0 && (
+              <View style={styles.savedCardsContainer}>
+                {user.savedCards.map((card) => (
+                  <Pressable
+                    key={card.id}
+                    style={[
+                      styles.savedCardItem,
+                      selectedCardId === card.id && styles.savedCardItemSelected
+                    ]}
+                    onPress={() => setSelectedCardId(card.id)}
+                  >
+                    <View style={styles.savedCardRow}>
+                      <View style={[
+                        styles.radioSmall, 
+                        selectedCardId === card.id && styles.radioSmallSelected
+                      ]}>
+                        {selectedCardId === card.id && <View style={styles.radioInnerSmall} />}
+                      </View>
+                      <View style={styles.savedCardInfo}>
+                        <Text style={styles.savedCardBrand}>{card.brand} •••• {card.last4}</Text>
+                        <Text style={styles.savedCardExpiry}>Expires {card.expiry}</Text>
+                      </View>
+                    </View>
+                  </Pressable>
+                ))}
+                <Pressable 
+                  style={styles.addNewCardButton}
+                  onPress={() => {
+                    setPaymentMethod('paymongo');
+                    Alert.alert('Secure Checkout Selected', 'Please tap "Place Order" at the bottom to enter your card details securely via PayMongo.');
+                  }}
+                >
+                  <Plus size={16} color={COLORS.primary} />
+                  <Text style={styles.addNewCardText}>Add New Card</Text>
+                </Pressable>
+              </View>
+            )}
+          </View>
 
           <Pressable
             onPress={() => setPaymentMethod('cod')}
@@ -402,14 +488,14 @@ export default function CheckoutScreen({ navigation }: Props) {
         {/* Voucher Code Card */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
-            <Tag size={20} color="#FF5722" />
+            <Tag size={20} color={COLORS.primary} />
             <Text style={[styles.sectionTitle, { marginLeft: 8 }]}>Voucher Code</Text>
           </View>
 
           {appliedVoucher ? (
             <View style={styles.appliedVoucherContainer}>
               <View style={styles.appliedVoucherBadge}>
-                <Tag size={16} color="#FF5722" />
+                <Tag size={16} color={COLORS.primary} />
                 <Text style={styles.appliedVoucherCode}>{appliedVoucher}</Text>
                 <Text style={styles.appliedVoucherDesc}>
                   {VOUCHERS[appliedVoucher].description}
@@ -445,6 +531,78 @@ export default function CheckoutScreen({ navigation }: Props) {
             </View>
           )}
         </View>
+
+        {/* Bazcoins Redemption Card */}
+        <View style={styles.sectionCard}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                    <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#EAB308', alignItems: 'center', justifyContent: 'center' }}>
+                        <Text style={{ color: 'white', fontWeight: 'bold' }}>B</Text>
+                    </View>
+                    <View>
+                        <Text style={{ fontSize: 16, fontWeight: '600', color: '#111827' }}>Bazcoins</Text>
+                        <Text style={{ fontSize: 12, color: '#6B7280' }}>Balance: {availableBazcoins}</Text>
+                    </View>
+                </View>
+                {availableBazcoins > 0 && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <Text style={{ fontSize: 14, color: '#111827', fontWeight: '500' }}>-₱{maxRedeemableBazcoins}</Text>
+                        <Switch
+                            trackColor={{ false: '#D1D5DB', true: COLORS.primary }}
+                            thumbColor={useBazcoins ? '#FFFFFF' : '#f4f3f4'}
+                            onValueChange={() => setUseBazcoins(prev => !prev)}
+                            value={useBazcoins}
+                        />
+                    </View>
+                )}
+            </View>
+        </View>
+
+        {/* Order Summary */}
+        <View style={styles.sectionCard}>
+          <Text style={[styles.sectionTitle, { marginBottom: 16 }]}>Order Summary</Text>
+          
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Merchandise Subtotal</Text>
+            <Text style={styles.summaryValue}>₱{subtotal.toLocaleString()}</Text>
+          </View>
+          
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Shipping Subtotal</Text>
+            <Text style={styles.summaryValue}>₱{shippingFee.toLocaleString()}</Text>
+          </View>
+
+          {discount > 0 && (
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Voucher Discount</Text>
+              <Text style={[styles.summaryValue, { color: '#10B981' }]}>-₱{discount.toLocaleString()}</Text>
+            </View>
+          )}
+
+          {useBazcoins && bazcoinDiscount > 0 && (
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Bazcoins Redeemed</Text>
+              <Text style={[styles.summaryValue, { color: '#EAB308' }]}>-₱{bazcoinDiscount.toLocaleString()}</Text>
+            </View>
+          )}
+
+          <View style={styles.divider} />
+          
+          <View style={styles.summaryRow}>
+            <Text style={styles.totalLabelLarge}>Total Payment</Text>
+            <Text style={styles.totalAmountLarge}>₱{total.toLocaleString()}</Text>
+          </View>
+
+          <View style={{ marginTop: 16, backgroundColor: '#FEFCE8', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#FEF08A', flexDirection: 'row', gap: 12, alignItems: 'center' }}>
+               <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: '#EAB308', alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>B</Text>
+               </View>
+               <View>
+                 <Text style={{ fontSize: 13, fontWeight: '600', color: '#854D0E' }}>You will earn {earnedBazcoins} Bazcoins</Text>
+                 <Text style={{ fontSize: 11, color: '#A16207' }}>Receive coins upons successful delivery</Text>
+               </View>
+          </View>
+        </View>
         </ScrollView>
 
         {/* Bottom Action Bar */}
@@ -474,9 +632,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F5F7',
   },
   header: {
-    backgroundColor: '#FF5722',
+    backgroundColor: COLORS.primary,
     paddingBottom: 12,
-    shadowColor: '#FF5722',
+    shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -540,7 +698,7 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.9)',
   },
   stepNumberActive: {
-    color: '#FF5722',
+    color: COLORS.primary,
     fontWeight: '700',
   },
   stepLabel: {
@@ -606,7 +764,7 @@ const styles = StyleSheet.create({
   shippingBadgeText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#FF5722',
+    color: COLORS.primary,
   },
   compactOrderItem: {
     flexDirection: 'row',
@@ -672,12 +830,12 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#FF5722',
+    borderColor: COLORS.primary,
   },
   autofillButtonText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#FF5722',
+    color: COLORS.primary,
   },
   input: {
     backgroundColor: '#F9FAFB',
@@ -713,7 +871,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F9FAFB',
   },
   paymentOptionActive: {
-    borderColor: '#FF5722',
+    borderColor: COLORS.primary,
     backgroundColor: '#FFF4ED',
   },
   radio: {
@@ -730,7 +888,7 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: '#FF5722',
+    backgroundColor: COLORS.primary,
   },
   paymentText: {
     fontSize: 15,
@@ -771,7 +929,7 @@ const styles = StyleSheet.create({
     color: '#111827',
   },
   applyButton: {
-    backgroundColor: '#FF5722',
+    backgroundColor: COLORS.primary,
     paddingHorizontal: 24,
     paddingVertical: 14,
     borderRadius: 12,
@@ -792,7 +950,7 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#FF5722',
+    borderColor: COLORS.primary,
   },
   appliedVoucherBadge: {
     flex: 1,
@@ -803,7 +961,7 @@ const styles = StyleSheet.create({
   appliedVoucherCode: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#FF5722',
+    color: COLORS.primary,
   },
   appliedVoucherDesc: {
     fontSize: 13,
@@ -853,7 +1011,7 @@ const styles = StyleSheet.create({
     color: '#111827',
   },
   checkoutButton: {
-    backgroundColor: '#FF5722',
+    backgroundColor: COLORS.primary,
     paddingVertical: 16,
     borderRadius: 14,
     alignItems: 'center',
@@ -868,6 +1026,100 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
     letterSpacing: 0.5,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  savedCardsContainer: {
+    paddingLeft: 46,
+    paddingRight: 16,
+    paddingBottom: 16,
+    gap: 12,
+  },
+  savedCardItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    backgroundColor: '#F9FAFB',
+  },
+  savedCardItemSelected: {
+    borderColor: COLORS.primary,
+    backgroundColor: '#FFF5F0',
+  },
+  savedCardRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  radioSmall: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: '#D1D5DB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  radioSmallSelected: {
+    borderColor: COLORS.primary,
+  },
+  radioInnerSmall: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: COLORS.primary,
+  },
+  savedCardInfo: {
+    flex: 1,
+  },
+  savedCardBrand: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1F2937',
+  },
+  savedCardExpiry: {
+    fontSize: 12,
+    color: '#6B7280',
+  },
+  addNewCardButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 4,
+  },
+  addNewCardText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.primary,
+  },
+  summaryLabel: {
+    fontSize: 14,
+    color: '#4B5563',
+  },
+  summaryValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#F3F4F6',
+    marginVertical: 12,
+  },
+  totalLabelLarge: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  totalAmountLarge: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: COLORS.primary,
   },
 });
 

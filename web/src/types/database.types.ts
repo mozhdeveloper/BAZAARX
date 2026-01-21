@@ -127,6 +127,12 @@ export interface Seller {
   bank_name: string | null;
   account_name: string | null;
   account_number: string | null;
+  // Document URLs
+  business_permit_url: string | null;
+  valid_id_url: string | null;
+  proof_of_address_url: string | null;
+  dti_registration_url: string | null;
+  tax_id_url: string | null;
   // Status
   is_verified: boolean;
   approval_status: ApprovalStatus;
@@ -153,52 +159,62 @@ export interface Admin {
 
 export interface Product {
   id: string; // UUID
-  seller_id: string;
+  seller_id?: string;
   // Product Info
-  name: string;
-  description: string | null;
-  category: string;
-  category_id: string | null;
-  brand: string | null;
-  sku: string | null;
+  name?: string;
+  description?: string | null;
+  category?: string;
+  category_id?: string | null;
+  brand?: string | null;
+  sku?: string | null;
   // Pricing
-  price: number;
-  original_price: number | null;
+  price?: number;
+  original_price?: number | null;
   // Inventory
-  stock: number;
-  low_stock_threshold: number;
+  stock?: number;
+  low_stock_threshold?: number;
   // Media
-  images: string[];
-  primary_image: string | null;
+  images?: string[];
+  primary_image?: string | null;
   // Variants & Options
-  sizes: string[];
-  colors: string[];
-  variants: ProductVariant[];
-  specifications: Record<string, unknown>;
+  sizes?: string[];
+  colors?: string[];
+  variants?: ProductVariant[];
+  specifications?: Record<string, unknown>;
   // Status
-  is_active: boolean;
-  approval_status: ApprovalStatus;
-  rejection_reason: string | null;
-  vendor_submitted_category: string | null;
-  admin_reclassified_category: string | null;
+  is_active?: boolean;
+  approval_status?: ApprovalStatus;
+  rejection_reason?: string | null;
+  vendor_submitted_category?: string | null;
+  admin_reclassified_category?: string | null;
   // Metrics
-  rating: number;
-  review_count: number;
-  sales_count: number;
-  view_count: number;
+  rating?: number;
+  review_count?: number;
+  sales_count?: number;
+  view_count?: number;
   // Shipping
-  weight: number | null;
-  dimensions: {
+  weight?: number | null;
+  dimensions?: {
     length: number;
     width: number;
     height: number;
   } | null;
-  is_free_shipping: boolean;
+  is_free_shipping?: boolean;
   // Tags
-  tags: string[];
+  tags?: string[];
   // Timestamps
-  created_at: string;
-  updated_at: string;
+  created_at?: string;
+  updated_at?: string;
+  // Legacy / UI Fields
+  originalPrice?: number;
+  image?: string;
+  isFreeShipping?: boolean;
+  isVerified?: boolean;
+  seller?: string;
+  sellerRating?: number;
+  sellerVerified?: boolean;
+  sold?: number;
+  location?: string;
 }
 
 export interface ProductVariant {
@@ -513,15 +529,17 @@ export interface Notification {
 export interface Category {
   id: string; // UUID
   name: string;
-  slug: string;
-  description: string | null;
-  parent_id: string | null;
-  icon: string | null;
-  image_url: string | null;
-  sort_order: number;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
+  slug?: string;
+  description?: string | null;
+  parent_id?: string | null;
+  icon?: string | null;
+  image_url?: string | null;
+  sort_order?: number;
+  is_active?: boolean;
+  created_at?: string;
+  updated_at?: string;
+  // Legacy
+  count?: number;
 }
 
 // ----------------------------------------------------------------------------
@@ -686,5 +704,9 @@ export interface Database {
         Update: Partial<Omit<Address, 'id' | 'created_at'>>;
       };
     };
+    Views: Record<string, never>;
+    Functions: Record<string, never>;
+    Enums: Record<string, never>;
+    CompositeTypes: Record<string, never>;
   };
 }

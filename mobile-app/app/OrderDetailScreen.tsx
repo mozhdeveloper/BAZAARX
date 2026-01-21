@@ -15,6 +15,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ArrowLeft, Package, MapPin, CreditCard, Receipt, CheckCircle, MessageCircle, Send, X, Truck, Clock, CheckCircle2 } from 'lucide-react-native';
+import { COLORS } from '../src/constants/theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import { useOrderStore } from '../src/stores/orderStore';
@@ -101,7 +102,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
   const getStatusColor = () => {
     switch (order.status) {
       case 'pending': return '#F59E0B';
-      case 'processing': return '#FF5722';
+      case 'processing': return COLORS.primary;
       case 'shipped': return '#8B5CF6';
       case 'delivered': return '#22C55E';
       default: return '#6B7280';
@@ -174,7 +175,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
           ]}
           onPress={() => setShowChatModal(true)}
         >
-          <MessageCircle size={18} color="#FF5722" />
+          <MessageCircle size={18} color={COLORS.primary} />
           <Text style={styles.chatButtonText}>Chat with Seller</Text>
         </Pressable>
 
@@ -182,7 +183,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <View style={styles.iconCircle}>
-              <Package size={20} color="#FF5722" />
+              <Package size={20} color={COLORS.primary} />
             </View>
             <Text style={styles.cardTitle}>Order Items</Text>
           </View>
@@ -210,7 +211,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <View style={styles.iconCircle}>
-              <MapPin size={20} color="#FF5722" />
+              <MapPin size={20} color={COLORS.primary} />
             </View>
             <Text style={styles.cardTitle}>Shipping Address</Text>
           </View>
@@ -228,7 +229,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <View style={styles.iconCircle}>
-              <CreditCard size={20} color="#FF5722" />
+              <CreditCard size={20} color={COLORS.primary} />
             </View>
             <Text style={styles.cardTitle}>Payment Method</Text>
           </View>
@@ -241,7 +242,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <View style={styles.iconCircle}>
-              <Receipt size={20} color="#FF5722" />
+              <Receipt size={20} color={COLORS.primary} />
             </View>
             <Text style={styles.cardTitle}>Order Summary</Text>
           </View>
@@ -302,7 +303,11 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
             style={{ flex: 1 }}
           >
             <View style={styles.chatHeader}>
-              <Pressable onPress={() => setShowChatModal(false)} style={styles.closeButton}>
+              <Pressable 
+                onPress={() => setShowChatModal(false)} 
+                style={styles.closeButton}
+                hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+              >
                 <ArrowLeft size={24} color="#1F2937" />
               </Pressable>
               <View>
@@ -372,7 +377,7 @@ const styles = StyleSheet.create({
   },
   // ===== EDGE-TO-EDGE HEADER =====
   header: {
-    backgroundColor: '#FF5722',
+    backgroundColor: COLORS.primary,
     paddingBottom: 16,
   },
   headerContent: {
@@ -443,8 +448,8 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 20,
     borderWidth: 1.5,
-    borderColor: '#FF5722',
-    shadowColor: '#FF5722',
+    borderColor: COLORS.primary,
+    shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
@@ -458,7 +463,7 @@ const styles = StyleSheet.create({
   chatButtonText: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#FF5722',
+    color: COLORS.primary,
     letterSpacing: 0.3,
   },
   // ===== WHITE CARDS =====
@@ -532,7 +537,7 @@ const styles = StyleSheet.create({
   itemPrice: {
     fontSize: 17,
     fontWeight: '700',
-    color: '#FF5722',
+    color: COLORS.primary,
   },
   // ===== SHIPPING ADDRESS =====
   addressName: {
@@ -577,7 +582,7 @@ const styles = StyleSheet.create({
     color: '#1F2937',
   },
   freeShipping: {
-    color: '#FF5722',
+    color: COLORS.primary,
     fontWeight: '700',
   },
   dividerLine: {
@@ -621,13 +626,13 @@ const styles = StyleSheet.create({
     elevation: 10,
   },
   receivedButton: {
-    backgroundColor: '#FF5722',
+    backgroundColor: COLORS.primary,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 16,
     borderRadius: 16,
-    shadowColor: '#FF5722',
+    shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 10,
@@ -675,7 +680,7 @@ const styles = StyleSheet.create({
   },
   buyerMessage: {
     alignSelf: 'flex-end',
-    backgroundColor: '#FF5722',
+    backgroundColor: COLORS.primary,
     borderBottomRightRadius: 4,
   },
   sellerMessage: {
@@ -740,7 +745,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#FF5722',
+    backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -748,6 +753,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#D1D5DB',
   },
   closeButton: {
-    padding: 4,
+    padding: 12,
+    marginLeft: -8, // Compensate for extra padding to keep visual alignment
   },
 });

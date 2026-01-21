@@ -32,7 +32,7 @@ export const TestimonialsColumn = (props: {
           ...new Array(2).fill(0).map((_, index) => (
             <React.Fragment key={index}>
               {props.testimonials.map(({ text, image, name, role, platform, rating }, i) => (
-                <div className="p-10 rounded-3xl border shadow-lg shadow-orange-600/10 max-w-xs w-full bg-white" key={i}>
+                <div className="p-6 sm:p-10 rounded-3xl border shadow-lg shadow-orange-600/10 max-w-xs w-full bg-white" key={i}>
                   <div className="flex items-center gap-1 mb-3">
                     {[...Array(rating || 5)].map((_, i) => (
                       <svg key={i} className="w-4 h-4 text-yellow-400 fill-current" viewBox="0 0 20 20">

@@ -4,6 +4,7 @@ import { ArrowLeft, DollarSign, ShoppingBag, Users, TrendingUp, ArrowUpRight, Ar
 import { useNavigation } from '@react-navigation/native';
 import { useAdminAnalytics } from '../../../src/stores/adminStore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { COLORS } from '../../../src/constants/theme';
 
 export default function AdminAnalyticsScreen() {
   const navigation = useNavigation();
@@ -18,7 +19,7 @@ export default function AdminAnalyticsScreen() {
     { title: 'Total Revenue', value: stats.totalRevenue, change: stats.revenueChange, isPositive: true, icon: DollarSign, color: '#10B981' },
     { title: 'Total Orders', value: stats.totalOrders, change: stats.ordersChange, isPositive: true, icon: ShoppingBag, color: '#3B82F6' },
     { title: 'Active Users', value: stats.activeUsers, change: stats.usersChange, isPositive: true, icon: Users, color: '#8B5CF6' },
-    { title: 'Conversion Rate', value: stats.conversionRate, change: stats.conversionChange, isPositive: false, icon: TrendingUp, color: '#FF5722' },
+    { title: 'Conversion Rate', value: stats.conversionRate, change: stats.conversionChange, isPositive: false, icon: TrendingUp, color: COLORS.primary },
   ];
 
   return (
@@ -38,7 +39,7 @@ export default function AdminAnalyticsScreen() {
       <ScrollView style={styles.scrollView}>
         {isLoading ? (
           <View style={styles.centerContent}>
-            <ActivityIndicator size="large" color="#FF5722" />
+            <ActivityIndicator size="large" color={COLORS.primary} />
             <Text style={styles.loadingText}>Loading analytics...</Text>
           </View>
         ) : (
@@ -98,7 +99,7 @@ export default function AdminAnalyticsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F5F5F7' },
-  header: { backgroundColor: '#FF5722', paddingHorizontal: 20, paddingBottom: 20 },
+  header: { backgroundColor: COLORS.primary, paddingHorizontal: 20, paddingBottom: 24, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 },
   headerContent: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   backButton: { padding: 4 },
   headerTitleContainer: { gap: 2 },
@@ -123,5 +124,5 @@ const styles = StyleSheet.create({
   productStats: { flexDirection: 'row', gap: 16 },
   productStat: { flex: 1 },
   productStatLabel: { fontSize: 12, color: '#6B7280', marginBottom: 4 },
-  productStatValue: { fontSize: 16, fontWeight: 'bold', color: '#FF5722' },
+  productStatValue: { fontSize: 16, fontWeight: 'bold', color: COLORS.primary },
 });

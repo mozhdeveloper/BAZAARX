@@ -542,7 +542,7 @@ export const useAuthStore = create<AuthStore>()(
             total_sales: 0,
           };
 
-          // @ts-expect-error - Database types need to be regenerated
+
           const { error: sellerError } = await supabase.from('sellers').upsert(sellerRow, {
             onConflict: 'id',
             ignoreDuplicates: false
@@ -1519,7 +1519,7 @@ export const useOrderStore = create<OrderStore>()(
 );
 
 // Stats Store
-export const useStatsStore = create<StatsStore>()((set, get) => ({
+export const useStatsStore = create<StatsStore>()((set) => ({
   stats: {
     totalRevenue: 0,
     totalOrders: 0,
@@ -1605,7 +1605,7 @@ function calculateMonthlyRevenue(orders: SellerOrder[]): { month: string; revenu
 }
 
 // Helper function to calculate top products
-function calculateTopProducts(products: SellerProduct[], orders: SellerOrder[]): { name: string; sales: number; revenue: number }[] {
+function calculateTopProducts(_products: SellerProduct[], orders: SellerOrder[]): { name: string; sales: number; revenue: number }[] {
   const productStats = new Map<string, { name: string; sales: number; revenue: number }>();
 
   orders.forEach(order => {

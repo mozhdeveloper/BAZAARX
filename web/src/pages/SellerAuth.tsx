@@ -7,11 +7,11 @@ import { useAuthStore } from '@/stores/sellerStore';
 import { Button } from '@/components/ui/button';
 
 export function SellerLogin() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const { login } = useAuthStore();
   const navigate = useNavigate();
 
@@ -35,7 +35,7 @@ export function SellerLogin() {
       if (success) navigate('/seller');
       else setError('Invalid email or password');
     } catch (err) {
-      setError('Something went wrong. Please try again.');
+      setError("Something went wrong. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -196,114 +196,118 @@ export function SellerLogin() {
   );
 }
 
-
 export function SellerRegister() {
   const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-    confirmPassword: '',
-    storeName: '',
-    storeDescription: '',
-    phone: '',
-    storeAddress: ''
+    email: "",
+    password: "",
+    confirmPassword: "",
+    storeName: "",
+    storeDescription: "",
+    phone: "",
+    storeAddress: "",
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [step, setStep] = useState(1);
- 
+
   const { register } = useAuthStore();
   const navigate = useNavigate();
 
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    setFormData(prev => ({
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+  ) => {
+    setFormData((prev) => ({
       ...prev,
-      [e.target.name]: e.target.value
+      [e.target.name]: e.target.value,
     }));
   };
-
 
   const handleNext = () => {
     if (step === 1) {
       if (!formData.email || !formData.password || !formData.confirmPassword) {
-        setError('Please fill in all fields');
+        setError("Please fill in all fields");
         return;
       }
       if (formData.password !== formData.confirmPassword) {
-        setError('Passwords do not match');
+        setError("Passwords do not match");
         return;
       }
       if (formData.password.length < 6) {
-        setError('Password must be at least 6 characters');
+        setError("Password must be at least 6 characters");
         return;
       }
-      setError('');
+      setError("");
       setStep(2);
     }
   };
 
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.storeName) {
-      setError('Store name is required');
+      setError("Store name is required");
       return;
     }
 
-
     setIsLoading(true);
-    setError('');
-
+    setError("");
 
     try {
       const success = await register(formData);
       if (success) {
         setIsLoading(false);
-        navigate('/seller/onboarding');
+        navigate("/seller");
       } else {
-        setError('Registration failed. Please try again.');
+        setError("Registration failed. Please try again.");
         setIsLoading(false);
       }
     } catch {
-      setError('Something went wrong. Please try again.');
+      setError("Something went wrong. Please try again.");
       setIsLoading(false);
     }
   };
 
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-orange-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        <div className='bg-white rounded-2xl shadow-xl overflow-hidden'>
+        <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
           {/* Header */}
-          <div className='bg-gradient-to-r from-orange-500 to-orange-600 p-8 text-center'>
-            <div className='inline-flex items-center justify-center w-20 h-20 bg-white rounded-2xl shadow-lg mb-4 transform hover:scale-105 transition-transform duration-300'>
-              <Store className='w-10 h-10 text-orange-500'/>
+          <div className="bg-gradient-to-r from-orange-500 to-orange-600 p-8 text-center">
+            <div className="inline-flex items-center justify-center w-20 h-20 bg-white rounded-2xl shadow-lg mb-4 transform hover:scale-105 transition-transform duration-300">
+              <Store className="w-10 h-10 text-orange-500" />
             </div>
             <h1 className='text-3xl font-bold text-white mb-2'>Join BazaarPH</h1>
             <p className='text-orange-100 text-m'>Create your seller account</p>
           </div>
 
-
           {/* Progress Steps */}
-          <div className='px-8 pt-6 pb-4'>
-            <div className='flex items-center justify-center gap-2'>
-              <div className='flex items-center'>
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all duration-300 ${
-                  step >= 1 ? 'bg-orange-500 text-white shadow-lg' : 'bg-gray-200 text-gray-500'
-                }`}>
-                  {step > 1 ? <Check className='w-5 h-5'/> : '1'}
+          <div className="px-8 pt-6 pb-4">
+            <div className="flex items-center justify-center gap-2">
+              <div className="flex items-center">
+                <div
+                  className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all duration-300 ${
+                    step >= 1
+                      ? "bg-orange-500 text-white shadow-lg"
+                      : "bg-gray-200 text-gray-500"
+                  }`}
+                >
+                  {step > 1 ? <Check className="w-5 h-5" /> : "1"}
                 </div>
               </div>
-              <div className={`h-1 w-16 rounded-full transition-all duration-300 ${
-                step >= 2 ? 'bg-orange-500' : 'bg-gray-200'
-              }`}></div>
-              <div className='flex items-center'>
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all duration-300 ${
-                  step >= 2 ? 'bg-orange-500 text-white shadow-lg' : 'bg-gray-200 text-gray-500'
-                }`}>
+              <div
+                className={`h-1 w-16 rounded-full transition-all duration-300 ${
+                  step >= 2 ? "bg-orange-500" : "bg-gray-200"
+                }`}
+              ></div>
+              <div className="flex items-center">
+                <div
+                  className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all duration-300 ${
+                    step >= 2
+                      ? "bg-orange-500 text-white shadow-lg"
+                      : "bg-gray-200 text-gray-500"
+                  }`}
+                >
                   2
                 </div>
               </div>
@@ -312,7 +316,7 @@ export function SellerRegister() {
 
           {/* Error Message */}
           {error && (
-            <div className='px-8'>
+            <div className="px-8">
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
@@ -324,16 +328,29 @@ export function SellerRegister() {
           )}
 
           {/* Form */}
-          <div className='p-8 pt-4'>
-            <form onSubmit={step === 1 ? (e) => { e.preventDefault(); handleNext(); } : handleSubmit} className='space-y-5'>
+          <div className="p-8 pt-4">
+            <form
+              onSubmit={
+                step === 1
+                  ? (e) => {
+                      e.preventDefault();
+                      handleNext();
+                    }
+                  : handleSubmit
+              }
+              className="space-y-5"
+            >
               {step === 1 ? (
                 <>
                   {/* Email Field */}
                   <div>
-                    <label htmlFor='email' className='block text-sm font-semibold text-gray-700 mb-2'>
+                    <label
+                      htmlFor="email"
+                      className="block text-sm font-semibold text-gray-700 mb-2"
+                    >
                       Email Address
                     </label>
-                    <div className='relative'>
+                    <div className="relative">
                       <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                         <Mail className="h-5 w-5 text-gray-400" />
                       </div>
@@ -345,93 +362,111 @@ export function SellerRegister() {
                         onChange={handleChange}
                         className={`w-full pl-12 pr-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 transition-all duration-200 ${
                           error
-                            ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
-                            : 'border-gray-200 focus:border-orange-500 focus:ring-orange-200'
+                            ? "border-red-300 focus:border-red-500 focus:ring-red-200"
+                            : "border-gray-200 focus:border-orange-500 focus:ring-orange-200"
                         }`}
                         placeholder="Enter your email"
                       />
                     </div>
                   </div>
-                 
+
                   {/* Password Field */}
                   <div>
-                    <label htmlFor='password' className='block text-sm font-semibold text-gray-700 mb-2'>
+                    <label
+                      htmlFor="password"
+                      className="block text-sm font-semibold text-gray-700 mb-2"
+                    >
                       Password
                     </label>
-                    <div className='relative'>
-                      <div className='absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none'>
-                        <Lock className='h-5 w-5 text-gray-400'/>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                        <Lock className="h-5 w-5 text-gray-400" />
                       </div>
                       <input
                         id="password"
                         name="password"
-                        type={showPassword ? 'text' : 'password'}
+                        type={showPassword ? "text" : "password"}
                         value={formData.password}
                         onChange={handleChange}
                         className={`w-full pl-12 pr-12 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 transition-all duration-200 ${
                           error
-                            ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
-                            : 'border-gray-200 focus:border-orange-500 focus:ring-orange-200'
+                            ? "border-red-300 focus:border-red-500 focus:ring-red-200"
+                            : "border-gray-200 focus:border-orange-500 focus:ring-orange-200"
                         }`}
                         placeholder="Create a password"
                       />
                       <button
-                        type='button'
+                        type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className='absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600 transition-colors'
+                        className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600 transition-colors"
                       >
-                        {showPassword ? <EyeOff className='h-5 w-5'/> : <Eye className='h-5 w-5'/>}
+                        {showPassword ? (
+                          <EyeOff className="h-5 w-5" />
+                        ) : (
+                          <Eye className="h-5 w-5" />
+                        )}
                       </button>
                     </div>
                   </div>
 
-
                   {/* Confirm Password Field */}
                   <div>
-                    <label htmlFor='confirmPassword' className='block text-sm font-semibold text-gray-700 mb-2'>
+                    <label
+                      htmlFor="confirmPassword"
+                      className="block text-sm font-semibold text-gray-700 mb-2"
+                    >
                       Confirm Password
                     </label>
-                    <div className='relative'>
-                      <div className='absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none'>
-                        <Lock className='h-5 w-5 text-gray-400'/>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                        <Lock className="h-5 w-5 text-gray-400" />
                       </div>
                       <input
                         id="confirmPassword"
                         name="confirmPassword"
-                        type={showConfirmPassword ? 'text' : 'password'}
+                        type={showConfirmPassword ? "text" : "password"}
                         value={formData.confirmPassword}
                         onChange={handleChange}
                         className={`w-full pl-12 pr-12 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 transition-all duration-200 ${
                           error
-                            ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
-                            : 'border-gray-200 focus:border-orange-500 focus:ring-orange-200'
+                            ? "border-red-300 focus:border-red-500 focus:ring-red-200"
+                            : "border-gray-200 focus:border-orange-500 focus:ring-orange-200"
                         }`}
                         placeholder="Confirm your password"
                       />
                       <button
-                        type='button'
-                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                        className='absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600 transition-colors'
+                        type="button"
+                        onClick={() =>
+                          setShowConfirmPassword(!showConfirmPassword)
+                        }
+                        className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600 transition-colors"
                       >
-                        {showConfirmPassword ? <EyeOff className='h-5 w-5'/> : <Eye className='h-5 w-5'/>}
+                        {showConfirmPassword ? (
+                          <EyeOff className="h-5 w-5" />
+                        ) : (
+                          <Eye className="h-5 w-5" />
+                        )}
                       </button>
                     </div>
-                  </div>  
-                   
+                  </div>
+
                   {/* Next Button */}
                   <button
-                    type='submit'
-                    className='w-full bg-gradient-to-r from-orange-500 to-orange-600 text-white py-3.5 px-6 rounded-xl font-semibold hover:from-orange-600 hover:to-orange-700 focus:outline-none focus:ring-4 focus:ring-orange-200 transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5'
+                    type="submit"
+                    className="w-full bg-gradient-to-r from-orange-500 to-orange-600 text-white py-3.5 px-6 rounded-xl font-semibold hover:from-orange-600 hover:to-orange-700 focus:outline-none focus:ring-4 focus:ring-orange-200 transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
                   >
                     Next: Store Info
-                    <ArrowRight className='w-5 h-5'/>
+                    <ArrowRight className="w-5 h-5" />
                   </button>
                 </>
               ) : (
                 <>
                   {/* Store Name */}
                   <div>
-                    <label htmlFor='storeName' className='block text-sm font-semibold text-gray-700 mb-2'>
+                    <label
+                      htmlFor="storeName"
+                      className="block text-sm font-semibold text-gray-700 mb-2"
+                    >
                       Store Name *
                     </label>
                     <input
@@ -446,10 +481,12 @@ export function SellerRegister() {
                     />
                   </div>
 
-
                   {/* Store Description */}
                   <div>
-                    <label htmlFor='storeDescription' className='block text-sm font-semibold text-gray-700 mb-2'>
+                    <label
+                      htmlFor="storeDescription"
+                      className="block text-sm font-semibold text-gray-700 mb-2"
+                    >
                       Store Description
                     </label>
                     <textarea
@@ -463,10 +500,12 @@ export function SellerRegister() {
                     />
                   </div>
 
-
                   {/* Phone */}
                   <div>
-                    <label htmlFor='phone' className='block text-sm font-semibold text-gray-700 mb-2'>
+                    <label
+                      htmlFor="phone"
+                      className="block text-sm font-semibold text-gray-700 mb-2"
+                    >
                       Phone Number
                     </label>
                     <input
@@ -480,10 +519,12 @@ export function SellerRegister() {
                     />
                   </div>
 
-
                   {/* Address */}
                   <div>
-                    <label htmlFor='storeAddress' className='block text-sm font-semibold text-gray-700 mb-2'>
+                    <label
+                      htmlFor="storeAddress"
+                      className="block text-sm font-semibold text-gray-700 mb-2"
+                    >
                       Store Address
                     </label>
                     <input
@@ -497,25 +538,24 @@ export function SellerRegister() {
                     />
                   </div>
 
-
                   {/* Action Buttons */}
-                  <div className='flex gap-3 pt-2'>
+                  <div className="flex gap-3 pt-2">
                     <button
-                      type='button'
+                      type="button"
                       onClick={() => setStep(1)}
-                      className='flex-1 py-3 border-2 border-gray-300 text-gray-700 hover:bg-gray-50 rounded-xl font-semibold transition-colors'
+                      className="flex-1 py-3 border-2 border-gray-300 text-gray-700 hover:bg-gray-50 rounded-xl font-semibold transition-colors"
                     >
                       Back
                     </button>
                     <button
-                      type='submit'
+                      type="submit"
                       disabled={isLoading}
-                      className='flex-1 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white py-3 font-semibold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl transition-all duration-200'
+                      className="flex-1 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white py-3 font-semibold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl transition-all duration-200"
                     >
                       {isLoading ? (
-                        <div className='w-5 h-5 mx-auto border-2 border-white border-t-transparent rounded-full animate-spin'/>
+                        <div className="w-5 h-5 mx-auto border-2 border-white border-t-transparent rounded-full animate-spin" />
                       ) : (
-                        'Create Account'
+                        "Create Account"
                       )}
                     </button>
                   </div>
@@ -523,17 +563,19 @@ export function SellerRegister() {
               )}
             </form>
 
-
-                {/* Login Link */}
-            <div className='text-center mt-6'>
-              <p className='text-sm text-gray-600'>
-                Already have an account?{' '}
-                <Link to='/seller/login' className='text-orange-500 hover:text-orange-600 font-semibold transition-colors'>
+            {/* Login Link */}
+            <div className="text-center mt-6">
+              <p className="text-sm text-gray-600">
+                Already have an account?{" "}
+                <Link
+                  to="/seller/login"
+                  className="text-orange-500 hover:text-orange-600 font-semibold transition-colors"
+                >
                   Sign in here
                 </Link>
               </p>
             </div>
-           
+
             {/* Back to Shop */}
             <div className='text-center mt-4'>
               <Link to='/' className='text-m text-gray-500 hover:text-gray-700 transition-colors'>

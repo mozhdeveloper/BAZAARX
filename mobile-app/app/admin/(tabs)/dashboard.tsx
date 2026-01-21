@@ -25,6 +25,7 @@ import {
 } from 'lucide-react-native';
 import { useAdminStats, useAdminSellers, useAdminProductQA } from '../../../src/stores/adminStore';
 import AdminDrawer from '../../../src/components/AdminDrawer';
+import { COLORS } from '../../../src/constants/theme';
 
 export default function AdminDashboardScreen() {
   const [drawerVisible, setDrawerVisible] = useState(false);
@@ -185,12 +186,12 @@ export default function AdminDashboardScreen() {
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#FF5722']} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />
         }
       >
         {isLoading && !refreshing ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#FF5722" />
+            <ActivityIndicator size="large" color={COLORS.primary} />
             <Text style={styles.loadingText}>Loading dashboard...</Text>
           </View>
         ) : (
@@ -287,9 +288,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F5F7',
   },
   header: {
-    backgroundColor: '#FF5722',
+    backgroundColor: COLORS.primary,
     paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingBottom: 24,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
   },
   headerContent: {
     flexDirection: 'row',
@@ -332,7 +335,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: '#FFFFFF',
     borderWidth: 1.5,
-    borderColor: '#FF5722',
+    borderColor: COLORS.primary,
   },
   scrollView: {
     flex: 1,
@@ -466,7 +469,7 @@ const styles = StyleSheet.create({
   quickStatValue: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#FF5722',
+    color: COLORS.primary,
   },
   divider: {
     height: 1,
