@@ -1,11 +1,11 @@
-import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { X, Camera, ImagePlus, Search, Package } from 'lucide-react';
-import { Button } from './ui/button';
-import { Input } from './ui/input';
-import { useImageUpload } from './hooks/use-image-upload';
-import { cn } from '@/lib/utils';
-import { useNavigate } from 'react-router-dom';
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { X, Camera, ImagePlus, Search, Package } from "lucide-react";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
+import { useImageUpload } from "./hooks/use-image-upload";
+import { cn } from "@/lib/utils";
+import { useNavigate } from "react-router-dom";
 
 interface VisualSearchModalProps {
   isOpen: boolean;
@@ -14,11 +14,11 @@ interface VisualSearchModalProps {
   products?: any[];
 }
 
-export default function VisualSearchModal({ 
-  isOpen, 
+export default function VisualSearchModal({
+  isOpen,
   onClose,
   onRequestProduct,
-  products = []
+  products = [],
 }: VisualSearchModalProps) {
   const navigate = useNavigate();
   const [isSearching, setIsSearching] = useState(false);
@@ -50,8 +50,8 @@ export default function VisualSearchModal({
 
     // Simulate AI visual search
     // In production, send imageUrl to AI vision API for product matching
-    console.log('Analyzing image:', imageUrl);
-    
+    console.log("Analyzing image:", imageUrl);
+
     setTimeout(() => {
       // Mock search results - in real app, this would call an AI vision API with imageUrl
       const mockResults = products.slice(0, 6);
@@ -131,8 +131,12 @@ export default function VisualSearchModal({
                 <Camera className="w-6 h-6 text-orange-600" />
               </div>
               <div>
-                <h2 className="text-xl font-bold text-gray-900">Visual Search</h2>
-                <p className="text-sm text-gray-600">Upload an image to find similar products</p>
+                <h2 className="text-xl font-bold text-gray-900">
+                  Visual Search
+                </h2>
+                <p className="text-sm text-gray-600">
+                  Upload an image to find similar products
+                </p>
               </div>
             </div>
             <button
@@ -171,9 +175,15 @@ export default function VisualSearchModal({
                     <ImagePlus className="h-8 w-8 text-gray-500" />
                   </div>
                   <div className="text-center">
-                    <p className="text-lg font-medium text-gray-700">Upload Product Image</p>
-                    <p className="text-sm text-gray-500 mt-1">Click to browse or drag & drop</p>
-                    <p className="text-xs text-gray-400 mt-2">Supports JPG, PNG, GIF (Max 10MB)</p>
+                    <p className="text-lg font-medium text-gray-700">
+                      Upload Product Image
+                    </p>
+                    <p className="text-sm text-gray-500 mt-1">
+                      Click to browse or drag & drop
+                    </p>
+                    <p className="text-xs text-gray-400 mt-2">
+                      Supports JPG, PNG, GIF (Max 10MB)
+                    </p>
                   </div>
                 </div>
               ) : (
@@ -216,8 +226,12 @@ export default function VisualSearchModal({
                 <div className="inline-flex items-center gap-3 px-6 py-4 bg-orange-50 rounded-xl">
                   <div className="w-6 h-6 border-3 border-orange-500 border-t-transparent rounded-full animate-spin" />
                   <div className="text-left">
-                    <p className="font-semibold text-gray-900">Analyzing image...</p>
-                    <p className="text-sm text-gray-600">Finding similar products</p>
+                    <p className="font-semibold text-gray-900">
+                      Analyzing image...
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      Finding similar products
+                    </p>
                   </div>
                 </div>
               </motion.div>
@@ -275,7 +289,8 @@ export default function VisualSearchModal({
                       No similar products found
                     </h3>
                     <p className="text-gray-600 mb-6">
-                      We couldn't find products matching your image. Would you like to request it?
+                      We couldn't find products matching your image. Would you
+                      like to request it?
                     </p>
                   </div>
                 )}
@@ -291,7 +306,8 @@ export default function VisualSearchModal({
                         Can't find what you're looking for?
                       </h4>
                       <p className="text-sm text-gray-600 mb-4">
-                        Request this product and we'll notify you when it becomes available or connect you with a seller.
+                        Request this product and we'll notify you when it
+                        becomes available or connect you with a seller.
                       </p>
                       <Button
                         onClick={handleRequestClick}
