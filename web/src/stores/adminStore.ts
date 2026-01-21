@@ -36,7 +36,7 @@ export interface Category {
 
 export interface Seller {
   id: string;
-  
+
   // Business Information
   businessName: string;
   storeName: string;
@@ -47,29 +47,29 @@ export interface Seller {
   taxIdNumber: string;
   description: string;
   logo?: string;
-  
+
   // Owner Information
   ownerName: string;
   email: string;
   phone: string;
-  
+
   // Address Information
   businessAddress: string;
   city: string;
   province: string;
   postalCode: string;
   address: string; // Full address (combined)
-  
+
   // Banking Information
   bankName: string;
   accountName: string;
   accountNumber: string;
-  
+
   // Status and Documents
   status: 'pending' | 'approved' | 'rejected' | 'suspended';
   documents: SellerDocument[];
   metrics: SellerMetrics;
-  
+
   // Admin info
   joinDate: Date;
   approvedAt?: Date;
@@ -84,7 +84,7 @@ export interface Seller {
 
 export interface SellerDocument {
   id: string;
-  type: 'business_permit' | 'valid_id' | 'proof_of_address' | 'dti_registration' | 'tax_id' | 'other';
+  type: string;
   fileName: string;
   url: string;
   uploadDate: Date;
@@ -170,9 +170,9 @@ export const useAdminAuth = create<AdminAuthState>()(
 
             if (authError || !authData.user) {
               console.error('Admin auth error:', authError);
-              set({ 
+              set({
                 error: 'Invalid credentials',
-                isLoading: false 
+                isLoading: false
               });
               return false;
             }
@@ -187,9 +187,9 @@ export const useAdminAuth = create<AdminAuthState>()(
             if (profileError || !profile) {
               console.error('Profile fetch error:', profileError);
               await supabase.auth.signOut();
-              set({ 
+              set({
                 error: 'Admin profile not found',
-                isLoading: false 
+                isLoading: false
               });
               return false;
             }
@@ -197,9 +197,9 @@ export const useAdminAuth = create<AdminAuthState>()(
             // Verify user is an admin
             if (profile.user_type !== 'admin') {
               await supabase.auth.signOut();
-              set({ 
+              set({
                 error: 'Access denied. Admin account required.',
-                isLoading: false 
+                isLoading: false
               });
               return false;
             }
@@ -232,9 +232,9 @@ export const useAdminAuth = create<AdminAuthState>()(
 
           } catch (err) {
             console.error('Login error:', err);
-            set({ 
+            set({
               error: 'Login failed. Please try again.',
-              isLoading: false 
+              isLoading: false
             });
             return false;
           }
@@ -290,7 +290,7 @@ export const useAdminAuth = create<AdminAuthState>()(
         if (isSupabaseConfigured()) {
           await supabase.auth.signOut();
         }
-        
+
         set({
           user: null,
           isAuthenticated: false,
@@ -403,7 +403,7 @@ export const useAdminCategories = create<CategoriesState>((set) => ({
 
   addCategory: async (categoryData) => {
     set({ isLoading: true });
-    
+
     const newCategory: Category = {
       ...categoryData,
       id: `cat_${Date.now()}`,
@@ -413,7 +413,7 @@ export const useAdminCategories = create<CategoriesState>((set) => ({
     };
 
     await new Promise(resolve => setTimeout(resolve, 1000));
-    
+
     set(state => ({
       categories: [...state.categories, newCategory],
       isLoading: false
@@ -422,12 +422,12 @@ export const useAdminCategories = create<CategoriesState>((set) => ({
 
   updateCategory: async (id, updates) => {
     set({ isLoading: true });
-    
+
     await new Promise(resolve => setTimeout(resolve, 800));
-    
+
     set(state => ({
-      categories: state.categories.map(cat => 
-        cat.id === id 
+      categories: state.categories.map(cat =>
+        cat.id === id
           ? { ...cat, ...updates, updatedAt: new Date() }
           : cat
       ),
@@ -437,9 +437,9 @@ export const useAdminCategories = create<CategoriesState>((set) => ({
 
   deleteCategory: async (id) => {
     set({ isLoading: true });
-    
+
     await new Promise(resolve => setTimeout(resolve, 600));
-    
+
     set(state => ({
       categories: state.categories.filter(cat => cat.id !== id),
       selectedCategory: state.selectedCategory?.id === id ? null : state.selectedCategory,
@@ -610,14 +610,14 @@ export const useAdminSellers = create<SellersState>()(
             });
 
             const pendingSellers = sellers.filter(s => s.status === 'pending');
-            
+
             console.log('Mapped sellers:', sellers);
             console.log('Pending sellers:', pendingSellers);
-            
-            set({ 
-              sellers, 
+
+            set({
+              sellers,
               pendingSellers,
-              isLoading: false 
+              isLoading: false
             });
             return;
           } catch (error) {
@@ -628,408 +628,408 @@ export const useAdminSellers = create<SellersState>()(
         }
 
         // Fallback to demo sellers data if Supabase not configured
-    const demoSellers: Seller[] = [
-      {
-        id: 'seller_1',
-        businessName: 'TechHub Electronics Corp.',
-        storeName: 'TechHub Philippines',
-        storeDescription: 'Leading supplier of latest gadgets and technology products',
-        storeCategory: ['Electronics', 'Gadgets', 'Computers'],
-        businessType: 'corporation',
-        businessRegistrationNumber: 'SEC-2024-001234',
-        taxIdNumber: '123-456-789-000',
-        description: 'Leading supplier of latest gadgets and technology products',
-        ownerName: 'Maria Santos',
-        email: 'maria@techhub.ph',
-        phone: '+63 917 123 4567',
-        businessAddress: '123 Ayala Avenue, Brgy. Poblacion',
-        city: 'Makati City',
-        province: 'Metro Manila',
-        postalCode: '1200',
-        address: '123 Ayala Avenue, Makati City, Metro Manila 1200',
-        bankName: 'BDO',
-        accountName: 'TechHub Electronics Corp.',
-        accountNumber: '1234567890',
-        logo: 'https://ui-avatars.io/api/?name=TechHub&background=FF6A00&color=fff',
-        status: 'approved',
-        documents: [
+        const demoSellers: Seller[] = [
           {
-            id: 'doc_1',
-            type: 'business_permit',
-            fileName: 'business-permit.pdf',
-            url: '/documents/business-permit.pdf',
-            uploadDate: new Date('2024-01-10'),
-            isVerified: true
+            id: 'seller_1',
+            businessName: 'TechHub Electronics Corp.',
+            storeName: 'TechHub Philippines',
+            storeDescription: 'Leading supplier of latest gadgets and technology products',
+            storeCategory: ['Electronics', 'Gadgets', 'Computers'],
+            businessType: 'corporation',
+            businessRegistrationNumber: 'SEC-2024-001234',
+            taxIdNumber: '123-456-789-000',
+            description: 'Leading supplier of latest gadgets and technology products',
+            ownerName: 'Maria Santos',
+            email: 'maria@techhub.ph',
+            phone: '+63 917 123 4567',
+            businessAddress: '123 Ayala Avenue, Brgy. Poblacion',
+            city: 'Makati City',
+            province: 'Metro Manila',
+            postalCode: '1200',
+            address: '123 Ayala Avenue, Makati City, Metro Manila 1200',
+            bankName: 'BDO',
+            accountName: 'TechHub Electronics Corp.',
+            accountNumber: '1234567890',
+            logo: 'https://ui-avatars.io/api/?name=TechHub&background=FF6A00&color=fff',
+            status: 'approved',
+            documents: [
+              {
+                id: 'doc_1',
+                type: 'business_permit',
+                fileName: 'business-permit.pdf',
+                url: '/documents/business-permit.pdf',
+                uploadDate: new Date('2024-01-10'),
+                isVerified: true
+              },
+              {
+                id: 'doc_1a',
+                type: 'valid_id',
+                fileName: 'owners-id.pdf',
+                url: '/documents/owners-id.pdf',
+                uploadDate: new Date('2024-01-10'),
+                isVerified: true
+              },
+              {
+                id: 'doc_1b',
+                type: 'proof_of_address',
+                fileName: 'utility-bill.pdf',
+                url: '/documents/utility-bill.pdf',
+                uploadDate: new Date('2024-01-10'),
+                isVerified: true
+              }
+            ],
+            metrics: {
+              totalProducts: 156,
+              totalOrders: 2340,
+              totalRevenue: 1250000,
+              rating: 4.8,
+              responseRate: 95,
+              fulfillmentRate: 98
+            },
+            joinDate: new Date('2024-01-10'),
+            approvedAt: new Date('2024-01-12'),
+            approvedBy: 'admin_1'
           },
           {
-            id: 'doc_1a',
-            type: 'valid_id',
-            fileName: 'owners-id.pdf',
-            url: '/documents/owners-id.pdf',
-            uploadDate: new Date('2024-01-10'),
-            isVerified: true
+            id: 'seller_2',
+            businessName: 'Fashion Forward Trading',
+            storeName: 'Fashion Forward Store',
+            storeDescription: 'Trendy fashion items for modern Filipino consumers',
+            storeCategory: ['Fashion', 'Accessories', 'Beauty'],
+            businessType: 'sole_proprietor',
+            businessRegistrationNumber: 'DTI-2024-567890',
+            taxIdNumber: '987-654-321-000',
+            description: 'Trendy fashion items for modern Filipino consumers',
+            ownerName: 'Juan dela Cruz',
+            email: 'juan@fashionforward.ph',
+            phone: '+63 917 765 4321',
+            businessAddress: '456 Commonwealth Avenue, Brgy. Holy Spirit',
+            city: 'Quezon City',
+            province: 'Metro Manila',
+            postalCode: '1127',
+            address: '456 Commonwealth Avenue, Quezon City, Metro Manila 1127',
+            bankName: 'BPI',
+            accountName: 'Juan dela Cruz',
+            accountNumber: '9876543210',
+            status: 'pending',
+            documents: [
+              {
+                id: 'doc_2',
+                type: 'business_permit',
+                fileName: 'permit-fashion.pdf',
+                url: '/documents/permit-fashion.pdf',
+                uploadDate: new Date('2024-12-10'),
+                isVerified: false
+              },
+              {
+                id: 'doc_3',
+                type: 'dti_registration',
+                fileName: 'dti-registration.pdf',
+                url: '/documents/dti-registration.pdf',
+                uploadDate: new Date('2024-12-10'),
+                isVerified: false
+              },
+              {
+                id: 'doc_4',
+                type: 'valid_id',
+                fileName: 'valid-id.pdf',
+                url: '/documents/valid-id.pdf',
+                uploadDate: new Date('2024-12-10'),
+                isVerified: false
+              },
+              {
+                id: 'doc_5',
+                type: 'proof_of_address',
+                fileName: 'proof-address.pdf',
+                url: '/documents/proof-address.pdf',
+                uploadDate: new Date('2024-12-10'),
+                isVerified: false
+              }
+            ],
+            metrics: {
+              totalProducts: 0,
+              totalOrders: 0,
+              totalRevenue: 0,
+              rating: 0,
+              responseRate: 0,
+              fulfillmentRate: 0
+            },
+            joinDate: new Date('2024-12-10')
           },
           {
-            id: 'doc_1b',
-            type: 'proof_of_address',
-            fileName: 'utility-bill.pdf',
-            url: '/documents/utility-bill.pdf',
-            uploadDate: new Date('2024-01-10'),
-            isVerified: true
+            id: 'seller_3',
+            businessName: 'FoodHub Manila',
+            storeName: 'FoodHub Delights',
+            storeDescription: 'Fresh groceries and food products delivered daily',
+            storeCategory: ['Food & Beverages', 'Groceries'],
+            businessType: 'partnership',
+            businessRegistrationNumber: 'DTI-2024-112233',
+            taxIdNumber: '111-222-333-000',
+            description: 'Quality food products for Filipino families',
+            ownerName: 'Ana Reyes',
+            email: 'ana@foodhub.ph',
+            phone: '+63 918 234 5678',
+            businessAddress: '789 Marcos Highway, Brgy. Dela Paz',
+            city: 'Pasig City',
+            province: 'Metro Manila',
+            postalCode: '1600',
+            address: '789 Marcos Highway, Pasig City, Metro Manila 1600',
+            bankName: 'Metrobank',
+            accountName: 'FoodHub Manila Partnership',
+            accountNumber: '5555666677',
+            status: 'rejected',
+            documents: [
+              {
+                id: 'doc_6',
+                type: 'business_permit',
+                fileName: 'food-permit.pdf',
+                url: '/documents/food-permit.pdf',
+                uploadDate: new Date('2024-12-01'),
+                isVerified: false
+              }
+            ],
+            metrics: {
+              totalProducts: 0,
+              totalOrders: 0,
+              totalRevenue: 0,
+              rating: 0,
+              responseRate: 0,
+              fulfillmentRate: 0
+            },
+            joinDate: new Date('2024-12-01'),
+            rejectedAt: new Date('2024-12-05'),
+            rejectedBy: 'admin_1',
+            rejectionReason: 'Incomplete documentation - missing valid ID and proof of address'
           }
-        ],
-        metrics: {
-          totalProducts: 156,
-          totalOrders: 2340,
-          totalRevenue: 1250000,
-          rating: 4.8,
-          responseRate: 95,
-          fulfillmentRate: 98
-        },
-        joinDate: new Date('2024-01-10'),
-        approvedAt: new Date('2024-01-12'),
-        approvedBy: 'admin_1'
-      },
-      {
-        id: 'seller_2',
-        businessName: 'Fashion Forward Trading',
-        storeName: 'Fashion Forward Store',
-        storeDescription: 'Trendy fashion items for modern Filipino consumers',
-        storeCategory: ['Fashion', 'Accessories', 'Beauty'],
-        businessType: 'sole_proprietor',
-        businessRegistrationNumber: 'DTI-2024-567890',
-        taxIdNumber: '987-654-321-000',
-        description: 'Trendy fashion items for modern Filipino consumers',
-        ownerName: 'Juan dela Cruz',
-        email: 'juan@fashionforward.ph',
-        phone: '+63 917 765 4321',
-        businessAddress: '456 Commonwealth Avenue, Brgy. Holy Spirit',
-        city: 'Quezon City',
-        province: 'Metro Manila',
-        postalCode: '1127',
-        address: '456 Commonwealth Avenue, Quezon City, Metro Manila 1127',
-        bankName: 'BPI',
-        accountName: 'Juan dela Cruz',
-        accountNumber: '9876543210',
-        status: 'pending',
-        documents: [
-          {
-            id: 'doc_2',
-            type: 'business_permit',
-            fileName: 'permit-fashion.pdf',
-            url: '/documents/permit-fashion.pdf',
-            uploadDate: new Date('2024-12-10'),
-            isVerified: false
-          },
-          {
-            id: 'doc_3',
-            type: 'dti_registration',
-            fileName: 'dti-registration.pdf',
-            url: '/documents/dti-registration.pdf',
-            uploadDate: new Date('2024-12-10'),
-            isVerified: false
-          },
-          {
-            id: 'doc_4',
-            type: 'valid_id',
-            fileName: 'valid-id.pdf',
-            url: '/documents/valid-id.pdf',
-            uploadDate: new Date('2024-12-10'),
-            isVerified: false
-          },
-          {
-            id: 'doc_5',
-            type: 'proof_of_address',
-            fileName: 'proof-address.pdf',
-            url: '/documents/proof-address.pdf',
-            uploadDate: new Date('2024-12-10'),
-            isVerified: false
-          }
-        ],
-        metrics: {
-          totalProducts: 0,
-          totalOrders: 0,
-          totalRevenue: 0,
-          rating: 0,
-          responseRate: 0,
-          fulfillmentRate: 0
-        },
-        joinDate: new Date('2024-12-10')
-      },
-      {
-        id: 'seller_3',
-        businessName: 'FoodHub Manila',
-        storeName: 'FoodHub Delights',
-        storeDescription: 'Fresh groceries and food products delivered daily',
-        storeCategory: ['Food & Beverages', 'Groceries'],
-        businessType: 'partnership',
-        businessRegistrationNumber: 'DTI-2024-112233',
-        taxIdNumber: '111-222-333-000',
-        description: 'Quality food products for Filipino families',
-        ownerName: 'Ana Reyes',
-        email: 'ana@foodhub.ph',
-        phone: '+63 918 234 5678',
-        businessAddress: '789 Marcos Highway, Brgy. Dela Paz',
-        city: 'Pasig City',
-        province: 'Metro Manila',
-        postalCode: '1600',
-        address: '789 Marcos Highway, Pasig City, Metro Manila 1600',
-        bankName: 'Metrobank',
-        accountName: 'FoodHub Manila Partnership',
-        accountNumber: '5555666677',
-        status: 'rejected',
-        documents: [
-          {
-            id: 'doc_6',
-            type: 'business_permit',
-            fileName: 'food-permit.pdf',
-            url: '/documents/food-permit.pdf',
-            uploadDate: new Date('2024-12-01'),
-            isVerified: false
-          }
-        ],
-        metrics: {
-          totalProducts: 0,
-          totalOrders: 0,
-          totalRevenue: 0,
-          rating: 0,
-          responseRate: 0,
-          fulfillmentRate: 0
-        },
-        joinDate: new Date('2024-12-01'),
-        rejectedAt: new Date('2024-12-05'),
-        rejectedBy: 'admin_1',
-        rejectionReason: 'Incomplete documentation - missing valid ID and proof of address'
-      }
-    ];
+        ];
 
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const pendingSellers = demoSellers.filter(seller => seller.status === 'pending');
-    
-    set({ 
-      sellers: demoSellers, 
-      pendingSellers,
-      isLoading: false 
-    });
-  },
+        await new Promise(resolve => setTimeout(resolve, 1000));
 
-  approveSeller: async (id) => {
-    set({ isLoading: true });
-    
-    if (isSupabaseConfigured()) {
-      try {
-        const { error } = await supabase
-          .from('sellers')
-          .update({
-            approval_status: 'approved',
-            approved_at: new Date().toISOString(),
-            approved_by: 'admin' // TODO: Get actual admin ID from auth
-          })
-          .eq('id', id);
+        const pendingSellers = demoSellers.filter(seller => seller.status === 'pending');
 
-        if (error) {
-          console.error('Error approving seller:', error);
-          set({ error: 'Failed to approve seller', isLoading: false });
-          return;
-        }
-
-        // Update local state
-        set(state => {
-          const updatedSellers = state.sellers.map(seller =>
-            seller.id === id
-              ? { ...seller, status: 'approved' as const, approvedAt: new Date(), approvedBy: 'admin' }
-              : seller
-          );
-          
-          return {
-            sellers: updatedSellers,
-            pendingSellers: updatedSellers.filter(seller => seller.status === 'pending'),
-            isLoading: false
-          };
+        set({
+          sellers: demoSellers,
+          pendingSellers,
+          isLoading: false
         });
-      } catch (error) {
-        console.error('Error approving seller:', error);
-        set({ error: 'Failed to approve seller', isLoading: false });
-      }
-      return;
-    }
+      },
 
-    // Fallback to demo behavior
-    await new Promise(resolve => setTimeout(resolve, 1200));
-    
-    set(state => {
-      const updatedSellers = state.sellers.map(seller =>
-        seller.id === id
-          ? { ...seller, status: 'approved' as const, approvedAt: new Date(), approvedBy: 'admin_1' }
-          : seller
-      );
-      
-      return {
-        sellers: updatedSellers,
-        pendingSellers: updatedSellers.filter(seller => seller.status === 'pending'),
-        isLoading: false
-      };
-    });
-  },
+      approveSeller: async (id) => {
+        set({ isLoading: true });
 
-  rejectSeller: async (id, reason) => {
-    set({ isLoading: true });
-    
-    if (isSupabaseConfigured()) {
-      try {
-        const { error } = await supabase
-          .from('sellers')
-          .update({
-            approval_status: 'rejected',
-            rejected_at: new Date().toISOString(),
-            rejected_by: 'admin', // TODO: Get actual admin ID from auth
-            rejection_reason: reason
-          })
-          .eq('id', id);
+        if (isSupabaseConfigured()) {
+          try {
+            const { error } = await supabase
+              .from('sellers')
+              .update({
+                approval_status: 'approved',
+                approved_at: new Date().toISOString(),
+                approved_by: 'admin' // TODO: Get actual admin ID from auth
+              })
+              .eq('id', id);
 
-        if (error) {
-          console.error('Error rejecting seller:', error);
-          set({ error: 'Failed to reject seller', isLoading: false });
-          return;
-        }
-
-        // Update local state
-        set(state => {
-          const updatedSellers = state.sellers.map(seller =>
-            seller.id === id
-              ? { 
-                  ...seller, 
-                  status: 'rejected' as const,
-                  rejectedAt: new Date(),
-                  rejectedBy: 'admin',
-                  rejectionReason: reason
-                }
-              : seller
-          );
-          
-          return {
-            sellers: updatedSellers,
-            pendingSellers: updatedSellers.filter(seller => seller.status === 'pending'),
-            isLoading: false
-          };
-        });
-      } catch (error) {
-        console.error('Error rejecting seller:', error);
-        set({ error: 'Failed to reject seller', isLoading: false });
-      }
-      return;
-    }
-
-    // Fallback to demo behavior
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    set(state => {
-      const updatedSellers = state.sellers.map(seller =>
-        seller.id === id
-          ? { 
-              ...seller, 
-              status: 'rejected' as const,
-              rejectedAt: new Date(),
-              rejectedBy: 'admin_1',
-              rejectionReason: reason
+            if (error) {
+              console.error('Error approving seller:', error);
+              set({ error: 'Failed to approve seller', isLoading: false });
+              return;
             }
-          : seller
-      );
-      
-      return {
-        sellers: updatedSellers,
-        pendingSellers: updatedSellers.filter(seller => seller.status === 'pending'),
-        isLoading: false
-      };
-    });
-  },
 
-  suspendSeller: async (id, reason) => {
-    set({ isLoading: true });
-    
-    if (isSupabaseConfigured()) {
-      try {
-        const { error } = await supabase
-          .from('sellers')
-          .update({
-            approval_status: 'suspended',
-            suspended_at: new Date().toISOString(),
-            suspended_by: 'admin', // TODO: Get actual admin ID from auth
-            suspension_reason: reason
-          })
-          .eq('id', id);
+            // Update local state
+            set(state => {
+              const updatedSellers = state.sellers.map(seller =>
+                seller.id === id
+                  ? { ...seller, status: 'approved' as const, approvedAt: new Date(), approvedBy: 'admin' }
+                  : seller
+              );
 
-        if (error) {
-          console.error('Error suspending seller:', error);
-          set({ error: 'Failed to suspend seller', isLoading: false });
+              return {
+                sellers: updatedSellers,
+                pendingSellers: updatedSellers.filter(seller => seller.status === 'pending'),
+                isLoading: false
+              };
+            });
+          } catch (error) {
+            console.error('Error approving seller:', error);
+            set({ error: 'Failed to approve seller', isLoading: false });
+          }
           return;
         }
 
-        // Update local state
+        // Fallback to demo behavior
+        await new Promise(resolve => setTimeout(resolve, 1200));
+
+        set(state => {
+          const updatedSellers = state.sellers.map(seller =>
+            seller.id === id
+              ? { ...seller, status: 'approved' as const, approvedAt: new Date(), approvedBy: 'admin_1' }
+              : seller
+          );
+
+          return {
+            sellers: updatedSellers,
+            pendingSellers: updatedSellers.filter(seller => seller.status === 'pending'),
+            isLoading: false
+          };
+        });
+      },
+
+      rejectSeller: async (id, reason) => {
+        set({ isLoading: true });
+
+        if (isSupabaseConfigured()) {
+          try {
+            const { error } = await supabase
+              .from('sellers')
+              .update({
+                approval_status: 'rejected',
+                rejected_at: new Date().toISOString(),
+                rejected_by: 'admin', // TODO: Get actual admin ID from auth
+                rejection_reason: reason
+              })
+              .eq('id', id);
+
+            if (error) {
+              console.error('Error rejecting seller:', error);
+              set({ error: 'Failed to reject seller', isLoading: false });
+              return;
+            }
+
+            // Update local state
+            set(state => {
+              const updatedSellers = state.sellers.map(seller =>
+                seller.id === id
+                  ? {
+                    ...seller,
+                    status: 'rejected' as const,
+                    rejectedAt: new Date(),
+                    rejectedBy: 'admin',
+                    rejectionReason: reason
+                  }
+                  : seller
+              );
+
+              return {
+                sellers: updatedSellers,
+                pendingSellers: updatedSellers.filter(seller => seller.status === 'pending'),
+                isLoading: false
+              };
+            });
+          } catch (error) {
+            console.error('Error rejecting seller:', error);
+            set({ error: 'Failed to reject seller', isLoading: false });
+          }
+          return;
+        }
+
+        // Fallback to demo behavior
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        set(state => {
+          const updatedSellers = state.sellers.map(seller =>
+            seller.id === id
+              ? {
+                ...seller,
+                status: 'rejected' as const,
+                rejectedAt: new Date(),
+                rejectedBy: 'admin_1',
+                rejectionReason: reason
+              }
+              : seller
+          );
+
+          return {
+            sellers: updatedSellers,
+            pendingSellers: updatedSellers.filter(seller => seller.status === 'pending'),
+            isLoading: false
+          };
+        });
+      },
+
+      suspendSeller: async (id, reason) => {
+        set({ isLoading: true });
+
+        if (isSupabaseConfigured()) {
+          try {
+            const { error } = await supabase
+              .from('sellers')
+              .update({
+                approval_status: 'suspended',
+                suspended_at: new Date().toISOString(),
+                suspended_by: 'admin', // TODO: Get actual admin ID from auth
+                suspension_reason: reason
+              })
+              .eq('id', id);
+
+            if (error) {
+              console.error('Error suspending seller:', error);
+              set({ error: 'Failed to suspend seller', isLoading: false });
+              return;
+            }
+
+            // Update local state
+            set(state => ({
+              sellers: state.sellers.map(seller =>
+                seller.id === id
+                  ? {
+                    ...seller,
+                    status: 'suspended' as const,
+                    suspendedAt: new Date(),
+                    suspendedBy: 'admin',
+                    suspensionReason: reason
+                  }
+                  : seller
+              ),
+              isLoading: false
+            }));
+          } catch (error) {
+            console.error('Error suspending seller:', error);
+            set({ error: 'Failed to suspend seller', isLoading: false });
+          }
+          return;
+        }
+
+        // Fallback to demo behavior
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
         set(state => ({
           sellers: state.sellers.map(seller =>
             seller.id === id
-              ? { 
-                  ...seller, 
-                  status: 'suspended' as const,
-                  suspendedAt: new Date(),
-                  suspendedBy: 'admin',
-                  suspensionReason: reason
-                }
+              ? {
+                ...seller,
+                status: 'suspended' as const,
+                suspendedAt: new Date(),
+                suspendedBy: 'admin_1',
+                suspensionReason: reason
+              }
               : seller
           ),
           isLoading: false
         }));
-      } catch (error) {
-        console.error('Error suspending seller:', error);
-        set({ error: 'Failed to suspend seller', isLoading: false });
+      },
+
+      selectSeller: (seller) => set({ selectedSeller: seller }),
+
+      addSeller: (seller) => {
+        set(state => ({
+          sellers: [...state.sellers, seller]
+        }));
+      },
+
+      clearError: () => set({ error: null }),
+
+      hasCompleteRequirements: (seller: Seller) => {
+        // Check if seller has all required documents
+        const requiredDocTypes = ['valid_id', 'proof_of_address', 'dti_registration', 'tax_id'];
+        const sellerDocTypes = seller.documents.map(doc => doc.type);
+
+        // Check if all required documents exist
+        const hasAllDocs = requiredDocTypes.every(type => sellerDocTypes.includes(type as any));
+
+        // Also check if business address exists
+        const hasBusinessAddress = seller.businessAddress && seller.businessAddress !== 'Not provided';
+
+        return hasAllDocs && hasBusinessAddress;
       }
-      return;
-    }
-
-    // Fallback to demo behavior
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    set(state => ({
-      sellers: state.sellers.map(seller =>
-        seller.id === id
-          ? { 
-              ...seller, 
-              status: 'suspended' as const,
-              suspendedAt: new Date(),
-              suspendedBy: 'admin_1',
-              suspensionReason: reason
-            }
-          : seller
-      ),
-      isLoading: false
-    }));
-  },
-
-  selectSeller: (seller) => set({ selectedSeller: seller }),
-  
-  addSeller: (seller) => {
-    set(state => ({
-      sellers: [...state.sellers, seller]
-    }));
-  },
-  
-  clearError: () => set({ error: null }),
-
-  hasCompleteRequirements: (seller: Seller) => {
-    // Check if seller has all required documents
-    const requiredDocTypes = ['valid_id', 'proof_of_address', 'dti_registration', 'tax_id'];
-    const sellerDocTypes = seller.documents.map(doc => doc.type);
-    
-    // Check if all required documents exist
-    const hasAllDocs = requiredDocTypes.every(type => sellerDocTypes.includes(type as any));
-    
-    // Also check if business address exists
-    const hasBusinessAddress = seller.businessAddress && seller.businessAddress !== 'Not provided';
-    
-    return hasAllDocs && hasBusinessAddress;
-  }
     }),
     {
       name: 'admin-sellers-storage',
@@ -1141,9 +1141,9 @@ export const useAdminBuyers = create<BuyersState>((set) => ({
 
   suspendBuyer: async (id, _reason) => {
     set({ isLoading: true });
-    
+
     await new Promise(resolve => setTimeout(resolve, 1000));
-    
+
     set(state => ({
       buyers: state.buyers.map(buyer =>
         buyer.id === id
@@ -1156,9 +1156,9 @@ export const useAdminBuyers = create<BuyersState>((set) => ({
 
   activateBuyer: async (id) => {
     set({ isLoading: true });
-    
+
     await new Promise(resolve => setTimeout(resolve, 800));
-    
+
     set(state => ({
       buyers: state.buyers.map(buyer =>
         buyer.id === id
@@ -1414,7 +1414,7 @@ export const useAdminVouchers = create<VouchersState>((set) => ({
 
   addVoucher: async (voucherData) => {
     set({ isLoading: true });
-    
+
     const newVoucher: Voucher = {
       ...voucherData,
       id: `vouch_${Date.now()}`,
@@ -1424,7 +1424,7 @@ export const useAdminVouchers = create<VouchersState>((set) => ({
     };
 
     await new Promise(resolve => setTimeout(resolve, 1000));
-    
+
     set(state => ({
       vouchers: [...state.vouchers, newVoucher],
       isLoading: false
@@ -1433,12 +1433,12 @@ export const useAdminVouchers = create<VouchersState>((set) => ({
 
   updateVoucher: async (id, updates) => {
     set({ isLoading: true });
-    
+
     await new Promise(resolve => setTimeout(resolve, 800));
-    
+
     set(state => ({
-      vouchers: state.vouchers.map(voucher => 
-        voucher.id === id 
+      vouchers: state.vouchers.map(voucher =>
+        voucher.id === id
           ? { ...voucher, ...updates, updatedAt: new Date() }
           : voucher
       ),
@@ -1448,9 +1448,9 @@ export const useAdminVouchers = create<VouchersState>((set) => ({
 
   deleteVoucher: async (id) => {
     set({ isLoading: true });
-    
+
     await new Promise(resolve => setTimeout(resolve, 600));
-    
+
     set(state => ({
       vouchers: state.vouchers.filter(voucher => voucher.id !== id),
       selectedVoucher: state.selectedVoucher?.id === id ? null : state.selectedVoucher,
@@ -1460,9 +1460,9 @@ export const useAdminVouchers = create<VouchersState>((set) => ({
 
   toggleVoucherStatus: async (id) => {
     set({ isLoading: true });
-    
+
     await new Promise(resolve => setTimeout(resolve, 500));
-    
+
     set(state => ({
       vouchers: state.vouchers.map(voucher =>
         voucher.id === id
@@ -1618,35 +1618,35 @@ export const useAdminReviews = create<ReviewsState>((set) => ({
     ];
 
     await new Promise(resolve => setTimeout(resolve, 1000));
-    
+
     const pendingReviews = demoReviews.filter(review => review.status === 'pending');
     const flaggedReviews = demoReviews.filter(review => review.status === 'flagged');
-    
-    set({ 
+
+    set({
       reviews: demoReviews,
       pendingReviews,
       flaggedReviews,
-      isLoading: false 
+      isLoading: false
     });
   },
 
   approveReview: async (id) => {
     set({ isLoading: true });
-    
+
     await new Promise(resolve => setTimeout(resolve, 800));
-    
+
     set(state => {
       const updatedReviews = state.reviews.map(review =>
         review.id === id
-          ? { 
-              ...review, 
-              status: 'approved' as const,
-              moderatedAt: new Date(),
-              moderatedBy: 'admin_1'
-            }
+          ? {
+            ...review,
+            status: 'approved' as const,
+            moderatedAt: new Date(),
+            moderatedBy: 'admin_1'
+          }
           : review
       );
-      
+
       return {
         reviews: updatedReviews,
         pendingReviews: updatedReviews.filter(review => review.status === 'pending'),
@@ -1658,22 +1658,22 @@ export const useAdminReviews = create<ReviewsState>((set) => ({
 
   rejectReview: async (id, reason) => {
     set({ isLoading: true });
-    
+
     await new Promise(resolve => setTimeout(resolve, 800));
-    
+
     set(state => {
       const updatedReviews = state.reviews.map(review =>
         review.id === id
-          ? { 
-              ...review, 
-              status: 'rejected' as const,
-              moderationNote: reason,
-              moderatedAt: new Date(),
-              moderatedBy: 'admin_1'
-            }
+          ? {
+            ...review,
+            status: 'rejected' as const,
+            moderationNote: reason,
+            moderatedAt: new Date(),
+            moderatedBy: 'admin_1'
+          }
           : review
       );
-      
+
       return {
         reviews: updatedReviews,
         pendingReviews: updatedReviews.filter(review => review.status === 'pending'),
@@ -1685,20 +1685,20 @@ export const useAdminReviews = create<ReviewsState>((set) => ({
 
   flagReview: async (id, reason) => {
     set({ isLoading: true });
-    
+
     await new Promise(resolve => setTimeout(resolve, 600));
-    
+
     set(state => {
       const updatedReviews = state.reviews.map(review =>
         review.id === id
-          ? { 
-              ...review, 
-              status: 'flagged' as const,
-              moderationNote: reason
-            }
+          ? {
+            ...review,
+            status: 'flagged' as const,
+            moderationNote: reason
+          }
           : review
       );
-      
+
       return {
         reviews: updatedReviews,
         flaggedReviews: updatedReviews.filter(review => review.status === 'flagged'),
@@ -1709,20 +1709,20 @@ export const useAdminReviews = create<ReviewsState>((set) => ({
 
   unflagReview: async (id) => {
     set({ isLoading: true });
-    
+
     await new Promise(resolve => setTimeout(resolve, 500));
-    
+
     set(state => {
       const updatedReviews = state.reviews.map(review =>
         review.id === id
-          ? { 
-              ...review, 
-              status: 'approved' as const,
-              moderationNote: undefined
-            }
+          ? {
+            ...review,
+            status: 'approved' as const,
+            moderationNote: undefined
+          }
           : review
       );
-      
+
       return {
         reviews: updatedReviews,
         flaggedReviews: updatedReviews.filter(review => review.status === 'flagged'),
@@ -1733,9 +1733,9 @@ export const useAdminReviews = create<ReviewsState>((set) => ({
 
   deleteReview: async (id) => {
     set({ isLoading: true });
-    
+
     await new Promise(resolve => setTimeout(resolve, 600));
-    
+
     set(state => ({
       reviews: state.reviews.filter(review => review.id !== id),
       pendingReviews: state.pendingReviews.filter(review => review.id !== id),
@@ -1927,9 +1927,9 @@ export const useAdminPayouts = create<PayoutsState>((set) => ({
     set({ isLoading: true });
     await new Promise(resolve => setTimeout(resolve, 1000));
     set(state => ({
-      payouts: state.payouts.map(p => 
-        p.id === id 
-          ? { ...p, status: 'paid' as const, referenceNumber, payoutDate: new Date() } 
+      payouts: state.payouts.map(p =>
+        p.id === id
+          ? { ...p, status: 'paid' as const, referenceNumber, payoutDate: new Date() }
           : p
       ),
       isLoading: false
@@ -1940,9 +1940,9 @@ export const useAdminPayouts = create<PayoutsState>((set) => ({
     set({ isLoading: true });
     await new Promise(resolve => setTimeout(resolve, 1500));
     set(state => ({
-      payouts: state.payouts.map(p => 
-        ids.includes(p.id) 
-          ? { ...p, status: 'processing' as const } 
+      payouts: state.payouts.map(p =>
+        ids.includes(p.id)
+          ? { ...p, status: 'processing' as const }
           : p
       ),
       isLoading: false

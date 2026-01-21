@@ -272,39 +272,39 @@ export function SellerOnboarding() {
         documents: [
           ...(formData.businessPermitUrl
             ? [
-                {
-                  id: `doc_${seller.id}_1`,
-                  type: "business_permit",
-                  fileName: "business-permit",
-                  url: formData.businessPermitUrl,
-                  uploadDate: new Date(),
-                  isVerified: false,
-                },
-              ]
+              {
+                id: `doc_${seller.id}_1`,
+                type: "business_permit",
+                fileName: "business-permit",
+                url: formData.businessPermitUrl,
+                uploadDate: new Date(),
+                isVerified: false,
+              },
+            ]
             : []),
           ...(formData.validIdUrl
             ? [
-                {
-                  id: `doc_${seller.id}_2`,
-                  type: "valid_id",
-                  fileName: "valid-id",
-                  url: formData.validIdUrl,
-                  uploadDate: new Date(),
-                  isVerified: false,
-                },
-              ]
+              {
+                id: `doc_${seller.id}_2`,
+                type: "valid_id",
+                fileName: "valid-id",
+                url: formData.validIdUrl,
+                uploadDate: new Date(),
+                isVerified: false,
+              },
+            ]
             : []),
           ...(formData.proofOfAddressUrl
             ? [
-                {
-                  id: `doc_${seller.id}_3`,
-                  type: "proof_of_address",
-                  fileName: "proof-of-address",
-                  url: formData.proofOfAddressUrl,
-                  uploadDate: new Date(),
-                  isVerified: false,
-                },
-              ]
+              {
+                id: `doc_${seller.id}_3`,
+                type: "proof_of_address",
+                fileName: "proof-of-address",
+                url: formData.proofOfAddressUrl,
+                uploadDate: new Date(),
+                isVerified: false,
+              },
+            ]
             : []),
         ],
         metrics: {
@@ -492,13 +492,12 @@ export function SellerOnboarding() {
             return (
               <div key={step.number} className="flex flex-col items-center">
                 <div
-                  className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 ${
-                    isCompleted
+                  className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 ${isCompleted
                       ? "bg-[#FF6A00] text-white"
                       : isCurrent
                         ? "bg-[#FF6A00] text-white ring-4 ring-orange-100"
                         : "bg-white border-2 border-gray-300 text-gray-400"
-                  }`}
+                    }`}
                 >
                   {isCompleted ? (
                     <CheckCircle className="w-5 h-5" />
@@ -673,11 +672,10 @@ export function SellerOnboarding() {
                             key={category}
                             type="button"
                             onClick={() => handleCategoryToggle(category)}
-                            className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                              formData.storeCategory.includes(category)
+                            className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${formData.storeCategory.includes(category)
                                 ? "bg-[#FF6A00] text-white"
                                 : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                            }`}
+                              }`}
                           >
                             {category}
                           </button>

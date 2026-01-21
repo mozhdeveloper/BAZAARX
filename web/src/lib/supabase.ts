@@ -24,7 +24,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
  * - Realtime subscriptions
  * - Edge Functions
  */
-export const supabase = createClient<Database>(
+export const supabase = createClient<any>(
   supabaseUrl || 'https://placeholder.supabase.co',
   supabaseAnonKey || 'placeholder-key',
   {

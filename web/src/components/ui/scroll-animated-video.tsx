@@ -165,7 +165,7 @@ export const HeroScrollVideo: React.FC<HeroScrollVideoProps> = ({
           import("gsap/dist/ScrollTrigger")
         )) || {};
       ScrollTrigger =
-        ScrollTriggerPkg.default ||
+        (ScrollTriggerPkg as any).default ||
         (ScrollTriggerPkg as any).ScrollTrigger ||
         ScrollTriggerPkg;
 
@@ -174,7 +174,7 @@ export const HeroScrollVideo: React.FC<HeroScrollVideoProps> = ({
           import("gsap/dist/CustomEase")
         )) || {};
       CustomEase =
-        CustomEasePkg.default ||
+        (CustomEasePkg as any).default ||
         (CustomEasePkg as any).CustomEase ||
         CustomEasePkg;
 
