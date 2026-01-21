@@ -77,7 +77,8 @@ const sortOptions = [
 export default function ShopPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { addToCart, setQuickOrder, cartItems } = useBuyerStore();
+  const { addToCart, setQuickOrder, cartItems, profile } = useBuyerStore();
+  const { toast } = useToast();
   const { products: sellerProducts, fetchProducts } = useProductStore();
 
   const [searchQuery, setSearchQuery] = useState(searchParams.get("q") || "");
