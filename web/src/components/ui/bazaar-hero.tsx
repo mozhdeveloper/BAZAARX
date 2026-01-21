@@ -194,7 +194,7 @@ export function BazaarHero() {
               <span className="font-fondamento text-6xl sm:text-7xl md:text-8xl lg:text-9xl xl:text-[10rem] text-[var(--brand-primary)]">
                 BazaarX
               </span>
-              <div className="h-32 sm:h-40 md:h-48 lg:h-52 w-px bg-gradient-to-b from-transparent via-[var(--brand-primary)] to-transparent" />
+              <div className="h-16 sm:h-24 md:h-32 lg:h-36 w-px bg-gradient-to-b from-transparent via-[var(--brand-primary)] to-transparent" />
             </div>
           }
           subtitle="Inspired by ancient bazaars. Reimagined as the modern crossroads of global trade."
