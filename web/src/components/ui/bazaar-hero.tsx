@@ -1,7 +1,12 @@
 import { useState } from "react";
 import { ArrowUpRight, Menu, Search, MessageCircle } from "lucide-react";
 import { Link } from "react-router-dom";
-import { motion, useScroll, useMotionValueEvent, AnimatePresence } from "framer-motion";
+import {
+  motion,
+  useScroll,
+  useMotionValueEvent,
+  AnimatePresence,
+} from "framer-motion";
 import {
   Sheet,
   SheetContent,
@@ -202,7 +207,7 @@ export function BazaarHero() {
           actions={[
             {
               label: "Start Shopping",
-              onClick: () => setIsBuyerAuthOpen(true),
+              href: "/login",
               variant: "default",
             },
             {
