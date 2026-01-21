@@ -14,6 +14,7 @@ import { useAdminPayouts, Payout } from '../../../src/stores/adminStore';
 import { Search, Filter, CheckCircle, Clock, AlertCircle, Calendar, X, ArrowLeft } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { COLORS } from '../../../src/constants/theme';
 
 export default function PayoutsScreen() {
   const navigation = useNavigation();
@@ -150,7 +151,7 @@ export default function PayoutsScreen() {
       <ScrollView style={styles.listContainer}>
         {isLoading ? (
           <View style={styles.centerContent}>
-            <ActivityIndicator size="large" color="#FF5722" />
+            <ActivityIndicator size="large" color={COLORS.primary} />
             <Text style={styles.loadingText}>Loading payouts...</Text>
           </View>
         ) : filteredPayouts.length === 0 ? (
@@ -285,9 +286,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F5F7',
   },
   header: {
-    backgroundColor: '#FF5722',
+    backgroundColor: COLORS.primary,
     paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingBottom: 24,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
   },
   headerContent: {
     flexDirection: 'row',
@@ -349,7 +352,7 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   filterChipActive: {
-    backgroundColor: '#FF5722',
+    backgroundColor: COLORS.primary,
   },
   filterChipText: {
     fontSize: 14,
@@ -451,7 +454,7 @@ const styles = StyleSheet.create({
   amountValue: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#FF5722',
+    color: COLORS.primary,
   },
   accountNumber: {
     fontSize: 14,
@@ -464,7 +467,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#FF5722',
+    backgroundColor: COLORS.primary,
     paddingVertical: 12,
     borderRadius: 8,
     marginTop: 12,
@@ -525,7 +528,7 @@ const styles = StyleSheet.create({
   modalAmountValue: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: '#FF5722',
+    color: COLORS.primary,
   },
   inputContainer: {
     marginBottom: 20,
@@ -566,7 +569,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 14,
     borderRadius: 8,
-    backgroundColor: '#FF5722',
+    backgroundColor: COLORS.primary,
     alignItems: 'center',
   },
   confirmButtonDisabled: {

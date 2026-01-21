@@ -134,7 +134,7 @@ export interface BuyerMetrics {
   averageOrderValue: number;
   cancelledOrders: number;
   returnedOrders: number;
-  loyaltyPoints: number;
+  bazcoins: number;
 }
 
 // Admin Auth Store
@@ -1095,7 +1095,7 @@ export const useAdminBuyers = create<BuyersState>((set) => ({
           averageOrderValue: 1908,
           cancelledOrders: 2,
           returnedOrders: 1,
-          loyaltyPoints: 1245
+          bazcoins: 1250
         },
         joinDate: new Date('2024-03-15'),
         lastActivity: new Date('2024-12-15')
@@ -1129,7 +1129,7 @@ export const useAdminBuyers = create<BuyersState>((set) => ({
           averageOrderValue: 1500,
           cancelledOrders: 3,
           returnedOrders: 0,
-          loyaltyPoints: 567
+          bazcoins: 567
         },
         joinDate: new Date('2024-07-20'),
         lastActivity: new Date('2024-12-14')

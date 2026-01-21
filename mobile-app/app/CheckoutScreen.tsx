@@ -23,7 +23,7 @@ const VOUCHERS = {
   'FREESHIP': { type: 'shipping', value: 0, description: 'Free shipping' },
   'NEWYEAR25': { type: 'percentage', value: 25, description: '25% off New Year' },
   'FLASH100': { type: 'fixed', value: 100, description: '₱100 flash discount' },
-};
+} as const;
 import { useCartStore } from '../src/stores/cartStore';
 import { useAuthStore } from '../src/stores/authStore';
 import { useOrderStore } from '../src/stores/orderStore';
@@ -74,6 +74,14 @@ export default function CheckoutScreen({ navigation }: Props) {
   const [voucherCode, setVoucherCode] = useState('');
   const [appliedVoucher, setAppliedVoucher] = useState<keyof typeof VOUCHERS | null>(null);
 
+  // Bazcoins Logic
+  const earnedBazcoins = Math.floor(checkoutSubtotal / 10);
+  const [useBazcoins, setUseBazcoins] = useState(false);
+  // Mock available bazcoins (should come from user profile)
+  const availableBazcoins = 1250; 
+  const maxRedeemableBazcoins = Math.min(availableBazcoins, checkoutSubtotal);
+  const bazcoinDiscount = useBazcoins ? maxRedeemableBazcoins : 0;
+
   const subtotal = checkoutSubtotal;
   let shippingFee = subtotal > 500 ? 0 : 50;
   let discount = 0;
@@ -90,7 +98,7 @@ export default function CheckoutScreen({ navigation }: Props) {
     }
   }
 
-  const total = subtotal + shippingFee - discount;
+  const total = Math.max(0, subtotal + shippingFee - discount - bazcoinDiscount);
 
   const handleApplyVoucher = () => {
     const code = voucherCode.trim().toUpperCase();
@@ -524,6 +532,32 @@ export default function CheckoutScreen({ navigation }: Props) {
           )}
         </View>
 
+        {/* Bazcoins Redemption Card */}
+        <View style={styles.sectionCard}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                    <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#EAB308', alignItems: 'center', justifyContent: 'center' }}>
+                        <Text style={{ color: 'white', fontWeight: 'bold' }}>B</Text>
+                    </View>
+                    <View>
+                        <Text style={{ fontSize: 16, fontWeight: '600', color: '#111827' }}>Bazcoins</Text>
+                        <Text style={{ fontSize: 12, color: '#6B7280' }}>Balance: {availableBazcoins}</Text>
+                    </View>
+                </View>
+                {availableBazcoins > 0 && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <Text style={{ fontSize: 14, color: '#111827', fontWeight: '500' }}>-₱{maxRedeemableBazcoins}</Text>
+                        <Switch
+                            trackColor={{ false: '#D1D5DB', true: COLORS.primary }}
+                            thumbColor={useBazcoins ? '#FFFFFF' : '#f4f3f4'}
+                            onValueChange={() => setUseBazcoins(prev => !prev)}
+                            value={useBazcoins}
+                        />
+                    </View>
+                )}
+            </View>
+        </View>
+
         {/* Order Summary */}
         <View style={styles.sectionCard}>
           <Text style={[styles.sectionTitle, { marginBottom: 16 }]}>Order Summary</Text>
@@ -545,11 +579,28 @@ export default function CheckoutScreen({ navigation }: Props) {
             </View>
           )}
 
+          {useBazcoins && bazcoinDiscount > 0 && (
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Bazcoins Redeemed</Text>
+              <Text style={[styles.summaryValue, { color: '#EAB308' }]}>-₱{bazcoinDiscount.toLocaleString()}</Text>
+            </View>
+          )}
+
           <View style={styles.divider} />
           
           <View style={styles.summaryRow}>
             <Text style={styles.totalLabelLarge}>Total Payment</Text>
             <Text style={styles.totalAmountLarge}>₱{total.toLocaleString()}</Text>
+          </View>
+
+          <View style={{ marginTop: 16, backgroundColor: '#FEFCE8', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#FEF08A', flexDirection: 'row', gap: 12, alignItems: 'center' }}>
+               <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: '#EAB308', alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>B</Text>
+               </View>
+               <View>
+                 <Text style={{ fontSize: 13, fontWeight: '600', color: '#854D0E' }}>You will earn {earnedBazcoins} Bazcoins</Text>
+                 <Text style={{ fontSize: 11, color: '#A16207' }}>Receive coins upons successful delivery</Text>
+               </View>
           </View>
         </View>
         </ScrollView>

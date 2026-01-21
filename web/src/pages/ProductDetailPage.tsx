@@ -845,7 +845,7 @@ export default function ProductDetailPage({}: ProductDetailPageProps) {
         image:
           normalizedProduct && "image" in normalizedProduct
             ? normalizedProduct.image
-            : normalizedProduct?.images?.[0] || "",
+            : (normalizedProduct as any)?.images?.[0] || "",
       },
     ],
     types: ["Standard"],

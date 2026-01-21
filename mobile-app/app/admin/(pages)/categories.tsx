@@ -4,6 +4,7 @@ import { ArrowLeft, FolderTree, Search, Package, CheckCircle, XCircle, Plus, X }
 import { useNavigation } from '@react-navigation/native';
 import { useAdminCategories } from '../../../src/stores/adminStore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { COLORS } from '../../../src/constants/theme';
 
 export default function AdminCategoriesScreen() {
   const navigation = useNavigation();
@@ -114,7 +115,7 @@ export default function AdminCategoriesScreen() {
       <ScrollView style={styles.scrollView}>
         {isLoading ? (
           <View style={styles.centerContent}>
-            <ActivityIndicator size="large" color="#FF5722" />
+            <ActivityIndicator size="large" color={COLORS.primary} />
             <Text style={styles.loadingText}>Loading categories...</Text>
           </View>
         ) : filteredCategories.length === 0 ? (
@@ -271,7 +272,7 @@ export default function AdminCategoriesScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F5F5F7' },
-  header: { backgroundColor: '#FF5722', paddingHorizontal: 20, paddingBottom: 20 },
+  header: { backgroundColor: COLORS.primary, paddingHorizontal: 20, paddingBottom: 24, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 },
   headerContent: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   backButton: { padding: 4 },
   headerTitleContainer: { gap: 2 },
@@ -283,7 +284,7 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, height: 44, fontSize: 15, color: '#111827' },
   filterScrollView: { flexGrow: 0 },
   filterChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: '#F3F4F6', marginRight: 8 },
-  filterChipActive: { backgroundColor: '#FF5722' },
+  filterChipActive: { backgroundColor: COLORS.primary },
   filterChipText: { fontSize: 14, color: '#6B7280', fontWeight: '500' },
   filterChipTextActive: { color: '#FFFFFF' },
   scrollView: { flex: 1, padding: 16 },
@@ -311,7 +312,7 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 30,
-    backgroundColor: '#FF5722',
+    backgroundColor: COLORS.primary,
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 8,
@@ -390,7 +391,7 @@ const styles = StyleSheet.create({
     padding: 3,
   },
   switchActive: {
-    backgroundColor: '#FF5722',
+    backgroundColor: COLORS.primary,
   },
   switchThumb: {
     width: 26,
@@ -412,7 +413,7 @@ const styles = StyleSheet.create({
     color: '#6B7280',
   },
   switchLabelActive: {
-    color: '#FF5722',
+    color: COLORS.primary,
   },
   modalFooter: {
     flexDirection: 'row',
@@ -436,7 +437,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 14,
     borderRadius: 12,
-    backgroundColor: '#FF5722',
+    backgroundColor: COLORS.primary,
     alignItems: 'center',
   },
   submitButtonText: {

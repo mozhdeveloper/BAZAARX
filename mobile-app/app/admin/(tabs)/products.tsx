@@ -15,6 +15,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Menu, Bell, Package, Search, Edit, Ban, CheckCircle, Eye, XCircle, X } from 'lucide-react-native';
 import AdminDrawer from '../../../src/components/AdminDrawer';
 import { useAdminProducts } from '../../../src/stores/adminStore';
+import { COLORS } from '../../../src/constants/theme';
 
 export default function AdminProductsScreen() {
   const [drawerVisible, setDrawerVisible] = useState(false);
@@ -180,7 +181,7 @@ export default function AdminProductsScreen() {
       <ScrollView style={styles.scrollView}>
         {isLoading ? (
           <View style={styles.centerContent}>
-            <ActivityIndicator size="large" color="#FF5722" />
+            <ActivityIndicator size="large" color={COLORS.primary} />
             <Text style={styles.loadingText}>Loading products...</Text>
           </View>
         ) : filteredProducts.length === 0 ? (
@@ -388,7 +389,7 @@ export default function AdminProductsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F5F5F7' },
-  header: { backgroundColor: '#FF5722', paddingHorizontal: 20, paddingBottom: 20 },
+  header: { backgroundColor: COLORS.primary, paddingHorizontal: 20, paddingBottom: 24, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 },
   headerContent: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   menuButton: { padding: 4 },
@@ -403,7 +404,7 @@ const styles = StyleSheet.create({
   filterLabel: { fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 8, marginTop: 8 },
   filterScrollView: { flexGrow: 0, marginBottom: 8 },
   filterChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: '#F3F4F6', marginRight: 8 },
-  filterChipActive: { backgroundColor: '#FF5722' },
+  filterChipActive: { backgroundColor: COLORS.primary },
   filterChipText: { fontSize: 14, color: '#6B7280', fontWeight: '500' },
   filterChipTextActive: { color: '#FFFFFF' },
   scrollView: { flex: 1, padding: 16 },
@@ -430,7 +431,7 @@ const styles = StyleSheet.create({
   priceStockRow: { flexDirection: 'row', paddingVertical: 12, borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#E5E7EB', marginBottom: 12 },
   priceBox: { flex: 1 },
   priceLabel: { fontSize: 11, color: '#6B7280', marginBottom: 2 },
-  priceValue: { fontSize: 16, fontWeight: 'bold', color: '#FF5722' },
+  priceValue: { fontSize: 16, fontWeight: 'bold', color: COLORS.primary },
   stockBox: { flex: 1 },
   stockLabel: { fontSize: 11, color: '#6B7280', marginBottom: 2 },
   stockValue: { fontSize: 14, fontWeight: '600', color: '#111827' },
@@ -460,7 +461,7 @@ const styles = StyleSheet.create({
     marginBottom: 4
   },
   textInputFocused: {
-    borderColor: '#FF5722'
+    borderColor: COLORS.primary
   },
   textArea: { height: 100, textAlignVertical: 'top' },
   inputRow: { flexDirection: 'row', gap: 12 },
@@ -472,7 +473,7 @@ const styles = StyleSheet.create({
   deactivateButton: { flex: 1, paddingVertical: 12, borderRadius: 8, backgroundColor: '#DC2626', alignItems: 'center' },
   deactivateButtonDisabled: { backgroundColor: '#FCA5A5', opacity: 0.5 },
   deactivateButtonText: { fontSize: 16, fontWeight: '600', color: '#FFFFFF' },
-  saveButton: { flex: 1, paddingVertical: 12, borderRadius: 8, backgroundColor: '#FF5722', alignItems: 'center' },
+  saveButton: { flex: 1, paddingVertical: 12, borderRadius: 8, backgroundColor: COLORS.primary, alignItems: 'center' },
   saveButtonDisabled: { backgroundColor: '#FCA5A5', opacity: 0.5 },
   saveButtonText: { fontSize: 16, fontWeight: '600', color: '#FFFFFF' },
 });
