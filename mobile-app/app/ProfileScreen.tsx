@@ -230,10 +230,10 @@ export default function ProfileScreen({ navigation }: Props) {
           <View style={styles.statDivider} />
           <Pressable
             style={({ pressed }) => [styles.statBox, pressed && { opacity: 0.7 }]}
-            onPress={() => Alert.alert('Loyalty Points', `You have ${profile.loyaltyPoints} points available to redeem!`)}
+            onPress={() => Alert.alert('Bazcoins', `You have ${profile.loyaltyPoints} Bazcoins available to redeem!`)}
           >
-            <Text style={[styles.statVal, { color: BRAND_COLOR }]}>{profile.loyaltyPoints}</Text>
-            <Text style={styles.statLab}>Points</Text>
+            <Text style={[styles.statVal, { color: '#EAB308' }]}>{profile.loyaltyPoints}</Text>
+            <Text style={styles.statLab}>Bazcoins</Text>
           </Pressable>
         </View>
       </View>

@@ -198,7 +198,7 @@ const Header: React.FC = () => {
                         Hi, {profile.firstName}
                       </p>
                       <p className="text-[10px] text-gray-500 mt-1 uppercase tracking-wider font-medium">
-                        {profile.loyaltyPoints} Points
+                        {profile.bazcoins} Bazcoins
                       </p>
                     </div>
 
@@ -232,13 +232,16 @@ const Header: React.FC = () => {
                               <span>{profile.firstName.charAt(0)}</span>
                             )}
                           </div>
-                          <div className="overflow-hidden">
-                            <p className="font-bold text-gray-900 text-sm truncate">
+                          <div className="hidden md:flex flex-col items-end mr-2">
+                            <span className="text-sm font-medium text-gray-700 leading-none">
                               {profile.firstName} {profile.lastName}
-                            </p>
-                            <p className="text-xs text-gray-500 font-medium truncate">
-                              {profile.email}
-                            </p>
+                            </span>
+                            <div className="flex items-center gap-1 mt-0.5">
+                              <div className="w-3 h-3 bg-yellow-400 rounded-full flex items-center justify-center">
+                                  <span className="text-[8px] font-bold text-white">B</span>
+                              </div>
+                              <span className="text-xs text-gray-500">{profile.bazcoins} Bazcoins</span>
+                            </div>
                           </div>
                         </div>
                       </div>
