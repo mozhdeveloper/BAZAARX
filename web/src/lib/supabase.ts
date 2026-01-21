@@ -4,7 +4,6 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
-import type { Database } from '@/types/database.types';
 
 // Environment variables - these will be set when Supabase project is created
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
@@ -24,7 +23,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
  * - Realtime subscriptions
  * - Edge Functions
  */
-export const supabase = createClient<Database>(
+export const supabase = createClient<any>(
   supabaseUrl || 'https://placeholder.supabase.co',
   supabaseAnonKey || 'placeholder-key',
   {

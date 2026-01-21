@@ -6,13 +6,12 @@ import { Input } from './ui/input';
 import { useImageUpload } from './hooks/use-image-upload';
 import { cn } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
-import type { Product } from '../types';
 
 interface VisualSearchModalProps {
   isOpen: boolean;
   onClose: () => void;
   onRequestProduct: () => void;
-  products?: Product[];
+  products?: any[];
 }
 
 export default function VisualSearchModal({ 
@@ -23,7 +22,7 @@ export default function VisualSearchModal({
 }: VisualSearchModalProps) {
   const navigate = useNavigate();
   const [isSearching, setIsSearching] = useState(false);
-  const [searchResults, setSearchResults] = useState<Product[]>([]);
+  const [searchResults, setSearchResults] = useState<any[]>([]);
   const [hasSearched, setHasSearched] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
 

@@ -1,6 +1,4 @@
-import { Product } from '../types';
-
-export const trendingProducts: Product[] = [
+export const trendingProducts = [
   {
     id: '1',
     name: 'Premium Wireless Earbuds - Noise Cancelling, 24H Battery Life',

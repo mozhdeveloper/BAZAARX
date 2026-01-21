@@ -7,7 +7,6 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import type { Order, OrderItem, Database } from '@/types/database.types';
 
 type OrderInsert = Database['public']['Tables']['orders']['Insert'];
-type OrderUpdate = Database['public']['Tables']['orders']['Update'];
 type OrderItemInsert = Database['public']['Tables']['order_items']['Insert'];
 
 // Mock data fallback

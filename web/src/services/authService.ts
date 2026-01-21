@@ -4,9 +4,6 @@
  */
 
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import type { Profile, Buyer, Seller, Database } from '@/types/database.types';
-
-type ProfileInsert = Database['public']['Tables']['profiles']['Insert'];
 
 /**
  * Sign up a new user

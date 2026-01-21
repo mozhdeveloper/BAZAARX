@@ -1,6 +1,4 @@
-import { Collection, Category } from '../types';
-
-export const collections: Collection[] = [
+export const collections = [
   {
     id: '1',
     title: 'Tech Essentials',
