@@ -1,15 +1,13 @@
 import { useState, useMemo, useEffect } from "react";
 import { motion } from "framer-motion";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
-  Search,
   Filter,
   Grid,
   List,
   Star,
   MapPin,
   Truck,
-  Camera,
   Flame,
   Clock,
   BadgeCheck,
@@ -139,10 +137,11 @@ const sortOptions = [
 
 export default function ShopPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { addToCart, setQuickOrder, cartItems } = useBuyerStore();
   const { products: sellerProducts, fetchProducts } = useProductStore();
 
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(searchParams.get("q") || "");
   const [selectedCategory, setSelectedCategory] = useState("All Categories");
   const [selectedSort, setSelectedSort] = useState("relevance");
   const [priceRange, setPriceRange] = useState<number[]>([0, 100000]);
@@ -185,6 +184,11 @@ export default function ShopPage() {
     // Fetch products from Supabase on component mount
     fetchProducts();
   }, [fetchProducts]);
+
+  // Sync search query from URL
+  useEffect(() => {
+    setSearchQuery(searchParams.get("q") || "");
+  }, [searchParams]);
 
   const allProducts = useMemo<ShopProduct[]>(() => {
     const dbProducts = sellerProducts
@@ -262,7 +266,7 @@ export default function ShopPage() {
       <Header />
 
       {/* Shop Header */}
-      <div className="bg-white border-b">
+      <div className="">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -278,24 +282,7 @@ export default function ShopPage() {
               </p>
             </div>
 
-            {/* Search Bar */}
-            <div className="relative max-w-md w-full lg:w-96">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-              <input
-                type="text"
-                placeholder="Search products, brands, or sellers..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-12 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)] focus:border-transparent"
-              />
-              <button
-                onClick={() => setShowVisualSearchModal(true)}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1.5 text-gray-400 hover:text-[var(--brand-primary)] hover:bg-orange-50 rounded-lg transition-colors"
-                title="Search by image"
-              >
-                <Camera className="w-5 h-5" />
-              </button>
-            </div>
+
           </motion.div>
         </div>
       </div>

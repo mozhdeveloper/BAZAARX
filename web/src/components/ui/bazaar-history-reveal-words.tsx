@@ -61,7 +61,7 @@ export default function BazaarRevealWords() {
   return (
     <motion.section
       ref={containerRef}
-      className="relative h-[300vh]"
+      className="relative h-[400vh]"
       style={{ backgroundColor }}
     >
       <div className="sticky top-0 h-screen flex items-center overflow-hidden">
