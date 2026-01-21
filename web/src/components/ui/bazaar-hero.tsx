@@ -202,7 +202,7 @@ export function BazaarHero() {
           actions={[
             {
               label: "Start Shopping",
-              onClick: () => setIsBuyerAuthOpen(true),
+              href: "/login",
               variant: "default",
             },
             {
