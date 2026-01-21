@@ -5,7 +5,6 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-
 // Environment variables - these will be set when Supabase project is created
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';

@@ -18,7 +18,6 @@ import { Label } from "../components/ui/label";
 import { Checkbox } from "../components/ui/checkbox";
 import { signUp } from "../services/authService";
 
-
 export default function BuyerSignupPage() {
   const navigate = useNavigate();
   const { setProfile } = useBuyerStore();

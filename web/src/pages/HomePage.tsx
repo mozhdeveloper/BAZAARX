@@ -26,6 +26,42 @@ import { bestSellerProducts, newArrivals } from '../data/products';
 import { featuredStores } from '../data/stores';
 
 const HomePage: React.FC = () => {
+  const { products: sellerProducts, fetchProducts } = useProductStore();
+
+  useEffect(() => {
+    // Fetch products on mount if they aren't loaded or to ensure freshness
+    fetchProducts({ isActive: true });
+  }, [fetchProducts]);
+
+  // Map SellerProduct to the Product format expected by components
+  const allProducts = useMemo(() => {
+    return sellerProducts
+      .filter((p) => (p.approvalStatus === "approved" || p.approvalStatus === "pending") && p.isActive)
+      .map((p) => ({
+        id: p.id,
+        name: p.name,
+        price: p.price,
+        originalPrice: p.originalPrice,
+        image: p.images?.[0] || "https://placehold.co/400?text=Product",
+        rating: p.rating || 0,
+        sold: p.sales || 0,
+        category: p.category,
+        seller: p.sellerName || "Verified Seller",
+        isVerified: p.approvalStatus === "pending",
+        location: "Metro Manila",
+        description: p.description,
+        sellerRating: p.sellerRating || 0,
+        sellerVerified: p.approvalStatus === "pending",
+        isFreeShipping: true, // Default for now
+      })) as any[];
+  }, [sellerProducts]);
+
+  const trendingProducts = useMemo(() => allProducts.slice(0, 6), [allProducts]);
+  const bestSellerProducts = useMemo(() =>
+    [...allProducts].sort((a, b) => (b.sold || 0) - (a.sold || 0)).slice(0, 8)
+    , [allProducts]);
+  const newArrivals = useMemo(() => allProducts.slice(-8).reverse(), [allProducts]);
+
   return (
     <SmoothScrollProvider>
       <div className="min-h-screen bg-white">

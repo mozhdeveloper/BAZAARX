@@ -85,6 +85,7 @@ export interface SellerProduct {
   adminReclassifiedCategory?: string;
   sellerName?: string;
   sellerRating?: number;
+  sellerLocation?: string;
 }
 
 interface SellerOrder {
@@ -204,6 +205,12 @@ interface ProductStore {
   checkLowStock: () => void;
   acknowledgeLowStockAlert: (alertId: string) => void;
   getLowStockThreshold: () => number;
+  subscribeToProducts: (filters?: {
+    category?: string;
+    sellerId?: string;
+    isActive?: boolean;
+    approvalStatus?: string;
+  }) => () => void;
 }
 
 interface OrderStore {
@@ -309,7 +316,8 @@ const mapDbProductToSellerProduct = (p: any): SellerProduct => ({
   vendorSubmittedCategory: p.vendor_submitted_category || undefined,
   adminReclassifiedCategory: p.admin_reclassified_category || undefined,
   sellerName: p.seller?.store_name || p.seller?.business_name,
-  sellerRating: p.seller?.rating
+  sellerRating: p.seller?.rating,
+  sellerLocation: p.seller?.business_address
 });
 
 const buildProductInsert = (product: Omit<SellerProduct, 'id' | 'createdAt' | 'updatedAt' | 'sales' | 'rating' | 'reviews'>, sellerId: string): ProductInsert => ({
@@ -609,8 +617,13 @@ export const useProductStore = create<ProductStore>()(
         set({ loading: true, error: null });
         try {
           const data = await fetchProductsDb(filters);
+          console.log('🔍 Raw product data from DB:', data);
+          console.log('🔍 First product seller info:', data?.[0]?.seller);
+          const mappedProducts = (data || []).map(mapDbProductToSellerProduct);
+          console.log('🔍 Mapped products:', mappedProducts);
+          console.log('🔍 First mapped product:', mappedProducts[0]);
           set({
-            products: (data || []).map(mapDbProductToSellerProduct),
+            products: mappedProducts,
             loading: false,
           });
           get().checkLowStock();
@@ -618,6 +631,40 @@ export const useProductStore = create<ProductStore>()(
           console.error('Error loading products from Supabase:', error);
           set({ error: (error as Error)?.message || 'Failed to load products', loading: false });
         }
+      },
+
+      subscribeToProducts: (filters) => {
+        if (!isSupabaseConfigured()) return () => { };
+
+        console.log('Subscribing to product changes...', filters);
+
+        const channel = supabase
+          .channel('public:products')
+          .on(
+            'postgres_changes',
+            {
+              event: '*',
+              schema: 'public',
+              table: 'products',
+              // Note: Supabase JS client handles basic equality filters on some versions,
+              // but for complex stuff we might need to refetch or filter client-side.
+              // For now, we'll refetch to ensure data consistency with relations (sellers).
+            },
+            async (payload) => {
+              console.log('Product change received:', payload);
+              // Refetch products to get updated list with joined seller data
+              // This is safer than manually patching the state because of relations
+              await get().fetchProducts(filters);
+            }
+          )
+          .subscribe((status) => {
+            console.log('Product subscription status:', status);
+          });
+
+        return () => {
+          console.log('Unsubscribing from products...');
+          supabase.removeChannel(channel);
+        };
       },
 
       addProduct: async (product) => {

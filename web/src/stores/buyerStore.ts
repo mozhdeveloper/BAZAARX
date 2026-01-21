@@ -233,6 +233,51 @@ interface BuyerStore {
   addViewedSeller: (seller: Seller) => void;
 }
 
+const mapDbItemToCartItem = (item: any): CartItem | null => {
+  const dbProduct = item.product;
+  if (!dbProduct) return null;
+
+  const sellerData = dbProduct.seller;
+
+  return {
+    id: dbProduct.id,
+    name: dbProduct.name,
+    price: dbProduct.price,
+    originalPrice: dbProduct.original_price,
+    image: dbProduct.primary_image || (dbProduct.images && dbProduct.images[0]) || "",
+    images: dbProduct.images || [],
+    seller: {
+      id: dbProduct.seller_id,
+      name: sellerData?.store_name || sellerData?.business_name || "Verified Seller",
+      avatar: "",
+      rating: sellerData?.rating || 0,
+      totalReviews: 0,
+      followers: 0,
+      isVerified: sellerData?.is_verified ?? true,
+      description: "",
+      location: sellerData?.business_address || "Metro Manila",
+      established: "",
+      products: [],
+      badges: [],
+      responseTime: "",
+      categories: []
+    },
+    sellerId: dbProduct.seller_id,
+    rating: dbProduct.rating || 0,
+    totalReviews: dbProduct.review_count || 0,
+    category: dbProduct.category || "",
+    sold: dbProduct.sales_count || 0,
+    isFreeShipping: dbProduct.is_free_shipping || false,
+    location: sellerData?.business_address || "Metro Manila",
+    description: dbProduct.description || "",
+    specifications: dbProduct.specifications || {},
+    variants: dbProduct.variants || [],
+    quantity: item.quantity,
+    selectedVariant: item.selected_variant,
+    notes: item.notes
+  } as CartItem;
+};
+
 export const useBuyerStore = create<BuyerStore>()(persist(
   (set, get) => ({
     // Profile Management
@@ -348,18 +393,30 @@ export const useBuyerStore = create<BuyerStore>()(persist(
         try {
           const cart = await cartService.getOrCreateCart(user.id);
           if (cart) {
+            // Add to database - this already handles duplicates correctly
             await cartService.addToCart(
               cart.id,
               product.id,
               quantity,
               variant
             );
+
+            // Refetch cart items from database to sync state
+            const dbItems = await cartService.getCartItems(cart.id);
+
+            // Map DB items to store items
+            const mappedItems: CartItem[] = dbItems.map(mapDbItemToCartItem).filter(Boolean) as CartItem[];
+
+            set({ cartItems: mappedItems });
+            get().groupCartBySeller();
+            return;
           }
         } catch (error) {
           console.error('Error adding to database cart:', error);
         }
       }
 
+      // Fallback to local state if not logged in or database operation failed
       set((state) => {
         const existingItem = state.cartItems.find(item =>
           item.id === product.id &&
@@ -397,6 +454,14 @@ export const useBuyerStore = create<BuyerStore>()(persist(
             const itemToDelete = items.find(i => i.product_id === productId);
             if (itemToDelete) {
               await cartService.removeFromCart(itemToDelete.id);
+
+              // Refetch cart items from database to sync state
+              const dbItems = await cartService.getCartItems(cart.id);
+              const mappedItems: CartItem[] = dbItems.map(mapDbItemToCartItem).filter(Boolean) as CartItem[];
+
+              set({ cartItems: mappedItems });
+              get().groupCartBySeller();
+              return;
             }
           }
         } catch (error) {
@@ -404,6 +469,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
         }
       }
 
+      // Fallback to local state
       set((state) => ({
         cartItems: state.cartItems.filter(item => item.id !== productId)
       }));
@@ -425,6 +491,14 @@ export const useBuyerStore = create<BuyerStore>()(persist(
             const itemToUpdate = items.find(i => i.product_id === productId);
             if (itemToUpdate) {
               await cartService.updateCartItemQuantity(itemToUpdate.id, quantity);
+
+              // Refetch cart items from database to sync state
+              const dbItems = await cartService.getCartItems(cart.id);
+              const mappedItems: CartItem[] = dbItems.map(mapDbItemToCartItem).filter(Boolean) as CartItem[];
+
+              set({ cartItems: mappedItems });
+              get().groupCartBySeller();
+              return;
             }
           }
         } catch (error) {
@@ -432,6 +506,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
         }
       }
 
+      // Fallback to local state
       set((state) => ({
         cartItems: state.cartItems.map(item =>
           item.id === productId ? { ...item, quantity } : item
@@ -818,49 +893,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
           const dbItems = await cartService.getCartItems(cart.id);
 
           // Map DB items to store items
-          const mappedItems: CartItem[] = dbItems.map((item: any) => {
-            const product = item.product;
-            if (!product) return null;
-
-            return {
-              id: product.id,
-              name: product.name,
-              price: product.price,
-              originalPrice: product.original_price,
-              image: product.primary_image || (product.images && product.images[0]) || "",
-              images: product.images || [],
-              seller: {
-                id: product.seller_id,
-                name: "Verified Seller", // We might need to join with sellers table
-                avatar: "",
-                rating: 0,
-                totalReviews: 0,
-                followers: 0,
-                isVerified: true,
-                description: "",
-                location: "Metro Manila",
-                established: "",
-                products: [],
-                badges: [],
-                responseTime: "",
-                categories: []
-              },
-              sellerId: product.seller_id,
-              rating: product.rating || 0,
-              totalReviews: product.review_count || 0,
-              category: product.category || "",
-              sold: product.sales_count || 0,
-              isFreeShipping: product.is_free_shipping || false,
-              location: "Metro Manila",
-              description: product.description || "",
-              specifications: product.specifications || {},
-              variants: product.variants || [],
-              quantity: item.quantity,
-              selectedVariant: item.selected_variant,
-              notes: item.notes,
-              selected: true // Default to true for sync
-            } as CartItem;
-          }).filter(Boolean) as CartItem[];
+          const mappedItems: CartItem[] = dbItems.map(mapDbItemToCartItem).filter(Boolean) as CartItem[];
 
           set({ cartItems: mappedItems });
           get().groupCartBySeller();

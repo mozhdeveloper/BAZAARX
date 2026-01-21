@@ -22,7 +22,7 @@ import Header from "../components/Header";
 import { BazaarFooter } from "../components/ui/bazaar-footer";
 import { cn } from "../lib/utils";
 
-interface ProductDetailPageProps {}
+interface ProductDetailPageProps { }
 
 // Enhanced product data with more details
 const enhancedProductData: Record<string, any> = {
@@ -781,7 +781,7 @@ const reviewsData: Record<string, any[]> = {
 
 // Reviews data is now included in reviewsData object
 
-export default function ProductDetailPage({}: ProductDetailPageProps) {
+export default function ProductDetailPage({ }: ProductDetailPageProps) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { addToCart, setQuickOrder } = useBuyerStore();
@@ -790,7 +790,7 @@ export default function ProductDetailPage({}: ProductDetailPageProps) {
   const [quantity, setQuantity] = useState(1);
   const [selectedImage, setSelectedImage] = useState(0);
   const [selectedColor, setSelectedColor] = useState(0);
-  const [selectedType, setSelectedType] = useState("Sport Band");
+  const [selectedSize, setSelectedSize] = useState("");
   const [activeTab, setActiveTab] = useState("description");
 
   // Check seller products first (verified products)
@@ -812,23 +812,34 @@ export default function ProductDetailPage({}: ProductDetailPageProps) {
 
   const normalizedProduct = sellerProduct
     ? {
-        id: sellerProduct.id,
-        name: sellerProduct.name,
-        price: sellerProduct.price,
-        originalPrice: sellerProduct.originalPrice,
-        image:
-          sellerProduct.images[0] || "https://placehold.co/400?text=Product",
-        images: sellerProduct.images,
-        category: sellerProduct.category,
-        rating: sellerProduct.rating || 0,
-        sold: sellerProduct.sales || 0,
-        seller: sellerName,
-        location: "Metro Manila",
-        isFreeShipping: true,
-        isVerified: true,
-        description: sellerProduct.description,
-      }
-    : baseProduct;
+      id: sellerProduct.id,
+      name: sellerProduct.name,
+      price: sellerProduct.price,
+      originalPrice: sellerProduct.originalPrice,
+      image:
+        sellerProduct.images[0] || "https://placehold.co/400?text=Product",
+      images: sellerProduct.images,
+      category: sellerProduct.category,
+      rating: sellerProduct.rating || 0,
+      sold: sellerProduct.sales || 0,
+      seller: sellerName,
+      location: "Metro Manila",
+      isFreeShipping: true,
+      isVerified: true,
+      description: sellerProduct.description,
+      sizes: sellerProduct.sizes || [],
+      colors: sellerProduct.colors || [],
+      stock: sellerProduct.stock || 0,
+      sellerId: sellerProduct.sellerId || "",
+    }
+    : (baseProduct ? {
+      ...baseProduct,
+      originalPrice: (baseProduct as any).originalPrice || (baseProduct as any).original_price,
+      sizes: (baseProduct as any).sizes || [],
+      colors: (baseProduct as any).colors || [],
+      stock: (baseProduct as any).stock || 0,
+      sellerId: (baseProduct as any).sellerId || (baseProduct as any).seller_id || ""
+    } : null);
 
   const productId = normalizedProduct?.id || id?.split("-")[0] || "1";
   const productData = enhancedProductData[productId] || {
@@ -838,23 +849,23 @@ export default function ProductDetailPage({}: ProductDetailPageProps) {
     originalPrice: (normalizedProduct && 'originalPrice' in normalizedProduct ? normalizedProduct.originalPrice : undefined),
     rating: normalizedProduct?.rating || 4.5,
     reviewCount: 100,
-    colors: [
-      {
-        name: "Default",
-        value: "#FF5722",
-        image:
-          normalizedProduct && "image" in normalizedProduct
-            ? normalizedProduct.image
-            : (normalizedProduct as any)?.images?.[0] || "",
-      },
-    ],
+    colors: (normalizedProduct?.colors && normalizedProduct.colors.length > 0)
+      ? normalizedProduct.colors.map((c: any) => typeof c === 'string'
+        ? {
+          name: c,
+          value: c,
+          image: normalizedProduct?.image || (normalizedProduct as any)?.images?.[0] || ""
+        }
+        : c)
+      : [],
     types: ["Standard"],
     images:
       normalizedProduct && "images" in normalizedProduct
         ? normalizedProduct.images
         : normalizedProduct && "image" in normalizedProduct
-        ? [normalizedProduct.image]
-        : [""],
+          ? [normalizedProduct.image]
+          : [""],
+    sizes: normalizedProduct?.sizes || [],
     features: [
       "Free Shipping",
       "Verified Product",
@@ -910,6 +921,27 @@ export default function ProductDetailPage({}: ProductDetailPageProps) {
         ? normalizedProduct.isFreeShipping
         : true;
 
+    // Create a virtual variant based on selection
+    const colorName = productData.colors[selectedColor]?.name || "Default";
+    const variantName = [
+      selectedSize ? `Size: ${selectedSize}` : null,
+      colorName !== "Default" ? `Color: ${colorName}` : null
+    ].filter(Boolean).join(", ") || "Standard";
+
+    // Only create a variant object if there are actual variations selected
+    // or if the product inherently has variants.
+    // If it's just a standard product with no real options, pass null/undefined
+    // to match the ShopPage behavior and allow merging.
+    const hasVariations = selectedSize || colorName !== "Default" || (productData.sizes?.length > 0) || (productData.colors?.length > 0);
+
+    const selectedVariant = hasVariations ? {
+      id: `var-${normalizedProduct.id}-${selectedSize || 'default'}-${colorName}`,
+      name: variantName,
+      price: productData.price,
+      stock: normalizedProduct.stock || 100,
+      image: productData.colors[selectedColor]?.image || productImage
+    } : undefined;
+
     // Create proper product object for buyerStore
     const productForCart = {
       id: normalizedProduct.id,
@@ -918,8 +950,9 @@ export default function ProductDetailPage({}: ProductDetailPageProps) {
       originalPrice: 'originalPrice' in normalizedProduct ? normalizedProduct.originalPrice : undefined,
       image: productImage,
       images: productData.images || productImages,
+      // ... rest handled by spread or specific assignment if needed
       seller: {
-        id: "seller-1",
+        id: normalizedProduct.sellerId,
         name: sellerName,
         avatar: "https://api.dicebear.com/7.x/initials/svg?seed=" + sellerName,
         rating: 4.8,
@@ -934,7 +967,7 @@ export default function ProductDetailPage({}: ProductDetailPageProps) {
         responseTime: "< 1 hour",
         categories: [normalizedProduct.category],
       },
-      sellerId: "seller-1",
+      sellerId: normalizedProduct.sellerId,
       rating: normalizedProduct.rating,
       totalReviews: 234,
       category: normalizedProduct.category,
@@ -946,7 +979,11 @@ export default function ProductDetailPage({}: ProductDetailPageProps) {
       variants: [],
     };
 
-    addToCart(productForCart, quantity);
+    try {
+      addToCart(productForCart as any, quantity, selectedVariant);
+    } catch (error) {
+      console.error("Error calling addToCart:", error);
+    }
 
     // Show success notification and guide to cart
     const notification = document.createElement("div");
@@ -1012,6 +1049,21 @@ export default function ProductDetailPage({}: ProductDetailPageProps) {
         ? normalizedProduct.isFreeShipping
         : true;
 
+    // Create a virtual variant based on selection
+    const colorName = productData.colors[selectedColor]?.name || "Default";
+    const variantName = [
+      selectedSize ? `Size: ${selectedSize}` : null,
+      colorName !== "Default" ? `Color: ${colorName}` : null
+    ].filter(Boolean).join(", ") || "Standard";
+
+    const selectedVariant = {
+      id: `var-${normalizedProduct.id}-${selectedSize}-${colorName}`,
+      name: variantName,
+      price: productData.price,
+      stock: normalizedProduct.stock || 100,
+      image: productData.colors[selectedColor]?.image || productImage
+    };
+
     // Create proper product object for quick order
     const productForQuickOrder = {
       id: normalizedProduct.id,
@@ -1021,7 +1073,7 @@ export default function ProductDetailPage({}: ProductDetailPageProps) {
       image: productImage,
       images: productData.images || productImages,
       seller: {
-        id: "seller-1",
+        id: normalizedProduct.sellerId,
         name: sellerName,
         avatar: "https://api.dicebear.com/7.x/initials/svg?seed=" + sellerName,
         rating: 4.8,
@@ -1036,7 +1088,7 @@ export default function ProductDetailPage({}: ProductDetailPageProps) {
         responseTime: "< 1 hour",
         categories: [normalizedProduct.category],
       },
-      sellerId: "seller-1",
+      sellerId: normalizedProduct.sellerId,
       rating: normalizedProduct.rating,
       totalReviews: 234,
       category: normalizedProduct.category,
@@ -1048,7 +1100,7 @@ export default function ProductDetailPage({}: ProductDetailPageProps) {
       variants: [],
     };
 
-    setQuickOrder(productForQuickOrder, quantity);
+    setQuickOrder(productForQuickOrder as any, quantity, selectedVariant);
     navigate("/checkout");
   };
 
@@ -1168,86 +1220,100 @@ export default function ProductDetailPage({}: ProductDetailPageProps) {
               {/* Price */}
               <div className="flex items-center gap-3">
                 <span className="text-3xl font-bold text-gray-900">
-                  ₱{(productData.price / 100).toFixed(2)}
+                  ₱{productData.price.toLocaleString()}
                 </span>
                 {productData.originalPrice && (
                   <span className="text-xl text-gray-500 line-through">
-                    ₱{(productData.originalPrice / 100).toFixed(2)}
+                    ₱{productData.originalPrice.toLocaleString()}
                   </span>
                 )}
               </div>
             </div>
 
             {/* Color Selection */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-medium text-gray-900">
-                  Color:
-                </label>
-              </div>
-              <div className="flex gap-2">
-                {productData.colors.map((color: any, index: number) => (
-                  <button
-                    key={index}
-                    onClick={() => setSelectedColor(index)}
-                    className={cn(
-                      "w-8 h-8 rounded-full border-2 transition-all",
-                      selectedColor === index
-                        ? "border-gray-900 scale-110"
-                        : "border-gray-300 hover:border-gray-400"
-                    )}
-                    style={{
-                      backgroundColor:
-                        typeof color === "string" ? color : color.value,
-                    }}
-                    title={typeof color === "string" ? color : color.name}
-                  />
-                ))}
-              </div>
-            </div>
-
-            {/* Type Selection */}
-            <div className="space-y-3">
-              <label className="text-sm font-medium text-gray-900">Type:</label>
-              <select
-                value={selectedType}
-                onChange={(e) => setSelectedType(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)] focus:border-transparent"
-              >
-                {productData.types.map((type: string) => (
-                  <option key={type} value={type}>
-                    {type}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Quantity and Size */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-900">
-                  Quantity:
-                </label>
-                <div className="flex items-center border border-gray-300 rounded-lg">
-                  <button
-                    onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                    className="p-2 hover:bg-gray-100 transition-colors"
-                  >
-                    <Minus className="w-4 h-4" />
-                  </button>
-                  <span className="flex-1 text-center py-2">{quantity}</span>
-                  <button
-                    onClick={() => setQuantity(quantity + 1)}
-                    className="p-2 hover:bg-gray-100 transition-colors"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </button>
+            {productData.colors && productData.colors.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium text-gray-900">
+                    Color:
+                  </label>
+                </div>
+                <div className="flex gap-2">
+                  {productData.colors.map((color: any, index: number) => (
+                    <button
+                      key={index}
+                      onClick={() => setSelectedColor(index)}
+                      className={cn(
+                        "w-8 h-8 rounded-full border-2 transition-all",
+                        selectedColor === index
+                          ? "border-gray-900 scale-110"
+                          : "border-gray-300 hover:border-gray-400"
+                      )}
+                      style={{
+                        backgroundColor:
+                          typeof color === "string" ? color : color.value,
+                      }}
+                      title={typeof color === "string" ? color : color.name}
+                    />
+                  ))}
                 </div>
               </div>
+            )}
 
-              <div className="space-y-2">
-                <button className="text-sm text-[var(--brand-primary)] hover:underline">
-                  Size Guide
+            {/* Variation Option (formerly Size Selection) */}
+            {productData.sizes && productData.sizes.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium text-gray-900">
+                    Variation Option:
+                  </label>
+                  <button className="text-xs text-[var(--brand-primary)] hover:underline">
+                    Size Guide
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {productData.sizes.map((size: string) => (
+                    <button
+                      key={size}
+                      onClick={() => setSelectedSize(size)}
+                      className={cn(
+                        "px-3 py-2 text-sm border-2 rounded-lg transition-all",
+                        selectedSize === size
+                          ? "border-gray-900 bg-gray-900 text-white"
+                          : "border-gray-200 hover:border-gray-300 text-gray-600"
+                      )}
+                    >
+                      {size}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Quantity Selection */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-900">
+                Quantity:
+              </label>
+              <div className="flex items-center border border-gray-300 rounded-lg max-w-[140px]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQuantity(Math.max(1, quantity - 1));
+                  }}
+                  className="p-2 hover:bg-gray-100 transition-colors"
+                >
+                  <Minus className="w-4 h-4" />
+                </button>
+                <span className="flex-1 text-center py-2">{quantity}</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQuantity(quantity + 1);
+                  }}
+                  className="p-2 hover:bg-gray-100 transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
                 </button>
               </div>
             </div>
