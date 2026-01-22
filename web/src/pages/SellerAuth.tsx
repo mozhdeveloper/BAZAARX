@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { Eye, EyeOff, Mail, Lock, Store, ArrowRight, AlertCircle, Check } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Eye, EyeOff, Mail, Lock, Store, ArrowRight, AlertCircle, Check, Quote, CheckCircle2, Phone } from 'lucide-react';
 import { useAuthStore } from '@/stores/sellerStore';
 import { Button } from '@/components/ui/button';
 
@@ -269,322 +269,271 @@ export function SellerRegister() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-orange-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
-          {/* Header */}
-          <div className="bg-gradient-to-r from-orange-500 to-orange-600 p-8 text-center">
-            <div className="inline-flex items-center justify-center w-20 h-20 bg-white rounded-2xl shadow-lg mb-4 transform hover:scale-105 transition-transform duration-300">
-              <Store className="w-10 h-10 text-orange-500" />
-            </div>
-            <h1 className='text-3xl font-bold text-white mb-2'>Join BazaarPH</h1>
-            <p className='text-orange-100 text-m'>Create your seller account</p>
-          </div>
-
-          {/* Progress Steps */}
-          <div className="px-8 pt-6 pb-4">
-            <div className="flex items-center justify-center gap-2">
-              <div className="flex items-center">
-                <div
-                  className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all duration-300 ${
-                    step >= 1
-                      ? "bg-orange-500 text-white shadow-lg"
-                      : "bg-gray-200 text-gray-500"
-                  }`}
-                >
-                  {step > 1 ? <Check className="w-5 h-5" /> : "1"}
+    <div className="min-h-screen flex items-center justify-center p-4 lg:p-8 font-sans bg-[#FDF8F3]">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="w-full max-w-7xl bg-white rounded-[40px] shadow-[0_32px_64px_-12px_rgba(0,0,0,0.12)] overflow-hidden grid lg:grid-cols-2 min-h-[800px] border border-gray-100"
+      >
+        {/* Left Side */}
+        <div className='hidden lg:flex flex-col justify-center p-16 bg-white relative overflow-hidden'>
+          <div className='relative z-10 max-w-lg'>
+            <div className='space-y-8'>
+              <Quote className='text-orange-500 w-12 h-16 -mb-8 -ml-4 opacity-20'/>
+              <h2 className='text-5xl font-serif italic leading-tight text-gray-900'>
+                "From local hobbyist to premier global seller—BazaarPH provided the bridge I needed to reach my customers, wherever they are."
+              </h2>
+              <div className='flex items-center gap-4'>
+                <div className='w-14 h-14 bg-gray-100 rounded-full overflow-hidden border-2 border-orange-100 shadow-sm flex items-center justify-center'>
+                  <span className='text-orange-500 font-bold'>JC</span>
                 </div>
-              </div>
-              <div
-                className={`h-1 w-16 rounded-full transition-all duration-300 ${
-                  step >= 2 ? "bg-orange-500" : "bg-gray-200"
-                }`}
-              ></div>
-              <div className="flex items-center">
-                <div
-                  className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all duration-300 ${
-                    step >= 2
-                      ? "bg-orange-500 text-white shadow-lg"
-                      : "bg-gray-200 text-gray-500"
-                  }`}
-                >
-                  2
+                <div>
+                  <p className='font-bold text-gray-900 text-xl'>Juan Dela Cruz</p>
+                  <p className='text-orange-600 font-medium'>Premier Online Seller</p>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Error Message */}
-          {error && (
-            <div className="px-8">
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4"
-              >
-                {error}
-              </motion.div>
+          <div className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
+        </div>
+        
+        {/* Right Side */}
+        <div className='p-8 lg:p-16 flex flex-col justify-center bg-[#FFF9F1] relative border-l border-orange-100/50'>
+        
+          <div className='absolute top-0 right-0 w-full h-full opacity-40 pointer-events-none overflow-hidden'>
+            <div className='absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-orange-200 rounded-full blur-[120px]'></div>
+          </div>
+
+          <div className='max-w-md mx-auto w-full relative z-10'>
+            <div className='mb-8 text-center'>
+              <div className='w-16 h-16 bg-white rounded-2xl flex items-center justify-center mb-6 shadow-xl shadow-orange-200/50 mx-auto border border-orange-100'>
+                <img 
+                  src='/BazaarX.png'
+                  className='h-14 w-14 object-obtain'></img>
+              </div>
+              <h1 className='text-4xl font-black text-gray-900 tracking-tight mb-2'>Join BazaarPH</h1>
+              <p className='text-gray-600 font-medium'>Create your seller account to get started.</p>
             </div>
-          )}
-
-          {/* Form */}
-          <div className="p-8 pt-4">
-            <form
-              onSubmit={
-                step === 1
-                  ? (e) => {
-                      e.preventDefault();
-                      handleNext();
-                    }
-                  : handleSubmit
-              }
-              className="space-y-5"
-            >
-              {step === 1 ? (
-                <>
-                  {/* Email Field */}
-                  <div>
-                    <label
-                      htmlFor="email"
-                      className="block text-sm font-semibold text-gray-700 mb-2"
-                    >
-                      Email Address
-                    </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                        <Mail className="h-5 w-5 text-gray-400" />
-                      </div>
-                      <input
-                        type="email"
-                        id="email"
-                        name="email"
-                        value={formData.email}
-                        onChange={handleChange}
-                        className={`w-full pl-12 pr-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 transition-all duration-200 ${
-                          error
-                            ? "border-red-300 focus:border-red-500 focus:ring-red-200"
-                            : "border-gray-200 focus:border-orange-500 focus:ring-orange-200"
-                        }`}
-                        placeholder="Enter your email"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Password Field */}
-                  <div>
-                    <label
-                      htmlFor="password"
-                      className="block text-sm font-semibold text-gray-700 mb-2"
-                    >
-                      Password
-                    </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                        <Lock className="h-5 w-5 text-gray-400" />
-                      </div>
-                      <input
-                        id="password"
-                        name="password"
-                        type={showPassword ? "text" : "password"}
-                        value={formData.password}
-                        onChange={handleChange}
-                        className={`w-full pl-12 pr-12 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 transition-all duration-200 ${
-                          error
-                            ? "border-red-300 focus:border-red-500 focus:ring-red-200"
-                            : "border-gray-200 focus:border-orange-500 focus:ring-orange-200"
-                        }`}
-                        placeholder="Create a password"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600 transition-colors"
-                      >
-                        {showPassword ? (
-                          <EyeOff className="h-5 w-5" />
-                        ) : (
-                          <Eye className="h-5 w-5" />
-                        )}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Confirm Password Field */}
-                  <div>
-                    <label
-                      htmlFor="confirmPassword"
-                      className="block text-sm font-semibold text-gray-700 mb-2"
-                    >
-                      Confirm Password
-                    </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                        <Lock className="h-5 w-5 text-gray-400" />
-                      </div>
-                      <input
-                        id="confirmPassword"
-                        name="confirmPassword"
-                        type={showConfirmPassword ? "text" : "password"}
-                        value={formData.confirmPassword}
-                        onChange={handleChange}
-                        className={`w-full pl-12 pr-12 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 transition-all duration-200 ${
-                          error
-                            ? "border-red-300 focus:border-red-500 focus:ring-red-200"
-                            : "border-gray-200 focus:border-orange-500 focus:ring-orange-200"
-                        }`}
-                        placeholder="Confirm your password"
-                      />
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setShowConfirmPassword(!showConfirmPassword)
-                        }
-                        className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600 transition-colors"
-                      >
-                        {showConfirmPassword ? (
-                          <EyeOff className="h-5 w-5" />
-                        ) : (
-                          <Eye className="h-5 w-5" />
-                        )}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Next Button */}
-                  <button
-                    type="submit"
-                    className="w-full bg-gradient-to-r from-orange-500 to-orange-600 text-white py-3.5 px-6 rounded-xl font-semibold hover:from-orange-600 hover:to-orange-700 focus:outline-none focus:ring-4 focus:ring-orange-200 transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
-                  >
-                    Next: Store Info
-                    <ArrowRight className="w-5 h-5" />
-                  </button>
-                </>
-              ) : (
-                <>
-                  {/* Store Name */}
-                  <div>
-                    <label
-                      htmlFor="storeName"
-                      className="block text-sm font-semibold text-gray-700 mb-2"
-                    >
-                      Store Name *
-                    </label>
-                    <input
-                      id="storeName"
-                      name="storeName"
-                      type="text"
-                      value={formData.storeName}
-                      onChange={handleChange}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-500 transition-all duration-200"
-                      placeholder="Enter your store name"
-                      required
-                    />
-                  </div>
-
-                  {/* Store Description */}
-                  <div>
-                    <label
-                      htmlFor="storeDescription"
-                      className="block text-sm font-semibold text-gray-700 mb-2"
-                    >
-                      Store Description
-                    </label>
-                    <textarea
-                      id="storeDescription"
-                      name="storeDescription"
-                      value={formData.storeDescription}
-                      onChange={handleChange}
-                      rows={3}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-500 transition-all duration-200 resize-none"
-                      placeholder="Describe your store and products"
-                    />
-                  </div>
-
-                  {/* Phone */}
-                  <div>
-                    <label
-                      htmlFor="phone"
-                      className="block text-sm font-semibold text-gray-700 mb-2"
-                    >
-                      Phone Number
-                    </label>
-                    <input
-                      id="phone"
-                      name="phone"
-                      type="tel"
-                      value={formData.phone}
-                      onChange={handleChange}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-500 transition-all duration-200"
-                      placeholder="+63 912 345 6789"
-                    />
-                  </div>
-
-                  {/* Address */}
-                  <div>
-                    <label
-                      htmlFor="storeAddress"
-                      className="block text-sm font-semibold text-gray-700 mb-2"
-                    >
-                      Store Address
-                    </label>
-                    <input
-                      id="storeAddress"
-                      name="storeAddress"
-                      type="text"
-                      value={formData.storeAddress}
-                      onChange={handleChange}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-500 transition-all duration-200"
-                      placeholder="City, Province"
-                    />
-                  </div>
-
-                  {/* Action Buttons */}
-                  <div className="flex gap-3 pt-2">
-                    <button
-                      type="button"
-                      onClick={() => setStep(1)}
-                      className="flex-1 py-3 border-2 border-gray-300 text-gray-700 hover:bg-gray-50 rounded-xl font-semibold transition-colors"
-                    >
-                      Back
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={isLoading}
-                      className="flex-1 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white py-3 font-semibold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl transition-all duration-200"
-                    >
-                      {isLoading ? (
-                        <div className="w-5 h-5 mx-auto border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      ) : (
-                        "Create Account"
-                      )}
-                    </button>
-                  </div>
-                </>
-              )}
-            </form>
-
-            {/* Login Link */}
-            <div className="text-center mt-6">
-              <p className="text-sm text-gray-600">
-                Already have an account?{" "}
-                <Link
-                  to="/seller/login"
-                  className="text-orange-500 hover:text-orange-600 font-semibold transition-colors"
+            
+            {/* Progress */}
+            <div className='flex items-center justify-center gap-3 mb-8'>
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold transition-all shadow-md ${step >= 1 ? 'bg-orange-500 text-white' : 'bg-white text-gray-400 border border-gray-100'}`}>
+                {step > 1 ? <CheckCircle2 size={20} /> : "1"}
+              </div>
+              <div className="w-16 h-1 bg-orange-200/30 rounded-full overflow-hidden">
+                <motion.div 
+                  initial={{ width: "0%" }}
+                  animate={{ width: step === 2 ? "100%" : "0%" }}
+                  className="h-full bg-orange-500"
+                />
+              </div>
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold transition-all shadow-md ${step === 2 ? 'bg-orange-500 text-white' : 'bg-white text-gray-400 border border-gray-100'}`}>
+                2
+              </div>
+            </div>
+            
+            {/* Error */}
+            {error && (
+              <div className="px-8">
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4"
                 >
-                  Sign in here
-                </Link>
+                  {error}
+                </motion.div>
+              </div>
+            )}
+
+
+            {/* Form */}
+            <div>
+              <form className='space-y-5' onSubmit={handleSubmit}>
+                <AnimatePresence mode='wait'>
+                  {step === 1 ? (
+                    <motion.div
+                      key="step1"
+                      initial={{ opacity: 0, x: 10 }} 
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -10 }}
+                      className="space-y-5"
+                    >
+                      {/* Email */}
+                      <div className='space-y-2'>
+                        <label className="text-sm font-bold text-gray-700 ml-1">Email Address</label>
+                        <div className="relative">
+                          <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+                          <input 
+                            type="email"
+                            name="email"
+                            value={formData.email}
+                            onChange={handleChange}
+                            placeholder="Enter your email" 
+                            className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:border-orange-500 outline-none transition-all shadow-sm" 
+                            required
+                            />
+                        </div>
+                      </div>
+
+                      {/* Password */}
+                      <div className="space-y-2">
+                        <label className="text-sm font-bold text-gray-700 ml-1">Password</label>
+                        <div className="relative">
+                          <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+                          <input 
+                            type={showPassword ? "text" : "password"} 
+                            name="password"
+                            value={formData.password}
+                            onChange={handleChange}
+                            placeholder="Create a password" 
+                            className="w-full pl-12 pr-12 py-4 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:border-orange-500 outline-none transition-all shadow-sm" />
+                          <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">
+                            {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-bold text-gray-700 ml-1">
+                          Confirm Password
+                        </label>
+                        <div className="relative">
+                          <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+                          <input
+                            type={showConfirmPassword ? "text" : "password"}
+                            name="confirmPassword"
+                            value={formData.confirmPassword}
+                            onChange={handleChange}
+                            placeholder="Confirm your password"
+                            className="w-full pl-12 pr-12 py-4 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:border-orange-500 outline-none transition-all shadow-sm"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                            className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400"
+                          >
+                            {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Next Button */}
+                      <button
+                        type="button"
+                        onClick={handleNext}
+                        className="w-full bg-orange-600 hover:bg-orange-700 text-white h-14 rounded-2xl 
+                                  text-lg font-bold shadow-xl shadow-orange-200 mt-4
+                                  flex items-center justify-center gap-2
+                                  transition-all"
+                      >
+                        <span>Next: Store Info</span>
+                        <ArrowRight
+                          size={20}
+                          className="transition-transform group-hover:translate-x-1"
+                        />
+                      </button>
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key="step2"
+                      initial={{ opacity: 0, x: 10 }} 
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -10 }}
+                      className="space-y-5"
+                    >
+                      {/* Store Name */}
+                      <div className="space-y-2">
+                        <label className="text-sm font-bold text-gray-700 ml-1">Store Name *</label>
+                        <input 
+                          id="storeName"
+                          name="storeName"
+                          type="text"
+                          value={formData.storeName}
+                          onChange={handleChange}
+                          className="w-full px-5 py-4 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:border-orange-500 outline-none transition-all shadow-sm" 
+                          placeholder="Enter your store name"
+                          required
+                        />
+                      </div>
+
+                      {/* Store Description */}
+                      <div className="space-y-2">
+                        <label className="text-sm font-bold text-gray-700 ml-1">Store Description</label>
+                        <textarea 
+                          id="storeDescription"
+                          name="storeDescription"
+                          value={formData.storeDescription}
+                          onChange={handleChange}
+                          rows={3}
+                          className="w-full px-5 py-4 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:border-orange-500 outline-none transition-all shadow-sm" 
+                          placeholder="Describe your store and products"
+                        />
+                      </div>
+
+                      {/* Phone */}
+                      <div className="space-y-2">
+                        <label className="text-sm font-bold text-gray-700 ml-1">Phone Number</label>
+                        <div className="relative">
+                          <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+                          <input 
+                            id="phone"
+                            name="phone"
+                            type="tel"
+                            value={formData.phone}
+                            onChange={handleChange} 
+                            className="w-full pl-10 pr-4 py-4 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:border-orange-500 outline-none transition-all shadow-sm" 
+                            placeholder='+63 912 345 6789'
+                          />
+                        </div>
+                      </div>
+
+                      {/* Address */}
+                      <div className="space-y-2">
+                        <label className="text-sm font-bold text-gray-700 ml-1">Store Address</label>
+                        <input 
+                         id="storeAddress"
+                          name="storeAddress"
+                          type="text"
+                          value={formData.storeAddress}
+                          onChange={handleChange}
+                          className="w-full px-5 py-4 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:border-orange-500 outline-none transition-all shadow-sm" 
+                          placeholder="City, Province"
+                        />
+                      </div>
+
+                      <div className='flex gap-3 mt-4'>
+                        <button 
+                          type="button" 
+                          onClick={() => setStep(1)} 
+                          className="flex-1 h-14 rounded-2xl font-bold text-gray-500 hover:bg-gray-50"
+                        >
+                          Back
+                        </button>
+                        <button
+                          type="submit" 
+                          className="flex-[2] bg-orange-600 hover:bg-orange-700 text-white h-14 rounded-2xl font-bold shadow-lg shadow-orange-200"
+                        >
+                          Create Account
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </form>
+            </div>
+
+            <div className='mt-8 text-center'>
+              <p className='text-gray-500 font-medium'>
+                Already have an account? <Link to="/seller/login" className="text-orange-600 font-bold hover:underline ml-1">Sign in</Link>
               </p>
-            </div>
-
-            {/* Back to Shop */}
-            <div className='text-center mt-4'>
-              <Link to='/' className='text-m text-gray-500 hover:text-gray-700 transition-colors'>
+              <Link to="/" className="inline-block mt-4 text-m font-semibold text-gray-400 hover:text-gray-600 transition-colors">
                 ← Back to BazaarPH
               </Link>
             </div>
           </div>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }
