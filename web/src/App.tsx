@@ -80,16 +80,14 @@ function App() {
           <Route path="/collections" element={<CollectionsPage />} />
           <Route path="/stores" element={<StoresPage />} />
           <Route path="/product/:id" element={<ProductDetailPage />} />
-          <Route
-            path="/enhanced-cart"
+          <Route path="/enhanced-cart"
             element={
               <ProtectedBuyerRoute>
                 <EnhancedCartPage />
               </ProtectedBuyerRoute>
             }
           />
-          <Route
-            path="/checkout"
+          <Route path="/checkout"
             element={
               <ProtectedBuyerRoute>
                 <CheckoutPage />
@@ -112,16 +110,14 @@ function App() {
               </ProtectedBuyerRoute>
             }
           />
-          <Route
-            path="/orders"
+          <Route path="/orders"
             element={
               <ProtectedBuyerRoute>
                 <OrdersPage />
               </ProtectedBuyerRoute>
             }
           />
-          <Route
-            path="/order/:orderId"
+          <Route path="/order/:orderId"
             element={
               <ProtectedBuyerRoute>
                 <OrderDetailPage />
@@ -129,8 +125,7 @@ function App() {
             }
           />
 
-          <Route
-            path="/profile"
+          <Route path="/profile"
             element={
               <ProtectedBuyerRoute>
                 <BuyerProfilePage />
@@ -139,24 +134,21 @@ function App() {
           />
           <Route path="/seller/:sellerId" element={<SellerStorefrontPage />} />
           <Route path="/reviews" element={<ReviewsPage />} />
-          <Route
-            path="/my-reviews"
+          <Route path="/my-reviews"
             element={
               <ProtectedBuyerRoute>
                 <BuyerReviewsPage />
               </ProtectedBuyerRoute>
             }
           />
-          <Route
-            path="/following"
+          <Route path="/following"
             element={
               <ProtectedBuyerRoute>
                 <BuyerFollowingPage />
               </ProtectedBuyerRoute>
             }
           />
-          <Route
-            path="/settings"
+          <Route path="/settings"
             element={
               <ProtectedBuyerRoute>
                 <BuyerSettingsPage />

@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import * as cartService from '@/services/cartService';
-import { getCurrentUser } from '@/lib/supabase';
+import { getCurrentUser, supabase } from '@/lib/supabase';
+import { ReactNode } from 'react';
 
 // Enhanced interfaces for buyer features
 export interface Seller {
@@ -105,6 +106,8 @@ export interface Review {
 }
 
 export interface Address {
+  lastName: string;
+  firstName: string;
   id: string;
   label: string;
   fullName: string;
@@ -113,6 +116,7 @@ export interface Address {
   barangay: string;
   city: string;
   province: string;
+  region: string;
   postalCode: string;
   isDefault: boolean;
   coordinates?: {
@@ -168,10 +172,12 @@ interface BuyerStore {
 
   // Address Book
   addresses: Address[];
-  addAddress: (address: Omit<Address, 'id'>) => void;
+  setAddresses: (addresses: Address[]) => void;
+  addAddress: (address: Address) => void;
   updateAddress: (id: string, updates: Partial<Address>) => void;
   deleteAddress: (id: string) => void;
   setDefaultAddress: (id: string) => void;
+
 
   // Following Shops
   followedShops: string[]; // seller IDs
@@ -293,46 +299,45 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       }
       set({ profile });
     },
-    updateProfile: (updates) => set((state) => ({
-      profile: state.profile ? { ...state.profile, ...updates } : null
-    })),
+
+    // --- Update this inside useBuyerStore definition ---
+    updateProfile: async (updates) => {
+      const currentProfile = get().profile;
+      if (!currentProfile) return;
+
+      try {
+        // 1. Update Supabase database
+        const { error } = await supabase
+          .from('buyers')
+          .update(updates) // This will update the 'bazcoins' column if included in updates
+          .eq('id', currentProfile.id);
+
+        if (error) throw error;
+
+        // 2. Update local Zustand state only if DB update succeeds
+        set((state) => ({
+          profile: state.profile ? { ...state.profile, ...updates } : null
+        }));
+      } catch (err) {
+        console.error("Failed to update profile in database:", err);
+        // Optional: Add toast notification for error
+      }
+    },
+
     logout: () => set({ profile: null, cartItems: [], groupedCart: {}, appliedVouchers: {}, platformVoucher: null }),
 
     // Address Book
-    addresses: [
-      {
-        id: 'addr-1',
-        label: 'Home',
-        fullName: 'Maria Santos',
-        phone: '+63917123456',
-        street: '123 Rizal Street',
-        barangay: 'Barangay San Antonio',
-        city: 'Makati',
-        province: 'Metro Manila',
-        postalCode: '1200',
-        isDefault: true
-      },
-      {
-        id: 'addr-2',
-        label: 'Office',
-        fullName: 'Maria Santos',
-        phone: '+63917123456',
-        street: '456 Ayala Avenue',
-        barangay: 'Barangay Poblacion',
-        city: 'Makati',
-        province: 'Metro Manila',
-        postalCode: '1226',
-        isDefault: false
-      }
-    ],
+    addresses: [],
+
+    setAddresses: (addresses) => set({ addresses }),
 
     addAddress: (address) => set((state) => ({
-      addresses: [...state.addresses, { ...address, id: `addr-${Date.now()}` }]
+      addresses: [...state.addresses, address]
     })),
 
-    updateAddress: (id, updates) => set((state) => ({
+    updateAddress: (id, updatedAddress) => set((state) => ({
       addresses: state.addresses.map(addr =>
-        addr.id === id ? { ...addr, ...updates } : addr
+        addr.id === id ? { ...addr, ...updatedAddress } : addr
       )
     })),
 
@@ -696,7 +701,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
     // Cart Selection Actions
     toggleItemSelection: (productId, variantId) => {
       set((state) => ({
-        cartItems: state.cartItems.map(item => 
+        cartItems: state.cartItems.map(item =>
           item.id === productId && item.selectedVariant?.id === variantId
             ? { ...item, selected: !item.selected }
             : item
@@ -707,7 +712,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
 
     toggleSellerSelection: (sellerId, selected) => {
       set((state) => ({
-        cartItems: state.cartItems.map(item => 
+        cartItems: state.cartItems.map(item =>
           item.sellerId === sellerId
             ? { ...item, selected }
             : item
@@ -724,74 +729,74 @@ export const useBuyerStore = create<BuyerStore>()(persist(
     },
 
     removeSelectedItems: async () => {
-        const user = await getCurrentUser();
-        const selectedItems = get().cartItems.filter(item => item.selected);
-        
-        if (user) {
-            try {
-                const cart = await cartService.getOrCreateCart(user.id);
-                if (cart) {
-                    const dbItems = await cartService.getCartItems(cart.id);
-                    // Match selected items with DB items to delete
-                    // Ideally we should have the DB ID in cartItems, leveraging product_id matching for now
-                    for (const item of selectedItems) {
-                         const dbItem = dbItems.find(i => i.product_id === item.id && i.selected_variant?.id === item.selectedVariant?.id);
-                         if (dbItem) {
-                             await cartService.removeFromCart(dbItem.id);
-                         }
-                    }
-                }
-            } catch (error) {
-                console.error('Error removing selected items from DB:', error);
-            }
-        }
+      const user = await getCurrentUser();
+      const selectedItems = get().cartItems.filter(item => item.selected);
 
-        set((state) => ({
-            cartItems: state.cartItems.filter(item => !item.selected)
-        }));
-        get().groupCartBySeller();
+      if (user) {
+        try {
+          const cart = await cartService.getOrCreateCart(user.id);
+          if (cart) {
+            const dbItems = await cartService.getCartItems(cart.id);
+            // Match selected items with DB items to delete
+            // Ideally we should have the DB ID in cartItems, leveraging product_id matching for now
+            for (const item of selectedItems) {
+              const dbItem = dbItems.find(i => i.product_id === item.id && i.selected_variant?.id === item.selectedVariant?.id);
+              if (dbItem) {
+                await cartService.removeFromCart(dbItem.id);
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Error removing selected items from DB:', error);
+        }
+      }
+
+      set((state) => ({
+        cartItems: state.cartItems.filter(item => !item.selected)
+      }));
+      get().groupCartBySeller();
     },
 
     getSelectedTotal: () => {
-        const { groupedCart, appliedVouchers, platformVoucher } = get();
-        let total = 0;
-  
-        Object.entries(groupedCart).forEach(([sellerId, group]) => {
-          // Calculate subtotal for SELECTED items in this group
-          const selectedSubtotal = group.items
-            .filter(item => item.selected)
-            .reduce((sum, item) => sum + (item.selectedVariant?.price || item.price) * item.quantity, 0);
+      const { groupedCart, appliedVouchers, platformVoucher } = get();
+      let total = 0;
 
-           if (selectedSubtotal === 0) return;
+      Object.entries(groupedCart).forEach(([sellerId, group]) => {
+        // Calculate subtotal for SELECTED items in this group
+        const selectedSubtotal = group.items
+          .filter(item => item.selected)
+          .reduce((sum, item) => sum + (item.selectedVariant?.price || item.price) * item.quantity, 0);
 
-          let groupTotal = selectedSubtotal;
-          
-          // Only add shipping if there are selected items
-          // Assuming shipping fee logic might need adjustment if partial items selected -> simplest is keep shipping if ANY item in group selected
-           const hasSelectedItems = group.items.some(item => item.selected);
-           if (hasSelectedItems) {
-               groupTotal += group.shippingFee;
-           }
-  
-          // Apply seller voucher
-          const sellerVoucher = appliedVouchers[sellerId];
-          if (sellerVoucher) {
-            groupTotal -= get().calculateDiscount(selectedSubtotal, sellerVoucher);
-          }
-  
-          total += groupTotal;
-        });
-  
-        // Apply platform voucher
-        if (platformVoucher) {
-          total -= get().calculateDiscount(total, platformVoucher);
+        if (selectedSubtotal === 0) return;
+
+        let groupTotal = selectedSubtotal;
+
+        // Only add shipping if there are selected items
+        // Assuming shipping fee logic might need adjustment if partial items selected -> simplest is keep shipping if ANY item in group selected
+        const hasSelectedItems = group.items.some(item => item.selected);
+        if (hasSelectedItems) {
+          groupTotal += group.shippingFee;
         }
-  
-        return Math.max(0, total);
+
+        // Apply seller voucher
+        const sellerVoucher = appliedVouchers[sellerId];
+        if (sellerVoucher) {
+          groupTotal -= get().calculateDiscount(selectedSubtotal, sellerVoucher);
+        }
+
+        total += groupTotal;
+      });
+
+      // Apply platform voucher
+      if (platformVoucher) {
+        total -= get().calculateDiscount(total, platformVoucher);
+      }
+
+      return Math.max(0, total);
     },
 
     getSelectedCount: () => {
-        return get().cartItems.filter(item => item.selected).reduce((total, item) => total + item.quantity, 0);
+      return get().cartItems.filter(item => item.selected).reduce((total, item) => total + item.quantity, 0);
     },
 
     // Reviews & Ratings
