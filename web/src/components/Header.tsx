@@ -9,6 +9,7 @@ import {
   ChevronDown,
   ShoppingBag,
   Camera,
+  Headset,
 } from "lucide-react";
 import { NotificationsDropdown } from "./NotificationsDropdown";
 import { useBuyerStore } from "../stores/buyerStore";
@@ -70,10 +71,9 @@ const Header: React.FC = () => {
             </div>
           </div>
 
-          {/* Search Bar - Centered */}
           {!isSearchPage && (
-            <div className="hidden sm:flex flex-1 max-w-2xl px-4 lg:px-8 mx-auto">
-              <div className="relative w-full group">
+            <div className="hidden md:flex flex-1 items-center justify-center lg:absolute lg:left-1/2 lg:-translate-x-1/2 lg:w-full lg:max-w-2xl px-4 lg:px-8">
+              <div className="relative w-full max-w-xl lg:max-w-full group">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                   <svg
                     className="h-5 w-5 text-gray-400"
@@ -117,12 +117,11 @@ const Header: React.FC = () => {
           )}
 
           {/* Right Navigation */}
-          <div className="flex items-center justify-end gap-2 sm:gap-4 lg:gap-6 text-gray-700">
-            {/* Mobile Search Icon */}
+          <div className="flex items-center justify-end gap-2 sm:gap-4 lg:gap-6 text-gray-700 shrink-0">
             {!isSearchPage && (
               <button
                 onClick={() => navigate("/search")}
-                className="sm:hidden p-2 hover:bg-gray-100 rounded-full transition-colors"
+                className="md:hidden p-2 hover:bg-gray-100 rounded-full transition-colors"
               >
                 <svg
                   className="h-6 w-6"
@@ -185,6 +184,15 @@ const Header: React.FC = () => {
             {/* Notifications */}
             <NotificationsDropdown />
 
+            {/* Customer Service */}
+            <button
+              onClick={() => navigate("/support")}
+              className="relative p-2 hover:text-[#ff6a00] hover:bg-gray-50 rounded-full transition-colors"
+              title="Customer Service"
+            >
+              <Headset className="h-6 w-6" />
+            </button>
+
             {/* Profile */}
             <div className="relative" ref={profileMenuRef}>
               {profile ? (
@@ -238,7 +246,7 @@ const Header: React.FC = () => {
                             </span>
                             <div className="flex items-center gap-1 mt-0.5">
                               <div className="w-3 h-3 bg-yellow-400 rounded-full flex items-center justify-center">
-                                  <span className="text-[8px] font-bold text-white">B</span>
+                                <span className="text-[8px] font-bold text-white">B</span>
                               </div>
                               <span className="text-xs text-gray-500">{profile.bazcoins} Bazcoins</span>
                             </div>
