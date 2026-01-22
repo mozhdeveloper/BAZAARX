@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import * as cartService from '@/services/cartService';
-import { getCurrentUser } from '@/lib/supabase';
+import { getCurrentUser, supabase } from '@/lib/supabase';
 import { ReactNode } from 'react';
 
 // Enhanced interfaces for buyer features
@@ -299,9 +299,31 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       }
       set({ profile });
     },
-    updateProfile: (updates) => set((state) => ({
-      profile: state.profile ? { ...state.profile, ...updates } : null
-    })),
+
+    // --- Update this inside useBuyerStore definition ---
+    updateProfile: async (updates) => {
+      const currentProfile = get().profile;
+      if (!currentProfile) return;
+
+      try {
+        // 1. Update Supabase database
+        const { error } = await supabase
+          .from('buyers')
+          .update(updates) // This will update the 'bazcoins' column if included in updates
+          .eq('id', currentProfile.id);
+
+        if (error) throw error;
+
+        // 2. Update local Zustand state only if DB update succeeds
+        set((state) => ({
+          profile: state.profile ? { ...state.profile, ...updates } : null
+        }));
+      } catch (err) {
+        console.error("Failed to update profile in database:", err);
+        // Optional: Add toast notification for error
+      }
+    },
+
     logout: () => set({ profile: null, cartItems: [], groupedCart: {}, appliedVouchers: {}, platformVoucher: null }),
 
     // Address Book
