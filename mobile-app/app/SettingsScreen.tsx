@@ -1,16 +1,36 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet, Switch } from 'react-native';
+import { View, Text, ScrollView, Pressable, StyleSheet, Switch, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Globe, DollarSign, Moon, Volume2, Download } from 'lucide-react-native';
+import { ArrowLeft, Globe, DollarSign, Moon, Volume2, Download, RefreshCw } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
+import { useAuthStore } from '../src/stores/authStore';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Settings'>;
 
 export default function SettingsScreen({ navigation }: Props) {
+  const resetOnboarding = useAuthStore((state) => state.resetOnboarding);
   const [darkMode, setDarkMode] = useState(false);
   const [soundEffects, setSoundEffects] = useState(true);
   const [autoDownload, setAutoDownload] = useState(false);
+
+  const handleResetOnboarding = () => {
+    Alert.alert(
+      'Reset Onboarding',
+      'This will reset your onboarding status. You will see the onboarding screen on next launch.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Reset', 
+          style: 'destructive',
+          onPress: () => {
+            resetOnboarding();
+            Alert.alert('Success', 'Onboarding status reset. Please restart the app.');
+          }
+        }
+      ]
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -124,6 +144,28 @@ export default function SettingsScreen({ navigation }: Props) {
                 thumbColor="#FFFFFF"
               />
             </View>
+          </View>
+        </View>
+
+        {/* Developer Options */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Developer Options</Text>
+          
+          <View style={styles.settingCard}>
+            <Pressable 
+              style={styles.settingItem}
+              onPress={handleResetOnboarding}
+            >
+              <View style={styles.settingLeft}>
+                <View style={[styles.iconContainer, { backgroundColor: '#FEE2E2' }]}>
+                  <RefreshCw size={20} color="#EF4444" />
+                </View>
+                <View style={styles.settingTextContainer}>
+                  <Text style={styles.settingTitle}>Reset Onboarding</Text>
+                  <Text style={styles.settingSubtitle}>Show onboarding screen again</Text>
+                </View>
+              </View>
+            </Pressable>
           </View>
         </View>
 

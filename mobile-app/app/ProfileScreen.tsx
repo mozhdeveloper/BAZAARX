@@ -12,6 +12,7 @@ import { useWishlistStore } from '../src/stores/wishlistStore';
 import { supabase } from '../src/lib/supabase';
 import { COLORS } from '../src/constants/theme';
 import { decode } from 'base64-arraybuffer';
+import { GuestLoginModal } from '../src/components/GuestLoginModal';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<TabParamList, 'Profile'>,
@@ -19,10 +20,13 @@ type Props = CompositeScreenProps<
 >;
 
 export default function ProfileScreen({ navigation }: Props) {
-  const { user, logout, updateProfile } = useAuthStore();
+  const { user, logout, updateProfile, isGuest } = useAuthStore();
   const wishlistItems = useWishlistStore(state => state.items);
   const insets = useSafeAreaInsets();
   const BRAND_COLOR = COLORS.primary;
+
+  // Guest Modal State
+  const [showGuestModal, setShowGuestModal] = React.useState(false);
 
   // Edit State
   const [editModalVisible, setEditModalVisible] = React.useState(false);
@@ -32,6 +36,8 @@ export default function ProfileScreen({ navigation }: Props) {
   const [editEmail, setEditEmail] = React.useState('');
   const [editAvatar, setEditAvatar] = React.useState('');
   const [isSaving, setIsSaving] = React.useState(false);
+
+
 
   const openEditModal = () => {
     setEditFirstName(user?.name.split(' ')[0] || '');
@@ -184,6 +190,64 @@ export default function ProfileScreen({ navigation }: Props) {
     { icon: Shield, label: 'Privacy Policy', onPress: () => navigation.navigate('PrivacyPolicy') },
   ];
 
+
+  if (isGuest) {
+    return (
+      <View style={styles.container}>
+        <StatusBar barStyle="light-content" />
+        <View style={[styles.header, { paddingTop: insets.top + 20, backgroundColor: BRAND_COLOR }]}>
+          <View style={styles.profileHeader}>
+             <View style={styles.avatarWrapper}>
+                <View style={styles.avatarCircle}>
+                  <User size={50} color={BRAND_COLOR} strokeWidth={1.5} />
+                </View>
+             </View>
+             <View style={styles.headerInfo}>
+               <Text style={styles.userName}>Guest User</Text>
+               <Text style={styles.userSub}>Welcome to BazaarX!</Text>
+             </View>
+          </View>
+        </View>
+
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          {/* Main Actions for Guest */}
+          <View style={styles.card}>
+             <Pressable style={[styles.menuItem, styles.borderBottom]} onPress={() => navigation.getParent()?.navigate('Login')}>
+                <View style={[styles.iconContainer, { backgroundColor: '#FFF5F0' }]}>
+                   <User size={20} color={BRAND_COLOR} strokeWidth={2} />
+                </View>
+                <Text style={styles.menuLabel}>Login / Sign Up</Text>
+                <ChevronRight size={18} color="#D1D5DB" />
+             </Pressable>
+
+             <Pressable style={styles.menuItem} onPress={() => navigation.navigate('SellerLogin')}>
+                <View style={[styles.iconContainer, { backgroundColor: '#FFF5F0' }]}>
+                   <Store size={20} color={BRAND_COLOR} strokeWidth={2} />
+                </View>
+                <Text style={styles.menuLabel}>Start Selling</Text>
+                <ChevronRight size={18} color="#D1D5DB" />
+             </Pressable>
+          </View>
+
+           <View style={[styles.menuGroup, { marginTop: 25 }]}>
+              <Text style={styles.groupTitle}>Support</Text>
+              <View style={styles.card}>
+                {supportMenuItems.map((item, i) => (
+                  <Pressable key={i} style={[styles.menuItem, i !== supportMenuItems.length - 1 && styles.borderBottom]} onPress={item.onPress}>
+                    <View style={styles.iconContainer}>
+                      <item.icon size={20} color="#6B7280" strokeWidth={2} />
+                    </View>
+                    <Text style={styles.menuLabel}>{item.label}</Text>
+                    <ChevronRight size={18} color="#D1D5DB" />
+                  </Pressable>
+                ))}
+              </View>
+           </View>
+        </ScrollView>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
@@ -253,6 +317,19 @@ export default function ProfileScreen({ navigation }: Props) {
                 <ChevronRight size={18} color="#D1D5DB" />
               </Pressable>
             ))}
+          </View>
+        </View>
+
+        <View style={styles.menuGroup}>
+          <Text style={styles.groupTitle}>Selling</Text>
+          <View style={styles.card}>
+             <Pressable style={styles.menuItem} onPress={() => navigation.navigate('SellerLogin')}>
+                <View style={[styles.iconContainer, { backgroundColor: '#FFF5F0' }]}>
+                   <Store size={20} color={BRAND_COLOR} strokeWidth={2} />
+                </View>
+                <Text style={styles.menuLabel}>Start Selling</Text>
+                <ChevronRight size={18} color="#D1D5DB" />
+             </Pressable>
           </View>
         </View>
 
@@ -343,6 +420,17 @@ export default function ProfileScreen({ navigation }: Props) {
           </View>
         </View>
       </Modal>
+
+      <GuestLoginModal
+        visible={showGuestModal}
+        onClose={() => {
+          // Just navigate home without hiding the modal first to prevent revealing the profile screen
+          navigation.navigate('Home');
+        }}
+        message="Sign up to view your profile and orders."
+        hideCloseButton={true}
+        cancelText="Go back to Home"
+      />
     </View >
   );
 }

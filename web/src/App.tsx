@@ -41,6 +41,7 @@ import { SellerReviews } from "./pages/SellerReviews";
 import { SellerAnalytics } from "./pages/SellerAnalytics";
 import { SellerSettings } from "./pages/SellerSettings";
 import SellerFlashSales from "./pages/SellerFlashSales";
+import SellerDiscounts from "./pages/SellerDiscounts";
 import SellerMessages from "./pages/SellerMessages";
 import SellerProductStatus from "./pages/SellerProductStatus";
 import SellerPOS from "./pages/SellerPOS";
@@ -240,6 +241,14 @@ function App() {
             element={
               <ProtectedSellerRoute>
                 <SellerFlashSales />
+              </ProtectedSellerRoute>
+            }
+          />
+          <Route
+            path="/seller/discounts"
+            element={
+              <ProtectedSellerRoute>
+                <SellerDiscounts />
               </ProtectedSellerRoute>
             }
           />
