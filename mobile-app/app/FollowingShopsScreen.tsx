@@ -33,17 +33,31 @@ export default function FollowingShopsScreen({ navigation }: Props) {
         navigation.navigate('StoreDetail', { store: shop });
     };
 
+    if (isGuest) {
+        return (
+            <SafeAreaView style={styles.container} edges={['top']}>
+                <View style={styles.header}>
+                    <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
+                        <ArrowLeft size={24} color="#111827" />
+                    </Pressable>
+                    <Text style={styles.headerTitle}>Following Shops</Text>
+                    <View style={styles.placeholder} />
+                </View>
+                <GuestLoginModal
+                    visible={true}
+                    onClose={() => {
+                        navigation.navigate('MainTabs', { screen: 'Home' });
+                    }}
+                    message="Sign up to follow stores."
+                    hideCloseButton={true}
+                    cancelText="Go back to Home"
+                />
+            </SafeAreaView>
+        );
+    }
+
     return (
         <SafeAreaView style={styles.container} edges={['top']}>
-            <GuestLoginModal
-                visible={showGuestModal}
-                onClose={() => {
-                    navigation.navigate('MainTabs', { screen: 'Home' });
-                }}
-                message="Sign up to follow stores."
-                hideCloseButton={true}
-                cancelText="Go back to Home"
-            />
             {/* Header */}
             <View style={styles.header}>
                 <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>

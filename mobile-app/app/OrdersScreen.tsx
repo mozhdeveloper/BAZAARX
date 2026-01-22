@@ -48,28 +48,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
     }
   }, [route.params]);
 
-  if (isGuest) {
-    return (
-        <View style={styles.container}>
-            <View style={[styles.headerContainer, { paddingTop: 60, backgroundColor: COLORS.primary }]}>
-                <View style={styles.headerTop}>
-                    <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-                        <ArrowLeft size={24} color="#FFF" strokeWidth={2.5} />
-                    </Pressable>
-                    <Text style={styles.headerTitle}>My Orders</Text>
-                    <View style={{ width: 40 }} />
-                </View>
-            </View>
-            <GuestLoginModal
-                visible={true}
-                onClose={() => navigation.navigate('MainTabs', { screen: 'Home' })} // Explicit navigation
-                message="Sign up to track your orders."
-                hideCloseButton={true}
-                cancelText="Go back to Home"
-            />
-        </View>
-    );
-  }
+
 
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -193,6 +172,29 @@ export default function OrdersScreen({ navigation, route }: Props) {
         );
     }
   };
+
+  if (isGuest) {
+    return (
+        <View style={styles.container}>
+            <View style={[styles.headerContainer, { paddingTop: 60, backgroundColor: COLORS.primary }]}>
+                <View style={styles.headerTop}>
+                    <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
+                        <ArrowLeft size={24} color="#FFF" strokeWidth={2.5} />
+                    </Pressable>
+                    <Text style={styles.headerTitle}>My Orders</Text>
+                    <View style={{ width: 40 }} />
+                </View>
+            </View>
+            <GuestLoginModal
+                visible={true}
+                onClose={() => navigation.navigate('MainTabs', { screen: 'Home' })} // Explicit navigation
+                message="Sign up to track your orders."
+                hideCloseButton={true}
+                cancelText="Go back to Home"
+            />
+        </View>
+    );
+  }
 
   return (
     <View style={styles.container}>

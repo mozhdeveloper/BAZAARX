@@ -43,6 +43,32 @@ export default function CartScreen({ navigation }: Props) {
   const shippingFee = subtotal > 500 || subtotal === 0 ? 0 : 50;
   const total = subtotal + shippingFee;
 
+  const { isGuest } = useAuthStore();
+
+  if (isGuest) {
+    return (
+      <View style={styles.container}>
+        <StatusBar barStyle="light-content" />
+        <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: BRAND_COLOR }]}>
+          <View style={styles.headerTop}>
+            <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
+              <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
+            </Pressable>
+            <Text style={styles.headerTitle}>My Cart</Text>
+            <View style={{ width: 40 }} />
+          </View>
+        </View>
+        <GuestLoginModal
+            visible={true}
+            onClose={() => navigation.navigate('MainTabs', { screen: 'Home' })}
+            message="Sign up to view your cart."
+            hideCloseButton={true}
+            cancelText="Go back to Home"
+        />
+      </View>
+    );
+  }
+
   const isAllSelected = items.length > 0 && selectedIds.length === items.length;
 
   const toggleSelectAll = () => {
