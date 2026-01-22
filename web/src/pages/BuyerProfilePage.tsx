@@ -294,6 +294,9 @@ export default function BuyerProfilePage() {
           .from('addresses')
           .update({ is_default: false })
           .eq('user_id', profile.id);
+
+        const updatedLocalAddresses = addresses.map(addr => ({ ...addr, isDefault: false }));
+        setAddresses(updatedLocalAddresses);
       }
 
       const dbPayload = {
