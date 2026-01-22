@@ -1,30 +1,49 @@
-'use client';
+"use client";
 
-import React from 'react';
-import Lenis from '@studio-freight/lenis';
+import React from "react";
+import Lenis from "@studio-freight/lenis";
 
 interface SmoothScrollProviderProps {
-	children: React.ReactNode;
+  children: React.ReactNode;
 }
 
 export function SmoothScrollProvider({ children }: SmoothScrollProviderProps) {
-	React.useEffect(() => {
-		const lenis = new Lenis({
-			duration: 1.4,
-			easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
-		});
+  React.useEffect(() => {
+    const prefersReducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    if (prefersReducedMotion) return;
 
-		function raf(time: number) {
-			lenis.raf(time);
-			requestAnimationFrame(raf);
-		}
+    const lenis = new Lenis({
+      duration: 1.2,
+      smoothWheel: true, // Changed to true
+      wheelMultiplier: 1, // Reduced multiplier
+      touchMultiplier: 2,
+      infinite: false,
+    });
 
-		requestAnimationFrame(raf);
+    const raf = (time: number) => {
+      lenis.raf(time);
+      requestAnimationFrame(raf);
+    };
 
-		return () => {
-			lenis.destroy();
-		};
-	}, []);
+    requestAnimationFrame(raf);
 
-	return <>{children}</>;
+    const handleVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        lenis.stop();
+      } else {
+        lenis.start();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      lenis.destroy();
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, []);
+
+  return <>{children}</>;
 }
