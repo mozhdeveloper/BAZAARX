@@ -238,16 +238,6 @@ export default function LoginScreen({ navigation }: Props) {
             <Text style={styles.sellerPortalText}>Access Seller Portal</Text>
             <ArrowRight size={18} color="#FF5722" />
           </Pressable>
-
-          {/* Admin Portal Link */}
-          <Pressable
-            style={styles.adminPortalButton}
-            onPress={() => navigation.navigate('AdminStack')}
-          >
-            <Shield size={20} color="#8B5CF6" strokeWidth={2.5} />
-            <Text style={styles.adminPortalText}>Admin Portal</Text>
-            <ArrowRight size={18} color="#8B5CF6" />
-          </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
