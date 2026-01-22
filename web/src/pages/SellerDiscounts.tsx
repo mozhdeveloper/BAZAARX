@@ -15,6 +15,9 @@ import {
   Percent,
   LogOut,
   Zap,
+  ShoppingBag,
+  Eye,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
@@ -42,12 +45,13 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { discountService } from "@/services/discountService";
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import { AddProductsToCampaignDialog } from "@/components/AddProductsToCampaignDialog";
 import type {
   DiscountCampaign,
   CampaignType,
   DiscountType,
   AppliesTo,
+  ProductDiscount,
 } from "@/types/discount";
 import {
   campaignTypeLabels as typeLabels,
@@ -138,6 +142,11 @@ export default function SellerDiscounts() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingCampaign, setEditingCampaign] = useState<DiscountCampaign | null>(null);
+  const [isProductDialogOpen, setIsProductDialogOpen] = useState(false);
+  const [selectedCampaignForProducts, setSelectedCampaignForProducts] = useState<DiscountCampaign | null>(null);
+  const [isViewProductsDialogOpen, setIsViewProductsDialogOpen] = useState(false);
+  const [viewingCampaign, setViewingCampaign] = useState<DiscountCampaign | null>(null);
+  const [campaignProducts, setCampaignProducts] = useState<Record<string, ProductDiscount[]>>({});
 
   const { seller, logout } = useAuthStore();
   const navigate = useNavigate();
@@ -168,7 +177,22 @@ export default function SellerDiscounts() {
     try {
       setLoading(true);
       const data = await discountService.getCampaignsBySeller(seller.id);
-      setCampaigns(data || []);
+      setCampaigns((data || []) as DiscountCampaign[]);
+      
+      // Fetch product counts for each campaign
+      const productCounts: Record<string, ProductDiscount[]> = {};
+      for (const campaign of (data || []) as DiscountCampaign[]) {
+        if (campaign.appliesTo === "specific_products") {
+          try {
+            const products = await discountService.getProductsInCampaign(campaign.id);
+            productCounts[campaign.id] = products;
+          } catch (error) {
+            console.error(`Failed to fetch products for campaign ${campaign.id}:`, error);
+            productCounts[campaign.id] = [];
+          }
+        }
+      }
+      setCampaignProducts(productCounts);
     } catch (error) {
       console.error("Failed to fetch campaigns:", error);
       toast({
@@ -331,19 +355,30 @@ export default function SellerDiscounts() {
   };
 
   // Toggle pause/resume
-  const handleTogglePause = async (id: string, isPaused: boolean) => {
+  const handleTogglePause = async (id: string, currentStatus: string) => {
+    
     try {
-      await discountService.toggleCampaignStatus(id, !isPaused);
+      const isPaused = currentStatus === "paused";
+      const shouldPause = !isPaused; // If currently active, we want to pause (true). If paused, we want to resume (false).
+      
+      const result = await discountService.toggleCampaignStatus(id, shouldPause);
+      console.log('🎯 Result from service:', result);
+      console.log('🎯 New status from result:', result.status);
+      
       toast({
         title: isPaused ? "Campaign Resumed" : "Campaign Paused",
         description: `Campaign has been ${isPaused ? "resumed" : "paused"}.`,
       });
-      fetchCampaigns();
+      
+      console.log('🔄 About to refresh campaigns...');
+      await fetchCampaigns();
+      console.log('✅ Campaigns refreshed');
+      console.log('📊 Current campaigns state:', campaigns.map(c => ({ id: c.id, name: c.name, status: c.status })));
     } catch (error) {
-      console.error("Failed to toggle campaign:", error);
+      console.error("❌ Failed to toggle campaign:", error);
       toast({
         title: "Error",
-        description: "Failed to update campaign status.",
+        description: error instanceof Error ? error.message : "Failed to update campaign status.",
         variant: "destructive",
       });
     }
@@ -584,6 +619,16 @@ export default function SellerDiscounts() {
                           <Package className="h-4 w-4" />
                           <span>{campaign.usageCount} used</span>
                         </div>
+                        <div className="flex items-center gap-1">
+                          <ShoppingBag className="h-4 w-4" />
+                          <span>
+                            {campaign.appliesTo === "all_products"
+                              ? "All Products"
+                              : campaign.appliesTo === "specific_products"
+                              ? `${campaignProducts[campaign.id]?.length || 0} Products`
+                              : "Categories"}
+                          </span>
+                        </div>
                         {campaign.status === "active" && (
                           <CountdownTimer endDate={campaign.endsAt} />
                         )}
@@ -602,6 +647,34 @@ export default function SellerDiscounts() {
                     </div>
 
                     <div className="flex items-center gap-2">
+                      {campaign.appliesTo === "specific_products" && (
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setViewingCampaign(campaign);
+                              setIsViewProductsDialogOpen(true);
+                            }}
+                            className="text-xs"
+                          >
+                            <Eye className="h-3 w-3 mr-1" />
+                            View Products ({campaignProducts[campaign.id]?.length || 0})
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedCampaignForProducts(campaign);
+                              setIsProductDialogOpen(true);
+                            }}
+                            className="text-xs"
+                          >
+                            <ShoppingBag className="h-3 w-3 mr-1" />
+                            Add Products
+                          </Button>
+                        </>
+                      )}
                       <Button
                         variant="ghost"
                         size="icon"
@@ -614,10 +687,7 @@ export default function SellerDiscounts() {
                           variant="ghost"
                           size="icon"
                           onClick={() =>
-                            handleTogglePause(
-                              campaign.id,
-                              campaign.status === "paused"
-                            )
+                            handleTogglePause(campaign.id, campaign.status)
                           }
                         >
                           {campaign.status === "paused" ? (
@@ -827,6 +897,30 @@ export default function SellerDiscounts() {
                 />
               </div>
             </div>
+
+            <div>
+              <Label htmlFor="appliesTo">Apply Discount To *</Label>
+              <Select
+                value={formData.appliesTo}
+                onValueChange={(value) =>
+                  setFormData({ ...formData, appliesTo: value as AppliesTo })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all_products">All Products</SelectItem>
+                  <SelectItem value="specific_products">Specific Products</SelectItem>
+                  <SelectItem value="specific_categories">Specific Categories</SelectItem>
+                </SelectContent>
+              </Select>
+              {formData.appliesTo === "specific_products" && (
+                <p className="text-xs text-gray-500 mt-1">
+                  You can select products after creating the campaign
+                </p>
+              )}
+            </div>
           </div>
 
           <DialogFooter>
@@ -1016,6 +1110,30 @@ export default function SellerDiscounts() {
                 />
               </div>
             </div>
+
+            <div>
+              <Label htmlFor="edit-appliesTo">Apply Discount To *</Label>
+              <Select
+                value={formData.appliesTo}
+                onValueChange={(value) =>
+                  setFormData({ ...formData, appliesTo: value as AppliesTo })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all_products">All Products</SelectItem>
+                  <SelectItem value="specific_products">Specific Products</SelectItem>
+                  <SelectItem value="specific_categories">Specific Categories</SelectItem>
+                </SelectContent>
+              </Select>
+              {formData.appliesTo === "specific_products" && (
+                <p className="text-xs text-gray-500 mt-1">
+                  You can select products after saving
+                </p>
+              )}
+            </div>
           </div>
 
           <DialogFooter>
@@ -1030,6 +1148,146 @@ export default function SellerDiscounts() {
               Cancel
             </Button>
             <Button onClick={handleUpdateCampaign}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Products to Campaign Dialog */}
+      <AddProductsToCampaignDialog
+        open={isProductDialogOpen}
+        onOpenChange={setIsProductDialogOpen}
+        campaign={selectedCampaignForProducts}
+        sellerId={seller?.id || ""}
+        onProductsAdded={() => {
+          toast({
+            title: "Products Added",
+            description: "Products have been added to the campaign successfully.",
+          });
+          fetchCampaigns();
+        }}
+      />
+
+      {/* View Products Dialog */}
+      <Dialog open={isViewProductsDialogOpen} onOpenChange={setIsViewProductsDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Campaign Products</DialogTitle>
+            <DialogDescription>
+              {viewingCampaign?.name && `Products in "${viewingCampaign.name}"`}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto">
+            {campaignProducts[viewingCampaign?.id || ""]?.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-48 text-gray-500">
+                <Package className="h-12 w-12 mb-2" />
+                <p>No products in this campaign yet</p>
+                <Button
+                  variant="outline"
+                  className="mt-4"
+                  onClick={() => {
+                    setIsViewProductsDialogOpen(false);
+                    setSelectedCampaignForProducts(viewingCampaign);
+                    setIsProductDialogOpen(true);
+                  }}
+                >
+                  <ShoppingBag className="h-4 w-4 mr-2" />
+                  Add Products
+                </Button>
+              </div>
+            ) : (
+              <div className="divide-y">
+                {campaignProducts[viewingCampaign?.id || ""]?.map((productDiscount) => (
+                  <div key={productDiscount.id} className="p-4 hover:bg-gray-50">
+                    <div className="flex items-start gap-4">
+                      {/* Product Image */}
+                      <div className="w-16 h-16 flex-shrink-0 bg-gray-100 rounded-lg overflow-hidden">
+                        {productDiscount.productImage ? (
+                          <img
+                            src={productDiscount.productImage}
+                            alt={productDiscount.productName || "Product"}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <Package className="h-6 w-6 text-gray-400" />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Product Info */}
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-medium text-gray-900 truncate">
+                          {productDiscount.productName || "Unknown Product"}
+                        </h4>
+                        <div className="flex items-center gap-3 mt-1">
+                          <span className="text-sm text-gray-600">
+                            ₱{productDiscount.productPrice?.toLocaleString() || "0"}
+                          </span>
+                          {productDiscount.discountedStock && (
+                            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
+                              {productDiscount.discountedStock} units at discount
+                            </span>
+                          )}
+                          {productDiscount.soldCount > 0 && (
+                            <span className="text-xs text-gray-500">
+                              {productDiscount.soldCount} sold
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Remove Button */}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={async () => {
+                          try {
+                            await discountService.removeProductFromCampaign(
+                              productDiscount.id
+                            );
+                            toast({
+                              title: "Product Removed",
+                              description: "Product has been removed from the campaign.",
+                            });
+                            fetchCampaigns();
+                          } catch (err) {
+                            console.error('Failed to remove product:', err);
+                            toast({
+                              title: "Error",
+                              description: "Failed to remove product.",
+                              variant: "destructive",
+                            });
+                          }
+                        }}
+                      >
+                        <X className="h-4 w-4 text-red-600" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsViewProductsDialogOpen(false)}
+            >
+              Close
+            </Button>
+            <Button
+              onClick={() => {
+                setIsViewProductsDialogOpen(false);
+                setSelectedCampaignForProducts(viewingCampaign);
+                setIsProductDialogOpen(true);
+              }}
+              className="bg-orange-500 hover:bg-orange-600"
+            >
+              <ShoppingBag className="h-4 w-4 mr-2" />
+              Add More Products
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

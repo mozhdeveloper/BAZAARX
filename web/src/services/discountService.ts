@@ -113,6 +113,8 @@ export const discountService = {
 
   // Pause/Resume campaign
   async toggleCampaignStatus(campaignId: string, pause: boolean) {
+    console.log('🔧 toggleCampaignStatus called:', { campaignId, pause, willSetTo: pause ? 'paused' : 'active' });
+
     const { data, error } = await supabase
       .from('discount_campaigns')
       .update({ status: pause ? 'paused' : 'active' })
@@ -120,7 +122,12 @@ export const discountService = {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('❌ Toggle campaign error:', error);
+      throw error;
+    }
+
+    console.log('✅ Campaign status updated:', data);
     return this.transformCampaign(data);
   },
 
@@ -174,7 +181,7 @@ export const discountService = {
       .eq('is_active', true);
 
     if (error) throw error;
-    return data.map(this.transformProductDiscountWithProduct);
+    return data.map((item) => this.transformProductDiscountWithProduct(item));
   },
 
   // Remove product from campaign
@@ -309,10 +316,10 @@ export const discountService = {
   },
 
   transformProductDiscountWithProduct(data: any): ProductDiscount {
-    const base = this.transformProductDiscount(data);
+    const base = discountService.transformProductDiscount(data);
     return {
       ...base,
-      campaign: data.campaign ? this.transformCampaign(data.campaign) : undefined,
+      campaign: data.campaign ? discountService.transformCampaign(data.campaign) : undefined,
       productName: data.product?.name,
       productImage: data.product?.primary_image,
       productPrice: data.product?.price ? parseFloat(data.product.price) : undefined
