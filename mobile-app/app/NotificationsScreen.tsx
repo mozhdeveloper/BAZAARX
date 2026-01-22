@@ -1,13 +1,26 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet, Switch } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Mail, MessageSquare, Bell, Package, ShoppingBag, Tag, ChevronDown } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
+import { useAuthStore } from '../src/stores/authStore';
+import { GuestLoginModal } from '../src/components/GuestLoginModal';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Notifications'>;
 
 export default function NotificationsScreen({ navigation }: Props) {
+  const { isGuest } = useAuthStore();
+  const [showGuestModal, setShowGuestModal] = useState(false);
+
+  useEffect(() => {
+    if (isGuest) {
+      setShowGuestModal(true);
+    }
+  }, [isGuest]);
+
+
+
   const [notifications, setNotifications] = useState({
     email: {
       orderUpdates: true,
@@ -51,6 +64,30 @@ export default function NotificationsScreen({ navigation }: Props) {
     });
   };
 
+  // Early return for Guest Mode - Renders ONLY the header and the modal, no content below.
+  if (isGuest) {
+      return (
+        <SafeAreaView style={styles.container} edges={['top']}>
+            <View style={styles.header}>
+                <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
+                    <ArrowLeft size={24} color="#111827" />
+                </Pressable>
+                <Text style={styles.headerTitle}>Notifications</Text>
+                <View style={styles.placeholder} />
+            </View>
+            <GuestLoginModal
+                visible={true}
+                onClose={() => {
+                    navigation.navigate('MainTabs', { screen: 'Home' });
+                }}
+                message="Sign up to view your notifications."
+                hideCloseButton={true}
+                cancelText="Go back to Home"
+            />
+        </SafeAreaView>
+      );
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
@@ -61,6 +98,16 @@ export default function NotificationsScreen({ navigation }: Props) {
         <Text style={styles.headerTitle}>Notifications</Text>
         <View style={styles.placeholder} />
       </View>
+
+      <GuestLoginModal
+        visible={showGuestModal}
+        onClose={() => {
+          navigation.navigate('MainTabs', { screen: 'Home' });
+        }}
+        message="Sign up to view your notifications."
+        hideCloseButton={true}
+        cancelText="Go back to Home"
+      />
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         {/* Email Notifications */}

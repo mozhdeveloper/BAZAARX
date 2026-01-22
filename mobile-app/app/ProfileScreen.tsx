@@ -12,6 +12,7 @@ import { useWishlistStore } from '../src/stores/wishlistStore';
 import { supabase } from '../src/lib/supabase';
 import { COLORS } from '../src/constants/theme';
 import { decode } from 'base64-arraybuffer';
+import { GuestLoginModal } from '../src/components/GuestLoginModal';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<TabParamList, 'Profile'>,
@@ -19,10 +20,13 @@ type Props = CompositeScreenProps<
 >;
 
 export default function ProfileScreen({ navigation }: Props) {
-  const { user, logout, updateProfile } = useAuthStore();
+  const { user, logout, updateProfile, isGuest } = useAuthStore();
   const wishlistItems = useWishlistStore(state => state.items);
   const insets = useSafeAreaInsets();
   const BRAND_COLOR = COLORS.primary;
+
+  // Guest Modal State
+  const [showGuestModal, setShowGuestModal] = React.useState(false);
 
   // Edit State
   const [editModalVisible, setEditModalVisible] = React.useState(false);
@@ -32,6 +36,12 @@ export default function ProfileScreen({ navigation }: Props) {
   const [editEmail, setEditEmail] = React.useState('');
   const [editAvatar, setEditAvatar] = React.useState('');
   const [isSaving, setIsSaving] = React.useState(false);
+
+  React.useEffect(() => {
+    if (isGuest) {
+      setShowGuestModal(true);
+    }
+  }, [isGuest]);
 
   const openEditModal = () => {
     setEditFirstName(user?.name.split(' ')[0] || '');
@@ -343,6 +353,17 @@ export default function ProfileScreen({ navigation }: Props) {
           </View>
         </View>
       </Modal>
+
+      <GuestLoginModal
+        visible={showGuestModal}
+        onClose={() => {
+          // Just navigate home without hiding the modal first to prevent revealing the profile screen
+          navigation.navigate('Home');
+        }}
+        message="Sign up to view your profile and orders."
+        hideCloseButton={true}
+        cancelText="Go back to Home"
+      />
     </View >
   );
 }

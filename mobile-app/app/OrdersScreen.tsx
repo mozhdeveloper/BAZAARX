@@ -20,6 +20,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useOrderStore } from '../src/stores/orderStore';
 import { useCartStore } from '../src/stores/cartStore';
 import { COLORS } from '../src/constants/theme';
+import { useAuthStore } from '../src/stores/authStore';
+import { GuestLoginModal } from '../src/components/GuestLoginModal';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -38,6 +40,16 @@ export default function OrdersScreen({ navigation, route }: Props) {
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [showFilterModal, setShowFilterModal] = useState(false);
+  const { isGuest } = useAuthStore();
+
+  React.useEffect(() => {
+    if (route.params?.initialTab) {
+      setActiveTab(route.params.initialTab as 'active' | 'toReceive' | 'history');
+    }
+  }, [route.params]);
+
+
+
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [rating, setRating] = useState(0);
@@ -160,6 +172,29 @@ export default function OrdersScreen({ navigation, route }: Props) {
         );
     }
   };
+
+  if (isGuest) {
+    return (
+        <View style={styles.container}>
+            <View style={[styles.headerContainer, { paddingTop: 60, backgroundColor: COLORS.primary }]}>
+                <View style={styles.headerTop}>
+                    <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
+                        <ArrowLeft size={24} color="#FFF" strokeWidth={2.5} />
+                    </Pressable>
+                    <Text style={styles.headerTitle}>My Orders</Text>
+                    <View style={{ width: 40 }} />
+                </View>
+            </View>
+            <GuestLoginModal
+                visible={true}
+                onClose={() => navigation.navigate('MainTabs', { screen: 'Home' })} // Explicit navigation
+                message="Sign up to track your orders."
+                hideCloseButton={true}
+                cancelText="Go back to Home"
+            />
+        </View>
+    );
+  }
 
   return (
     <View style={styles.container}>

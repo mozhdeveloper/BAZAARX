@@ -64,12 +64,15 @@ export function BazaarHero() {
               <div className="flex items-center justify-between w-full">
                 {/* Left Section: Logo + Nav */}
                 <div className="flex items-center gap-6">
-                  <Link to="/" className="flex items-center">
+                  <Link to="/" className="flex items-center gap-2">
                     <img
-                      src="/Logo.png"
-                      alt="Bazaar Logo"
-                      className="w-12 h-12 object-contain"
+                      src="/BazaarX.png"
+                      alt="BazaarX Logo"
+                      className="h-12 w-auto object-contain"
                     />
+                    <span className="text-2xl font-bold text-[#ff6a00] tracking-tight">
+                      BazaarX
+                    </span>
                   </Link>
 
                   <nav className="hidden lg:flex items-center gap-5">
@@ -77,30 +80,12 @@ export function BazaarHero() {
                       <Link
                         key={item.name}
                         to={item.href}
-                        className="cursor-pointer relative group hover:text-[var(--brand-primary)] transition-colors text-[var(--text-primary)] font-medium text-base"
+                        className="cursor-pointer relative group hover:text-[var(--brand-primary)] transition-colors text-[var(--text-primary)] font-small text-base"
                       >
                         {item.name}
                       </Link>
                     ))}
-                    <div className="flex items-center gap-2 ml-2">
-                      <Link to="/search">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="cursor-pointer relative group hover:text-[var(--brand-primary)] transition-colors h-9 w-9"
-                        >
-                          <Search className="w-5 h-5" />
-                        </Button>
-                      </Link>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setIsAIChatOpen(true)}
-                        className="cursor-pointer relative group hover:text-[var(--brand-primary)] transition-colors h-9 w-9"
-                      >
-                        <MessageCircle className="w-5 h-5" />
-                      </Button>
-                    </div>
+
                   </nav>
 
                   <Sheet>
@@ -121,10 +106,13 @@ export function BazaarHero() {
                         <SheetTitle className="flex items-center justify-between">
                           <a href="#" className="flex items-center gap-2">
                             <img
-                              src="/Logo.png"
-                              alt="Bazaar Logo"
-                              className="w-10 h-10 object-contain"
+                              src="/BazaarX.png"
+                              alt="BazaarX Logo"
+                              className="h-10 w-auto object-contain"
                             />
+                            <span className="text-xl font-bold text-[#ff6a00] tracking-tight">
+                              BazaarX
+                            </span>
                           </a>
                         </SheetTitle>
                       </SheetHeader>
@@ -172,8 +160,26 @@ export function BazaarHero() {
                   </Sheet>
                 </div>
 
-                {/* Right Section: Start Selling */}
-                <div className="hidden md:flex items-center">
+                <div className="hidden md:flex items-center gap-2">
+                  <div className="flex items-center gap-1 mr-2">
+                    <Link to="/search">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="cursor-pointer relative group hover:text-[var(--brand-primary)] transition-colors h-9 w-9"
+                      >
+                        <Search className="w-5 h-5" />
+                      </Button>
+                    </Link>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setIsAIChatOpen(true)}
+                      className="cursor-pointer relative group hover:text-[var(--brand-primary)] transition-colors h-9 w-9"
+                    >
+                      <MessageCircle className="w-5 h-5" />
+                    </Button>
+                  </div>
                   <Link to="/seller/auth">
                     <Button
                       variant="secondary"
