@@ -17,6 +17,8 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Warehouse, Home, Truck, CheckCircle, Package, Clock, Plane, MapPin } from 'lucide-react-native';
 import { useOrderStore } from '../src/stores/orderStore';
+import { useAuthStore } from '../src/stores/authStore';
+import { GuestLoginModal } from '../src/components/GuestLoginModal';
 import { COLORS } from '../src/constants/theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
@@ -38,6 +40,33 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
   const { order } = route.params;
   const insets = useSafeAreaInsets();
   const { updateOrderStatus } = useOrderStore();
+  const { isGuest } = useAuthStore();
+
+  if (isGuest) {
+      return (
+          <View style={styles.container}>
+            {/* Edge-to-Edge Orange Header */}
+            <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
+                <View style={styles.headerContent}>
+                <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
+                    <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
+                </Pressable>
+                <View style={styles.headerCenter}>
+                    <Text style={styles.headerTitle}>Track Order</Text>
+                </View>
+                <View style={{ width: 40 }} />
+                </View>
+            </View>
+            <GuestLoginModal
+                visible={true}
+                onClose={() => navigation.navigate('MainTabs', { screen: 'Home' })}
+                message="Sign up to track this order."
+                hideCloseButton={true}
+                cancelText="Go back to Home"
+            />
+          </View>
+      );
+  }
   
   // Phase state management
   const [currentStatusIndex, setCurrentStatusIndex] = useState(0); // Start from Order Placed

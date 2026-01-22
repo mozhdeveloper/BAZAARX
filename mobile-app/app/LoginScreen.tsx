@@ -219,7 +219,13 @@ export default function LoginScreen({ navigation }: Props) {
           </View>
 
           {/* Guest Access */}
-          <Pressable style={styles.guestButton}>
+          <Pressable 
+            style={styles.guestButton}
+            onPress={() => {
+              useAuthStore.getState().loginAsGuest();
+              navigation.replace('MainTabs', { screen: 'Home' });
+            }}
+          >
             <Text style={styles.guestButtonText}>Continue as Guest</Text>
           </Pressable>
 
