@@ -252,15 +252,15 @@ export default function ShopPage() {
 
       {/* Shop Header */}
       <div className="">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-2">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4"
           >
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">
-                Shop All Products
+            <div className="w-full text-center">
+              <h1 className="text-5xl font-bold text-gray-800">
+                Shop All <span className="text-[#ff6a00]">Products</span>
               </h1>
               <p className="text-gray-600 mt-1">
                 Discover amazing products from trusted sellers
@@ -272,66 +272,65 @@ export default function ShopPage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2">
         {/* Flash Sale Section */}
-        <div className="mb-8 bg-white border-l-[12px] border-l-orange-500 rounded-3xl p-6 shadow-[0_4px_20px_rgba(0,0,0,0.08)] hover:shadow-[0_8px_30px_rgba(255,106,0,0.15)] transition-all">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-orange-50 rounded-xl text-orange-600">
-                <Flame className="w-6 h-6" />
+        <div className="mb-6 bg-white border-l-[8px] border-l-orange-500 rounded-2xl p-4 shadow-[0_4px_20px_rgba(0,0,0,0.08)] hover:shadow-[0_8px_30px_rgba(255,106,0,0.15)] transition-all">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 bg-orange-50 rounded-lg text-orange-600">
+                <Flame className="w-5 h-5" />
               </div>
-              <h2 className="text-4xl font-black text-orange-600 uppercase tracking-wide">FLASH SALE</h2>
+              <h2 className="text-2xl font-black text-orange-600 uppercase tracking-wide">FLASH SALE</h2>
             </div>
 
-            <div className="bg-orange-500 text-white rounded-xl px-5 py-2.5 flex items-center gap-3 shadow-sm border border-orange-400/20">
-              <Clock className="w-5 h-5 text-white" />
+            <div className="bg-orange-500 text-white rounded-lg px-3 py-1.5 flex items-center gap-2 shadow-sm border border-orange-400/20">
+              <Clock className="w-4 h-4 text-white" />
               <div className="flex items-baseline gap-1">
-                <span className="text-xl font-bold font-mono tracking-widest">
+                <span className="text-lg font-bold font-mono tracking-widest">
                   {String(timeLeft.hours).padStart(2, "0")}:{String(timeLeft.minutes).padStart(2, "0")}:{String(timeLeft.seconds).padStart(2, "0")}
                 </span>
-                <span className="text-[10px] text-white/90 font-medium uppercase tracking-wider ml-1">Left</span>
+                <span className="text-[9px] text-white/90 font-medium uppercase tracking-wider ml-0.5">Left</span>
               </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {flashSales.map((product: any, index: number) => (
               <motion.div
                 key={product.id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.1 }}
-                className="bg-white rounded-xl overflow-hidden cursor-pointer hover:shadow-xl transition-all border border-gray-200 hover:border-orange-500 pb-2"
+                className="bg-white rounded-lg overflow-hidden cursor-pointer hover:shadow-lg transition-all border border-gray-100 hover:border-orange-500 pb-2"
                 onClick={() => navigate(`/product/${product.id}`)}
               >
-                <div className="relative aspect-square mb-2">
+                <div className="relative aspect-[4/3] mb-2">
                   <img
                     src={product.image}
                     alt={product.name}
                     className="w-full h-full object-cover"
                   />
-                  {/* Discount Badge - Mobile Style */}
-                  <div className="absolute top-0 right-0 bg-orange-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-bl-lg z-10">
+                  <div className="absolute top-0 right-0 bg-orange-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-bl-md z-10">
                     -{product.discount}%
                   </div>
                 </div>
 
-                <div className="px-2">
-                  <h3 className="font-medium text-xs line-clamp-2 mb-1 text-gray-800 min-h-[2.5em]">
+                <div className="px-3 pb-2">
+                  <h3 className="font-semibold text-sm line-clamp-1 mb-1 text-gray-800">
                     {product.name}
                   </h3>
 
                   {/* Rating */}
-                  <div className="flex items-center gap-1 mb-1">
+                  <div className="flex items-center gap-1 mb-1.5">
                     <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-                    <span className="text-[10px] text-gray-500">{product.rating}</span>
+                    <span className="text-xs text-gray-500">{product.rating}</span>
                   </div>
 
                   <div className="flex flex-col gap-0.5">
                     <div className="text-base font-bold text-orange-600 leading-none">
                       ₱{product.price.toLocaleString()}
                     </div>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1.5">
                       {product.originalPrice && (
                         <span className="text-[10px] text-gray-400 line-through">
                           ₱{product.originalPrice.toLocaleString()}
