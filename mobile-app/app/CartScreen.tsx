@@ -6,11 +6,14 @@ import {
   StyleSheet,
   Pressable,
   StatusBar,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, ShoppingBag, Tag, Truck, CheckCircle2, Circle, CheckCircle } from 'lucide-react-native';
 import { CartItemRow } from '../src/components/CartItemRow';
 import { useCartStore } from '../src/stores/cartStore';
+import { useAuthStore } from '../src/stores/authStore';
+import { GuestLoginModal } from '../src/components/GuestLoginModal';
 import { COLORS } from '../src/constants/theme';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
@@ -26,6 +29,7 @@ export default function CartScreen({ navigation }: Props) {
   const { items, removeItem, updateQuantity, getTotal, clearCart, clearQuickOrder } = useCartStore();
   const insets = useSafeAreaInsets();
   const BRAND_COLOR = COLORS.primary;
+  const [showGuestModal, setShowGuestModal] = useState(false);
 
   // Clear quick order when user navigates to cart
   useEffect(() => {
@@ -201,7 +205,14 @@ export default function CartScreen({ navigation }: Props) {
             <Text style={[styles.totalInfoPrice, { color: BRAND_COLOR }]}>₱{total.toLocaleString()}</Text>
           </View>
           <Pressable
-            onPress={() => navigation.navigate('Checkout')}
+            onPress={() => {
+              const { isGuest } = useAuthStore.getState();
+              if (isGuest) {
+                 setShowGuestModal(true);
+                 return;
+              }
+              navigation.navigate('Checkout');
+            }}
             style={[
               styles.checkoutBtn, 
               { backgroundColor: BRAND_COLOR, opacity: selectedIds.length === 0 ? 0.6 : 1 }
@@ -212,6 +223,11 @@ export default function CartScreen({ navigation }: Props) {
           </Pressable>
         </View>
       </View>
+      <GuestLoginModal 
+        visible={showGuestModal} 
+        onClose={() => setShowGuestModal(false)} 
+        message="You need an account to checkout items."
+      />
     </View>
   );
 }

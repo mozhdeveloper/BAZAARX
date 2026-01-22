@@ -41,6 +41,8 @@ import { useCartStore } from '../src/stores/cartStore';
 import { useWishlistStore } from '../src/stores/wishlistStore';
 import { trendingProducts } from '../src/data/products';
 import { COLORS } from '../src/constants/theme';
+import { useAuthStore } from '../src/stores/authStore';
+import { GuestLoginModal } from '../src/components/GuestLoginModal';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 
@@ -100,6 +102,8 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showGuestModal, setShowGuestModal] = useState(false);
+  const [guestModalMessage, setGuestModalMessage] = useState('');
 
   // Use product images if available, otherwise mock an array with the main image
   const productImages = product.images || [product.image, product.image, product.image, product.image, product.image];
@@ -124,6 +128,12 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   };
 
   const handleBuyNow = () => {
+    const { isGuest } = useAuthStore.getState();
+    if (isGuest) {
+      setGuestModalMessage("Sign up to buy items.");
+      setShowGuestModal(true);
+      return;
+    }
     setQuickOrder(product, quantity);
     navigation.navigate('Checkout');
   };
@@ -131,6 +141,16 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   const handleShare = async () => {
     await Share.share({ message: `Check out ${product.name} on BazaarX! ₱${product.price}` });
   };
+
+  const handleChat = () => {
+    const { isGuest } = useAuthStore.getState();
+    if (isGuest) {
+        setGuestModalMessage("Sign up to chat with sellers.");
+        setShowGuestModal(true);
+        return;
+    }
+    setShowChat(true);
+  }
 
   const handleVisitStore = () => {
     navigation.push('StoreDetail', { 
@@ -230,7 +250,15 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
             <Pressable style={styles.fab} onPress={handleShare}>
               <Share2 size={20} color={BRAND_COLOR} />
             </Pressable>
-            <Pressable style={styles.fab} onPress={() => isFavorite ? removeFromWishlist(product.id) : addToWishlist(product)}>
+            <Pressable style={styles.fab} onPress={() => {
+                const { isGuest } = useAuthStore.getState();
+                if (isGuest) {
+                    setGuestModalMessage("Sign up to save items.");
+                    setShowGuestModal(true);
+                    return;
+                }
+                isFavorite ? removeFromWishlist(product.id) : addToWishlist(product);
+            }}>
               <Heart size={20} color={isFavorite ? BRAND_COLOR : '#9CA3AF'} fill={isFavorite ? BRAND_COLOR : 'none'} />
             </Pressable>
           </View>
@@ -399,7 +427,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       {/* --- BOTTOM ACTIONS --- */}
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
          {/* Chat Button */}
-         <Pressable style={styles.chatBtn} onPress={() => setShowChat(true)}>
+         <Pressable style={styles.chatBtn} onPress={handleChat}>
             <MessageCircle size={24} color={BRAND_COLOR} />
          </Pressable>
          
@@ -421,7 +449,13 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
         storeName={product.seller || "TechHub Manila"}
       />
 
-
+      {showGuestModal && (
+        <GuestLoginModal 
+            visible={true}
+            onClose={() => setShowGuestModal(false)} 
+            message={guestModalMessage || "You need an account to buy items."}
+        />
+      )}
 
     </View>
   );

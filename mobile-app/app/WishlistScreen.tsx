@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, StatusBar, Dimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Heart, ShoppingBag } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { ProductCard } from '../src/components/ProductCard';
 import { useWishlistStore } from '../src/stores/wishlistStore';
+import { useAuthStore } from '../src/stores/authStore';
+import { GuestLoginModal } from '../src/components/GuestLoginModal';
 import { Pressable } from 'react-native';
 
 const { width } = Dimensions.get('window');
@@ -15,6 +17,14 @@ export default function WishlistScreen() {
     const BRAND_COLOR = '#FF5722';
 
     const { items, removeItem } = useWishlistStore();
+    const { isGuest } = useAuthStore();
+    const [showGuestModal, setShowGuestModal] = useState(false);
+
+    useEffect(() => {
+        if (isGuest) {
+            setShowGuestModal(true);
+        }
+    }, [isGuest]);
 
     const handleProductPress = (product: any) => {
         navigation.navigate('ProductDetail', { product });
@@ -62,6 +72,16 @@ export default function WishlistScreen() {
                     </>
                 )}
             </ScrollView>
+
+            <GuestLoginModal
+                visible={showGuestModal}
+                onClose={() => {
+                    navigation.navigate('MainTabs', { screen: 'Home' });
+                }}
+                message="Sign up to save items to your wishlist."
+                hideCloseButton={true}
+                cancelText="Go back to Home"
+            />
         </View>
     );
 }

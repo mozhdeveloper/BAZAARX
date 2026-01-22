@@ -26,6 +26,7 @@ import type { RootStackParamList, TabParamList } from '../App';
 import type { Product } from '../src/types';
 import { supabase } from '../src/lib/supabase';
 import { useAuthStore } from '../src/stores/authStore';
+import { GuestLoginModal } from '../src/components/GuestLoginModal';
 import { COLORS } from '../src/constants/theme';
 
 type Props = CompositeScreenProps<
@@ -46,11 +47,12 @@ const categories = [
 export default function HomeScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const BRAND_COLOR = COLORS.primary;
-  const { user } = useAuthStore(); // Use global auth store
+  const { user, isGuest } = useAuthStore(); // Use global auth store
 
   const [activeTab, setActiveTab] = useState<'Home' | 'Category'>('Home');
   const [showAIChat, setShowAIChat] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showGuestModal, setShowGuestModal] = useState(false);
   const [showCameraSearch, setShowCameraSearch] = useState(false);
   const [showProductRequest, setShowProductRequest] = useState(false);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
@@ -98,9 +100,18 @@ export default function HomeScreen({ navigation }: Props) {
           </View>
           <View style={styles.headerRight}>
             <Pressable onPress={() => setIsSearchFocused(true)} style={styles.headerIconButton}><Search size={24} color="#FFF" /></Pressable>
-            <Pressable onPress={() => setShowNotifications(true)} style={styles.headerIconButton}>
+            <Pressable 
+              onPress={() => {
+                if (isGuest) {
+                  setShowGuestModal(true);
+                } else {
+                  setShowNotifications(true);
+                }
+              }} 
+              style={styles.headerIconButton}
+            >
               <Bell size={24} color="#FFF" />
-              {notifications.some(n => !n.read) && <View style={[styles.notifBadge, { backgroundColor: '#FFF' }]} />}
+              {!isGuest && notifications.some(n => !n.read) && <View style={[styles.notifBadge, { backgroundColor: '#FFF' }]} />}
             </Pressable>
           </View>
         </View>
@@ -268,6 +279,14 @@ export default function HomeScreen({ navigation }: Props) {
       <AIChatModal visible={showAIChat} onClose={() => setShowAIChat(false)} />
       <CameraSearchModal visible={showCameraSearch} onClose={() => setShowCameraSearch(false)} />
       <LocationModal visible={showLocationModal} onClose={() => setShowLocationModal(false)} onSelectLocation={setDeliveryAddress} currentAddress={deliveryAddress} />
+
+      {showGuestModal && (
+        <GuestLoginModal
+            visible={true}
+            onClose={() => setShowGuestModal(false)}
+            message="Sign up to view your notifications."
+        />
+      )}
 
       <Modal visible={showNotifications} animationType="slide" transparent={true} onRequestClose={() => setShowNotifications(false)}>
         <View style={styles.modalOverlay}>

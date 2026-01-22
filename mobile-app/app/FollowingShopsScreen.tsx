@@ -1,15 +1,26 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Store, MapPin, Star, Users } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
+import { useAuthStore } from '../src/stores/authStore';
+import { GuestLoginModal } from '../src/components/GuestLoginModal';
 
 import { officialStores } from '../src/data/stores';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'FollowingShops'>;
 
 export default function FollowingShopsScreen({ navigation }: Props) {
+    const { isGuest } = useAuthStore();
+    const [showGuestModal, setShowGuestModal] = useState(false);
+
+    useEffect(() => {
+        if (isGuest) {
+            setShowGuestModal(true);
+        }
+    }, [isGuest]);
+
     // Simulate following random official stores for demo purposes
     const followingShops = officialStores;
 
@@ -24,6 +35,15 @@ export default function FollowingShopsScreen({ navigation }: Props) {
 
     return (
         <SafeAreaView style={styles.container} edges={['top']}>
+            <GuestLoginModal
+                visible={showGuestModal}
+                onClose={() => {
+                    navigation.navigate('MainTabs', { screen: 'Home' });
+                }}
+                message="Sign up to follow stores."
+                hideCloseButton={true}
+                cancelText="Go back to Home"
+            />
             {/* Header */}
             <View style={styles.header}>
                 <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
