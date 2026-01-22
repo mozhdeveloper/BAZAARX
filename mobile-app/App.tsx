@@ -201,11 +201,7 @@ export default function App() {
             component={SellerStack}
             options={{ headerShown: false }}
           />
-          <Stack.Screen
-            name="AdminStack"
-            component={AdminStack}
-            options={{ headerShown: false }}
-          />
+
           <Stack.Screen name="MainTabs" component={MainTabs} />
           <Stack.Screen name="ProductDetail" component={ProductDetailScreen} />
           <Stack.Screen name="Checkout" component={CheckoutScreen} />
