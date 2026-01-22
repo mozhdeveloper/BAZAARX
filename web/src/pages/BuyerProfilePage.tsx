@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { useBuyerStore } from '../stores/buyerStore';
+import { Address, useBuyerStore } from '../stores/buyerStore';
 import Header from '../components/Header';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -33,16 +33,88 @@ import {
   Edit2,
   Camera,
   Loader2,
-  Package
+  Package,
+  Plus,
+  Trash2
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { regions, provinces, cities, barangays } from "select-philippines-address";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export default function BuyerProfilePage() {
-  const { profile, updateProfile, addresses, followedShops } = useBuyerStore();
+  const { toast } = useToast();
+
+  const { profile, updateProfile, addresses, followedShops, setAddresses, addAddress, updateAddress } = useBuyerStore();
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const { toast } = useToast();
-  
+  const [isAddressOpen, setIsAddressOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  const [regionList, setRegionList] = useState<any[]>([]);
+  const [provinceList, setProvinceList] = useState<any[]>([]);
+  const [cityList, setCityList] = useState<any[]>([]);
+  const [barangayList, setBarangayList] = useState<any[]>([]);
+
+  // 1. Load regions on mount
+  useEffect(() => {
+    regions().then((res) => setRegionList(res));
+  }, []);
+
+  // 2. Handle Region Selection
+  const onRegionChange = (regionCode: string) => {
+    const name = regionList.find(i => i.region_code === regionCode)?.region_name;
+    setNewAddress({ ...newAddress, region: name, province: '', city: '', barangay: '' });
+    provinces(regionCode).then(res => setProvinceList(res));
+    setCityList([]);
+    setBarangayList([]);
+  };
+
+  // 3. Handle Province Selection
+  const onProvinceChange = (provinceCode: string) => {
+    const name = provinceList.find(i => i.province_code === provinceCode)?.province_name;
+    setNewAddress({ ...newAddress, province: name, city: '', barangay: '' });
+    cities(provinceCode).then(res => setCityList(res));
+    setBarangayList([]);
+  };
+
+  // 4. Handle City Selection
+  const onCityChange = (cityCode: string) => {
+    const name = cityList.find(i => i.city_code === cityCode)?.city_name;
+    setNewAddress({ ...newAddress, city: name, barangay: '' });
+    barangays(cityCode).then(res => setBarangayList(res));
+  };
+
+  useEffect(() => {
+    const loadAddresses = async () => {
+      if (!profile?.id) return;
+      const { supabase } = await import('../lib/supabase');
+      const { data, error } = await supabase
+        .from('addresses')
+        .select('*')
+        .eq('user_id', profile.id);
+
+      if (data && !error) {
+        setAddresses(data.map(addr => ({
+          id: addr.id,
+          label: addr.label,
+          firstName: addr.first_name,
+          lastName: addr.last_name,
+          fullName: `${addr.first_name} ${addr.last_name}`,
+          phone: addr.phone,
+          street: addr.street,
+          barangay: addr.barangay,
+          city: addr.city,
+          region: addr.region,
+          province: addr.province,
+          postalCode: addr.zip_code,
+          isDefault: addr.is_default
+        })));
+      }
+    };
+    loadAddresses();
+  }, [profile?.id]);
+
+  // Profile Edit State
   const [editData, setEditData] = useState(profile || {
     firstName: '',
     lastName: '',
@@ -61,7 +133,7 @@ export default function BuyerProfilePage() {
   const handleSave = async () => {
     if (!profile) return;
     setIsSaving(true);
-    
+
     try {
       const updates = {
         first_name: editData.firstName, // Assuming DB column mapping
@@ -132,7 +204,7 @@ export default function BuyerProfilePage() {
         .getPublicUrl(filePath);
 
       const publicUrl = data.publicUrl;
-      
+
       // Update local edit state immediately to show preview
       setEditData(prev => ({ ...prev, avatar: publicUrl }));
 
@@ -146,12 +218,182 @@ export default function BuyerProfilePage() {
     }
   };
 
+  // Address
+  const [newAddress, setNewAddress] = useState({
+    label: 'Home',
+    firstName: profile?.firstName || '',
+    lastName: profile?.lastName || '',
+    phone: profile?.phone || '',
+    street: '',
+    barangay: '',
+    city: '',
+    province: '',
+    region: 'NCR',
+    postalCode: '',
+    isDefault: false
+  });
+
+  const handleOpenAddressModal = async (address?: Address) => {
+    if (address) {
+      setEditingId(address.id);
+      setNewAddress({ ...address });
+
+      // 1. Re-populate the lists based on existing names
+      try {
+        // Find Region Code by Name
+        const allRegions = await regions();
+        const regionMatch = allRegions.find(r => r.region_name === address.region);
+
+        if (regionMatch) {
+          // Load Provinces for this region
+          const provs = await provinces(regionMatch.region_code);
+          setProvinceList(provs);
+          const provinceMatch = provs.find(p => p.province_name === address.province);
+
+          if (provinceMatch) {
+            // Load Cities for this province
+            const cts = await cities(provinceMatch.province_code);
+            setCityList(cts);
+            const cityMatch = cts.find(c => c.city_name === address.city);
+
+            if (cityMatch) {
+              // Load Barangays for this city
+              const brgys = await barangays(cityMatch.city_code);
+              setBarangayList(brgys);
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error re-hydrating address lists:", error);
+      }
+    } else {
+      // Reset for New Address
+      setEditingId(null);
+      setProvinceList([]);
+      setCityList([]);
+      setBarangayList([]);
+      setNewAddress({
+        label: 'Home', firstName: profile?.firstName || '', lastName: profile?.lastName || '',
+        phone: profile?.phone || '', street: '', barangay: '', city: '',
+        province: '', region: '', postalCode: '', isDefault: addresses.length === 0
+      });
+    }
+    setIsAddressOpen(true);
+  };
+
+  const handleSaveAddress = async () => {
+    if (!profile) return;
+    setIsSaving(true);
+
+    try {
+      const { supabase } = await import('../lib/supabase');
+
+      // 1. Handle Default logic in DB
+      if (newAddress.isDefault) {
+        await supabase
+          .from('addresses')
+          .update({ is_default: false })
+          .eq('user_id', profile.id);
+      }
+
+      const dbPayload = {
+        user_id: profile.id,
+        label: newAddress.label,
+        first_name: newAddress.firstName,
+        last_name: newAddress.lastName,
+        phone: newAddress.phone,
+        street: newAddress.street,
+        region: newAddress.region,
+        province: newAddress.province,
+        city: newAddress.city,
+        barangay: newAddress.barangay,
+        zip_code: newAddress.postalCode,
+        is_default: newAddress.isDefault,
+      };
+
+      if (editingId) {
+        // UPDATING EXISTING ROW
+        const { error } = await supabase
+          .from('addresses')
+          .update(dbPayload)
+          .eq('id', editingId); // Ensure this ID matches the DB primary key
+
+        if (error) throw error;
+
+        // Update local Zustand store
+        updateAddress(editingId, {
+          ...newAddress,
+          id: editingId,
+          fullName: `${newAddress.firstName} ${newAddress.lastName}`
+        } as any);
+
+        toast({ title: "Address updated" });
+      } else {
+        // ADDING NEW ROW
+        const { data, error } = await supabase
+          .from('addresses')
+          .insert([dbPayload])
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        // Add to local Zustand store
+        addAddress({
+          ...newAddress,
+          id: data.id,
+          fullName: `${data.first_name} ${data.last_name}`
+        } as any);
+
+        toast({ title: "Address added" });
+      }
+
+      setIsAddressOpen(false);
+      setEditingId(null); // Reset the state for the next use
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeleteAddress = async (addressId: string) => {
+    // Optional: Add a confirmation dialog here
+    if (!confirm("Are you sure you want to delete this address?")) return;
+
+    try {
+      const { supabase } = await import('../lib/supabase');
+
+      // 1. Delete from Supabase Database
+      const { error } = await supabase
+        .from('addresses')
+        .delete()
+        .eq('id', addressId);
+
+      if (error) throw error;
+
+      // 2. Delete from Local Zustand Store
+      deleteAddress(addressId);
+
+      toast({
+        title: "Address deleted",
+        description: "The address has been removed from your profile.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error deleting address",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
   if (!profile) return null;
 
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
-      
+
       {/* Mobile-style Orange Header Section */}
       <div className="bg-[#ff6a00] pb-24 pt-8 rounded-b-[3rem] shadow-sm relative overflow-hidden">
         {/* Decorative background circles */}
@@ -172,7 +414,7 @@ export default function BuyerProfilePage() {
                 <Edit2 className="w-4 h-4" />
               </div>
             </div>
-            
+
             <div className="flex-1">
               <h1 className="text-3xl font-bold mb-1 opacity-100 text-shadow-sm">
                 {profile.firstName} {profile.lastName}
@@ -203,36 +445,36 @@ export default function BuyerProfilePage() {
       <div className="max-w-6xl mx-auto px-4 -mt-16 pb-12 relative z-20">
         {/* Floating Stats Card matching Mobile logic */}
         <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-white rounded-2xl shadow-xl p-6 mb-8 border border-gray-100/50"
-          >
-            <div className="grid grid-cols-3 divide-x divide-gray-100">
-              <div className="px-4 py-2 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-gray-50 rounded-xl transition-colors">
-                <div className="text-3xl font-bold text-[#ff6a00] mb-1">{profile.totalOrders}</div>
-                <div className="text-xs font-semibold uppercase tracking-wider text-gray-400 flex items-center gap-1">
-                  <Package className="w-3 h-3" />
-                  Orders
-                </div>
-              </div>
-
-              <div className="px-4 py-2 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-gray-50 rounded-xl transition-colors">
-                <div className="text-3xl font-bold text-[#fbbf24] mb-1">{profile.bazcoins}</div>
-                <div className="text-xs font-semibold uppercase tracking-wider text-gray-400 flex items-center gap-1">
-                  <div className="w-3 h-3 rounded-full bg-[#fbbf24] flex items-center justify-center text-[8px] text-white font-bold">B</div>
-                  Bazcoins
-                </div>
-              </div>
-
-              <div className="px-4 py-2 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-gray-50 rounded-xl transition-colors">
-                <div className="text-3xl font-bold text-[#ff6a00] mb-1">{followedShops.length}</div>
-                <div className="text-xs font-semibold uppercase tracking-wider text-gray-400 flex items-center gap-1">
-                  <Heart className="w-3 h-3" />
-                  Following
-                </div>
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white rounded-2xl shadow-xl p-6 mb-8 border border-gray-100/50"
+        >
+          <div className="grid grid-cols-3 divide-x divide-gray-100">
+            <div className="px-4 py-2 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-gray-50 rounded-xl transition-colors">
+              <div className="text-3xl font-bold text-[#ff6a00] mb-1">{profile.totalOrders}</div>
+              <div className="text-xs font-semibold uppercase tracking-wider text-gray-400 flex items-center gap-1">
+                <Package className="w-3 h-3" />
+                Orders
               </div>
             </div>
-          </motion.div>
+
+            <div className="px-4 py-2 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-gray-50 rounded-xl transition-colors">
+              <div className="text-3xl font-bold text-[#fbbf24] mb-1">{profile.bazcoins}</div>
+              <div className="text-xs font-semibold uppercase tracking-wider text-gray-400 flex items-center gap-1">
+                <div className="w-3 h-3 rounded-full bg-[#fbbf24] flex items-center justify-center text-[8px] text-white font-bold">B</div>
+                Bazcoins
+              </div>
+            </div>
+
+            <div className="px-4 py-2 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-gray-50 rounded-xl transition-colors">
+              <div className="text-3xl font-bold text-[#ff6a00] mb-1">{followedShops.length}</div>
+              <div className="text-xs font-semibold uppercase tracking-wider text-gray-400 flex items-center gap-1">
+                <Heart className="w-3 h-3" />
+                Following
+              </div>
+            </div>
+          </div>
+        </motion.div>
 
         {/* Content Tabs */}
         <Tabs defaultValue="personal" className="space-y-6">
@@ -340,115 +582,223 @@ export default function BuyerProfilePage() {
 
           {/* Addresses Content - Keeping mostly same structure but cleaner */}
           <TabsContent value="addresses">
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="space-y-4"
-            >
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {addresses.map((address) => (
-                <Card key={address.id} className="group border-gray-100 hover:border-orange-200 hover:shadow-md transition-all">
+                <Card key={address.id} className="relative group border-gray-100">
                   <CardContent className="p-6">
-                    <div className="flex justify-between items-start mb-4">
+                    <div className="flex justify-between mb-2">
                       <div className="flex items-center gap-2">
-                        <div className="bg-orange-50 p-2 rounded-lg">
-                          <MapPin className="w-5 h-5 text-[#ff6a00]" />
-                        </div>
-                        <div>
-                          <h3 className="font-bold text-gray-900">{address.label}</h3>
-                          {address.isDefault && (
-                            <Badge variant="secondary" className="text-xs bg-orange-100 text-orange-700 hover:bg-orange-200">Default</Badge>
-                          )}
-                        </div>
+                        <h3 className="font-bold">{address.label}</h3>
+                        {address.isDefault && <Badge>Default</Badge>}
                       </div>
-                      <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Edit2 className="w-4 h-4 text-gray-400" />
+                      <Button variant="ghost" size="sm" onClick={() => handleOpenAddressModal(address)}>
+                        <Edit2 className="w-4 h-4" />
+                      </Button>
+
+                      {/* ADD THIS DELETE BUTTON */}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={() => handleDeleteAddress(address.id)}
+                      >
+                        <Trash2 className="w-4 h-4" />
                       </Button>
                     </div>
-                    
-                    <div className="space-y-1 text-sm text-gray-600 pl-11">
-                      <p className="font-medium text-gray-900">{address.fullName}</p>
+                    <div className="text-sm space-y-1 text-gray-600">
+                      <p className="font-semibold text-black">{address.firstName} {address.lastName}</p>
                       <p>{address.phone}</p>
-                      <p className="mt-2">{address.street}, {address.barangay}</p>
+                      <p>{address.street}, {address.barangay}</p>
                       <p>{address.city}, {address.province} {address.postalCode}</p>
                     </div>
                   </CardContent>
                 </Card>
               ))}
-                <button className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-gray-200 rounded-xl hover:border-orange-300 hover:bg-orange-50 transition-all min-h-[200px] group">
-                  <div className="w-12 h-12 rounded-full bg-gray-100 group-hover:bg-white flex items-center justify-center mb-3 transition-colors shadow-sm">
-                    <MapPin className="w-6 h-6 text-gray-400 group-hover:text-[#ff6a00]" />
-                  </div>
-                  <span className="font-semibold text-gray-600 group-hover:text-[#ff6a00]">Add New Address</span>
-                </button>
-              </div>
-            </motion.div>
+
+              {/* Add New Button */}
+              <button
+                onClick={() => handleOpenAddressModal()}
+                className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-gray-200 rounded-xl hover:border-orange-300 hover:bg-orange-50 transition-all min-h-[160px]"
+              >
+                <Plus className="w-8 h-8 text-gray-400 mb-2" />
+                <span className="font-semibold text-gray-600">Add New Address</span>
+              </button>
+            </div>
           </TabsContent>
 
           <TabsContent value="following">
-             <motion.div
-               initial={{ opacity: 0, y: 20 }}
-               animate={{ opacity: 1, y: 0 }}
-               className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
-             >
-               {[1,2,3].map((shop) => (
-                 <Card key={shop} className="overflow-hidden hover:shadow-lg transition-shadow border-gray-100">
-                   <div className="h-20 bg-gradient-to-r from-orange-100 to-orange-50" />
-                   <CardContent className="p-6 pt-0 relative">
-                     <div className="flex justify-between items-start -mt-10 mb-4">
-                        <img
-                         src={`https://images.unsplash.com/photo-156047235412${shop}?w=80&h=80&fit=crop`}
-                         alt="Shop"
-                         className="w-20 h-20 rounded-xl object-cover border-4 border-white shadow-md"
-                       />
-                       <Button variant="outline" size="sm" className="mt-12 text-red-600 hover:text-red-700 hover:bg-red-50 border-red-100">
-                         Unfollow
-                       </Button>
-                     </div>
-                     
-                     <h3 className="font-bold text-lg mb-1">TechHub Philippines</h3>
-                     <div className="flex items-center gap-3 text-sm text-gray-500 mb-4">
-                       <span className="flex items-center gap-1 bg-yellow-50 text-yellow-700 px-2 py-0.5 rounded-full">
-                         <Star className="h-3 w-3 fill-current" /> 4.8
-                       </span>
-                       <span>2.5k followers</span>
-                     </div>
-                   </CardContent>
-                 </Card>
-               ))}
-             </motion.div>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+            >
+              {[1, 2, 3].map((shop) => (
+                <Card key={shop} className="overflow-hidden hover:shadow-lg transition-shadow border-gray-100">
+                  <div className="h-20 bg-gradient-to-r from-orange-100 to-orange-50" />
+                  <CardContent className="p-6 pt-0 relative">
+                    <div className="flex justify-between items-start -mt-10 mb-4">
+                      <img
+                        src={`https://images.unsplash.com/photo-156047235412${shop}?w=80&h=80&fit=crop`}
+                        alt="Shop"
+                        className="w-20 h-20 rounded-xl object-cover border-4 border-white shadow-md"
+                      />
+                      <Button variant="outline" size="sm" className="mt-12 text-red-600 hover:text-red-700 hover:bg-red-50 border-red-100">
+                        Unfollow
+                      </Button>
+                    </div>
+
+                    <h3 className="font-bold text-lg mb-1">TechHub Philippines</h3>
+                    <div className="flex items-center gap-3 text-sm text-gray-500 mb-4">
+                      <span className="flex items-center gap-1 bg-yellow-50 text-yellow-700 px-2 py-0.5 rounded-full">
+                        <Star className="h-3 w-3 fill-current" /> 4.8
+                      </span>
+                      <span>2.5k followers</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </motion.div>
           </TabsContent>
 
           <TabsContent value="settings">
             {/* Keeping Settings same as before, just ensuring card style consistency */}
             <motion.div
-               initial={{ opacity: 0, y: 20 }}
-               animate={{ opacity: 1, y: 0 }}
-               className="grid grid-cols-1 md:grid-cols-2 gap-6"
-             >
-               <Card className="border-gray-100 shadow-sm">
-                 <CardHeader>
-                   <CardTitle className="flex items-center gap-2">
-                     <Bell className="h-5 w-5 text-[#ff6a00]" />
-                     Notifications
-                   </CardTitle>
-                 </CardHeader>
-                 <CardContent className="space-y-6">
-                   <div className="flex items-center justify-between">
-                     <div>
-                       <div className="font-medium">Email Notifications</div>
-                       <div className="text-sm text-gray-500">Receive order updates via email</div>
-                     </div>
-                     <Switch checked={profile.preferences.notifications.email} />
-                   </div>
-                   {/* ... (Other settings items kept simple for brevity or could copy-paste if needed) ... */}
-                 </CardContent>
-               </Card>
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="grid grid-cols-1 md:grid-cols-2 gap-6"
+            >
+              <Card className="border-gray-100 shadow-sm">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Bell className="h-5 w-5 text-[#ff6a00]" />
+                    Notifications
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-medium">Email Notifications</div>
+                      <div className="text-sm text-gray-500">Receive order updates via email</div>
+                    </div>
+                    <Switch checked={profile.preferences.notifications.email} />
+                  </div>
+                  {/* ... (Other settings items kept simple for brevity or could copy-paste if needed) ... */}
+                </CardContent>
+              </Card>
             </motion.div>
           </TabsContent>
 
         </Tabs>
       </div>
+
+      {/* Address Modal with Cascading Selects */}
+      <Dialog open={isAddressOpen} onOpenChange={setIsAddressOpen}>
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editingId ? 'Edit Address' : 'Add Shipping Address'}</DialogTitle>
+          </DialogHeader>
+
+          <div className="grid gap-4 py-4">
+            {/* Label and Phone */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Address Label</Label>
+                <Input placeholder="Home, Office, etc." value={newAddress.label} onChange={e => setNewAddress({ ...newAddress, label: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Phone Number</Label>
+                <Input value={newAddress.phone} onChange={e => setNewAddress({ ...newAddress, phone: e.target.value })} />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Street Name, House No.</Label>
+              <Input value={newAddress.street} onChange={e => setNewAddress({ ...newAddress, street: e.target.value })} />
+            </div>
+
+            {/* Region and Province */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Region</Label>
+                <Select
+                  value={regionList.find(r => r.region_name === newAddress.region)?.region_code}
+                  onValueChange={onRegionChange}
+                >
+                  <SelectTrigger><SelectValue placeholder="Select Region" /></SelectTrigger>
+                  <SelectContent>
+                    {regionList.map(r => <SelectItem key={r.region_code} value={r.region_code}>{r.region_name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Province</Label>
+                <Select
+                  value={provinceList.find(p => p.province_name === newAddress.province)?.province_code}
+                  onValueChange={onProvinceChange} disabled={!provinceList.length}
+                >
+                  <SelectTrigger><SelectValue placeholder="Select Province" /></SelectTrigger>
+                  <SelectContent>
+                    {provinceList.map(p => <SelectItem key={p.province_code} value={p.province_code}>{p.province_name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* City and Barangay */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>City / Municipality</Label>
+                <Select
+                  value={cityList.find(c => c.city_name === newAddress.city)?.city_code}
+                  onValueChange={onCityChange} disabled={!cityList.length}
+                >
+                  <SelectTrigger><SelectValue placeholder="Select City" /></SelectTrigger>
+                  <SelectContent>
+                    {cityList.map(c => <SelectItem key={c.city_code} value={c.city_code}>{c.city_name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Barangay</Label>
+                <Select
+                  disabled={!barangayList.length}
+                  value={newAddress.barangay}
+                  onValueChange={val => setNewAddress({ ...newAddress, barangay: val })}
+                >
+                  <SelectTrigger><SelectValue placeholder="Select Barangay" /></SelectTrigger>
+                  <SelectContent>
+                    {barangayList.map(b => <SelectItem key={b.brgy_code} value={b.brgy_name}>{b.brgy_name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Postal Code & Default Switch */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Postal Code</Label>
+                <Input value={newAddress.postalCode} onChange={e => setNewAddress({ ...newAddress, postalCode: e.target.value })} />
+              </div>
+              <div className="flex items-center gap-2 pt-8">
+                <Switch
+                  id="default-addr"
+                  checked={newAddress.isDefault}
+                  onCheckedChange={checked => setNewAddress({ ...newAddress, isDefault: checked })}
+                />
+                <Label htmlFor="default-addr">Set as Default</Label>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAddressOpen(false)}>Cancel</Button>
+            <Button onClick={handleSaveAddress} disabled={isSaving} className="bg-[#ff6a00] hover:bg-[#e65e00] text-white">
+              {isSaving && <Loader2 className="animate-spin w-4 h-4 mr-2" />}
+              {editingId ? 'Update Address' : 'Save Address'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Profile Modal */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
@@ -461,7 +811,7 @@ export default function BuyerProfilePage() {
           </DialogHeader>
 
           <div className="grid gap-6 py-4">
-             {/* Avatar Area */}
+            {/* Avatar Area */}
             <div className="flex flex-col items-center gap-4">
               <div className="relative group cursor-pointer" onClick={() => document.getElementById('dialog-avatar-upload')?.click()}>
                 <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-gray-100">
@@ -503,7 +853,7 @@ export default function BuyerProfilePage() {
                 />
               </div>
             </div>
-            
+
             <div className="grid gap-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -541,4 +891,7 @@ export default function BuyerProfilePage() {
       </Dialog>
     </div>
   );
+}
+function deleteAddress(addressId: string) {
+  throw new Error('Function not implemented.');
 }
