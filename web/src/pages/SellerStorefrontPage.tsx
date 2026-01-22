@@ -25,23 +25,46 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+import { useProductStore } from '../stores/sellerStore';
+
 export default function SellerStorefrontPage() {
   const { sellerId } = useParams();
-  const { 
-    followShop, 
-    unfollowShop, 
-    isFollowing, 
-    addToCart, 
-    addViewedSeller 
+  const {
+    followShop,
+    unfollowShop,
+    isFollowing,
+    addToCart,
+    addViewedSeller
   } = useBuyerStore();
-  
+  const { products: allProducts } = useProductStore();
+
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [sortBy, setSortBy] = useState('popular');
-  
-  // Get seller data (in real app, this would fetch from API)
-  const seller = demoSellers.find(s => s.id === sellerId) || demoSellers[0];
-  
+
+  // Get seller data
+  const demoSeller = demoSellers.find(s => s.id === sellerId);
+
+  // Try to find seller from products if not in demo
+  const dbSellerProduct = !demoSeller ? allProducts.find(p => p.sellerId === sellerId) : null;
+
+  const seller = demoSeller || (dbSellerProduct ? {
+    id: dbSellerProduct.sellerId,
+    name: dbSellerProduct.sellerName || "Verified Seller",
+    avatar: 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=150&h=150&fit=crop', // Default avatar
+    rating: dbSellerProduct.sellerRating || 5.0,
+    totalReviews: 10,
+    followers: 5,
+    isVerified: true,
+    description: 'Welcome to our store!',
+    location: dbSellerProduct.sellerLocation || 'Metro Manila',
+    established: '2024',
+    badges: ['Verified Seller'],
+    responseTime: '< 24 hours',
+    categories: ['General'],
+    products: []
+  } : demoSellers[0]);
+
   useEffect(() => {
     if (seller) {
       addViewedSeller(seller);
@@ -62,7 +85,7 @@ export default function SellerStorefrontPage() {
       isFreeShipping: true
     },
     {
-      id: 'prod-2', 
+      id: 'prod-2',
       name: 'MacBook Pro M3',
       price: 125999,
       originalPrice: 135999,
@@ -85,8 +108,8 @@ export default function SellerStorefrontPage() {
     }
   ];
 
-  const filteredProducts = selectedCategory === 'all' 
-    ? demoProducts 
+  const filteredProducts = selectedCategory === 'all'
+    ? demoProducts
     : demoProducts.filter(p => p.category === selectedCategory);
 
   const handleAddToCart = (product: any) => {
@@ -107,7 +130,7 @@ export default function SellerStorefrontPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
-      
+
       {/* Seller Header */}
       <div className="bg-white border-b">
         <div className="max-w-7xl mx-auto px-4 py-8">
@@ -134,7 +157,7 @@ export default function SellerStorefrontPage() {
                     )}
                   </div>
                   <p className="text-gray-600 mb-4 max-w-2xl">{seller.description}</p>
-                  
+
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-6">
                     <div className="text-center">
                       <div className="flex items-center justify-center gap-1 mb-1">
@@ -190,7 +213,7 @@ export default function SellerStorefrontPage() {
                   <Button
                     onClick={() => isFollowing(seller.id) ? unfollowShop(seller.id) : followShop(seller.id)}
                     variant={isFollowing(seller.id) ? 'outline' : 'default'}
-                    className={isFollowing(seller.id) 
+                    className={isFollowing(seller.id)
                       ? 'text-red-600 border-red-200 hover:bg-red-50'
                       : 'bg-orange-500 hover:bg-orange-600'
                     }
@@ -361,24 +384,24 @@ export default function SellerStorefrontPage() {
                       <div className="text-4xl font-bold text-gray-900 mb-1">{seller.rating}</div>
                       <div className="flex items-center gap-1 mb-2">
                         {[...Array(5)].map((_, i) => (
-                          <Star 
-                            key={i} 
+                          <Star
+                            key={i}
                             className={cn(
                               "h-4 w-4",
                               i < Math.floor(seller.rating) ? "fill-current text-yellow-400" : "text-gray-300"
-                            )} 
+                            )}
                           />
                         ))}
                       </div>
                       <div className="text-sm text-gray-500">{seller.totalReviews.toLocaleString()} reviews</div>
                     </div>
                     <div className="flex-1">
-                      {[5,4,3,2,1].map((star) => (
+                      {[5, 4, 3, 2, 1].map((star) => (
                         <div key={star} className="flex items-center gap-2 mb-1">
                           <span className="text-sm w-6">{star}</span>
                           <Star className="h-3 w-3 fill-current text-yellow-400" />
                           <div className="flex-1 h-2 bg-gray-200 rounded">
-                            <div 
+                            <div
                               className="h-full bg-yellow-400 rounded"
                               style={{ width: `${star === 5 ? 70 : star === 4 ? 20 : star === 3 ? 6 : star === 2 ? 3 : 1}%` }}
                             />
@@ -395,7 +418,7 @@ export default function SellerStorefrontPage() {
 
               {/* Sample Reviews */}
               <div className="space-y-4">
-                {[1,2,3].map((review) => (
+                {[1, 2, 3].map((review) => (
                   <Card key={review}>
                     <CardContent className="p-6">
                       <div className="flex items-start gap-4">
