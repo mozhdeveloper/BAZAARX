@@ -235,7 +235,7 @@ export default function LoginScreen({ navigation }: Props) {
             onPress={() => navigation.navigate('SellerLogin')}
           >
             <Store size={20} color="#FF5722" strokeWidth={2.5} />
-            <Text style={styles.sellerPortalText}>Access Seller Portal</Text>
+            <Text style={styles.sellerPortalText}>Start Selling</Text>
             <ArrowRight size={18} color="#FF5722" />
           </Pressable>
         </ScrollView>
