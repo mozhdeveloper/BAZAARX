@@ -122,6 +122,12 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
   // Handlers
   const handleAddToCart = () => {
+    const { isGuest } = useAuthStore.getState();
+    if (isGuest) {
+      setGuestModalMessage("Sign up to add items to your cart.");
+      setShowGuestModal(true);
+      return;
+    }
     // Basic fix for adding with variants
     addItem({ ...product, price: product.price }); 
     Alert.alert('Added to Cart', 'Item has been added to your cart.');

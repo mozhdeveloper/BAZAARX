@@ -68,7 +68,7 @@ export const useAuthStore = create<AuthState>()(
                 { id: 'card_2', last4: '8888', brand: 'MasterCard', expiry: '10/26' },
             ];
         }
-        set({ user, isAuthenticated: true });
+        set({ user, isAuthenticated: true, isGuest: false });
       },
 
       // Deprecated: Login logic moved to LoginScreen to handle Supabase directly

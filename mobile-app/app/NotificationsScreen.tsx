@@ -19,29 +19,7 @@ export default function NotificationsScreen({ navigation }: Props) {
     }
   }, [isGuest]);
 
-  // Early return for Guest Mode - Renders ONLY the header and the modal, no content below.
-  if (isGuest) {
-      return (
-        <SafeAreaView style={styles.container} edges={['top']}>
-            <View style={styles.header}>
-                <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
-                    <ArrowLeft size={24} color="#111827" />
-                </Pressable>
-                <Text style={styles.headerTitle}>Notifications</Text>
-                <View style={styles.placeholder} />
-            </View>
-            <GuestLoginModal
-                visible={true}
-                onClose={() => {
-                    navigation.navigate('MainTabs', { screen: 'Home' });
-                }}
-                message="Sign up to view your notifications."
-                hideCloseButton={true}
-                cancelText="Go back to Home"
-            />
-        </SafeAreaView>
-      );
-  }
+
 
   const [notifications, setNotifications] = useState({
     email: {
@@ -85,6 +63,30 @@ export default function NotificationsScreen({ navigation }: Props) {
       return newSet;
     });
   };
+
+  // Early return for Guest Mode - Renders ONLY the header and the modal, no content below.
+  if (isGuest) {
+      return (
+        <SafeAreaView style={styles.container} edges={['top']}>
+            <View style={styles.header}>
+                <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
+                    <ArrowLeft size={24} color="#111827" />
+                </Pressable>
+                <Text style={styles.headerTitle}>Notifications</Text>
+                <View style={styles.placeholder} />
+            </View>
+            <GuestLoginModal
+                visible={true}
+                onClose={() => {
+                    navigation.navigate('MainTabs', { screen: 'Home' });
+                }}
+                message="Sign up to view your notifications."
+                hideCloseButton={true}
+                cancelText="Go back to Home"
+            />
+        </SafeAreaView>
+      );
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
