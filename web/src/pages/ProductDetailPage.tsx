@@ -1,9 +1,5 @@
-<<<<<<< HEAD
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState } from "react";
-=======
 import { useState, useEffect } from "react";
->>>>>>> af09b04c772666531d5163d91e88466ef7658b20
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
