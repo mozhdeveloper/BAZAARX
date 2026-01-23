@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
@@ -89,8 +89,15 @@ export function SellerOrders() {
   const [selectedOrder, setSelectedOrder] = useState<string | null>(null);
   
   const { seller, logout } = useAuthStore();
-  const { orders, updateOrderStatus, addTrackingNumber } = useOrderStore();
+  const { orders, loading, fetchOrders, updateOrderStatus, addTrackingNumber } = useOrderStore();
   const navigate = useNavigate();
+
+  // Fetch orders when component mounts or seller changes
+  useEffect(() => {
+    if (seller?.id) {
+      fetchOrders(seller.id);
+    }
+  }, [seller?.id, fetchOrders]);
 
   const handleLogout = () => {
     logout();
