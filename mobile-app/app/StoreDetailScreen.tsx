@@ -8,6 +8,9 @@ import { View, Text, StyleSheet, Image, ScrollView, Pressable, StatusBar, Dimens
 import StoreChatModal from '../src/components/StoreChatModal';
 import { COLORS } from '../src/constants/theme';
 
+import { useAuthStore } from '../src/stores/authStore';
+import { GuestLoginModal } from '../src/components/GuestLoginModal';
+
 const { width } = Dimensions.get('window');
 
 export default function StoreDetailScreen() {
@@ -24,6 +27,10 @@ export default function StoreDetailScreen() {
     const [searchQuery, setSearchQuery] = useState('');
     const [menuVisible, setMenuVisible] = useState(false);
     const [chatVisible, setChatVisible] = useState(false);
+    const [showGuestModal, setShowGuestModal] = useState(false);
+    const [guestModalMessage, setGuestModalMessage] = useState('');
+
+    const { isGuest } = useAuthStore();
 
     const [vouchers, setVouchers] = useState([
         { id: '1', amount: '₱50 OFF', min: 'Min. Spend ₱500', claimed: false },
@@ -43,11 +50,21 @@ export default function StoreDetailScreen() {
     }
 
     const handleFollow = () => {
+        if (isGuest) {
+            setGuestModalMessage("Sign up to follow stores.");
+            setShowGuestModal(true);
+            return;
+        }
         LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
         setIsFollowing(!isFollowing);
     };
 
     const handleChat = () => {
+        if (isGuest) {
+            setGuestModalMessage("Sign up to chat with sellers.");
+            setShowGuestModal(true);
+            return;
+        }
         setChatVisible(true);
     };
 
@@ -304,6 +321,14 @@ export default function StoreDetailScreen() {
                     </View>
                 </Pressable>
             </Modal>
+
+            {showGuestModal && (
+                <GuestLoginModal
+                    visible={true}
+                    onClose={() => setShowGuestModal(false)}
+                    message={guestModalMessage || "Please log in to continue."}
+                />
+            )}
         </View>
     );
 }

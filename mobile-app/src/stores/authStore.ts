@@ -41,9 +41,12 @@ interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
   hasCompletedOnboarding: boolean;
+  isGuest: boolean;
   setUser: (user: User) => void; // Used after successful Supabase login
   logout: () => void;
   completeOnboarding: () => void;
+  resetOnboarding: () => void; // For testing/debugging
+  loginAsGuest: () => void;
   updateProfile: (updates: Partial<User>) => void;
   // Kept for backward compatibility if any, but logic is now external
   login: (email: string, password: string) => Promise<boolean>; 
@@ -55,6 +58,7 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       isAuthenticated: false,
       hasCompletedOnboarding: false,
+      isGuest: false,
 
       setUser: (user: User) => {
         // Mock saved cards if none exist (for demo)
@@ -64,7 +68,7 @@ export const useAuthStore = create<AuthState>()(
                 { id: 'card_2', last4: '8888', brand: 'MasterCard', expiry: '10/26' },
             ];
         }
-        set({ user, isAuthenticated: true });
+        set({ user, isAuthenticated: true, isGuest: false });
       },
 
       // Deprecated: Login logic moved to LoginScreen to handle Supabase directly
@@ -77,11 +81,30 @@ export const useAuthStore = create<AuthState>()(
         set({
           user: null,
           isAuthenticated: false,
+          isGuest: false,
         });
       },
 
       completeOnboarding: () => {
         set({ hasCompletedOnboarding: true });
+      },
+
+      resetOnboarding: () => {
+        set({ hasCompletedOnboarding: false });
+      },
+
+      loginAsGuest: () => {
+        set({
+          isAuthenticated: true,
+          isGuest: true,
+          user: {
+            id: 'guest',
+            name: 'Guest User',
+            email: 'guest@bazaarx.ph',
+            phone: '',
+            avatar: '',
+          }
+        });
       },
 
       updateProfile: (updates: Partial<User>) => {

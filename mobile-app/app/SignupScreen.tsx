@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Mail, Lock, User, Phone, Eye, EyeOff, ArrowRight } from 'lucide-react-native';
+import { Mail, Lock, User, Phone, Eye, EyeOff, ArrowRight, ArrowLeft } from 'lucide-react-native';
 import { supabase } from '../src/lib/supabase';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
@@ -96,6 +96,13 @@ export default function SignupScreen({ navigation }: Props) {
                 <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
                     <View style={styles.header}>
+                        <Pressable 
+                            style={styles.backButton} 
+                            onPress={() => navigation.goBack()}
+                            hitSlop={8}
+                        >
+                            <ArrowLeft size={24} color="#111827" />
+                        </Pressable>
                         <Text style={styles.title}>Create Account</Text>
                         <Text style={styles.subtitle}>Join BazaarX today</Text>
                     </View>
@@ -208,9 +215,10 @@ export default function SignupScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#FFF' },
     scrollContent: { padding: 24, flexGrow: 1 },
-    header: { marginBottom: 32, alignItems: 'center', marginTop: 20 },
-    title: { fontSize: 28, fontWeight: '800', color: '#111827', marginBottom: 8 },
-    subtitle: { fontSize: 14, color: '#6B7280' },
+    header: { marginBottom: 32, marginTop: 20 },
+    backButton: { position: 'absolute', left: 0, top: 0, zIndex: 10 },
+    title: { fontSize: 28, fontWeight: '800', color: '#111827', marginBottom: 8, textAlign: 'center', marginTop: 40 },
+    subtitle: { fontSize: 14, color: '#6B7280', textAlign: 'center' },
     form: { marginBottom: 24 },
     row: { flexDirection: 'row', marginBottom: 0 },
     inputContainer: { marginBottom: 16 },
