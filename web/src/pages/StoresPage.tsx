@@ -40,36 +40,36 @@ const StoresPage: React.FC = () => {
     <div className="min-h-screen bg-gray-50">
       <Header />
       
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6">
         
         {/* Hero Section */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-center mb-12"
+          className="text-center mb-8"
         >
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ delay: 0.2, type: "spring" }}
-            className="inline-flex items-center gap-2 bg-orange-100 text-orange-600 px-4 py-2 rounded-full text-sm font-medium mb-6"
-          >
-            <Store className="w-4 h-4" />
-            Verified Filipino Sellers
-          </motion.div>
+          <div className="">
+            <div className="max-w-7xl mx-auto mb-8 px-4 md:px-6 lg:px-8 py-16 bg-gradient-to-br from-orange-100/20 via-orange-200/50 to-orange-200/50 backdrop-blur-md border-xl border-orange-200/30 rounded-3xl">
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-center"
+              >
+                <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6">
+                  Discover Trusted
+                  <br />
+                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-red-500">
+                    Filipino Stores
+                  </span>
+                </h1>
+                
+                <p className="text-lg text-gray-700 max-w-2xl mx-auto">
+                  Shop from verified local businesses across the Philippines. Support local entrepreneurs and discover authentic Filipino Products
+                </p>
+              </motion.div>
+            </div>
+          </div>
           
-          <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6">
-            Discover Trusted
-            <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-red-500">
-              Filipino Stores
-            </span>
-          </h1>
-          
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto mb-8">
-            Shop from verified local businesses across the Philippines. Support local entrepreneurs and discover authentic Filipino products.
-          </p>
-
           {/* Search Bar */}
           <div className="max-w-2xl mx-auto">
             <div className="relative">

@@ -14,26 +14,30 @@ const CollectionsPage: React.FC = () => {
     <div className="min-h-screen bg-gradient-to-b from-orange-50/30 to-white">
       <Header />
       
+      {/* Hero Section - Glass-like Gradient */}
+      <div className="">
+        <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 py-16 bg-gradient-to-br from-orange-100/20 via-orange-200/50 to-orange-200/50 backdrop-blur-md border-xl border-orange-200/30 rounded-3xl">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-center"
+          >
+            <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6">
+              Discover Handpicked
+              <br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-red-500">
+                Collections
+              </span>
+            </h1>
+            
+            <p className="text-lg text-gray-700 max-w-2xl mx-auto">
+              Explore carefully curated collections featuring the best products from Filipino sellers
+            </p>
+          </motion.div>
+        </div>
+      </div>
+
       <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 py-8">
-        
-        {/* Hero Section */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-12 bg-gradient-to-br from-orange-200 via-white to-orange-200/100 rounded-3xl p-12 md:p-12"
-        >
-          <h1 className="text-3xl md:text-5xl font-bold text-gray-900 mb-6">
-            Discover Handpicked
-            <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-red-500">
-              Collections
-            </span>
-          </h1>
-          
-          <p className="text-xl text-gray-600 max-w-2xl">
-            Explore carefully curated collections featuring the best products from Filipino sellers
-          </p>
-        </motion.div>
 
         {/* Featured Badge Collections */}
         <motion.div
