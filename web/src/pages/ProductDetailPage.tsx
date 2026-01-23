@@ -14,14 +14,17 @@ import {
   Store,
   MapPin,
   ShieldCheck,
+  ThumbsUp,
 } from "lucide-react";
+import { Textarea } from "../components/ui/textarea";
 import { Badge } from "../components/ui/badge";
+import { Card, CardContent } from "../components/ui/card";
 import {
   trendingProducts,
   bestSellerProducts,
   newArrivals,
 } from "../data/products";
-import { useBuyerStore } from "../stores/buyerStore";
+import { useBuyerStore, demoSellers } from "../stores/buyerStore";
 import { useProductStore, useAuthStore } from "../stores/sellerStore";
 import { Button } from "../components/ui/button";
 import Header from "../components/Header";
@@ -29,6 +32,26 @@ import { BazaarFooter } from "../components/ui/bazaar-footer";
 import { cn } from "../lib/utils";
 
 interface ProductDetailPageProps { }
+
+interface Reply {
+  id: number;
+  text: string;
+  author: string;
+  date: string;
+  avatar: string;
+  isSeller?: boolean;
+}
+
+interface EnhancedReview {
+  id: number;
+  user: string;
+  rating: number;
+  date: string;
+  comment: string;
+  helpful: number;
+  isLiked?: boolean;
+  replies: Reply[];
+}
 
 // Enhanced product data with more details
 const enhancedProductData: Record<string, any> = {
@@ -790,7 +813,7 @@ const reviewsData: Record<string, any[]> = {
 export default function ProductDetailPage({ }: ProductDetailPageProps) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { addToCart, setQuickOrder } = useBuyerStore();
+  const { addToCart, setQuickOrder, profile } = useBuyerStore();
   const { products: sellerProducts } = useProductStore();
 
   const [quantity, setQuantity] = useState(1);
@@ -847,6 +870,8 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
       sellerId: (baseProduct as any).sellerId || (baseProduct as any).seller_id || ""
     } : null);
 
+  const currentSeller = demoSellers.find(s => s.id === (normalizedProduct?.sellerId || 'seller-001')) || demoSellers[0];
+
   const productId = normalizedProduct?.id || id?.split("-")[0] || "1";
   const productData = enhancedProductData[productId] || {
     name: normalizedProduct?.name || "",
@@ -880,6 +905,55 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
     ],
   };
   const productReviews = reviewsData[productId] || reviewsData["1"];
+
+  const [reviews, setReviews] = useState<EnhancedReview[]>(() =>
+    productReviews.map(review => ({
+      ...review,
+      isLiked: false,
+      replies: []
+    }))
+  );
+
+  const [replyingTo, setReplyingTo] = useState<number | null>(null);
+  const [replyText, setReplyText] = useState("");
+  const [reviewFilter, setReviewFilter] = useState('all');
+
+  const handleToggleLike = (reviewId: number) => {
+    setReviews(prev => prev.map(review => {
+      if (review.id === reviewId) {
+        return {
+          ...review,
+          isLiked: !review.isLiked,
+          helpful: review.isLiked ? review.helpful - 1 : review.helpful + 1
+        };
+      }
+      return review;
+    }));
+  };
+
+  const handlePostReply = (reviewId: number) => {
+    if (!replyText.trim()) return;
+
+    setReviews(prev => prev.map(review => {
+      if (review.id === reviewId) {
+        return {
+          ...review,
+          replies: [...review.replies, {
+            id: Date.now(),
+            text: replyText,
+            author: profile ? `${profile.firstName} ${profile.lastName}` : "You",
+            date: "Just now",
+            avatar: profile?.avatar || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=40&h=40&fit=crop&crop=face",
+            isSeller: false
+          }]
+        };
+      }
+      return review;
+    }));
+
+    setReplyText("");
+    setReplyingTo(null);
+  };
 
   if (!normalizedProduct) {
     return (
@@ -1172,10 +1246,42 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
 
           {/* Details Section (Right Side) */}
           <div className="lg:col-span-5 flex flex-col pt-2">
-            <span className="text-gray-500 text-sm font-medium mb-3">
+            {/* Store Profile - Compact Header */}
+            <div className="flex items-center justify-between mb-2 pb-2 border-b border-gray-100">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-gray-50 overflow-hidden border border-gray-100 shrink-0">
+                  <img
+                    src={currentSeller.avatar}
+                    alt={currentSeller.name}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-900 text-base leading-tight">{normalizedProduct?.seller || "Official Store"}</h3>
+                  <div className="flex items-center gap-3 text-xs text-gray-500 mt-0">
+                    <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {normalizedProduct?.location || "Metro Manila"}</span>
+
+                  </div>
+                </div>
+              </div>
+              <div className="flex flex-col items-end gap-1">
+                <div className="flex items-center gap-1 text-[#ff6a00] font-medium text-xs whitespace-nowrap">
+                  <Star className="w-3 h-3 fill-current" /> {currentSeller.rating}
+                </div>
+                <Button
+                  onClick={() => navigate(`/seller/${normalizedProduct?.sellerId || 'seller-001'}`)}
+                  className="bg-transparent hover:bg-transparent text-gray-900 hover:text-[#ff6a00] font-semibold p-0 h-auto transition-colors flex items-center gap-1 text-sm"
+                  variant="ghost"
+                >
+                  Visit Store
+                  <ChevronRight className="w-4 h-4 text-[#ff6a00]" />
+                </Button>
+              </div>
+            </div>
+            <span className="text-gray-500 text-sm font-medium mb-1">
               {productData.category}
             </span>
-            <h1 className="text-3xl lg:text-4xl font-bold text-gray-900 mb-4 tracking-tight leading-tight">
+            <h1 className="text-3xl lg:text-4xl font-bold text-gray-900 mb-2 tracking-tight leading-tight">
               {productData.name}
             </h1>
 
@@ -1272,7 +1378,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
             </div>
 
             {/* Quantity */}
-            <div className="flex items-center gap-6 mb-8">
+            <div className="flex items-center gap-6 mb-8 -mt-4">
               <div className="flex items-center border-2 border-gray-200 rounded-full p-1.5 w-32 justify-between">
                 <button
                   onClick={() => setQuantity(Math.max(1, quantity - 1))}
@@ -1291,7 +1397,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
             </div>
 
             {/* Action Buttons */}
-            <div className="flex flex-col sm:flex-row gap-4 mb-8">
+            <div className="flex flex-col sm:flex-row gap-4 -mt-4 mb-8">
               <Button
                 onClick={handleAddToCart}
                 className="flex-1 h-12 sm:h-14 rounded-full bg-white hover:bg-orange-50 text-[#ff6a00] border-2 border-[#ff6a00] text-sm sm:text-base font-bold shadow-sm hover:shadow-md transition-all active:scale-[0.98]"
@@ -1309,41 +1415,12 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
           </div>
         </div>
 
-        {/* Store Profile Section */}
-        {/* Store Profile Section */}
-        <div className="mt-6 bg-white border border-gray-100 rounded-2xl p-4 lg:p-5 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-full bg-gray-50 flex items-center justify-center border border-gray-100">
-              <Store className="w-7 h-7 text-gray-400" />
-            </div>
-            <div>
-              <h3 className="font-bold text-lg text-gray-900">{normalizedProduct?.seller || "Official Store"}</h3>
-              <div className="flex items-center gap-2 text-sm text-gray-500 mt-1">
-                <div className="flex items-center gap-1">
-                  <MapPin className="w-3.5 h-3.5" />
-                  <span>{normalizedProduct?.location || "Metro Manila"}</span>
-                </div>
-                <span className="w-1 h-1 rounded-full bg-gray-300 mx-1" />
-                <span className="text-[#ff6a00] font-medium flex items-center gap-1">
-                  <Star className="w-3.5 h-3.5 fill-current" /> 4.9 Rating
-                </span>
-              </div>
-            </div>
-          </div>
-          <Button
-            onClick={() => navigate(`/seller/${normalizedProduct?.sellerId || 'seller-001'}`)}
-            className="w-full sm:w-auto bg-transparent hover:bg-transparent text-gray-900 hover:text-[#ff6a00] font-semibold p-0 h-auto transition-colors flex items-center gap-1"
-            variant="ghost"
-          >
-            Visit Store
-            <ChevronRight className="w-4 h-4 text-[#ff6a00]" />
-          </Button>
-        </div>
+
 
         {/* Tabs / Reviews / Full Desc Section */}
         <div className="mt-4 border-t border-gray-100 pt-4">
           {/* Tab Navigation */}
-          <div className="flex justify-center mb-4">
+          <div className="flex justify-center mb-4 sticky top-20 z-50 bg-white/80 backdrop-blur-md py-4">
             <nav className="inline-flex bg-gray-100/50 p-1 rounded-full">
               {["description", "reviews", "support"].map((tab) => (
                 <button
@@ -1379,37 +1456,173 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
             )}
 
             {activeTab === "reviews" && (
-              <div className="space-y-4">
-                {productReviews.map((review) => (
-                  <div key={review.id} className="bg-gray-50 rounded-3xl p-8">
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center font-bold text-lg border border-gray-100">
-                          {review.user.charAt(0)}
-                        </div>
-                        <div>
-                          <h4 className="font-bold text-gray-900">{review.user}</h4>
-                          <span className="text-sm text-gray-500">{review.date}</span>
-                        </div>
-                      </div>
-                      <div className="flex gap-1">
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
+                {/* Sticky Rating Summary (Left Sidebar) */}
+                <div className="md:col-span-5 lg:col-span-4 sticky top-40 z-40">
+                  <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+                    <div className="text-center mb-6">
+                      <div className="text-5xl font-bold text-gray-900 leading-none mb-2">{productData.rating}</div>
+                      <div className="flex items-center justify-center gap-1 mb-2">
                         {[...Array(5)].map((_, i) => (
                           <Star
                             key={i}
                             className={cn(
-                              "w-4 h-4",
-                              i < review.rating ? "fill-yellow-400 text-yellow-400" : "fill-gray-300 text-gray-300"
+                              "h-4 w-4",
+                              i < Math.floor(productData.rating) ? "fill-current text-yellow-400" : "text-gray-300"
                             )}
                           />
                         ))}
                       </div>
+                      <div className="text-sm text-gray-500 font-medium">{productData.reviewCount} reviews</div>
                     </div>
-                    <p className="text-gray-600 leading-relaxed mb-4">{review.comment}</p>
-                    <button className="text-sm font-medium text-gray-500 hover:text-black flex items-center gap-2">
-                      Helpful? <span className="text-xs bg-white px-2 py-1 rounded-full border border-gray-200 ml-1">{review.helpful}</span>
-                    </button>
+
+                    <div className="space-y-2">
+                      {[5, 4, 3, 2, 1].map((star) => (
+                        <div key={star} className="flex items-center gap-3">
+                          <div className="flex items-center justify-end gap-1.5 w-12 shrink-0">
+                            <span className="text-sm font-medium text-gray-700">{star}</span>
+                            <Star className="h-3 w-3 fill-current text-yellow-400" />
+                          </div>
+                          <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-yellow-400 rounded-full"
+                              style={{ width: `${star === 5 ? 70 : star === 4 ? 20 : star === 3 ? 6 : star === 2 ? 3 : 1}%` }}
+                            />
+                          </div>
+                          <span className="text-xs text-gray-400 w-8 text-right tabular-nums">
+                            {star === 5 ? '70%' : star === 4 ? '20%' : star === 3 ? '6%' : star === 2 ? '3%' : '1%'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                ))}
+                </div>
+
+                {/* Reviews List & Filters (Right Content) */}
+                <div className="md:col-span-7 lg:col-span-8 space-y-4">
+                  {/* Review Filters */}
+                  <div className="sticky top-40 z-40 flex flex-wrap items-center gap-2 mb-4 bg-white p-2 rounded-xl border border-gray-100 shadow-sm">
+                    {['all', '5', '4', '3', '2', '1', 'media'].map((filter) => (
+                      <button
+                        key={filter}
+                        onClick={() => setReviewFilter(filter)}
+                        className={cn(
+                          "px-4 py-1.5 rounded-full text-xs font-medium transition-all duration-200 border",
+                          reviewFilter === filter
+                            ? "bg-orange-50 text-orange-600 border-orange-200"
+                            : "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                        )}
+                      >
+                        {filter === 'all' ? 'All' : filter === 'media' ? 'With Media' : `${filter} Star${filter === '1' ? '' : 's'}`}
+                      </button>
+                    ))}
+                  </div>
+
+                  {reviews.filter(review => {
+                    if (reviewFilter === 'all') return true;
+                    if (reviewFilter === 'media') return false; // No media in current mock data
+                    return Math.floor(review.rating).toString() === reviewFilter;
+                  }).map((review) => (
+                    <div key={review.id} className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center gap-4">
+                          <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center font-bold text-lg text-gray-500 overflow-hidden">
+                            {review.user ? (
+                              <span className="uppercase">{review.user.charAt(0)}</span>
+                            ) : (
+                              <User className="h-5 w-5" />
+                            )}
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-gray-900 text-sm">{review.user}</h4>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-gray-400">{review.date}</span>
+                              <div className="flex gap-0.5">
+                                {[...Array(5)].map((_, i) => (
+                                  <Star
+                                    key={i}
+                                    className={cn(
+                                      "w-3 h-3",
+                                      i < review.rating ? "fill-yellow-400 text-yellow-400" : "fill-gray-200 text-gray-200"
+                                    )}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <p className="text-gray-600 leading-snug mb-3 text-sm">{review.comment}</p>
+
+                      {/* Replies */}
+                      {review.replies.length > 0 && (
+                        <div className="mb-4 pl-4 border-l-2 border-gray-100 space-y-3">
+                          {review.replies.map(reply => (
+                            <div key={reply.id} className="bg-gray-50 p-3 rounded-lg border border-gray-200/50">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="font-semibold text-xs text-gray-900">{reply.author}</span>
+                                <span className="text-[10px] text-gray-400">{reply.date}</span>
+                              </div>
+                              <p className="text-xs text-gray-600 leading-relaxed">{reply.text}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="flex items-center gap-4 text-sm font-medium text-gray-500">
+                        <button
+                          onClick={() => handleToggleLike(review.id)}
+                          className={cn(
+                            "transition-colors flex items-center gap-1.5 group",
+                            review.isLiked ? "text-orange-600" : "hover:text-black"
+                          )}
+                        >
+                          <ThumbsUp className={cn(
+                            "h-3.5 w-3.5 transition-colors",
+                            review.isLiked ? "fill-current text-orange-600" : "group-hover:text-orange-600"
+                          )} />
+                          <span className={cn("text-xs px-2 py-0.5 rounded-full border ml-1", review.isLiked ? "bg-orange-50 border-orange-200" : "bg-white border-gray-200")}>{review.helpful}</span>
+                        </button>
+                        <button
+                          onClick={() => setReplyingTo(replyingTo === review.id ? null : review.id)}
+                          className="text-xs hover:text-orange-600 transition-colors"
+                        >
+                          Reply
+                        </button>
+                      </div>
+
+                      {replyingTo === review.id && (
+                        <div className="mt-4">
+                          <div className="relative">
+                            <Textarea
+                              value={replyText}
+                              onChange={(e) => setReplyText(e.target.value)}
+                              placeholder="Write a reply..."
+                              className="min-h-[80px] bg-gray-50 border-gray-200 focus:border-[#ff6a00] focus:ring-[#ff6a00] mb-2 text-sm resize-none pr-20"
+                            />
+                            <div className="flex justify-end gap-2 absolute bottom-4 right-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setReplyingTo(null)}
+                                className="h-6 text-xs hover:bg-gray-200 text-gray-500 px-2"
+                              >
+                                Cancel
+                              </Button>
+                              <Button
+                                size="sm"
+                                onClick={() => handlePostReply(review.id)}
+                                className="h-6 text-xs bg-[#ff6a00] hover:bg-[#e65f00] text-white px-3"
+                              >
+                                Post
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
