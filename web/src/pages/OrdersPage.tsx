@@ -1,29 +1,48 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useLocation } from 'react-router-dom';
+<<<<<<< HEAD
 import { Package, Clock, Truck, CheckCircle, XCircle, Eye, Search, Filter, Calendar, MapPin, Star, ChevronLeft, ArrowLeft, RotateCcw, X, ShoppingBag } from 'lucide-react';
 import { useCartStore } from '../stores/cartStore';
+=======
+import { Package, Clock, Truck, CheckCircle, XCircle, Eye, Search, Filter, Calendar, MapPin, Star } from 'lucide-react';
+// import { useCartStore } from '../stores/cartStore'; // Removed mock store usage
+>>>>>>> b6eb31ecf9bad194af703fe42ca3eabbd29ff690
 import { Button } from '../components/ui/button';
 import { useBuyerStore } from '../stores/buyerStore';
 import Header from '../components/Header';
 import { BazaarFooter } from '../components/ui/bazaar-footer';
 import TrackingModal from '../components/TrackingModal';
+<<<<<<< HEAD
 import ReturnRefundModal from '../components/ReturnRefundModal';
 import { ReviewModal } from '../components/ReviewModal';
 import { cn } from '../lib/utils';
 import { useToast } from '../hooks/use-toast';
+=======
+import { supabase } from '@/lib/supabase';
+import { useBuyerStore } from '../stores/buyerStore';
+>>>>>>> b6eb31ecf9bad194af703fe42ca3eabbd29ff690
 
 export default function OrdersPage() {
   const navigate = useNavigate();
   const location = useLocation();
+<<<<<<< HEAD
   const { orders, updateOrderStatus, updateOrderWithReturnRequest } = useCartStore();
   const { addToCart } = useBuyerStore();
   const { toast } = useToast();
+=======
+  // const { orders } = useCartStore(); // Replaced with real state
+  const { profile } = useBuyerStore();
+
+  const [orders, setOrders] = useState<any[]>([]); // Using any[] for now to ease mapping from complex Join
+  const [isLoading, setIsLoading] = useState(true);
+>>>>>>> b6eb31ecf9bad194af703fe42ca3eabbd29ff690
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('pending');
   const [selectedOrder, setSelectedOrder] = useState<string | null>(null);
   const [trackingOrder, setTrackingOrder] = useState<string | null>(null);
+<<<<<<< HEAD
   const [returnModalOpen, setReturnModalOpen] = useState(false);
   const [orderToReturn, setOrderToReturn] = useState<any>(null);
   const [viewReturnDetails, setViewReturnDetails] = useState<any>(null);
@@ -103,11 +122,62 @@ export default function OrdersPage() {
       duration: 5000,
     });
   };
+=======
+>>>>>>> b6eb31ecf9bad194af703fe42ca3eabbd29ff690
 
   // Show success message for newly created orders
   const newOrderId = (location.state as { newOrderId?: string; fromCheckout?: boolean } | null)?.newOrderId;
   const fromCheckout = (location.state as { fromCheckout?: boolean } | null)?.fromCheckout;
   const [showSuccessBanner, setShowSuccessBanner] = useState(!!fromCheckout);
+
+  // Fetch orders from Supabase
+  useEffect(() => {
+    const fetchOrders = async () => {
+      if (!profile?.id) return;
+
+      setIsLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('orders')
+          .select(`
+            *,
+            items:order_items (*)
+          `)
+          .eq('buyer_id', profile.id)
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        // Map database shape to UI expected shape
+        const mappedOrders = (data || []).map(order => ({
+          id: order.order_number, // UI expects string id, using order_number (e.g., ORD-2026...)
+          dbId: order.id,         // Keep real UUID handy
+          createdAt: order.created_at,
+          status: order.status === 'pending_payment' ? 'pending' : (order.status || 'pending').toLowerCase(), // Map DB status to UI status
+          isPaid: order.payment_status === 'paid',
+          total: order.total_amount,
+          items: (order.items || []).map((item: any) => ({
+            id: item.id,
+            name: item.product_name,
+            image: item.product_images?.[0] || '',
+            price: item.price,
+            quantity: item.quantity,
+            seller: item.seller_name || 'Seller', // Might need to fetch if not saved on item
+            sellerId: item.seller_id
+          })),
+          shippingAddress: order.shipping_address
+        }));
+
+        setOrders(mappedOrders);
+      } catch (err) {
+        console.error("Error fetching orders:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchOrders();
+  }, [profile?.id, newOrderId]); // Refetch if new order comes in
 
   // Auto-hide success banner after 8 seconds
   useEffect(() => {
@@ -126,14 +196,29 @@ export default function OrdersPage() {
   };
 
   const statusOptions = [
+<<<<<<< HEAD
     { value: 'pending', label: 'To Pay' },
     { value: 'confirmed', label: 'To Ship' },
     { value: 'shipped', label: 'To Deliver' },
+=======
+    { value: 'all', label: 'All Orders' },
+    { value: 'pending', label: 'Pending' },
+    { value: 'confirmed', label: 'Processing' }, // DB might use 'processing' or 'confirmed'
+    { value: 'shipped', label: 'Shipped' },
+>>>>>>> b6eb31ecf9bad194af703fe42ca3eabbd29ff690
     { value: 'delivered', label: 'Delivered' },
     { value: 'returned', label: 'Return/Refund' },
     { value: 'cancelled', label: 'Cancelled' },
     { value: 'reviewed', label: 'Reviewed' }
   ];
+
+  /* 
+     Helper: we need to handle mapping DB statuses (processing, ready_to_ship) to UI statuses (confirmed) 
+     if the DB uses different strings. 
+     Database.types.ts says: pending_payment, paid, processing, ready_to_ship, shipped...
+     UI statuses seem to be: pending, confirmed, shipped, delivered, cancelled.
+  */
+
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -225,7 +310,11 @@ export default function OrdersPage() {
 
   return (
     <div className="min-h-screen bg-white">
+<<<<<<< HEAD
       {!returnModalOpen && !viewReturnDetails && !reviewModalOpen && !viewImage && <Header />}
+=======
+      <Header />
+>>>>>>> b6eb31ecf9bad194af703fe42ca3eabbd29ff690
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Success notification for new order */}
@@ -242,7 +331,11 @@ export default function OrdersPage() {
             <div className="flex-1">
               <h3 className="font-semibold text-green-900 mb-1">🎉 Order Placed Successfully!</h3>
               <p className="text-sm text-green-800">
+<<<<<<< HEAD
                 Your order <span className="font-semibold">#{newOrderId.split('_')[1]}</span> has been confirmed and is being processed.
+=======
+                Your order <span className="font-semibold">#{newOrderId}</span> has been confirmed and is being processed.
+>>>>>>> b6eb31ecf9bad194af703fe42ca3eabbd29ff690
                 You can track your order status below.
               </p>
             </div>
@@ -352,6 +445,7 @@ export default function OrdersPage() {
                 transition={{ delay: index * 0.05 }}
                 className="bg-white border border-gray-200 rounded-xl p-3 sm:p-4 hover:shadow-lg transition-shadow"
               >
+<<<<<<< HEAD
                 {order.status === 'reviewed' ? (
                   // COMPRESSED LAYOUT
                   <div className="flex flex-col gap-2">
@@ -418,6 +512,17 @@ export default function OrdersPage() {
                       <div className="flex items-center gap-3">
                         <h3 className="font-semibold text-gray-900">Order #{order.id.split('_')[1]}</h3>
                         {/* New Order Indicator */}
+=======
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                  <div className="flex-1">
+                    {/* Order Header */}
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <h3 className="font-semibold text-gray-900">
+                          Order #{order.id}
+                        </h3>
+                        {/* New order indicator (orders created in last 2 minutes) */}
+>>>>>>> b6eb31ecf9bad194af703fe42ca3eabbd29ff690
                         {isNewOrder(order) && (
                           <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-orange-500 text-white animate-pulse">
                             <span className="w-1.5 h-1.5 rounded-full bg-white"></span>
@@ -513,19 +618,45 @@ export default function OrdersPage() {
                             >
                               Cancel Order
                             </Button>
+<<<<<<< HEAD
 
                           </>
                         ) : order.status === 'pending' || order.status === 'confirmed' || order.status === 'shipped' ? (
                           /* In Progress - Track Order */
                           null
+=======
+                            <Button
+                              onClick={() => navigate(`/delivery-tracking/${encodeURIComponent(order.id)}`)}
+                              size="sm"
+                              className="bg-[#FF5722] hover:bg-[#E64A19] text-white"
+                            >
+                              <Truck className="w-4 h-4 mr-1" />
+                              Track Order
+                            </Button>
+                          </>
+                        ) : order.status === 'pending' || order.status === 'confirmed' || order.status === 'shipped' ? (
+                          /* In Progress - Track Order */
+                          <Button
+                            onClick={() => navigate(`/delivery-tracking/${encodeURIComponent(order.id)}`)}
+                            size="sm"
+                            className="bg-[#FF5722] hover:bg-[#E64A19] text-white"
+                          >
+                            <Truck className="w-4 h-4 mr-1" />
+                            Track Order
+                          </Button>
+>>>>>>> b6eb31ecf9bad194af703fe42ca3eabbd29ff690
                         ) : order.status === 'delivered' ? (
                           /* Delivered - See Details and Review */
                           <>
                             <Button
+<<<<<<< HEAD
                               onClick={() => {
                                 setOrderToReview(order);
                                 setReviewModalOpen(true);
                               }}
+=======
+                              onClick={() => navigate(`/order/${encodeURIComponent(order.id)}`)}
+>>>>>>> b6eb31ecf9bad194af703fe42ca3eabbd29ff690
                               size="sm"
                               variant="outline"
                               className="border-[#FF5722] text-[#FF5722] hover:bg-[#ff6a00] hover:text-white hover:border-[#ff6a00]"
@@ -551,7 +682,7 @@ export default function OrdersPage() {
                         ) : order.status === 'cancelled' ? (
                           /* Canceled - View Details */
                           <Button
-                            onClick={() => navigate(`/order/${order.id}`)}
+                            onClick={() => navigate(`/order/${encodeURIComponent(order.id)}`)}
                             variant="outline"
                             size="sm"
                             className="border-gray-300 text-gray-500 hover:bg-gray-50"
@@ -629,6 +760,7 @@ export default function OrdersPage() {
             className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
             onClick={() => setSelectedOrder(null)}
           >
+<<<<<<< HEAD
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -649,6 +781,14 @@ export default function OrdersPage() {
                 >
                   <XCircle className="w-6 h-6" />
                 </button>
+=======
+            <div className="flex justify-between items-start mb-6">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900 mb-1">
+                  Order #{selectedOrderData.id}
+                </h2>
+                <p className="text-gray-600">{formatDateTime(selectedOrderData.createdAt)}</p>
+>>>>>>> b6eb31ecf9bad194af703fe42ca3eabbd29ff690
               </div>
 
               {/* Status */}

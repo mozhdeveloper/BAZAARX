@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import * as cartService from '@/services/cartService';
-import { getCurrentUser } from '@/lib/supabase';
+import { getCurrentUser, supabase } from '@/lib/supabase';
 import { ReactNode } from 'react';
 
 // Enhanced interfaces for buyer features
@@ -237,7 +237,13 @@ interface BuyerStore {
   getSellerDetails: (sellerId: string) => Seller | null;
   getSellerProducts: (sellerId: string, category?: string) => Product[];
   addViewedSeller: (seller: Seller) => void;
+
+  // Real-time
+  subscribeToProfile: (userId: string) => void;
+  unsubscribeFromProfile: () => void;
 }
+
+let profileSubscription: any = null;
 
 const mapDbItemToCartItem = (item: any): CartItem | null => {
   const dbProduct = item.product;
@@ -299,9 +305,31 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       }
       set({ profile });
     },
-    updateProfile: (updates) => set((state) => ({
-      profile: state.profile ? { ...state.profile, ...updates } : null
-    })),
+
+    // --- Update this inside useBuyerStore definition ---
+    updateProfile: async (updates) => {
+      const currentProfile = get().profile;
+      if (!currentProfile) return;
+
+      try {
+        // 1. Update Supabase database
+        const { error } = await supabase
+          .from('buyers')
+          .update(updates) // This will update the 'bazcoins' column if included in updates
+          .eq('id', currentProfile.id);
+
+        if (error) throw error;
+
+        // 2. Update local Zustand state only if DB update succeeds
+        set((state) => ({
+          profile: state.profile ? { ...state.profile, ...updates } : null
+        }));
+      } catch (err) {
+        console.error("Failed to update profile in database:", err);
+        // Optional: Add toast notification for error
+      }
+    },
+
     logout: () => set({ profile: null, cartItems: [], groupedCart: {}, appliedVouchers: {}, platformVoucher: null }),
 
     // Address Book
@@ -871,18 +899,68 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       if (!user) return;
 
       try {
-        const cart = await cartService.getOrCreateCart(user.id);
+        const cart = await cartService.getCart(user.id);
         if (cart) {
+          // Capture current selection state to preserve it after DB sync
+          const currentItems = get().cartItems;
+          const selectionMap = new Map<string, boolean>();
+
+          currentItems.forEach(item => {
+            const key = `${item.id}-${item.selectedVariant?.id || 'none'}`;
+            if (item.selected) {
+              selectionMap.set(key, true);
+            }
+          });
+
           const dbItems = await cartService.getCartItems(cart.id);
 
           // Map DB items to store items
           const mappedItems: CartItem[] = dbItems.map(mapDbItemToCartItem).filter(Boolean) as CartItem[];
 
-          set({ cartItems: mappedItems });
+          // Restore selection state
+          const itemsWithSelection = mappedItems.map(item => {
+            const key = `${item.id}-${item.selectedVariant?.id || 'none'}`;
+            if (selectionMap.has(key)) {
+              return { ...item, selected: true };
+            }
+            return item;
+          });
+
+          set({ cartItems: itemsWithSelection });
           get().groupCartBySeller();
         }
       } catch (error) {
         console.error('Error initializing cart from DB:', error);
+      }
+    },
+
+    subscribeToProfile: (userId) => {
+      if (profileSubscription) return; // Already subscribed
+
+      profileSubscription = supabase
+        .channel(`public:buyers:${userId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'buyers',
+            filter: `id=eq.${userId}`,
+          },
+          (payload) => {
+            const newProfile = payload.new as Partial<BuyerProfile>;
+            set((state) => ({
+              profile: state.profile ? { ...state.profile, ...newProfile } : null
+            }));
+          }
+        )
+        .subscribe();
+    },
+
+    unsubscribeFromProfile: () => {
+      if (profileSubscription) {
+        supabase.removeChannel(profileSubscription);
+        profileSubscription = null;
       }
     }
   }),

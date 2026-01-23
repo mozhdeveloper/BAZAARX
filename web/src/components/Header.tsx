@@ -11,6 +11,7 @@ import {
   Camera,
   Headset,
 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { NotificationsDropdown } from "./NotificationsDropdown";
 import { useBuyerStore } from "../stores/buyerStore";
 import VisualSearchModal from "./VisualSearchModal";
@@ -28,7 +29,7 @@ interface HeaderProps {
 const Header: React.FC<HeaderProps> = ({ transparentOnTop = false }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { profile, logout } = useBuyerStore();
+  const { profile, logout, getTotalCartItems, initializeCart, subscribeToProfile, unsubscribeFromProfile } = useBuyerStore();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [showVisualSearchModal, setShowVisualSearchModal] = useState(false);
@@ -179,6 +180,11 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false }) => {
                   d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"
                 />
               </svg>
+              {profile && getTotalCartItems() > 0 && (
+                <Badge className="absolute top-0 right-0 min-w-[1.25rem] h-5 px-1 flex items-center justify-center bg-red-500 text-white border-none rounded-full text-xs">
+                  {getTotalCartItems() > 99 ? "99+" : getTotalCartItems()}
+                </Badge>
+              )}
             </button>
 
             {/* Orders */}

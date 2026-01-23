@@ -27,7 +27,7 @@ export default function TrackingModal({ order, isOpen, onClose }: TrackingModalP
         description: 'Your items are being prepared for shipment',
         icon: Package,
         completed: ['confirmed', 'shipped', 'delivered'].includes(status),
-        time: status === 'confirmed' || ['shipped', 'delivered'].includes(status) 
+        time: status === 'confirmed' || ['shipped', 'delivered'].includes(status)
           ? new Date(order.createdAt.getTime() + 2 * 60 * 1000).toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })
           : null
       },
@@ -48,7 +48,7 @@ export default function TrackingModal({ order, isOpen, onClose }: TrackingModalP
         description: 'Your order has been successfully delivered',
         icon: CheckCircle,
         completed: status === 'delivered',
-        time: status === 'delivered' 
+        time: status === 'delivered'
           ? order.estimatedDelivery.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })
           : null
       },
@@ -88,7 +88,7 @@ export default function TrackingModal({ order, isOpen, onClose }: TrackingModalP
             <div>
               <h2 className="text-xl font-semibold text-gray-900">Track Your Order</h2>
               <p className="text-sm text-gray-500 mt-1">
-                Order #{order.id.split('_')[1]} • {formatDate(order.createdAt)}
+                Order #{order.orderNumber} • {formatDate(order.createdAt)}
               </p>
             </div>
             <button
@@ -107,17 +107,16 @@ export default function TrackingModal({ order, isOpen, onClose }: TrackingModalP
               const Icon = step.icon;
               const isCompleted = step.completed;
               const isCurrent = step.current;
-              
+
               return (
                 <div key={step.id} className="flex items-start gap-4">
                   {/* Icon */}
-                  <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center border-2 ${
-                    isCompleted 
-                      ? 'bg-green-100 border-green-200 text-green-600'
-                      : isCurrent
-                        ? 'bg-blue-100 border-blue-200 text-blue-600 animate-pulse'
-                        : 'bg-gray-100 border-gray-200 text-gray-400'
-                  }`}>
+                  <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center border-2 ${isCompleted
+                    ? 'bg-green-100 border-green-200 text-green-600'
+                    : isCurrent
+                      ? 'bg-blue-100 border-blue-200 text-blue-600 animate-pulse'
+                      : 'bg-gray-100 border-gray-200 text-gray-400'
+                    }`}>
                     <Icon className="w-5 h-5" />
                   </div>
 
@@ -125,21 +124,18 @@ export default function TrackingModal({ order, isOpen, onClose }: TrackingModalP
                   <div className="flex-1">
                     <div className="flex items-start justify-between">
                       <div>
-                        <h3 className={`font-medium ${
-                          isCompleted || isCurrent ? 'text-gray-900' : 'text-gray-500'
-                        }`}>
+                        <h3 className={`font-medium ${isCompleted || isCurrent ? 'text-gray-900' : 'text-gray-500'
+                          }`}>
                           {step.title}
                         </h3>
-                        <p className={`text-sm mt-1 ${
-                          isCompleted || isCurrent ? 'text-gray-600' : 'text-gray-400'
-                        }`}>
+                        <p className={`text-sm mt-1 ${isCompleted || isCurrent ? 'text-gray-600' : 'text-gray-400'
+                          }`}>
                           {step.description}
                         </p>
                       </div>
                       {step.time && (
-                        <span className={`text-xs ${
-                          isCompleted || isCurrent ? 'text-gray-500' : 'text-gray-400'
-                        }`}>
+                        <span className={`text-xs ${isCompleted || isCurrent ? 'text-gray-500' : 'text-gray-400'
+                          }`}>
                           {step.time}
                         </span>
                       )}
@@ -147,9 +143,8 @@ export default function TrackingModal({ order, isOpen, onClose }: TrackingModalP
 
                     {/* Progress Line */}
                     {index < trackingSteps.length - 1 && (
-                      <div className={`w-0.5 h-6 ml-5 mt-2 ${
-                        isCompleted ? 'bg-green-200' : 'bg-gray-200'
-                      }`} />
+                      <div className={`w-0.5 h-6 ml-5 mt-2 ${isCompleted ? 'bg-green-200' : 'bg-gray-200'
+                        }`} />
                     )}
                   </div>
                 </div>

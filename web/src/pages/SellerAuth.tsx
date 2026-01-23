@@ -158,8 +158,8 @@ export function SellerLogin() {
             <div className="relative w-[450px] h-[450px] flex items-center justify-center">
               
               <div className='absolute w-[200px] h-[200px] border-2 border-orange-200/50 rounded-full'></div>
-              <div className="absolute w-[315px] h-[315px] border-2 border border-orange-200/50 rounded-full"></div>
-              <div className="absolute inset-0 border-2 border border-orange-200/50 rounded-full"></div>
+              <div className="absolute w-[315px] h-[315px] border-2 border-orange-200/50 rounded-full"></div>
+              <div className="absolute inset-0 border-2 border-orange-200/50 rounded-full"></div>
               {/* Central Logo */}
               <motion.div 
                 animate={{ scale: [1, 1.05, 1] }}
@@ -307,7 +307,7 @@ export function SellerRegister() {
 
           <div className='max-w-md mx-auto w-full relative z-10'>
             <div className='mb-8 text-center'>
-              <div className='w-16 h-16 bg-white rounded-2xl flex items-center justify-center mb-6 shadow-xl shadow-orange-200/50 mx-auto border border-orange-100'>
+              <div className='w-16 h-16 bg-white rounded-2xl flex items-center mb-6 shadow-xl shadow-orange-200/50 mx-auto border border-orange-100'>
                 <img 
                   src='/BazaarX.png'
                   className='h-14 w-14 object-obtain'></img>
