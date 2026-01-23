@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { 
-  ArrowLeft, 
-  Package, 
-  Truck, 
-  CheckCircle, 
+import {
+  ArrowLeft,
+  Package,
+  Truck,
+  CheckCircle,
   Clock,
   MapPin,
   Phone,
@@ -18,11 +18,12 @@ import {
   Store,
   Receipt
 } from 'lucide-react';
-import { useCartStore } from '../stores/cartStore';
+import { useCartStore, Order } from '../stores/cartStore';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { supabase } from '@/lib/supabase';
 import Header from '../components/Header';
 import { BazaarFooter } from '../components/ui/bazaar-footer';
 import { cn } from '@/lib/utils';
@@ -38,12 +39,12 @@ interface ChatMessage {
 export default function OrderDetailPage() {
   const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
-  const { getOrderById } = useCartStore();
   const chatEndRef = useRef<HTMLDivElement>(null);
-  
-  const order = orderId ? getOrderById(orderId) : null;
+
+  const [dbOrder, setDbOrder] = useState<Order | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [chatMessage, setChatMessage] = useState('');
-  
+
   // Initialize chat messages with lazy initialization
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => {
     const now = Date.now();
@@ -80,15 +81,106 @@ export default function OrderDetailPage() {
   });
 
   useEffect(() => {
-    if (!order) {
+    const fetchOrder = async () => {
+      if (!orderId) return;
+
+      setIsLoading(true);
+      try {
+        // Try fetching by ID first, then by order_number
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(orderId);
+
+        let query = supabase
+          .from('orders')
+          .select(`
+            *,
+            order_items (*)
+          `);
+
+        if (isUuid) {
+          query = query.eq('id', orderId);
+        } else {
+          query = query.eq('order_number', orderId);
+        }
+
+        const { data: orderData, error } = await query.single();
+
+        if (error) throw error;
+
+        if (orderData) {
+          const statusMap = {
+            'pending_payment': 'pending',
+            'paid': 'confirmed',
+            'processing': 'confirmed',
+            'shipped': 'shipped',
+            'delivered': 'delivered',
+            'cancelled': 'cancelled'
+          };
+
+          const mappedOrder: Order = {
+            id: orderData.id,
+            orderNumber: orderData.order_number,
+            total: orderData.total_amount,
+            status: (statusMap[orderData.status as keyof typeof statusMap] || 'pending') as Order['status'],
+            isPaid: orderData.payment_status === 'paid',
+            createdAt: new Date(orderData.created_at),
+            date: new Date(orderData.created_at).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' }),
+            estimatedDelivery: new Date(orderData.estimated_delivery_date || Date.now() + 3 * 24 * 60 * 60 * 1000),
+            items: (orderData.order_items || []).map((item: any) => ({
+              id: item.id,
+              name: item.product_name,
+              price: item.price,
+              quantity: item.quantity,
+              image: item.product_images?.[0] || 'https://placehold.co/100?text=Product',
+              seller: item.seller_name || 'Bazaar Merchant'
+            })),
+            shippingAddress: {
+              fullName: (orderData.shipping_address as any)?.fullName || orderData.buyer_name,
+              street: (orderData.shipping_address as any)?.street || '',
+              city: (orderData.shipping_address as any)?.city || '',
+              province: (orderData.shipping_address as any)?.province || '',
+              postalCode: (orderData.shipping_address as any)?.postalCode || '',
+              phone: (orderData.shipping_address as any)?.phone || orderData.buyer_phone || ''
+            },
+            paymentMethod: {
+              type: (orderData.payment_method as any)?.type || 'cod',
+              details: (orderData.payment_method as any)?.details || ''
+            },
+            trackingNumber: orderData.tracking_number || undefined
+          };
+
+          setDbOrder(mappedOrder);
+        }
+      } catch (err) {
+        console.error("Error fetching order details:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchOrder();
+  }, [orderId]);
+
+  useEffect(() => {
+    if (!isLoading && !dbOrder) {
       navigate('/orders');
     }
-  }, [order, navigate]);
+  }, [dbOrder, navigate, isLoading]);
 
   useEffect(() => {
     // Auto scroll to bottom when new messages arrive
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages]);
+
+  if (isLoading) {
+    return <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="flex flex-col items-center gap-4">
+        <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
+        <p className="text-gray-600 font-medium">Loading order details...</p>
+      </div>
+    </div>;
+  }
+
+  const order = dbOrder;
 
   if (!order) {
     return null;
@@ -180,7 +272,7 @@ export default function OrderDetailPage() {
   const handleShareOrder = () => {
     if (navigator.share) {
       navigator.share({
-        title: `Order #${order.id.split('_')[1]}`,
+        title: `Order #${order.orderNumber}`,
         text: `Check out my order from BazaarPH!`,
         url: window.location.href
       });
@@ -197,7 +289,7 @@ export default function OrderDetailPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
-      
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Header */}
         <div className="mb-6">
@@ -209,15 +301,15 @@ export default function OrderDetailPage() {
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Orders
           </Button>
-          
+
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
-                Order #{order.id.split('_')[1]}
+                Order #{order.orderNumber}
               </h1>
               <p className="text-gray-600 mt-1">{formatDate(order.createdAt)}</p>
             </div>
-            
+
             <div className="flex gap-2">
               <Button
                 variant="outline"
@@ -270,8 +362,8 @@ export default function OrderDetailPage() {
                       <div className="flex flex-col items-center">
                         <div className={cn(
                           "w-10 h-10 rounded-full flex items-center justify-center border-2",
-                          item.completed 
-                            ? "bg-green-500 border-green-500 text-white" 
+                          item.completed
+                            ? "bg-green-500 border-green-500 text-white"
                             : "bg-gray-100 border-gray-300 text-gray-400"
                         )}>
                           {item.completed ? (
@@ -394,11 +486,11 @@ export default function OrderDetailPage() {
                       <div
                         className={cn(
                           "max-w-[70%] rounded-lg px-4 py-2",
-                          msg.sender === 'buyer' 
-                            ? 'bg-orange-500 text-white' 
+                          msg.sender === 'buyer'
+                            ? 'bg-orange-500 text-white'
                             : msg.sender === 'seller'
-                            ? 'bg-white border border-gray-200 text-gray-900'
-                            : 'bg-blue-50 border border-blue-200 text-blue-900 text-sm'
+                              ? 'bg-white border border-gray-200 text-gray-900'
+                              : 'bg-blue-50 border border-blue-200 text-blue-900 text-sm'
                         )}
                       >
                         {msg.sender === 'seller' && (

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
+import { processCheckout } from "@/services/checkoutService"; // Import checkout service
 import {
   ArrowLeft,
   MapPin,
@@ -50,6 +51,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { regions, provinces, cities, barangays } from "select-philippines-address";
 
 interface CheckoutFormData {
   fullName: string;
@@ -66,21 +68,6 @@ interface CheckoutFormData {
   gcashNumber?: string;
   paymayaNumber?: string;
 }
-
-const provinces = [
-  "Metro Manila",
-  "Laguna",
-  "Cavite",
-  "Bulacan",
-  "Rizal",
-  "Bataan",
-  "Batangas",
-  "Cebu",
-  "Davao del Sur",
-  "Iloilo",
-  "Negros Occidental",
-  "Pangasinan",
-];
 
 const paymentMethods = [
   {
@@ -141,11 +128,46 @@ export default function CheckoutPage() {
 
   // Form state for new address
   const [isSaving, setIsSaving] = useState(false);
+  const [regionList, setRegionList] = useState<any[]>([]);
+  const [provinceList, setProvinceList] = useState<any[]>([]);
+  const [cityList, setCityList] = useState<any[]>([]);
+  const [barangayList, setBarangayList] = useState<any[]>([]);
+
   const [newAddr, setNewAddr] = useState({
-    label: 'Home', firstName: '', lastName: '', phone: '',
-    street: '', barangay: '', city: '', province: '',
-    postalCode: '', isDefault: false
+    label: 'Home',
+    firstName: profile?.firstName || '',
+    lastName: profile?.lastName || '',
+    phone: profile?.phone || '',
+    street: '',
+    barangay: '',
+    city: '',
+    province: '',
+    region: '', // Added region
+    postalCode: '',
+    isDefault: false
   });
+
+  useEffect(() => {
+    regions().then(res => setRegionList(res));
+  }, []);
+
+  const onRegionChange = (code: string) => {
+    const name = regionList.find(i => i.region_code === code)?.region_name;
+    setNewAddr({ ...newAddr, region: name, province: '', city: '', barangay: '' });
+    provinces(code).then(res => setProvinceList(res));
+  };
+
+  const onProvinceChange = (code: string) => {
+    const name = provinceList.find(i => i.province_code === code)?.province_name;
+    setNewAddr({ ...newAddr, province: name, city: '', barangay: '' });
+    cities(code).then(res => setCityList(res));
+  };
+
+  const onCityChange = (code: string) => {
+    const name = cityList.find(i => i.city_code === code)?.city_name;
+    setNewAddr({ ...newAddr, city: name, barangay: '' });
+    barangays(code).then(res => setBarangayList(res));
+  };
 
   useEffect(() => {
     if (!selectedAddress && addresses.length > 0) {
@@ -177,16 +199,16 @@ export default function CheckoutPage() {
   const bazcoinDiscount = useBazcoins ? maxRedeemableBazcoins : 0;
 
   const [formData, setFormData] = useState<CheckoutFormData>({
-    fullName: "",
+    fullName: profile ? `${profile.firstName} ${profile.lastName}` : "",
     street: "",
     city: "",
     province: "",
     postalCode: "",
-    phone: "",
+    phone: profile?.phone || "",
     paymentMethod: "card",
   });
 
-  // Demo: Ensure saved cards exist & mock Bazcoins if missing logic
+  // Demo: Ensure saved cards exist
   useEffect(() => {
     if (profile) {
       let updates: any = {};
@@ -195,10 +217,6 @@ export default function CheckoutPage() {
           { id: 'card_demo_1', last4: '4242', brand: 'Visa', expiry: '12/28' },
           { id: 'card_demo_2', last4: '8888', brand: 'MasterCard', expiry: '10/26' },
         ];
-      }
-      // Ensure user has some bazcoins for demo if 0
-      if (!profile.bazcoins || profile.bazcoins === 0) {
-        updates.bazcoins = 150; // Demo amount
       }
 
       if (Object.keys(updates).length > 0) {
@@ -226,24 +244,21 @@ export default function CheckoutPage() {
     paymentMethod: "card",
   };
 
-  const [useDefaultAddress, setUseDefaultAddress] = useState(true);
-
-  // Initialize with default address if enabled
+  // Sync formData with confirmedAddress whenever it changes
   useEffect(() => {
-    if (useDefaultAddress) {
+    if (confirmedAddress) {
       setFormData(prev => ({
         ...prev,
-        fullName: DEFAULT_ADDRESS.fullName,
-        street: DEFAULT_ADDRESS.street,
-        city: DEFAULT_ADDRESS.city,
-        province: DEFAULT_ADDRESS.province,
-        postalCode: DEFAULT_ADDRESS.postalCode,
-        phone: DEFAULT_ADDRESS.phone,
+        fullName: confirmedAddress.fullName,
+        street: confirmedAddress.street,
+        city: confirmedAddress.city,
+        province: confirmedAddress.province,
+        postalCode: confirmedAddress.postalCode,
+        phone: confirmedAddress.phone,
       }));
-      // Clear errors when switching to default
       setErrors({});
     }
-  }, [useDefaultAddress]);
+  }, [confirmedAddress]);
 
   let shippingFee =
     checkoutItems.length > 0 &&
@@ -284,8 +299,14 @@ export default function CheckoutPage() {
   const validateForm = () => {
     const newErrors: any = {};
 
-    // For testing purposes, make validation less strict
-    // Only require payment method selection
+    // Strict validation for shipping address
+    if (!formData.fullName.trim()) newErrors.fullName = "Full name is required";
+    if (!formData.street.trim()) newErrors.street = "Street address is required";
+    if (!formData.city.trim()) newErrors.city = "City is required";
+    if (!formData.province.trim()) newErrors.province = "Province is required";
+    if (!formData.postalCode.trim()) newErrors.postalCode = "Postal code is required";
+    if (!formData.phone.trim()) newErrors.phone = "Phone number is required";
+
     if (!formData.paymentMethod) {
       newErrors.paymentMethod = "Please select a payment method";
     }
@@ -336,92 +357,115 @@ export default function CheckoutPage() {
 
     setIsLoading(true);
 
+    // Import processCheckout at top of file (I will need to add the import in a separate step or assume I can add it here if I replace enough context, but I only replaced body. I'll rely on TS to complain or I will add import in next step if missed, but let's try to add import with the other changes if possible. Unfortunately this tool only does one block. I will add import in a separate call or just rely on auto-imports if I was in an IDE, but here I must be explicit.
+    // Actually I can't add import here easily without changing top of file. 
+    // I will execute this change, then add the import.
+
     try {
-      // Simulate payment processing
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-
-      // Sync buyerStore items to cartStore for order creation
-      const cartStoreState = useCartStore.getState();
-
-      // Clear cart store first to ensure fresh order
-      cartStoreState.clearCart();
-
-      // Add items from buyer cart to cart store
-      checkoutItems.forEach((item) => {
-        cartStoreState.addToCart({
-          id: item.id,
-          name: item.name,
-          price: item.price,
-          image: item.image,
-          seller: item.seller.name,
-          rating: item.rating,
-          category: item.category,
-          isFreeShipping: item.isFreeShipping,
-          isVerified: item.seller.isVerified,
-          location: item.location,
-        });
-        if (item.quantity > 1) {
-          cartStoreState.updateQuantity(item.id, item.quantity);
-        }
-      });
-
-      // If Bazcoins were used, deduct them from profile
-      if (useBazcoins && bazcoinDiscount > 0) {
-        const newBalance = (profile?.bazcoins || 0) - bazcoinDiscount;
-        // Also add earned bazcoins (mock logic since backend handles this usually)
-        const finalBalance = newBalance + earnedBazcoins;
-        useBuyerStore.getState().updateProfile({ bazcoins: finalBalance });
-      } else {
-        // Just add earned bazcoins
-        const newBalance = (profile?.bazcoins || 0) + earnedBazcoins;
-        useBuyerStore.getState().updateProfile({ bazcoins: newBalance });
+      // Validate user is logged in
+      if (!profile?.id) {
+        // Should not happen if protected route, but safety check
+        alert("Please log in to continue");
+        return;
       }
 
-      // Create the order
-      const orderId = createOrder({
-        shippingAddress: {
-          fullName: formData.fullName || "John Doe",
-          street: formData.street || "123 Sample Street",
-          city: formData.city || "Manila",
-          province: formData.province || "Metro Manila",
-          postalCode: formData.postalCode || "1000",
-          phone: formData.phone || "09123456789",
+      // Map checkout items to expected payload
+      const payloadItems = checkoutItems.map(item => ({
+        // We cast to any to satisfy the strict database type requirement 
+        // since we are adapting from BuyerStore structure
+        id: item.id, // This is Product ID in BuyerStore
+        product_id: item.id,
+        cart_id: '', // Not needed for our new cleanup logic
+        quantity: item.quantity,
+        selected_variant: item.selectedVariant ? {
+          id: item.selectedVariant.id,
+          name: item.selectedVariant.name,
+          price: item.selectedVariant.price,
+          stock: item.selectedVariant.stock,
+          image: item.selectedVariant.image
+        } : null,
+        product: {
+          seller_id: item.sellerId,
+          name: item.name,
+          price: item.price,
+          images: item.images,
+          primary_image: item.image
         },
-        paymentMethod: {
-          type: formData.paymentMethod || "cod",
-          details:
-            formData.paymentMethod === "card"
-              ? `**** ${formData.cardNumber?.slice(-4) || "1234"}`
-              : formData.paymentMethod === "gcash"
-                ? formData.gcashNumber || "09123456789"
-                : formData.paymentMethod === "paymaya"
-                  ? formData.paymayaNumber || "09123456789"
-                  : "Cash on Delivery",
-        },
-        status: "pending",
-        isPaid: formData.paymentMethod !== "cod", // COD is unpaid, others are paid
-        // Note: In a real app we'd pass usedBazcoins and earnedBazcoins here too
-      });
+        // Required fields by type but unused in logic
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        personalized_options: null,
+        notes: item.notes || null
+      }));
 
-      // Clear buyer cart items or quick order after successful order
+      const payload = {
+        userId: profile.id,
+        items: payloadItems as any[], // Casting to match service expectation
+        totalAmount: finalTotal,
+        shippingAddress: {
+          fullName: formData.fullName,
+          street: formData.street,
+          city: formData.city,
+          province: formData.province,
+          postalCode: formData.postalCode,
+          phone: formData.phone,
+          country: 'Philippines' // Default
+        },
+        paymentMethod: formData.paymentMethod,
+        usedBazcoins: useBazcoins ? bazcoinDiscount : 0, // Deduct based on discount value (1 coin = 1 peso)
+        earnedBazcoins: earnedBazcoins,
+        shippingFee: shippingFee,
+        discount: discount,
+        email: profile.email
+      };
+
+      const result = await processCheckout(payload);
+
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+
+      // Order successful
+
+      // Update local bazcoins if returned
+      if (result.newBazcoinsBalance !== undefined) {
+        useBuyerStore.getState().updateProfile({ bazcoins: result.newBazcoinsBalance });
+      } else {
+        // Manual update if service didn't return it
+        if (useBazcoins && bazcoinDiscount > 0) {
+          const newBalance = (profile?.bazcoins || 0) - bazcoinDiscount + earnedBazcoins;
+          useBuyerStore.getState().updateProfile({ bazcoins: newBalance });
+        } else {
+          const newBalance = (profile?.bazcoins || 0) + earnedBazcoins;
+          useBuyerStore.getState().updateProfile({ bazcoins: newBalance });
+        }
+      }
+
+      // Clear local stores
+      const cartStoreState = useCartStore.getState();
+      cartStoreState.clearCart();
+
       if (isQuickCheckout) {
         clearQuickOrder();
       } else {
         removeSelectedItems();
       }
 
-      // Navigate to orders page with the new order ID
+      // Navigate to orders (using the first order ID if multiple)
+      const mainOrderId = result.orderIds && result.orderIds.length > 0 ? result.orderIds[0] : 'new';
+
       navigate("/orders", {
         state: {
-          newOrderId: orderId,
+          newOrderId: mainOrderId,
           fromCheckout: true,
-          earnedBazcoins: earnedBazcoins, // Pass this to show success message
+          earnedBazcoins: earnedBazcoins,
         },
         replace: true,
       });
-    } catch (error) {
+
+    } catch (error: any) {
       console.error("Order creation failed:", error);
-      alert("Failed to place order. Please try again.");
+      alert(`Failed to place order: ${error.message || "Unknown error"}`);
     } finally {
       setIsLoading(false);
     }
@@ -940,7 +984,7 @@ export default function CheckoutPage() {
 
                 <Button
                   type="submit"
-                  disabled={isLoading}
+                  disabled={isLoading || !selectedAddress}
                   className="w-full bg-[var(--brand-primary)] hover:bg-[var(--brand-secondary)] text-white disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isLoading ? (
@@ -1040,6 +1084,7 @@ export default function CheckoutPage() {
                 </div>
               </DialogHeader>
 
+              {/* Replace the existing New Shipping Address form body with this: */}
               <div className="flex-1 overflow-y-auto p-6 pt-2 space-y-4">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
@@ -1063,19 +1108,66 @@ export default function CheckoutPage() {
                   </div>
                 </div>
 
+                {/* Region Select */}
                 <div className="space-y-1">
-                  <Label className="text-xs">Province</Label>
-                  <Select onValueChange={(v) => setNewAddr({ ...newAddr, province: v })}>
-                    <SelectTrigger><SelectValue placeholder="Select Province" /></SelectTrigger>
+                  <Label className="text-xs">Region</Label>
+                  <Select onValueChange={onRegionChange}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select Region" />
+                    </SelectTrigger>
                     <SelectContent>
-                      {provinces.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                      {regionList.map((r) => (
+                        <SelectItem key={r.region_code} value={r.region_code}>{r.region_name}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
 
+                {/* Province Select */}
                 <div className="space-y-1">
-                  <Label className="text-xs">City</Label>
-                  <Input placeholder="City/Municipality" value={newAddr.city} onChange={e => setNewAddr({ ...newAddr, city: e.target.value })} />
+                  <Label className="text-xs">Province</Label>
+                  <Select onValueChange={onProvinceChange} disabled={!newAddr.region}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select Province" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {provinceList.map((p) => (
+                        <SelectItem key={p.province_code} value={p.province_code}>{p.province_name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  {/* City Select */}
+                  <div className="space-y-1">
+                    <Label className="text-xs">City / Municipality</Label>
+                    <Select onValueChange={onCityChange} disabled={!newAddr.province}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select City" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {cityList.map((c) => (
+                          <SelectItem key={c.city_code} value={c.city_code}>{c.city_name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Barangay Select */}
+                  <div className="space-y-1">
+                    <Label className="text-xs">Barangay</Label>
+                    <Select onValueChange={(v) => setNewAddr({ ...newAddr, barangay: barangayList.find(b => b.brgy_code === v)?.brgy_name })} disabled={!newAddr.city}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select Barangay" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {barangayList.map((b) => (
+                          <SelectItem key={b.brgy_code} value={b.brgy_code}>{b.brgy_name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
 
                 <div className="space-y-1">
@@ -1083,9 +1175,15 @@ export default function CheckoutPage() {
                   <Input placeholder="House No., Street Name" value={newAddr.street} onChange={e => setNewAddr({ ...newAddr, street: e.target.value })} />
                 </div>
 
-                <div className="flex items-center space-x-2 pt-2">
-                  <Switch checked={newAddr.isDefault} onCheckedChange={checked => setNewAddr({ ...newAddr, isDefault: checked })} />
-                  <Label className="text-sm cursor-pointer">Set as default address</Label>
+                <div className="grid grid-cols-2 gap-3 items-center">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Postal Code</Label>
+                    <Input placeholder="1234" value={newAddr.postalCode} onChange={e => setNewAddr({ ...newAddr, postalCode: e.target.value })} />
+                  </div>
+                  <div className="flex items-center space-x-2 pt-5">
+                    <Switch checked={newAddr.isDefault} onCheckedChange={checked => setNewAddr({ ...newAddr, isDefault: checked })} />
+                    <Label className="text-sm cursor-pointer">Set as default</Label>
+                  </div>
                 </div>
               </div>
 
@@ -1095,23 +1193,40 @@ export default function CheckoutPage() {
                   className="flex-1 bg-[var(--brand-primary)] hover:bg-orange-600 font-bold text-white"
                   disabled={isSaving || !newAddr.firstName || !newAddr.phone}
                   onClick={async () => {
+                    if (!profile) return;
                     setIsSaving(true);
                     try {
-                      // 1. Construct the full Address object to match the interface
-                      const addressToSave: Address = {
-                        ...newAddr,
-                        id: crypto.randomUUID(), // Generate a unique ID
-                        fullName: `${newAddr.firstName} ${newAddr.lastName}`, // Combine names
-                        region: newAddr.province, // Map province to region if not separately selected
+                      const { supabase } = await import('../lib/supabase'); //
+
+                      const dbPayload = {
+                        user_id: profile.id,
+                        label: newAddr.label,
+                        first_name: newAddr.firstName,
+                        last_name: newAddr.lastName,
+                        phone: newAddr.phone,
+                        street: newAddr.street,
+                        barangay: newAddr.barangay,
+                        city: newAddr.city,
+                        province: newAddr.province,
+                        region: newAddr.region,
+                        zip_code: newAddr.postalCode,
+                        is_default: newAddr.isDefault,
                       };
 
-                      // 2. Add to store
-                      addAddress(addressToSave);
+                      const { data, error } = await supabase.from('addresses').insert([dbPayload]).select().single(); //
+                      if (error) throw error;
 
-                      // 3. Update selection immediately
+                      const addressToSave: Address = {
+                        ...newAddr,
+                        id: data.id,
+                        fullName: `${newAddr.firstName} ${newAddr.lastName}`,
+                      };
+
+                      addAddress(addressToSave);
                       setSelectedAddress(addressToSave);
-                      setConfirmedAddress(addressToSave);
                       setIsAddressModalOpen(false);
+                    } catch (error) {
+                      console.error("Error saving address:", error);
                     } finally {
                       setIsSaving(false);
                     }
