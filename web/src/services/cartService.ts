@@ -12,6 +12,29 @@ let mockCart: Cart | null = null;
 let mockCartItems: CartItem[] = [];
 
 /**
+ * Get existing cart for a buyer
+ */
+export const getCart = async (buyerId: string): Promise<Cart | null> => {
+  if (!isSupabaseConfigured()) {
+    return mockCart;
+  }
+
+  try {
+    const { data: cart } = await supabase
+      .from('carts')
+      .select('*')
+      .eq('buyer_id', buyerId)
+      .is('expires_at', null)
+      .maybeSingle();
+
+    return cart;
+  } catch (error) {
+    console.error('Error getting cart:', error);
+    return null;
+  }
+};
+
+/**
  * Get or create cart for a buyer
  */
 export const getOrCreateCart = async (buyerId: string): Promise<Cart | null> => {
@@ -40,12 +63,7 @@ export const getOrCreateCart = async (buyerId: string): Promise<Cart | null> => 
 
   try {
     // Try to get existing cart
-    const { data: cart } = await supabase
-      .from('carts')
-      .select('*')
-      .eq('buyer_id', buyerId)
-      .is('expires_at', null)
-      .maybeSingle();
+    const cart = await getCart(buyerId);
 
     // If no cart exists, create one
     if (!cart) {
@@ -57,20 +75,11 @@ export const getOrCreateCart = async (buyerId: string): Promise<Cart | null> => 
           shipping_cost: 0,
           tax_amount: 0,
           total_amount: 0,
-          promo_code: null,
-          voucher_id: null,
-          shipping_address_id: null,
-          shipping_method: null,
-          notes: null,
-          expires_at: null,
         })
         .select()
         .single();
 
-      if (createError) {
-        console.error('Error creating cart:', createError);
-        throw createError;
-      }
+      if (createError) throw createError;
       return newCart;
     }
 

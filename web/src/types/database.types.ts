@@ -94,6 +94,7 @@ export interface Profile {
   phone: string | null;
   avatar_url: string | null;
   user_type: UserType;
+  bazcoins: number; // Added bazcoins field
   created_at: string; // ISO timestamp
   updated_at: string;
   last_login_at: string | null;
