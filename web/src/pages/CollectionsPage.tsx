@@ -14,25 +14,15 @@ const CollectionsPage: React.FC = () => {
     <div className="min-h-screen bg-gradient-to-b from-orange-50/30 to-white">
       <Header />
       
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 py-8">
         
         {/* Hero Section */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-center mb-16"
+          className="mb-12 bg-gradient-to-br from-orange-200 via-white to-orange-200/100 rounded-3xl p-12 md:p-12"
         >
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ delay: 0.2, type: "spring" }}
-            className="inline-flex items-center gap-2 bg-orange-100 text-orange-600 px-4 py-2 rounded-full text-sm font-medium mb-6"
-          >
-            <Sparkles className="w-4 h-4" />
-            Curated Collections
-          </motion.div>
-          
-          <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6">
+          <h1 className="text-3xl md:text-5xl font-bold text-gray-900 mb-6">
             Discover Handpicked
             <br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-red-500">
@@ -40,7 +30,7 @@ const CollectionsPage: React.FC = () => {
             </span>
           </h1>
           
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+          <p className="text-xl text-gray-600 max-w-2xl">
             Explore carefully curated collections featuring the best products from Filipino sellers
           </p>
         </motion.div>

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useMemo, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -252,7 +253,7 @@ export default function ShopPage() {
 
       {/* Shop Header */}
       <div className="">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-2">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8    pb-8">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -262,7 +263,7 @@ export default function ShopPage() {
               <h1 className="text-5xl font-bold text-gray-800">
                 Shop All <span className="text-[#ff6a00]">Products</span>
               </h1>
-              <p className="text-gray-600 mt-1">
+              <p className="text-gray-600 mt-1 mb-4">
                 Discover amazing products from trusted sellers
               </p>
             </div>

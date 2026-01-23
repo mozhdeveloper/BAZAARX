@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500;600;700&family=Inter:wght@400;500;700&family=JetBrains+Mono:wght@100;200;300;400;500;600;700;800&family=Montserrat:wght@400;500;600;700;800&family=Poppins:wght@400;500;600;700;800&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,161 +6,124 @@
 
 @layer base {
   :root {
-    /* White Background Design Tokens */
-    --bg-page: #ffffff;
-    --bg-surface: #ffffff;
-    --bg-card: #ffffff;
-    --brand-primary: #FF6A00;
-    --brand-primary-dark: #D94F00;
-    --brand-accent: #2563EB;
-    --text-primary: #0F172A;
-    --text-secondary: #6B7280;
-    --text-muted: #9CA3AF;
-    --border-subtle: #E5E7EB;
-    
-    /* shadcn/ui theme tokens with white backgrounds */
+    /* Backgrounds (Shadcn HSL format) */
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
     --card: 0 0% 100%;
     --card-foreground: 222.2 84% 4.9%;
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
+
+    /* Brand Colors (Hex for custom usage) */
+    --brand-primary: #FF6A00;
+    --brand-primary-dark: #D94F00;
+    --brand-accent: #2563EB;
+    
+    /* Brand Colors (HSL for Tailwind compatibility) */
     --primary: 24 100% 50%;
     --primary-foreground: 0 0% 98%;
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 222.2 84% 4.9%;
-    --muted: 210 40% 96%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96%;
-    --accent-foreground: 222.2 84% 4.9%;
-    --destructive: 0 84.2% 60.2%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 72% 51%;
     --destructive-foreground: 210 40% 98%;
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
     --ring: 24 100% 50%;
+
+    /* Status Colors */
+    --color-success: #22C55E;
+    --color-error: #EF4444;
+    --color-pending: #FFBF00;
+
+    /* Text Colors */
+    --text-primary: #0F172A;
+    --text-secondary: #6B7280;
+    --text-muted: #9CA3AF;
+
+    /* Radius */
     --radius: 0.5rem;
+    --radius-none: 0px;
+    --radius-sm: 4px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --radius-xl: 16px;
+    --radius-full: 9999px;
+
+    /* Fonts */
+    --font-heading: "Montserrat", "Poppins", "Inter", system-ui, sans-serif;
+    --font-sans: "Inter", system-ui, sans-serif;   
+    --font-mono: "Fira Code", "JetBrains Mono", monospace;
     
-    /* Additional required theme variables */
-    --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
-    --font-mono: 'Courier New', monospace;
+    /* Spacing */
+    --spacing-xs: 4px;
+    --spacing-sm: 8px;
+    --spacing-md: 12px;
+    --spacing-lg: 24px;
+    --spacing-xl: 48px;
+    
+    /* Shadows */
+    --shadow-small: 0 2px 4px rgba(0, 17, 44, 0.1);
+    --shadow-medium: 0 4px 8px rgba(0, 17, 44, 0.1);
+    --shadow-large: 0 24px 48px -36px rgba(0, 17, 44, 0.1);
   }
 
   * {
+    @apply border-border;
     box-sizing: border-box;
     -webkit-tap-highlight-color: transparent;
   }
   
-  html {
-    -webkit-text-size-adjust: 100%;
-    scroll-behavior: smooth;
-  }
-  
   body {
-    margin: 0;
-    min-height: 100vh;
+    @apply bg-background text-foreground;
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    background-color: var(--bg-page);
-    color: var(--text-primary);
-  }
-}
-
-@layer utilities {
-  .no-scrollbar::-webkit-scrollbar {
-    display: none;
-  }
-  
-  .no-scrollbar {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-  }
-
-  .scrollbar-hide::-webkit-scrollbar {
-    display: none;
-  }
-  
-  .scrollbar-hide {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
+    scroll-behavior: smooth;
   }
 }
 
 @layer components {
   .btn-primary {
-    @apply bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white rounded-full px-6 py-3 font-semibold transition-all duration-200 hover:shadow-lg;
+    @apply bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white rounded-full px-6 py-3 font-semibold transition-all duration-200 hover:shadow-lg active:scale-95;
   }
   
   .btn-ghost {
-    @apply bg-transparent border border-[var(--border-subtle)] text-[var(--text-primary)] rounded-full px-6 py-3 font-semibold hover:bg-gray-50 transition-all duration-200;
+    @apply bg-transparent border border-[var(--border)] text-[var(--text-primary)] rounded-full px-6 py-3 font-semibold hover:bg-secondary transition-all duration-200;
   }
 
   .chip-orange {
     @apply bg-[var(--brand-primary)] text-white px-3 py-1 rounded-full text-sm font-medium;
   }
 
-  .chip-subtle {
-    @apply bg-gray-50 text-[var(--text-secondary)] px-3 py-1 rounded-full text-sm font-medium hover:bg-gray-100 transition-colors;
+  /* Utility Animations */
+  .animate-slide-in-right {
+    animation: slide-in-right 0.3s ease-out forwards;
+  }
+
+  .animate-scaleUp {
+    animation: scaleUp 0.5s ease-out forwards;
   }
 }
 
-/* Toast notification animations */
-@keyframes slide-in-right {
-  from {
-    transform: translateX(400px);
-    opacity: 0;
+@layer utilities {
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
   }
-  to {
-    transform: translateX(0);
-    opacity: 1;
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
-}
 
-@keyframes slide-out-right {
-  from {
-    transform: translateX(0);
-    opacity: 1;
+  @keyframes slide-in-right {
+    from { transform: translateX(400px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
   }
-  to {
-    transform: translateX(400px);
-    opacity: 0;
+
+  @keyframes scaleUp {
+    0% { transform: scale(0.8); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
   }
-}
-
-.animate-slide-in-right {
-  animation: slide-in-right 0.3s ease-out;
-}
-
-.animate-slide-out-right {
-  animation: slide-out-right 0.3s ease-out;
-}
-
-/* Border Beam Animation */
-@keyframes border-beam {
-  0% {
-    offset-distance: 0%;
-  }
-  100% {
-    offset-distance: 100%;
-  }
-}
-
-.animate-border-beam {
-  animation: border-beam linear infinite;
-}
-
-/* Scale Up Animation for Cards */
-@keyframes scaleUp {
-  0% {
-    transform: scale(0.8);
-    opacity: 0;
-  }
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-
-.animate-scaleUp {
-  animation: scaleUp 0.5s ease-out forwards;
 }

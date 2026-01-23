@@ -65,7 +65,8 @@ const Header: React.FC = () => {
                 alt="BazaarX Logo"
                 className="h-12 w-auto object-contain"
               />
-              <span className="text-2xl font-bold text-[#ff6a00] tracking-tight hidden md:block">
+              <span 
+                className="font-heading text-2xl font-bold tracking-tight hidden md:block text-[var(--brand-primary)]">
                 BazaarX
               </span>
             </div>
@@ -80,7 +81,7 @@ const Header: React.FC = () => {
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
-                  >
+                  > 
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -117,7 +118,8 @@ const Header: React.FC = () => {
           )}
 
           {/* Right Navigation */}
-          <div className="flex items-center justify-end gap-2 sm:gap-4 lg:gap-6 text-gray-700 shrink-0">
+          <div 
+            className="flex items-center justify-end text-gray-700 shrink-0 gap-4">
             {!isSearchPage && (
               <button
                 onClick={() => navigate("/search")}
