@@ -8,6 +8,7 @@ import {
   TextInput,
   Image,
   Alert,
+  Pressable,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -151,26 +152,17 @@ export default function StoreProfileScreen() {
   return (
     <View style={styles.container}>
       {/* Header - Edge to Edge Orange - Match orders/dashboard style */}
-      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
-        <View style={styles.headerContent}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            {/* Consistent Back Button style */}
-            <TouchableOpacity 
-              style={styles.iconContainer} 
-              onPress={() => navigation.goBack()}
-            >
-              <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2} />
-            </TouchableOpacity>
-            
-            <View style={{ flex: 1 }}>
-              <Text style={styles.headerTitle}>Store Profile</Text>
-              <Text style={styles.headerSubtitle}>Manage your complete profile</Text>
-            </View>
-          </View>
+      <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: '#FF5722' }]}>
+        <View style={styles.headerTop}>
+            <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
+                <ArrowLeft size={24} color="#FFF" strokeWidth={2.5} />
+            </Pressable>
+            <Text style={styles.headerTitle}>Store Profile</Text>
+            <View style={{ width: 40 }} />
         </View>
 
         {isVerified && (
-          <View style={[styles.headerBadge, { position: 'absolute', right: 20, top: insets.top + 20 }]}>
+          <View style={[styles.headerBadge, { position: 'absolute', right: 20, top: insets.top + 14 }]}>
               <CheckCircle size={16} color="#10B981" strokeWidth={2.5} />
           </View>
         )}
@@ -589,40 +581,21 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F9FAFB',
   },
-  header: {
-    backgroundColor: '#FF5722',
+  headerContainer: {
     paddingHorizontal: 20,
-    paddingBottom: 16,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+    paddingBottom: 20,
+    marginBottom: 10,
+    elevation: 4,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 4,
-    borderBottomLeftRadius: 20, 
-    borderBottomRightRadius: 20, 
+    zIndex: 10,
   },
-  headerContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  iconContainer: {
-    backgroundColor: 'rgba(255,255,255,0.2)', 
-    padding: 12,
-    borderRadius: 12,
-  },
-  headerTitle: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: 0.3,
-  },
-  headerSubtitle: {
-    fontSize: 13,
-    color: '#FFFFFF',
-    opacity: 0.9,
-    fontWeight: '500',
-  },
+  headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  headerIconButton: { padding: 4 },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFF' },
   headerBadge: {
     backgroundColor: '#ECFDF5',
     paddingHorizontal: 10,

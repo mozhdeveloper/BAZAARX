@@ -428,12 +428,40 @@ export const useSellerStore = create<SellerStore>()(
   // Orders
   orders: dummyOrders,
 
-  updateOrderStatus: (orderId, status) =>
+  updateOrderStatus: (orderId, status) => {
+    // Update seller's order list
     set((state) => ({
       orders: state.orders.map((o) =>
         o.orderId === orderId ? { ...o, status } : o
       ),
-    })),
+    }));
+
+    // SYNC TO BUYER: Also update the buyer's order store
+    try {
+      import('./orderStore').then(({ useOrderStore }) => {
+        const orderStore = useOrderStore.getState();
+        
+        // Find the corresponding buyer order by matching transaction ID
+        const buyerOrder = orderStore.orders.find(
+          (o) => o.transactionId === orderId
+        );
+        
+        if (buyerOrder) {
+          // Map seller status to buyer status
+          const buyerStatus = 
+            status === 'pending' ? 'pending' :
+            status === 'to-ship' ? 'processing' :
+            status === 'completed' ? 'delivered' :
+            'canceled';
+          
+          orderStore.updateOrderStatus(buyerOrder.id, buyerStatus as any);
+          console.log(`✅ Order status synced to buyer: ${orderId} → ${buyerStatus}`);
+        }
+      });
+    } catch (error) {
+      console.error('Failed to sync order status to buyer:', error);
+    }
+  },
 
   // POS: Add offline order (walk-in purchase)
   addOfflineOrder: (cartItems, total, note) => {

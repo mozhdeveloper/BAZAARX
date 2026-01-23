@@ -121,10 +121,14 @@ export default function ReturnRequestScreen({ route, navigation }: Props) {
     try {
       await new Promise((resolve) => setTimeout(resolve, 1500)); // Simulate API call
 
+      const sellerId = order.items[0].seller || 'Unknown Seller';
+      console.log('🔍 Creating return request with sellerId:', sellerId);
+      console.log('🔍 Order items:', order.items.map(i => ({ name: i.name, seller: i.seller })));
+
       createReturnRequest({
         orderId: order.id,
         userId: user?.id || 'guest',
-        sellerId: order.items[0].seller || 'Unknown Seller',
+        sellerId: sellerId,
         items: itemsToReturn,
         reason: reason as ReturnReason,
         description,
