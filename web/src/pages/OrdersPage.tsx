@@ -1,48 +1,32 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useLocation } from 'react-router-dom';
-<<<<<<< HEAD
 import { Package, Clock, Truck, CheckCircle, XCircle, Eye, Search, Filter, Calendar, MapPin, Star, ChevronLeft, ArrowLeft, RotateCcw, X, ShoppingBag } from 'lucide-react';
 import { useCartStore } from '../stores/cartStore';
-=======
-import { Package, Clock, Truck, CheckCircle, XCircle, Eye, Search, Filter, Calendar, MapPin, Star } from 'lucide-react';
-// import { useCartStore } from '../stores/cartStore'; // Removed mock store usage
->>>>>>> b6eb31ecf9bad194af703fe42ca3eabbd29ff690
 import { Button } from '../components/ui/button';
 import { useBuyerStore } from '../stores/buyerStore';
 import Header from '../components/Header';
 import { BazaarFooter } from '../components/ui/bazaar-footer';
 import TrackingModal from '../components/TrackingModal';
-<<<<<<< HEAD
 import ReturnRefundModal from '../components/ReturnRefundModal';
 import { ReviewModal } from '../components/ReviewModal';
 import { cn } from '../lib/utils';
 import { useToast } from '../hooks/use-toast';
-=======
-import { supabase } from '@/lib/supabase';
-import { useBuyerStore } from '../stores/buyerStore';
->>>>>>> b6eb31ecf9bad194af703fe42ca3eabbd29ff690
+import { supabase } from '../lib/supabase';
 
 export default function OrdersPage() {
   const navigate = useNavigate();
   const location = useLocation();
-<<<<<<< HEAD
   const { orders, updateOrderStatus, updateOrderWithReturnRequest } = useCartStore();
-  const { addToCart } = useBuyerStore();
+  const { addToCart, profile } = useBuyerStore();
   const { toast } = useToast();
-=======
-  // const { orders } = useCartStore(); // Replaced with real state
-  const { profile } = useBuyerStore();
 
-  const [orders, setOrders] = useState<any[]>([]); // Using any[] for now to ease mapping from complex Join
-  const [isLoading, setIsLoading] = useState(true);
->>>>>>> b6eb31ecf9bad194af703fe42ca3eabbd29ff690
+  const [isLoading, setIsLoading] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('pending');
   const [selectedOrder, setSelectedOrder] = useState<string | null>(null);
   const [trackingOrder, setTrackingOrder] = useState<string | null>(null);
-<<<<<<< HEAD
   const [returnModalOpen, setReturnModalOpen] = useState(false);
   const [orderToReturn, setOrderToReturn] = useState<any>(null);
   const [viewReturnDetails, setViewReturnDetails] = useState<any>(null);
@@ -122,8 +106,6 @@ export default function OrdersPage() {
       duration: 5000,
     });
   };
-=======
->>>>>>> b6eb31ecf9bad194af703fe42ca3eabbd29ff690
 
   // Show success message for newly created orders
   const newOrderId = (location.state as { newOrderId?: string; fromCheckout?: boolean } | null)?.newOrderId;
@@ -149,26 +131,66 @@ export default function OrdersPage() {
         if (error) throw error;
 
         // Map database shape to UI expected shape
-        const mappedOrders = (data || []).map(order => ({
-          id: order.order_number, // UI expects string id, using order_number (e.g., ORD-2026...)
-          dbId: order.id,         // Keep real UUID handy
-          createdAt: order.created_at,
-          status: order.status === 'pending_payment' ? 'pending' : (order.status || 'pending').toLowerCase(), // Map DB status to UI status
-          isPaid: order.payment_status === 'paid',
-          total: order.total_amount,
-          items: (order.items || []).map((item: any) => ({
-            id: item.id,
-            name: item.product_name,
-            image: item.product_images?.[0] || '',
-            price: item.price,
-            quantity: item.quantity,
-            seller: item.seller_name || 'Seller', // Might need to fetch if not saved on item
-            sellerId: item.seller_id
-          })),
-          shippingAddress: order.shipping_address
-        }));
+        const mappedOrders = (data || []).map(order => {
+          const statusMap: Record<string, string> = {
+            'pending_payment': 'pending',
+            'paid': 'confirmed',
+            'processing': 'confirmed',
+            'ready_to_ship': 'confirmed',
+            'shipped': 'shipped',
+            'out_for_delivery': 'shipped',
+            'delivered': 'delivered',
+            'completed': 'delivered',
+            'cancelled': 'cancelled',
+            'returned': 'returned',
+            'refunded': 'returned'
+          };
 
-        setOrders(mappedOrders);
+          const status = statusMap[order.status] || 'pending';
+          const sa = order.shipping_address as any;
+
+          const createdAt = new Date(order.created_at);
+          const estimatedDelivery = order.estimated_delivery_date ? new Date(order.estimated_delivery_date) : new Date(createdAt.getTime() + 3 * 24 * 60 * 60 * 1000);
+          const pm = order.payment_method as any;
+
+          return {
+            id: order.order_number || order.id,
+            dbId: order.id,
+            orderNumber: order.order_number,
+            createdAt: createdAt,
+            date: createdAt.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
+            status: status as any,
+            isPaid: order.payment_status === 'paid',
+            total: order.total_amount,
+            deliveryDate: order.actual_delivery_date ? new Date(order.actual_delivery_date) : undefined,
+            estimatedDelivery: estimatedDelivery,
+            items: (order.items || []).map((item: any) => ({
+              id: item.id,
+              name: item.product_name,
+              image: item.product_images?.[0] || 'https://placehold.co/100?text=Product',
+              price: item.price,
+              quantity: item.quantity,
+              seller: item.seller_name || 'Seller',
+              sellerId: item.seller_id,
+              rating: 5, // Default for type compatibility
+              category: 'General' // Default for type compatibility
+            })),
+            shippingAddress: {
+              fullName: sa?.fullName || `${sa?.first_name || ''} ${sa?.last_name || ''}`.trim() || order.buyer_name,
+              street: sa?.street || '',
+              city: sa?.city || '',
+              province: sa?.province || '',
+              postalCode: sa?.postalCode || sa?.zip_code || '',
+              phone: sa?.phone || order.buyer_phone || ''
+            },
+            paymentMethod: {
+              type: pm?.type || 'cod',
+              details: pm?.details ? JSON.stringify(pm.details) : ''
+            }
+          };
+        });
+
+        useCartStore.setState({ orders: mappedOrders as any });
       } catch (err) {
         console.error("Error fetching orders:", err);
       } finally {
@@ -196,16 +218,10 @@ export default function OrdersPage() {
   };
 
   const statusOptions = [
-<<<<<<< HEAD
-    { value: 'pending', label: 'To Pay' },
-    { value: 'confirmed', label: 'To Ship' },
-    { value: 'shipped', label: 'To Deliver' },
-=======
     { value: 'all', label: 'All Orders' },
     { value: 'pending', label: 'Pending' },
     { value: 'confirmed', label: 'Processing' }, // DB might use 'processing' or 'confirmed'
     { value: 'shipped', label: 'Shipped' },
->>>>>>> b6eb31ecf9bad194af703fe42ca3eabbd29ff690
     { value: 'delivered', label: 'Delivered' },
     { value: 'returned', label: 'Return/Refund' },
     { value: 'cancelled', label: 'Cancelled' },
@@ -310,11 +326,7 @@ export default function OrdersPage() {
 
   return (
     <div className="min-h-screen bg-white">
-<<<<<<< HEAD
-      {!returnModalOpen && !viewReturnDetails && !reviewModalOpen && !viewImage && <Header />}
-=======
       <Header />
->>>>>>> b6eb31ecf9bad194af703fe42ca3eabbd29ff690
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Success notification for new order */}
@@ -331,22 +343,19 @@ export default function OrdersPage() {
             <div className="flex-1">
               <h3 className="font-semibold text-green-900 mb-1">🎉 Order Placed Successfully!</h3>
               <p className="text-sm text-green-800">
-<<<<<<< HEAD
-                Your order <span className="font-semibold">#{newOrderId.split('_')[1]}</span> has been confirmed and is being processed.
-=======
                 Your order <span className="font-semibold">#{newOrderId}</span> has been confirmed and is being processed.
->>>>>>> b6eb31ecf9bad194af703fe42ca3eabbd29ff690
                 You can track your order status below.
-              </p>
-            </div>
+              </p >
+            </div >
             <button
               onClick={() => setShowSuccessBanner(false)}
               className="text-green-600 hover:text-green-800 transition-colors"
             >
               <XCircle className="w-5 h-5" />
             </button>
-          </motion.div>
-        )}
+          </motion.div >
+        )
+        }
 
         {/* Header */}
         <motion.div
@@ -407,348 +416,312 @@ export default function OrdersPage() {
           </div>
         </motion.div>
 
-        {filteredOrders.length === 0 ? (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-center py-12"
-          >
-            <Package className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              {searchQuery || statusFilter !== 'all' ? 'No orders found' : 'No orders yet'}
-            </h3>
-            <p className="text-gray-600">
-              {searchQuery || statusFilter !== 'all'
-                ? 'Try adjusting your search or filter criteria.'
-                : 'Your orders will appear here once you make a purchase.'}
-            </p>
-            {(searchQuery || statusFilter !== 'all') && (
-              <button
-                onClick={() => {
-                  setSearchQuery('');
-                  setStatusFilter('all');
-                }}
-                className="mt-4 px-4 py-2 bg-[#FF5722] text-white rounded-lg hover:bg-[#E64A19] transition-colors"
-              >
-                Clear Filters
-              </button>
-            )}
-          </motion.div>
-        ) : (
-          /* Orders List */
-          <div className="space-y-4">
-            {filteredOrders.map((order, index) => (
-              <motion.div
-                key={order.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05 }}
-                className="bg-white border border-gray-200 rounded-xl p-3 sm:p-4 hover:shadow-lg transition-shadow"
-              >
-<<<<<<< HEAD
-                {order.status === 'reviewed' ? (
-                  // COMPRESSED LAYOUT
-                  <div className="flex flex-col gap-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <h3 className="font-semibold text-gray-900">Order #{order.id.split('_')[1]}</h3>
-                        <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border ${getStatusColor(order.status)}`}>
-                          {getStatusIcon(order.status)}
-                          <span className="capitalize">Reviewed</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <Calendar className="w-3.5 h-3.5" />
-                        <span>{formatDate(order.createdAt)}</span>
-                      </div>
-                    </div>
-                    <div className="space-y-2 cursor-pointer hover:bg-gray-50 rounded-lg -mx-2 px-2 py-1 transition-colors" onClick={() => navigate(`/order/${order.id}`)}>
-                      {order.items.slice(0, 1).map(item => (
-                        <div key={item.id} className="flex items-center justify-between gap-3 w-full">
-                          <div className="flex items-center gap-3 flex-1 min-w-0">
-                            <img src={item.image} alt={item.name} className="w-10 h-10 object-cover rounded shadow-sm border border-gray-100" />
-                            <div className="flex flex-wrap items-baseline gap-x-2">
-                              <span className="text-sm font-medium text-gray-800">{item.name}</span>
-                              <span className="text-sm text-gray-500">x{item.quantity}</span>
-                              <span className="text-base font-bold text-[#FF6a00]">₱{item.price.toLocaleString()}</span>
-                            </div>
-                          </div>
-                          <div className="text-base sm:text-lg font-bold text-gray-900 whitespace-nowrap pl-2">
-                            Total: <span className="text-[#FF6a00]">₱{order.total.toLocaleString()}</span>
+        {
+          filteredOrders.length === 0 ? (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="text-center py-12"
+            >
+              <Package className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                {searchQuery || statusFilter !== 'all' ? 'No orders found' : 'No orders yet'}
+              </h3>
+              <p className="text-gray-600">
+                {searchQuery || statusFilter !== 'all'
+                  ? 'Try adjusting your search or filter criteria.'
+                  : 'Your orders will appear here once you make a purchase.'}
+              </p>
+              {(searchQuery || statusFilter !== 'all') && (
+                <button
+                  onClick={() => {
+                    setSearchQuery('');
+                    setStatusFilter('all');
+                  }}
+                  className="mt-4 px-4 py-2 bg-[#FF5722] text-white rounded-lg hover:bg-[#E64A19] transition-colors"
+                >
+                  Clear Filters
+                </button>
+              )}
+            </motion.div>
+          ) : (
+            /* Orders List */
+            <div className="space-y-4">
+              {filteredOrders.map((order, index) => (
+                <motion.div
+                  key={order.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                  className="bg-white border border-gray-200 rounded-xl p-3 sm:p-4 hover:shadow-lg transition-shadow"
+                >
+                  {order.status === 'reviewed' ? (
+                    // COMPRESSED LAYOUT
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <h3 className="font-semibold text-gray-900">Order #{order.id.includes('_') ? order.id.split('_')[1] : order.id}</h3>
+                          <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border ${getStatusColor(order.status)}`}>
+                            {getStatusIcon(order.status)}
+                            <span className="capitalize">Reviewed</span>
                           </div>
                         </div>
-                      ))}
-                      {order.items.length > 1 && (
-                        <div className="pl-13 text-xs text-gray-500 font-medium pt-1">
-                          + {order.items.length - 1} more item{order.items.length - 1 > 1 ? 's' : ''}
-                        </div>
-                      )}
-                    </div>
-                    {order.review && (
-                      <div className="mt-2 pl-13 sm:pl-0">
-                        <div className="flex items-center gap-3 mb-2">
-                          {order.review.submittedAt && <span className="text-xs text-gray-500">Submitted on {new Date(order.review.submittedAt).toLocaleDateString()}</span>}
-                          <span className="text-sm font-medium text-gray-500 flex items-center gap-1 ml-2">{order.review.rating}/5 <Star className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400" /></span>
-                        </div>
-                        <div className="flex justify-between items-start gap-4">
-                          <p className="text-sm text-gray-700 italic leading-relaxed bg-gray-50/50 p-2.5 rounded-lg w-full">"{order.review.comment}"</p>
-                          {order.review.images && order.review.images.length > 0 && (
-                            <div className="flex gap-1 shrink-0">
-                              {order.review.images.map((img, idx) => (
-                                <div key={idx} className="w-12 h-12 rounded-lg border border-gray-200 overflow-hidden cursor-pointer hover:ring-2 hover:ring-[#FF6a00] transition-all" onClick={(e) => { e.stopPropagation(); setViewImage(img); }}>
-                                  <img src={img} alt={`Review ${idx}`} className="w-full h-full object-cover" />
-                                </div>
-                              ))}
-                            </div>
-                          )}
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <Calendar className="w-3.5 h-3.5" />
+                          <span>{formatDate(order.createdAt)}</span>
                         </div>
                       </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="flex flex-col gap-2">
-                    {/* Compact Header */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <h3 className="font-semibold text-gray-900">Order #{order.id.split('_')[1]}</h3>
-                        {/* New Order Indicator */}
-=======
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                  <div className="flex-1">
-                    {/* Order Header */}
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
-                      <div className="flex items-center gap-3 flex-wrap">
-                        <h3 className="font-semibold text-gray-900">
-                          Order #{order.id}
-                        </h3>
-                        {/* New order indicator (orders created in last 2 minutes) */}
->>>>>>> b6eb31ecf9bad194af703fe42ca3eabbd29ff690
-                        {isNewOrder(order) && (
-                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-orange-500 text-white animate-pulse">
-                            <span className="w-1.5 h-1.5 rounded-full bg-white"></span>
-                            NEW
-                          </span>
-                        )}
-                        <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border ${getStatusColor(order.status)}`}>
-                          {getStatusIcon(order.status)}
-                          <span className="capitalize">{order.status === 'pending' ? 'Pending Payment' : order.status}</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <Calendar className="w-3.5 h-3.5" />
-                        <span>{formatDate(order.createdAt)}</span>
-                      </div>
-                    </div>
-
-                    {/* Compact Items List */}
-                    {/* Compact Items List */}
-                    <div className="space-y-2 cursor-pointer hover:bg-gray-50 rounded-lg -mx-2 px-2 py-1 transition-colors" onClick={() => navigate(`/order/${order.id}`)}>
-                      {order.items.slice(0, 1).map(item => (
-                        <div key={item.id} className="flex items-center justify-between gap-3 w-full">
-                          <div className="flex items-center gap-3 flex-1 min-w-0">
-                            <img
-                              src={item.image}
-                              alt={item.name}
-                              className="w-10 h-10 object-cover rounded shadow-sm border border-gray-100"
-                            />
-                            <div className="flex flex-wrap items-baseline gap-x-2">
-                              <span className="text-sm font-medium text-gray-800">{item.name}</span>
-                              <span className="text-sm text-gray-500">x{item.quantity}</span>
-                              <span className="text-base font-bold text-[#FF6a00]">₱{item.price.toLocaleString()}</span>
-                            </div>
-                          </div>
-                          <div className="text-base sm:text-lg font-bold text-gray-900 whitespace-nowrap pl-2">
-                            Total: <span className="text-[#FF6a00]">₱{order.total.toLocaleString()}</span>
-                          </div>
-                        </div>
-                      ))}
-                      {order.items.length > 1 && (
-                        <div className="pl-13 text-xs text-gray-500 font-medium pt-1">
-                          + {order.items.length - 1} more item{order.items.length - 1 > 1 ? 's' : ''}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Order Footer */}
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pt-2 border-t border-gray-100/50">
-                      <div>
-                        {['delivered', 'reviewed'].includes(order.status) && (
-                          <Button
-                            onClick={async () => {
-                              // Process all additions to ensure store updates
-                              const promises = order.items.map(item => {
-                                // Ensure seller structure matches BuyerStore expectations
-                                const productInput = {
-                                  ...item,
-                                  seller: {
-                                    id: 'seller_' + (item.seller || 'unknown'),
-                                    name: item.seller || 'Verified Seller',
-                                    avatar: '',
-                                    rating: 5,
-                                    isVerified: true
-                                  }
-                                };
-                                // Pass product, quantity, and variant explicitly
-                                return addToCart(productInput as any, item.quantity, (item as any).selectedVariant);
-                              });
-
-                              // Wait for all items to be added before navigating
-                              await Promise.all(promises);
-
-                              navigate('/enhanced-cart', { state: { selectedItems: order.items.map(i => i.id) } });
-                            }}
-                            size="sm"
-                            className="bg-[#FF5722] hover:bg-[#E64A19] text-white"
-                          >
-                            <ShoppingBag className="w-4 h-4 mr-1" />
-                            Buy Again
-                          </Button>
-                        )}
-                      </div>
-
-                      <div className="flex gap-2">
-                        {/* Pending Payment - Show Cancel and Track */}
-                        {order.status === 'pending' && !order.isPaid ? (
-                          <>
-                            <Button
-                              onClick={() => alert('Order canceled')}
-                              size="sm"
-                              variant="outline"
-                              className="border-gray-300 text-gray-700 hover:bg-gray-50"
-                            >
-                              Cancel Order
-                            </Button>
-<<<<<<< HEAD
-
-                          </>
-                        ) : order.status === 'pending' || order.status === 'confirmed' || order.status === 'shipped' ? (
-                          /* In Progress - Track Order */
-                          null
-=======
-                            <Button
-                              onClick={() => navigate(`/delivery-tracking/${encodeURIComponent(order.id)}`)}
-                              size="sm"
-                              className="bg-[#FF5722] hover:bg-[#E64A19] text-white"
-                            >
-                              <Truck className="w-4 h-4 mr-1" />
-                              Track Order
-                            </Button>
-                          </>
-                        ) : order.status === 'pending' || order.status === 'confirmed' || order.status === 'shipped' ? (
-                          /* In Progress - Track Order */
-                          <Button
-                            onClick={() => navigate(`/delivery-tracking/${encodeURIComponent(order.id)}`)}
-                            size="sm"
-                            className="bg-[#FF5722] hover:bg-[#E64A19] text-white"
-                          >
-                            <Truck className="w-4 h-4 mr-1" />
-                            Track Order
-                          </Button>
->>>>>>> b6eb31ecf9bad194af703fe42ca3eabbd29ff690
-                        ) : order.status === 'delivered' ? (
-                          /* Delivered - See Details and Review */
-                          <>
-                            <Button
-<<<<<<< HEAD
-                              onClick={() => {
-                                setOrderToReview(order);
-                                setReviewModalOpen(true);
-                              }}
-=======
-                              onClick={() => navigate(`/order/${encodeURIComponent(order.id)}`)}
->>>>>>> b6eb31ecf9bad194af703fe42ca3eabbd29ff690
-                              size="sm"
-                              variant="outline"
-                              className="border-[#FF5722] text-[#FF5722] hover:bg-[#ff6a00] hover:text-white hover:border-[#ff6a00]"
-                            >
-                              <Star className="w-4 h-4 mr-1" />
-                              Write Review
-                            </Button>
-                            {isWithinReturnWindow(order) && (
-                              <Button
-                                onClick={() => {
-                                  setOrderToReturn(order);
-                                  setReturnModalOpen(true);
-                                }}
-                                size="sm"
-                                variant="outline"
-                                className="border-[#FF5722] text-[#FF5722] hover:bg-[#ff6a00] hover:text-white hover:border-[#ff6a00]"
-                              >
-                                <RotateCcw className="w-4 h-4 mr-1" />
-                                Return/Refund
-                              </Button>
-                            )}
-                          </>
-                        ) : order.status === 'cancelled' ? (
-                          /* Canceled - View Details */
-                          <Button
-                            onClick={() => navigate(`/order/${encodeURIComponent(order.id)}`)}
-                            variant="outline"
-                            size="sm"
-                            className="border-gray-300 text-gray-500 hover:bg-gray-50"
-                          >
-                            <Eye className="w-4 h-4 mr-1" />
-                            View Details
-                          </Button>
-                        ) : order.status === 'returned' ? (
-                          /* Returned - View Return Details */
-                          <Button
-                            onClick={() => setViewReturnDetails(order)}
-                            variant="outline"
-                            size="sm"
-                            className="border-[#FF5722] text-[#FF5722] hover:bg-orange-50"
-                          >
-                            <Eye className="w-4 h-4 mr-1" />
-                            View Details
-                          </Button>
-                        ) : order.status === 'reviewed' ? (
-                          /* Reviewed - Show Details */
-                          <div className="flex flex-col items-end gap-3 text-right w-full sm:w-auto mt-4 sm:mt-0">
-                            <div className="flex flex-col items-end gap-1">
-                              <div className="flex items-center gap-1 bg-yellow-50 px-3 py-1.5 rounded-lg border border-yellow-100 mb-1">
-                                <span className="text-xs font-semibold text-yellow-700 uppercase tracking-wide mr-1">Your Rating</span>
-                                <div className="flex">
-                                  {[1, 2, 3, 4, 5].map(star => (
-                                    <Star
-                                      key={star}
-                                      className={`w-4 h-4 ${star <= (order.review?.rating || 5) ? 'fill-yellow-400 text-yellow-400' : 'text-gray-200'}`}
-                                    />
-                                  ))}
-                                </div>
+                      <div className="space-y-2 cursor-pointer hover:bg-gray-50 rounded-lg -mx-2 px-2 py-1 transition-colors" onClick={() => navigate(`/order/${order.id}`)}>
+                        {order.items.slice(0, 1).map(item => (
+                          <div key={item.id} className="flex items-center justify-between gap-3 w-full">
+                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                              <img src={item.image} alt={item.name} className="w-10 h-10 object-cover rounded shadow-sm border border-gray-100" />
+                              <div className="flex flex-wrap items-baseline gap-x-2">
+                                <span className="text-sm font-medium text-gray-800">{item.name}</span>
+                                <span className="text-sm text-gray-500">x{item.quantity}</span>
+                                <span className="text-base font-bold text-[#FF6a00]">₱{item.price.toLocaleString()}</span>
                               </div>
-                              {order.review?.submittedAt && (
-                                <span className="text-xs text-gray-400">
-                                  Submitted on {new Date(order.review.submittedAt).toLocaleDateString()}
-                                </span>
-                              )}
                             </div>
-
-                            {order.review?.comment && (
-                              <p className="text-sm text-gray-700 italic bg-gray-50 p-3 rounded-lg border border-gray-100 text-left w-full sm:max-w-md">
-                                "{order.review.comment}"
-                              </p>
-                            )}
-
-                            {order.review?.images && order.review.images.length > 0 && (
-                              <div className="flex gap-2 justify-end mt-1">
+                            <div className="text-base sm:text-lg font-bold text-gray-900 whitespace-nowrap pl-2">
+                              Total: <span className="text-[#FF6a00]">₱{order.total.toLocaleString()}</span>
+                            </div>
+                          </div>
+                        ))}
+                        {order.items.length > 1 && (
+                          <div className="pl-13 text-xs text-gray-500 font-medium pt-1">
+                            + {order.items.length - 1} more item{order.items.length - 1 > 1 ? 's' : ''}
+                          </div>
+                        )}
+                      </div>
+                      {order.review && (
+                        <div className="mt-2 pl-13 sm:pl-0">
+                          <div className="flex items-center gap-3 mb-2">
+                            {order.review.submittedAt && <span className="text-xs text-gray-500">Submitted on {new Date(order.review.submittedAt).toLocaleDateString()}</span>}
+                            <span className="text-sm font-medium text-gray-500 flex items-center gap-1 ml-2">{order.review.rating}/5 <Star className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400" /></span>
+                          </div>
+                          <div className="flex justify-between items-start gap-4">
+                            <p className="text-sm text-gray-700 italic leading-relaxed bg-gray-50/50 p-2.5 rounded-lg w-full">"{order.review.comment}"</p>
+                            {order.review.images && order.review.images.length > 0 && (
+                              <div className="flex gap-1 shrink-0">
                                 {order.review.images.map((img, idx) => (
-                                  <div key={idx} className="w-12 h-12 rounded-lg border border-gray-200 overflow-hidden">
+                                  <div key={idx} className="w-12 h-12 rounded-lg border border-gray-200 overflow-hidden cursor-pointer hover:ring-2 hover:ring-[#FF6a00] transition-all" onClick={(e) => { e.stopPropagation(); setViewImage(img); }}>
                                     <img src={img} alt={`Review ${idx}`} className="w-full h-full object-cover" />
                                   </div>
                                 ))}
                               </div>
                             )}
                           </div>
-                        ) : null}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      {/* Compact Header */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <h3 className="font-semibold text-gray-900">Order #{order.id.includes('_') ? order.id.split('_')[1] : order.id}</h3>
+                          {/* New Order Indicator */}
+                          {isNewOrder(order) && (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-orange-500 text-white animate-pulse">
+                              <span className="w-1.5 h-1.5 rounded-full bg-white"></span>
+                              NEW
+                            </span>
+                          )}
+                          <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border ${getStatusColor(order.status)}`}>
+                            {getStatusIcon(order.status)}
+                            <span className="capitalize">{order.status === 'pending' ? 'Pending Payment' : order.status}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <Calendar className="w-3.5 h-3.5" />
+                          <span>{formatDate(order.createdAt)}</span>
+                        </div>
+                      </div>
+
+                      {/* Compact Items List */}
+                      {/* Compact Items List */}
+                      <div className="space-y-2 cursor-pointer hover:bg-gray-50 rounded-lg -mx-2 px-2 py-1 transition-colors" onClick={() => navigate(`/order/${order.id}`)}>
+                        {order.items.slice(0, 1).map(item => (
+                          <div key={item.id} className="flex items-center justify-between gap-3 w-full">
+                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                              <img
+                                src={item.image}
+                                alt={item.name}
+                                className="w-10 h-10 object-cover rounded shadow-sm border border-gray-100"
+                              />
+                              <div className="flex flex-wrap items-baseline gap-x-2">
+                                <span className="text-sm font-medium text-gray-800">{item.name}</span>
+                                <span className="text-sm text-gray-500">x{item.quantity}</span>
+                                <span className="text-base font-bold text-[#FF6a00]">₱{item.price.toLocaleString()}</span>
+                              </div>
+                            </div>
+                            <div className="text-base sm:text-lg font-bold text-gray-900 whitespace-nowrap pl-2">
+                              Total: <span className="text-[#FF6a00]">₱{order.total.toLocaleString()}</span>
+                            </div>
+                          </div>
+                        ))}
+                        {order.items.length > 1 && (
+                          <div className="pl-13 text-xs text-gray-500 font-medium pt-1">
+                            + {order.items.length - 1} more item{order.items.length - 1 > 1 ? 's' : ''}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Order Footer */}
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pt-2 border-t border-gray-100/50">
+                        <div>
+                          {['delivered', 'reviewed'].includes(order.status) && (
+                            <Button
+                              onClick={async () => {
+                                // Process all additions to ensure store updates
+                                const promises = order.items.map(item => {
+                                  // Ensure seller structure matches BuyerStore expectations
+                                  const productInput = {
+                                    ...item,
+                                    seller: {
+                                      id: 'seller_' + (item.seller || 'unknown'),
+                                      name: item.seller || 'Verified Seller',
+                                      avatar: '',
+                                      rating: 5,
+                                      isVerified: true
+                                    }
+                                  };
+                                  // Pass product, quantity, and variant explicitly
+                                  return addToCart(productInput as any, item.quantity, (item as any).selectedVariant);
+                                });
+
+                                // Wait for all items to be added before navigating
+                                await Promise.all(promises);
+
+                                navigate('/enhanced-cart', { state: { selectedItems: order.items.map(i => i.id) } });
+                              }}
+                              size="sm"
+                              className="bg-[#FF5722] hover:bg-[#E64A19] text-white"
+                            >
+                              <ShoppingBag className="w-4 h-4 mr-1" />
+                              Buy Again
+                            </Button>
+                          )}
+                        </div>
+
+                        <div className="flex gap-2">
+                          {/* Pending Payment - Show Cancel and Track */}
+                          {order.status === 'pending' && !order.isPaid ? (
+                            <>
+                              <Button
+                                onClick={() => alert('Order canceled')}
+                                size="sm"
+                                variant="outline"
+                                className="border-gray-300 text-gray-700 hover:bg-gray-50"
+                              >
+                                Cancel Order
+                              </Button>
+
+                            </>
+                          ) : order.status === 'pending' || order.status === 'confirmed' || order.status === 'shipped' ? (
+                            /* In Progress - Track Order */
+                            null
+                          ) : order.status === 'delivered' ? (
+                            /* Delivered - See Details and Review */
+                            <>
+                              <Button
+                                onClick={() => {
+                                  setOrderToReview(order);
+                                  setReviewModalOpen(true);
+                                }}
+                                size="sm"
+                                variant="outline"
+                                className="border-[#FF5722] text-[#FF5722] hover:bg-[#ff6a00] hover:text-white hover:border-[#ff6a00]"
+                              >
+                                <Star className="w-4 h-4 mr-1" />
+                                Write Review
+                              </Button>
+                              {isWithinReturnWindow(order) && (
+                                <Button
+                                  onClick={() => {
+                                    setOrderToReturn(order);
+                                    setReturnModalOpen(true);
+                                  }}
+                                  size="sm"
+                                  variant="outline"
+                                  className="border-[#FF5722] text-[#FF5722] hover:bg-[#ff6a00] hover:text-white hover:border-[#ff6a00]"
+                                >
+                                  <RotateCcw className="w-4 h-4 mr-1" />
+                                  Return/Refund
+                                </Button>
+                              )}
+                            </>
+                          ) : order.status === 'cancelled' ? (
+                            /* Canceled - View Details */
+                            <Button
+                              onClick={() => navigate(`/order/${encodeURIComponent(order.id)}`)}
+                              variant="outline"
+                              size="sm"
+                              className="border-gray-300 text-gray-500 hover:bg-gray-50"
+                            >
+                              <Eye className="w-4 h-4 mr-1" />
+                              View Details
+                            </Button>
+                          ) : order.status === 'returned' ? (
+                            /* Returned - View Return Details */
+                            <Button
+                              onClick={() => setViewReturnDetails(order)}
+                              variant="outline"
+                              size="sm"
+                              className="border-[#FF5722] text-[#FF5722] hover:bg-orange-50"
+                            >
+                              <Eye className="w-4 h-4 mr-1" />
+                              View Details
+                            </Button>
+                          ) : order.status === 'reviewed' ? (
+                            /* Reviewed - Show Details */
+                            <div className="flex flex-col items-end gap-3 text-right w-full sm:w-auto mt-4 sm:mt-0">
+                              <div className="flex flex-col items-end gap-1">
+                                <div className="flex items-center gap-1 bg-yellow-50 px-3 py-1.5 rounded-lg border border-yellow-100 mb-1">
+                                  <span className="text-xs font-semibold text-yellow-700 uppercase tracking-wide mr-1">Your Rating</span>
+                                  <div className="flex">
+                                    {[1, 2, 3, 4, 5].map(star => (
+                                      <Star
+                                        key={star}
+                                        className={`w-4 h-4 ${star <= (order.review?.rating || 5) ? 'fill-yellow-400 text-yellow-400' : 'text-gray-200'}`}
+                                      />
+                                    ))}
+                                  </div>
+                                </div>
+                                {order.review?.submittedAt && (
+                                  <span className="text-xs text-gray-400">
+                                    Submitted on {new Date(order.review.submittedAt).toLocaleDateString()}
+                                  </span>
+                                )}
+                              </div>
+
+                              {order.review?.comment && (
+                                <p className="text-sm text-gray-700 italic bg-gray-50 p-3 rounded-lg border border-gray-100 text-left w-full sm:max-w-md">
+                                  "{order.review.comment}"
+                                </p>
+                              )}
+
+                              {order.review?.images && order.review.images.length > 0 && (
+                                <div className="flex gap-2 justify-end mt-1">
+                                  {order.review.images.map((img, idx) => (
+                                    <div key={idx} className="w-12 h-12 rounded-lg border border-gray-200 overflow-hidden">
+                                      <img src={img} alt={`Review ${idx}`} className="w-full h-full object-cover" />
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ) : null}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                )}
-              </motion.div>
-            ))}
-          </div>
-        )}
-      </div>
+                  )}
+                </motion.div>
+              ))}
+            </div>
+          )
+        }
+      </div >
 
       {/* Order Detail Modal/Overlay */}
       {
@@ -760,7 +733,6 @@ export default function OrdersPage() {
             className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
             onClick={() => setSelectedOrder(null)}
           >
-<<<<<<< HEAD
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -771,7 +743,7 @@ export default function OrdersPage() {
               <div className="flex justify-between items-start mb-6">
                 <div>
                   <h2 className="text-xl font-bold text-gray-900 mb-1">
-                    Order #{selectedOrderData.id.split('_')[1]}
+                    Order #{selectedOrderData.id.includes('_') ? selectedOrderData.id.split('_')[1] : selectedOrderData.id}
                   </h2>
                   <p className="text-gray-600">{formatDateTime(selectedOrderData.createdAt)}</p>
                 </div>
@@ -781,14 +753,6 @@ export default function OrdersPage() {
                 >
                   <XCircle className="w-6 h-6" />
                 </button>
-=======
-            <div className="flex justify-between items-start mb-6">
-              <div>
-                <h2 className="text-xl font-bold text-gray-900 mb-1">
-                  Order #{selectedOrderData.id}
-                </h2>
-                <p className="text-gray-600">{formatDateTime(selectedOrderData.createdAt)}</p>
->>>>>>> b6eb31ecf9bad194af703fe42ca3eabbd29ff690
               </div>
 
               {/* Status */}
@@ -923,7 +887,7 @@ export default function OrdersPage() {
                   <h2 className="text-xl font-bold text-gray-900 mb-1">
                     Return Request Details
                   </h2>
-                  <p className="text-gray-600">Order #{viewReturnDetails.id.split('_')[1]}</p>
+                  <p className="text-gray-600">Order #{viewReturnDetails.id.includes('_') ? viewReturnDetails.id.split('_')[1] : viewReturnDetails.id}</p>
                 </div>
                 <button
                   onClick={() => setViewReturnDetails(null)}

@@ -41,12 +41,8 @@ export default function OrderDetailPage() {
   const navigate = useNavigate();
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-<<<<<<< HEAD
-  const order = orderId ? getOrderById(orderId) : null;
-=======
-  const [dbOrder, setDbOrder] = useState<Order | null>(null);
   const [isLoading, setIsLoading] = useState(true);
->>>>>>> b6eb31ecf9bad194af703fe42ca3eabbd29ff690
+  const [dbOrder, setDbOrder] = useState<Order | null>(null);
   const [chatMessage, setChatMessage] = useState('');
 
   // Initialize chat messages with lazy initialization
