@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import { ReturnRequest, ReturnStatus, ReturnReason, ReturnType } from '../types';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface ReturnStore {
   returnRequests: ReturnRequest[];
@@ -43,7 +45,7 @@ const dummyReturnRequests: ReturnRequest[] = [
   },
 ];
 
-export const useReturnStore = create<ReturnStore>((set, get) => ({
+export const useReturnStore = create<ReturnStore>()(persist((set, get) => ({
   returnRequests: dummyReturnRequests,
 
   createReturnRequest: (request) => {
@@ -101,12 +103,23 @@ export const useReturnStore = create<ReturnStore>((set, get) => ({
   },
 
   getReturnRequestsBySeller: (sellerId) => {
-    // In a real app, this would filter by sellerId. 
-    // Since our dummy data uses 'TechStore Official' as seller name/ID equivalent in OrderStore, we match that.
-    return get().returnRequests.filter((req) => req.sellerId === sellerId);
+    const allRequests = get().returnRequests;
+    console.log('🔍 Seller filtering returns for:', sellerId);
+    console.log('🔍 Total return requests in store:', allRequests.length);
+    console.log('🔍 Return request sellerIds:', allRequests.map(r => ({ id: r.id, sellerId: r.sellerId })));
+    
+    const filtered = allRequests.filter((req) => req.sellerId === sellerId);
+    console.log('🔍 Filtered return requests:', filtered.length);
+    
+    return filtered;
   },
   
   getReturnRequestById: (id) => {
     return get().returnRequests.find((req) => req.id === id);
   },
-}));
+}),
+  {
+    name: 'return-storage',
+    storage: createJSONStorage(() => AsyncStorage),
+  }
+));
