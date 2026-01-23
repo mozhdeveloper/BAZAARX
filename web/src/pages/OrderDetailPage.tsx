@@ -17,6 +17,7 @@ import {
   AlertCircle,
   Store,
   Receipt,
+  X,
 } from "lucide-react";
 import { useCartStore, Order } from "../stores/cartStore";
 import { Button } from "../components/ui/button";
@@ -29,6 +30,7 @@ import {
   CardTitle,
 } from "../components/ui/card";
 import { supabase } from "@/lib/supabase";
+import { submitOrderReview } from "../services/orderService";
 import Header from "../components/Header";
 import { BazaarFooter } from "../components/ui/bazaar-footer";
 import { cn } from "@/lib/utils";
@@ -49,6 +51,12 @@ export default function OrderDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [dbOrder, setDbOrder] = useState<Order | null>(null);
   const [chatMessage, setChatMessage] = useState('');
+
+  // Review modal state
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [reviewRating, setReviewRating] = useState(0);
+  const [reviewComment, setReviewComment] = useState('');
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
 
   // Initialize chat messages with lazy initialization
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => {
@@ -335,6 +343,66 @@ export default function OrderDetailPage() {
     alert("Receipt download will be implemented with backend integration");
   };
 
+  const handleSubmitReview = async () => {
+    if (reviewRating === 0) {
+      alert('Please select a rating');
+      return;
+    }
+    if (!reviewComment.trim()) {
+      alert('Please write a review comment');
+      return;
+    }
+
+    setIsSubmittingReview(true);
+    try {
+      const success = await submitOrderReview(
+        order.id,
+        dbOrder?.buyer_id || '',
+        reviewRating,
+        reviewComment,
+        []
+      );
+
+      if (success) {
+        alert('✅ Review submitted successfully! Thank you for your feedback.');
+        setShowReviewModal(false);
+        setReviewRating(0);
+        setReviewComment('');
+        
+        // Refresh order data to show is_reviewed status
+        if (orderId) {
+          const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(orderId);
+          const { data } = await supabase
+            .from('orders')
+            .select(`
+              *,
+              order_items (
+                *,
+                product:products (
+                  id,
+                  name,
+                  image_url
+                )
+              )
+            `)
+            .eq(isUuid ? 'id' : 'order_number', orderId)
+            .single();
+          
+          if (data) {
+            setDbOrder(data);
+          }
+        }
+      } else {
+        alert('Failed to submit review. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error submitting review:', error);
+      alert('An error occurred. Please try again.');
+    } finally {
+      setIsSubmittingReview(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
@@ -508,18 +576,22 @@ export default function OrderDetailPage() {
                         <p className="font-semibold text-gray-900">
                           ₱{(item.price * item.quantity).toLocaleString()}
                         </p>
-                        {order.status === "delivered" && (
+                        {order.status === "delivered" && !dbOrder?.is_reviewed && (
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() =>
-                              navigate(`/reviews?order=${order.id}`)
-                            }
+                            onClick={() => setShowReviewModal(true)}
                             className="mt-2 text-orange-600 border-orange-300 hover:bg-orange-50"
                           >
                             <Star className="w-3 h-3 mr-1" />
                             Review
                           </Button>
+                        )}
+                        {order.status === "delivered" && dbOrder?.is_reviewed && (
+                          <div className="mt-2 flex items-center gap-1 text-sm text-green-600">
+                            <CheckCircle className="w-4 h-4" />
+                            <span>Reviewed</span>
+                          </div>
                         )}
                       </div>
                     </div>
@@ -771,6 +843,83 @@ export default function OrderDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Review Modal */}
+      {showReviewModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-semibold text-gray-900">Write a Review</h3>
+              <button
+                onClick={() => setShowReviewModal(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Rating Stars */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Rating
+                </label>
+                <div className="flex gap-2">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      onClick={() => setReviewRating(star)}
+                      className="focus:outline-none transition-transform hover:scale-110"
+                    >
+                      <Star
+                        className={cn(
+                          "w-8 h-8",
+                          star <= reviewRating
+                            ? "fill-yellow-400 text-yellow-400"
+                            : "text-gray-300"
+                        )}
+                      />
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Review Comment */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Your Review
+                </label>
+                <textarea
+                  value={reviewComment}
+                  onChange={(e) => setReviewComment(e.target.value)}
+                  placeholder="Share your experience with this product..."
+                  rows={4}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowReviewModal(false)}
+                  className="flex-1"
+                  disabled={isSubmittingReview}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleSubmitReview}
+                  className="flex-1 bg-orange-500 hover:bg-orange-600 text-white"
+                  disabled={isSubmittingReview}
+                >
+                  {isSubmittingReview ? 'Submitting...' : 'Submit Review'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <BazaarFooter />
     </div>

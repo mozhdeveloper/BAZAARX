@@ -908,8 +908,16 @@ export function SellerOrders() {
                                   </span>
                                 </div>
                                 {order.reviewComment && (
-                                  <p className="text-sm text-gray-700 italic">
+                                  <p className="text-sm text-gray-700 italic mb-2">
                                     "{order.reviewComment}"
+                                  </p>
+                                )}
+                                {order.reviewDate && (
+                                  <p className="text-xs text-gray-500">
+                                    Reviewed on{" "}
+                                    {new Date(
+                                      order.reviewDate,
+                                    ).toLocaleDateString()}
                                   </p>
                                 )}
                               </div>
