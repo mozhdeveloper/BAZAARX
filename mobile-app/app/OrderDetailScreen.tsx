@@ -14,11 +14,12 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ArrowLeft, Package, MapPin, CreditCard, Receipt, CheckCircle, MessageCircle, Send, X, Truck, Clock, CheckCircle2 } from 'lucide-react-native';
+import { ArrowLeft, Package, MapPin, CreditCard, Receipt, CheckCircle, MessageCircle, Send, X, Truck, Clock, CheckCircle2, RotateCcw } from 'lucide-react-native';
 import { COLORS } from '../src/constants/theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import { useOrderStore } from '../src/stores/orderStore';
+import { useReturnStore } from '../src/stores/returnStore';
 import ReviewModal from '../src/components/ReviewModal';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'OrderDetail'>;
@@ -269,13 +270,62 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
         </View>
       </ScrollView>
 
-      {/* Mark as Received Button (only for shipped orders) */}
-      {order.status === 'shipped' && (
+      {/* Bottom Action Bar */}
+      {(order.status === 'shipped' || order.status === 'delivered') && (
         <View style={styles.bottomBar}>
-          <Pressable onPress={handleMarkAsReceived} style={styles.receivedButton}>
-            <CheckCircle size={20} color="#FFFFFF" />
-            <Text style={styles.receivedButtonText}>Mark as Received</Text>
-          </Pressable>
+          {order.status === 'shipped' ? (
+            <Pressable onPress={handleMarkAsReceived} style={styles.receivedButton}>
+              <CheckCircle size={20} color="#FFFFFF" />
+              <Text style={styles.receivedButtonText}>Mark as Received</Text>
+            </Pressable>
+          ) : (
+            (() => {
+              // Safely parse date for "MM/DD/YYYY" format which can be flaky on Android
+              const getDeliveryDate = (dateStr: string | undefined): Date => {
+                  if (!dateStr) return new Date();
+                  const parts = dateStr.split('/');
+                  if (parts.length === 3) {
+                      return new Date(parseInt(parts[2]), parseInt(parts[0]) - 1, parseInt(parts[1]));
+                  }
+                  return new Date(dateStr);
+              };
+
+              const deliveryDate = getDeliveryDate(order.deliveryDate);
+              const currentDate = new Date();
+              
+              // Calculate difference in milliseconds
+              const diffTime = currentDate.getTime() - deliveryDate.getTime();
+              
+              // Convert to days (rounding down to be lenient for "same day" or partial days)
+              const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+              
+              const isReturnable = diffDays <= 7 && diffDays >= 0;
+
+              return (
+                <Pressable 
+                  onPress={() => {
+                    if (isReturnable) navigation.navigate('ReturnRequest', { order });
+                    else Alert.alert('Return Window Closed', 'Returns are only available within 7 days of delivery.');
+                  }} 
+                  style={[
+                    styles.receivedButton, 
+                    { 
+                      backgroundColor: isReturnable ? '#FFFFFF' : '#F3F4F6', 
+                      borderWidth: 1, 
+                      borderColor: '#D1D5DB', 
+                      elevation: 0,
+                      opacity: isReturnable ? 1 : 0.8
+                    }
+                  ]}
+                >
+                  <RotateCcw size={20} color={isReturnable ? "#374151" : "#9CA3AF"} />
+                  <Text style={[styles.receivedButtonText, { color: isReturnable ? '#374151' : '#9CA3AF' }]}>
+                    {isReturnable ? 'Return / Refund' : 'Return Window Closed'}
+                  </Text>
+                </Pressable>
+              );
+            })()
+          )}
         </View>
       )}
 
@@ -755,5 +805,22 @@ const styles = StyleSheet.create({
   closeButton: {
     padding: 12,
     marginLeft: -8, // Compensate for extra padding to keep visual alignment
+  },
+  returnRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  returnStatus: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1F2937',
+  },
+  returnDate: {
+    fontSize: 12,
+    color: '#6B7280',
   },
 });

@@ -8,15 +8,25 @@ import {
   Dimensions,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { TrendingUp, TrendingDown, Package, Eye, DollarSign, Menu, Bell } from 'lucide-react-native';
+import { TrendingUp, TrendingDown, Package, Eye, DollarSign, Menu, Bell, Receipt, AlertCircle } from 'lucide-react-native';
 import { LineChart } from 'react-native-gifted-charts';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { SellerStackParamList } from '../SellerStack';
 import { useSellerStore } from '../../../src/stores/sellerStore';
+import { useReturnStore } from '../../../src/stores/returnStore';
 import SellerDrawer from '../../../src/components/SellerDrawer';
 
 const { width } = Dimensions.get('window');
 
 export default function SellerDashboardScreen() {
   const { stats, revenueData, orders, seller } = useSellerStore();
+  const getReturnRequestsBySeller = useReturnStore((state) => state.getReturnRequestsBySeller);
+  // Assuming seller has an ID or name matching the return requests. 
+  // For now using a hardcoded value or seller.storeName as per previous context
+  const returnRequests = getReturnRequestsBySeller('TechStore Official'); 
+  const pendingReturns = returnRequests.filter(r => r.status === 'pending_review');
+
   const insets = useSafeAreaInsets();
   const [drawerVisible, setDrawerVisible] = useState(false);
 
@@ -132,6 +142,25 @@ export default function SellerDashboardScreen() {
               <Text style={styles.statChangeText}>+{stats.visitsChange}%</Text>
             </View>
           </View>
+
+           {/* Returns Card */}
+           <View style={styles.statCard}>
+            <View style={styles.statIconContainer}>
+              <Receipt size={24} color="#FF5722" strokeWidth={2.5} />
+            </View>
+            <Text style={styles.statLabel}>Pending Returns</Text>
+            <Text style={styles.statValue}>{pendingReturns.length}</Text>
+            <View style={styles.statChange}>
+              {pendingReturns.length > 0 ? (
+                <>
+                  <AlertCircle size={14} color="#EF4444" strokeWidth={2.5} />
+                  <Text style={[styles.statChangeText, { color: '#EF4444' }]}>Action Needed</Text>
+                </>
+              ) : (
+                <Text style={[styles.statChangeText, { color: '#10B981' }]}>All Good</Text>
+              )}
+            </View>
+          </View>
         </ScrollView>
 
         {/* Revenue Chart */}
@@ -219,7 +248,7 @@ export default function SellerDashboardScreen() {
                 <Text style={styles.orderTotal}>₱{order.total.toLocaleString()}</Text>
               </View>
             </View>
-          ))}
+            ))}
         </View>
 
         <View style={{ height: 100 }} />
@@ -339,6 +368,24 @@ const styles = StyleSheet.create({
   chartSection: {
     paddingHorizontal: 20,
     marginBottom: 24,
+  },
+  sectionContainer: {
+    paddingHorizontal: 20,
+    marginBottom: 20,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#F3F4F6',
+    marginVertical: 12,
+  },
+  orderAmount: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FF5722',
+  },
+  orderDate: {
+    fontSize: 12,
+    color: '#6B7280',
   },
   sectionTitle: {
     fontSize: 18,

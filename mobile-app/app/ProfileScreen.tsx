@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet, Alert, StatusBar, Modal, TextInput, ActivityIndicator, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
-import { User, MapPin, CreditCard, Bell, HelpCircle, Shield, ChevronRight, Store, Star, Package, Heart, Settings, Edit2, Power, X, Camera } from 'lucide-react-native';
+import { User, MapPin, CreditCard, Bell, HelpCircle, Shield, ChevronRight, Store, Star, Package, Heart, Settings, Edit2, Power, X, Camera, RotateCcw, Clock } from 'lucide-react-native';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -174,6 +174,7 @@ export default function ProfileScreen({ navigation }: Props) {
 
   const accountMenuItems = [
     { icon: Package, label: 'My Orders', onPress: () => navigation.navigate('Orders', {}) },
+    { icon: Clock, label: 'History', onPress: () => navigation.navigate('History') },
     { icon: Heart, label: 'Wishlist', onPress: () => navigation.navigate('Wishlist') },
     { icon: MapPin, label: 'My Addresses', onPress: () => navigation.navigate('Addresses') },
     { icon: Store, label: 'Following Shops', onPress: () => navigation.navigate('FollowingShops') },
@@ -278,7 +279,7 @@ export default function ProfileScreen({ navigation }: Props) {
         <View style={styles.statsCard}>
           <Pressable
             style={({ pressed }) => [styles.statBox, pressed && { opacity: 0.7 }]}
-            onPress={() => navigation.navigate('Orders', { initialTab: 'active' })}
+            onPress={() => navigation.navigate('Orders', { initialTab: 'toPay' })}
           >
             <Text style={[styles.statVal, { color: BRAND_COLOR }]}>{profile.totalOrders}</Text>
             <Text style={styles.statLab}>Orders</Text>
