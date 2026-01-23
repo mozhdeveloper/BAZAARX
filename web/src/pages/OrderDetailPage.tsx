@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { 
-  ArrowLeft, 
-  Package, 
-  Truck, 
-  CheckCircle, 
+import {
+  ArrowLeft,
+  Package,
+  Truck,
+  CheckCircle,
   Clock,
   MapPin,
   Phone,
@@ -40,10 +40,10 @@ export default function OrderDetailPage() {
   const navigate = useNavigate();
   const { getOrderById } = useCartStore();
   const chatEndRef = useRef<HTMLDivElement>(null);
-  
+
   const order = orderId ? getOrderById(orderId) : null;
   const [chatMessage, setChatMessage] = useState('');
-  
+
   // Initialize chat messages with lazy initialization
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => {
     const now = Date.now();
@@ -197,7 +197,7 @@ export default function OrderDetailPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
-      
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Header */}
         <div className="mb-6">
@@ -209,7 +209,7 @@ export default function OrderDetailPage() {
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Orders
           </Button>
-          
+
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
@@ -217,7 +217,7 @@ export default function OrderDetailPage() {
               </h1>
               <p className="text-gray-600 mt-1">{formatDate(order.createdAt)}</p>
             </div>
-            
+
             <div className="flex gap-2">
               <Button
                 variant="outline"
@@ -241,16 +241,7 @@ export default function OrderDetailPage() {
           </div>
         </div>
 
-        {/* Status Badge */}
-        <div className="mb-6">
-          <div className={cn(
-            "inline-flex items-center gap-2 px-4 py-2 rounded-full border text-sm font-medium",
-            getStatusColor(order.status)
-          )}>
-            {getStatusIcon(order.status)}
-            <span className="capitalize">{order.status}</span>
-          </div>
-        </div>
+
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column - Order Details */}
@@ -270,8 +261,8 @@ export default function OrderDetailPage() {
                       <div className="flex flex-col items-center">
                         <div className={cn(
                           "w-10 h-10 rounded-full flex items-center justify-center border-2",
-                          item.completed 
-                            ? "bg-green-500 border-green-500 text-white" 
+                          item.completed
+                            ? "bg-green-500 border-green-500 text-white"
                             : "bg-gray-100 border-gray-300 text-gray-400"
                         )}>
                           {item.completed ? (
@@ -394,11 +385,11 @@ export default function OrderDetailPage() {
                       <div
                         className={cn(
                           "max-w-[70%] rounded-lg px-4 py-2",
-                          msg.sender === 'buyer' 
-                            ? 'bg-orange-500 text-white' 
+                          msg.sender === 'buyer'
+                            ? 'bg-orange-500 text-white'
                             : msg.sender === 'seller'
-                            ? 'bg-white border border-gray-200 text-gray-900'
-                            : 'bg-blue-50 border border-blue-200 text-blue-900 text-sm'
+                              ? 'bg-white border border-gray-200 text-gray-900'
+                              : 'bg-blue-50 border border-blue-200 text-blue-900 text-sm'
                         )}
                       >
                         {msg.sender === 'seller' && (
@@ -500,9 +491,7 @@ export default function OrderDetailPage() {
                       )}
                     </div>
                   </div>
-                  <Badge className="bg-green-100 text-green-800 border-green-200">
-                    Paid
-                  </Badge>
+
                 </div>
               </CardContent>
             </Card>
