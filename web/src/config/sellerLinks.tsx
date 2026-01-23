@@ -11,6 +11,7 @@ import {
   MessageSquare,
   FileCheck,
   CreditCard,
+  RotateCcw,
 } from "lucide-react";
 
 export const sellerLinks = [
@@ -47,6 +48,13 @@ export const sellerLinks = [
     href: "/seller/orders",
     icon: (
       <ShoppingCart className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
+    ),
+  },
+  {
+    label: "Returns & Refunds",
+    href: "/seller/returns",
+    icon: (
+      <RotateCcw className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
     ),
   },
   {

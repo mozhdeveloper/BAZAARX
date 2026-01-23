@@ -17,6 +17,7 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Checkbox } from "../components/ui/checkbox";
 import { signUp } from "../services/authService";
+import { supabase } from "../lib/supabase";
 
 export default function BuyerSignupPage() {
   const navigate = useNavigate();
@@ -116,6 +117,12 @@ export default function BuyerSignupPage() {
       }
 
       // Buyer record is already created by authService.signUp()
+      const { data: buyerRow } = await supabase
+        .from("buyers")
+        .select("bazcoins")
+        .eq("id", user.id)
+        .single();
+      const bazcoins = (buyerRow as any)?.bazcoins ?? 0;
       const buyerProfile = {
         id: user.id,
         email: formData.email,
@@ -140,7 +147,7 @@ export default function BuyerSignupPage() {
         memberSince: new Date(),
         totalOrders: 0,
         totalSpent: 0,
-        bazcoins: 0,
+        bazcoins,
       };
 
       setProfile(buyerProfile);

@@ -85,6 +85,7 @@ export default function BuyerLoginPage() {
         .single();
 
       const fullName = (profileData as any)?.full_name || "User";
+      const bazcoins = (buyerData as any)?.bazcoins ?? 0;
       const buyerProfile = {
         id: user.id,
         email: user.email || email,
@@ -113,7 +114,7 @@ export default function BuyerLoginPage() {
           : new Date(),
         totalOrders: 0,
         totalSpent: 0,
-        bazcoins: 0,
+        bazcoins,
       };
 
       setProfile(buyerProfile);

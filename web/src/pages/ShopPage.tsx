@@ -575,12 +575,12 @@ export default function ShopPage() {
                       </div>
                     </div>
 
-                    <div className="mt-2 text-sm text-gray-500">
-                      <MapPin className="w-3 h-3 mr-1" />
-                      {product.location}
+                    <div className="mt-2 text-sm text-gray-500 min-h-[2.5rem] flex items-center">
+                      <MapPin className="w-3 h-3 mr-1 flex-shrink-0" />
+                      <span>{product.location}</span>
                     </div>
 
-                    <div className="mt-2">
+                    <div className="mt-2 flex-grow">
                       <p className="text-xs text-gray-500">{product.seller}</p>
                     </div>
 
@@ -704,7 +704,7 @@ export default function ShopPage() {
                           // Navigate to checkout
                           navigate("/checkout");
                         }}
-                        className="w-full bg-[#FF5722] hover:bg-[#E64A19] text-white rounded-xl transition-all active:scale-95"
+                        className="w-full bg-[#FF5722] hover:bg-[#271e1b] text-white rounded-xl transition-all active:scale-95"
                       >
                         Buy Now
                       </Button>

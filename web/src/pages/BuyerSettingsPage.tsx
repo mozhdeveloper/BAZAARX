@@ -195,6 +195,20 @@ export default function BuyerSettingsPage() {
     setIsSaving(true);
     try {
       const { supabase } = await import('../lib/supabase');
+
+      // FIX: Clear existing default in DB and Local State
+      if (newAddress.isDefault) {
+        await supabase
+          .from('addresses')
+          .update({ is_default: false })
+          .eq('user_id', profile.id);
+
+        // Update local store to reset other defaults
+        addresses.forEach(addr => {
+          if (addr.isDefault) updateAddress(addr.id, { ...addr, isDefault: false });
+        });
+      }
+
       const dbPayload = {
         user_id: profile.id,
         label: newAddress.label,

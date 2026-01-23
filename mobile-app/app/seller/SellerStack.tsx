@@ -8,6 +8,7 @@ import SellerPOSScreen from './pos';
 import SellerFlashSalesScreen from './flash-sales';
 import SellerMessagesScreen from './messages';
 import SellerReviewsScreen from './reviews';
+import SellerReturnDetailScreen from './ReturnDetailScreen';
 
 export type SellerStackParamList = {
   SellerTabs: undefined;
@@ -18,6 +19,7 @@ export type SellerStackParamList = {
   FlashSales: undefined;
   Messages: undefined;
   Reviews: undefined;
+  ReturnDetail: { returnId: string };
 };
 
 const Stack = createNativeStackNavigator<SellerStackParamList>();
@@ -39,6 +41,7 @@ export default function SellerStack() {
       <Stack.Screen name="FlashSales" component={SellerFlashSalesScreen} />
       <Stack.Screen name="Messages" component={SellerMessagesScreen} />
       <Stack.Screen name="Reviews" component={SellerReviewsScreen} />
+      <Stack.Screen name="ReturnDetail" component={SellerReturnDetailScreen} />
     </Stack.Navigator>
   );
 }
