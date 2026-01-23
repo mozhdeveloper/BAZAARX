@@ -33,6 +33,7 @@ import HelpSupportScreen from './app/HelpSupportScreen';
 import PrivacyPolicyScreen from './app/PrivacyPolicyScreen';
 import SellerLoginScreen from './app/seller/login';
 import SellerSignupScreen from './app/seller/signup';
+import SellerAuthChoiceScreen from './app/seller/auth';
 import SellerStack from './app/seller/SellerStack';
 import AdminStack from './app/admin/AdminStack';
 import AllStoresScreen from './app/AllStoresScreen';
@@ -60,6 +61,7 @@ export type RootStackParamList = {
   Signup: undefined;
   SellerLogin: undefined;
   SellerSignup: undefined;
+  SellerAuthChoice: undefined;
   SellerStack: undefined;
   AdminStack: undefined;
   MainTabs: NavigatorScreenParams<TabParamList>;
@@ -203,6 +205,11 @@ export default function App() {
             name="SellerSignup"
             component={SellerSignupScreen}
             options={{ animation: 'slide_from_bottom' }}
+          />
+          <Stack.Screen
+            name="SellerAuthChoice"
+            component={SellerAuthChoiceScreen}
+            options={{ animation: 'fade' }}
           />
           <Stack.Screen
             name="SellerStack"

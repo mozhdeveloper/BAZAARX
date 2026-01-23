@@ -7,6 +7,7 @@ import SellerQAProductsScreen from './(tabs)/qa-products';
 import SellerOrdersScreen from './(tabs)/orders';
 import SellerPOSScreen from './pos';
 import SellerSettingsScreen from './(tabs)/settings';
+import { useSellerStore } from '../../src/stores/sellerStore';
 
 export type SellerTabParamList = {
   Dashboard: undefined;
@@ -59,12 +60,28 @@ export default function SellerTabs() {
         options={{
           tabBarIcon: ({ color, size }) => <Package size={size} color={color} strokeWidth={2.5} />,
         }}
+        listeners={{
+          tabPress: (e) => {
+            const { seller } = useSellerStore.getState();
+            if (seller.approval_status === 'pending') {
+              e.preventDefault();
+            }
+          },
+        }}
       />
       <Tab.Screen
         name="QA Products"
         component={SellerQAProductsScreen}
         options={{
           tabBarIcon: ({ color, size }) => <FileCheck size={size} color={color} strokeWidth={2.5} />,
+        }}
+        listeners={{
+          tabPress: (e) => {
+            const { seller } = useSellerStore.getState();
+            if (seller.approval_status === 'pending') {
+              e.preventDefault();
+            }
+          },
         }}
       />
       <Tab.Screen
@@ -73,12 +90,28 @@ export default function SellerTabs() {
         options={{
           tabBarIcon: ({ color, size }) => <ShoppingCart size={size} color={color} strokeWidth={2.5} />,
         }}
+        listeners={{
+          tabPress: (e) => {
+            const { seller } = useSellerStore.getState();
+            if (seller.approval_status === 'pending') {
+              e.preventDefault();
+            }
+          },
+        }}
       />
       <Tab.Screen
         name="POS Lite"
         component={SellerPOSScreen}
         options={{
           tabBarIcon: ({ color, size }) => <CreditCard size={size} color={color} strokeWidth={2.5} />,
+        }}
+        listeners={{
+          tabPress: (e) => {
+            const { seller } = useSellerStore.getState();
+            if (seller.approval_status === 'pending') {
+              e.preventDefault();
+            }
+          },
         }}
       />
       <Tab.Screen
