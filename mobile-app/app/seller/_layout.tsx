@@ -7,7 +7,9 @@ export default function SellerLayout() {
         headerShown: false,
       }}
     >
+      <Stack.Screen name="auth" />
       <Stack.Screen name="login" />
+      <Stack.Screen name="signup" />
       <Stack.Screen name="(tabs)" />
     </Stack>
   );

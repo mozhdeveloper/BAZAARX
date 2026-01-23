@@ -1,14 +1,26 @@
-import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { Package, Clock, Truck, CheckCircle, XCircle, Eye, Search, Filter, Calendar, MapPin, Star } from 'lucide-react';
+import { useState, useEffect } from "react";
+import { motion } from "framer-motion";
+import { useNavigate, useLocation } from "react-router-dom";
+import {
+  Package,
+  Clock,
+  Truck,
+  CheckCircle,
+  XCircle,
+  Eye,
+  Search,
+  Filter,
+  Calendar,
+  MapPin,
+  Star,
+} from "lucide-react";
 // import { useCartStore } from '../stores/cartStore'; // Removed mock store usage
-import { Button } from '../components/ui/button';
-import Header from '../components/Header';
-import { BazaarFooter } from '../components/ui/bazaar-footer';
-import TrackingModal from '../components/TrackingModal';
-import { supabase } from '@/lib/supabase';
-import { useBuyerStore } from '../stores/buyerStore';
+import { Button } from "../components/ui/button";
+import Header from "../components/Header";
+import { BazaarFooter } from "../components/ui/bazaar-footer";
+import TrackingModal from "../components/TrackingModal";
+import { supabase } from "@/lib/supabase";
+import { useBuyerStore } from "../stores/buyerStore";
 
 export default function OrdersPage() {
   const navigate = useNavigate();
@@ -19,14 +31,17 @@ export default function OrdersPage() {
   const [orders, setOrders] = useState<any[]>([]); // Using any[] for now to ease mapping from complex Join
   const [isLoading, setIsLoading] = useState(true);
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedOrder, setSelectedOrder] = useState<string | null>(null);
   const [trackingOrder, setTrackingOrder] = useState<string | null>(null);
 
   // Show success message for newly created orders
-  const newOrderId = (location.state as { newOrderId?: string; fromCheckout?: boolean } | null)?.newOrderId;
-  const fromCheckout = (location.state as { fromCheckout?: boolean } | null)?.fromCheckout;
+  const newOrderId = (
+    location.state as { newOrderId?: string; fromCheckout?: boolean } | null
+  )?.newOrderId;
+  const fromCheckout = (location.state as { fromCheckout?: boolean } | null)
+    ?.fromCheckout;
   const [showSuccessBanner, setShowSuccessBanner] = useState(!!fromCheckout);
 
   // Fetch orders from Supabase
@@ -37,34 +52,39 @@ export default function OrdersPage() {
       setIsLoading(true);
       try {
         const { data, error } = await supabase
-          .from('orders')
-          .select(`
+          .from("orders")
+          .select(
+            `
             *,
             items:order_items (*)
-          `)
-          .eq('buyer_id', profile.id)
-          .order('created_at', { ascending: false });
+          `,
+          )
+          .eq("buyer_id", profile.id)
+          .order("created_at", { ascending: false });
 
         if (error) throw error;
 
         // Map database shape to UI expected shape
-        const mappedOrders = (data || []).map(order => ({
+        const mappedOrders = (data || []).map((order) => ({
           id: order.order_number, // UI expects string id, using order_number (e.g., ORD-2026...)
-          dbId: order.id,         // Keep real UUID handy
+          dbId: order.id, // Keep real UUID handy
           createdAt: order.created_at,
-          status: order.status === 'pending_payment' ? 'pending' : (order.status || 'pending').toLowerCase(), // Map DB status to UI status
-          isPaid: order.payment_status === 'paid',
+          status:
+            order.status === "pending_payment"
+              ? "pending"
+              : (order.status || "pending").toLowerCase(), // Map DB status to UI status
+          isPaid: order.payment_status === "paid",
           total: order.total_amount,
           items: (order.items || []).map((item: any) => ({
             id: item.id,
             name: item.product_name,
-            image: item.product_images?.[0] || '',
+            image: item.product_images?.[0] || "",
             price: item.price,
             quantity: item.quantity,
-            seller: item.seller_name || 'Seller', // Might need to fetch if not saved on item
-            sellerId: item.seller_id
+            seller: item.seller_name || "Seller", // Might need to fetch if not saved on item
+            sellerId: item.seller_id,
           })),
-          shippingAddress: order.shipping_address
+          shippingAddress: order.shipping_address,
         }));
 
         setOrders(mappedOrders);
@@ -95,12 +115,12 @@ export default function OrdersPage() {
   };
 
   const statusOptions = [
-    { value: 'all', label: 'All Orders' },
-    { value: 'pending', label: 'Pending' },
-    { value: 'confirmed', label: 'Processing' }, // DB might use 'processing' or 'confirmed'
-    { value: 'shipped', label: 'Shipped' },
-    { value: 'delivered', label: 'Delivered' },
-    { value: 'cancelled', label: 'Canceled' }
+    { value: "all", label: "All Orders" },
+    { value: "pending", label: "Pending" },
+    { value: "confirmed", label: "Processing" }, // DB might use 'processing' or 'confirmed'
+    { value: "shipped", label: "Shipped" },
+    { value: "delivered", label: "Delivered" },
+    { value: "cancelled", label: "Canceled" },
   ];
 
   /* 
@@ -110,18 +130,17 @@ export default function OrdersPage() {
      UI statuses seem to be: pending, confirmed, shipped, delivered, cancelled.
   */
 
-
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'pending':
+      case "pending":
         return <Clock className="w-4 h-4 text-yellow-500" />;
-      case 'confirmed':
+      case "confirmed":
         return <Package className="w-4 h-4 text-blue-500" />;
-      case 'shipped':
+      case "shipped":
         return <Truck className="w-4 h-4 text-purple-500" />;
-      case 'delivered':
+      case "delivered":
         return <CheckCircle className="w-4 h-4 text-green-500" />;
-      case 'cancelled':
+      case "cancelled":
         return <XCircle className="w-4 h-4 text-red-500" />;
       default:
         return <Package className="w-4 h-4 text-gray-500" />;
@@ -130,18 +149,18 @@ export default function OrdersPage() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'pending':
-        return 'text-yellow-700 bg-yellow-100 border-yellow-200';
-      case 'confirmed':
-        return 'text-blue-700 bg-blue-100 border-blue-200';
-      case 'shipped':
-        return 'text-purple-700 bg-purple-100 border-purple-200';
-      case 'delivered':
-        return 'text-green-700 bg-green-100 border-green-200';
-      case 'cancelled':
-        return 'text-red-700 bg-red-100 border-red-200';
+      case "pending":
+        return "text-yellow-700 bg-yellow-100 border-yellow-200";
+      case "confirmed":
+        return "text-blue-700 bg-blue-100 border-blue-200";
+      case "shipped":
+        return "text-purple-700 bg-purple-100 border-purple-200";
+      case "delivered":
+        return "text-green-700 bg-green-100 border-green-200";
+      case "cancelled":
+        return "text-red-700 bg-red-100 border-red-200";
       default:
-        return 'text-gray-700 bg-gray-100 border-gray-200';
+        return "text-gray-700 bg-gray-100 border-gray-200";
     }
   };
 
@@ -154,14 +173,17 @@ export default function OrdersPage() {
   };
 
   const filteredOrders = orders
-    .filter(order => {
-      const matchesSearch = order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        order.items.some(item =>
-          item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          item.seller.toLowerCase().includes(searchQuery.toLowerCase())
+    .filter((order) => {
+      const matchesSearch =
+        order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        order.items.some(
+          (item) =>
+            item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            item.seller.toLowerCase().includes(searchQuery.toLowerCase()),
         );
 
-      const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
+      const matchesStatus =
+        statusFilter === "all" || order.status === statusFilter;
 
       return matchesSearch && matchesStatus;
     })
@@ -169,25 +191,27 @@ export default function OrdersPage() {
 
   const formatDate = (date: Date | string) => {
     const dateObj = date instanceof Date ? date : new Date(date);
-    return new Intl.DateTimeFormat('en-PH', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
+    return new Intl.DateTimeFormat("en-PH", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
     }).format(dateObj);
   };
 
   const formatDateTime = (date: Date | string) => {
     const dateObj = date instanceof Date ? date : new Date(date);
-    return new Intl.DateTimeFormat('en-PH', {
-      month: 'long',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
+    return new Intl.DateTimeFormat("en-PH", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     }).format(dateObj);
   };
 
-  const selectedOrderData = selectedOrder ? orders.find(o => o.id === selectedOrder) : null;
+  const selectedOrderData = selectedOrder
+    ? orders.find((o) => o.id === selectedOrder)
+    : null;
 
   // Always show orders page with sample orders - users should see this immediately
 
@@ -208,10 +232,13 @@ export default function OrdersPage() {
               <CheckCircle className="w-6 h-6 text-white" />
             </div>
             <div className="flex-1">
-              <h3 className="font-semibold text-green-900 mb-1">🎉 Order Placed Successfully!</h3>
+              <h3 className="font-semibold text-green-900 mb-1">
+                🎉 Order Placed Successfully!
+              </h3>
               <p className="text-sm text-green-800">
-                Your order <span className="font-semibold">#{newOrderId}</span> has been confirmed and is being processed.
-                You can track your order status below.
+                Your order <span className="font-semibold">#{newOrderId}</span>{" "}
+                has been confirmed and is being processed. You can track your
+                order status below.
               </p>
             </div>
             <button
@@ -229,7 +256,9 @@ export default function OrdersPage() {
           animate={{ opacity: 1, y: 0 }}
           className="mb-8"
         >
-          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-2">My Orders</h1>
+          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-2">
+            My Orders
+          </h1>
           <p className="text-gray-600">Track and manage all your orders</p>
         </motion.div>
 
@@ -259,7 +288,7 @@ export default function OrdersPage() {
               onChange={(e) => setStatusFilter(e.target.value)}
               className="px-4 py-2.5 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF5722] focus:border-[#FF5722] bg-white font-medium"
             >
-              {statusOptions.map(option => (
+              {statusOptions.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
@@ -276,18 +305,20 @@ export default function OrdersPage() {
           >
             <Package className="w-16 h-16 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              {searchQuery || statusFilter !== 'all' ? 'No orders found' : 'No orders yet'}
+              {searchQuery || statusFilter !== "all"
+                ? "No orders found"
+                : "No orders yet"}
             </h3>
             <p className="text-gray-600">
-              {searchQuery || statusFilter !== 'all'
-                ? 'Try adjusting your search or filter criteria.'
-                : 'Your orders will appear here once you make a purchase.'}
+              {searchQuery || statusFilter !== "all"
+                ? "Try adjusting your search or filter criteria."
+                : "Your orders will appear here once you make a purchase."}
             </p>
-            {(searchQuery || statusFilter !== 'all') && (
+            {(searchQuery || statusFilter !== "all") && (
               <button
                 onClick={() => {
-                  setSearchQuery('');
-                  setStatusFilter('all');
+                  setSearchQuery("");
+                  setStatusFilter("all");
                 }}
                 className="mt-4 px-4 py-2 bg-[#FF5722] text-white rounded-lg hover:bg-[#E64A19] transition-colors"
               >
@@ -321,12 +352,14 @@ export default function OrdersPage() {
                             NEW
                           </span>
                         )}
-                        <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(order.status)}`}>
+                        <div
+                          className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(order.status)}`}
+                        >
                           {getStatusIcon(order.status)}
                           <span className="capitalize">{order.status}</span>
                         </div>
                         {/* Payment Status Badge */}
-                        {!order.isPaid && order.status !== 'cancelled' && (
+                        {!order.isPaid && order.status !== "cancelled" && (
                           <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold border-2 border-[#FF5722] bg-orange-50 text-[#FF5722]">
                             Pending Payment
                           </span>
@@ -340,8 +373,11 @@ export default function OrdersPage() {
 
                     {/* Order Items Preview */}
                     <div className="flex flex-wrap gap-2 mb-4">
-                      {order.items.slice(0, 3).map(item => (
-                        <div key={item.id} className="flex items-center gap-2 bg-gray-50 rounded-lg p-2">
+                      {order.items.slice(0, 3).map((item) => (
+                        <div
+                          key={item.id}
+                          className="flex items-center gap-2 bg-gray-50 rounded-lg p-2"
+                        >
                           <img
                             src={item.image}
                             alt={item.name}
@@ -351,14 +387,17 @@ export default function OrdersPage() {
                             {item.name}
                           </span>
                           {item.quantity > 1 && (
-                            <span className="text-xs text-gray-500">×{item.quantity}</span>
+                            <span className="text-xs text-gray-500">
+                              ×{item.quantity}
+                            </span>
                           )}
                         </div>
                       ))}
                       {order.items.length > 3 && (
                         <div className="flex items-center bg-gray-50 rounded-lg px-3 py-2">
                           <span className="text-sm text-gray-600">
-                            +{order.items.length - 3} more item{order.items.length > 4 ? 's' : ''}
+                            +{order.items.length - 3} more item
+                            {order.items.length > 4 ? "s" : ""}
                           </span>
                         </div>
                       )}
@@ -371,15 +410,16 @@ export default function OrdersPage() {
                           ₱{order.total.toLocaleString()}
                         </span>
                         <span className="text-sm text-gray-600 ml-2">
-                          ({order.items.length} item{order.items.length > 1 ? 's' : ''})
+                          ({order.items.length} item
+                          {order.items.length > 1 ? "s" : ""})
                         </span>
                       </div>
                       <div className="flex gap-2">
                         {/* Pending Payment - Show Cancel and Track */}
-                        {order.status === 'pending' && !order.isPaid ? (
+                        {order.status === "pending" && !order.isPaid ? (
                           <>
                             <Button
-                              onClick={() => alert('Order canceled')}
+                              onClick={() => alert("Order canceled")}
                               size="sm"
                               variant="outline"
                               className="border-gray-300 text-gray-700 hover:bg-gray-50"
@@ -387,7 +427,11 @@ export default function OrdersPage() {
                               Cancel Order
                             </Button>
                             <Button
-                              onClick={() => navigate(`/delivery-tracking/${encodeURIComponent(order.id)}`)}
+                              onClick={() =>
+                                navigate(
+                                  `/delivery-tracking/${encodeURIComponent(order.id)}`,
+                                )
+                              }
                               size="sm"
                               className="bg-[#FF5722] hover:bg-[#E64A19] text-white"
                             >
@@ -395,21 +439,31 @@ export default function OrdersPage() {
                               Track Order
                             </Button>
                           </>
-                        ) : order.status === 'pending' || order.status === 'confirmed' || order.status === 'shipped' ? (
+                        ) : order.status === "pending" ||
+                          order.status === "confirmed" ||
+                          order.status === "shipped" ? (
                           /* In Progress - Track Order */
                           <Button
-                            onClick={() => navigate(`/delivery-tracking/${encodeURIComponent(order.id)}`)}
+                            onClick={() =>
+                              navigate(
+                                `/delivery-tracking/${encodeURIComponent(order.id)}`,
+                              )
+                            }
                             size="sm"
                             className="bg-[#FF5722] hover:bg-[#E64A19] text-white"
                           >
                             <Truck className="w-4 h-4 mr-1" />
                             Track Order
                           </Button>
-                        ) : order.status === 'delivered' ? (
+                        ) : order.status === "delivered" ? (
                           /* Delivered - See Details and Review */
                           <>
                             <Button
-                              onClick={() => navigate(`/order/${encodeURIComponent(order.id)}`)}
+                              onClick={() =>
+                                navigate(
+                                  `/order/${encodeURIComponent(order.id)}`,
+                                )
+                              }
                               size="sm"
                               variant="outline"
                               className="border-[#FF5722] text-[#FF5722] hover:bg-orange-50"
@@ -418,7 +472,9 @@ export default function OrdersPage() {
                               See Details
                             </Button>
                             <Button
-                              onClick={() => navigate(`/reviews?order=${order.id}`)}
+                              onClick={() =>
+                                navigate(`/reviews?order=${order.id}`)
+                              }
                               size="sm"
                               variant="outline"
                               className="border-[#FF5722] text-[#FF5722] hover:bg-orange-50"
@@ -427,10 +483,12 @@ export default function OrdersPage() {
                               Write Review
                             </Button>
                           </>
-                        ) : order.status === 'cancelled' ? (
+                        ) : order.status === "cancelled" ? (
                           /* Canceled - View Details */
                           <Button
-                            onClick={() => navigate(`/order/${encodeURIComponent(order.id)}`)}
+                            onClick={() =>
+                              navigate(`/order/${encodeURIComponent(order.id)}`)
+                            }
                             variant="outline"
                             size="sm"
                             className="border-gray-300 text-gray-500 hover:bg-gray-50"
@@ -470,7 +528,9 @@ export default function OrdersPage() {
                 <h2 className="text-xl font-bold text-gray-900 mb-1">
                   Order #{selectedOrderData.id}
                 </h2>
-                <p className="text-gray-600">{formatDateTime(selectedOrderData.createdAt)}</p>
+                <p className="text-gray-600">
+                  {formatDateTime(selectedOrderData.createdAt)}
+                </p>
               </div>
               <button
                 onClick={() => setSelectedOrder(null)}
@@ -481,16 +541,20 @@ export default function OrdersPage() {
             </div>
 
             {/* Status */}
-            <div className={`inline-flex items-center gap-2 px-3 py-2 rounded-full text-sm font-medium border mb-6 ${getStatusColor(selectedOrderData.status)}`}>
+            <div
+              className={`inline-flex items-center gap-2 px-3 py-2 rounded-full text-sm font-medium border mb-6 ${getStatusColor(selectedOrderData.status)}`}
+            >
               {getStatusIcon(selectedOrderData.status)}
               <span className="capitalize">{selectedOrderData.status}</span>
             </div>
 
             {/* Items */}
             <div className="mb-6">
-              <h3 className="font-semibold text-gray-900 mb-4">Items Ordered</h3>
+              <h3 className="font-semibold text-gray-900 mb-4">
+                Items Ordered
+              </h3>
               <div className="space-y-4">
-                {selectedOrderData.items.map(item => (
+                {selectedOrderData.items.map((item) => (
                   <div key={item.id} className="flex gap-4">
                     <img
                       src={item.image}
@@ -500,7 +564,9 @@ export default function OrdersPage() {
                     <div className="flex-1">
                       <h4 className="font-medium text-gray-900">{item.name}</h4>
                       <p className="text-sm text-gray-600">by {item.seller}</p>
-                      <p className="text-sm text-gray-600">Quantity: {item.quantity}</p>
+                      <p className="text-sm text-gray-600">
+                        Quantity: {item.quantity}
+                      </p>
                     </div>
                     <div className="text-right">
                       <p className="font-medium text-gray-900">
@@ -519,16 +585,56 @@ export default function OrdersPage() {
 
             {/* Shipping Info */}
             <div className="mb-6">
-              <h3 className="font-semibold text-gray-900 mb-3">Shipping Address</h3>
+              <h3 className="font-semibold text-gray-900 mb-3">
+                Shipping Address
+              </h3>
               <div className="bg-gray-50 rounded-lg p-4 text-sm">
-                <p className="font-medium text-gray-900">{selectedOrderData.shippingAddress.fullName}</p>
-                <p className="text-gray-700">{selectedOrderData.shippingAddress.street}</p>
-                <p className="text-gray-700">
-                  {selectedOrderData.shippingAddress.city}, {selectedOrderData.shippingAddress.province} {selectedOrderData.shippingAddress.postalCode}
+                <p className="font-medium text-gray-900">
+                  {selectedOrderData.shippingAddress.fullName}
                 </p>
-                <p className="text-gray-700">{selectedOrderData.shippingAddress.phone}</p>
+                <p className="text-gray-700">
+                  {selectedOrderData.shippingAddress.street}
+                </p>
+                <p className="text-gray-700">
+                  {selectedOrderData.shippingAddress.city},{" "}
+                  {selectedOrderData.shippingAddress.province}{" "}
+                  {selectedOrderData.shippingAddress.postalCode}
+                </p>
+                <p className="text-gray-700">
+                  {selectedOrderData.shippingAddress.phone}
+                </p>
               </div>
             </div>
+
+            {/* Tracking Number (if available) */}
+            {selectedOrderData.trackingNumber && (
+              <div className="mb-6">
+                <h3 className="font-semibold text-gray-900 mb-3">
+                  Tracking Information
+                </h3>
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <p className="text-sm text-gray-600 mb-2">Tracking Number</p>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 bg-white border border-green-200 rounded px-3 py-2 text-sm font-mono text-gray-900">
+                      {selectedOrderData.trackingNumber}
+                    </code>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-green-200 text-green-700 hover:bg-green-100"
+                      onClick={() => {
+                        navigator.clipboard.writeText(
+                          selectedOrderData.trackingNumber!,
+                        );
+                        alert("Tracking number copied!");
+                      }}
+                    >
+                      Copy
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Total */}
             <div className="border-t pt-4">
@@ -542,7 +648,7 @@ export default function OrdersPage() {
 
             {/* Actions */}
             <div className="flex gap-3 mt-6">
-              {selectedOrderData.status === 'pending' && (
+              {selectedOrderData.status === "pending" && (
                 <Button
                   variant="outline"
                   className="border-red-300 text-red-700 hover:bg-red-50"
@@ -550,7 +656,8 @@ export default function OrdersPage() {
                   Cancel Order
                 </Button>
               )}
-              {(selectedOrderData.status === 'shipped' || selectedOrderData.status === 'delivered') && (
+              {(selectedOrderData.status === "shipped" ||
+                selectedOrderData.status === "delivered") && (
                 <Button
                   className="bg-[var(--brand-primary)] hover:bg-[var(--brand-secondary)] text-white"
                   onClick={() => setTrackingOrder(selectedOrderData.id)}
@@ -574,7 +681,7 @@ export default function OrdersPage() {
       {/* Tracking Modal */}
       {trackingOrder && (
         <TrackingModal
-          order={orders.find(o => o.id === trackingOrder)!}
+          order={orders.find((o) => o.id === trackingOrder)!}
           isOpen={!!trackingOrder}
           onClose={() => setTrackingOrder(null)}
         />

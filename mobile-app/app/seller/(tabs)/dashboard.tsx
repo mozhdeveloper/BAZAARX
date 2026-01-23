@@ -8,7 +8,8 @@ import {
   Dimensions,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { TrendingUp, TrendingDown, Package, Eye, DollarSign, Menu, Bell, Receipt, AlertCircle } from 'lucide-react-native';
+import { TrendingUp, TrendingDown, Package, Eye, DollarSign, Menu, Bell, Receipt, AlertCircle, ChevronRight, Store, Clock, PlusSquare } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { LineChart } from 'react-native-gifted-charts';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -24,9 +25,10 @@ export default function SellerDashboardScreen() {
   const getReturnRequestsBySeller = useReturnStore((state) => state.getReturnRequestsBySeller);
   // Assuming seller has an ID or name matching the return requests. 
   // For now using a hardcoded value or seller.storeName as per previous context
-  const returnRequests = getReturnRequestsBySeller('TechStore Official'); 
+  const returnRequests = getReturnRequestsBySeller('TechStore Official');
   const pendingReturns = returnRequests.filter(r => r.status === 'pending_review');
 
+  const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
   const [drawerVisible, setDrawerVisible] = useState(false);
 
@@ -69,190 +71,271 @@ export default function SellerDashboardScreen() {
     <View style={styles.container}>
       {/* Seller Drawer */}
       <SellerDrawer visible={drawerVisible} onClose={() => setDrawerVisible(false)} />
-      
+
       {/* Immersive Edge-to-Edge Header */}
       <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
-  <View style={styles.headerContent}>
-    {/* Left Section: Menu & Title */}
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-      <Pressable style={styles.iconContainer} onPress={() => setDrawerVisible(true)}>
-        <Menu size={24} color="#FFFFFF" strokeWidth={2} />
-      </Pressable>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.headerTitle}>Seller Hub</Text>
-        <Text style={styles.headerSubtitle}>{seller.storeName}</Text>
-      </View>
-    </View>
-  </View>
+        <View style={styles.headerContent}>
+          {/* Left Section: Menu & Title */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <Pressable style={styles.iconContainer} onPress={() => setDrawerVisible(true)}>
+              <Menu size={24} color="#FFFFFF" strokeWidth={2} />
+            </Pressable>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.headerTitle}>Seller Hub</Text>
+              <Text style={styles.headerSubtitle}>{seller.storeName}</Text>
+            </View>
+          </View>
+        </View>
 
-  {/* Notification Button: Absolute positioned to match Settings */}
-  <Pressable
-    style={[styles.notificationButton, { position: 'absolute', right: 20, top: insets.top + 20 }]}
-  >
-    <Bell size={22} color="#FFFFFF" strokeWidth={2.5} />
-    <View style={styles.notificationBadge} />
-  </Pressable>
-</View>
-
-      <ScrollView
-        style={styles.scrollView}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Stats Cards */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.statsScroll}
+        {/* Notification Button: Absolute positioned to match Settings */}
+        <Pressable
+          style={[styles.notificationButton, { position: 'absolute', right: 20, top: insets.top + 20 }]}
         >
-          {/* Revenue Card */}
-          <View style={styles.statCard}>
-            <View style={styles.statIconContainer}>
-              <DollarSign size={24} color="#FF5722" strokeWidth={2.5} />
-            </View>
-            <Text style={styles.statLabel}>Total Revenue</Text>
-            <Text style={styles.statValue}>₱{stats.totalRevenue.toLocaleString()}</Text>
-            <View style={styles.statChange}>
-              <TrendingUp size={14} color="#10B981" strokeWidth={2.5} />
-              <Text style={styles.statChangeText}>+{stats.revenueChange}%</Text>
-            </View>
-          </View>
+          <Bell size={22} color="#FFFFFF" strokeWidth={2.5} />
+          <View style={styles.notificationBadge} />
+        </Pressable>
+      </View>
 
-          {/* Orders Card */}
-          <View style={styles.statCard}>
-            <View style={styles.statIconContainer}>
-              <Package size={24} color="#FF5722" strokeWidth={2.5} />
-            </View>
-            <Text style={styles.statLabel}>Total Orders</Text>
-            <Text style={styles.statValue}>{stats.totalOrders}</Text>
-            <View style={styles.statChange}>
-              <TrendingUp size={14} color="#10B981" strokeWidth={2.5} />
-              <Text style={styles.statChangeText}>+{stats.ordersChange}%</Text>
-            </View>
-          </View>
+      {/* Pending Approval Banner */}
+      {seller.approval_status === 'pending' && (
+        <View style={styles.pendingBanner}>
+          <AlertCircle size={20} color="#FFFFFF" strokeWidth={2.5} />
+          <Text style={styles.pendingBannerText}>
+            Your account is pending approval. Please complete your profile verification.
+          </Text>
+        </View>
+      )}
 
-          {/* Visits Card */}
-          <View style={styles.statCard}>
-            <View style={styles.statIconContainer}>
-              <Eye size={24} color="#FF5722" strokeWidth={2.5} />
-            </View>
-            <Text style={styles.statLabel}>Store Visits</Text>
-            <Text style={styles.statValue}>{stats.totalVisits.toLocaleString()}</Text>
-            <View style={styles.statChange}>
-              <TrendingUp size={14} color="#10B981" strokeWidth={2.5} />
-              <Text style={styles.statChangeText}>+{stats.visitsChange}%</Text>
-            </View>
-          </View>
+      {seller.approval_status === 'pending' ? (
+        <ScrollView
+          contentContainerStyle={styles.pendingContainer}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Check if all documents are uploaded */}
+          {(() => {
+            const hasAllDocs = seller.business_permit_url &&
+              seller.valid_id_url &&
+              seller.proof_of_address_url &&
+              seller.dti_registration_url &&
+              seller.tax_id_url;
 
-           {/* Returns Card */}
-           <View style={styles.statCard}>
-            <View style={styles.statIconContainer}>
-              <Receipt size={24} color="#FF5722" strokeWidth={2.5} />
-            </View>
-            <Text style={styles.statLabel}>Pending Returns</Text>
-            <Text style={styles.statValue}>{pendingReturns.length}</Text>
-            <View style={styles.statChange}>
-              {pendingReturns.length > 0 ? (
-                <>
-                  <AlertCircle size={14} color="#EF4444" strokeWidth={2.5} />
-                  <Text style={[styles.statChangeText, { color: '#EF4444' }]}>Action Needed</Text>
-                </>
-              ) : (
-                <Text style={[styles.statChangeText, { color: '#10B981' }]}>All Good</Text>
-              )}
-            </View>
+            if (hasAllDocs) {
+              return (
+                <LinearGradient
+                  colors={['#FFF5F0', '#FFFFFF']}
+                  style={styles.pendingHero}
+                >
+                  <View style={styles.pendingIconWrapper}>
+                    <Clock size={40} color="#FF9800" strokeWidth={2.5} />
+                  </View>
+                  <Text style={styles.pendingTitle}>Verification Pending</Text>
+                  <Text style={styles.pendingDescription}>
+                    Your documents have been submitted and are currently being reviewed by our team.
+                    This process usually takes 1-2 business days. We'll notify you once your store is approved!
+                  </Text>
+                </LinearGradient>
+              );
+            } else {
+              return (
+                <View style={styles.pendingActionCard}>
+                  <View style={[styles.pendingIconWrapper, { marginBottom: 20 }]}>
+                    <PlusSquare size={40} color="#FF5722" strokeWidth={2.5} />
+                  </View>
+                  <Text style={styles.actionCardTitle}>Complete Your Profile</Text>
+                  <Text style={styles.actionCardSubtitle}>
+                    To start selling, you need to upload your business documents for verification.
+                    Your account is currently restricted until all requirements are met.
+                  </Text>
+                  <Pressable
+                    style={styles.verifyButton}
+                    onPress={() => navigation.navigate('StoreProfile' as any)}
+                  >
+                    <LinearGradient
+                      colors={['#FF5722', '#FF7043']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={styles.verifyGradient}
+                    >
+                      <Store size={20} color="#FFFFFF" strokeWidth={2.5} />
+                      <Text style={styles.verifyButtonText}>Go to Store Profile</Text>
+                      <ChevronRight size={18} color="#FFFFFF" strokeWidth={2.5} />
+                    </LinearGradient>
+                  </Pressable>
+                </View>
+              );
+            }
+          })()}
+
+          <View style={styles.pendingInfoNote}>
+            <AlertCircle size={16} color="#9CA3AF" style={{ marginBottom: 8 }} />
+            <Text style={styles.infoNoteText}>
+              Functions like adding products, viewing orders, and POS Lite will be enabled once your account is approved.
+            </Text>
           </View>
         </ScrollView>
+      ) : (
+        <ScrollView
+          style={styles.scrollView}
+          showsVerticalScrollIndicator={false}
+        >
+          <View>
+            {/* Stats Cards */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.statsScroll}
+            >
+              {/* Revenue Card */}
+              <View style={styles.statCard}>
+                <View style={styles.statIconContainer}>
+                  <DollarSign size={24} color="#FF5722" strokeWidth={2.5} />
+                </View>
+                <Text style={styles.statLabel}>Total Revenue</Text>
+                <Text style={styles.statValue}>₱{stats.totalRevenue.toLocaleString()}</Text>
+                <View style={styles.statChange}>
+                  <TrendingUp size={14} color="#10B981" strokeWidth={2.5} />
+                  <Text style={styles.statChangeText}>+{stats.revenueChange}%</Text>
+                </View>
+              </View>
 
-        {/* Revenue Chart */}
-        <View style={styles.chartSection}>
-          <Text style={styles.sectionTitle}>Last 7 Days Revenue</Text>
-          <View style={styles.chartCard}>
-            <LineChart
-              data={chartData}
-              height={180}
-              width={width - 100}
-              maxValue={maxVal * 1.1}
-              adjustToWidth={true} 
-              scrollToEnd={false}
-              color="#FF5722"
-              thickness={3}
-              startFillColor="rgba(255, 87, 34, 0.3)"
-              endFillColor="rgba(255, 87, 34, 0.05)"
-              startOpacity={0.9}
-              endOpacity={0.2}
-              initialSpacing={15}
-              endSpacing={5}
-              spacing={45}
-              noOfSections={4}
-              yAxisColor="#E5E7EB"
-              xAxisColor="#E5E7EB"
-              yAxisTextStyle={styles.chartAxisText}
-              xAxisLabelTextStyle={styles.chartAxisText}
-              curved
-              areaChart
-              hideDataPoints={false}
-              dataPointsColor="#FF5722"
-              dataPointsRadius={5}
-              textShiftY={-8}
-              textShiftX={-10}
-              textFontSize={11}
-              textColor="#6B7280"
-            />
-          </View>
-        </View>
+              {/* Orders Card */}
+              <View style={styles.statCard}>
+                <View style={styles.statIconContainer}>
+                  <Package size={24} color="#FF5722" strokeWidth={2.5} />
+                </View>
+                <Text style={styles.statLabel}>Total Orders</Text>
+                <Text style={styles.statValue}>{stats.totalOrders}</Text>
+                <View style={styles.statChange}>
+                  <TrendingUp size={14} color="#10B981" strokeWidth={2.5} />
+                  <Text style={styles.statChangeText}>+{stats.ordersChange}%</Text>
+                </View>
+              </View>
 
-        {/* Recent Orders */}
-        <View style={styles.ordersSection}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Recent Orders</Text>
-            <Pressable>
-              <Text style={styles.viewAllText}>View All</Text>
-            </Pressable>
-          </View>
+              {/* Visits Card */}
+              <View style={styles.statCard}>
+                <View style={styles.statIconContainer}>
+                  <Eye size={24} color="#FF5722" strokeWidth={2.5} />
+                </View>
+                <Text style={styles.statLabel}>Store Visits</Text>
+                <Text style={styles.statValue}>{stats.totalVisits.toLocaleString()}</Text>
+                <View style={styles.statChange}>
+                  <TrendingUp size={14} color="#10B981" strokeWidth={2.5} />
+                  <Text style={styles.statChangeText}>+{stats.visitsChange}%</Text>
+                </View>
+              </View>
 
-          {recentOrders.map((order) => (
-            <View key={order.id} style={styles.orderCard}>
-              <View style={styles.orderHeader}>
-  {/* The container for ID/Name must have flex: 1 and flexShrink: 1 */}
-  <View style={styles.orderTextContainer}> 
-    <Text style={styles.orderId} numberOfLines={1} ellipsizeMode="tail">
-      {order.orderId}
-    </Text>
-    <Text style={styles.customerName} numberOfLines={1} ellipsizeMode="tail">
-      {order.customerName}
-    </Text>
-  </View>
+              {/* Returns Card */}
+              <View style={styles.statCard}>
+                <View style={styles.statIconContainer}>
+                  <Receipt size={24} color="#FF5722" strokeWidth={2.5} />
+                </View>
+                <Text style={styles.statLabel}>Pending Returns</Text>
+                <Text style={styles.statValue}>{pendingReturns.length}</Text>
+                <View style={styles.statChange}>
+                  {pendingReturns.length > 0 ? (
+                    <>
+                      <AlertCircle size={14} color="#EF4444" strokeWidth={2.5} />
+                      <Text style={[styles.statChangeText, { color: '#EF4444' }]}>Action Needed</Text>
+                    </>
+                  ) : (
+                    <Text style={[styles.statChangeText, { color: '#10B981' }]}>All Good</Text>
+                  )}
+                </View>
+              </View>
+            </ScrollView>
 
-  {/* The Badge needs flexShrink: 0 so it never gets squashed */}
-  <View
-    style={[
-      styles.statusBadge,
-      { backgroundColor: getStatusBgColor(order.status) },
-    ]}
-  >
-    <Text
-      style={[
-        styles.statusText,
-        { color: getStatusColor(order.status) },
-      ]}
-      numberOfLines={1}
-    >
-      {order.status.replace('-', ' ').toUpperCase()}
-    </Text>
-  </View>
-</View>
-              <View style={styles.orderFooter}>
-                <Text style={styles.orderItems}>
-                  {order.items.length} item{order.items.length > 1 ? 's' : ''}
-                </Text>
-                <Text style={styles.orderTotal}>₱{order.total.toLocaleString()}</Text>
+            {/* Revenue Chart */}
+            <View style={styles.chartSection}>
+              <Text style={styles.sectionTitle}>Last 7 Days Revenue</Text>
+              <View style={styles.chartCard}>
+                <LineChart
+                  data={chartData}
+                  height={180}
+                  width={width - 100}
+                  maxValue={maxVal * 1.1}
+                  adjustToWidth={true}
+                  scrollToEnd={false}
+                  color="#FF5722"
+                  thickness={3}
+                  startFillColor="rgba(255, 87, 34, 0.3)"
+                  endFillColor="rgba(255, 87, 34, 0.05)"
+                  startOpacity={0.9}
+                  endOpacity={0.2}
+                  initialSpacing={15}
+                  endSpacing={5}
+                  spacing={45}
+                  noOfSections={4}
+                  yAxisColor="#E5E7EB"
+                  xAxisColor="#E5E7EB"
+                  yAxisTextStyle={styles.chartAxisText}
+                  xAxisLabelTextStyle={styles.chartAxisText}
+                  curved
+                  areaChart
+                  hideDataPoints={false}
+                  dataPointsColor="#FF5722"
+                  dataPointsRadius={5}
+                  textShiftY={-8}
+                  textShiftX={-10}
+                  textFontSize={11}
+                  textColor="#6B7280"
+                />
               </View>
             </View>
-            ))}
-        </View>
 
-        <View style={{ height: 100 }} />
-      </ScrollView>
+            {/* Recent Orders */}
+            <View style={styles.ordersSection}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Recent Orders</Text>
+                <Pressable>
+                  <Text style={styles.viewAllText}>View All</Text>
+                </Pressable>
+              </View>
+
+              {recentOrders.map((order) => (
+                <View key={order.id} style={styles.orderCard}>
+                  <View style={styles.orderHeader}>
+                    {/* The container for ID/Name must have flex: 1 and flexShrink: 1 */}
+                    <View style={styles.orderTextContainer}>
+                      <Text style={styles.orderId} numberOfLines={1} ellipsizeMode="tail">
+                        {order.orderId}
+                      </Text>
+                      <Text style={styles.customerName} numberOfLines={1} ellipsizeMode="tail">
+                        {order.customerName}
+                      </Text>
+                    </View>
+
+                    {/* The Badge needs flexShrink: 0 so it never gets squashed */}
+                    <View
+                      style={[
+                        styles.statusBadge,
+                        { backgroundColor: getStatusBgColor(order.status) },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.statusText,
+                          { color: getStatusColor(order.status) },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {order.status.replace('-', ' ').toUpperCase()}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.orderFooter}>
+                    <Text style={styles.orderItems}>
+                      {order.items.length} item{order.items.length > 1 ? 's' : ''}
+                    </Text>
+                    <Text style={styles.orderTotal}>₱{order.total.toLocaleString()}</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+
+          </View>
+          <View style={{ height: 100 }} />
+        </ScrollView>
+      )}
     </View>
   );
 }
@@ -271,7 +354,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 4,
-    borderBottomLeftRadius: 20, 
+    borderBottomLeftRadius: 20,
     borderBottomRightRadius: 20,
   },
   headerContent: {
@@ -435,13 +518,13 @@ const styles = StyleSheet.create({
   orderHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center', 
+    alignItems: 'center',
     marginBottom: 12,
-    width: '100%', 
+    width: '100%',
   },
   orderTextContainer: {
-    flex: 1, 
-    flexShrink: 1, 
+    flex: 1,
+    flexShrink: 1,
     marginRight: 12,
   },
   orderId: {
@@ -458,7 +541,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 100,
-    flexShrink: 0,  
+    flexShrink: 0,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -482,5 +565,119 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '700',
     color: '#FF5722',
+  },
+  pendingContainer: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  pendingHero: {
+    width: '100%',
+    padding: 30,
+    borderRadius: 24,
+    alignItems: 'center',
+    marginBottom: 20,
+    overflow: 'hidden',
+  },
+  pendingIconWrapper: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+    shadowColor: '#FF5722',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.15,
+    shadowRadius: 15,
+    elevation: 5,
+  },
+  pendingTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#1F2937',
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  pendingDescription: {
+    fontSize: 14,
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 22,
+    fontWeight: '500',
+  },
+  pendingActionCard: {
+    width: '100%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+    marginBottom: 30,
+  },
+  actionCardTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: 8,
+  },
+  actionCardSubtitle: {
+    fontSize: 13,
+    color: '#6B7280',
+    lineHeight: 20,
+    marginBottom: 20,
+    fontWeight: '500',
+  },
+  verifyButton: {
+    borderRadius: 14,
+    overflow: 'hidden',
+    elevation: 3,
+    shadowColor: '#FF5722',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+  },
+  verifyGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    gap: 8,
+  },
+  verifyButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  pendingInfoNote: {
+    width: '100%',
+    padding: 20,
+    alignItems: 'center',
+  },
+  infoNoteText: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+  disabledContainer: {
+    opacity: 0.5,
+  },
+  pendingBanner: {
+    backgroundColor: '#FF5722',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    gap: 10,
+  },
+  pendingBannerText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+    flex: 1,
   },
 });

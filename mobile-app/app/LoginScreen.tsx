@@ -63,7 +63,7 @@ export default function LoginScreen({ navigation }: Props) {
         if (profileError) {
           Alert.alert('Profile Error', 'Could not fetch user profile.');
         } else if (profile.user_type === 'buyer') {
-          
+
           // SYNC USER TO GLOBAL STORE
           const { data: profileDetails } = await supabase
             .from('profiles')
@@ -219,7 +219,7 @@ export default function LoginScreen({ navigation }: Props) {
           </View>
 
           {/* Guest Access */}
-          <Pressable 
+          <Pressable
             style={styles.guestButton}
             onPress={() => {
               useAuthStore.getState().loginAsGuest();
@@ -232,7 +232,7 @@ export default function LoginScreen({ navigation }: Props) {
           {/* Seller Portal Link */}
           <Pressable
             style={styles.sellerPortalButton}
-            onPress={() => navigation.navigate('SellerLogin')}
+            onPress={() => navigation.navigate('SellerAuthChoice')}
           >
             <Store size={20} color="#FF5722" strokeWidth={2.5} />
             <Text style={styles.sellerPortalText}>Start Selling</Text>

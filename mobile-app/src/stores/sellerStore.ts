@@ -64,7 +64,7 @@ export interface SellerProfile {
   ownerName: string;
   email: string;
   phone: string;
-  
+
   // Business
   businessName: string;
   storeName: string;
@@ -74,21 +74,28 @@ export interface SellerProfile {
   businessType: 'sole_proprietor' | 'partnership' | 'corporation';
   businessRegistrationNumber: string;
   taxIdNumber: string;
-  
+
   // Address
   businessAddress: string;
   city: string;
   province: string;
   postalCode: string;
-  
+
   // Banking
   bankName: string;
   accountName: string;
   accountNumber: string;
-  
+
   // Status
-  status: 'pending' | 'approved' | 'rejected' | 'suspended';
+  approval_status: 'pending' | 'approved' | 'rejected' | 'suspended';
   documents: SellerDocument[];
+
+  // Document URLs for verification
+  business_permit_url?: string | null;
+  valid_id_url?: string | null;
+  proof_of_address_url?: string | null;
+  dti_registration_url?: string | null;
+  tax_id_url?: string | null;
 }
 
 interface SellerStats {
@@ -103,26 +110,26 @@ interface SellerStats {
 interface SellerStore {
   // Seller Info
   seller: SellerProfile;
-  
+
   // Stats
   stats: SellerStats;
-  
+
   // Products
   products: SellerProduct[];
   addProduct: (product: SellerProduct) => void;
   updateProduct: (id: string, updates: Partial<SellerProduct>) => void;
   deleteProduct: (id: string) => void;
   toggleProductStatus: (id: string) => void;
-  
+
   // Orders
   orders: SellerOrder[];
   updateOrderStatus: (orderId: string, status: SellerOrder['status']) => void;
   addOfflineOrder: (cartItems: { productId: string; productName: string; quantity: number; price: number; image: string }[], total: number, note?: string) => string;
-  
+
   // Analytics
   revenueData: RevenueData[];
   categorySales: CategorySales[];
-  
+
   // Settings
   updateSellerInfo: (updates: Partial<SellerStore['seller']>) => void;
   logout: () => void;
@@ -317,113 +324,90 @@ const dummyCategorySales: CategorySales[] = [
 export const useSellerStore = create<SellerStore>()(
   persist(
     (set, get) => ({
-  // Seller Info
-  seller: {
-    id: 'seller-001',
-    // Personal
-    ownerName: 'Juan Dela Cruz',
-    email: 'seller@bazaarx.ph',
-    phone: '+63 912 345 6789',
-    
-    // Business
-    businessName: 'Tech Shop Philippines Inc.',
-    storeName: 'TechStore Official',
-    storeDescription: 'Your trusted source for premium electronics and gadgets. We provide the latest tech at affordable prices.',
-    storeLogo: '🛍️',
-    storeCategory: ['Electronics', 'Accessories'],
-    businessType: 'corporation',
-    businessRegistrationNumber: 'COR-2024-12345',
-    taxIdNumber: '123-456-789-000',
-    
-    // Address
-    businessAddress: '123 Tech St., Makati City',
-    city: 'Makati',
-    province: 'Metro Manila',
-    postalCode: '1200',
-    
-    // Banking
-    bankName: 'BDO',
-    accountName: 'Tech Shop PH Inc.',
-    accountNumber: '**** **** **** 1234',
-    
-    // Status
-    status: 'approved',
-    documents: [
-      {
-        id: 'doc-1',
-        type: 'business_permit',
-        fileName: 'business_permit_2024.pdf',
-        url: '#',
-        uploadDate: '2024-01-15',
-        isVerified: true
+      // Seller Info
+      seller: {
+        id: 'seller-001',
+        // Personal
+        ownerName: 'Juan Dela Cruz',
+        email: 'seller@bazaarx.ph',
+        phone: '+63 912 345 6789',
+
+        // Business
+        businessName: 'Tech Shop Philippines Inc.',
+        storeName: 'TechStore Official',
+        storeDescription: 'Your trusted source for premium electronics and gadgets. We provide the latest tech at affordable prices.',
+        storeLogo: '🛍️',
+        storeCategory: ['Electronics', 'Accessories'],
+        businessType: 'corporation',
+        businessRegistrationNumber: 'COR-2024-12345',
+        taxIdNumber: '123-456-789-000',
+
+        // Address
+        businessAddress: '123 Tech St., Makati City',
+        city: 'Makati',
+        province: 'Metro Manila',
+        postalCode: '1200',
+
+        // Banking
+        bankName: 'BDO',
+        accountName: 'Tech Shop PH Inc.',
+        accountNumber: '**** **** **** 1234',
+
+        // Status
+        approval_status: 'approved',
+        documents: [
+          {
+            id: 'doc-1',
+            type: 'business_permit',
+            fileName: 'business_permit_2024.pdf',
+            url: '#',
+            uploadDate: '2024-01-15',
+            isVerified: true
+          },
+          {
+            id: 'doc-2',
+            type: 'valid_id',
+            fileName: 'valid_id_juan.png',
+            url: '#',
+            uploadDate: '2024-01-15',
+            isVerified: true
+          }
+        ],
+        business_permit_url: null,
+        valid_id_url: null,
+        proof_of_address_url: null,
+        dti_registration_url: null,
+        tax_id_url: null,
       },
-      {
-        id: 'doc-2',
-        type: 'valid_id',
-        fileName: 'valid_id_juan.png',
-        url: '#',
-        uploadDate: '2024-01-15',
-        isVerified: true
-      }
-    ]
-  },
 
-  // Stats
-  stats: {
-    totalRevenue: 490991,
-    totalOrders: 156,
-    totalVisits: 3420,
-    revenueChange: 12.5,
-    ordersChange: 8.3,
-    visitsChange: 15.7,
-  },
+      // Stats
+      stats: {
+        totalRevenue: 490991,
+        totalOrders: 156,
+        totalVisits: 3420,
+        revenueChange: 12.5,
+        ordersChange: 8.3,
+        visitsChange: 15.7,
+      },
 
-  // Products
-  products: dummyProducts,
+      // Products
+      products: dummyProducts,
 
-  addProduct: (product) => {
-    try {
-      // Validation
-      if (!product.name || product.name.trim() === '') {
-        throw new Error('Product name is required');
-      }
-      if (!product.price || product.price <= 0) {
-        throw new Error('Product price must be greater than 0');
-      }
-      if (product.stock < 0) {
-        throw new Error('Product stock cannot be negative');
-      }
-      if (!product.category || product.category.trim() === '') {
-        throw new Error('Product category is required');
-      }
-      
-      set((state) => ({
-        products: [...state.products, product],
-      }));
-    } catch (error) {
-      console.error('Error adding product:', error);
-      throw error;
-    }
-  },
-
-  updateProduct: (id, updates) =>
-    set((state) => ({
-      products: state.products.map((p) =>
-        p.id === id ? { ...p, ...updates } : p
-      ),
-    })),
-
-  deleteProduct: (id) =>
-    set((state) => ({
-      products: state.products.filter((p) => p.id !== id),
-    })),
-
-  toggleProductStatus: (id) =>
-    set((state) => ({
-      products: state.products.map((p) =>
-        p.id === id ? { ...p, isActive: !p.isActive } : p
-      ),
-    })),
+      addProduct: (product) => {
+        try {
+          // Validation
+          if (!product.name || product.name.trim() === '') {
+            throw new Error('Product name is required');
+          }
+          if (!product.price || product.price <= 0) {
+            throw new Error('Product price must be greater than 0');
+          }
+          if (product.stock < 0) {
+            throw new Error('Product stock cannot be negative');
+          }
+          if (!product.category || product.category.trim() === '') {
+            throw new Error('Product category is required');
+          }
 
   // Orders
   orders: dummyOrders,
@@ -484,71 +468,130 @@ export const useSellerStore = create<SellerStore>()(
         }
         if (product.stock < item.quantity) {
           throw new Error(`Insufficient stock for ${product.name}. Available: ${product.stock}, Requested: ${item.quantity}`);
+          set((state) => ({
+            products: [...state.products, product],
+          }));
+        } catch (error) {
+          console.error('Error adding product:', error);
+          throw error;
         }
-      }
+      },
 
-      // Generate order ID
-      const orderId = `POS-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      updateProduct: (id, updates) =>
+        set((state) => ({
+          products: state.products.map((p) =>
+            p.id === id ? { ...p, ...updates } : p
+          ),
+        })),
 
-      // Create offline order
-      const newOrder: SellerOrder = {
-        id: orderId,
-        orderId: orderId,
-        customerName: 'Walk-in Customer',
-        customerEmail: 'pos@offline.sale',
-        items: cartItems,
-        total,
-        status: 'completed', // POS orders are immediately completed
-        createdAt: new Date().toISOString(),
-        type: 'OFFLINE', // Mark as offline/walk-in order
-        posNote: note || 'In-Store Purchase',
-      };
+      deleteProduct: (id) =>
+        set((state) => ({
+          products: state.products.filter((p) => p.id !== id),
+        })),
 
-      // Add order to store and deduct stock
-      set((state) => {
-        // Update products stock
-        const updatedProducts = state.products.map(product => {
-          const cartItem = cartItems.find(item => item.productId === product.id);
-          if (cartItem) {
-            return {
-              ...product,
-              stock: product.stock - cartItem.quantity,
-              sold: product.sold + cartItem.quantity,
-            };
+      toggleProductStatus: (id) =>
+        set((state) => ({
+          products: state.products.map((p) =>
+            p.id === id ? { ...p, isActive: !p.isActive } : p
+          ),
+        })),
+
+      // Orders
+      orders: dummyOrders,
+
+      updateOrderStatus: (orderId, status) =>
+        set((state) => ({
+          orders: state.orders.map((o) =>
+            o.orderId === orderId ? { ...o, status } : o
+          ),
+        })),
+
+      // POS: Add offline order (walk-in purchase)
+      addOfflineOrder: (cartItems, total, note) => {
+        try {
+          // Validate cart items
+          if (!cartItems || cartItems.length === 0) {
+            throw new Error('Cart is empty');
           }
-          return product;
-        });
 
-        return {
-          orders: [newOrder, ...state.orders],
-          products: updatedProducts,
-        };
-      });
+          if (total <= 0) {
+            throw new Error('Invalid order total');
+          }
 
-      console.log(`✅ Offline order created: ${orderId}. Stock updated.`);
-      return orderId;
-    } catch (error) {
-      console.error('Failed to create offline order:', error);
-      throw error;
-    }
-  },
+          // Check stock availability for all items before proceeding
+          const state = get();
+          for (const item of cartItems) {
+            const product = state.products.find(p => p.id === item.productId);
+            if (!product) {
+              throw new Error(`Product ${item.productName} not found`);
+            }
+            if (product.stock < item.quantity) {
+              throw new Error(`Insufficient stock for ${product.name}. Available: ${product.stock}, Requested: ${item.quantity}`);
+            }
+          }
 
-  // Analytics
-  revenueData: dummyRevenueData,
-  categorySales: dummyCategorySales,
+          // Generate order ID
+          const orderId = `POS-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-  // Settings
-  updateSellerInfo: (updates) =>
-    set((state) => ({
-      seller: { ...state.seller, ...updates },
-    })),
-  
-  // Auth
-  logout: () => {
-    // Clear seller data - can be enhanced to clear AsyncStorage if needed
-    console.log('Seller logged out');
-  },
-}),
+          // Create offline order
+          const newOrder: SellerOrder = {
+            id: orderId,
+            orderId: orderId,
+            customerName: 'Walk-in Customer',
+            customerEmail: 'pos@offline.sale',
+            items: cartItems,
+            total,
+            status: 'completed', // POS orders are immediately completed
+            createdAt: new Date().toISOString(),
+            type: 'OFFLINE', // Mark as offline/walk-in order
+            posNote: note || 'In-Store Purchase',
+          };
+
+          // Add order to store and deduct stock
+          set((state) => {
+            // Update products stock
+            const updatedProducts = state.products.map(product => {
+              const cartItem = cartItems.find(item => item.productId === product.id);
+              if (cartItem) {
+                return {
+                  ...product,
+                  stock: product.stock - cartItem.quantity,
+                  sold: product.sold + cartItem.quantity,
+                };
+              }
+              return product;
+            });
+
+            return {
+              orders: [newOrder, ...state.orders],
+              products: updatedProducts,
+            };
+          });
+
+          console.log(`✅ Offline order created: ${orderId}. Stock updated.`);
+          return orderId;
+        } catch (error) {
+          console.error('Failed to create offline order:', error);
+          throw error;
+        }
+      },
+
+      // Analytics
+      revenueData: dummyRevenueData,
+      categorySales: dummyCategorySales,
+
+      // Settings
+      updateSellerInfo: (updates) =>
+        set((state) => ({
+          seller: { ...state.seller, ...updates as any },
+        })),
+
+      // Auth
+      logout: () => {
+        // Clear seller data - can be enhanced to clear AsyncStorage if needed
+        console.log('Seller logged out');
+      },
+    }),
     {
       name: 'seller-storage',
       storage: createJSONStorage(() => AsyncStorage),
