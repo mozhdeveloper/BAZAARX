@@ -12,7 +12,8 @@ import {
   getProducts as fetchProductsDb,
   updateProduct as updateProductDb,
 } from '@/services/productService';
-import type { Seller as DBSeller, Database } from '@/types/database.types';
+import { getSellerOrders } from '@/services/orderService';
+import type { Seller as DBSeller, Database, Order, OrderItem } from '@/types/database.types';
 
 // Types
 interface Seller {
@@ -215,6 +216,9 @@ interface ProductStore {
 
 interface OrderStore {
   orders: SellerOrder[];
+  loading: boolean;
+  error: string | null;
+  fetchOrders: (sellerId: string) => Promise<void>;
   addOrder: (order: Omit<SellerOrder, 'id'>) => string;
   updateOrderStatus: (id: string, status: SellerOrder['status']) => void;
   updatePaymentStatus: (id: string, status: SellerOrder['paymentStatus']) => void;
@@ -377,61 +381,69 @@ const mapSellerUpdatesToDb = (updates: Partial<SellerProduct>): ProductUpdate =>
 
 // Dummy data removed for database parity
 
-const dummyOrders: SellerOrder[] = [
-  {
-    id: 'ord-1',
-    buyerName: 'Maria Santos',
-    buyerEmail: 'maria@example.com',
-    items: [
-      {
-        productId: 'prod-1',
-        productName: 'iPhone 15 Pro Max',
-        quantity: 1,
-        price: 89990,
-        image: 'https://images.unsplash.com/photo-1696446702188-41d37c5f1c9a?w=100'
-      }
-    ],
-    total: 89990,
-    status: 'pending',
-    paymentStatus: 'paid',
-    orderDate: '2024-12-12T10:30:00Z',
+const dummyOrders: SellerOrder[] = [];
+
+// Helper function to map database Order to SellerOrder
+const mapOrderToSellerOrder = (order: any): SellerOrder => {
+  // Handle order_items - it might be nested or need to be fetched separately
+  const orderItems = Array.isArray(order.order_items) ? order.order_items : [];
+  
+  const items = orderItems.map((item: any) => ({
+    productId: item.product_id || '',
+    productName: item.product_name || 'Unknown Product',
+    quantity: item.quantity || 1,
+    price: parseFloat(item.price?.toString() || '0'),
+    image: item.product_images?.[0] || 'https://via.placeholder.com/100'
+  }));
+
+  // Map database status to SellerOrder status
+  const statusMap: Record<string, SellerOrder['status']> = {
+    'pending_payment': 'pending',
+    'pending': 'pending',
+    'confirmed': 'confirmed',
+    'processing': 'confirmed',
+    'shipped': 'shipped',
+    'delivered': 'delivered',
+    'cancelled': 'cancelled',
+    'completed': 'delivered'
+  };
+
+  // Map payment status
+  const paymentStatusMap: Record<string, SellerOrder['paymentStatus']> = {
+    'pending': 'pending',
+    'paid': 'paid',
+    'refunded': 'refunded',
+    'failed': 'pending'
+  };
+
+  const shippingAddr = order.shipping_address || {};
+
+  return {
+    id: order.id,
+    buyerName: order.buyer_name || 'Unknown',
+    buyerEmail: order.buyer_email || 'unknown@example.com',
+    items,
+    total: parseFloat(order.total_amount?.toString() || '0'),
+    status: statusMap[order.status] || 'pending',
+    paymentStatus: paymentStatusMap[order.payment_status] || 'pending',
+    orderDate: order.created_at,
     shippingAddress: {
-      fullName: 'Maria Santos',
-      street: '123 Rizal Street',
-      city: 'Quezon City',
-      province: 'Metro Manila',
-      postalCode: '1100',
-      phone: '+63 917 123 4567'
-    }
-  },
-  {
-    id: 'ord-2',
-    buyerName: 'Carlos Reyes',
-    buyerEmail: 'carlos@example.com',
-    items: [
-      {
-        productId: 'prod-2',
-        productName: 'Samsung Galaxy S24 Ultra',
-        quantity: 1,
-        price: 79990,
-        image: 'https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?w=100'
-      }
-    ],
-    total: 79990,
-    status: 'shipped',
-    paymentStatus: 'paid',
-    orderDate: '2024-12-10T14:20:00Z',
-    trackingNumber: 'TRK123456789',
-    shippingAddress: {
-      fullName: 'Carlos Reyes',
-      street: '456 Bonifacio Avenue',
-      city: 'Makati City',
-      province: 'Metro Manila',
-      postalCode: '1200',
-      phone: '+63 918 987 6543'
-    }
-  }
-];
+      fullName: shippingAddr.fullName || order.buyer_name || 'Unknown',
+      street: shippingAddr.street || '',
+      city: shippingAddr.city || '',
+      province: shippingAddr.province || '',
+      postalCode: shippingAddr.postalCode || '',
+      phone: shippingAddr.phone || order.buyer_phone || ''
+    },
+    trackingNumber: order.tracking_number || undefined,
+    rating: order.rating || undefined,
+    reviewComment: order.review_comment || undefined,
+    reviewImages: order.review_images || undefined,
+    reviewDate: order.review_date || undefined,
+    type: order.order_type === 'OFFLINE' ? 'OFFLINE' : 'ONLINE',
+    posNote: order.pos_note || undefined
+  };
+};
 
 // Auth Store
 export const useAuthStore = create<AuthStore>()(
@@ -1318,6 +1330,36 @@ export const useOrderStore = create<OrderStore>()(
   persist(
     (set, get) => ({
       orders: dummyOrders,
+      loading: false,
+      error: null,
+
+      fetchOrders: async (sellerId: string) => {
+        if (!sellerId) {
+          console.error('Seller ID is required to fetch orders');
+          return;
+        }
+
+        set({ loading: true, error: null });
+        
+        try {
+          const dbOrders = await getSellerOrders(sellerId);
+          const sellerOrders = dbOrders.map(mapOrderToSellerOrder);
+          
+          set({ 
+            orders: sellerOrders,
+            loading: false,
+            error: null
+          });
+          
+          console.log(`✅ Fetched ${sellerOrders.length} orders for seller ${sellerId}`);
+        } catch (error) {
+          console.error('Failed to fetch orders:', error);
+          set({ 
+            loading: false, 
+            error: error instanceof Error ? error.message : 'Failed to fetch orders' 
+          });
+        }
+      },
 
       addOrder: (orderData) => {
         try {

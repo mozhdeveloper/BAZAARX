@@ -178,16 +178,13 @@ export default function POSScreen() {
       <SellerDrawer visible={drawerVisible} onClose={() => setDrawerVisible(false)} />
 
       {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
-        <View style={styles.headerContent}>
+      <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: '#FF5722' }]}>
+        <View style={styles.headerTop}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            <Pressable style={styles.iconContainer} onPress={() => setDrawerVisible(true)}>
+            <Pressable style={styles.headerIconButton} onPress={() => setDrawerVisible(true)}>
               <CreditCard size={24} color="#FFFFFF" strokeWidth={2} />
             </Pressable>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.headerTitle}>POS Lite</Text>
-              <Text style={styles.headerSubtitle}>Quick checkout for offline sales</Text>
-            </View>
+            <Text style={styles.headerTitle}>POS Lite</Text>
           </View>
           {cart.length > 0 && (
             <View style={styles.cartBadgeHeader}>
@@ -555,41 +552,21 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F9FAFB',
   },
-  header: {
-    backgroundColor: '#FF5722',
+  headerContainer: {
     paddingHorizontal: 20,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
     paddingBottom: 20,
+    marginBottom: 10,
+    elevation: 4,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 4,
-    borderBottomLeftRadius: 20, 
-    borderBottomRightRadius: 20,
+    zIndex: 10,
   },
-  headerContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 15,
-  },
-  iconContainer: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    padding: 12,
-    borderRadius: 12,
-  },
-  headerTitle: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: 0.3,
-  },
-  headerSubtitle: {
-    fontSize: 13,
-    color: '#FFFFFF',
-    opacity: 0.9,
-    fontWeight: '500',
-  },
+  headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 15 },
+  headerIconButton: { padding: 4 },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFF' },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',

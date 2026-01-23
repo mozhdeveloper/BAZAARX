@@ -108,8 +108,11 @@ export default function OrdersPage() {
   };
 
   // Show success message for newly created orders
-  const newOrderId = (location.state as { newOrderId?: string; fromCheckout?: boolean } | null)?.newOrderId;
-  const fromCheckout = (location.state as { fromCheckout?: boolean } | null)?.fromCheckout;
+  const newOrderId = (
+    location.state as { newOrderId?: string; fromCheckout?: boolean } | null
+  )?.newOrderId;
+  const fromCheckout = (location.state as { fromCheckout?: boolean } | null)
+    ?.fromCheckout;
   const [showSuccessBanner, setShowSuccessBanner] = useState(!!fromCheckout);
 
   // Fetch orders from Supabase
@@ -120,13 +123,15 @@ export default function OrdersPage() {
       setIsLoading(true);
       try {
         const { data, error } = await supabase
-          .from('orders')
-          .select(`
+          .from("orders")
+          .select(
+            `
             *,
             items:order_items (*)
-          `)
-          .eq('buyer_id', profile.id)
-          .order('created_at', { ascending: false });
+          `,
+          )
+          .eq("buyer_id", profile.id)
+          .order("created_at", { ascending: false });
 
         if (error) throw error;
 
@@ -235,16 +240,15 @@ export default function OrdersPage() {
      UI statuses seem to be: pending, confirmed, shipped, delivered, cancelled.
   */
 
-
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'pending':
+      case "pending":
         return <Clock className="w-4 h-4 text-yellow-500" />;
-      case 'confirmed':
+      case "confirmed":
         return <Package className="w-4 h-4 text-blue-500" />;
-      case 'shipped':
+      case "shipped":
         return <Truck className="w-4 h-4 text-purple-500" />;
-      case 'delivered':
+      case "delivered":
         return <CheckCircle className="w-4 h-4 text-green-500" />;
       case 'returned':
         return <RotateCcw className="w-4 h-4 text-orange-500" />;
@@ -274,7 +278,7 @@ export default function OrdersPage() {
       case 'reviewed':
         return 'text-yellow-700 bg-yellow-100 border-yellow-200';
       default:
-        return 'text-gray-700 bg-gray-100 border-gray-200';
+        return "text-gray-700 bg-gray-100 border-gray-200";
     }
   };
 
@@ -287,14 +291,17 @@ export default function OrdersPage() {
   };
 
   const filteredOrders = orders
-    .filter(order => {
-      const matchesSearch = order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        order.items.some(item =>
-          item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          item.seller.toLowerCase().includes(searchQuery.toLowerCase())
+    .filter((order) => {
+      const matchesSearch =
+        order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        order.items.some(
+          (item) =>
+            item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            item.seller.toLowerCase().includes(searchQuery.toLowerCase()),
         );
 
-      const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
+      const matchesStatus =
+        statusFilter === "all" || order.status === statusFilter;
 
       return matchesSearch && matchesStatus;
     })
@@ -302,25 +309,27 @@ export default function OrdersPage() {
 
   const formatDate = (date: Date | string) => {
     const dateObj = date instanceof Date ? date : new Date(date);
-    return new Intl.DateTimeFormat('en-PH', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
+    return new Intl.DateTimeFormat("en-PH", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
     }).format(dateObj);
   };
 
   const formatDateTime = (date: Date | string) => {
     const dateObj = date instanceof Date ? date : new Date(date);
-    return new Intl.DateTimeFormat('en-PH', {
-      month: 'long',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
+    return new Intl.DateTimeFormat("en-PH", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     }).format(dateObj);
   };
 
-  const selectedOrderData = selectedOrder ? orders.find(o => o.id === selectedOrder) : null;
+  const selectedOrderData = selectedOrder
+    ? orders.find((o) => o.id === selectedOrder)
+    : null;
 
   // Always show orders page with sample orders - users should see this immediately
 
@@ -341,7 +350,9 @@ export default function OrdersPage() {
               <CheckCircle className="w-6 h-6 text-white" />
             </div>
             <div className="flex-1">
-              <h3 className="font-semibold text-green-900 mb-1">🎉 Order Placed Successfully!</h3>
+              <h3 className="font-semibold text-green-900 mb-1">
+                🎉 Order Placed Successfully!
+              </h3>
               <p className="text-sm text-green-800">
                 Your order <span className="font-semibold">#{newOrderId}</span> has been confirmed and is being processed.
                 You can track your order status below.

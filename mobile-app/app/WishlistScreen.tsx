@@ -8,13 +8,13 @@ import { useWishlistStore } from '../src/stores/wishlistStore';
 import { useAuthStore } from '../src/stores/authStore';
 import { GuestLoginModal } from '../src/components/GuestLoginModal';
 import { Pressable } from 'react-native';
+import { COLORS } from '../src/constants/theme';
 
 const { width } = Dimensions.get('window');
 
 export default function WishlistScreen() {
     const insets = useSafeAreaInsets();
     const navigation = useNavigation<any>();
-    const BRAND_COLOR = '#FF5722';
 
     const { items, removeItem } = useWishlistStore();
     const { isGuest } = useAuthStore();
@@ -32,15 +32,17 @@ export default function WishlistScreen() {
 
     return (
         <View style={styles.container}>
-            <StatusBar barStyle="dark-content" />
+            <StatusBar barStyle="light-content" />
 
             {/* Header */}
-            <View style={[styles.header, { paddingTop: insets.top + 10, backgroundColor: '#FFF' }]}>
-                <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
-                    <ArrowLeft size={24} color="#1F2937" />
-                </Pressable>
-                <Text style={styles.headerTitle}>My Wishlist</Text>
-                <View style={{ width: 40 }} />
+            <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: COLORS.primary }]}>
+                <View style={styles.headerTop}>
+                    <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
+                        <ArrowLeft size={24} color="#FFF" strokeWidth={2.5} />
+                    </Pressable>
+                    <Text style={styles.headerTitle}>My Wishlist</Text>
+                    <View style={{ width: 40 }} />
+                </View>
             </View>
 
             <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -91,23 +93,21 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: '#F9FAFB',
     },
-    header: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingBottom: 16,
-        borderBottomWidth: 1,
-        borderBottomColor: '#F3F4F6',
+    headerContainer: {
+        paddingHorizontal: 20,
+        borderBottomLeftRadius: 30,
+        borderBottomRightRadius: 30,
+        paddingBottom: 20,
+        marginBottom: 10,
+        elevation: 4,
+        shadowColor: '#000',
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        zIndex: 10,
     },
-    backButton: {
-        padding: 4,
-    },
-    headerTitle: {
-        fontSize: 18,
-        fontWeight: '700',
-        color: '#1F2937',
-    },
+    headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    headerIconButton: { padding: 4 },
+    headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFF' },
     scrollContent: {
         padding: 16,
         paddingBottom: 40,

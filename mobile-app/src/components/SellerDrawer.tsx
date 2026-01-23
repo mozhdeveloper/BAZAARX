@@ -137,7 +137,7 @@ export default function SellerDrawer({ visible, onClose }: SellerDrawerProps) {
         { icon: Store, label: 'Store Profile', route: 'StoreProfile' },
         { icon: DollarSign, label: 'Earnings', route: 'Earnings' },
         { icon: Zap, label: 'Flash Sales', route: 'FlashSales' },
-        { icon: TrendingUp, label: 'Analytics', route: 'Analytics'}
+        { icon: TrendingUp, label: 'Analytics', route: 'Analytics' }
       ],
     },
     {
@@ -150,7 +150,7 @@ export default function SellerDrawer({ visible, onClose }: SellerDrawerProps) {
     {
       label: 'Account',
       items: [
-        { icon: Settings, label: 'Settings', route: 'Tab', inTab: true },
+        { icon: Settings, label: 'Settings', route: 'Settings', inTab: true },
       ],
     },
   ];
@@ -164,20 +164,20 @@ export default function SellerDrawer({ visible, onClose }: SellerDrawerProps) {
       <Pressable style={styles.overlay} onPress={() => closeWithAnimation()}>
         <Animated.View style={[styles.drawer, { paddingTop: insets.top, transform: [{ translateX }] }]} onStartShouldSetResponder={() => true}>
           {/* Header */}
-            <View style={styles.drawerHeader}>
-              <TouchableOpacity style={styles.profileSection} onPress={() => handleNavigation('StoreProfile')} activeOpacity={0.8}>
-                <View style={styles.avatarCircle}>
-                  <User size={28} color="#FF5722" strokeWidth={2} />
-                </View>
-                <View style={styles.profileInfo}>
-                  <Text style={styles.storeName} numberOfLines={1} ellipsizeMode="tail">{seller.storeName}</Text>
-                  <Text style={styles.sellerName} numberOfLines={1} ellipsizeMode="tail">{seller.ownerName}</Text>
-                </View>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => closeWithAnimation()} style={styles.closeButton}>
-                <X size={24} color="#6B7280" strokeWidth={2.5} />
-              </TouchableOpacity>
-            </View> 
+          <View style={styles.drawerHeader}>
+            <TouchableOpacity style={styles.profileSection} onPress={() => handleNavigation('StoreProfile')} activeOpacity={0.8}>
+              <View style={styles.avatarCircle}>
+                <User size={28} color="#FF5722" strokeWidth={2} />
+              </View>
+              <View style={styles.profileInfo}>
+                <Text style={styles.storeName} numberOfLines={1} ellipsizeMode="tail">{seller.storeName}</Text>
+                <Text style={styles.sellerName} numberOfLines={1} ellipsizeMode="tail">{seller.ownerName}</Text>
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => closeWithAnimation()} style={styles.closeButton}>
+              <X size={24} color="#6B7280" strokeWidth={2.5} />
+            </TouchableOpacity>
+          </View>
 
           {/* Menu Items */}
           <ScrollView style={styles.menuScroll} showsVerticalScrollIndicator={false}>
@@ -189,8 +189,14 @@ export default function SellerDrawer({ visible, onClose }: SellerDrawerProps) {
                   return (
                     <TouchableOpacity
                       key={itemIndex}
-                      style={styles.menuItem}
-                      onPress={() => handleNavigation(item.route)}
+                      style={[
+                        styles.menuItem,
+                        (seller.approval_status === 'pending' && item.route !== 'StoreProfile') && styles.disabledMenuItem
+                      ]}
+                      onPress={() => {
+                        if (seller.approval_status === 'pending' && item.route !== 'StoreProfile') return;
+                        handleNavigation(item.route);
+                      }}
                       activeOpacity={0.7}
                     >
                       <View style={styles.menuItemContent}>
@@ -373,5 +379,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#9CA3AF',
     fontWeight: '500',
+  },
+  disabledMenuItem: {
+    opacity: 0.4,
   },
 });

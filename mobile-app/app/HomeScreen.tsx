@@ -26,6 +26,7 @@ import type { RootStackParamList, TabParamList } from '../App';
 import type { Product } from '../src/types';
 import { supabase } from '../src/lib/supabase';
 import { useAuthStore } from '../src/stores/authStore';
+import { useSellerStore } from '../src/stores/sellerStore';
 import { GuestLoginModal } from '../src/components/GuestLoginModal';
 import { COLORS } from '../src/constants/theme';
 
@@ -61,6 +62,33 @@ export default function HomeScreen({ navigation }: Props) {
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [recentSearches] = useState(['wireless earbuds', 'leather bag']);
   
+  // Fetch seller products and convert to buyer Product format
+  const sellerProducts = useSellerStore((state) => state.products);
+  const seller = useSellerStore((state) => state.seller);
+  
+  const convertedSellerProducts: Product[] = sellerProducts
+    .filter(p => p.isActive) // Only show active products
+    .map(p => ({
+      id: p.id,
+      name: p.name,
+      price: p.price,
+      originalPrice: p.originalPrice,
+      image: p.image,
+      images: p.images,
+      rating: 4.5, // Default rating for new products
+      sold: p.sold,
+      seller: seller.storeName,
+      sellerId: seller.id,
+      sellerRating: 4.9,
+      sellerVerified: true,
+      isFreeShipping: p.price >= 1000, // Free shipping for orders over 1000
+      isVerified: true,
+      location: `${seller.city}, ${seller.province}`,
+      description: p.description,
+      category: p.category,
+      stock: p.stock,
+    }));
+  
   // Display name logic
   const username = user?.name ? user.name.split(' ')[0] : 'Guest';
 
@@ -68,7 +96,8 @@ export default function HomeScreen({ navigation }: Props) {
     { id: '1', title: 'Order Shipped! 📦', message: 'Your order #A238567K has been shipped!', time: '2h ago', read: false, icon: Package, color: '#3B82F6' },
   ];
 
-  const allProducts = [...trendingProducts, ...bestSellerProducts];
+  // Merge static products with live seller products
+  const allProducts = [...trendingProducts, ...bestSellerProducts, ...convertedSellerProducts];
   const filteredProducts = searchQuery.trim()
     ? allProducts.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()))
     : [];
@@ -243,7 +272,7 @@ export default function HomeScreen({ navigation }: Props) {
                 <Pressable onPress={() => navigation.navigate('Shop', {})}><Text style={styles.gridSeeAll}>View All</Text></Pressable>
               </View>
               <View style={styles.gridBody}>
-                {trendingProducts.slice(0, 4).map((product) => (
+                {allProducts.slice(0, 6).map((product) => (
                   <View key={product.id} style={styles.itemBoxContainerVertical}>
                     <ProductCard product={product} onPress={() => handleProductPress(product)} />
                   </View>

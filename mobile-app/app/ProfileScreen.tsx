@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet, Alert, StatusBar, Modal, TextInput, ActivityIndicator, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
-import { User, MapPin, CreditCard, Bell, HelpCircle, Shield, ChevronRight, Store, Star, Package, Heart, Settings, Edit2, Power, X, Camera } from 'lucide-react-native';
+import { User, MapPin, CreditCard, Bell, HelpCircle, Shield, ChevronRight, Store, Star, Package, Heart, Settings, Edit2, Power, X, Camera, RotateCcw, Clock } from 'lucide-react-native';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -11,7 +11,6 @@ import { useAuthStore } from '../src/stores/authStore';
 import { useWishlistStore } from '../src/stores/wishlistStore';
 import { supabase } from '../src/lib/supabase';
 import { COLORS } from '../src/constants/theme';
-import { decode } from 'base64-arraybuffer';
 import { GuestLoginModal } from '../src/components/GuestLoginModal';
 
 type Props = CompositeScreenProps<
@@ -69,11 +68,11 @@ export default function ProfileScreen({ navigation }: Props) {
       //However, if we only have URI, we need to read it. 
       // Simplified approach: Re-read or assume we can upload via FormData if supported, 
       // but React Native with Supabase usually works best with ArrayBuffer or Blob.
-      
+
       // Let's use the fetch-blob polyfill method which is reliable in RN
       const response = await fetch(uri);
       const blob = await response.blob();
-      
+
       const fileExt = uri.split('.').pop();
       const fileName = `avatar_${userId}_${Date.now()}.${fileExt}`;
       const filePath = `${fileName}`;
@@ -136,10 +135,10 @@ export default function ProfileScreen({ navigation }: Props) {
       setEditModalVisible(false);
       Alert.alert('Success', 'Profile updated!');
     } catch (error) {
-       Alert.alert('Error', 'Failed to update profile');
-       console.error(error);
+      Alert.alert('Error', 'Failed to update profile');
+      console.error(error);
     } finally {
-       setIsSaving(false);
+      setIsSaving(false);
     }
   };
 
@@ -174,6 +173,7 @@ export default function ProfileScreen({ navigation }: Props) {
 
   const accountMenuItems = [
     { icon: Package, label: 'My Orders', onPress: () => navigation.navigate('Orders', {}) },
+    { icon: Clock, label: 'History', onPress: () => navigation.navigate('History') },
     { icon: Heart, label: 'Wishlist', onPress: () => navigation.navigate('Wishlist') },
     { icon: MapPin, label: 'My Addresses', onPress: () => navigation.navigate('Addresses') },
     { icon: Store, label: 'Following Shops', onPress: () => navigation.navigate('FollowingShops') },
@@ -197,52 +197,52 @@ export default function ProfileScreen({ navigation }: Props) {
         <StatusBar barStyle="light-content" />
         <View style={[styles.header, { paddingTop: insets.top + 20, backgroundColor: BRAND_COLOR }]}>
           <View style={styles.profileHeader}>
-             <View style={styles.avatarWrapper}>
-                <View style={styles.avatarCircle}>
-                  <User size={50} color={BRAND_COLOR} strokeWidth={1.5} />
-                </View>
-             </View>
-             <View style={styles.headerInfo}>
-               <Text style={styles.userName}>Guest User</Text>
-               <Text style={styles.userSub}>Welcome to BazaarX!</Text>
-             </View>
+            <View style={styles.avatarWrapper}>
+              <View style={styles.avatarCircle}>
+                <User size={50} color={BRAND_COLOR} strokeWidth={1.5} />
+              </View>
+            </View>
+            <View style={styles.headerInfo}>
+              <Text style={styles.userName}>Guest User</Text>
+              <Text style={styles.userSub}>Welcome to BazaarX!</Text>
+            </View>
           </View>
         </View>
 
         <ScrollView contentContainerStyle={styles.scrollContent}>
           {/* Main Actions for Guest */}
           <View style={styles.card}>
-             <Pressable style={[styles.menuItem, styles.borderBottom]} onPress={() => navigation.getParent()?.navigate('Login')}>
-                <View style={[styles.iconContainer, { backgroundColor: '#FFF5F0' }]}>
-                   <User size={20} color={BRAND_COLOR} strokeWidth={2} />
-                </View>
-                <Text style={styles.menuLabel}>Login / Sign Up</Text>
-                <ChevronRight size={18} color="#D1D5DB" />
-             </Pressable>
+            <Pressable style={[styles.menuItem, styles.borderBottom]} onPress={() => navigation.getParent()?.navigate('Login')}>
+              <View style={[styles.iconContainer, { backgroundColor: '#FFF5F0' }]}>
+                <User size={20} color={BRAND_COLOR} strokeWidth={2} />
+              </View>
+              <Text style={styles.menuLabel}>Login / Sign Up</Text>
+              <ChevronRight size={18} color="#D1D5DB" />
+            </Pressable>
 
-             <Pressable style={styles.menuItem} onPress={() => navigation.navigate('SellerLogin')}>
-                <View style={[styles.iconContainer, { backgroundColor: '#FFF5F0' }]}>
-                   <Store size={20} color={BRAND_COLOR} strokeWidth={2} />
-                </View>
-                <Text style={styles.menuLabel}>Start Selling</Text>
-                <ChevronRight size={18} color="#D1D5DB" />
-             </Pressable>
+            <Pressable style={styles.menuItem} onPress={() => navigation.navigate('SellerAuthChoice')}>
+              <View style={[styles.iconContainer, { backgroundColor: '#FFF5F0' }]}>
+                <Store size={20} color={BRAND_COLOR} strokeWidth={2} />
+              </View>
+              <Text style={styles.menuLabel}>Start Selling</Text>
+              <ChevronRight size={18} color="#D1D5DB" />
+            </Pressable>
           </View>
 
-           <View style={[styles.menuGroup, { marginTop: 25 }]}>
-              <Text style={styles.groupTitle}>Support</Text>
-              <View style={styles.card}>
-                {supportMenuItems.map((item, i) => (
-                  <Pressable key={i} style={[styles.menuItem, i !== supportMenuItems.length - 1 && styles.borderBottom]} onPress={item.onPress}>
-                    <View style={styles.iconContainer}>
-                      <item.icon size={20} color="#6B7280" strokeWidth={2} />
-                    </View>
-                    <Text style={styles.menuLabel}>{item.label}</Text>
-                    <ChevronRight size={18} color="#D1D5DB" />
-                  </Pressable>
-                ))}
-              </View>
-           </View>
+          <View style={[styles.menuGroup, { marginTop: 25 }]}>
+            <Text style={styles.groupTitle}>Support</Text>
+            <View style={styles.card}>
+              {supportMenuItems.map((item, i) => (
+                <Pressable key={i} style={[styles.menuItem, i !== supportMenuItems.length - 1 && styles.borderBottom]} onPress={item.onPress}>
+                  <View style={styles.iconContainer}>
+                    <item.icon size={20} color="#6B7280" strokeWidth={2} />
+                  </View>
+                  <Text style={styles.menuLabel}>{item.label}</Text>
+                  <ChevronRight size={18} color="#D1D5DB" />
+                </Pressable>
+              ))}
+            </View>
+          </View>
         </ScrollView>
       </View>
     );
@@ -278,7 +278,7 @@ export default function ProfileScreen({ navigation }: Props) {
         <View style={styles.statsCard}>
           <Pressable
             style={({ pressed }) => [styles.statBox, pressed && { opacity: 0.7 }]}
-            onPress={() => navigation.navigate('Orders', { initialTab: 'active' })}
+            onPress={() => navigation.navigate('Orders', { initialTab: 'toPay' })}
           >
             <Text style={[styles.statVal, { color: BRAND_COLOR }]}>{profile.totalOrders}</Text>
             <Text style={styles.statLab}>Orders</Text>
@@ -323,13 +323,13 @@ export default function ProfileScreen({ navigation }: Props) {
         <View style={styles.menuGroup}>
           <Text style={styles.groupTitle}>Selling</Text>
           <View style={styles.card}>
-             <Pressable style={styles.menuItem} onPress={() => navigation.navigate('SellerLogin')}>
-                <View style={[styles.iconContainer, { backgroundColor: '#FFF5F0' }]}>
-                   <Store size={20} color={BRAND_COLOR} strokeWidth={2} />
-                </View>
-                <Text style={styles.menuLabel}>Start Selling</Text>
-                <ChevronRight size={18} color="#D1D5DB" />
-             </Pressable>
+            <Pressable style={styles.menuItem} onPress={() => navigation.navigate('SellerAuthChoice')}>
+              <View style={[styles.iconContainer, { backgroundColor: '#FFF5F0' }]}>
+                <Store size={20} color={BRAND_COLOR} strokeWidth={2} />
+              </View>
+              <Text style={styles.menuLabel}>Start Selling</Text>
+              <ChevronRight size={18} color="#D1D5DB" />
+            </Pressable>
           </View>
         </View>
 

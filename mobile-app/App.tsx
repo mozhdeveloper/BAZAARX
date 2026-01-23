@@ -33,10 +33,15 @@ import HelpSupportScreen from './app/HelpSupportScreen';
 import PrivacyPolicyScreen from './app/PrivacyPolicyScreen';
 import SellerLoginScreen from './app/seller/login';
 import SellerSignupScreen from './app/seller/signup';
+import SellerAuthChoiceScreen from './app/seller/auth';
 import SellerStack from './app/seller/SellerStack';
 import AdminStack from './app/admin/AdminStack';
 import AllStoresScreen from './app/AllStoresScreen';
 import StoreDetailScreen from './app/StoreDetailScreen';
+import ReturnRequestScreen from './app/ReturnRequestScreen';
+import ReturnDetailScreen from './app/ReturnDetailScreen';
+import ReturnOrdersScreen from './app/ReturnOrdersScreen';
+import HistoryScreen from './app/HistoryScreen';
 
 // Import types
 import type { Product, Order } from './src/types';
@@ -45,7 +50,7 @@ export type TabParamList = {
   Home: undefined;
   Shop: { category?: string; searchQuery?: string; customResults?: Product[] };
   Cart: undefined;
-  Orders: { initialTab?: 'active' | 'toReceive' | 'history' };
+  Orders: { initialTab?: 'toPay' | 'toShip' | 'toReceive' | 'completed' | 'returns' | 'cancelled' };
   Profile: undefined;
 };
 
@@ -56,6 +61,7 @@ export type RootStackParamList = {
   Signup: undefined;
   SellerLogin: undefined;
   SellerSignup: undefined;
+  SellerAuthChoice: undefined;
   SellerStack: undefined;
   AdminStack: undefined;
   MainTabs: NavigatorScreenParams<TabParamList>;
@@ -75,6 +81,10 @@ export type RootStackParamList = {
   PrivacyPolicy: undefined;
   AllStores: undefined;
   StoreDetail: { store: any };
+  ReturnRequest: { order: Order };
+  ReturnDetail: { returnId: string };
+  ReturnOrders: undefined;
+  History: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -197,6 +207,11 @@ export default function App() {
             options={{ animation: 'slide_from_bottom' }}
           />
           <Stack.Screen
+            name="SellerAuthChoice"
+            component={SellerAuthChoiceScreen}
+            options={{ animation: 'fade' }}
+          />
+          <Stack.Screen
             name="SellerStack"
             component={SellerStack}
             options={{ headerShown: false }}
@@ -217,6 +232,10 @@ export default function App() {
           <Stack.Screen name="PaymentMethods" component={PaymentMethodsScreen} />
           <Stack.Screen name="AllStores" component={AllStoresScreen} />
           <Stack.Screen name="StoreDetail" component={StoreDetailScreen} />
+          <Stack.Screen name="ReturnRequest" component={ReturnRequestScreen} />
+          <Stack.Screen name="ReturnDetail" component={ReturnDetailScreen} />
+          <Stack.Screen name="ReturnOrders" component={ReturnOrdersScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="History" component={HistoryScreen} />
           <Stack.Screen name="HelpSupport" component={HelpSupportScreen} />
           <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
         </Stack.Navigator>

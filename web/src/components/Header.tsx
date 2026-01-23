@@ -9,7 +9,6 @@ import {
   ChevronDown,
   ShoppingBag,
   Camera,
-  Headset,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { NotificationsDropdown } from "./NotificationsDropdown";
@@ -87,7 +86,8 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false }) => {
                 alt="BazaarX Logo"
                 className="h-12 w-auto object-contain"
               />
-              <span className="text-2xl font-bold text-[#ff6a00] tracking-tight hidden md:block">
+              <span 
+                className="font-['Tenor Sans'] text-2xl font-bold tracking-tight hidden md:block text-[var(--brand-primary)]">
                 BazaarX
               </span>
             </div>
@@ -102,7 +102,7 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false }) => {
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
-                  >
+                  > 
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -139,7 +139,8 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false }) => {
           )}
 
           {/* Right Navigation */}
-          <div className="flex items-center justify-end gap-2 sm:gap-4 lg:gap-6 text-gray-700 shrink-0">
+          <div 
+            className="flex items-center justify-end text-gray-700 shrink-0 gap-[var(--spacing-md)]">
             {!isSearchPage && (
               <button
                 onClick={() => navigate("/search")}
@@ -210,15 +211,6 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false }) => {
 
             {/* Notifications */}
             <NotificationsDropdown />
-
-            {/* Customer Service */}
-            <button
-              onClick={() => navigate("/support")}
-              className="relative p-2 hover:text-[#ff6a00] hover:bg-gray-50 rounded-full transition-colors"
-              title="Customer Service"
-            >
-              <Headset className="h-6 w-6" />
-            </button>
 
             {/* Profile */}
             <div className="relative" ref={profileMenuRef}>
