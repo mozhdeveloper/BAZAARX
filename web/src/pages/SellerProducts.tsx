@@ -135,6 +135,7 @@ export function SellerProducts() {
         description: `Product status has been updated.`,
       });
     } catch (error) {
+      console.error("Error toggling status.", error);
       toast({
         title: "Update Failed",
         description: "Failed to update product status.",
@@ -152,6 +153,7 @@ export function SellerProducts() {
           description: "Product has been successfully removed.",
         });
       } catch (error) {
+        console.error("Error deleting product.", error);
         toast({
           title: "Delete Failed",
           description: "Failed to delete product.",
@@ -189,6 +191,7 @@ export function SellerProducts() {
         setIsEditDialogOpen(false);
         setEditingProduct(null);
       } catch (error) {
+        console.error("Error updating product.", error);
         toast({
           title: "Update Failed",
           description: "There was an error updating the product. Please try again.",
@@ -207,6 +210,7 @@ export function SellerProducts() {
       });
       setIsBulkUploadOpen(false);
     } catch (error) {
+      console.error("Error during bulk upload.", error);
       toast({
         title: "Error",
         description: "Failed to upload products. Please try again.",

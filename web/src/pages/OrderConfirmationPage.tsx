@@ -11,7 +11,7 @@ export default function OrderConfirmationPage() {
   const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
   const { getOrderById } = useCartStore();
-  
+
   const order = orderId ? getOrderById(orderId) : null;
 
   useEffect(() => {
@@ -84,7 +84,7 @@ export default function OrderConfirmationPage() {
         current: false,
       },
     ];
-    
+
     return steps;
   };
 
@@ -93,7 +93,7 @@ export default function OrderConfirmationPage() {
   return (
     <div className="min-h-screen bg-white">
       <Header />
-      
+
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {/* Success Header */}
         <motion.div
@@ -127,19 +127,17 @@ export default function OrderConfirmationPage() {
             <div className="space-y-8">
               {orderSteps.map((step) => (
                 <div key={step.id} className="relative flex items-center">
-                  <div className={`relative z-10 w-12 h-12 rounded-full flex items-center justify-center ${
-                    step.completed 
-                      ? 'bg-green-100 text-green-600' 
-                      : step.current 
+                  <div className={`relative z-10 w-12 h-12 rounded-full flex items-center justify-center ${step.completed
+                      ? 'bg-green-100 text-green-600'
+                      : step.current
                         ? 'bg-[var(--brand-primary)] text-white'
                         : 'bg-gray-100 text-gray-400'
-                  }`}>
+                    }`}>
                     <step.icon className="w-6 h-6" />
                   </div>
                   <div className="ml-6">
-                    <h3 className={`text-lg font-semibold ${
-                      step.completed || step.current ? 'text-gray-900' : 'text-gray-500'
-                    }`}>
+                    <h3 className={`text-lg font-semibold ${step.completed || step.current ? 'text-gray-900' : 'text-gray-500'
+                      }`}>
                       {step.title}
                     </h3>
                     <p className="text-gray-600 text-sm">{step.description}</p>
@@ -159,7 +157,7 @@ export default function OrderConfirmationPage() {
             className="bg-white border border-gray-200 rounded-xl p-6"
           >
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Order Details</h3>
-            
+
             <div className="space-y-4">
               <div className="flex justify-between text-sm">
                 <span className="text-gray-600">Order Date:</span>
@@ -214,7 +212,7 @@ export default function OrderConfirmationPage() {
             className="bg-white border border-gray-200 rounded-xl p-6"
           >
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Shipping Information</h3>
-            
+
             <div className="space-y-4">
               <div>
                 <div className="flex items-center gap-2 mb-2">

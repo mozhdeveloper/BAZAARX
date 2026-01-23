@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -30,6 +30,8 @@ import { Button } from "../components/ui/button";
 import Header from "../components/Header";
 import { BazaarFooter } from "../components/ui/bazaar-footer";
 import { cn } from "../lib/utils";
+import { getProductById } from "../services/productService";
+import { ProductWithSeller } from "../types/database.types";
 
 interface ProductDetailPageProps { }
 
@@ -808,8 +810,6 @@ const reviewsData: Record<string, any[]> = {
   ],
 };
 
-// Reviews data is now included in reviewsData object
-
 export default function ProductDetailPage({ }: ProductDetailPageProps) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -821,9 +821,33 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
   const [selectedColor, setSelectedColor] = useState(0);
   const [selectedSize, setSelectedSize] = useState("");
   const [activeTab, setActiveTab] = useState("description");
+  const [dbProduct, setDbProduct] = useState<ProductWithSeller | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Fetch product from database if it's a real product (UUID)
+  useEffect(() => {
+    const fetchProduct = async () => {
+      // Basic check if it's a UUID (real product) or mock id
+      if (!id || id.length < 10) return;
+
+      setIsLoading(true);
+      try {
+        const product = await getProductById(id);
+        if (product) {
+          setDbProduct(product);
+        }
+      } catch (error) {
+        console.error("Error fetching product details:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchProduct();
+  }, [id]);
 
   // Check seller products first (verified products)
-  const sellerProduct = sellerProducts.find((p) => p.id === id);
+  const sellerProduct = dbProduct || sellerProducts.find((p) => p.id === id);
 
   const baseProduct =
     sellerProduct ||
@@ -835,31 +859,32 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
     newArrivals.find((p) => p.id === id?.split("-")[0]);
 
   // For seller products, create a product-like object
-  const seller = useAuthStore.getState().seller;
-  const sellerName =
-    seller?.businessName || seller?.storeName || "Verified Seller";
+  const sellerAuth = useAuthStore.getState().seller;
+  const sellerNameFallback =
+    sellerAuth?.businessName || sellerAuth?.storeName || "Verified Seller";
 
+  // Handle both camelCase (from store) and snake_case (from DB)
   const normalizedProduct = sellerProduct
     ? {
-      id: sellerProduct.id,
-      name: sellerProduct.name,
-      price: sellerProduct.price,
-      originalPrice: sellerProduct.originalPrice,
+      id: (sellerProduct as any).id,
+      name: (sellerProduct as any).name,
+      price: (sellerProduct as any).price,
+      originalPrice: (sellerProduct as any).original_price || (sellerProduct as any).originalPrice,
       image:
-        sellerProduct.images[0] || "https://placehold.co/400?text=Product",
-      images: sellerProduct.images,
-      category: sellerProduct.category,
-      rating: sellerProduct.rating || 0,
-      sold: sellerProduct.sales || 0,
-      seller: sellerProduct.sellerName || sellerName,
-      location: sellerProduct.sellerLocation || "Metro Manila",
-      isFreeShipping: true,
+        (sellerProduct as any).images?.[0] || (sellerProduct as any).primary_image || (sellerProduct as any).image || "https://placehold.co/400?text=Product",
+      images: (sellerProduct as any).images || [],
+      category: (sellerProduct as any).category,
+      rating: (sellerProduct as any).rating || 0,
+      sold: (sellerProduct as any).sales_count !== undefined ? (sellerProduct as any).sales_count : ((sellerProduct as any).sales || 0),
+      seller: (sellerProduct as any).seller?.store_name || (sellerProduct as any).sellerName || sellerNameFallback,
+      location: (sellerProduct as any).seller?.business_address || (sellerProduct as any).sellerLocation || "Metro Manila",
+      isFreeShipping: (sellerProduct as any).is_free_shipping || true,
       isVerified: true,
-      description: sellerProduct.description,
-      sizes: sellerProduct.sizes || [],
-      colors: sellerProduct.colors || [],
-      stock: sellerProduct.stock || 0,
-      sellerId: sellerProduct.sellerId || "",
+      description: (sellerProduct as any).description,
+      sizes: (sellerProduct as any).sizes || [],
+      colors: (sellerProduct as any).colors || [],
+      stock: (sellerProduct as any).stock || 0,
+      sellerId: (sellerProduct as any).seller_id || (sellerProduct as any).sellerId || "",
     }
     : (baseProduct ? {
       ...baseProduct,
@@ -867,7 +892,8 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
       sizes: (baseProduct as any).sizes || [],
       colors: (baseProduct as any).colors || [],
       stock: (baseProduct as any).stock || 0,
-      sellerId: (baseProduct as any).sellerId || (baseProduct as any).seller_id || ""
+      sellerId: (baseProduct as any).sellerId || (baseProduct as any).seller_id || "",
+      sold: (baseProduct as any).sales_count !== undefined ? (baseProduct as any).sales_count : ((baseProduct as any).sold || 0),
     } : null);
 
   const currentSeller = demoSellers.find(s => s.id === (normalizedProduct?.sellerId || 'seller-001')) || demoSellers[0];
@@ -903,6 +929,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
       "Quality Guaranteed",
       "Share",
     ],
+    sold: (normalizedProduct as any)?.sold || 0,
   };
   const productReviews = reviewsData[productId] || reviewsData["1"];
 
