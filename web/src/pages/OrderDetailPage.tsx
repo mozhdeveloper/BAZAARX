@@ -46,9 +46,9 @@ export default function OrderDetailPage() {
   const navigate = useNavigate();
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  const [dbOrder, setDbOrder] = useState<Order | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [chatMessage, setChatMessage] = useState("");
+  const [dbOrder, setDbOrder] = useState<Order | null>(null);
+  const [chatMessage, setChatMessage] = useState('');
 
   // Initialize chat messages with lazy initialization
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => {
@@ -384,18 +384,7 @@ export default function OrderDetailPage() {
           </div>
         </div>
 
-        {/* Status Badge */}
-        <div className="mb-6">
-          <div
-            className={cn(
-              "inline-flex items-center gap-2 px-4 py-2 rounded-full border text-sm font-medium",
-              getStatusColor(order.status),
-            )}
-          >
-            {getStatusIcon(order.status)}
-            <span className="capitalize">{order.status}</span>
-          </div>
-        </div>
+
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column - Order Details */}
@@ -681,9 +670,7 @@ export default function OrderDetailPage() {
                       )}
                     </div>
                   </div>
-                  <Badge className="bg-green-100 text-green-800 border-green-200">
-                    Paid
-                  </Badge>
+
                 </div>
               </CardContent>
             </Card>
