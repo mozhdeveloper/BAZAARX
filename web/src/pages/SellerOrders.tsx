@@ -1,12 +1,12 @@
-import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { 
-  Search, 
-  Package, 
-  Truck, 
-  CheckCircle, 
-  XCircle, 
+import { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
+import {
+  Search,
+  Package,
+  Truck,
+  CheckCircle,
+  XCircle,
   Clock,
   User,
   MapPin,
@@ -21,16 +21,16 @@ import {
   MoreVertical,
   Eye,
   Printer,
-  CreditCard
-} from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { Sidebar, SidebarBody, SidebarLink } from '@/components/ui/sidebar';
-import { useAuthStore, useOrderStore } from '@/stores/sellerStore';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+  CreditCard,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
+import { useAuthStore, useOrderStore } from "@/stores/sellerStore";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -38,44 +38,52 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
+} from "@/components/ui/table";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+} from "@/components/ui/dropdown-menu";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { sellerLinks } from '@/config/sellerLinks';
-
-
+} from "@/components/ui/select";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { sellerLinks } from "@/config/sellerLinks";
 
 const Logo = () => (
-  <Link to="/seller" className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20">
-    <img 
-      src="/Logo.png" 
-      alt="BazaarPH Logo" 
+  <Link
+    to="/seller"
+    className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20"
+  >
+    <img
+      src="/Logo.png"
+      alt="BazaarPH Logo"
       className="h-8 w-8 object-contain flex-shrink-0"
     />
-    <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="font-semibold text-gray-900 whitespace-pre">
+    <motion.span
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="font-semibold text-gray-900 whitespace-pre"
+    >
       BazaarPH Seller
     </motion.span>
   </Link>
 );
 
 const LogoIcon = () => (
-  <Link to="/seller" className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20">
-    <img 
-      src="/Logo.png" 
-      alt="BazaarPH Logo" 
+  <Link
+    to="/seller"
+    className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20"
+  >
+    <img
+      src="/Logo.png"
+      alt="BazaarPH Logo"
       className="h-8 w-8 object-contain flex-shrink-0"
     />
   </Link>
@@ -83,13 +91,16 @@ const LogoIcon = () => (
 
 export function SellerOrders() {
   const [open, setOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterStatus, setFilterStatus] = useState('all');
-  const [channelFilter, setChannelFilter] = useState<'all' | 'online' | 'pos'>('all');
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [channelFilter, setChannelFilter] = useState<"all" | "online" | "pos">(
+    "all",
+  );
   const [selectedOrder, setSelectedOrder] = useState<string | null>(null);
-  
+
   const { seller, logout } = useAuthStore();
-  const { orders, loading, fetchOrders, updateOrderStatus, addTrackingNumber } = useOrderStore();
+  const { orders, loading, fetchOrders, updateOrderStatus, addTrackingNumber } =
+    useOrderStore();
   const navigate = useNavigate();
 
   // Fetch orders when component mounts or seller changes
@@ -101,72 +112,78 @@ export function SellerOrders() {
 
   const handleLogout = () => {
     logout();
-    navigate('/seller/auth');
+    navigate("/seller/auth");
   };
 
-  const filteredOrders = orders.filter(order => {
-    const matchesSearch = 
+  const filteredOrders = orders.filter((order) => {
+    const matchesSearch =
       order.buyerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
       order.buyerEmail.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    const matchesFilter = filterStatus === 'all' || order.status === filterStatus;
-    
-    const matchesChannel = 
-      channelFilter === 'all' || 
-      (channelFilter === 'online' && order.type === 'ONLINE') ||
-      (channelFilter === 'pos' && order.type === 'OFFLINE');
-    
+
+    const matchesFilter =
+      filterStatus === "all" || order.status === filterStatus;
+
+    const matchesChannel =
+      channelFilter === "all" ||
+      (channelFilter === "online" && order.type === "ONLINE") ||
+      (channelFilter === "pos" && order.type === "OFFLINE");
+
     return matchesSearch && matchesFilter && matchesChannel;
   });
 
   const handleStatusUpdate = (orderId: string, newStatus: any) => {
     updateOrderStatus(orderId, newStatus);
-    
+
     // Cross-store sync: Update buyer order status and send notification
-    if (newStatus === 'confirmed') {
+    if (newStatus === "confirmed") {
       // Dynamically import cart store to avoid circular dependency
-      import('../stores/cartStore').then(({ useCartStore }) => {
-        const cartStore = useCartStore.getState();
-        cartStore.updateOrderStatus(orderId, 'confirmed');
-        cartStore.addNotification(
-          orderId,
-          'seller_confirmed',
-          'Your order has been confirmed by the seller! Track your delivery now.'
-        );
-      }).catch(error => {
-        console.error('Failed to sync buyer notification:', error);
-      });
+      import("../stores/cartStore")
+        .then(({ useCartStore }) => {
+          const cartStore = useCartStore.getState();
+          cartStore.updateOrderStatus(orderId, "confirmed");
+          cartStore.addNotification(
+            orderId,
+            "seller_confirmed",
+            "Your order has been confirmed by the seller! Track your delivery now.",
+          );
+        })
+        .catch((error) => {
+          console.error("Failed to sync buyer notification:", error);
+        });
     }
-    
+
     // If shipped, add a tracking number and notify buyer
-    if (newStatus === 'shipped') {
+    if (newStatus === "shipped") {
       const trackingNumber = `TRK${Date.now().toString().slice(-8)}`;
       addTrackingNumber(orderId, trackingNumber);
-      
+
       // Notify buyer about shipment
-      import('../stores/cartStore').then(({ useCartStore }) => {
-        const cartStore = useCartStore.getState();
-        cartStore.updateOrderStatus(orderId, 'shipped');
-        cartStore.addNotification(
-          orderId,
-          'shipped',
-          `Your order is on the way! Tracking: ${trackingNumber}`
-        );
-      }).catch(error => {
-        console.error('Failed to sync shipment notification:', error);
-      });
+      import("../stores/cartStore")
+        .then(({ useCartStore }) => {
+          const cartStore = useCartStore.getState();
+          cartStore.updateOrderStatus(orderId, "shipped");
+          cartStore.addNotification(
+            orderId,
+            "shipped",
+            `Your order is on the way! Tracking: ${trackingNumber}`,
+          );
+        })
+        .catch((error) => {
+          console.error("Failed to sync shipment notification:", error);
+        });
     }
   };
 
   const orderStats = {
     total: orders.length,
-    pending: orders.filter(o => o.status === 'pending').length,
-    delivered: orders.filter(o => o.status === 'delivered').length,
-    posToday: orders.filter(o => {
-      const isToday = new Date(o.orderDate).toDateString() === new Date().toDateString();
-      return o.type === 'OFFLINE' && isToday;
-    }).length
+    pending: orders.filter((o) => o.status === "pending").length,
+    delivered: orders.filter((o) => o.status === "delivered").length,
+    posToday: orders.filter((o) => {
+      const isToday =
+        new Date(o.orderDate).toDateString() === new Date().toDateString();
+      return o.type === "OFFLINE" && isToday;
+    }).length,
   };
 
   return (
@@ -189,7 +206,7 @@ export function SellerOrders() {
                 icon: (
                   <div className="h-7 w-7 flex-shrink-0 rounded-full bg-orange-500 flex items-center justify-center">
                     <span className="text-white text-xs font-medium">
-                      {seller?.name?.charAt(0) || 'S'}
+                      {seller?.name?.charAt(0) || "S"}
                     </span>
                   </div>
                 ),
@@ -211,8 +228,15 @@ export function SellerOrders() {
         <div className="px-8 py-6 bg-white border-b border-gray-200">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900" style={{ fontFamily: 'Inter, sans-serif' }}>Orders</h1>
-              <p className="text-gray-500 mt-1 text-sm">Manage all your customer orders from App and POS</p>
+              <h1
+                className="text-3xl font-bold text-gray-900"
+                style={{ fontFamily: "Inter, sans-serif" }}
+              >
+                Orders
+              </h1>
+              <p className="text-gray-500 mt-1 text-sm">
+                Manage all your customer orders from App and POS
+              </p>
             </div>
           </div>
 
@@ -223,8 +247,12 @@ export function SellerOrders() {
               <CardContent className="p-5">
                 <div className="flex items-start justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-500 mb-1">Total Orders</p>
-                    <p className="text-3xl font-bold text-gray-900">{orderStats.total}</p>
+                    <p className="text-sm font-medium text-gray-500 mb-1">
+                      Total Orders
+                    </p>
+                    <p className="text-3xl font-bold text-gray-900">
+                      {orderStats.total}
+                    </p>
                   </div>
                   <div className="h-12 w-12 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
                     <ShoppingBag className="h-6 w-6 text-orange-600" />
@@ -238,8 +266,12 @@ export function SellerOrders() {
               <CardContent className="p-5">
                 <div className="flex items-start justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-500 mb-1">Pending</p>
-                    <p className="text-3xl font-bold text-yellow-600">{orderStats.pending}</p>
+                    <p className="text-sm font-medium text-gray-500 mb-1">
+                      Pending
+                    </p>
+                    <p className="text-3xl font-bold text-yellow-600">
+                      {orderStats.pending}
+                    </p>
                   </div>
                   <div className="h-12 w-12 rounded-full bg-yellow-100 flex items-center justify-center flex-shrink-0">
                     <Clock className="h-6 w-6 text-yellow-600" />
@@ -253,8 +285,12 @@ export function SellerOrders() {
               <CardContent className="p-5">
                 <div className="flex items-start justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-500 mb-1">Delivered</p>
-                    <p className="text-3xl font-bold text-green-600">{orderStats.delivered}</p>
+                    <p className="text-sm font-medium text-gray-500 mb-1">
+                      Delivered
+                    </p>
+                    <p className="text-3xl font-bold text-green-600">
+                      {orderStats.delivered}
+                    </p>
                   </div>
                   <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
                     <CheckCircle className="h-6 w-6 text-green-600" />
@@ -268,8 +304,12 @@ export function SellerOrders() {
               <CardContent className="p-5">
                 <div className="flex items-start justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-500 mb-1">POS Sales Today</p>
-                    <p className="text-3xl font-bold text-purple-600">{orderStats.posToday}</p>
+                    <p className="text-sm font-medium text-gray-500 mb-1">
+                      POS Sales Today
+                    </p>
+                    <p className="text-3xl font-bold text-purple-600">
+                      {orderStats.posToday}
+                    </p>
                   </div>
                   <div className="h-12 w-12 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
                     <CreditCard className="h-6 w-6 text-purple-600" />
@@ -298,16 +338,29 @@ export function SellerOrders() {
             </div>
 
             {/* Channel Filter Tabs */}
-            <Tabs value={channelFilter} onValueChange={(v) => setChannelFilter(v as any)} className="w-full lg:w-auto">
+            <Tabs
+              value={channelFilter}
+              onValueChange={(v) => setChannelFilter(v as any)}
+              className="w-full lg:w-auto"
+            >
               <TabsList className="grid w-full lg:w-auto grid-cols-3 bg-gray-100">
-                <TabsTrigger value="all" className="data-[state=active]:bg-orange-500 data-[state=active]:text-white">
+                <TabsTrigger
+                  value="all"
+                  className="data-[state=active]:bg-orange-500 data-[state=active]:text-white"
+                >
                   All Channels
                 </TabsTrigger>
-                <TabsTrigger value="online" className="data-[state=active]:bg-orange-500 data-[state=active]:text-white">
+                <TabsTrigger
+                  value="online"
+                  className="data-[state=active]:bg-orange-500 data-[state=active]:text-white"
+                >
                   <Globe className="h-4 w-4 mr-1" />
                   Online App
                 </TabsTrigger>
-                <TabsTrigger value="pos" className="data-[state=active]:bg-orange-500 data-[state=active]:text-white">
+                <TabsTrigger
+                  value="pos"
+                  className="data-[state=active]:bg-orange-500 data-[state=active]:text-white"
+                >
                   <StoreIcon className="h-4 w-4 mr-1" />
                   POS / Offline
                 </TabsTrigger>
@@ -330,7 +383,10 @@ export function SellerOrders() {
             </Select>
 
             {/* Export Button */}
-            <Button variant="outline" className="w-full lg:w-auto border-gray-300 hover:bg-gray-50">
+            <Button
+              variant="outline"
+              className="w-full lg:w-auto border-gray-300 hover:bg-gray-50"
+            >
               <Download className="h-4 w-4 mr-2" />
               Export Orders
             </Button>
@@ -343,26 +399,44 @@ export function SellerOrders() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-gray-50 hover:bg-gray-50">
-                  <TableHead className="font-semibold text-gray-700">Order ID & Date</TableHead>
-                  <TableHead className="font-semibold text-gray-700">Customer</TableHead>
-                  <TableHead className="font-semibold text-gray-700">Channel</TableHead>
-                  <TableHead className="font-semibold text-gray-700">Status</TableHead>
-                  <TableHead className="font-semibold text-gray-700">Payment</TableHead>
-                  <TableHead className="font-semibold text-gray-700 text-right">Total</TableHead>
-                  <TableHead className="font-semibold text-gray-700 text-right">Actions</TableHead>
+                  <TableHead className="font-semibold text-gray-700">
+                    Order ID & Date
+                  </TableHead>
+                  <TableHead className="font-semibold text-gray-700">
+                    Customer
+                  </TableHead>
+                  <TableHead className="font-semibold text-gray-700">
+                    Channel
+                  </TableHead>
+                  <TableHead className="font-semibold text-gray-700">
+                    Status
+                  </TableHead>
+                  <TableHead className="font-semibold text-gray-700">
+                    Payment
+                  </TableHead>
+                  <TableHead className="font-semibold text-gray-700 text-right">
+                    Total
+                  </TableHead>
+                  <TableHead className="font-semibold text-gray-700 text-right">
+                    Actions
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredOrders.map((order) => (
-                  <TableRow 
-                    key={order.id} 
+                  <TableRow
+                    key={order.id}
                     className="hover:bg-gray-50 transition-colors cursor-pointer"
-                    onClick={() => setSelectedOrder(selectedOrder === order.id ? null : order.id)}
+                    onClick={() =>
+                      setSelectedOrder(
+                        selectedOrder === order.id ? null : order.id,
+                      )
+                    }
                   >
                     {/* Order ID & Source */}
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        {order.type === 'ONLINE' ? (
+                        {order.type === "ONLINE" ? (
                           <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
                             <Globe className="h-4 w-4 text-blue-600" />
                           </div>
@@ -372,13 +446,18 @@ export function SellerOrders() {
                           </div>
                         )}
                         <div>
-                          <p className="font-semibold text-gray-900 text-sm">#{order.id.slice(0, 8)}</p>
+                          <p className="font-semibold text-gray-900 text-sm">
+                            #{order.id.slice(0, 8)}
+                          </p>
                           <p className="text-xs text-gray-500">
-                            {new Date(order.orderDate).toLocaleDateString('en-US', {
-                              month: 'short',
-                              day: 'numeric',
-                              year: 'numeric'
-                            })}
+                            {new Date(order.orderDate).toLocaleDateString(
+                              "en-US",
+                              {
+                                month: "short",
+                                day: "numeric",
+                                year: "numeric",
+                              },
+                            )}
                           </p>
                         </div>
                       </div>
@@ -393,9 +472,13 @@ export function SellerOrders() {
                           </AvatarFallback>
                         </Avatar>
                         <div>
-                          <p className="font-medium text-gray-900 text-sm">{order.buyerName}</p>
-                          {order.type === 'OFFLINE' && (
-                            <p className="text-xs text-purple-600 font-medium">Walk-in</p>
+                          <p className="font-medium text-gray-900 text-sm">
+                            {order.buyerName}
+                          </p>
+                          {order.type === "OFFLINE" && (
+                            <p className="text-xs text-purple-600 font-medium">
+                              Walk-in
+                            </p>
                           )}
                         </div>
                       </div>
@@ -403,12 +486,18 @@ export function SellerOrders() {
 
                     {/* Channel Badge */}
                     <TableCell>
-                      {order.type === 'ONLINE' ? (
-                        <Badge variant="outline" className="border-blue-300 text-blue-700 bg-blue-50 font-medium">
+                      {order.type === "ONLINE" ? (
+                        <Badge
+                          variant="outline"
+                          className="border-blue-300 text-blue-700 bg-blue-50 font-medium"
+                        >
                           Online
                         </Badge>
                       ) : (
-                        <Badge variant="outline" className="border-purple-300 text-purple-700 bg-purple-50 font-medium">
+                        <Badge
+                          variant="outline"
+                          className="border-purple-300 text-purple-700 bg-purple-50 font-medium"
+                        >
                           POS
                         </Badge>
                       )}
@@ -416,71 +505,105 @@ export function SellerOrders() {
 
                     {/* Status */}
                     <TableCell>
-                      <Badge 
+                      <Badge
                         variant="secondary"
                         className={cn(
                           "font-medium",
-                          order.status === 'pending' && "bg-yellow-100 text-yellow-700 hover:bg-yellow-100",
-                          order.status === 'confirmed' && "bg-blue-100 text-blue-700 hover:bg-blue-100",
-                          order.status === 'shipped' && "bg-purple-100 text-purple-700 hover:bg-purple-100",
-                          order.status === 'delivered' && "bg-green-100 text-green-700 hover:bg-green-100",
-                          order.status === 'cancelled' && "bg-red-100 text-red-700 hover:bg-red-100"
+                          order.status === "pending" &&
+                            "bg-yellow-100 text-yellow-700 hover:bg-yellow-100",
+                          order.status === "confirmed" &&
+                            "bg-blue-100 text-blue-700 hover:bg-blue-100",
+                          order.status === "shipped" &&
+                            "bg-purple-100 text-purple-700 hover:bg-purple-100",
+                          order.status === "delivered" &&
+                            "bg-green-100 text-green-700 hover:bg-green-100",
+                          order.status === "cancelled" &&
+                            "bg-red-100 text-red-700 hover:bg-red-100",
                         )}
                       >
-                        {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+                        {order.status.charAt(0).toUpperCase() +
+                          order.status.slice(1)}
                       </Badge>
                     </TableCell>
 
                     {/* Payment Status */}
                     <TableCell>
-                      <Badge 
+                      <Badge
                         variant="secondary"
                         className={cn(
                           "font-medium",
-                          order.paymentStatus === 'paid' && "bg-green-100 text-green-700 hover:bg-green-100",
-                          order.paymentStatus === 'pending' && "bg-yellow-100 text-yellow-700 hover:bg-yellow-100",
-                          order.paymentStatus === 'refunded' && "bg-red-100 text-red-700 hover:bg-red-100"
+                          order.paymentStatus === "paid" &&
+                            "bg-green-100 text-green-700 hover:bg-green-100",
+                          order.paymentStatus === "pending" &&
+                            "bg-yellow-100 text-yellow-700 hover:bg-yellow-100",
+                          order.paymentStatus === "refunded" &&
+                            "bg-red-100 text-red-700 hover:bg-red-100",
                         )}
                       >
-                        {order.paymentStatus.charAt(0).toUpperCase() + order.paymentStatus.slice(1)}
+                        {order.paymentStatus.charAt(0).toUpperCase() +
+                          order.paymentStatus.slice(1)}
                       </Badge>
                     </TableCell>
 
                     {/* Total */}
                     <TableCell className="text-right">
-                      <p className="font-bold text-gray-900 text-base">₱{order.total.toLocaleString()}</p>
-                      <p className="text-xs text-gray-500">{order.items.length} items</p>
+                      <p className="font-bold text-gray-900 text-base">
+                        ₱{order.total.toLocaleString()}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {order.items.length} items
+                      </p>
                     </TableCell>
 
                     {/* Actions Dropdown */}
                     <TableCell className="text-right">
                       <DropdownMenu>
-                        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <DropdownMenuTrigger
+                          asChild
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                          >
                             <MoreVertical className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-48">
-                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setSelectedOrder(order.id); }}>
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedOrder(order.id);
+                            }}
+                          >
                             <Eye className="h-4 w-4 mr-2" />
                             View Details
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={(e) => e.stopPropagation()}>
+                          <DropdownMenuItem
+                            onClick={(e) => e.stopPropagation()}
+                          >
                             <Printer className="h-4 w-4 mr-2" />
                             Print Invoice
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
-                          {order.status === 'pending' && (
+                          {order.status === "pending" && (
                             <>
-                              <DropdownMenuItem 
-                                onClick={(e) => { e.stopPropagation(); handleStatusUpdate(order.id, 'confirmed'); }}
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleStatusUpdate(order.id, "confirmed");
+                                }}
                                 className="text-green-600"
                               >
                                 <CheckCircle className="h-4 w-4 mr-2" />
                                 Confirm Order
                               </DropdownMenuItem>
-                              <DropdownMenuItem 
-                                onClick={(e) => { e.stopPropagation(); handleStatusUpdate(order.id, 'cancelled'); }}
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleStatusUpdate(order.id, "cancelled");
+                                }}
                                 className="text-red-600"
                               >
                                 <XCircle className="h-4 w-4 mr-2" />
@@ -488,9 +611,12 @@ export function SellerOrders() {
                               </DropdownMenuItem>
                             </>
                           )}
-                          {order.status === 'confirmed' && (
-                            <DropdownMenuItem 
-                              onClick={(e) => { e.stopPropagation(); handleStatusUpdate(order.id, 'shipped'); }}
+                          {order.status === "confirmed" && (
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleStatusUpdate(order.id, "shipped");
+                              }}
                               className="text-purple-600"
                             >
                               <Truck className="h-4 w-4 mr-2" />
@@ -509,19 +635,22 @@ export function SellerOrders() {
             {filteredOrders.length === 0 && (
               <div className="text-center py-12">
                 <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No orders found</h3>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  No orders found
+                </h3>
                 <p className="text-gray-600 text-sm">
-                  {searchQuery || filterStatus !== 'all' || channelFilter !== 'all'
-                    ? 'Try adjusting your search or filters'
-                    : 'Orders will appear here when customers make purchases'
-                  }
+                  {searchQuery ||
+                  filterStatus !== "all" ||
+                  channelFilter !== "all"
+                    ? "Try adjusting your search or filters"
+                    : "Orders will appear here when customers make purchases"}
                 </p>
               </div>
             )}
           </Card>
 
           {/* Order Details Panel */}
-          {selectedOrder && orders.find(o => o.id === selectedOrder) && (
+          {selectedOrder && orders.find((o) => o.id === selectedOrder) && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -530,46 +659,67 @@ export function SellerOrders() {
               <Card className="border border-gray-200 shadow-sm">
                 <CardHeader className="border-b border-gray-200 bg-gray-50">
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-xl font-bold">Order Details</CardTitle>
-                    <Button variant="ghost" size="sm" onClick={() => setSelectedOrder(null)}>
+                    <CardTitle className="text-xl font-bold">
+                      Order Details
+                    </CardTitle>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSelectedOrder(null)}
+                    >
                       <XCircle className="h-4 w-4" />
                     </Button>
                   </div>
                 </CardHeader>
                 <CardContent className="p-6">
                   {(() => {
-                    const order = orders.find(o => o.id === selectedOrder)!;
+                    const order = orders.find((o) => o.id === selectedOrder)!;
                     return (
                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         {/* Customer Info */}
                         <div className="space-y-4">
-                          <h4 className="font-semibold text-gray-900">Customer Information</h4>
+                          <h4 className="font-semibold text-gray-900">
+                            Customer Information
+                          </h4>
                           <div className="space-y-3 text-sm">
                             <div className="flex items-center gap-2">
                               <User className="h-4 w-4 text-gray-400" />
                               <span className="text-gray-600">Name:</span>
-                              <span className="text-gray-900 font-medium">{order.buyerName}</span>
+                              <span className="text-gray-900 font-medium">
+                                {order.buyerName}
+                              </span>
                             </div>
                             <div className="flex items-center gap-2">
                               <Mail className="h-4 w-4 text-gray-400" />
                               <span className="text-gray-600">Email:</span>
-                              <span className="text-gray-900 font-medium">{order.buyerEmail}</span>
+                              <span className="text-gray-900 font-medium">
+                                {order.buyerEmail}
+                              </span>
                             </div>
                             <div className="flex items-center gap-2">
                               <Phone className="h-4 w-4 text-gray-400" />
                               <span className="text-gray-600">Phone:</span>
-                              <span className="text-gray-900 font-medium">{order.shippingAddress.phone}</span>
+                              <span className="text-gray-900 font-medium">
+                                {order.shippingAddress.phone}
+                              </span>
                             </div>
                           </div>
 
-                          <h4 className="font-semibold text-gray-900 pt-4">Shipping Address</h4>
+                          <h4 className="font-semibold text-gray-900 pt-4">
+                            Shipping Address
+                          </h4>
                           <div className="text-sm text-gray-600 bg-gray-50 p-4 rounded-lg">
                             <div className="flex items-start gap-2">
                               <MapPin className="h-4 w-4 text-gray-400 mt-0.5 flex-shrink-0" />
                               <div>
-                                <p className="font-medium text-gray-900">{order.shippingAddress.fullName}</p>
+                                <p className="font-medium text-gray-900">
+                                  {order.shippingAddress.fullName}
+                                </p>
                                 <p>{order.shippingAddress.street}</p>
-                                <p>{order.shippingAddress.city}, {order.shippingAddress.province}</p>
+                                <p>
+                                  {order.shippingAddress.city},{" "}
+                                  {order.shippingAddress.province}
+                                </p>
                                 <p>{order.shippingAddress.postalCode}</p>
                               </div>
                             </div>
@@ -577,9 +727,13 @@ export function SellerOrders() {
 
                           {order.trackingNumber && (
                             <>
-                              <h4 className="font-semibold text-gray-900 pt-4">Tracking Number</h4>
+                              <h4 className="font-semibold text-gray-900 pt-4">
+                                Tracking Number
+                              </h4>
                               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                                <code className="text-sm text-blue-900 font-mono">{order.trackingNumber}</code>
+                                <code className="text-sm text-blue-900 font-mono">
+                                  {order.trackingNumber}
+                                </code>
                               </div>
                             </>
                           )}
@@ -587,35 +741,52 @@ export function SellerOrders() {
 
                         {/* Order Items */}
                         <div className="space-y-4">
-                          <h4 className="font-semibold text-gray-900">Order Items</h4>
+                          <h4 className="font-semibold text-gray-900">
+                            Order Items
+                          </h4>
                           <div className="space-y-3">
                             {order.items.map((item, index) => (
-                              <div key={index} className="flex items-center gap-3 bg-gray-50 rounded-lg p-3">
+                              <div
+                                key={index}
+                                className="flex items-center gap-3 bg-gray-50 rounded-lg p-3"
+                              >
                                 <img
                                   src={item.image}
                                   alt={item.productName}
                                   className="w-16 h-16 object-cover rounded-lg border border-gray-200"
                                 />
                                 <div className="flex-1">
-                                  <h5 className="font-medium text-gray-900 text-sm">{item.productName}</h5>
-                                  <p className="text-xs text-gray-600">Qty: {item.quantity}</p>
+                                  <h5 className="font-medium text-gray-900 text-sm">
+                                    {item.productName}
+                                  </h5>
+                                  <p className="text-xs text-gray-600">
+                                    Qty: {item.quantity}
+                                  </p>
                                 </div>
-                                <p className="font-semibold text-gray-900">₱{item.price.toLocaleString()}</p>
+                                <p className="font-semibold text-gray-900">
+                                  ₱{item.price.toLocaleString()}
+                                </p>
                               </div>
                             ))}
                           </div>
 
                           <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mt-4">
                             <div className="flex justify-between items-center">
-                              <span className="font-semibold text-gray-900">Total Amount</span>
-                              <span className="font-bold text-2xl text-orange-600">₱{order.total.toLocaleString()}</span>
+                              <span className="font-semibold text-gray-900">
+                                Total Amount
+                              </span>
+                              <span className="font-bold text-2xl text-orange-600">
+                                ₱{order.total.toLocaleString()}
+                              </span>
                             </div>
                           </div>
 
                           {/* Review Section */}
                           {order.rating && (
                             <div className="pt-4">
-                              <h4 className="font-semibold text-gray-900 mb-3">Customer Review</h4>
+                              <h4 className="font-semibold text-gray-900 mb-3">
+                                Customer Review
+                              </h4>
                               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                                 <div className="flex items-center gap-2 mb-2">
                                   <div className="flex gap-1">
@@ -626,15 +797,19 @@ export function SellerOrders() {
                                           "h-5 w-5",
                                           i < order.rating!
                                             ? "text-yellow-500 fill-yellow-500"
-                                            : "text-gray-300"
+                                            : "text-gray-300",
                                         )}
                                       />
                                     ))}
                                   </div>
-                                  <span className="font-semibold text-gray-900">{order.rating}.0 / 5.0</span>
+                                  <span className="font-semibold text-gray-900">
+                                    {order.rating}.0 / 5.0
+                                  </span>
                                 </div>
                                 {order.reviewComment && (
-                                  <p className="text-sm text-gray-700 italic">"{order.reviewComment}"</p>
+                                  <p className="text-sm text-gray-700 italic">
+                                    "{order.reviewComment}"
+                                  </p>
                                 )}
                               </div>
                             </div>
