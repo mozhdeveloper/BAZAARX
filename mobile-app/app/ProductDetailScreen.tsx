@@ -177,58 +177,42 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={BRAND_COLOR} />
 
-      {/* --- HEADER (Matches HomeScreen interaction) --- */}
+      {/* --- HEADER (Matches Screenshot) --- */}
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-        {!isSearchFocused ? (
-          <View style={styles.headerRow}>
-            <Pressable onPress={() => navigation.goBack()} style={styles.iconButton}>
-              <ArrowLeft size={24} color="#FFF" />
-            </Pressable>
+         <Pressable onPress={() => navigation.goBack()} style={styles.iconButton}>
+           <ArrowLeft size={24} color="#FFF" />
+         </Pressable>
 
-            <View style={{ flex: 1 }} />
+         <Pressable style={styles.headerSearchBar} onPress={() => setIsSearchFocused(true)}>
+             <Search size={18} color="#9CA3AF" />
+             <Text style={styles.headerSearchText}>Search product...</Text>
+             <View style={styles.cameraIcon}>
+                <Camera size={16} color={BRAND_COLOR} />
+             </View>
+         </Pressable>
 
-            {/* Search Icon */}
-            <Pressable onPress={() => setIsSearchFocused(true)} style={styles.iconButton}>
-               <Search size={24} color="#FFF" />
-            </Pressable>
-
-            {/* Cart Icon */}
-            <Pressable onPress={() => navigation.navigate('MainTabs', { screen: 'Cart' })} style={styles.iconButton}>
-              <ShoppingCart size={24} color="#FFF" />
-              {cartItemCount > 0 && (
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>{cartItemCount}</Text>
+         <View style={styles.headerRight}>
+             <Pressable onPress={() => navigation.navigate('MainTabs', { screen: 'Cart' })} style={styles.iconButton}>
+               <ShoppingCart size={24} color="#FFF" />
+               {cartItemCount > 0 && (
+                 <View style={styles.badge}>
+                   <Text style={styles.badgeText}>{cartItemCount}</Text>
+                 </View>
+               )}
+             </Pressable>
+             <Pressable style={styles.iconButton} onPress={() => { /* Menu Action */ }}>
+                <View style={{ gap: 3 }}>
+                   <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: '#FFF' }} />
+                   <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: '#FFF' }} />
+                   <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: '#FFF' }} />
                 </View>
-              )}
-            </Pressable>
-          </View>
-        ) : (
-          <View style={styles.searchBarWrapper}>
-             <Pressable onPress={() => setIsSearchFocused(false)} style={styles.iconButton}>
-              <ArrowLeft size={24} color="#FFF" />
-            </Pressable>
-            <View style={styles.searchBarInner}>
-               <Search size={20} color="#FFF" />
-               <TextInput 
-                  style={styles.searchInput}
-                  placeholder="Search products..."
-                  placeholderTextColor="rgba(255,255,255,0.7)"
-                  autoFocus
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                  onSubmitEditing={() => navigation.navigate('MainTabs', { screen: 'Shop', params: { searchQuery } } as any)}
-               />
-               <Pressable onPress={() => setShowCameraSearch(true)}>
-                 <Camera size={20} color="#FFF" />
-               </Pressable>
-            </View>
-          </View>
-        )}
+             </Pressable>
+         </View>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
         
-        {/* --- IMAGE CAROUSEL (Horizontal Scroll) --- */}
+        {/* --- IMAGE CAROUSEL --- */}
         <View style={styles.imageContainer}>
           <ScrollView 
             horizontal 
@@ -236,7 +220,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
             showsHorizontalScrollIndicator={false}
             onScroll={(e) => {
               const contentOffsetX = e.nativeEvent.contentOffset.x;
-              const index = Math.round(contentOffsetX / width);
+              const index = Math.round(contentOffsetX / (width || 1));
               setCurrentImageIndex(index);
             }}
             scrollEventThrottle={16}
@@ -246,17 +230,23 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
             ))}
           </ScrollView>
           
-          {/* Page Indicator */}
+          {/* Page Indicator (Top Left) */}
           <View style={styles.pageIndicator}>
             <Text style={styles.pageText}>{currentImageIndex + 1}/{productImages.length}</Text>
           </View>
 
-          {/* Floating Actions */}
-          <View style={styles.floatingActions}>
-            <Pressable style={styles.fab} onPress={handleShare}>
+          {/* Share Icon */}
+          <Pressable 
+              style={styles.shareFab} 
+              onPress={handleShare}
+          >
               <Share2 size={20} color={BRAND_COLOR} />
-            </Pressable>
-            <Pressable style={styles.fab} onPress={() => {
+          </Pressable>
+
+          {/* Wishlist Heart */}
+          <Pressable 
+              style={styles.heartFab} 
+              onPress={() => {
                 const { isGuest } = useAuthStore.getState();
                 if (isGuest) {
                     setGuestModalMessage("Sign up to save items.");
@@ -264,10 +254,10 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                     return;
                 }
                 isFavorite ? removeFromWishlist(product.id) : addToWishlist(product);
-            }}>
-              <Heart size={20} color={isFavorite ? BRAND_COLOR : '#9CA3AF'} fill={isFavorite ? BRAND_COLOR : 'none'} />
-            </Pressable>
-          </View>
+              }}
+          >
+            <Heart size={20} color={isFavorite ? '#EF4444' : BRAND_COLOR} fill={isFavorite ? '#EF4444' : 'none'} />
+          </Pressable>
         </View>
 
         {/* --- PRODUCT INFO CARD --- */}
@@ -284,7 +274,6 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
           </View>
 
           <Text style={styles.productName}>{product.name}</Text>
-          
           <Text style={styles.subInfo}>{product.sold} sold this month • Free Shipping Available</Text>
 
           {/* Price */}
@@ -296,19 +285,16 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
           {/* Stock & Ratings */}
           <View style={styles.metaRow}>
             <Text style={styles.stockText}>In-Stock (12)</Text>
-            <View style={styles.ratingRow}>
-              {Array.from({ length: 5 }).map((_, i) => (
-                <Star key={i} size={14} color={i < 4 ? BRAND_COLOR : '#E5E7EB'} fill={i < 4 ? BRAND_COLOR : '#E5E7EB'} />
-              ))}
-              <Text style={styles.ratingValue}>4.8 ({product.sold})</Text>
-              <Text style={styles.questionsLink}>14 Questions</Text>
-            </View>
           </View>
+           <View style={styles.ratingRow}>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Star key={i} size={14} color={i < 4 ? '#F59E0B' : '#E5E7EB'} fill={i < 4 ? '#F59E0B' : '#E5E7EB'} />
+              ))}
+              <Text style={styles.ratingValue}>4.8 ({product.sold.toLocaleString()})</Text>
+              <Text style={styles.questionsLink}>14 Questions</Text>
+           </View>
         </View>
-
-        {/* --- SELECTORS (Quantity & Variants) --- */}
         <View style={styles.section}>
-          {/* Quantity Selector (Matches Screenshot 1) */}
           <View style={styles.quantityRow}>
              <Pressable 
                 onPress={() => setQuantity(Math.max(1, quantity - 1))}
@@ -328,17 +314,18 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
           </View>
         </View>
 
-        {/* --- SELLER INFO (Matches Screenshot 1) --- */}
+        {/* --- SELLER INFO --- */}
         <Pressable onPress={handleVisitStore} style={styles.sellerSection}>
           <View style={styles.sellerHeader}>
             <Text style={styles.soldByLabel}>Sold by:</Text>
             <View style={styles.sellerNameRow}>
-              <Text style={styles.sellerName}>TechHub Manila Official</Text>
-              <BadgeCheck size={16} color={BRAND_COLOR} fill="#FFF" />
+              <Image source={{ uri: 'https://images.unsplash.com/photo-1472851294608-41551b33fcc3?w=50' }} style={{width: 20, height: 20, borderRadius: 10}} />
+              <Text style={styles.sellerName}>{product.seller || 'TechHub Manila'}</Text>
+              <BadgeCheck size={14} color={BRAND_COLOR} fill="#FFF" />
               <ChevronRight size={16} color="#9CA3AF" />
             </View>
             <View style={styles.sellerRating}>
-               <Star size={14} fill={BRAND_COLOR} color={BRAND_COLOR} />
+               <Star size={12} fill="#F59E0B" color="#F59E0B" />
                <Text style={styles.sellerRatingText}>4.9</Text>
             </View>
           </View>
@@ -375,9 +362,6 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
               {activeTab === 'ratings' && (
                  <View>
                     <Text style={styles.reviewSummary}>4.8 out of 5 stars based on {product.sold} reviews.</Text>
-                    <Text style={[styles.reviewSub, { marginBottom: 16 }]}>Customers love this product!</Text>
-                    
-                    {/* Mock Reviews */}
                     {demoReviews.map((review) => (
                       <View key={review.id} style={styles.reviewCard}>
                         <Image source={{ uri: review.avatar }} style={styles.reviewerAvatar} />
@@ -403,14 +387,11 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                    {'\n'}• Active Noise Cancellation
                    {'\n'}• 24-Hour Battery Life
                    {'\n'}• Water Resistant (IPX4)
-                   {'\n'}• Bluetooth 5.2
                  </Text>
               )}
               {activeTab === 'support' && (
                  <Text style={styles.textContent}>
                    We offer a 7-day return policy for defective items. Please contact our support team for assistance.
-                   {'\n\n'}
-                   Warranty: 1 Year Manufacturer Warranty
                  </Text>
               )}
            </View>
@@ -430,13 +411,8 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
       </ScrollView>
 
-      {/* --- BOTTOM ACTIONS --- */}
+      {/* --- BOTTOM ACTIONS (Matches Screenshot) --- */}
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
-         {/* Chat Button */}
-         <Pressable style={styles.chatBtn} onPress={handleChat}>
-            <MessageCircle size={24} color={BRAND_COLOR} />
-         </Pressable>
-         
          <Pressable style={styles.addToCartBtn} onPress={handleAddToCart}>
             <ShoppingCart size={20} color={BRAND_COLOR} style={{ marginRight: 8 }} />
             <Text style={styles.addToCartText}>Add to Cart</Text>
@@ -449,12 +425,6 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       
       <CameraSearchModal visible={showCameraSearch} onClose={() => setShowCameraSearch(false)} />
       
-      <StoreChatModal 
-        visible={showChat} 
-        onClose={() => setShowChat(false)}
-        storeName={product.seller || "TechHub Manila"}
-      />
-
       {showGuestModal && (
         <GuestLoginModal 
             visible={true}
@@ -475,154 +445,123 @@ const styles = StyleSheet.create({
     backgroundColor: BRAND_COLOR,
     paddingHorizontal: 16,
     paddingBottom: 16,
-  },
-  headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
   },
-  searchBarWrapper: {
+  headerSearchBar: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-  },
-  searchBarInner: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 12,
+    backgroundColor: '#FFF',
+    borderRadius: 20,
     paddingHorizontal: 12,
-    height: 40,
+    height: 36,
     gap: 8,
   },
-  searchInput: {
-    flex: 1,
-    color: '#FFF',
-    fontSize: 14,
-    height: '100%',
+  headerSearchText: { flex: 1, color: '#9CA3AF', fontSize: 13 },
+  cameraIcon: {
+      backgroundColor: '#FEE2E2',
+      borderRadius: 12,
+      padding: 4,
+  },
+  headerRight: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12
   },
   iconButton: {
     padding: 4,
     position: 'relative',
   },
   badge: {
-    position: 'absolute',
-    top: -4,
-    right: -4,
+    position: 'absolute', top: -4, right: -4,
     backgroundColor: '#FFF',
-    borderRadius: 10,
-    width: 16,
-    height: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
+    borderRadius: 10, width: 16, height: 16,
+    justifyContent: 'center', alignItems: 'center',
   },
-  badgeText: {
-    color: BRAND_COLOR,
-    fontSize: 10,
-    fontWeight: 'bold',
-  },
+  badgeText: { color: BRAND_COLOR, fontSize: 10, fontWeight: 'bold' },
 
   // Image Area
   imageContainer: {
     width: width,
-    height: width,
+    height: width, // Square aspect ratio
     position: 'relative',
     backgroundColor: '#FFF',
+    zIndex: 1,
   },
   productImage: { width: width, height: width, resizeMode: 'cover' },
   pageIndicator: {
-    position: 'absolute',
-    top: 16,
-    left: 16,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  pageText: { color: '#FFF', fontSize: 12, fontWeight: '600' },
-  floatingActions: {
-    position: 'absolute',
-    bottom: 16,
-    right: 16,
-    gap: 12,
-  },
-  fab: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    position: 'absolute', top: 16, left: 16,
     backgroundColor: '#FFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
+    paddingHorizontal: 10, paddingVertical: 4,
+    borderRadius: 12, elevation: 2,
+  },
+  pageText: { color: '#1F2937', fontSize: 12, fontWeight: '700' },
+  
+  shareFab: {
+    position: 'absolute',
+    bottom: 96,
+    right: 16,
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: '#FFF',
+    alignItems: 'center', justifyContent: 'center',
+    elevation: 4, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 4,
+    zIndex: 11,
+  },
+  heartFab: {
+    position: 'absolute', 
+    bottom: 40,
+    right: 16,
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: '#FFF',
+    alignItems: 'center', justifyContent: 'center',
+    elevation: 6, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 6,
+    zIndex: 12,
   },
 
   // Info Card
   infoCard: {
     backgroundColor: '#FFF',
-    padding: 16,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
+    padding: 20,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24, // Kept to match rounded aesthetic even without overlap, or can be 0.
+    marginTop: -24,
+    zIndex: 2,
     marginBottom: 8,
   },
   tagRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
   tag: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, gap: 4 },
   tagText: { fontSize: 11, fontWeight: '700' },
-  productName: { fontSize: 20, fontWeight: '800', color: '#111827', marginBottom: 4 },
-  subInfo: { fontSize: 13, color: '#6B7280', marginBottom: 12 },
+  productName: { fontSize: 18, fontWeight: '800', color: '#111827', marginBottom: 4, lineHeight: 26 },
+  subInfo: { fontSize: 12, color: '#6B7280', marginBottom: 16 },
+  
   priceRow: { flexDirection: 'row', alignItems: 'baseline', gap: 8, marginBottom: 8 },
-  currentPrice: { fontSize: 24, fontWeight: '900', color: '#111827' },
+  currentPrice: { fontSize: 28, fontWeight: '900', color: '#111827' },
   originalPrice: { fontSize: 16, color: '#9CA3AF', textDecorationLine: 'line-through' },
-  metaRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  stockText: { fontSize: 13, color: '#10B981', fontWeight: '600' },
+  
+  metaRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
+  stockText: { fontSize: 13, color: '#10B981', fontWeight: '700' },
   ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   ratingValue: { fontSize: 13, fontWeight: '600', color: '#111827', marginLeft: 4 },
-  questionsLink: { fontSize: 13, color: '#6366F1', fontWeight: '600', marginLeft: 8 },
+  questionsLink: { fontSize: 13, color: '#8B5CF6', fontWeight: '600', marginLeft: 'auto' },
 
   // Selectors
   section: { backgroundColor: '#FFF', padding: 16, marginBottom: 8 },
-  quantityRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 24,
-    paddingVertical: 12,
-  },
-  qtyBtn: {
-     width: 44,
-     height: 44,
-     borderRadius: 22,
-     borderWidth: 1.5,
-     borderColor: BRAND_COLOR,
-     justifyContent: 'center',
-     alignItems: 'center',
-  },
+  quantityRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 24, paddingVertical: 12 },
+  qtyBtn: { width: 44, height: 44, borderRadius: 22, borderWidth: 1.5, borderColor: BRAND_COLOR, justifyContent: 'center', alignItems: 'center' },
   qtyValue: { fontSize: 20, fontWeight: '700', color: '#111827' },
 
-  // Seller Info (Matches Screenshot 1)
-  sellerSection: {
-    backgroundColor: '#FFF',
-    padding: 16,
-    marginBottom: 8,
-    borderRadius: 16,
-    marginHorizontal: 16, // Inset style as per screenshot idea
-  },
+  // Seller Info
+  sellerSection: { backgroundColor: '#FFF', padding: 16, marginBottom: 8, marginHorizontal: 16, borderRadius: 16 },
   sellerHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, flexWrap:'wrap' },
   soldByLabel: { fontSize: 13, color: '#6B7280', marginRight: 4 },
-  sellerNameRow: { flexDirection: 'row', alignItems: 'center', flex:1, gap:4 },
+  sellerNameRow: { flexDirection: 'row', alignItems: 'center', flex:1, gap:6 },
   sellerName: { fontSize: 14, fontWeight: '700', color: '#111827' },
   sellerRating: { flexDirection:'row', alignItems:'center', gap:4 },
   sellerRatingText: { fontSize: 14, fontWeight:'700', color: '#111827'},
   benefitsRow: { flexDirection:'row', gap:12 },
-  benefitChip: { 
-     flexDirection:'row', alignItems:'center', gap:6, 
-     backgroundColor: '#FFF7ED', paddingHorizontal: 12, paddingVertical:8, borderRadius: 8 
-  },
+  benefitChip: { flexDirection:'row', alignItems:'center', gap:6, backgroundColor: '#FFF7ED', paddingHorizontal: 12, paddingVertical:8, borderRadius: 8 },
   benefitText: { fontSize: 12, color: BRAND_COLOR, fontWeight:'600' },
 
   // Tabs
@@ -634,17 +573,10 @@ const styles = StyleSheet.create({
   activeTabText: { color: '#FFF' },
   tabContent: { paddingBottom: 16 },
   reviewSummary: { fontSize: 14, color: '#374151', marginBottom: 4 },
-  reviewSub: { fontSize: 14, color: '#6B7280' },
   textContent: { fontSize: 14, color: '#374151', lineHeight: 20 }, 
 
   // Reviews
-  reviewCard: {
-    flexDirection: 'row',
-    marginBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-    paddingBottom: 16,
-  },
+  reviewCard: { flexDirection: 'row', marginBottom: 16, borderBottomWidth: 1, borderBottomColor: '#F3F4F6', paddingBottom: 16 },
   reviewerAvatar: { width: 40, height: 40, borderRadius: 20, marginRight: 12 },
   reviewContent: { flex: 1 },
   reviewerName: { fontSize: 14, fontWeight: '700', color: '#111827', marginBottom: 2 },
@@ -660,68 +592,20 @@ const styles = StyleSheet.create({
 
   // Bottom Bar
   bottomBar: {
-    position: 'absolute',
-    bottom: 0, left: 0, right: 0,
-    backgroundColor: '#FFF',
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    borderTopWidth: 1, borderTopColor: '#F3F4F6',
-    gap: 12,
-    elevation: 8,
-  },
-  chatBtn: {
-     width: 48, height: 48,
-     justifyContent: 'center', alignItems: 'center',
-     borderRadius: 12,
-     borderWidth: 1, borderColor: '#E5E7EB',
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    backgroundColor: '#FFF', flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 16, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F3F4F6',
+    gap: 12, elevation: 8,
   },
   addToCartBtn: {
-     flex: 1, height: 48,
-     flexDirection: 'row',
-     justifyContent: 'center', alignItems: 'center',
-     borderRadius: 24, // Pill shape
-     borderWidth: 2, borderColor: BRAND_COLOR,
-     backgroundColor: '#FFF',
+     flex: 1, height: 48, flexDirection: 'row', justifyContent: 'center', alignItems: 'center',
+     borderRadius: 24, borderWidth: 2, borderColor: BRAND_COLOR, backgroundColor: '#FFF',
   },
-  addToCartText: { color: BRAND_COLOR, fontWeight: '700', fontSize: 15 },
+  addToCartText: { color: BRAND_COLOR, fontWeight: '700', fontSize: 16 },
   buyNowBtn: {
-     flex: 1, height: 48,
-     justifyContent: 'center', alignItems: 'center',
-     borderRadius: 24, // Pill shape
-     backgroundColor: BRAND_COLOR,
+     flex: 1, height: 48, justifyContent: 'center', alignItems: 'center',
+     borderRadius: 24, backgroundColor: BRAND_COLOR,
   },
-  buyNowText: { color: '#FFF', fontWeight: '700', fontSize: 15 },
-  
-  // Menu Modal
-  menuOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-  },
-  menuContainer: {
-    position: 'absolute',
-    right: 16,
-    backgroundColor: '#FFF',
-    borderRadius: 8,
-    padding: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
-    width: 200,
-  },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    gap: 12,
-  },
-  menuText: {
-    fontSize: 16,
-    color: '#374151',
-  },
+  buyNowText: { color: '#FFF', fontWeight: '700', fontSize: 16 },
 });
 

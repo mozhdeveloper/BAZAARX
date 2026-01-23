@@ -327,7 +327,7 @@ export const useSellerStore = create<SellerStore>()(
     
     // Business
     businessName: 'Tech Shop Philippines Inc.',
-    storeName: 'Tech Shop PH',
+    storeName: 'TechStore Official',
     storeDescription: 'Your trusted source for premium electronics and gadgets. We provide the latest tech at affordable prices.',
     storeLogo: '🛍️',
     storeCategory: ['Electronics', 'Accessories'],
