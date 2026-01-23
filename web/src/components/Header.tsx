@@ -22,17 +22,33 @@ import {
   newArrivals,
 } from "../data/products";
 
-const Header: React.FC = () => {
+interface HeaderProps {
+  transparentOnTop?: boolean;
+}
+
+const Header: React.FC<HeaderProps> = ({ transparentOnTop = false }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { profile, logout, getTotalCartItems, initializeCart, subscribeToProfile, unsubscribeFromProfile } = useBuyerStore();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [showVisualSearchModal, setShowVisualSearchModal] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement>(null);
 
   // Check if we're on the search page
   const isSearchPage = location.pathname === "/search";
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 10);
+    };
+
+    if (transparentOnTop) {
+      window.addEventListener("scroll", handleScroll);
+      return () => window.removeEventListener("scroll", handleScroll);
+    }
+  }, [transparentOnTop]);
 
   // Close profile menu when clicking outside
   useEffect(() => {
@@ -51,26 +67,21 @@ const Header: React.FC = () => {
     };
   }, []);
 
-  useEffect(() => {
-    if (profile?.id) {
-      initializeCart();
-      subscribeToProfile(profile.id);
-    }
-    return () => {
-      unsubscribeFromProfile();
-    }
-  }, [profile?.id, initializeCart, subscribeToProfile, unsubscribeFromProfile]);
+  const headerClasses = transparentOnTop
+    ? `fixed top-0 w-full z-[100] transition-all duration-300 ${isScrolled ? "bg-white/80 backdrop-blur-md shadow-sm" : "bg-transparent"
+    }`
+    : "sticky top-0 z-[100] bg-gray-50";
 
   return (
-    <header className="sticky top-0 z-50 bg-gray-50">
+    <header className={headerClasses}>
       <div className="w-full px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-20 gap-4">
           {/* Logo */}
           <div
-            className="flex items-center cursor-pointer shrink-0"
+            className="flex items-center cursor-pointer shrink-0 transition-transform duration-300 hover:scale-110 origin-left"
             onClick={() => navigate("/")}
           >
-            <div className="flex items-center gap-2">
+            <div className={`flex items-center gap-2 transition-all duration-300 ${transparentOnTop && !isScrolled ? "drop-shadow-[0_0_15px_rgba(255,255,255,0.8)]" : ""}`}>
               <img
                 src="/BazaarX.png"
                 alt="BazaarX Logo"
@@ -83,7 +94,7 @@ const Header: React.FC = () => {
           </div>
 
           {!isSearchPage && (
-            <div className="hidden md:flex flex-1 items-center justify-center lg:absolute lg:left-1/2 lg:-translate-x-1/2 lg:w-full lg:max-w-2xl px-4 lg:px-8">
+            <div className={`hidden md:flex flex-1 items-center justify-center lg:absolute lg:left-1/2 lg:-translate-x-1/2 lg:w-full lg:max-w-2xl px-4 lg:px-8 transition-opacity duration-300 ${transparentOnTop && !isScrolled ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
               <div className="relative w-full max-w-xl lg:max-w-full group">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                   <svg
