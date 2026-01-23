@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useMemo, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -252,22 +253,22 @@ export default function ShopPage() {
 
       {/* Shop Header */}
       <div className="">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-2">
+        <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 py-16 bg-gradient-to-br from-orange-100/20 via-orange-200/50 to-orange-200/50 backdrop-blur-md border-xl border-orange-200/30 rounded-3xl">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4"
+            className="text-center"
           >
-            <div className="w-full text-center">
-              <h1 className="text-5xl font-bold text-gray-800">
-                Shop All <span className="text-[#ff6a00]">Products</span>
-              </h1>
-              <p className="text-gray-600 mt-1">
-                Discover amazing products from trusted sellers
-              </p>
-            </div>
-
-
+            <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6">
+              Shop All {''}
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-red-500">
+                  Products
+                </span>
+            </h1>
+                    
+            <p className="text-lg text-gray-700 max-w-2xl mx-auto">
+              Discover amazing products from trusted sellers.
+            </p>
           </motion.div>
         </div>
       </div>
@@ -574,12 +575,12 @@ export default function ShopPage() {
                       </div>
                     </div>
 
-                    <div className="mt-2 text-sm text-gray-500">
-                      <MapPin className="w-3 h-3 mr-1" />
-                      {product.location}
+                    <div className="mt-2 text-sm text-gray-500 min-h-[2.5rem] flex items-center">
+                      <MapPin className="w-3 h-3 mr-1 flex-shrink-0" />
+                      <span>{product.location}</span>
                     </div>
 
-                    <div className="mt-2">
+                    <div className="mt-2 flex-grow">
                       <p className="text-xs text-gray-500">{product.seller}</p>
                     </div>
 
@@ -703,7 +704,7 @@ export default function ShopPage() {
                           // Navigate to checkout
                           navigate("/checkout");
                         }}
-                        className="w-full bg-[#FF5722] hover:bg-[#E64A19] text-white rounded-xl transition-all active:scale-95"
+                        className="w-full bg-[#FF5722] hover:bg-[#271e1b] text-white rounded-xl transition-all active:scale-95"
                       >
                         Buy Now
                       </Button>

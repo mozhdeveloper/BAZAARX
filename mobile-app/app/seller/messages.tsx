@@ -152,21 +152,13 @@ export default function MessagesScreen() {
     return (
       <View style={styles.container}>
         {/* Header */}
-        <View style={{ backgroundColor: '#FF5722', paddingTop: insets.top + 16, paddingBottom: 20, paddingHorizontal: 20, borderBottomLeftRadius: 20, borderBottomRightRadius: 20,}}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            <TouchableOpacity 
-                          style={styles.iconContainer} 
-                          onPress={() => navigation.goBack()}
-                        >
-                          <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2} />
-                        </TouchableOpacity>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#FFFFFF' }}>
-                Messages
-              </Text>
-              <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.9)', marginTop: 2 }}>
-                Customer chats
-              </Text>
+        <View style={styles.headerContainer}>
+          <View style={[styles.headerTop, { marginTop: insets.top }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
+                    <ArrowLeft size={24} color="#FFF" strokeWidth={2.5} />
+                </Pressable>
+                <Text style={styles.headerTitle}>Messages</Text>
             </View>
           </View>
 
@@ -329,50 +321,25 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F5F5F7',
   },
-  header: {
+  headerContainer: {
     backgroundColor: '#FF5722',
     paddingHorizontal: 20,
-    paddingBottom: 16,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+    paddingBottom: 20,
+    marginBottom: 10,
+    elevation: 4,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 4,
-    borderBottomLeftRadius: 20, 
-    borderBottomRightRadius: 20,
+    zIndex: 10,
   },
-  headerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-start', 
+  headerTop: { 
+      marginBottom: 10,
+      justifyContent: 'center',
   },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    flex: 1,
-  },
-  iconContainer: {
-    backgroundColor: 'rgba(255,255,255,0.2)', 
-    padding: 12,
-    borderRadius: 12,
-  },
-  titleContainer: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: 0.3,
-  },
-  headerSubtitle: {
-    fontSize: 13,
-    color: '#FFFFFF',
-    opacity: 0.9,
-    fontWeight: '500',
-  },
+  headerIconButton: { padding: 4 },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFF' },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -463,8 +430,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#FF5722',
     paddingHorizontal: 16,
     paddingBottom: 12,
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
   },
   chatHeaderContent: {
     flexDirection: 'row',

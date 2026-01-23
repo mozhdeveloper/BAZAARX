@@ -237,7 +237,13 @@ interface BuyerStore {
   getSellerDetails: (sellerId: string) => Seller | null;
   getSellerProducts: (sellerId: string, category?: string) => Product[];
   addViewedSeller: (seller: Seller) => void;
+
+  // Real-time
+  subscribeToProfile: (userId: string) => void;
+  unsubscribeFromProfile: () => void;
 }
+
+let profileSubscription: any = null;
 
 const mapDbItemToCartItem = (item: any): CartItem | null => {
   const dbProduct = item.product;
@@ -436,12 +442,12 @@ export const useBuyerStore = create<BuyerStore>()(persist(
               : item
           );
         } else {
-          newCartItems = [...state.cartItems, {
+          newCartItems = [{
             ...product,
             quantity,
             selectedVariant: variant,
             selected: true // Default to selected
-          }];
+          }, ...state.cartItems];
         }
 
         return { cartItems: newCartItems };
@@ -893,18 +899,68 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       if (!user) return;
 
       try {
-        const cart = await cartService.getOrCreateCart(user.id);
+        const cart = await cartService.getCart(user.id);
         if (cart) {
+          // Capture current selection state to preserve it after DB sync
+          const currentItems = get().cartItems;
+          const selectionMap = new Map<string, boolean>();
+
+          currentItems.forEach(item => {
+            const key = `${item.id}-${item.selectedVariant?.id || 'none'}`;
+            if (item.selected) {
+              selectionMap.set(key, true);
+            }
+          });
+
           const dbItems = await cartService.getCartItems(cart.id);
 
           // Map DB items to store items
           const mappedItems: CartItem[] = dbItems.map(mapDbItemToCartItem).filter(Boolean) as CartItem[];
 
-          set({ cartItems: mappedItems });
+          // Restore selection state
+          const itemsWithSelection = mappedItems.map(item => {
+            const key = `${item.id}-${item.selectedVariant?.id || 'none'}`;
+            if (selectionMap.has(key)) {
+              return { ...item, selected: true };
+            }
+            return item;
+          });
+
+          set({ cartItems: itemsWithSelection });
           get().groupCartBySeller();
         }
       } catch (error) {
         console.error('Error initializing cart from DB:', error);
+      }
+    },
+
+    subscribeToProfile: (userId) => {
+      if (profileSubscription) return; // Already subscribed
+
+      profileSubscription = supabase
+        .channel(`public:buyers:${userId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'buyers',
+            filter: `id=eq.${userId}`,
+          },
+          (payload) => {
+            const newProfile = payload.new as Partial<BuyerProfile>;
+            set((state) => ({
+              profile: state.profile ? { ...state.profile, ...newProfile } : null
+            }));
+          }
+        )
+        .subscribe();
+    },
+
+    unsubscribeFromProfile: () => {
+      if (profileSubscription) {
+        supabase.removeChannel(profileSubscription);
+        profileSubscription = null;
       }
     }
   }),

@@ -14,11 +14,12 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ArrowLeft, Package, MapPin, CreditCard, Receipt, CheckCircle, MessageCircle, Send, X, Truck, Clock, CheckCircle2 } from 'lucide-react-native';
+import { ArrowLeft, Package, MapPin, CreditCard, Receipt, CheckCircle, MessageCircle, Send, X, Truck, Clock, CheckCircle2, RotateCcw } from 'lucide-react-native';
 import { COLORS } from '../src/constants/theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import { useOrderStore } from '../src/stores/orderStore';
+import { useReturnStore } from '../src/stores/returnStore';
 import ReviewModal from '../src/components/ReviewModal';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'OrderDetail'>;
@@ -133,14 +134,14 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
 
   return (
     <View style={styles.container}>
-      {/* Edge-to-Edge Orange Header */}
-      <View style={[styles.header, { paddingTop: insets.top }]}>
-        <View style={styles.headerContent}>
-          <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
-            <ArrowLeft size={24} color="#FFFFFF" />
+      {/* Edge-to-Edge Orange Header - BRANDED */}
+      <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: COLORS.primary }]}>
+        <View style={styles.headerTop}>
+          <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
+            <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
           </Pressable>
           <Text style={styles.headerTitle}>Order Details</Text>
-          <View style={{ width: 24 }} />
+          <View style={{ width: 40 }} />
         </View>
       </View>
 
@@ -191,10 +192,12 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
             <React.Fragment key={index}>
               {index > 0 && <View style={styles.itemDivider} />}
               <View style={styles.itemRow}>
-                <Image 
-                  source={{ uri: item.image || 'https://via.placeholder.com/60' }}
-                  style={styles.itemImage}
-                />
+                <Pressable onPress={() => navigation.navigate('ProductDetail', { product: item })}>
+                  <Image 
+                    source={{ uri: item.image || 'https://via.placeholder.com/60' }}
+                    style={styles.itemImage}
+                  />
+                </Pressable>
                 <View style={styles.itemInfo}>
                   <Text style={styles.itemName}>{item.name}</Text>
                   <Text style={styles.itemVariant}>
@@ -269,13 +272,62 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
         </View>
       </ScrollView>
 
-      {/* Mark as Received Button (only for shipped orders) */}
-      {order.status === 'shipped' && (
+      {/* Bottom Action Bar */}
+      {(order.status === 'shipped' || order.status === 'delivered') && (
         <View style={styles.bottomBar}>
-          <Pressable onPress={handleMarkAsReceived} style={styles.receivedButton}>
-            <CheckCircle size={20} color="#FFFFFF" />
-            <Text style={styles.receivedButtonText}>Mark as Received</Text>
-          </Pressable>
+          {order.status === 'shipped' ? (
+            <Pressable onPress={handleMarkAsReceived} style={styles.receivedButton}>
+              <CheckCircle size={20} color="#FFFFFF" />
+              <Text style={styles.receivedButtonText}>Mark as Received</Text>
+            </Pressable>
+          ) : (
+            (() => {
+              // Safely parse date for "MM/DD/YYYY" format which can be flaky on Android
+              const getDeliveryDate = (dateStr: string | undefined): Date => {
+                  if (!dateStr) return new Date();
+                  const parts = dateStr.split('/');
+                  if (parts.length === 3) {
+                      return new Date(parseInt(parts[2]), parseInt(parts[0]) - 1, parseInt(parts[1]));
+                  }
+                  return new Date(dateStr);
+              };
+
+              const deliveryDate = getDeliveryDate(order.deliveryDate);
+              const currentDate = new Date();
+              
+              // Calculate difference in milliseconds
+              const diffTime = currentDate.getTime() - deliveryDate.getTime();
+              
+              // Convert to days (rounding down to be lenient for "same day" or partial days)
+              const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+              
+              const isReturnable = diffDays <= 7 && diffDays >= 0;
+
+              return (
+                <Pressable 
+                  onPress={() => {
+                    if (isReturnable) navigation.navigate('ReturnRequest', { order });
+                    else Alert.alert('Return Window Closed', 'Returns are only available within 7 days of delivery.');
+                  }} 
+                  style={[
+                    styles.receivedButton, 
+                    { 
+                      backgroundColor: isReturnable ? '#FFFFFF' : '#F3F4F6', 
+                      borderWidth: 1, 
+                      borderColor: '#D1D5DB', 
+                      elevation: 0,
+                      opacity: isReturnable ? 1 : 0.8
+                    }
+                  ]}
+                >
+                  <RotateCcw size={20} color={isReturnable ? "#374151" : "#9CA3AF"} />
+                  <Text style={[styles.receivedButtonText, { color: isReturnable ? '#374151' : '#9CA3AF' }]}>
+                    {isReturnable ? 'Return / Refund' : 'Return Window Closed'}
+                  </Text>
+                </Pressable>
+              );
+            })()
+          )}
         </View>
       )}
 
@@ -376,23 +428,29 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F5F7',
   },
   // ===== EDGE-TO-EDGE HEADER =====
-  header: {
-    backgroundColor: COLORS.primary,
-    paddingBottom: 16,
+  headerContainer: {
+    paddingHorizontal: 20,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+    paddingBottom: 20,
+    marginBottom: 10,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    zIndex: 10,
   },
-  headerContent: {
+  headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 12,
   },
-  backButton: {
+  headerIconButton: {
     padding: 4,
   },
   headerTitle: {
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: '800',
     color: '#FFFFFF',
     letterSpacing: 0.3,
   },
@@ -755,5 +813,22 @@ const styles = StyleSheet.create({
   closeButton: {
     padding: 12,
     marginLeft: -8, // Compensate for extra padding to keep visual alignment
+  },
+  returnRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  returnStatus: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1F2937',
+  },
+  returnDate: {
+    fontSize: 12,
+    color: '#6B7280',
   },
 });

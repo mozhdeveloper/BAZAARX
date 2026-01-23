@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Address, useBuyerStore } from '../stores/buyerStore';
