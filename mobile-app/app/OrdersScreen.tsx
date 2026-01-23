@@ -352,7 +352,9 @@ export default function OrdersScreen({ navigation, route }: Props) {
                 </View>
                 
                 <View style={styles.cardBody}>
-                  <Image source={{ uri: order.items[0]?.image }} style={styles.productThumb} />
+                  <Pressable onPress={() => navigation.navigate('ProductDetail', { product: order.items[0] })}>
+                    <Image source={{ uri: order.items[0]?.image }} style={styles.productThumb} />
+                  </Pressable>
                   <View style={styles.productInfo}>
                     <Text style={styles.productName} numberOfLines={1}>{order.items[0]?.name}</Text>
                     <View style={styles.dateRow}>
