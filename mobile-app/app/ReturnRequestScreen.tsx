@@ -17,6 +17,7 @@ import { COLORS } from '../src/constants/theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import { useReturnStore } from '../src/stores/returnStore';
+import { useAuthStore } from '../src/stores/authStore';
 import { ReturnReason, ReturnType } from '../src/types';
 import * as ImagePicker from 'expo-image-picker';
 
@@ -26,6 +27,9 @@ export default function ReturnRequestScreen({ route, navigation }: Props) {
   const { order } = route.params;
   const insets = useSafeAreaInsets();
   const BRAND_COLOR = COLORS.primary;
+  
+  // Get User for ID
+  const { user } = useAuthStore();
   const createReturnRequest = useReturnStore((state) => state.createReturnRequest);
 
   const [selectedItems, setSelectedItems] = useState<{ [key: string]: boolean }>({});
@@ -119,7 +123,7 @@ export default function ReturnRequestScreen({ route, navigation }: Props) {
 
       createReturnRequest({
         orderId: order.id,
-        userId: 'user_1',
+        userId: user?.id || 'guest',
         sellerId: order.items[0].seller || 'Unknown Seller',
         items: itemsToReturn,
         reason: reason as ReturnReason,
