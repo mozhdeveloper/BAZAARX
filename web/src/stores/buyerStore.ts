@@ -442,12 +442,12 @@ export const useBuyerStore = create<BuyerStore>()(persist(
               : item
           );
         } else {
-          newCartItems = [...state.cartItems, {
+          newCartItems = [{
             ...product,
             quantity,
             selectedVariant: variant,
             selected: true // Default to selected
-          }];
+          }, ...state.cartItems];
         }
 
         return { cartItems: newCartItems };

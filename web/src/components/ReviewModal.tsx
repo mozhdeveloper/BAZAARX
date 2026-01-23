@@ -56,7 +56,7 @@ export function ReviewModal({ isOpen, onClose, orderId, sellerId, sellerName, it
     try {
       const { useOrderStore } = await import('../stores/sellerStore');
       const sellerStore = useOrderStore.getState();
-      
+
       // Update seller order with buyer rating
       sellerStore.addOrderRating(
         orderId,
@@ -64,7 +64,7 @@ export function ReviewModal({ isOpen, onClose, orderId, sellerId, sellerName, it
         reviewText || 'Great product!',
         images
       );
-      
+
       console.log(`✅ Rating synced to seller order ${orderId}: ${rating} stars`);
     } catch (error) {
       console.error('Failed to sync rating to seller store:', error);
@@ -75,7 +75,15 @@ export function ReviewModal({ isOpen, onClose, orderId, sellerId, sellerName, it
     try {
       const { useCartStore } = await import('../stores/cartStore');
       const cartStore = useCartStore.getState();
-      cartStore.updateOrderStatus(orderId, 'delivered');
+
+      const reviewData = {
+        rating,
+        comment: reviewText || 'Great product!',
+        images,
+        submittedAt: new Date()
+      };
+
+      cartStore.updateOrderWithReview(orderId, reviewData);
     } catch (error) {
       console.error('Failed to update buyer order status:', error);
     }
@@ -136,7 +144,7 @@ export function ReviewModal({ isOpen, onClose, orderId, sellerId, sellerName, it
                   >
                     <X className="w-5 h-5" />
                   </button>
-                  
+
                   <div className="flex items-center gap-3 mb-2">
                     <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
                       <Star className="w-6 h-6" />
@@ -198,11 +206,10 @@ export function ReviewModal({ isOpen, onClose, orderId, sellerId, sellerName, it
                             disabled={isSubmitting}
                           >
                             <Star
-                              className={`w-10 h-10 ${
-                                star <= (hoveredRating || rating)
-                                  ? 'fill-orange-500 text-orange-500'
-                                  : 'text-gray-300'
-                              } transition-colors`}
+                              className={`w-10 h-10 ${star <= (hoveredRating || rating)
+                                ? 'fill-orange-500 text-orange-500'
+                                : 'text-gray-300'
+                                } transition-colors`}
                             />
                           </button>
                         ))}
