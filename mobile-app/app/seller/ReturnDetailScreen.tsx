@@ -10,7 +10,7 @@ import {
   TextInput,
   Modal,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, CheckCircle, XCircle, MessageCircle } from 'lucide-react-native';
 import { COLORS } from '../../src/constants/theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -30,24 +30,27 @@ export default function SellerReturnDetailScreen({ route, navigation }: Props) {
   const returnRequest = useReturnStore((state) => state.getReturnRequestById(returnId));
   const updateReturnStatus = useReturnStore((state) => state.updateReturnStatus);
   const order = useOrderStore((state) => state.getOrderById(returnRequest?.orderId || ''));
+  const insets = useSafeAreaInsets();
 
   const [rejectModalVisible, setRejectModalVisible] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
 
   if (!returnRequest || !order) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
-            <ArrowLeft size={24} color="#1F2937" />
-          </Pressable>
-          <Text style={styles.headerTitle}>Return Request</Text>
-          <View style={{ width: 24 }} />
+      <View style={styles.container}>
+        <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: '#FF5722' }]}>
+            <View style={styles.headerTop}>
+                <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
+                    <ArrowLeft size={24} color="#FFF" strokeWidth={2.5} />
+                </Pressable>
+                <Text style={styles.headerTitle}>Return Request</Text>
+                <View style={{ width: 40 }} />
+            </View>
         </View>
         <View style={styles.center}>
           <Text>Return request not found.</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -97,13 +100,15 @@ export default function SellerReturnDetailScreen({ route, navigation }: Props) {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
-          <ArrowLeft size={24} color="#1F2937" />
-        </Pressable>
-        <Text style={styles.headerTitle}>Return Request</Text>
-        <View style={{ width: 24 }} />
+    <View style={styles.container}>
+      <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: '#FF5722' }]}>
+        <View style={styles.headerTop}>
+            <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
+                <ArrowLeft size={24} color="#FFF" strokeWidth={2.5} />
+            </Pressable>
+            <Text style={styles.headerTitle}>Return Request</Text>
+            <View style={{ width: 40 }} />
+        </View>
       </View>
 
       <ScrollView style={styles.content}>
@@ -224,7 +229,7 @@ export default function SellerReturnDetailScreen({ route, navigation }: Props) {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -233,24 +238,21 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-    backgroundColor: '#FFF',
+  headerContainer: {
+    paddingHorizontal: 20,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+    paddingBottom: 20,
+    marginBottom: 10,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    zIndex: 10,
   },
-  backButton: {
-    padding: 8,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1F2937',
-  },
+  headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  headerIconButton: { padding: 4 },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFF' },
   center: {
     flex: 1,
     alignItems: 'center',

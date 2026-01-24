@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useState, useEffect, useRef } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   Package,
@@ -16,21 +16,28 @@ import {
   Share2,
   AlertCircle,
   Store,
-  Receipt
-} from 'lucide-react';
-import { useCartStore, Order } from '../stores/cartStore';
-import { Button } from '../components/ui/button';
-import { Input } from '../components/ui/input';
-import { Badge } from '../components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
-import { supabase } from '@/lib/supabase';
-import Header from '../components/Header';
-import { BazaarFooter } from '../components/ui/bazaar-footer';
-import { cn } from '@/lib/utils';
+  Receipt,
+  X,
+} from "lucide-react";
+import { useCartStore, Order } from "../stores/cartStore";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Badge } from "../components/ui/badge";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "../components/ui/card";
+import { supabase } from "@/lib/supabase";
+import { submitOrderReview } from "../services/orderService";
+import Header from "../components/Header";
+import { BazaarFooter } from "../components/ui/bazaar-footer";
+import { cn } from "@/lib/utils";
 
 interface ChatMessage {
   id: string;
-  sender: 'buyer' | 'seller' | 'system';
+  sender: "buyer" | "seller" | "system";
   message: string;
   timestamp: Date;
   read: boolean;
@@ -41,42 +48,51 @@ export default function OrderDetailPage() {
   const navigate = useNavigate();
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  const [dbOrder, setDbOrder] = useState<Order | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [dbOrder, setDbOrder] = useState<Order | null>(null);
   const [chatMessage, setChatMessage] = useState('');
+
+  // Review modal state
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [reviewRating, setReviewRating] = useState(0);
+  const [reviewComment, setReviewComment] = useState('');
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
 
   // Initialize chat messages with lazy initialization
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => {
     const now = Date.now();
     return [
       {
-        id: '1',
-        sender: 'system',
-        message: 'Order confirmed! Your seller will start preparing your items.',
+        id: "1",
+        sender: "system",
+        message:
+          "Order confirmed! Your seller will start preparing your items.",
         timestamp: new Date(now - 2 * 60 * 60 * 1000),
-        read: true
+        read: true,
       },
       {
-        id: '2',
-        sender: 'seller',
-        message: 'Hello! Thank you for your order. We are preparing your items now.',
+        id: "2",
+        sender: "seller",
+        message:
+          "Hello! Thank you for your order. We are preparing your items now.",
         timestamp: new Date(now - 1.5 * 60 * 60 * 1000),
-        read: true
+        read: true,
       },
       {
-        id: '3',
-        sender: 'buyer',
-        message: 'Great! When can I expect the delivery?',
+        id: "3",
+        sender: "buyer",
+        message: "Great! When can I expect the delivery?",
         timestamp: new Date(now - 1 * 60 * 60 * 1000),
-        read: true
+        read: true,
       },
       {
-        id: '4',
-        sender: 'seller',
-        message: 'Your order will be shipped today and should arrive within 2-3 business days.',
+        id: "4",
+        sender: "seller",
+        message:
+          "Your order will be shipped today and should arrive within 2-3 business days.",
         timestamp: new Date(now - 45 * 60 * 1000),
-        read: true
-      }
+        read: true,
+      },
     ];
   });
 
@@ -87,19 +103,20 @@ export default function OrderDetailPage() {
       setIsLoading(true);
       try {
         // Try fetching by ID first, then by order_number
-        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(orderId);
+        const isUuid =
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+            orderId,
+          );
 
-        let query = supabase
-          .from('orders')
-          .select(`
+        let query = supabase.from("orders").select(`
             *,
             order_items (*)
           `);
 
         if (isUuid) {
-          query = query.eq('id', orderId);
+          query = query.eq("id", orderId);
         } else {
-          query = query.eq('order_number', orderId);
+          query = query.eq("order_number", orderId);
         }
 
         const { data: orderData, error } = await query.single();
@@ -108,44 +125,59 @@ export default function OrderDetailPage() {
 
         if (orderData) {
           const statusMap = {
-            'pending_payment': 'pending',
-            'paid': 'confirmed',
-            'processing': 'confirmed',
-            'shipped': 'shipped',
-            'delivered': 'delivered',
-            'cancelled': 'cancelled'
+            pending_payment: "pending",
+            paid: "confirmed",
+            processing: "confirmed",
+            shipped: "shipped",
+            delivered: "delivered",
+            cancelled: "cancelled",
           };
 
           const mappedOrder: Order = {
             id: orderData.id,
             orderNumber: orderData.order_number,
             total: orderData.total_amount,
-            status: (statusMap[orderData.status as keyof typeof statusMap] || 'pending') as Order['status'],
-            isPaid: orderData.payment_status === 'paid',
+            status: (statusMap[orderData.status as keyof typeof statusMap] ||
+              "pending") as Order["status"],
+            isPaid: orderData.payment_status === "paid",
             createdAt: new Date(orderData.created_at),
-            date: new Date(orderData.created_at).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' }),
-            estimatedDelivery: new Date(orderData.estimated_delivery_date || Date.now() + 3 * 24 * 60 * 60 * 1000),
+            date: new Date(orderData.created_at).toLocaleDateString("en-PH", {
+              year: "numeric",
+              month: "short",
+              day: "numeric",
+            }),
+            estimatedDelivery: new Date(
+              orderData.estimated_delivery_date ||
+                Date.now() + 3 * 24 * 60 * 60 * 1000,
+            ),
             items: (orderData.order_items || []).map((item: any) => ({
               id: item.id,
               name: item.product_name,
               price: item.price,
               quantity: item.quantity,
-              image: item.product_images?.[0] || 'https://placehold.co/100?text=Product',
-              seller: item.seller_name || 'Bazaar Merchant'
+              image:
+                item.product_images?.[0] ||
+                "https://placehold.co/100?text=Product",
+              seller: item.seller_name || "Bazaar Merchant",
             })),
             shippingAddress: {
-              fullName: (orderData.shipping_address as any)?.fullName || orderData.buyer_name,
-              street: (orderData.shipping_address as any)?.street || '',
-              city: (orderData.shipping_address as any)?.city || '',
-              province: (orderData.shipping_address as any)?.province || '',
-              postalCode: (orderData.shipping_address as any)?.postalCode || '',
-              phone: (orderData.shipping_address as any)?.phone || orderData.buyer_phone || ''
+              fullName:
+                (orderData.shipping_address as any)?.fullName ||
+                orderData.buyer_name,
+              street: (orderData.shipping_address as any)?.street || "",
+              city: (orderData.shipping_address as any)?.city || "",
+              province: (orderData.shipping_address as any)?.province || "",
+              postalCode: (orderData.shipping_address as any)?.postalCode || "",
+              phone:
+                (orderData.shipping_address as any)?.phone ||
+                orderData.buyer_phone ||
+                "",
             },
             paymentMethod: {
-              type: (orderData.payment_method as any)?.type || 'cod',
-              details: (orderData.payment_method as any)?.details || ''
+              type: (orderData.payment_method as any)?.type || "cod",
+              details: (orderData.payment_method as any)?.details || "",
             },
-            trackingNumber: orderData.tracking_number || undefined
+            trackingNumber: orderData.tracking_number || undefined,
           };
 
           setDbOrder(mappedOrder);
@@ -162,22 +194,24 @@ export default function OrderDetailPage() {
 
   useEffect(() => {
     if (!isLoading && !dbOrder) {
-      navigate('/orders');
+      navigate("/orders");
     }
   }, [dbOrder, navigate, isLoading]);
 
   useEffect(() => {
     // Auto scroll to bottom when new messages arrive
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages]);
 
   if (isLoading) {
-    return <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="flex flex-col items-center gap-4">
-        <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-gray-600 font-medium">Loading order details...</p>
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-gray-600 font-medium">Loading order details...</p>
+        </div>
       </div>
-    </div>;
+    );
   }
 
   const order = dbOrder;
@@ -187,31 +221,31 @@ export default function OrderDetailPage() {
   }
 
   const formatDate = (date: Date) => {
-    return new Intl.DateTimeFormat('en-PH', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
+    return new Intl.DateTimeFormat("en-PH", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     }).format(date);
   };
 
   const formatTime = (date: Date) => {
-    return new Intl.DateTimeFormat('en-PH', {
-      hour: '2-digit',
-      minute: '2-digit',
+    return new Intl.DateTimeFormat("en-PH", {
+      hour: "2-digit",
+      minute: "2-digit",
     }).format(date);
   };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'pending':
+      case "pending":
         return <Clock className="w-5 h-5 text-yellow-500" />;
-      case 'confirmed':
+      case "confirmed":
         return <Package className="w-5 h-5 text-blue-500" />;
-      case 'shipped':
+      case "shipped":
         return <Truck className="w-5 h-5 text-purple-500" />;
-      case 'delivered':
+      case "delivered":
         return <CheckCircle className="w-5 h-5 text-green-500" />;
       default:
         return <Package className="w-5 h-5 text-gray-500" />;
@@ -220,26 +254,49 @@ export default function OrderDetailPage() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'pending':
-        return 'bg-yellow-50 text-yellow-700 border-yellow-200';
-      case 'confirmed':
-        return 'bg-blue-50 text-blue-700 border-blue-200';
-      case 'shipped':
-        return 'bg-purple-50 text-purple-700 border-purple-200';
-      case 'delivered':
-        return 'bg-green-50 text-green-700 border-green-200';
-      case 'cancelled':
-        return 'bg-red-50 text-red-700 border-red-200';
+      case "pending":
+        return "bg-yellow-50 text-yellow-700 border-yellow-200";
+      case "confirmed":
+        return "bg-blue-50 text-blue-700 border-blue-200";
+      case "shipped":
+        return "bg-purple-50 text-purple-700 border-purple-200";
+      case "delivered":
+        return "bg-green-50 text-green-700 border-green-200";
+      case "cancelled":
+        return "bg-red-50 text-red-700 border-red-200";
       default:
-        return 'bg-gray-50 text-gray-700 border-gray-200';
+        return "bg-gray-50 text-gray-700 border-gray-200";
     }
   };
 
   const statusTimeline = [
-    { status: 'pending', label: 'Order Placed', completed: true, date: order.createdAt },
-    { status: 'confirmed', label: 'Confirmed', completed: order.status !== 'pending', date: order.createdAt },
-    { status: 'shipped', label: 'Shipped', completed: order.status === 'shipped' || order.status === 'delivered', date: order.status === 'shipped' || order.status === 'delivered' ? order.createdAt : null },
-    { status: 'delivered', label: 'Delivered', completed: order.status === 'delivered', date: order.status === 'delivered' ? order.estimatedDelivery : null },
+    {
+      status: "pending",
+      label: "Order Placed",
+      completed: true,
+      date: order.createdAt,
+    },
+    {
+      status: "confirmed",
+      label: "Confirmed",
+      completed: order.status !== "pending",
+      date: order.createdAt,
+    },
+    {
+      status: "shipped",
+      label: "Shipped",
+      completed: order.status === "shipped" || order.status === "delivered",
+      date:
+        order.status === "shipped" || order.status === "delivered"
+          ? order.createdAt
+          : null,
+    },
+    {
+      status: "delivered",
+      label: "Delivered",
+      completed: order.status === "delivered",
+      date: order.status === "delivered" ? order.estimatedDelivery : null,
+    },
   ];
 
   const handleSendMessage = () => {
@@ -247,25 +304,25 @@ export default function OrderDetailPage() {
 
     const newMessage: ChatMessage = {
       id: Date.now().toString(),
-      sender: 'buyer',
+      sender: "buyer",
       message: chatMessage,
       timestamp: new Date(),
-      read: true
+      read: true,
     };
 
     setChatMessages([...chatMessages, newMessage]);
-    setChatMessage('');
+    setChatMessage("");
 
     // Simulate seller response after 2 seconds
     setTimeout(() => {
       const sellerResponse: ChatMessage = {
         id: (Date.now() + 1).toString(),
-        sender: 'seller',
-        message: 'Thank you for your message. We will get back to you shortly!',
+        sender: "seller",
+        message: "Thank you for your message. We will get back to you shortly!",
         timestamp: new Date(),
-        read: false
+        read: false,
       };
-      setChatMessages(prev => [...prev, sellerResponse]);
+      setChatMessages((prev) => [...prev, sellerResponse]);
     }, 2000);
   };
 
@@ -274,16 +331,76 @@ export default function OrderDetailPage() {
       navigator.share({
         title: `Order #${order.orderNumber}`,
         text: `Check out my order from BazaarPH!`,
-        url: window.location.href
+        url: window.location.href,
       });
     } else {
       navigator.clipboard.writeText(window.location.href);
-      alert('Order link copied to clipboard!');
+      alert("Order link copied to clipboard!");
     }
   };
 
   const handleDownloadReceipt = () => {
-    alert('Receipt download will be implemented with backend integration');
+    alert("Receipt download will be implemented with backend integration");
+  };
+
+  const handleSubmitReview = async () => {
+    if (reviewRating === 0) {
+      alert('Please select a rating');
+      return;
+    }
+    if (!reviewComment.trim()) {
+      alert('Please write a review comment');
+      return;
+    }
+
+    setIsSubmittingReview(true);
+    try {
+      const success = await submitOrderReview(
+        order.id,
+        dbOrder?.buyer_id || '',
+        reviewRating,
+        reviewComment,
+        []
+      );
+
+      if (success) {
+        alert('✅ Review submitted successfully! Thank you for your feedback.');
+        setShowReviewModal(false);
+        setReviewRating(0);
+        setReviewComment('');
+        
+        // Refresh order data to show is_reviewed status
+        if (orderId) {
+          const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(orderId);
+          const { data } = await supabase
+            .from('orders')
+            .select(`
+              *,
+              order_items (
+                *,
+                product:products (
+                  id,
+                  name,
+                  image_url
+                )
+              )
+            `)
+            .eq(isUuid ? 'id' : 'order_number', orderId)
+            .single();
+          
+          if (data) {
+            setDbOrder(data);
+          }
+        }
+      } else {
+        alert('Failed to submit review. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error submitting review:', error);
+      alert('An error occurred. Please try again.');
+    } finally {
+      setIsSubmittingReview(false);
+    }
   };
 
   return (
@@ -295,7 +412,7 @@ export default function OrderDetailPage() {
         <div className="mb-6">
           <Button
             variant="ghost"
-            onClick={() => navigate('/orders')}
+            onClick={() => navigate("/orders")}
             className="mb-4 -ml-2"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
@@ -307,7 +424,9 @@ export default function OrderDetailPage() {
               <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
                 Order #{order.orderNumber}
               </h1>
-              <p className="text-gray-600 mt-1">{formatDate(order.createdAt)}</p>
+              <p className="text-gray-600 mt-1">
+                {formatDate(order.createdAt)}
+              </p>
             </div>
 
             <div className="flex gap-2">
@@ -333,16 +452,7 @@ export default function OrderDetailPage() {
           </div>
         </div>
 
-        {/* Status Badge */}
-        <div className="mb-6">
-          <div className={cn(
-            "inline-flex items-center gap-2 px-4 py-2 rounded-full border text-sm font-medium",
-            getStatusColor(order.status)
-          )}>
-            {getStatusIcon(order.status)}
-            <span className="capitalize">{order.status}</span>
-          </div>
-        </div>
+
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column - Order Details */}
@@ -360,12 +470,14 @@ export default function OrderDetailPage() {
                   {statusTimeline.map((item, index) => (
                     <div key={item.status} className="flex items-start gap-4">
                       <div className="flex flex-col items-center">
-                        <div className={cn(
-                          "w-10 h-10 rounded-full flex items-center justify-center border-2",
-                          item.completed
-                            ? "bg-green-500 border-green-500 text-white"
-                            : "bg-gray-100 border-gray-300 text-gray-400"
-                        )}>
+                        <div
+                          className={cn(
+                            "w-10 h-10 rounded-full flex items-center justify-center border-2",
+                            item.completed
+                              ? "bg-green-500 border-green-500 text-white"
+                              : "bg-gray-100 border-gray-300 text-gray-400",
+                          )}
+                        >
                           {item.completed ? (
                             <CheckCircle className="w-5 h-5" />
                           ) : (
@@ -373,17 +485,21 @@ export default function OrderDetailPage() {
                           )}
                         </div>
                         {index < statusTimeline.length - 1 && (
-                          <div className={cn(
-                            "w-0.5 h-12 mt-2",
-                            item.completed ? "bg-green-500" : "bg-gray-300"
-                          )} />
+                          <div
+                            className={cn(
+                              "w-0.5 h-12 mt-2",
+                              item.completed ? "bg-green-500" : "bg-gray-300",
+                            )}
+                          />
                         )}
                       </div>
                       <div className="flex-1 pb-8">
-                        <h4 className={cn(
-                          "font-semibold",
-                          item.completed ? "text-gray-900" : "text-gray-500"
-                        )}>
+                        <h4
+                          className={cn(
+                            "font-semibold",
+                            item.completed ? "text-gray-900" : "text-gray-500",
+                          )}
+                        >
                           {item.label}
                         </h4>
                         {item.date && (
@@ -396,17 +512,22 @@ export default function OrderDetailPage() {
                   ))}
                 </div>
 
-                {order.status === 'shipped' && (
+                {order.status === "shipped" && (
                   <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                     <div className="flex items-start gap-3">
                       <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5" />
                       <div>
-                        <h4 className="font-semibold text-blue-900">Track Your Package</h4>
+                        <h4 className="font-semibold text-blue-900">
+                          Track Your Package
+                        </h4>
                         <p className="text-sm text-blue-800 mt-1">
-                          Your order is on its way! Expected delivery: {formatDate(order.estimatedDelivery)}
+                          Your order is on its way! Expected delivery:{" "}
+                          {formatDate(order.estimatedDelivery)}
                         </p>
                         <Button
-                          onClick={() => navigate(`/delivery-tracking/${order.id}`)}
+                          onClick={() =>
+                            navigate(`/delivery-tracking/${order.id}`)
+                          }
                           className="mt-3 bg-blue-600 hover:bg-blue-700 text-white"
                           size="sm"
                         >
@@ -431,31 +552,46 @@ export default function OrderDetailPage() {
               <CardContent>
                 <div className="space-y-4">
                   {order.items.map((item) => (
-                    <div key={item.id} className="flex gap-4 p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                    <div
+                      key={item.id}
+                      className="flex gap-4 p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                    >
                       <img
                         src={item.image}
                         alt={item.name}
                         className="w-20 h-20 object-cover rounded-lg"
                       />
                       <div className="flex-1">
-                        <h4 className="font-semibold text-gray-900">{item.name}</h4>
-                        <p className="text-sm text-gray-600 mt-1">Qty: {item.quantity}</p>
-                        <p className="text-sm text-gray-600">₱{item.price.toLocaleString()} each</p>
+                        <h4 className="font-semibold text-gray-900">
+                          {item.name}
+                        </h4>
+                        <p className="text-sm text-gray-600 mt-1">
+                          Qty: {item.quantity}
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          ₱{item.price.toLocaleString()} each
+                        </p>
                       </div>
                       <div className="text-right">
                         <p className="font-semibold text-gray-900">
                           ₱{(item.price * item.quantity).toLocaleString()}
                         </p>
-                        {order.status === 'delivered' && (
+                        {order.status === "delivered" && !dbOrder?.is_reviewed && (
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => navigate(`/reviews?order=${order.id}`)}
+                            onClick={() => setShowReviewModal(true)}
                             className="mt-2 text-orange-600 border-orange-300 hover:bg-orange-50"
                           >
                             <Star className="w-3 h-3 mr-1" />
                             Review
                           </Button>
+                        )}
+                        {order.status === "delivered" && dbOrder?.is_reviewed && (
+                          <div className="mt-2 flex items-center gap-1 text-sm text-green-600">
+                            <CheckCircle className="w-4 h-4" />
+                            <span>Reviewed</span>
+                          </div>
                         )}
                       </div>
                     </div>
@@ -480,36 +616,46 @@ export default function OrderDetailPage() {
                       key={msg.id}
                       className={cn(
                         "flex",
-                        msg.sender === 'buyer' ? 'justify-end' : 'justify-start'
+                        msg.sender === "buyer"
+                          ? "justify-end"
+                          : "justify-start",
                       )}
                     >
                       <div
                         className={cn(
                           "max-w-[70%] rounded-lg px-4 py-2",
-                          msg.sender === 'buyer'
-                            ? 'bg-orange-500 text-white'
-                            : msg.sender === 'seller'
-                              ? 'bg-white border border-gray-200 text-gray-900'
-                              : 'bg-blue-50 border border-blue-200 text-blue-900 text-sm'
+                          msg.sender === "buyer"
+                            ? "bg-orange-500 text-white"
+                            : msg.sender === "seller"
+                              ? "bg-white border border-gray-200 text-gray-900"
+                              : "bg-blue-50 border border-blue-200 text-blue-900 text-sm",
                         )}
                       >
-                        {msg.sender === 'seller' && (
+                        {msg.sender === "seller" && (
                           <div className="flex items-center gap-2 mb-1">
                             <Store className="w-3 h-3" />
-                            <span className="text-xs font-semibold">Seller</span>
+                            <span className="text-xs font-semibold">
+                              Seller
+                            </span>
                           </div>
                         )}
-                        {msg.sender === 'system' && (
+                        {msg.sender === "system" && (
                           <div className="flex items-center gap-2 mb-1">
                             <AlertCircle className="w-3 h-3" />
-                            <span className="text-xs font-semibold">System</span>
+                            <span className="text-xs font-semibold">
+                              System
+                            </span>
                           </div>
                         )}
                         <p className="text-sm">{msg.message}</p>
-                        <p className={cn(
-                          "text-xs mt-1",
-                          msg.sender === 'buyer' ? 'text-orange-100' : 'text-gray-500'
-                        )}>
+                        <p
+                          className={cn(
+                            "text-xs mt-1",
+                            msg.sender === "buyer"
+                              ? "text-orange-100"
+                              : "text-gray-500",
+                          )}
+                        >
                           {formatTime(msg.timestamp)}
                         </p>
                       </div>
@@ -523,7 +669,7 @@ export default function OrderDetailPage() {
                   <Input
                     value={chatMessage}
                     onChange={(e) => setChatMessage(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                    onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
                     placeholder="Type your message..."
                     className="flex-1"
                   />
@@ -552,7 +698,9 @@ export default function OrderDetailPage() {
               <CardContent className="space-y-3">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Subtotal</span>
-                  <span className="font-medium">₱{order.total.toLocaleString()}</span>
+                  <span className="font-medium">
+                    ₱{order.total.toLocaleString()}
+                  </span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Shipping</span>
@@ -588,16 +736,63 @@ export default function OrderDetailPage() {
                         {order.paymentMethod.type}
                       </p>
                       {order.paymentMethod.details && (
-                        <p className="text-sm text-gray-600">{order.paymentMethod.details}</p>
+                        <p className="text-sm text-gray-600">
+                          {order.paymentMethod.details}
+                        </p>
                       )}
                     </div>
                   </div>
-                  <Badge className="bg-green-100 text-green-800 border-green-200">
-                    Paid
-                  </Badge>
+
                 </div>
               </CardContent>
             </Card>
+
+            {/* Tracking Number */}
+            {order.trackingNumber && (
+              <Card className="border-green-200 bg-green-50">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-green-900">
+                    <Truck className="w-5 h-5 text-green-600" />
+                    Tracking Information
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">
+                      Tracking Number
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 bg-white border border-green-200 rounded px-3 py-2 text-sm font-mono text-green-900">
+                        {order.trackingNumber}
+                      </code>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-green-200 text-green-700 hover:bg-green-100"
+                        onClick={() => {
+                          navigator.clipboard.writeText(order.trackingNumber!);
+                          alert("Tracking number copied to clipboard!");
+                        }}
+                      >
+                        Copy
+                      </Button>
+                    </div>
+                  </div>
+                  {order.status === "shipped" && (
+                    <p className="text-sm text-green-700 flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4" />
+                      Your package is on the way!
+                    </p>
+                  )}
+                  {order.status === "delivered" && (
+                    <p className="text-sm text-green-700 flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4" />
+                      Package delivered successfully!
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
             {/* Delivery Address */}
             <Card>
@@ -615,7 +810,8 @@ export default function OrderDetailPage() {
                   {order.shippingAddress.street}
                 </p>
                 <p className="text-sm text-gray-700">
-                  {order.shippingAddress.city}, {order.shippingAddress.province} {order.shippingAddress.postalCode}
+                  {order.shippingAddress.city}, {order.shippingAddress.province}{" "}
+                  {order.shippingAddress.postalCode}
                 </p>
                 {order.shippingAddress.phone && (
                   <div className="flex items-center gap-2 text-sm text-gray-600 pt-2">
@@ -629,9 +825,12 @@ export default function OrderDetailPage() {
             {/* Need Help */}
             <Card className="bg-orange-50 border-orange-200">
               <CardContent className="p-4">
-                <h4 className="font-semibold text-orange-900 mb-2">Need Help?</h4>
+                <h4 className="font-semibold text-orange-900 mb-2">
+                  Need Help?
+                </h4>
                 <p className="text-sm text-orange-800 mb-3">
-                  Have questions about your order? Our support team is here to help!
+                  Have questions about your order? Our support team is here to
+                  help!
                 </p>
                 <Button
                   variant="outline"
@@ -644,6 +843,83 @@ export default function OrderDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Review Modal */}
+      {showReviewModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-semibold text-gray-900">Write a Review</h3>
+              <button
+                onClick={() => setShowReviewModal(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Rating Stars */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Rating
+                </label>
+                <div className="flex gap-2">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      onClick={() => setReviewRating(star)}
+                      className="focus:outline-none transition-transform hover:scale-110"
+                    >
+                      <Star
+                        className={cn(
+                          "w-8 h-8",
+                          star <= reviewRating
+                            ? "fill-yellow-400 text-yellow-400"
+                            : "text-gray-300"
+                        )}
+                      />
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Review Comment */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Your Review
+                </label>
+                <textarea
+                  value={reviewComment}
+                  onChange={(e) => setReviewComment(e.target.value)}
+                  placeholder="Share your experience with this product..."
+                  rows={4}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowReviewModal(false)}
+                  className="flex-1"
+                  disabled={isSubmittingReview}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleSubmitReview}
+                  className="flex-1 bg-orange-500 hover:bg-orange-600 text-white"
+                  disabled={isSubmittingReview}
+                >
+                  {isSubmittingReview ? 'Submitting...' : 'Submit Review'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <BazaarFooter />
     </div>

@@ -9,7 +9,6 @@ import {
   ChevronDown,
   ShoppingBag,
   Camera,
-  Headset,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { NotificationsDropdown } from "./NotificationsDropdown";
@@ -88,7 +87,7 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false }) => {
                 className="h-12 w-auto object-contain"
               />
               <span 
-                className="font-heading text-2xl font-bold tracking-tight hidden md:block text-[var(--brand-primary)]">
+                className="font-['Tenor Sans'] text-2xl font-bold tracking-tight hidden md:block text-[var(--brand-primary)]">
                 BazaarX
               </span>
             </div>
@@ -141,7 +140,7 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false }) => {
 
           {/* Right Navigation */}
           <div 
-            className="flex items-center justify-end text-gray-700 shrink-0 gap-4">
+            className="flex items-center justify-end text-gray-700 shrink-0 gap-[var(--spacing-md)]">
             {!isSearchPage && (
               <button
                 onClick={() => navigate("/search")}
@@ -212,15 +211,6 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false }) => {
 
             {/* Notifications */}
             <NotificationsDropdown />
-
-            {/* Customer Service */}
-            <button
-              onClick={() => navigate("/support")}
-              className="relative p-2 hover:text-[#ff6a00] hover:bg-gray-50 rounded-full transition-colors"
-              title="Customer Service"
-            >
-              <Headset className="h-6 w-6" />
-            </button>
 
             {/* Profile */}
             <div className="relative" ref={profileMenuRef}>

@@ -82,7 +82,11 @@ export default function OrdersScreen({ navigation, route }: Props) {
         baseOrders = orders.filter(o => o.status === 'shipped');
         break;
       case 'completed':
-        baseOrders = orders.filter(o => o.status === 'delivered');
+        // Show delivered orders, BUT exclude those that have return requests (they go to Returns tab)
+        baseOrders = orders.filter(o => 
+          o.status === 'delivered' && 
+          !returnRequests.some(req => req.orderId === o.id)
+        );
         break;
       case 'cancelled':
         baseOrders = orders.filter(o => o.status === 'canceled');
