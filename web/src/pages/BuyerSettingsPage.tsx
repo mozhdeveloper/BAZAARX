@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import Header from '../components/Header';
 import { BazaarFooter } from '../components/ui/bazaar-footer';
@@ -25,9 +25,22 @@ import {
   Twitter,
   Eye,
   EyeOff,
-  Save
+  Save,
+  Loader2
 } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
+import { useBuyerStore, Address } from '../stores/buyerStore';
+import { useToast } from '@/hooks/use-toast';
+import { regions, provinces, cities, barangays } from "select-philippines-address";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 // Mock data
 const mockAddresses = [
@@ -78,7 +91,158 @@ const mockPaymentMethods = [
 export default function BuyerSettingsPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [activeTab, setActiveTab] = useState('addresses');
-  
+  const { toast } = useToast();
+  const { profile, addresses, addAddress, updateAddress, deleteAddress } = useBuyerStore();
+
+  const [isAddressOpen, setIsAddressOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  // Address Selection Lists
+  const [regionList, setRegionList] = useState<any[]>([]);
+  const [provinceList, setProvinceList] = useState<any[]>([]);
+  const [cityList, setCityList] = useState<any[]>([]);
+  const [barangayList, setBarangayList] = useState<any[]>([]);
+
+  const [newAddress, setNewAddress] = useState({
+    label: '',
+    firstName: '',
+    lastName: '',
+    phone: '',
+    street: '',
+    barangay: '',
+    city: '',
+    province: '',
+    region: '',
+    postalCode: '',
+    isDefault: false
+  });
+
+  // Load regions on mount
+  useEffect(() => {
+    regions().then(res => setRegionList(res));
+  }, []);
+
+  // Cascading Logic: Update next level when previous level changes
+  const onRegionChange = (code: string) => {
+    const name = regionList.find(i => i.region_code === code)?.region_name;
+    setNewAddress({ ...newAddress, region: name, province: '', city: '', barangay: '' });
+    provinces(code).then(res => setProvinceList(res));
+  };
+
+  const onProvinceChange = (code: string) => {
+    const name = provinceList.find(i => i.province_code === code)?.province_name;
+    setNewAddress({ ...newAddress, province: name, city: '', barangay: '' });
+    cities(code).then(res => setCityList(res));
+  };
+
+  const onCityChange = (code: string) => {
+    const name = cityList.find(i => i.city_code === code)?.city_name;
+    setNewAddress({ ...newAddress, city: name, barangay: '' });
+    barangays(code).then(res => setBarangayList(res));
+  };
+
+  const handleOpenAddressModal = async (address?: Address) => {
+    if (address) {
+      setEditingId(address.id);
+      setNewAddress({ ...address });
+
+      // 1. Re-populate the lists based on existing names
+      try {
+        // Find Region Code by Name
+        const allRegions = await regions();
+        const regionMatch = allRegions.find(r => r.region_name === address.region);
+
+        if (regionMatch) {
+          // Load Provinces for this region
+          const provs = await provinces(regionMatch.region_code);
+          setProvinceList(provs);
+          const provinceMatch = provs.find(p => p.province_name === address.province);
+
+          if (provinceMatch) {
+            // Load Cities for this province
+            const cts = await cities(provinceMatch.province_code);
+            setCityList(cts);
+            const cityMatch = cts.find(c => c.city_name === address.city);
+
+            if (cityMatch) {
+              // Load Barangays for this city
+              const brgys = await barangays(cityMatch.city_code);
+              setBarangayList(brgys);
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error re-hydrating address lists:", error);
+      }
+    } else {
+      // Reset for New Address
+      setEditingId(null);
+      setProvinceList([]);
+      setCityList([]);
+      setBarangayList([]);
+      setNewAddress({
+        label: 'Home', firstName: profile?.firstName || '', lastName: profile?.lastName || '',
+        phone: profile?.phone || '', street: '', barangay: '', city: '',
+        province: '', region: '', postalCode: '', isDefault: addresses.length === 0
+      });
+    }
+    setIsAddressOpen(true);
+  };
+
+  const handleSaveAddress = async () => {
+    if (!profile) return;
+    setIsSaving(true);
+    try {
+      const { supabase } = await import('../lib/supabase');
+
+      // FIX: Clear existing default in DB and Local State
+      if (newAddress.isDefault) {
+        await supabase
+          .from('addresses')
+          .update({ is_default: false })
+          .eq('user_id', profile.id);
+
+        // Update local store to reset other defaults
+        addresses.forEach(addr => {
+          if (addr.isDefault) updateAddress(addr.id, { ...addr, isDefault: false });
+        });
+      }
+
+      const dbPayload = {
+        user_id: profile.id,
+        label: newAddress.label,
+        first_name: newAddress.firstName,
+        last_name: newAddress.lastName,
+        phone: newAddress.phone,
+        street: newAddress.street,
+        barangay: newAddress.barangay,
+        city: newAddress.city,
+        province: newAddress.province,
+        region: newAddress.region,
+        zip_code: newAddress.postalCode,
+        is_default: newAddress.isDefault,
+      };
+
+      if (editingId) {
+        const { error } = await supabase.from('addresses').update(dbPayload).eq('id', editingId);
+        if (error) throw error;
+        updateAddress(editingId, { ...newAddress, id: editingId });
+      } else {
+        const { data, error } = await supabase.from('addresses').insert([dbPayload]).select().single();
+        if (error) throw error;
+        addAddress({
+          ...newAddress, id: data.id,
+          fullName: ''
+        });
+      }
+      setIsAddressOpen(false);
+      toast({ title: editingId ? "Address updated" : "Address added" });
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally { setIsSaving(false); }
+  };
+
   // Form states
   const [notifications, setNotifications] = useState({
     email: true,
@@ -147,47 +311,38 @@ export default function BuyerSettingsPage() {
               animate={{ opacity: 1, y: 0 }}
               className="space-y-4"
             >
-              {mockAddresses.map((address) => (
-                <Card key={address.id} className="hover:shadow-md transition-shadow">
-                  <CardContent className="p-6">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-3">
-                          <h3 className="font-semibold text-lg">{address.label}</h3>
-                          {address.isDefault && (
-                            <Badge className="bg-orange-500">Default</Badge>
-                          )}
-                        </div>
-                        <div className="space-y-1 text-gray-600">
-                          <p className="font-medium text-gray-900">{address.fullName}</p>
-                          <p>{address.phone}</p>
-                          <p>{address.street}</p>
-                          <p>{address.city}, {address.province} {address.zipCode}</p>
-                        </div>
+              {addresses.map((address) => (
+                <div key={address.id} className="flex items-start justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors">
+                  <div className="flex gap-3">
+                    <MapPin className="h-5 w-5 text-gray-400 mt-1" />
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-medium">{address.label}</span>
+                        {address.isDefault && <Badge className="bg-orange-100 text-orange-700">Default</Badge>}
                       </div>
-                      <div className="flex gap-2">
-                        <Button variant="ghost" size="sm">
-                          <Edit3 className="h-4 w-4" />
-                        </Button>
-                        {!address.isDefault && (
-                          <Button variant="ghost" size="sm" className="text-red-500">
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
+                      <p className="text-sm text-gray-900">{address.firstName} {address.lastName}</p>
+                      <p className="text-sm text-gray-500">{address.phone}</p>
+                      <p className="text-sm text-gray-500">{address.street}, {address.barangay}, {address.city}, {address.province}</p>
                     </div>
-                    {!address.isDefault && (
-                      <Button variant="outline" size="sm" className="mt-4">
-                        Set as Default
-                      </Button>
-                    )}
-                  </CardContent>
-                </Card>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="ghost" size="sm" onClick={() => handleOpenAddressModal(address)}>
+                      <Edit3 className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="sm" className="text-red-500" onClick={async () => {
+                      if (confirm("Delete?")) {
+                        const { supabase } = await import('../lib/supabase');
+                        await supabase.from('addresses').delete().eq('id', address.id);
+                        deleteAddress(address.id);
+                      }
+                    }}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
               ))}
-              
-              <Button className="w-full bg-orange-500 hover:bg-orange-600">
-                <Plus className="h-4 w-4 mr-2" />
-                Add New Address
+              <Button variant="outline" className="w-full border-dashed" onClick={() => handleOpenAddressModal()}>
+                <Plus className="h-4 w-4 mr-2" /> Add New Address
               </Button>
             </motion.div>
           </TabsContent>
@@ -375,7 +530,7 @@ export default function BuyerSettingsPage() {
                       onCheckedChange={(checked) => setNotifications({ ...notifications, email: checked })}
                     />
                   </div>
-                  
+
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <Smartphone className="h-5 w-5 text-gray-400" />
@@ -583,8 +738,136 @@ export default function BuyerSettingsPage() {
           </TabsContent>
         </Tabs>
       </div>
-
       <BazaarFooter />
+
+      <Dialog open={isAddressOpen} onOpenChange={setIsAddressOpen}>
+        <DialogContent className="sm:max-w-[550px]">
+          <DialogHeader>
+            <DialogTitle>{editingId ? 'Edit Address' : 'Add New Address'}</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            {/* 1. Address Label & Phone Number */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="label">Address Label</Label>
+                <Input
+                  id="label"
+                  placeholder="e.g. Home, Office"
+                  value={newAddress.label}
+                  onChange={e => setNewAddress({ ...newAddress, label: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="phone">Phone Number</Label>
+                <Input
+                  id="phone"
+                  placeholder="0912 345 6789"
+                  value={newAddress.phone}
+                  onChange={e => setNewAddress({ ...newAddress, phone: e.target.value })}
+                />
+              </div>
+            </div>
+
+            {/* Street and House No. */}
+            <div className="space-y-2">
+              <Label>Street / House No.</Label>
+              <Input value={newAddress.street} onChange={e => setNewAddress({ ...newAddress, street: e.target.value })} />
+            </div>
+
+            {/* Region and Province */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Region</Label>
+                <Select
+                  // Maps the saved Name back to the Code for the dropdown value
+                  value={regionList.find(r => r.region_name === newAddress.region)?.region_code}
+                  onValueChange={onRegionChange}
+                >
+                  <SelectTrigger><SelectValue placeholder="Select Region" /></SelectTrigger>
+                  <SelectContent>
+                    {regionList.map(r => <SelectItem key={r.region_code} value={r.region_code}>{r.region_name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Province</Label>
+                <Select
+                  // Maps saved Province Name back to Code
+                  value={provinceList.find(p => p.province_name === newAddress.province)?.province_code}
+                  onValueChange={onProvinceChange}
+                  disabled={!provinceList.length}
+                >
+                  <SelectTrigger><SelectValue placeholder="Select Province" /></SelectTrigger>
+                  <SelectContent>
+                    {provinceList.map(p => <SelectItem key={p.province_code} value={p.province_code}>{p.province_name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* City and Barangay */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>City</Label>
+                <Select
+                  // Maps saved City Name back to Code
+                  value={cityList.find(c => c.city_name === newAddress.city)?.city_code}
+                  onValueChange={onCityChange}
+                  disabled={!cityList.length}
+                >
+                  <SelectTrigger><SelectValue placeholder="Select City" /></SelectTrigger>
+                  <SelectContent>
+                    {cityList.map(c => <SelectItem key={c.city_code} value={c.city_code}>{c.city_name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Barangay</Label>
+                <Select
+                  // Barangay usually works by name directly in this library
+                  value={newAddress.barangay}
+                  onValueChange={v => setNewAddress({ ...newAddress, barangay: v })}
+                  disabled={!barangayList.length}
+                >
+                  <SelectTrigger><SelectValue placeholder="Select Barangay" /></SelectTrigger>
+                  <SelectContent>
+                    {barangayList.map(b => <SelectItem key={b.brgy_code} value={b.brgy_name}>{b.brgy_name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* 2. Postal Code & Set to Default Toggle */}
+            <div className="grid grid-cols-2 gap-4 items-center pt-2">
+              <div className="space-y-2">
+                <Label htmlFor="postalCode">Postal Code</Label>
+                <Input
+                  id="postalCode"
+                  placeholder="1234"
+                  value={newAddress.postalCode}
+                  onChange={e => setNewAddress({ ...newAddress, postalCode: e.target.value })}
+                />
+              </div>
+
+              <div className="flex items-center space-x-2 pt-6">
+                <Switch
+                  id="set-default"
+                  checked={newAddress.isDefault}
+                  onCheckedChange={(checked) => setNewAddress({ ...newAddress, isDefault: checked })}
+                />
+                <Label htmlFor="set-default" className="cursor-pointer">Set as Default Address</Label>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAddressOpen(false)}>Cancel</Button>
+            <Button onClick={handleSaveAddress} disabled={isSaving} className="bg-[#ff6a00] hover:bg-[#e65e00] text-white">
+              {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {editingId ? 'Update Address' : 'Save Address'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

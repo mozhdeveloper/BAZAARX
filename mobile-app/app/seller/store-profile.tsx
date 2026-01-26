@@ -7,11 +7,14 @@ import {
   TouchableOpacity,
   TextInput,
   Image,
+  Alert,
+  Pressable,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { SellerStackParamList } from './SellerStack';
+import * as ImagePicker from 'expo-image-picker';
 import {
   ArrowLeft,
   Store,
@@ -41,6 +44,7 @@ export default function StoreProfileScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<SellerStackParamList>>();
   const insets = useSafeAreaInsets();
   const [editSection, setEditSection] = useState<'basic' | null>(null);
+  const [storeLogoUri, setStoreLogoUri] = useState<string | null>(null);
 
   const isVerified = true; // Mock verified status
   const seller = {
@@ -75,6 +79,71 @@ export default function StoreProfileScreen() {
     email: seller.email,
   });
 
+  const handlePickImage = async () => {
+    try {
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (!permissionResult.granted) {
+        Alert.alert('Permission Required', 'Please allow access to your photo library to update your store logo.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setStoreLogoUri(result.assets[0].uri);
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to pick image. Please try again.');
+    }
+  };
+
+  const handleCaptureImage = async () => {
+    try {
+      const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+      
+      if (!permissionResult.granted) {
+        Alert.alert('Permission Required', 'Please allow access to your camera to capture a store logo.');
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setStoreLogoUri(result.assets[0].uri);
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to capture image. Please try again.');
+    }
+  };
+
+  const handleCameraPress = () => {
+    Alert.alert('Update Store Logo', 'Choose an option', [
+      {
+        text: 'Take Photo',
+        onPress: handleCaptureImage,
+      },
+      {
+        text: 'Choose from Library',
+        onPress: handlePickImage,
+      },
+      {
+        text: 'Cancel',
+        style: 'cancel',
+      },
+    ]);
+  };
+
   const handleSave = () => {
     // Save logic here
     setEditSection(null);
@@ -82,69 +151,77 @@ export default function StoreProfileScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Header - Edge to Edge Orange */}
-      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
-        <View style={styles.headerContent}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
-          </TouchableOpacity>
-          <View style={styles.headerTitleContainer}>
+      {/* Header - Edge to Edge Orange - Match orders/dashboard style */}
+      <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: '#FF5722' }]}>
+        <View style={styles.headerTop}>
+            <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
+                <ArrowLeft size={24} color="#FFF" strokeWidth={2.5} />
+            </Pressable>
             <Text style={styles.headerTitle}>Store Profile</Text>
-            <Text style={styles.headerSubtitle}>Manage your complete profile</Text>
-          </View>
-          {isVerified && (
-            <View style={styles.verifiedBadge}>
-              <CheckCircle size={16} color="#10B981" strokeWidth={2.5} />
-            </View>
-          )}
+            <View style={{ width: 40 }} />
         </View>
+
+        {isVerified && (
+          <View style={[styles.headerBadge, { position: 'absolute', right: 20, top: insets.top + 14 }]}>
+              <CheckCircle size={16} color="#10B981" strokeWidth={2.5} />
+          </View>
+        )}
       </View>
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {/* Store Header Card */}
         <View style={styles.storeHeaderCard}>
-          <View style={styles.storeHeaderContent}>
-            {/* Store Logo */}
+          {/* Row 1: Logo with Camera Button + Store Name & URL */}
+          <View style={styles.storeHeaderRow1}>
+            {/* Logo Section */}
             <View style={styles.logoWrapper}>
-              <View style={styles.logoContainer}>
-                <Text style={styles.logoText}>{seller.storeName?.charAt(0)}</Text>
-              </View>
-              <TouchableOpacity style={styles.cameraButton} activeOpacity={0.7}>
+              {storeLogoUri ? (
+                <Image source={{ uri: storeLogoUri }} style={styles.logoContainer} />
+              ) : (
+                <View style={styles.logoContainer}>
+                  <Text style={styles.logoText}>{seller.storeName?.charAt(0)}</Text>
+                </View>
+              )}
+              <TouchableOpacity 
+                style={styles.cameraButton} 
+                activeOpacity={0.7}
+                onPress={handleCameraPress}
+              >
                 <Camera size={14} color="#FFFFFF" strokeWidth={2.5} />
               </TouchableOpacity>
             </View>
 
             {/* Store Info */}
-            <View style={styles.storeInfo}>
-              <Text style={styles.storeName}>{seller.storeName || 'Your Store'}</Text>
+            <View style={styles.storeInfoColumn}>
+              <Text style={styles.storeName} numberOfLines={1}>{seller.storeName || 'Your Store'}</Text>
               <View style={styles.storeUrlRow}>
-                <Globe size={14} color="#6B7280" strokeWidth={2} />
-                <Text style={styles.storeUrl}>bazaarph.com/store/{seller.id}</Text>
+                <Globe size={12} color="#6B7280" strokeWidth={2} />
+                <Text style={styles.storeUrl} numberOfLines={1}>bazaarph.com/store/{seller.id}</Text>
               </View>
+            </View>
+          </View>
 
-              {/* Quick Stats Grid */}
-              <View style={styles.statsGrid}>
-                <View style={styles.statCard}>
-                  <Award size={16} color="#6B7280" strokeWidth={2} />
-                  <Text style={styles.statLabel}>Rating</Text>
-                  <Text style={styles.statValue}>{seller.rating}/5.0</Text>
-                </View>
-                <View style={styles.statCard}>
-                  <Package size={16} color="#6B7280" strokeWidth={2} />
-                  <Text style={styles.statLabel}>Products</Text>
-                  <Text style={styles.statValue}>0</Text>
-                </View>
-                <View style={styles.statCard}>
-                  <TrendingUp size={16} color="#6B7280" strokeWidth={2} />
-                  <Text style={styles.statLabel}>Sales</Text>
-                  <Text style={styles.statValue}>{seller.totalSales}</Text>
-                </View>
-                <View style={styles.statCard}>
-                  <Users size={16} color="#6B7280" strokeWidth={2} />
-                  <Text style={styles.statLabel}>Followers</Text>
-                  <Text style={styles.statValue}>0</Text>
-                </View>
-              </View>
+          {/* Row 2: Quick Stats Grid */}
+          <View style={styles.statsGrid}>
+            <View style={styles.statCard}>
+              <Award size={16} color="#6B7280" strokeWidth={2} />
+              <Text style={styles.statLabel}>Rating</Text>
+              <Text style={styles.statValue}>{seller.rating}/5</Text>
+            </View>
+            <View style={styles.statCard}>
+              <Package size={16} color="#6B7280" strokeWidth={2} />
+              <Text style={styles.statLabel}>Products</Text>
+              <Text style={styles.statValue}>0</Text>
+            </View>
+            <View style={styles.statCard}>
+              <TrendingUp size={16} color="#6B7280" strokeWidth={2} />
+              <Text style={styles.statLabel}>Sales</Text>
+              <Text style={styles.statValue}>{seller.totalSales}</Text>
+            </View>
+            <View style={styles.statCard}>
+              <Users size={16} color="#6B7280" strokeWidth={2} />
+              <Text style={styles.statLabel}>Followers</Text>
+              <Text style={styles.statValue}>0</Text>
             </View>
           </View>
         </View>
@@ -270,14 +347,13 @@ export default function StoreProfileScreen() {
             <View style={styles.sectionTitleRow}>
               <Building2 size={20} color="#FF6A00" strokeWidth={2} />
               <Text style={styles.sectionTitle}>Business Information</Text>
-              {isVerified && (
+            </View>
+            {isVerified ? (
                 <View style={styles.verifiedLockBadge}>
                   <Lock size={12} color="#10B981" strokeWidth={2.5} />
                   <Text style={styles.verifiedLockText}>Verified & Locked</Text>
                 </View>
-              )}
-            </View>
-            {!isVerified && (
+              ) : ( 
               <View style={styles.pendingBadge}>
                 <AlertCircle size={12} color="#F59E0B" strokeWidth={2.5} />
                 <Text style={styles.pendingText}>Pending</Text>
@@ -328,13 +404,19 @@ export default function StoreProfileScreen() {
             <View style={styles.sectionTitleRow}>
               <CreditCard size={20} color="#FF6A00" strokeWidth={2} />
               <Text style={styles.sectionTitle}>Banking Information</Text>
-              {isVerified && (
+              
+            </View>
+            {isVerified ? (
                 <View style={styles.verifiedLockBadge}>
                   <Lock size={12} color="#10B981" strokeWidth={2.5} />
                   <Text style={styles.verifiedLockText}>Verified & Locked</Text>
                 </View>
+              ) : ( 
+                <View style={styles.pendingBadge}>
+                  <AlertCircle size={12} color="#F59E0B" strokeWidth={2.5} />
+                  <Text style={styles.pendingText}>Pending</Text>
+                </View>
               )}
-            </View>
           </View>
 
           <View style={styles.infoGrid}>
@@ -499,37 +581,30 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F9FAFB',
   },
-  header: {
-    backgroundColor: '#FF5722',
-    paddingBottom: 16,
+  headerContainer: {
+    paddingHorizontal: 20,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+    paddingBottom: 20,
+    marginBottom: 10,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    zIndex: 10,
   },
-  headerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-  },
-  backButton: {
-    padding: 8,
-    marginRight: 8,
-  },
-  headerTitleContainer: {
-    flex: 1,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
-  headerSubtitle: {
-    fontSize: 13,
-    color: '#FFE4DC',
-    marginTop: 2,
-  },
-  verifiedBadge: {
+  headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  headerIconButton: { padding: 4 },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFF' },
+  headerBadge: {
     backgroundColor: '#ECFDF5',
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 20,
+    flexShrink: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 5,
   },
   scrollView: {
     flex: 1,
@@ -539,18 +614,21 @@ const styles = StyleSheet.create({
     margin: 16,
     padding: 16,
     borderRadius: 12,
+    gap: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 8,
     elevation: 2,
   },
-  storeHeaderContent: {
+  storeHeaderRow1: {
     flexDirection: 'row',
-    gap: 16,
+    alignItems: 'flex-start',
+    gap: 12,
   },
   logoWrapper: {
     position: 'relative',
+    flexShrink: 0,
   },
   logoContainer: {
     width: 80,
@@ -559,6 +637,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FF5722',
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
   },
   logoText: {
     fontSize: 32,
@@ -567,37 +646,41 @@ const styles = StyleSheet.create({
   },
   cameraButton: {
     position: 'absolute',
-    bottom: -4,
-    right: -4,
+    bottom: -5,
+    right: -5,
     width: 28,
     height: 28,
     borderRadius: 14,
     backgroundColor: '#FF6A00',
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
   },
-  storeInfo: {
+  storeInfoColumn: {
     flex: 1,
+    justifyContent: 'flex-start',
+    gap: 6,
   },
   storeName: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '600',
     color: '#111827',
-    marginBottom: 4,
   },
   storeUrlRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: 12,
   },
   storeUrl: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#6B7280',
+    flex: 1,
   },
   statsGrid: {
     flexDirection: 'row',
     gap: 8,
+    width: '100%',
   },
   statCard: {
     flex: 1,
@@ -605,17 +688,22 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 8,
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 80,
   },
   statLabel: {
     fontSize: 11,
     color: '#6B7280',
     marginTop: 4,
+    fontWeight: '500',
+    textAlign: 'center',
   },
   statValue: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: 'bold',
     color: '#111827',
     marginTop: 2,
+    textAlign: 'center',
   },
   section: {
     backgroundColor: '#FFFFFF',
@@ -659,7 +747,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   infoItem: {
-    paddingVertical: 8,
+    paddingVertical: 3,
   },
   infoItemFull: {
     width: '100%',
@@ -748,9 +836,10 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 12,
     marginLeft: 8,
+    flexShrink: 0,
   },
   verifiedLockText: {
-    fontSize: 11,
+    fontSize: 10,
     color: '#10B981',
     fontWeight: '500',
   },
@@ -903,6 +992,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
+    marginTop: 8,
   },
   categoryText: {
     fontSize: 13,

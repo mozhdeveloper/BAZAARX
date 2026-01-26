@@ -1,13 +1,26 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet, Switch } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import React, { useState, useEffect } from 'react';
+import { View, Text, ScrollView, Pressable, StyleSheet, Switch, StatusBar } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Mail, MessageSquare, Bell, Package, ShoppingBag, Tag, ChevronDown } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
+import { useAuthStore } from '../src/stores/authStore';
+import { GuestLoginModal } from '../src/components/GuestLoginModal';
+import { COLORS } from '../src/constants/theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Notifications'>;
 
 export default function NotificationsScreen({ navigation }: Props) {
+  const { isGuest } = useAuthStore();
+  const [showGuestModal, setShowGuestModal] = useState(false);
+  const insets = useSafeAreaInsets();
+
+  useEffect(() => {
+    if (isGuest) {
+      setShowGuestModal(true);
+    }
+  }, [isGuest]);
+
   const [notifications, setNotifications] = useState({
     email: {
       orderUpdates: true,
@@ -51,16 +64,56 @@ export default function NotificationsScreen({ navigation }: Props) {
     });
   };
 
+  // Early return for Guest Mode - Renders ONLY the header and the modal, no content below.
+  if (isGuest) {
+      return (
+        <View style={styles.container}>
+            <StatusBar barStyle="light-content" />
+            <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: COLORS.primary }]}>
+                <View style={styles.headerTop}>
+                    <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
+                        <ArrowLeft size={24} color="#FFF" strokeWidth={2.5} />
+                    </Pressable>
+                    <Text style={styles.headerTitle}>Notifications</Text>
+                    <View style={{ width: 40 }} />
+                </View>
+            </View>
+            <GuestLoginModal
+                visible={true}
+                onClose={() => {
+                    navigation.navigate('MainTabs', { screen: 'Home' });
+                }}
+                message="Sign up to view your notifications."
+                hideCloseButton={true}
+                cancelText="Go back to Home"
+            />
+        </View>
+      );
+  }
+
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" />
       {/* Header */}
-      <View style={styles.header}>
-        <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
-          <ArrowLeft size={24} color="#111827" />
-        </Pressable>
-        <Text style={styles.headerTitle}>Notifications</Text>
-        <View style={styles.placeholder} />
+      <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: COLORS.primary }]}>
+        <View style={styles.headerTop}>
+            <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
+                <ArrowLeft size={24} color="#FFF" strokeWidth={2.5} />
+            </Pressable>
+            <Text style={styles.headerTitle}>Notifications</Text>
+            <View style={{ width: 40 }} />
+        </View>
       </View>
+
+      <GuestLoginModal
+        visible={showGuestModal}
+        onClose={() => {
+          navigation.navigate('MainTabs', { screen: 'Home' });
+        }}
+        message="Sign up to view your notifications."
+        hideCloseButton={true}
+        cancelText="Go back to Home"
+      />
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         {/* Email Notifications */}
@@ -382,7 +435,7 @@ export default function NotificationsScreen({ navigation }: Props) {
           </View>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -391,27 +444,21 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F9FAFB',
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  headerContainer: {
     paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+    paddingBottom: 20,
+    marginBottom: 10,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    zIndex: 10,
   },
-  backButton: {
-    padding: 4,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  placeholder: {
-    width: 32,
-  },
+  headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  headerIconButton: { padding: 4 },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFF' },
   scrollView: {
     flex: 1,
   },

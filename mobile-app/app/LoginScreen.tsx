@@ -19,11 +19,13 @@ import { ShoppingBag, Mail, Lock, Eye, EyeOff, ArrowRight, Store, Shield } from 
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import { useAuthStore } from '../src/stores/authStore';
+import { supabase } from '../src/lib/supabase';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Login'>;
 
+
 export default function LoginScreen({ navigation }: Props) {
-  const login = useAuthStore((state) => state.login);
+  // const login = useAuthStore((state) => state.login); // Deprecated
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -36,17 +38,59 @@ export default function LoginScreen({ navigation }: Props) {
     }
 
     setIsLoading(true);
-    const success = await login(email, password);
-    setIsLoading(false);
 
-    if (success) {
-      navigation.replace('MainTabs', { screen: 'Home' });
-    } else {
-      Alert.alert(
-        'Login Failed',
-        'Invalid email or password. Please try again.',
-        [{ text: 'OK' }]
-      );
+    try {
+      // 2. Sign in with Supabase
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password: password,
+      });
+
+      if (error) {
+        Alert.alert('Login Error', error.message);
+        setIsLoading(false);
+        return;
+      }
+
+      if (data.user) {
+        // 3. Fetch the profile to check user_type (buyer/seller)
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('user_type')
+          .eq('id', data.user.id)
+          .single();
+
+        if (profileError) {
+          Alert.alert('Profile Error', 'Could not fetch user profile.');
+        } else if (profile.user_type === 'buyer') {
+
+          // SYNC USER TO GLOBAL STORE
+          const { data: profileDetails } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', data.user.id)
+            .single();
+
+          if (profileDetails) {
+            useAuthStore.getState().setUser({
+              id: data.user.id,
+              name: profileDetails.full_name || 'BazaarX User',
+              email: data.user.email || '',
+              phone: profileDetails.phone || '',
+              avatar: profileDetails.avatar_url || ''
+            });
+          }
+
+          navigation.replace('MainTabs', { screen: 'Home' });
+        } else if (profile.user_type === 'seller') {
+          Alert.alert('Seller Account', 'This is the buyer portal. Please use the Seller Centre.');
+          await supabase.auth.signOut(); // Log them out if they are in the wrong place
+        }
+      }
+    } catch (err) {
+      Alert.alert('Error', 'An unexpected error occurred');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -169,34 +213,30 @@ export default function LoginScreen({ navigation }: Props) {
           {/* Register Link */}
           <View style={styles.registerSection}>
             <Text style={styles.registerText}>Don't have an account? </Text>
-            <Pressable>
+            <Pressable onPress={() => navigation.navigate('Signup')}>
               <Text style={styles.registerLink}>Sign Up</Text>
             </Pressable>
           </View>
 
           {/* Guest Access */}
-          <Pressable style={styles.guestButton}>
+          <Pressable
+            style={styles.guestButton}
+            onPress={() => {
+              useAuthStore.getState().loginAsGuest();
+              navigation.replace('MainTabs', { screen: 'Home' });
+            }}
+          >
             <Text style={styles.guestButtonText}>Continue as Guest</Text>
           </Pressable>
 
           {/* Seller Portal Link */}
           <Pressable
             style={styles.sellerPortalButton}
-            onPress={() => navigation.navigate('SellerLogin')}
+            onPress={() => navigation.navigate('SellerAuthChoice')}
           >
             <Store size={20} color="#FF5722" strokeWidth={2.5} />
-            <Text style={styles.sellerPortalText}>Access Seller Portal</Text>
+            <Text style={styles.sellerPortalText}>Start Selling</Text>
             <ArrowRight size={18} color="#FF5722" />
-          </Pressable>
-
-          {/* Admin Portal Link */}
-          <Pressable
-            style={styles.adminPortalButton}
-            onPress={() => navigation.navigate('AdminStack')}
-          >
-            <Shield size={20} color="#8B5CF6" strokeWidth={2.5} />
-            <Text style={styles.adminPortalText}>Admin Portal</Text>
-            <ArrowRight size={18} color="#8B5CF6" />
           </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>

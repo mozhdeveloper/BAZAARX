@@ -1,6 +1,6 @@
 // EARNINGS PAGE - Matches web exactly with same data and functionality
 import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Pressable } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { SellerStackParamList } from './SellerStack';
@@ -24,15 +24,13 @@ export default function EarningsScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
-        <View style={styles.headerContent}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
-          </TouchableOpacity>
-          <View style={styles.headerTitleContainer}>
+      <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: '#FF5722' }]}>
+        <View style={styles.headerTop}>
+            <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
+                <ArrowLeft size={24} color="#FFF" strokeWidth={2.5} />
+            </Pressable>
             <Text style={styles.headerTitle}>Earnings Dashboard</Text>
-            <Text style={styles.headerSubtitle}>Track financial performance</Text>
-          </View>
+            <View style={{ width: 40 }} />
         </View>
       </View>
 
@@ -74,7 +72,7 @@ export default function EarningsScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <View><Text style={styles.sectionTitle}>Payout Schedule</Text><Text style={styles.sectionSubtitle}>Automatic payouts every Friday</Text></View>
-            <View style={styles.nextPayoutBadge}><Calendar size={14} color="#10B981" /><Text style={styles.nextPayoutText}>Next: Friday, Jan 26</Text></View>
+            <View style={styles.nextPayoutBadge}><Calendar size={14} color="#10B981" /><Text style={styles.nextPayoutText}>Friday, Jan 26</Text></View>
           </View>
           <View style={styles.scheduleGrid}>
             <View style={styles.scheduleCard}><View style={styles.scheduleIcon}><Calendar size={20} color="#3B82F6" /></View><Text style={styles.scheduleLabel}>Payout Frequency</Text><Text style={styles.scheduleValue}>Weekly</Text><Text style={styles.scheduleSubtext}>Every Friday at 5:00 PM PHT</Text></View>
@@ -103,4 +101,306 @@ export default function EarningsScreen() {
   );
 }
 
-const styles = StyleSheet.create({ container: { flex: 1, backgroundColor: '#F9FAFB' }, header: { backgroundColor: '#FF5722', paddingBottom: 16 }, headerContent: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16 }, backButton: { padding: 8, marginRight: 8 }, headerTitleContainer: { flex: 1 }, headerTitle: { fontSize: 20, fontWeight: 'bold', color: '#FFF' }, headerSubtitle: { fontSize: 13, color: '#FFE4DC', marginTop: 2 }, scrollView: { flex: 1 }, cardsGrid: { padding: 16, gap: 12 }, totalCard: { backgroundColor: '#FF5722', padding: 20, borderRadius: 12, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 8 }, availableCard: { backgroundColor: '#ECFDF5', borderWidth: 2, borderColor: '#A7F3D0', padding: 20, borderRadius: 12 }, pendingCard: { backgroundColor: '#FEF3C7', borderWidth: 2, borderColor: '#FDE68A', padding: 20, borderRadius: 12 }, cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }, cardIconOrange: { width: 48, height: 48, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' }, cardIconGreen: { width: 48, height: 48, borderRadius: 12, backgroundColor: '#D1FAE5', justifyContent: 'center', alignItems: 'center' }, cardIconYellow: { width: 48, height: 48, borderRadius: 12, backgroundColor: '#FEF3C7', justifyContent: 'center', alignItems: 'center' }, growthBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 }, growthText: { fontSize: 12, fontWeight: '500', color: '#FFF' }, cardLabel: { fontSize: 13, color: 'rgba(255,255,255,0.8)', marginBottom: 4 }, cardLabelGray: { fontSize: 13, color: '#6B7280', marginBottom: 4 }, cardValueWhite: { fontSize: 28, fontWeight: 'bold', color: '#FFF' }, cardValueDark: { fontSize: 28, fontWeight: 'bold', color: '#111827' }, cardSubtext: { fontSize: 11, color: 'rgba(255,255,255,0.7)', marginTop: 6 }, cardSubtextGray: { fontSize: 11, color: '#6B7280', marginTop: 6 }, section: { backgroundColor: '#FFF', marginHorizontal: 16, marginBottom: 16, padding: 16, borderRadius: 12, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8 }, lastSection: { marginBottom: 24 }, sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }, sectionTitle: { fontSize: 16, fontWeight: 'bold', color: '#111827' }, sectionSubtitle: { fontSize: 12, color: '#6B7280', marginTop: 2 }, nextPayoutBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#ECFDF5', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 }, nextPayoutText: { fontSize: 12, fontWeight: '500', color: '#10B981' }, scheduleGrid: { gap: 12 }, scheduleCard: { backgroundColor: '#F9FAFB', padding: 12, borderRadius: 8 }, scheduleIcon: { width: 40, height: 40, borderRadius: 8, backgroundColor: '#EEF2FF', justifyContent: 'center', alignItems: 'center', marginBottom: 8 }, scheduleLabel: { fontSize: 12, color: '#6B7280', marginBottom: 4 }, scheduleValue: { fontSize: 15, fontWeight: '600', color: '#111827' }, scheduleSubtext: { fontSize: 11, color: '#9CA3AF', marginTop: 4 }, updateButton: { borderWidth: 1, borderColor: '#E5E7EB', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 }, updateButtonText: { fontSize: 13, color: '#374151', fontWeight: '500' }, bankCard: { backgroundColor: '#F9FAFB', borderRadius: 8, padding: 12, gap: 10 }, bankRow: { paddingVertical: 4 }, bankLabel: { fontSize: 12, color: '#6B7280', marginBottom: 2 }, bankValue: { fontSize: 14, fontWeight: '600', color: '#111827' }, monoText: { fontFamily: 'monospace' }, downloadButton: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: '#E5E7EB', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 }, downloadText: { fontSize: 13, color: '#374151', fontWeight: '500' }, payoutRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' }, payoutInfo: { flex: 1 }, payoutDate: { fontSize: 14, fontWeight: '500', color: '#111827', marginBottom: 2 }, payoutReference: { fontSize: 12, color: '#6B7280', fontFamily: 'monospace' }, payoutRight: { alignItems: 'flex-end' }, payoutAmount: { fontSize: 15, fontWeight: '600', color: '#111827', marginBottom: 4 }, completedBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#ECFDF5', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 }, completedText: { fontSize: 11, color: '#10B981', fontWeight: '500' } });
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#F9FAFB',
+  },
+  headerContainer: {
+    paddingHorizontal: 20,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+    paddingBottom: 20,
+    marginBottom: 10,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    zIndex: 10,
+  },
+  headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  headerIconButton: { padding: 4 },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFF' },
+  scrollView: {
+    flex: 1,
+  },
+  cardsGrid: {
+    padding: 16,
+    gap: 12,
+  },
+  totalCard: {
+    backgroundColor: '#FF5722',
+    padding: 20,
+    borderRadius: 12,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+  },
+  availableCard: {
+    backgroundColor: '#ECFDF5',
+    borderWidth: 2,
+    borderColor: '#A7F3D0',
+    padding: 20,
+    borderRadius: 12,
+  },
+  pendingCard: {
+    backgroundColor: '#FEF3C7',
+    borderWidth: 2,
+    borderColor: '#FDE68A',
+    padding: 20,
+    borderRadius: 12,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  cardIconOrange: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cardIconGreen: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: '#D1FAE5',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cardIconYellow: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: '#FEF3C7',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  growthBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  growthText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#FFF',
+  },
+  cardLabel: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.8)',
+    marginBottom: 4,
+  },
+  cardLabelGray: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginBottom: 4,
+  },
+  cardValueWhite: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#FFF',
+  },
+  cardValueDark: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#111827',
+  },
+  cardSubtext: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.7)',
+    marginTop: 6,
+  },
+  cardSubtextGray: {
+    fontSize: 11,
+    color: '#6B7280',
+    marginTop: 6,
+  },
+  section: {
+    backgroundColor: '#FFF',
+    marginHorizontal: 16,
+    marginBottom: 16,
+    padding: 16,
+    borderRadius: 12,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+  },
+  lastSection: {
+    marginBottom: 24,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#111827',
+  },
+  sectionSubtitle: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  nextPayoutBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  nextPayoutText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#10B981',
+  },
+  scheduleGrid: {
+    gap: 12,
+  },
+  scheduleCard: {
+    backgroundColor: '#F9FAFB',
+    padding: 12,
+    borderRadius: 8,
+  },
+  scheduleIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    backgroundColor: '#EEF2FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  scheduleLabel: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginBottom: 4,
+  },
+  scheduleValue: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  scheduleSubtext: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    marginTop: 4,
+  },
+  updateButton: {
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  updateButtonText: {
+    fontSize: 13,
+    color: '#374151',
+    fontWeight: '500',
+  },
+  bankCard: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+    padding: 12,
+    gap: 10,
+  },
+  bankRow: {
+    paddingVertical: 4,
+  },
+  bankLabel: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginBottom: 2,
+  },
+  bankValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  monoText: {
+    fontFamily: 'monospace',
+  },
+  downloadButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  downloadText: {
+    fontSize: 13,
+    color: '#374151',
+    fontWeight: '500',
+  },
+  payoutRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  payoutInfo: {
+    flex: 1,
+  },
+  payoutDate: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#111827',
+    marginBottom: 2,
+  },
+  payoutReference: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontFamily: 'monospace',
+  },
+  payoutRight: {
+    alignItems: 'flex-end',
+  },
+  payoutAmount: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  completedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  completedText: {
+    fontSize: 11,
+    color: '#10B981',
+    fontWeight: '500',
+  },
+});

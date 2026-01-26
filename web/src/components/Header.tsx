@@ -8,19 +8,46 @@ import {
   Star,
   ChevronDown,
   ShoppingBag,
+  Camera,
 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { NotificationsDropdown } from "./NotificationsDropdown";
 import { useBuyerStore } from "../stores/buyerStore";
+import VisualSearchModal from "./VisualSearchModal";
+import ProductRequestModal from "./ProductRequestModal";
+import {
+  trendingProducts,
+  bestSellerProducts,
+  newArrivals,
+} from "../data/products";
 
-const Header: React.FC = () => {
+interface HeaderProps {
+  transparentOnTop?: boolean;
+}
+
+const Header: React.FC<HeaderProps> = ({ transparentOnTop = false }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { profile, logout } = useBuyerStore();
+  const { profile, logout, getTotalCartItems, initializeCart, subscribeToProfile, unsubscribeFromProfile } = useBuyerStore();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [showRequestModal, setShowRequestModal] = useState(false);
+  const [showVisualSearchModal, setShowVisualSearchModal] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement>(null);
 
   // Check if we're on the search page
   const isSearchPage = location.pathname === "/search";
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 10);
+    };
+
+    if (transparentOnTop) {
+      window.addEventListener("scroll", handleScroll);
+      return () => window.removeEventListener("scroll", handleScroll);
+    }
+  }, [transparentOnTop]);
 
   // Close profile menu when clicking outside
   useEffect(() => {
@@ -39,38 +66,43 @@ const Header: React.FC = () => {
     };
   }, []);
 
+  const headerClasses = transparentOnTop
+    ? `fixed top-0 w-full z-[100] transition-all duration-300 ${isScrolled ? "bg-white/80 backdrop-blur-md shadow-sm" : "bg-transparent"
+    }`
+    : "sticky top-0 z-[100] bg-gray-50";
+
   return (
-    <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-[var(--border-subtle)]">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
+    <header className={headerClasses}>
+      <div className="w-full px-4 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between h-20 gap-4">
           {/* Logo */}
           <div
-            className="flex items-center cursor-pointer"
+            className="flex items-center cursor-pointer shrink-0 transition-transform duration-300 hover:scale-110 origin-left"
             onClick={() => navigate("/")}
           >
-            <div className="flex items-center gap-2">
+            <div className={`flex items-center gap-2 transition-all duration-300 ${transparentOnTop && !isScrolled ? "drop-shadow-[0_0_15px_rgba(255,255,255,0.8)]" : ""}`}>
               <img
-                src="/Logo.png"
-                alt="Bazaar Logo"
-                className="w-10 h-10 object-contain"
+                src="/BazaarX.png"
+                alt="BazaarX Logo"
+                className="h-12 w-auto object-contain"
               />
-              <span className="text-xl font-bold text-[var(--text-primary)]">
-                Bazaar
+              <span 
+                className="font-['Tenor Sans'] text-2xl font-bold tracking-tight hidden md:block text-[var(--brand-primary)]">
+                BazaarX
               </span>
             </div>
           </div>
 
-          {/* Search Bar - Hidden on search page */}
           {!isSearchPage && (
-            <div className="flex-1 max-w-2xl mx-8">
-              <div className="relative">
+            <div className={`hidden md:flex flex-1 items-center justify-center lg:absolute lg:left-1/2 lg:-translate-x-1/2 lg:w-full lg:max-w-2xl px-4 lg:px-8 transition-opacity duration-300 ${transparentOnTop && !isScrolled ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+              <div className="relative w-full max-w-xl lg:max-w-full group">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                   <svg
-                    className="h-5 w-5 text-[var(--text-secondary)]"
+                    className="h-5 w-5 text-gray-400"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
-                  >
+                  > 
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -81,50 +113,59 @@ const Header: React.FC = () => {
                 </div>
                 <input
                   type="text"
-                  placeholder="Search for products, stores, or categories..."
-                  className="w-full pl-12 pr-4 py-3 bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-full focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)] focus:border-transparent transition-all"
+                  placeholder="Search for products, brands, categories"
+                  className="w-full pl-10 pr-12 py-2.5 bg-white border-2 border-transparent focus:border-[#ff6a00] rounded-full text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-4 focus:ring-orange-100 transition-all text-sm shadow-sm"
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       const query = (e.target as HTMLInputElement).value;
                       navigate(
-                        `/search${
-                          query ? "?q=" + encodeURIComponent(query) : ""
+                        `/search${query ? "?q=" + encodeURIComponent(query) : ""
                         }`
                       );
                     }
                   }}
                 />
+
+                {/* Camera Button */}
                 <button
-                  onClick={(e) => {
-                    const input = e.currentTarget.previousElementSibling
-                      ?.previousElementSibling as HTMLInputElement;
-                    const query = input?.value || "";
-                    navigate(
-                      `/search${query ? "?q=" + encodeURIComponent(query) : ""}`
-                    );
-                  }}
-                  className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-[var(--brand-primary)] text-white px-6 py-2 rounded-full text-sm font-semibold hover:bg-[var(--brand-primary-dark)] transition-colors"
+                  onClick={() => setShowVisualSearchModal(true)}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 text-gray-400 hover:text-[#ff6a00] transition-colors rounded-full hover:bg-gray-100"
+                  title="Search by image"
                 >
-                  Search
+                  <Camera className="w-5 h-5" />
                 </button>
               </div>
             </div>
           )}
 
           {/* Right Navigation */}
-          <div className="flex items-center gap-6">
-            {/* Sell Button */}
-            <button
-              onClick={() => navigate("/seller/auth")}
-              className="btn-ghost text-sm hover:text-[var(--brand-primary)] transition-colors"
-            >
-              Sell on Bazaar
-            </button>
+          <div 
+            className="flex items-center justify-end text-gray-700 shrink-0 gap-[var(--spacing-md)]">
+            {!isSearchPage && (
+              <button
+                onClick={() => navigate("/search")}
+                className="md:hidden p-2 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <svg
+                  className="h-6 w-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                  />
+                </svg>
+              </button>
+            )}
 
             {/* Cart */}
             <button
               onClick={() => navigate("/enhanced-cart")}
-              className="relative p-2 text-[var(--text-secondary)] hover:text-[var(--brand-primary)] transition-colors"
+              className="relative p-2 hover:text-[#ff6a00] hover:bg-gray-50 rounded-full transition-colors"
               title="Shopping Cart"
             >
               <svg
@@ -140,12 +181,17 @@ const Header: React.FC = () => {
                   d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"
                 />
               </svg>
+              {profile && getTotalCartItems() > 0 && (
+                <Badge className="absolute top-0 right-0 min-w-[1.25rem] h-5 px-1 flex items-center justify-center bg-red-500 text-white border-none rounded-full text-xs">
+                  {getTotalCartItems() > 99 ? "99+" : getTotalCartItems()}
+                </Badge>
+              )}
             </button>
 
             {/* Orders */}
             <button
               onClick={() => navigate("/orders")}
-              className="relative p-2 text-[var(--text-secondary)] hover:text-[var(--brand-primary)] transition-colors"
+              className="relative p-2 hover:text-[#ff6a00] hover:bg-gray-50 rounded-full transition-colors"
               title="My Orders"
             >
               <svg
@@ -171,143 +217,167 @@ const Header: React.FC = () => {
               {profile ? (
                 <>
                   <div
-                    className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 rounded-lg p-2 transition-colors"
+                    className="flex items-center gap-3 cursor-pointer group"
                     onClick={() => setShowProfileMenu(!showProfileMenu)}
                   >
-                    <div className="w-8 h-8 bg-[var(--brand-primary)] rounded-full flex items-center justify-center overflow-hidden">
-                      {profile.avatar ? (
-                        <img src={profile.avatar} alt={profile.firstName} className="w-full h-full object-cover" />
-                      ) : (
-                        <span className="text-white text-sm font-semibold">
-                          {profile.firstName.charAt(0)}
-                        </span>
-                      )}
-                    </div>
-                    <div className="hidden sm:block">
-                      <p className="text-sm font-medium text-[var(--text-primary)]">
-                        {profile.firstName} {profile.lastName}
+                    <div className="hidden xl:block text-right">
+                      <p className="text-sm font-medium text-gray-700 group-hover:text-[#ff6a00] transition-colors leading-none">
+                        Hi, {profile.firstName}
                       </p>
-                      <p className="text-xs text-[var(--text-secondary)]">
-                        {profile.loyaltyPoints} Points
+                      <p className="text-[10px] text-gray-500 mt-1 uppercase tracking-wider font-medium">
+                        {profile.bazcoins} Bazcoins
                       </p>
                     </div>
-                    <ChevronDown
-                      className={`h-4 w-4 text-gray-400 transition-transform ${
-                        showProfileMenu ? "rotate-180" : ""
-                      }`}
-                    />
+
+                    <div className="relative">
+                      <div className="w-9 h-9 bg-[#ff6a00] rounded-full flex items-center justify-center overflow-hidden shadow-sm hover:scale-105 transition-transform">
+                        {profile.avatar ? (
+                          <img src={profile.avatar} alt={profile.firstName} className="w-full h-full object-cover" />
+                        ) : (
+                          <span className="text-white text-sm font-bold">
+                            {profile.firstName.charAt(0)}
+                          </span>
+                        )}
+                      </div>
+                      <div className="absolute -bottom-0.5 -right-0.5 bg-white rounded-full p-0.5 shadow-sm">
+                        <ChevronDown
+                          className={`h-3 w-3 text-gray-500 transition-transform ${showProfileMenu ? "rotate-180" : ""}`}
+                        />
+                      </div>
+                    </div>
                   </div>
 
                   {/* Profile Dropdown */}
                   {showProfileMenu && (
-                    <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
-                      <div className="p-3 border-b border-gray-100">
+                    <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-100 rounded-xl shadow-xl z-50 overflow-hidden text-gray-800 animate-in fade-in slide-in-from-top-2 duration-200">
+                      <div className="p-3 bg-gray-50/50 border-b border-gray-100">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-[var(--brand-primary)] rounded-full flex items-center justify-center overflow-hidden">
+                          <div className="w-10 h-10 bg-[#ff6a00] rounded-full flex items-center justify-center overflow-hidden shadow-md text-white font-bold text-base">
                             {profile.avatar ? (
                               <img src={profile.avatar} alt={profile.firstName} className="w-full h-full object-cover" />
                             ) : (
-                              <span className="text-white text-sm font-semibold">
-                                {profile.firstName.charAt(0)}
-                              </span>
+                              <span>{profile.firstName.charAt(0)}</span>
                             )}
                           </div>
-                          <div>
-                            <p className="font-medium text-gray-900">
+                          <div className="hidden md:flex flex-col items-end mr-2">
+                            <span className="text-sm font-medium text-gray-700 leading-none">
                               {profile.firstName} {profile.lastName}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              {profile.email}
-                            </p>
+                            </span>
+                            <div className="flex items-center gap-1 mt-0.5">
+                              <div className="w-3 h-3 bg-yellow-400 rounded-full flex items-center justify-center">
+                                <span className="text-[8px] font-bold text-white">B</span>
+                              </div>
+                              <span className="text-xs text-gray-500">{profile.bazcoins} Bazcoins</span>
+                            </div>
                           </div>
                         </div>
                       </div>
 
-                  <div className="p-2">
-                    <button
-                      onClick={() => {
-                        navigate("/profile");
-                        setShowProfileMenu(false);
-                      }}
-                      className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
-                    >
-                      <User className="h-4 w-4" />
-                      My Profile
-                    </button>
+                      <div className="p-1 space-y-0.5">
+                        <button
+                          onClick={() => {
+                            navigate("/profile");
+                            setShowProfileMenu(false);
+                          }}
+                          className="w-full flex items-center gap-3 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-orange-50 hover:text-[#ff6a00] rounded-lg transition-all"
+                        >
+                          <User className="h-3.5 w-3.5" />
+                          My Profile
+                        </button>
 
-                    <button
-                      onClick={() => {
-                        navigate("/orders");
-                        setShowProfileMenu(false);
-                      }}
-                      className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
-                    >
-                      <ShoppingBag className="h-4 w-4" />
-                      My Orders
-                    </button>
+                        <button
+                          onClick={() => {
+                            navigate("/orders");
+                            setShowProfileMenu(false);
+                          }}
+                          className="w-full flex items-center gap-3 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-orange-50 hover:text-[#ff6a00] rounded-lg transition-all"
+                        >
+                          <ShoppingBag className="h-3.5 w-3.5" />
+                          My Orders
+                        </button>
 
-                    <button
-                      onClick={() => {
-                        navigate("/my-reviews");
-                        setShowProfileMenu(false);
-                      }}
-                      className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
-                    >
-                      <Star className="h-4 w-4" />
-                      My Reviews
-                    </button>
+                        <button
+                          onClick={() => {
+                            navigate("/my-reviews");
+                            setShowProfileMenu(false);
+                          }}
+                          className="w-full flex items-center gap-3 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-orange-50 hover:text-[#ff6a00] rounded-lg transition-all"
+                        >
+                          <Star className="h-3.5 w-3.5" />
+                          My Reviews
+                        </button>
 
-                    <button
-                      onClick={() => {
-                        navigate("/following");
-                        setShowProfileMenu(false);
-                      }}
-                      className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
-                    >
-                      <Heart className="h-4 w-4" />
-                      Following
-                    </button>
+                        <button
+                          onClick={() => {
+                            navigate("/following");
+                            setShowProfileMenu(false);
+                          }}
+                          className="w-full flex items-center gap-3 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-orange-50 hover:text-[#ff6a00] rounded-lg transition-all"
+                        >
+                          <Heart className="h-3.5 w-3.5" />
+                          Following
+                        </button>
 
-                    <div className="border-t border-gray-100 my-2"></div>
+                        <div className="h-px bg-gray-100 my-1 mx-2"></div>
 
-                    <button
-                      onClick={() => {
-                        navigate("/settings");
-                        setShowProfileMenu(false);
-                      }}
-                      className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
-                    >
-                      <Settings className="h-4 w-4" />
-                      Settings
-                    </button>
+                        <button
+                          onClick={() => {
+                            navigate("/settings");
+                            setShowProfileMenu(false);
+                          }}
+                          className="w-full flex items-center gap-3 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-orange-50 hover:text-[#ff6a00] rounded-lg transition-all"
+                        >
+                          <Settings className="h-3.5 w-3.5" />
+                          Settings
+                        </button>
 
-                    <button
-                      onClick={() => {
-                        logout();
-                        setShowProfileMenu(false);
-                        navigate('/login');
-                      }}
-                      className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                    >
-                      <LogOut className="h-4 w-4" />
-                      Sign Out
-                    </button>
-                  </div>
-                </div>
-              )}
+                        <button
+                          onClick={() => {
+                            logout();
+                            setShowProfileMenu(false);
+                            navigate('/login');
+                          }}
+                          className="w-full flex items-center gap-3 px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                        >
+                          <LogOut className="h-3.5 w-3.5" />
+                          Sign Out
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </>
               ) : (
                 <button
                   onClick={() => navigate('/login')}
-                  className="px-4 py-2 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-medium rounded-lg transition-all"
+                  className="flex items-center gap-3 group"
                 >
-                  Sign In
+                  <span className="text-sm font-medium text-gray-700 group-hover:text-[#ff6a00] transition-colors">
+                    Sign In
+                  </span>
+                  <div className="w-9 h-9 bg-[#ff6a00] rounded-full flex items-center justify-center text-white shadow-sm hover:scale-105 transition-transform">
+                    <User className="w-5 h-5" />
+                  </div>
                 </button>
               )}
             </div>
           </div>
         </div>
       </div>
+      {/* Visual Search Modal */}
+      <VisualSearchModal
+        isOpen={showVisualSearchModal}
+        onClose={() => setShowVisualSearchModal(false)}
+        products={[...trendingProducts, ...bestSellerProducts, ...newArrivals]}
+        onRequestProduct={() => {
+          setShowVisualSearchModal(false);
+          setShowRequestModal(true);
+        }}
+      />
+
+      <ProductRequestModal
+        isOpen={showRequestModal}
+        onClose={() => setShowRequestModal(false)}
+      />
     </header>
   );
 };

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useBuyerStore, demoSellers } from '../stores/buyerStore';
 import Header from '../components/Header';
 import { Button } from '../components/ui/button';
@@ -8,6 +8,8 @@ import { Badge } from '../components/ui/badge';
 import { Card, CardContent } from '../components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import {
+  ChevronLeft,
+  Users,
   Star,
   Heart,
   MessageCircle,
@@ -21,27 +23,136 @@ import {
   ShoppingCart,
   Filter,
   Grid,
-  List
+  List,
+  ThumbsUp
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../components/ui/select";
+import { Textarea } from "../components/ui/textarea";
+
+import { useProductStore } from '../stores/sellerStore';
+
+interface Reply {
+  id: number;
+  text: string;
+  author: string;
+  date: string;
+  avatar: string;
+  isSeller?: boolean;
+}
+
+interface Review {
+  id: number;
+  author: string;
+  avatar: string;
+  rating: number;
+  date: string;
+  content: string;
+  helpfulCount: number;
+  isLiked?: boolean;
+  replies: Reply[];
+}
 
 export default function SellerStorefrontPage() {
+  const navigate = useNavigate();
   const { sellerId } = useParams();
-  const { 
-    followShop, 
-    unfollowShop, 
-    isFollowing, 
-    addToCart, 
-    addViewedSeller 
+  const {
+    followShop,
+    unfollowShop,
+    isFollowing,
+    addToCart,
+    addViewedSeller,
+    profile
   } = useBuyerStore();
-  
+  const { products: allProducts } = useProductStore();
+
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [sortBy, setSortBy] = useState('popular');
-  
-  // Get seller data (in real app, this would fetch from API)
-  const seller = demoSellers.find(s => s.id === sellerId) || demoSellers[0];
-  
+  const [reviewFilter, setReviewFilter] = useState('all');
+  const [replyingTo, setReplyingTo] = useState<number | null>(null);
+  const [replyText, setReplyText] = useState("");
+
+  const [reviews, setReviews] = useState<Review[]>(
+    Array.from({ length: 5 }).map((_, i) => ({
+      id: i + 1,
+      author: "Maria S.",
+      avatar: `https://images.unsplash.com/photo-${1594750108750 + i}?w=40&h=40&fit=crop&crop=face`,
+      rating: 5,
+      date: "2 days ago",
+      content: "Excellent seller! Fast shipping and product exactly as described. Highly recommended! The packaging was secure and the item arrived in perfect condition.",
+      helpfulCount: 12,
+      isLiked: false,
+      replies: []
+    }))
+  );
+
+  const handleToggleLike = (reviewId: number) => {
+    setReviews(prev => prev.map(review => {
+      if (review.id === reviewId) {
+        return {
+          ...review,
+          isLiked: !review.isLiked,
+          helpfulCount: review.isLiked ? review.helpfulCount - 1 : review.helpfulCount + 1
+        };
+      }
+      return review;
+    }));
+  };
+
+  const handlePostReply = (reviewId: number) => {
+    if (!replyText.trim()) return;
+
+    setReviews(prev => prev.map(review => {
+      if (review.id === reviewId) {
+        return {
+          ...review,
+          replies: [...review.replies, {
+            id: Date.now(),
+            text: replyText,
+            author: profile ? `${profile.firstName} ${profile.lastName}` : "You",
+            date: "Just now",
+            avatar: profile?.avatar || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=40&h=40&fit=crop&crop=face",
+            isSeller: false
+          }]
+        };
+      }
+      return review;
+    }));
+
+    setReplyText("");
+    setReplyingTo(null);
+  };
+
+  // Get seller data
+  const demoSeller = demoSellers.find(s => s.id === sellerId);
+
+  // Try to find seller from products if not in demo
+  const dbSellerProduct = !demoSeller ? allProducts.find(p => p.sellerId === sellerId) : null;
+
+  const seller = demoSeller || (dbSellerProduct ? {
+    id: dbSellerProduct.sellerId,
+    name: dbSellerProduct.sellerName || "Verified Seller",
+    avatar: 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=150&h=150&fit=crop', // Default avatar
+    rating: dbSellerProduct.sellerRating || 5.0,
+    totalReviews: 10,
+    followers: 5,
+    isVerified: true,
+    description: 'Welcome to our store!',
+    location: dbSellerProduct.sellerLocation || 'Metro Manila',
+    established: '2024',
+    badges: ['Verified Seller'],
+    responseTime: '< 24 hours',
+    categories: ['General'],
+    products: []
+  } : demoSellers[0]);
+
   useEffect(() => {
     if (seller) {
       addViewedSeller(seller);
@@ -62,7 +173,7 @@ export default function SellerStorefrontPage() {
       isFreeShipping: true
     },
     {
-      id: 'prod-2', 
+      id: 'prod-2',
       name: 'MacBook Pro M3',
       price: 125999,
       originalPrice: 135999,
@@ -85,8 +196,8 @@ export default function SellerStorefrontPage() {
     }
   ];
 
-  const filteredProducts = selectedCategory === 'all' 
-    ? demoProducts 
+  const filteredProducts = selectedCategory === 'all'
+    ? demoProducts
     : demoProducts.filter(p => p.category === selectedCategory);
 
   const handleAddToCart = (product: any) => {
@@ -106,163 +217,201 @@ export default function SellerStorefrontPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header />
-      
-      {/* Seller Header */}
-      <div className="bg-white border-b">
-        <div className="max-w-7xl mx-auto px-4 py-8">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="flex items-start gap-6"
-          >
-            <img
-              src={seller.avatar}
-              alt={seller.name}
-              className="w-24 h-24 rounded-full object-cover border-4 border-orange-100"
-            />
+      <Header transparentOnTop />
+
+      {/* Seller Header - Clean Style */}
+      <div className="bg-gray-50 pb-6 pt-28 rounded-b-[3rem] border-b-2 border-[#ff6a00] relative overflow-hidden">
+        <div className="absolute inset-0">
+          <div
+            className="absolute inset-0 bg-center bg-cover opacity-30"
+            style={{ backgroundImage: `url(${seller.avatar})` }}
+          />
+
+        </div>
+        <div className="max-w-7xl mx-auto px-4 relative z-10">
+          <div className="mb-4">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate(-1)}
+              className="hover:bg-transparent px-0 -ml-1 text-gray-600 hover:text-[#ff6a00] transition-colors"
+            >
+              <ChevronLeft className="w-5 h-5 mr-1" />
+              Back
+            </Button>
+          </div>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6 text-gray-900">
+            <div className="relative group">
+              <div className="w-24 h-24 rounded-full bg-white p-1 shadow-md border border-gray-200">
+                <img
+                  src={seller.avatar}
+                  alt={seller.name}
+                  className="w-full h-full rounded-full object-cover"
+                />
+              </div>
+              {seller.isVerified && (
+                <div className="absolute bottom-1 right-1 bg-orange-500 text-white p-1.5 rounded-full shadow-lg border-2 border-white">
+                  <Shield className="w-4 h-4" />
+                </div>
+              )}
+            </div>
+
             <div className="flex-1">
-              <div className="flex items-start justify-between">
-                <div>
-                  <div className="flex items-center gap-3 mb-2">
-                    <h1 className="text-3xl font-bold text-gray-900">{seller.name}</h1>
-                    {seller.isVerified && (
-                      <Badge variant="outline" className="text-green-600 border-green-200">
-                        <Shield className="h-4 w-4 mr-1" />
-                        Verified Seller
-                      </Badge>
-                    )}
-                  </div>
-                  <p className="text-gray-600 mb-4 max-w-2xl">{seller.description}</p>
-                  
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-6">
-                    <div className="text-center">
-                      <div className="flex items-center justify-center gap-1 mb-1">
-                        <Star className="h-4 w-4 fill-current text-yellow-400" />
-                        <span className="text-2xl font-bold text-gray-900">{seller.rating}</span>
-                      </div>
-                      <div className="text-sm text-gray-500">{seller.totalReviews.toLocaleString()} reviews</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-orange-600 mb-1">{seller.followers.toLocaleString()}</div>
-                      <div className="text-sm text-gray-500">Followers</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="flex items-center justify-center gap-1 mb-1">
-                        <Clock className="h-4 w-4 text-gray-400" />
-                        <span className="text-lg font-semibold text-gray-900">{seller.responseTime}</span>
-                      </div>
-                      <div className="text-sm text-gray-500">Response time</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="flex items-center justify-center gap-1 mb-1">
-                        <Calendar className="h-4 w-4 text-gray-400" />
-                        <span className="text-lg font-semibold text-gray-900">{seller.established}</span>
-                      </div>
-                      <div className="text-sm text-gray-500">Established</div>
-                    </div>
-                  </div>
+              <div className="flex items-center gap-2 mb-1">
+                <h1 className="text-3xl font-bold">
+                  {seller.name}
+                </h1>
+                {seller.isVerified && (
+                  <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full text-xs font-medium border border-orange-200 flex items-center gap-1">
+                    <Shield className="w-3 h-3" />
+                    Verified Seller
+                  </span>
+                )}
+              </div>
 
-                  <div className="flex items-center gap-2 mb-4">
-                    <MapPin className="h-4 w-4 text-gray-400" />
-                    <span className="text-gray-600">{seller.location}</span>
-                  </div>
-
-                  <div className="flex flex-wrap gap-2">
-                    {seller.badges.map((badge, index) => (
-                      <Badge key={index} variant="outline" className="text-orange-600 border-orange-200">
-                        <Award className="h-3 w-3 mr-1" />
-                        {badge}
-                      </Badge>
-                    ))}
-                  </div>
+              <div className="flex items-center gap-4 text-gray-600 text-sm font-medium">
+                <span className="flex items-center gap-1">
+                  <MapPin className="w-3.5 h-3.5" />
+                  {seller.location}
+                </span>
+                <span className="flex items-center gap-1">
+                  <Calendar className="w-3.5 h-3.5" />
+                  Est. {seller.established}
+                </span>
+              </div>
+              <div className="mt-4 flex flex-wrap items-center gap-x-8 gap-y-4">
+                <div className="flex flex-col items-start gap-1">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+                    Followers
+                  </span>
+                  <span className="flex items-center gap-1.5 text-lg font-bold text-[#ff6a00]">
+                    <Users className="w-5 h-5" />
+                    {seller.followers.toLocaleString()}
+                  </span>
                 </div>
 
-                <div className="flex items-center gap-3">
-                  <Button variant="outline" size="sm">
-                    <MessageCircle className="h-4 w-4 mr-2" />
-                    Chat
-                  </Button>
-                  <Button variant="outline" size="sm">
-                    <Share2 className="h-4 w-4 mr-2" />
-                    Share
-                  </Button>
-                  <Button
-                    onClick={() => isFollowing(seller.id) ? unfollowShop(seller.id) : followShop(seller.id)}
-                    variant={isFollowing(seller.id) ? 'outline' : 'default'}
-                    className={isFollowing(seller.id) 
-                      ? 'text-red-600 border-red-200 hover:bg-red-50'
-                      : 'bg-orange-500 hover:bg-orange-600'
-                    }
-                  >
-                    <Heart className={cn('h-4 w-4 mr-2', isFollowing(seller.id) && 'fill-current')} />
-                    {isFollowing(seller.id) ? 'Unfollow' : 'Follow'}
-                  </Button>
+                <div className="h-8 w-px bg-gray-200 hidden sm:block"></div>
+
+                <div className="flex flex-col items-start gap-1">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+                    Rating
+                  </span>
+                  <span className="flex items-center gap-1.5 text-lg font-bold text-[#ff6a00]">
+                    <Star className="w-5 h-5 fill-current" />
+                    {seller.rating}
+                  </span>
+                </div>
+
+                <div className="h-8 w-px bg-gray-200 hidden sm:block"></div>
+
+                <div className="flex flex-col items-start gap-1">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+                    Response Time
+                  </span>
+                  <span className="flex items-center gap-1.5 text-lg font-bold text-[#ff6a00]">
+                    <MessageCircle className="w-5 h-5" />
+                    {seller.responseTime}
+                  </span>
                 </div>
               </div>
             </div>
-          </motion.div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="bg-white hover:bg-[#ff6a00] text-gray-700 border-gray-200 shadow-sm"
+              >
+                <MessageCircle className="h-4 w-4 mr-2" />
+                Chat
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="bg-white hover:bg-[#ff6a00] text-gray-700 border-gray-200 shadow-sm"
+              >
+                <Share2 className="h-4 w-4 mr-2" />
+                Share
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => isFollowing(seller.id) ? unfollowShop(seller.id) : followShop(seller.id)}
+                className={`shadow-sm ${isFollowing(seller.id)
+                  ? 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
+                  : 'bg-[#ff6a00] text-white hover:bg-[#ff6a00]/90'
+                  }`}
+              >
+                <Heart className={cn('h-4 w-4 mr-2', isFollowing(seller.id) && 'fill-current')} />
+                {isFollowing(seller.id) ? 'Unfollow' : 'Follow'}
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
 
+
+
       {/* Store Content */}
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        <Tabs defaultValue="products" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="products">Products</TabsTrigger>
-            <TabsTrigger value="reviews">Reviews</TabsTrigger>
-            <TabsTrigger value="about">About Store</TabsTrigger>
-          </TabsList>
+      <div className="max-w-7xl mx-auto px-4 py-4">
+        <Tabs defaultValue="products" className="space-y-4">
+          <div className="sticky top-20 z-30 flex justify-center w-full mb-4 py-2 backdrop-blur-[2px]">
+            <TabsList className="inline-flex h-auto items-center justify-center rounded-full bg-gray-100/80 p-1">
+              <TabsTrigger
+                value="products"
+                className="rounded-full px-6 py-1.5 text-sm font-medium text-gray-500 data-[state=active]:bg-white data-[state=active]:text-[#ff6a00] data-[state=active]:shadow-sm transition-all"
+              >
+                Products
+              </TabsTrigger>
+              <TabsTrigger
+                value="reviews"
+                className="rounded-full px-6 py-1.5 text-sm font-medium text-gray-500 data-[state=active]:bg-white data-[state=active]:text-[#ff6a00] data-[state=active]:shadow-sm transition-all"
+              >
+                Reviews
+              </TabsTrigger>
+              <TabsTrigger
+                value="about"
+                className="rounded-full px-6 py-1.5 text-sm font-medium text-gray-500 data-[state=active]:bg-white data-[state=active]:text-[#ff6a00] data-[state=active]:shadow-sm transition-all"
+              >
+                About Store
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
           {/* Products Tab */}
           <TabsContent value="products">
             <div className="space-y-6">
               {/* Filters and Controls */}
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
+                <div className="flex flex-wrap items-center gap-4">
                   <div className="flex items-center gap-2">
                     <Filter className="h-4 w-4 text-gray-400" />
-                    <select
-                      value={selectedCategory}
-                      onChange={(e) => setSelectedCategory(e.target.value)}
-                      className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                    >
-                      <option value="all">All Categories</option>
-                      {seller.categories.map((cat) => (
-                        <option key={cat} value={cat}>{cat}</option>
-                      ))}
-                    </select>
+                    <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                      <SelectTrigger className="w-[180px] bg-white border-gray-200 text-sm font-medium focus:ring-[#ff6a00] focus:ring-offset-0">
+                        <SelectValue placeholder="Category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Categories</SelectItem>
+                        {seller.categories.map((cat) => (
+                          <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-600">Sort by:</span>
-                    <select
-                      value={sortBy}
-                      onChange={(e) => setSortBy(e.target.value)}
-                      className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                    >
-                      <option value="popular">Popular</option>
-                      <option value="newest">Newest</option>
-                      <option value="price-low">Price: Low to High</option>
-                      <option value="price-high">Price: High to Low</option>
-                    </select>
+                    <Select value={sortBy} onValueChange={setSortBy}>
+                      <SelectTrigger className="w-[180px] bg-white border-gray-200 text-sm font-medium focus:ring-[#ff6a00] focus:ring-offset-0">
+                        <SelectValue placeholder="Sort by" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="popular">Popular</SelectItem>
+                        <SelectItem value="newest">Newest</SelectItem>
+                        <SelectItem value="price-low">Price: Low to High</SelectItem>
+                        <SelectItem value="price-high">Price: High to Low</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant={viewMode === 'grid' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setViewMode('grid')}
-                  >
-                    <Grid className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant={viewMode === 'list' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setViewMode('list')}
-                  >
-                    <List className="h-4 w-4" />
-                  </Button>
-                </div>
+                <div></div>
               </div>
 
               {/* Products Grid */}
@@ -351,76 +500,171 @@ export default function SellerStorefrontPage() {
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="space-y-6"
+              className="grid grid-cols-1 md:grid-cols-12 gap-8 items-start"
             >
-              {/* Review Summary */}
-              <Card>
-                <CardContent className="p-6">
-                  <div className="flex items-center gap-6">
-                    <div className="text-center">
-                      <div className="text-4xl font-bold text-gray-900 mb-1">{seller.rating}</div>
-                      <div className="flex items-center gap-1 mb-2">
-                        {[...Array(5)].map((_, i) => (
-                          <Star 
-                            key={i} 
-                            className={cn(
-                              "h-4 w-4",
-                              i < Math.floor(seller.rating) ? "fill-current text-yellow-400" : "text-gray-300"
-                            )} 
-                          />
-                        ))}
-                      </div>
-                      <div className="text-sm text-gray-500">{seller.totalReviews.toLocaleString()} reviews</div>
-                    </div>
-                    <div className="flex-1">
-                      {[5,4,3,2,1].map((star) => (
-                        <div key={star} className="flex items-center gap-2 mb-1">
-                          <span className="text-sm w-6">{star}</span>
-                          <Star className="h-3 w-3 fill-current text-yellow-400" />
-                          <div className="flex-1 h-2 bg-gray-200 rounded">
-                            <div 
-                              className="h-full bg-yellow-400 rounded"
-                              style={{ width: `${star === 5 ? 70 : star === 4 ? 20 : star === 3 ? 6 : star === 2 ? 3 : 1}%` }}
-                            />
-                          </div>
-                          <span className="text-sm text-gray-500 w-8">
-                            {star === 5 ? '70%' : star === 4 ? '20%' : star === 3 ? '6%' : star === 2 ? '3%' : '1%'}
-                          </span>
-                        </div>
+              {/* Sticky Rating Summary (Left Sidebar) */}
+              <div className="md:col-span-5 lg:col-span-4 sticky top-36">
+                <div>
+                  <div className="text-center mb-2">
+                    <div className="text-4xl font-bold text-gray-900 leading-none mb-1">{seller.rating}</div>
+                    <div className="flex items-center justify-center gap-1 mb-1">
+                      {[...Array(5)].map((_, i) => (
+                        <Star
+                          key={i}
+                          className={cn(
+                            "h-3 w-3",
+                            i < Math.floor(seller.rating) ? "fill-current text-yellow-400" : "text-gray-300"
+                          )}
+                        />
                       ))}
                     </div>
+                    <div className="text-xs text-gray-500 font-medium">{seller.totalReviews.toLocaleString()} reviews</div>
                   </div>
-                </CardContent>
-              </Card>
 
-              {/* Sample Reviews */}
-              <div className="space-y-4">
-                {[1,2,3].map((review) => (
-                  <Card key={review}>
-                    <CardContent className="p-6">
+                  <div className="space-y-1">
+                    {[5, 4, 3, 2, 1].map((star) => (
+                      <div key={star} className="flex items-center gap-3">
+                        <div className="flex items-center justify-end gap-1.5 w-12 shrink-0">
+                          <span className="text-sm font-medium text-gray-700">{star}</span>
+                          <Star className="h-3 w-3 fill-current text-yellow-400" />
+                        </div>
+                        <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-yellow-400 rounded-full"
+                            style={{ width: `${star === 5 ? 70 : star === 4 ? 20 : star === 3 ? 6 : star === 2 ? 3 : 1}%` }}
+                          />
+                        </div>
+                        <span className="text-xs text-gray-400 w-8 text-right tabular-nums">
+                          {star === 5 ? '70%' : star === 4 ? '20%' : star === 3 ? '6%' : star === 2 ? '3%' : '1%'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Reviews List (Right Content) */}
+              <div className="md:col-span-7 lg:col-span-8 space-y-4">
+                {/* Review Filters */}
+                <div className="sticky top-36 z-20 flex flex-wrap items-center gap-2 mb-4 bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
+                  {['all', '5', '4', '3', '2', '1', 'media'].map((filter) => (
+                    <button
+                      key={filter}
+                      onClick={() => setReviewFilter(filter)}
+                      className={cn(
+                        "px-4 py-1.5 rounded-full text-xs font-medium transition-all duration-200 border",
+                        reviewFilter === filter
+                          ? "bg-orange-50 text-orange-600 border-orange-200"
+                          : "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                      )}
+                    >
+                      {filter === 'all' ? 'All' : filter === 'media' ? 'With Media' : `${filter} Star${filter === '1' ? '' : 's'}`}
+                    </button>
+                  ))}
+                </div>
+
+                {reviews.map((review) => (
+                  <Card key={review.id} className="border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+                    <CardContent className="p-5">
                       <div className="flex items-start gap-4">
                         <img
-                          src={`https://images.unsplash.com/photo-159475010875${review}?w=40&h=40&fit=crop&crop=face`}
-                          alt="Reviewer"
-                          className="w-10 h-10 rounded-full object-cover"
+                          src={review.avatar}
+                          alt={review.author}
+                          className="w-10 h-10 rounded-full object-cover border border-gray-100"
                         />
                         <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="font-semibold">Maria S.</span>
+                          <div className="mb-2">
+                            <div className="flex flex-col">
+                              <span className="font-semibold text-gray-900 text-sm">{review.author}</span>
+                              <span className="text-xs text-gray-400 mb-1">{review.date}</span>
+                            </div>
                             <div className="flex items-center gap-1">
                               {[...Array(5)].map((_, i) => (
-                                <Star key={i} className="h-3 w-3 fill-current text-yellow-400" />
+                                <Star
+                                  key={i}
+                                  className={cn(
+                                    "h-3 w-3",
+                                    i < review.rating ? "fill-current text-yellow-400" : "text-gray-200"
+                                  )}
+                                />
                               ))}
                             </div>
-                            <span className="text-sm text-gray-500">2 days ago</span>
                           </div>
-                          <p className="text-gray-700 mb-3">
-                            Excellent seller! Fast shipping and product exactly as described. Highly recommended!
+
+                          <p className="text-sm text-gray-600 mb-3 leading-relaxed">
+                            {review.content}
                           </p>
-                          <div className="flex items-center gap-4 text-sm text-gray-500">
-                            <button className="hover:text-orange-600">Helpful (12)</button>
-                            <button className="hover:text-orange-600">Reply</button>
+
+                          {/* Existing Replies */}
+                          {review.replies.length > 0 && (
+                            <div className="mb-4 pl-4 border-l-2 border-gray-100 space-y-3">
+                              {review.replies.map(reply => (
+                                <div key={reply.id} className="bg-gray-50/50 p-3 rounded-lg">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className="font-semibold text-xs text-gray-900">{reply.author}</span>
+                                    <span className="text-[10px] text-gray-400">{reply.date}</span>
+                                  </div>
+                                  <p className="text-xs text-gray-600 leading-relaxed">{reply.text}</p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          <div className="flex items-center gap-4 text-xs font-medium text-gray-500">
+                            <button
+                              onClick={() => handleToggleLike(review.id)}
+                              className={cn(
+                                "transition-colors flex items-center gap-1.5 group",
+                                review.isLiked ? "text-orange-600" : "hover:text-orange-600"
+                              )}
+                            >
+                              <ThumbsUp className={cn(
+                                "h-3.5 w-3.5 transition-colors",
+                                review.isLiked ? "fill-current text-orange-600" : "group-hover:text-orange-600"
+                              )} />
+                              Helpful ({review.helpfulCount})
+                            </button>
+                            <button
+                              onClick={() => setReplyingTo(replyingTo === review.id ? null : review.id)}
+                              className="hover:text-orange-600 transition-colors"
+                            >
+                              Reply
+                            </button>
                           </div>
+
+                          {replyingTo === review.id && (
+                            <motion.div
+                              initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                              animate={{ opacity: 1, height: 'auto', marginTop: 16 }}
+                              className="overflow-hidden"
+                            >
+                              <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                                <Textarea
+                                  value={replyText}
+                                  onChange={(e) => setReplyText(e.target.value)}
+                                  placeholder="Write a reply..."
+                                  className="min-h-[80px] bg-white border-gray-200 focus:border-[#ff6a00] focus:ring-[#ff6a00] mb-3 text-sm resize-none"
+                                />
+                                <div className="flex justify-end gap-2">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setReplyingTo(null)}
+                                    className="h-8 text-xs hover:bg-gray-200 hover:text-gray-900"
+                                  >
+                                    Cancel
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handlePostReply(review.id)}
+                                    className="h-8 text-xs bg-[#ff6a00] hover:bg-[#ff6a00]/90 text-white"
+                                  >
+                                    Post Reply
+                                  </Button>
+                                </div>
+                              </div>
+                            </motion.div>
+                          )}
                         </div>
                       </div>
                     </CardContent>

@@ -19,7 +19,25 @@ import { BazaarFooter } from '../components/ui/bazaar-footer';
 import ProductRequestModal from '../components/ProductRequestModal';
 import VisualSearchModal from '../components/VisualSearchModal';
 import { trendingProducts, bestSellerProducts, newArrivals } from '../data/products';
-import type { Product } from '../types';
+
+
+interface SearchProduct {
+  id: string;
+  name: string;
+  price: number;
+  originalPrice?: number;
+  image: string;
+  rating: number;
+  sold: number;
+  seller: string;
+  sellerRating?: number;
+  sellerVerified?: boolean;
+  isFreeShipping?: boolean;
+  isVerified?: boolean;
+  location?: string;
+  category: string;
+}
+
 
 interface FlashSaleProduct {
   id: string;
@@ -92,7 +110,7 @@ const SearchPage: React.FC = () => {
   const [isSearching, setIsSearching] = useState(() => {
     return Boolean(new URLSearchParams(location.search).get('q'));
   });
-  const [searchResults, setSearchResults] = useState<Product[]>([]);
+  const [searchResults, setSearchResults] = useState<SearchProduct[]>([]);
   const [showResults, setShowResults] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [sortBy, setSortBy] = useState('relevance');
@@ -116,7 +134,7 @@ const SearchPage: React.FC = () => {
 
     // Simulate search with animation
     setTimeout(() => {
-      const allProducts = [...trendingProducts, ...bestSellerProducts, ...newArrivals];
+      const allProducts = [...trendingProducts, ...bestSellerProducts, ...newArrivals] as unknown as SearchProduct[];
       const results = allProducts.filter(product => 
         product.name.toLowerCase().includes(query.toLowerCase()) ||
         product.category.toLowerCase().includes(query.toLowerCase())
@@ -133,7 +151,7 @@ const SearchPage: React.FC = () => {
     if (!hasInitialized.current && searchQuery) {
       // Perform search in async manner
       const searchTimeout = setTimeout(() => {
-        const allProducts = [...trendingProducts, ...bestSellerProducts, ...newArrivals];
+        const allProducts = [...trendingProducts, ...bestSellerProducts, ...newArrivals] as unknown as SearchProduct[];
         const results = allProducts.filter(product => 
           product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
           product.category.toLowerCase().includes(searchQuery.toLowerCase())

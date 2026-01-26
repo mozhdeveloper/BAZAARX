@@ -4,6 +4,7 @@ import { ArrowLeft, Users, Search, ShoppingBag, DollarSign, CheckCircle, Ban, Us
 import { useNavigation } from '@react-navigation/native';
 import { useAdminBuyers } from '../../../src/stores/adminStore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { COLORS } from '../../../src/constants/theme';
 
 export default function AdminBuyersScreen() {
   const navigation = useNavigation();
@@ -133,7 +134,7 @@ export default function AdminBuyersScreen() {
       <ScrollView style={styles.scrollView}>
         {isLoading ? (
           <View style={styles.centerContent}>
-            <ActivityIndicator size="large" color="#FF5722" />
+            <ActivityIndicator size="large" color={COLORS.primary} />
             <Text style={styles.loadingText}>Loading buyers...</Text>
           </View>
         ) : filteredBuyers.length === 0 ? (
@@ -164,19 +165,19 @@ export default function AdminBuyersScreen() {
 
               <View style={styles.statsRow}>
                 <View style={styles.statBox}>
-                  <ShoppingBag size={16} color="#FF5722" />
+                  <ShoppingBag size={16} color={COLORS.primary} />
                   <Text style={styles.statValue}>{buyer.metrics.totalOrders}</Text>
                   <Text style={styles.statLabel}>Orders</Text>
                 </View>
                 <View style={styles.statDivider} />
                 <View style={styles.statBox}>
-                  <DollarSign size={16} color="#FF5722" />
+                  <DollarSign size={16} color={COLORS.primary} />
                   <Text style={styles.statValue}>₱{(buyer.metrics.totalSpent / 1000).toFixed(1)}k</Text>
                   <Text style={styles.statLabel}>Spent</Text>
                 </View>
                 <View style={styles.statDivider} />
                 <View style={styles.statBox}>
-                  <Star size={16} color="#FF5722" />
+                  <Star size={16} color={COLORS.primary} />
                   <Text style={styles.statValue}>{buyer.metrics.loyaltyPoints}</Text>
                   <Text style={styles.statLabel}>Points</Text>
                 </View>
@@ -431,7 +432,7 @@ export default function AdminBuyersScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F5F5F7' },
-  header: { backgroundColor: '#FF5722', paddingHorizontal: 20, paddingBottom: 20 },
+  header: { backgroundColor: COLORS.primary, paddingHorizontal: 20, paddingBottom: 24, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 },
   headerContent: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   backButton: { padding: 4 },
   headerTitleContainer: { gap: 2 },
@@ -443,7 +444,7 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, height: 44, fontSize: 15, color: '#111827' },
   filterScrollView: { flexGrow: 0 },
   filterChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: '#F3F4F6', marginRight: 8 },
-  filterChipActive: { backgroundColor: '#FF5722' },
+  filterChipActive: { backgroundColor: COLORS.primary },
   filterChipText: { fontSize: 14, color: '#6B7280', fontWeight: '500' },
   filterChipTextActive: { color: '#FFFFFF' },
   scrollView: { flex: 1, padding: 16 },
@@ -473,7 +474,7 @@ const styles = StyleSheet.create({
   suspensionLabel: { fontSize: 11, fontWeight: '600', color: '#92400E', marginBottom: 2 },
   suspensionText: { fontSize: 12, color: '#78350F' },
   actionButtons: { flexDirection: 'row', gap: 8, marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#E5E7EB' },
-  viewDetailsButton: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#FF5722', paddingVertical: 10, borderRadius: 8 },
+  viewDetailsButton: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: COLORS.primary, paddingVertical: 10, borderRadius: 8 },
   viewDetailsText: { color: '#FFFFFF', fontSize: 14, fontWeight: '600' },
   suspendButton: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#DC2626', paddingVertical: 10, borderRadius: 8 },
   suspendText: { color: '#DC2626', fontSize: 14, fontWeight: '600' },
@@ -493,7 +494,7 @@ const styles = StyleSheet.create({
   detailValue: { fontSize: 14, color: '#111827', fontWeight: '600' },
   sectionTitle: { fontSize: 16, fontWeight: '700', color: '#111827', marginBottom: 12 },
   verificationBadges: { flexDirection: 'row', gap: 8 },
-  verifiedBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#FF5722', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
+  verifiedBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: COLORS.primary, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
   verifiedText: { color: '#FFFFFF', fontSize: 12, fontWeight: '600' },
   addressCard: { backgroundColor: '#F9FAFB', padding: 12, borderRadius: 8, marginBottom: 8 },
   addressCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
@@ -505,7 +506,7 @@ const styles = StyleSheet.create({
   activityCard: { flex: 1, backgroundColor: '#F9FAFB', padding: 16, borderRadius: 12, alignItems: 'center', gap: 8 },
   activityLabel: { fontSize: 12, color: '#6B7280', textAlign: 'center' },
   activityValue: { fontSize: 18, fontWeight: '700', color: '#111827' },
-  closeButton: { backgroundColor: '#FF5722', paddingVertical: 14, borderRadius: 10, alignItems: 'center', marginTop: 8 },
+  closeButton: { backgroundColor: COLORS.primary, paddingVertical: 14, borderRadius: 10, alignItems: 'center', marginTop: 8 },
   closeButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
   suspendModalContent: { backgroundColor: '#FFFFFF', borderRadius: 16, marginHorizontal: 10, padding: 24, maxWidth: 500, alignSelf: 'center' },
   suspendModalHeader: { alignItems: 'center', marginBottom: 16 },

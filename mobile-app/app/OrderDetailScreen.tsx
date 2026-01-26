@@ -14,10 +14,12 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ArrowLeft, Package, MapPin, CreditCard, Receipt, CheckCircle, MessageCircle, Send, X, Truck, Clock, CheckCircle2 } from 'lucide-react-native';
+import { ArrowLeft, Package, MapPin, CreditCard, Receipt, CheckCircle, MessageCircle, Send, X, Truck, Clock, CheckCircle2, RotateCcw } from 'lucide-react-native';
+import { COLORS } from '../src/constants/theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import { useOrderStore } from '../src/stores/orderStore';
+import { useReturnStore } from '../src/stores/returnStore';
 import ReviewModal from '../src/components/ReviewModal';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'OrderDetail'>;
@@ -101,7 +103,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
   const getStatusColor = () => {
     switch (order.status) {
       case 'pending': return '#F59E0B';
-      case 'processing': return '#FF5722';
+      case 'processing': return COLORS.primary;
       case 'shipped': return '#8B5CF6';
       case 'delivered': return '#22C55E';
       default: return '#6B7280';
@@ -132,14 +134,14 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
 
   return (
     <View style={styles.container}>
-      {/* Edge-to-Edge Orange Header */}
-      <View style={[styles.header, { paddingTop: insets.top }]}>
-        <View style={styles.headerContent}>
-          <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
-            <ArrowLeft size={24} color="#FFFFFF" />
+      {/* Edge-to-Edge Orange Header - BRANDED */}
+      <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: COLORS.primary }]}>
+        <View style={styles.headerTop}>
+          <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
+            <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
           </Pressable>
           <Text style={styles.headerTitle}>Order Details</Text>
-          <View style={{ width: 24 }} />
+          <View style={{ width: 40 }} />
         </View>
       </View>
 
@@ -174,7 +176,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
           ]}
           onPress={() => setShowChatModal(true)}
         >
-          <MessageCircle size={18} color="#FF5722" />
+          <MessageCircle size={18} color={COLORS.primary} />
           <Text style={styles.chatButtonText}>Chat with Seller</Text>
         </Pressable>
 
@@ -182,7 +184,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <View style={styles.iconCircle}>
-              <Package size={20} color="#FF5722" />
+              <Package size={20} color={COLORS.primary} />
             </View>
             <Text style={styles.cardTitle}>Order Items</Text>
           </View>
@@ -190,10 +192,12 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
             <React.Fragment key={index}>
               {index > 0 && <View style={styles.itemDivider} />}
               <View style={styles.itemRow}>
-                <Image 
-                  source={{ uri: item.image || 'https://via.placeholder.com/60' }}
-                  style={styles.itemImage}
-                />
+                <Pressable onPress={() => navigation.navigate('ProductDetail', { product: item })}>
+                  <Image 
+                    source={{ uri: item.image || 'https://via.placeholder.com/60' }}
+                    style={styles.itemImage}
+                  />
+                </Pressable>
                 <View style={styles.itemInfo}>
                   <Text style={styles.itemName}>{item.name}</Text>
                   <Text style={styles.itemVariant}>
@@ -210,7 +214,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <View style={styles.iconCircle}>
-              <MapPin size={20} color="#FF5722" />
+              <MapPin size={20} color={COLORS.primary} />
             </View>
             <Text style={styles.cardTitle}>Shipping Address</Text>
           </View>
@@ -228,7 +232,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <View style={styles.iconCircle}>
-              <CreditCard size={20} color="#FF5722" />
+              <CreditCard size={20} color={COLORS.primary} />
             </View>
             <Text style={styles.cardTitle}>Payment Method</Text>
           </View>
@@ -241,7 +245,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <View style={styles.iconCircle}>
-              <Receipt size={20} color="#FF5722" />
+              <Receipt size={20} color={COLORS.primary} />
             </View>
             <Text style={styles.cardTitle}>Order Summary</Text>
           </View>
@@ -268,13 +272,62 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
         </View>
       </ScrollView>
 
-      {/* Mark as Received Button (only for shipped orders) */}
-      {order.status === 'shipped' && (
+      {/* Bottom Action Bar */}
+      {(order.status === 'shipped' || order.status === 'delivered') && (
         <View style={styles.bottomBar}>
-          <Pressable onPress={handleMarkAsReceived} style={styles.receivedButton}>
-            <CheckCircle size={20} color="#FFFFFF" />
-            <Text style={styles.receivedButtonText}>Mark as Received</Text>
-          </Pressable>
+          {order.status === 'shipped' ? (
+            <Pressable onPress={handleMarkAsReceived} style={styles.receivedButton}>
+              <CheckCircle size={20} color="#FFFFFF" />
+              <Text style={styles.receivedButtonText}>Mark as Received</Text>
+            </Pressable>
+          ) : (
+            (() => {
+              // Safely parse date for "MM/DD/YYYY" format which can be flaky on Android
+              const getDeliveryDate = (dateStr: string | undefined): Date => {
+                  if (!dateStr) return new Date();
+                  const parts = dateStr.split('/');
+                  if (parts.length === 3) {
+                      return new Date(parseInt(parts[2]), parseInt(parts[0]) - 1, parseInt(parts[1]));
+                  }
+                  return new Date(dateStr);
+              };
+
+              const deliveryDate = getDeliveryDate(order.deliveryDate);
+              const currentDate = new Date();
+              
+              // Calculate difference in milliseconds
+              const diffTime = currentDate.getTime() - deliveryDate.getTime();
+              
+              // Convert to days (rounding down to be lenient for "same day" or partial days)
+              const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+              
+              const isReturnable = diffDays <= 7 && diffDays >= 0;
+
+              return (
+                <Pressable 
+                  onPress={() => {
+                    if (isReturnable) navigation.navigate('ReturnRequest', { order });
+                    else Alert.alert('Return Window Closed', 'Returns are only available within 7 days of delivery.');
+                  }} 
+                  style={[
+                    styles.receivedButton, 
+                    { 
+                      backgroundColor: isReturnable ? '#FFFFFF' : '#F3F4F6', 
+                      borderWidth: 1, 
+                      borderColor: '#D1D5DB', 
+                      elevation: 0,
+                      opacity: isReturnable ? 1 : 0.8
+                    }
+                  ]}
+                >
+                  <RotateCcw size={20} color={isReturnable ? "#374151" : "#9CA3AF"} />
+                  <Text style={[styles.receivedButtonText, { color: isReturnable ? '#374151' : '#9CA3AF' }]}>
+                    {isReturnable ? 'Return / Refund' : 'Return Window Closed'}
+                  </Text>
+                </Pressable>
+              );
+            })()
+          )}
         </View>
       )}
 
@@ -302,7 +355,11 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
             style={{ flex: 1 }}
           >
             <View style={styles.chatHeader}>
-              <Pressable onPress={() => setShowChatModal(false)} style={styles.closeButton}>
+              <Pressable 
+                onPress={() => setShowChatModal(false)} 
+                style={styles.closeButton}
+                hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+              >
                 <ArrowLeft size={24} color="#1F2937" />
               </Pressable>
               <View>
@@ -371,23 +428,29 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F5F7',
   },
   // ===== EDGE-TO-EDGE HEADER =====
-  header: {
-    backgroundColor: '#FF5722',
-    paddingBottom: 16,
+  headerContainer: {
+    paddingHorizontal: 20,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+    paddingBottom: 20,
+    marginBottom: 10,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    zIndex: 10,
   },
-  headerContent: {
+  headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 12,
   },
-  backButton: {
+  headerIconButton: {
     padding: 4,
   },
   headerTitle: {
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: '800',
     color: '#FFFFFF',
     letterSpacing: 0.3,
   },
@@ -443,8 +506,8 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 20,
     borderWidth: 1.5,
-    borderColor: '#FF5722',
-    shadowColor: '#FF5722',
+    borderColor: COLORS.primary,
+    shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
@@ -458,7 +521,7 @@ const styles = StyleSheet.create({
   chatButtonText: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#FF5722',
+    color: COLORS.primary,
     letterSpacing: 0.3,
   },
   // ===== WHITE CARDS =====
@@ -532,7 +595,7 @@ const styles = StyleSheet.create({
   itemPrice: {
     fontSize: 17,
     fontWeight: '700',
-    color: '#FF5722',
+    color: COLORS.primary,
   },
   // ===== SHIPPING ADDRESS =====
   addressName: {
@@ -577,7 +640,7 @@ const styles = StyleSheet.create({
     color: '#1F2937',
   },
   freeShipping: {
-    color: '#FF5722',
+    color: COLORS.primary,
     fontWeight: '700',
   },
   dividerLine: {
@@ -621,13 +684,13 @@ const styles = StyleSheet.create({
     elevation: 10,
   },
   receivedButton: {
-    backgroundColor: '#FF5722',
+    backgroundColor: COLORS.primary,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 16,
     borderRadius: 16,
-    shadowColor: '#FF5722',
+    shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 10,
@@ -675,7 +738,7 @@ const styles = StyleSheet.create({
   },
   buyerMessage: {
     alignSelf: 'flex-end',
-    backgroundColor: '#FF5722',
+    backgroundColor: COLORS.primary,
     borderBottomRightRadius: 4,
   },
   sellerMessage: {
@@ -740,7 +803,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#FF5722',
+    backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -748,6 +811,24 @@ const styles = StyleSheet.create({
     backgroundColor: '#D1D5DB',
   },
   closeButton: {
-    padding: 4,
+    padding: 12,
+    marginLeft: -8, // Compensate for extra padding to keep visual alignment
+  },
+  returnRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  returnStatus: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1F2937',
+  },
+  returnDate: {
+    fontSize: 12,
+    color: '#6B7280',
   },
 });

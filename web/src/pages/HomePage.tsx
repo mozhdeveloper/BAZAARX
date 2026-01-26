@@ -1,131 +1,190 @@
-import React from 'react';
-import { BazaarHero } from '../components/ui/bazaar-hero';
-import ScrollMorphHero from '../components/ui/scroll-morph-hero';
-import { SectionTransition } from '../components/ui/section-transition';
-import BazaarTrustShowcase from '../components/ui/bazaar-trust-showcase';
-import { MobileAppShowcase } from '../components/ui/mobile-app-showcase';
-import { Hero195 } from '../components/ui/hero-195';
-import { BazaarFooter } from '../components/ui/bazaar-footer';
-import { SmoothScrollProvider } from '../components/ui/smooth-scroll-provider';
-import FeaturedCollections from '../components/FeaturedCollections';
-import ProductRail from '../components/sections/ProductRail';
-import FeatureStrip from '../components/sections/FeatureStrip';
-import StoreRail from '../components/sections/StoreRail';
-import CategoriesFooterStrip from '../components/CategoriesFooterStrip';
-import BazaarXTestimonials from '../components/sections/BazaarXTestimonials';
-import BrandTestimonials from '../components/sections/BrandTestimonials';
-import POSLiteFeature from '@/components/sections/PosLite';
+import React, { Suspense, lazy } from "react";
+import { BazaarHero } from "../components/ui/bazaar-hero";
+import { BazaarFooter } from "../components/ui/bazaar-footer";
+
+// Lazy load heavy scroll-animated components
+const BazaarHistory = lazy(() => import("../components/ui/bazaar-history"));
+const BazaarHistoryZoomParallax = lazy(
+  () => import("@/components/ui/bazaar-history-zoom-parallax"),
+);
+const BazaarRevealWords = lazy(
+  () => import("@/components/ui/bazaar-history-reveal-words"),
+);
+const ScrollExpansionHero = lazy(
+  () => import("@/components/ui/scroll-expansion-hero"),
+);
+const BazaarMarketplaceIntro = lazy(
+  () => import("@/components/ui/bazaar-marketplace-intro"),
+);
+const MobileAppShowcase = lazy(() =>
+  import("../components/ui/mobile-app-showcase").then((m) => ({
+    default: m.MobileAppShowcase,
+  })),
+);
+const BazaarTrustShowcase = lazy(
+  () => import("../components/ui/bazaar-trust-showcase"),
+);
+const POSLiteFeature = lazy(() => import("@/components/sections/PosLite"));
+const Hero195 = lazy(() =>
+  import("../components/ui/hero-195").then((m) => ({ default: m.Hero195 })),
+);
+const BazaarXTestimonials = lazy(
+  () => import("../components/sections/BazaarXTestimonials"),
+);
+const BrandTestimonials = lazy(
+  () => import("../components/sections/BrandTestimonials"),
+);
+const FeaturedCollections = lazy(
+  () => import("../components/FeaturedCollections"),
+);
+const ProductRail = lazy(() => import("../components/sections/ProductRail"));
+const FeatureStrip = lazy(() => import("../components/sections/FeatureStrip"));
+const StoreRail = lazy(() => import("../components/sections/StoreRail"));
+const CategoriesFooterStrip = lazy(
+  () => import("../components/CategoriesFooterStrip"),
+);
 
 // Data imports
-import { trendingProducts, bestSellerProducts, newArrivals } from '../data/products';
-import { featuredStores } from '../data/stores';
+import { bestSellerProducts, newArrivals } from "../data/products";
+import { featuredStores } from "../data/stores";
+
+// Loading fallback component
+const SectionLoader = () => (
+  <div className="w-full py-20 flex items-center justify-center">
+    <div className="animate-pulse text-gray-400">Loading...</div>
+  </div>
+);
 
 const HomePage: React.FC = () => {
   return (
-    <SmoothScrollProvider>
-      <div className="min-h-screen bg-white">
-        
-        {/* New Bazaar Hero with integrated header */}
-        <BazaarHero />
+    <div className="min-h-screen bg-white">
+      {/* Bazaar Hero */}
+      <BazaarHero />
 
-        {/* Scroll Morph Hero - Categories Explorer */}
-        <div className="h-[120vh] w-full">
-          <ScrollMorphHero />
+      <Suspense fallback={<SectionLoader />}>
+        {/* Bazaar history section  */}
+        <div id="bazaar-history">
+          <BazaarHistory />
         </div>
+      </Suspense>
 
-        {/* Transition Section */}
-        <SectionTransition />
-        
-        {/* Trust & Quality Showcase */}
-        <BazaarTrustShowcase />
+      <Suspense fallback={<SectionLoader />}>
+        {/* Bazaar history zoom parallax section */}
+        <BazaarHistoryZoomParallax />
+      </Suspense>
 
+      <Suspense fallback={<SectionLoader />}>
+        {/* Bazaar: trade / craft / gathering */}
+        <BazaarRevealWords />
+      </Suspense>
+
+      <Suspense fallback={<SectionLoader />}>
+        {/* Scroll Expansion Hero */}
+        <ScrollExpansionHero
+          mediaType="image"
+          bgImageSrc="https://magazine.surahotels.com/resize/fit-1150x670-95-1716885535924-dunyanin-en-unlu-kapalicarsilari-istanbul.jpg"
+          mediaSrc="https://www.rucksackramblings.com/wp-content/uploads/2017/01/The-Bazaars-Of-Iran-21.jpg"
+          title="Your Modern Crossroads of Global Trade"
+        />
+      </Suspense>
+
+      <Suspense fallback={<SectionLoader />}>
+        {/* Bazaar Marketplace Intro */}
+        <div id="bazaar-marketplace-intro">
+          <BazaarMarketplaceIntro />
+        </div>
+      </Suspense>
+
+      <Suspense fallback={<SectionLoader />}>
         {/* Mobile App Showcase */}
         <MobileAppShowcase />
+      </Suspense>
 
+      <Suspense fallback={<SectionLoader />}>
+        {/* Trust & Quality Showcase */}
+        <BazaarTrustShowcase />
+      </Suspense>
+
+      <Suspense fallback={<SectionLoader />}>
         {/* POS Lite Feature*/}
         <POSLiteFeature />
+      </Suspense>
 
+      <Suspense fallback={<SectionLoader />}>
         {/* Seller Dashboard Preview - Interactive Demo */}
         <Hero195 />
+      </Suspense>
 
+      <Suspense fallback={<SectionLoader />}>
         {/* Testimonials from Filipino Sellers */}
         <BazaarXTestimonials />
+      </Suspense>
 
+      <Suspense fallback={<SectionLoader />}>
         {/* Brand Owner & CEO Testimonials */}
         <BrandTestimonials />
+      </Suspense>
 
-      {/* Featured Collections */}
-      <FeaturedCollections />
+      <Suspense fallback={<SectionLoader />}>
+        {/* Featured Collections */}
+        <FeaturedCollections />
+      </Suspense>
 
-      {/* Trending Products Rail */}
-      <ProductRail 
-        title="Trending Now"
-        subtitle="Discover what's popular among Filipino shoppers"
-        products={trendingProducts}
-        actionLabel="View All Trending"
-      />
+      <Suspense fallback={<SectionLoader />}>
+        {/* Best Sellers Rail */}
+        <ProductRail
+          title="Best Sellers"
+          subtitle="Top-rated products loved by thousands of customers"
+          products={bestSellerProducts}
+          actionLabel="View All Best Sellers"
+        />
+      </Suspense>
 
-      {/* Feature Strip 1 - Support Local */}
-      <FeatureStrip 
-        title="Support Local Filipino Businesses"
-        description="Every purchase helps strengthen Filipino communities and preserves traditional craftsmanship while supporting local entrepreneurs."
-        image="https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=600&h=400&fit=crop"
-        features={[
-          "Verified local sellers from across the Philippines",
-          "Direct support to Filipino entrepreneurs and artisans",
-          "Authentic products with cultural heritage",
-          "Sustainable business practices"
-        ]}
-        buttonText="Discover Local Sellers"
-      />
+      <Suspense fallback={<SectionLoader />}>
+        {/* Featured Stores Rail */}
+        <StoreRail
+          title="Featured Stores"
+          subtitle="Trusted sellers with verified quality and excellent service"
+          stores={featuredStores}
+          actionLabel="Explore All Stores"
+        />
+      </Suspense>
 
-      {/* Best Sellers Rail */}
-      <ProductRail 
-        title="Best Sellers"
-        subtitle="Top-rated products loved by thousands of customers"
-        products={bestSellerProducts}
-        actionLabel="View All Best Sellers"
-      />
+      <Suspense fallback={<SectionLoader />}>
+        {/* New Arrivals Rail */}
+        <ProductRail
+          title="New Arrivals"
+          subtitle="Fresh finds from our newest sellers and latest collections"
+          products={newArrivals.slice(0, 4)}
+          actionLabel="Explore New Products"
+        />
+      </Suspense>
 
-      {/* Featured Stores Rail */}
-      <StoreRail 
-        title="Featured Stores"
-        subtitle="Trusted sellers with verified quality and excellent service"
-        stores={featuredStores}
-        actionLabel="Explore All Stores"
-      />
+      <Suspense fallback={<SectionLoader />}>
+        {/* Feature Strip 2 - Secure Shopping */}
+        <FeatureStrip
+          title="Shop with Complete Confidence"
+          description="Experience worry-free shopping with our comprehensive buyer protection, secure payments, and dedicated customer support."
+          image="https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=600&h=400&fit=crop"
+          features={[
+            "100% secure payment processing",
+            "Buyer protection guarantee",
+            "24/7 customer support",
+            "Easy returns and refunds",
+          ]}
+          buttonText="Learn About Protection"
+          reverse={true}
+        />
+      </Suspense>
 
-      {/* Feature Strip 2 - Secure Shopping */}
-      <FeatureStrip 
-        title="Shop with Complete Confidence"
-        description="Experience worry-free shopping with our comprehensive buyer protection, secure payments, and dedicated customer support."
-        image="https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=600&h=400&fit=crop"
-        features={[
-          "100% secure payment processing",
-          "Buyer protection guarantee",
-          "24/7 customer support",
-          "Easy returns and refunds"
-        ]}
-        buttonText="Learn About Protection"
-        reverse={true}
-      />
-
-      {/* New Arrivals Rail */}
-      <ProductRail 
-        title="New Arrivals"
-        subtitle="Fresh finds from our newest sellers and latest collections"
-        products={newArrivals}
-        actionLabel="Explore New Products"
-      />
-
-      {/* Categories Footer Strip */}
-      <CategoriesFooterStrip />
+      <Suspense fallback={<SectionLoader />}>
+        {/* Categories Footer Strip */}
+        <CategoriesFooterStrip />
+      </Suspense>
 
       {/* Bazaar Footer */}
       <BazaarFooter />
-
     </div>
-    </SmoothScrollProvider>
   );
 };
 

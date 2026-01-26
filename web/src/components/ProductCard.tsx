@@ -2,18 +2,22 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { BadgeCheck, ShieldCheck } from 'lucide-react';
-import { Product } from '../types';
+
 
 interface ProductCardProps {
-  product: Product;
+  product: any;
   index?: number;
 }
 
 const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0 }) => {
   const navigate = useNavigate();
-  const hasDiscount = product.originalPrice && product.originalPrice > product.price;
-  const discountPercent = hasDiscount 
-    ? Math.round(((product.originalPrice! - product.price) / product.originalPrice!) * 100)
+  const hasDiscount =
+    product.originalPrice && product.originalPrice > product.price;
+  const discountPercent = hasDiscount
+    ? Math.round(
+        ((product.originalPrice! - product.price) / product.originalPrice!) *
+          100,
+      )
     : 0;
 
   return (
@@ -47,19 +51,30 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0 }) => {
           </div>
         )}
       </div>
-      
+
       <div className="p-3">
         <h3 className="font-medium text-[var(--text-primary)] text-sm mb-2 line-clamp-2 group-hover:text-[var(--brand-primary)] transition-colors leading-snug">
           {product.name}
         </h3>
-        
+
         <div className="flex items-center mb-2">
           <div className="flex text-yellow-400 text-xs mr-1">
             {[...Array(5)].map((_, i) => (
-              <span key={i} className={i < Math.floor(product.rating) ? 'text-yellow-400' : 'text-gray-300'}>★</span>
+              <span
+                key={i}
+                className={
+                  i < Math.floor(product.rating)
+                    ? "text-yellow-400"
+                    : "text-gray-300"
+                }
+              >
+                ★
+              </span>
             ))}
           </div>
-          <span className="text-xs text-[var(--text-secondary)] ml-1">({product.rating})</span>
+          <span className="text-xs text-[var(--text-secondary)] ml-1">
+            ({product.rating})
+          </span>
         </div>
 
         <div className="flex items-baseline gap-2 mb-2">
@@ -87,12 +102,23 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, index = 0 }) => {
             )}
           </div>
           <div className="flex items-center gap-1 mt-1">
-            <div className="flex text-yellow-400" style={{ fontSize: '10px' }}>
+            <div className="flex text-yellow-400" style={{ fontSize: "10px" }}>
               {[...Array(5)].map((_, i) => (
-                <span key={i} className={i < Math.floor(product.sellerRating) ? 'text-yellow-400' : 'text-gray-300'}>★</span>
+                <span
+                  key={i}
+                  className={
+                    i < Math.floor(product.sellerRating)
+                      ? "text-yellow-400"
+                      : "text-gray-300"
+                  }
+                >
+                  ★
+                </span>
               ))}
             </div>
-            <span className="text-xs text-[var(--text-secondary)]">({product.sellerRating})</span>
+            <span className="text-xs text-[var(--text-secondary)]">
+              ({product.sellerRating})
+            </span>
           </div>
         </div>
       </div>

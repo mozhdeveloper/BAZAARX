@@ -11,14 +11,15 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { Package, ShoppingCart, Bell, X, Search, ChevronDown } from 'lucide-react-native';
+import { Package, ShoppingCart, Bell, X, Search, ChevronDown, Menu } from 'lucide-react-native';
 import { useSellerStore } from '../../../src/stores/sellerStore';
+import { useReturnStore } from '../../../src/stores/returnStore';
 import SellerDrawer from '../../../src/components/SellerDrawer';
 
-type OrderStatus = 'all' | 'pending' | 'to-ship' | 'completed';
+type OrderStatus = 'all' | 'pending' | 'to-ship' | 'completed' | 'returns' | 'refunds';
 
 export default function SellerOrdersScreen() {
-  const { orders, updateOrderStatus } = useSellerStore();
+  const { orders, updateOrderStatus, seller } = useSellerStore();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const [drawerVisible, setDrawerVisible] = useState(false);
@@ -27,16 +28,43 @@ export default function SellerOrdersScreen() {
   const [walkFilter, setWalkFilter] = useState<'all' | 'walkin' | 'online'>('all');
   const [isWalkFilterOpen, setIsWalkFilterOpen] = useState(false);
 
-  // Count orders by status
+  const getReturnRequestsBySeller = useReturnStore((state) => state.getReturnRequestsBySeller);
+  const returnRequests = getReturnRequestsBySeller(seller.storeName);
+  const pendingReturnRequests = returnRequests.filter(
+    (req) => req.status === 'pending_review' || req.status === 'seller_response_required'
+  );
+  const refundRequests = returnRequests.filter(
+    (req) =>
+      req.status === 'approved' ||
+      req.status === 'refund_processing' ||
+      req.status === 'refunded' ||
+      req.status === 'item_returned'
+  );
+
+  const isReturnTab = selectedTab === 'returns' || selectedTab === 'refunds';
+  const currentReturnRequests =
+    selectedTab === 'returns'
+      ? pendingReturnRequests
+      : selectedTab === 'refunds'
+      ? refundRequests
+      : [];
+
   const orderCounts = {
     all: orders.length,
     pending: orders.filter(o => o.status === 'pending').length,
     'to-ship': orders.filter(o => o.status === 'to-ship').length,
     completed: orders.filter(o => o.status === 'completed').length,
+    returns: pendingReturnRequests.length,
+    refunds: refundRequests.length,
   };
 
   const filteredOrders = orders.filter((order) => {
-    const matchesTab = selectedTab === 'all' ? true : order.status === selectedTab;
+    const matchesTab =
+      selectedTab === 'all'
+        ? true
+        : selectedTab === 'pending' || selectedTab === 'to-ship' || selectedTab === 'completed'
+        ? order.status === selectedTab
+        : true;
     const matchesWalk = walkFilter === 'all' ? true : (walkFilter === 'walkin' ? order.type === 'OFFLINE' : order.type === 'ONLINE');
     const q = searchQuery.trim().toLowerCase();
     const matchesSearch = !q ? true : (
@@ -117,7 +145,7 @@ export default function SellerOrdersScreen() {
         <View style={styles.headerContent}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
             <Pressable style={styles.iconContainer} onPress={() => setDrawerVisible(true)}>
-              <ShoppingCart size={24} color="#FFFFFF" strokeWidth={2} />
+              <Menu size={24} color="#FFFFFF" strokeWidth={2} />
             </Pressable>
             <View style={{ flex: 1 }}>
               <Text style={styles.headerTitle}>Orders</Text>
@@ -161,39 +189,42 @@ export default function SellerOrdersScreen() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.segmentedScrollContent}
           >
-            {(['all', 'pending', 'to-ship', 'completed'] as OrderStatus[]).map(
-              (tab) => (
-                <Pressable
-                  key={tab}
+            {(
+              ['all', 'pending', 'to-ship', 'completed', 'returns', 'refunds'] as OrderStatus[]
+            ).map((tab) => (
+              <Pressable
+                key={tab}
+                style={[
+                  styles.segmentButton,
+                  selectedTab === tab && styles.segmentButtonActive,
+                ]}
+                onPress={() => setSelectedTab(tab)}
+              >
+                <Text
                   style={[
-                    styles.segmentButton,
-                    selectedTab === tab && styles.segmentButtonActive,
+                    styles.segmentButtonText,
+                    selectedTab === tab && styles.segmentButtonTextActive,
                   ]}
-                  onPress={() => setSelectedTab(tab)}
+                >
+                  {tab.charAt(0).toUpperCase() + tab.slice(1).replace('-', ' ')}
+                </Text>
+                <View
+                  style={[
+                    styles.countBadge,
+                    selectedTab === tab && styles.countBadgeActive,
+                  ]}
                 >
                   <Text
                     style={[
-                      styles.segmentButtonText,
-                      selectedTab === tab && styles.segmentButtonTextActive,
-                    ]}
-                  >
-                    {tab.charAt(0).toUpperCase() +
-                      tab.slice(1).replace('-', ' ')}
-                  </Text>
-                  <View style={[
-                    styles.countBadge,
-                    selectedTab === tab && styles.countBadgeActive,
-                  ]}>
-                    <Text style={[
                       styles.countBadgeText,
                       selectedTab === tab && styles.countBadgeTextActive,
-                    ]}>
-                      {orderCounts[tab]}
-                    </Text>
-                  </View>
-                </Pressable>
-              )
-            )}
+                    ]}
+                  >
+                    {orderCounts[tab]}
+                  </Text>
+                </View>
+              </Pressable>
+            ))}
           </ScrollView>
         </View>
 
@@ -243,110 +274,176 @@ export default function SellerOrdersScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollViewContent}
       >
-        {filteredOrders.length === 0 ? (
+        {isReturnTab ? (
+          currentReturnRequests.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Package size={64} color="#D1D5DB" strokeWidth={1.5} />
+              <Text style={styles.emptyStateTitle}>
+                {selectedTab === 'returns' ? 'No return requests' : 'No refund requests'}
+              </Text>
+              <Text style={styles.emptyStateText}>
+                {selectedTab === 'returns'
+                  ? 'Return requests from buyers will appear here'
+                  : 'Refund-related requests will appear here'}
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.ordersList}>
+              {currentReturnRequests.map((req) => (
+                <Pressable
+                  key={req.id}
+                  style={styles.orderCard}
+                  onPress={() =>
+                    navigation.getParent()?.navigate('ReturnDetail', {
+                      returnId: req.id,
+                    })
+                  }
+                >
+                  <View style={styles.orderHeader}>
+                    <View style={{ flex: 1, marginRight: 10 }}>
+                      <Text style={styles.orderId} numberOfLines={1} ellipsizeMode="tail">
+                        Order #{req.orderId}
+                      </Text>
+                      <Text
+                        style={styles.customerName}
+                        numberOfLines={1}
+                        ellipsizeMode="tail"
+                      >
+                        Reason: {req.reason.split('_').join(' ')}
+                      </Text>
+                    </View>
+                    <View
+                      style={[
+                        styles.statusBadge,
+                        {
+                          backgroundColor:
+                            selectedTab === 'returns' ? '#FEF3C7' : '#E0F2FE',
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.statusText,
+                          {
+                            color: selectedTab === 'returns' ? '#D97706' : '#0369A1',
+                          },
+                        ]}
+                      >
+                        {req.status.split('_').join(' ').toUpperCase()}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.orderFooter}>
+                    <View>
+                      <Text style={styles.totalLabel}>Request Date</Text>
+                      <Text style={styles.customerEmail}>
+                        {new Date(req.createdAt).toLocaleDateString()}
+                      </Text>
+                    </View>
+                    <View>
+                      <Text style={styles.totalLabel}>Amount</Text>
+                      <Text style={styles.totalAmount}>
+                        ₱{req.amount.toLocaleString()}
+                      </Text>
+                    </View>
+                  </View>
+                </Pressable>
+              ))}
+            </View>
+          )
+        ) : filteredOrders.length === 0 ? (
           <View style={styles.emptyState}>
             <Package size={64} color="#D1D5DB" strokeWidth={1.5} />
-            <Text style={styles.emptyStateTitle}>No {selectedTab === 'all' ? '' : selectedTab} orders</Text>
+            <Text style={styles.emptyStateTitle}>
+              No {selectedTab === 'all' ? '' : selectedTab} orders
+            </Text>
             <Text style={styles.emptyStateText}>
-              {selectedTab === 'all' 
+              {selectedTab === 'all'
                 ? 'Orders will appear here once customers make purchases'
-                : `No orders with "${selectedTab.replace('-', ' ')}" status`
-              }
+                : `No orders with "${selectedTab.replace('-', ' ')}" status`}
             </Text>
           </View>
         ) : (
           <View style={styles.ordersList}>
-          {filteredOrders.map((order) => (
-            <View key={order.id} style={styles.orderCard}>
-              {/* Order Header */}
-              <View style={styles.orderHeader}>
-  {/* The Outer Left Container */}
-  <View style={{ flex: 1, marginRight: 10 }}> 
-    
-    {/* The Row with ID and Type Badge */}
-    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-      {/* 1. Wrap the ID in a View with flexShrink so it cuts off before hitting the status */}
-      <View style={{ flexShrink: 1 }}>
-        <Text style={styles.orderId} numberOfLines={1} ellipsizeMode="tail">
-          {order.orderId}
-        </Text>
-      </View>
-
-      {/* 2. Badge sits right beside it */}
-      <View style={{ marginLeft: 8 }}>
-        {order.type === 'OFFLINE' && (
-          <View style={styles.walkInBadge}>
-            <Text style={styles.walkInBadgeText}>Walk-in</Text>
-          </View>
-        )}
-        {order.type === 'ONLINE' && (
-          <View style={styles.onlineBadge}>
-            <Text style={styles.onlineBadgeText}>Online</Text>
-          </View>
-        )}
-      </View>
-    </View>
-
-    {/* Customer Details below the ID row */}
-    <Text style={styles.customerName}>{order.customerName}</Text>
-    {order.posNote ? (
-      <Text style={styles.posNote} numberOfLines={1}>Note: {order.posNote}</Text>
-    ) : (
-      <Text style={styles.customerEmail} numberOfLines={1}>
-        {order.customerEmail}
-      </Text>
-    )}
-  </View>
-
-  {/* Status Badge - Static Width */}
-  <View
-    style={[
-      styles.statusBadge,
-      { backgroundColor: getStatusBgColor(order.status), flexShrink: 0 },
-    ]}
-  >
-    <Text
-      style={[
-        styles.statusText,
-        { color: getStatusColor(order.status) },
-      ]}
-    >
-      {order.status.replace('-', ' ').toUpperCase()}
-    </Text>
-  </View>
-</View>
-
-              {/* Product Thumbnails */}
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.thumbnailsScroll}
-              >
-                {order.items.map((item, index) => (
-                  <View key={index} style={styles.thumbnailContainer}>
-                    <Image
-                      source={{ uri: item.image }}
-                      style={styles.thumbnail}
-                    />
-                    <View style={styles.quantityBadge}>
-                      <Text style={styles.quantityText}>x{item.quantity}</Text>
+            {filteredOrders.map((order) => (
+              <View key={order.id} style={styles.orderCard}>
+                <View style={styles.orderHeader}>
+                  <View style={{ flex: 1, marginRight: 10 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <View style={{ flexShrink: 1 }}>
+                        <Text
+                          style={styles.orderId}
+                          numberOfLines={1}
+                          ellipsizeMode="tail"
+                        >
+                          {order.orderId}
+                        </Text>
+                      </View>
+                      <View style={{ marginLeft: 8 }}>
+                        {order.type === 'OFFLINE' && (
+                          <View style={styles.walkInBadge}>
+                            <Text style={styles.walkInBadgeText}>Walk-in</Text>
+                          </View>
+                        )}
+                        {order.type === 'ONLINE' && (
+                          <View style={styles.onlineBadge}>
+                            <Text style={styles.onlineBadgeText}>Online</Text>
+                          </View>
+                        )}
+                      </View>
                     </View>
+                    <Text style={styles.customerName}>{order.customerName}</Text>
+                    {order.posNote ? (
+                      <Text style={styles.posNote} numberOfLines={1}>
+                        Note: {order.posNote}
+                      </Text>
+                    ) : (
+                      <Text style={styles.customerEmail} numberOfLines={1}>
+                        {order.customerEmail}
+                      </Text>
+                    )}
                   </View>
-                ))}
-              </ScrollView>
-
-              {/* Order Footer */}
-              <View style={styles.orderFooter}>
-                <View>
-                  <Text style={styles.totalLabel}>Total Amount</Text>
-                  <Text style={styles.totalAmount}>
-                    ₱{order.total.toLocaleString()}
-                  </Text>
+                  <View
+                    style={[
+                      styles.statusBadge,
+                      { backgroundColor: getStatusBgColor(order.status), flexShrink: 0 },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.statusText,
+                        { color: getStatusColor(order.status) },
+                      ]}
+                    >
+                      {order.status.replace('-', ' ').toUpperCase()}
+                    </Text>
+                  </View>
                 </View>
-                {getActionButton(order)}
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.thumbnailsScroll}
+                >
+                  {order.items.map((item, index) => (
+                    <View key={index} style={styles.thumbnailContainer}>
+                      <Image source={{ uri: item.image }} style={styles.thumbnail} />
+                      <View style={styles.quantityBadge}>
+                        <Text style={styles.quantityText}>x{item.quantity}</Text>
+                      </View>
+                    </View>
+                  ))}
+                </ScrollView>
+                <View style={styles.orderFooter}>
+                  <View>
+                    <Text style={styles.totalLabel}>Total Amount</Text>
+                    <Text style={styles.totalAmount}>
+                      ₱{order.total.toLocaleString()}
+                    </Text>
+                  </View>
+                  {getActionButton(order)}
+                </View>
               </View>
-            </View>
-          ))}
+            ))}
           </View>
         )}
 
@@ -370,6 +467,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 4,
+    borderBottomLeftRadius: 20, 
+    borderBottomRightRadius: 20,
   },
   headerContent: {
     flexDirection: 'row',
@@ -456,7 +555,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
-    gap: 12,
+    gap: 3,
     backgroundColor: '#FFFFFF',
   },
   segmentDivider: {

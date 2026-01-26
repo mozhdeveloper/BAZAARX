@@ -1,26 +1,51 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet, Switch } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Globe, DollarSign, Moon, Volume2, Download } from 'lucide-react-native';
+import { View, Text, ScrollView, Pressable, StyleSheet, Switch, Alert, StatusBar } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ArrowLeft, Globe, DollarSign, Moon, Volume2, Download, RefreshCw } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
+import { useAuthStore } from '../src/stores/authStore';
+import { COLORS } from '../src/constants/theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Settings'>;
 
 export default function SettingsScreen({ navigation }: Props) {
+  const resetOnboarding = useAuthStore((state) => state.resetOnboarding);
   const [darkMode, setDarkMode] = useState(false);
   const [soundEffects, setSoundEffects] = useState(true);
   const [autoDownload, setAutoDownload] = useState(false);
+  const insets = useSafeAreaInsets();
+
+  const handleResetOnboarding = () => {
+    Alert.alert(
+      'Reset Onboarding',
+      'This will reset your onboarding status. You will see the onboarding screen on next launch.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Reset', 
+          style: 'destructive',
+          onPress: () => {
+            resetOnboarding();
+            Alert.alert('Success', 'Onboarding status reset. Please restart the app.');
+          }
+        }
+      ]
+    );
+  };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" />
       {/* Header */}
-      <View style={styles.header}>
-        <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
-          <ArrowLeft size={24} color="#111827" />
-        </Pressable>
-        <Text style={styles.headerTitle}>Settings</Text>
-        <View style={styles.placeholder} />
+      <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: COLORS.primary }]}>
+        <View style={styles.headerTop}>
+            <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
+                <ArrowLeft size={24} color="#FFF" strokeWidth={2.5} />
+            </Pressable>
+            <Text style={styles.headerTitle}>Settings</Text>
+            <View style={{ width: 40 }} />
+        </View>
       </View>
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
@@ -127,6 +152,28 @@ export default function SettingsScreen({ navigation }: Props) {
           </View>
         </View>
 
+        {/* Developer Options */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Developer Options</Text>
+          
+          <View style={styles.settingCard}>
+            <Pressable 
+              style={styles.settingItem}
+              onPress={handleResetOnboarding}
+            >
+              <View style={styles.settingLeft}>
+                <View style={[styles.iconContainer, { backgroundColor: '#FEE2E2' }]}>
+                  <RefreshCw size={20} color="#EF4444" />
+                </View>
+                <View style={styles.settingTextContainer}>
+                  <Text style={styles.settingTitle}>Reset Onboarding</Text>
+                  <Text style={styles.settingSubtitle}>Show onboarding screen again</Text>
+                </View>
+              </View>
+            </Pressable>
+          </View>
+        </View>
+
         {/* App Info */}
         <View style={styles.appInfo}>
           <Text style={styles.appInfoText}>BazaarX Mobile</Text>
@@ -134,7 +181,7 @@ export default function SettingsScreen({ navigation }: Props) {
           <Text style={styles.copyrightText}>© 2024 BazaarX. All rights reserved.</Text>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -143,27 +190,21 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F9FAFB',
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  headerContainer: {
     paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+    paddingBottom: 20,
+    marginBottom: 10,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    zIndex: 10,
   },
-  backButton: {
-    padding: 4,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  placeholder: {
-    width: 32,
-  },
+  headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  headerIconButton: { padding: 4 },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFF' },
   scrollView: {
     flex: 1,
   },

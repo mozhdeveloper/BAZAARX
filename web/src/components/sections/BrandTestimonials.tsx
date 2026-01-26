@@ -22,7 +22,7 @@ const TESTIMONIALS = [
     quote: "Best investment for my online store. Real-time analytics helped us triple our revenue!",
     img: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=687&auto=format&fit=crop"
   },
- {
+  {
     name: "Rico Tan ",
     role: "CEO of Island Crafts Co.",
     quote: "From Cebu to Manila, BazaarX helped us reach customers nationwide. The platform handles everything seamlessly!",
@@ -40,15 +40,15 @@ function BrandTestimonials() {
   return (
     <main className="w-full bg-[#fdf8f4] py-20 overflow-hidden">
       <section className="container mx-auto px-6 flex flex-col lg:flex-row items-center gap-12" ref={testimonialRef}>
-        
+
         {/* LEFT COLUMN: STATIC CONTENT */}
         <div className="lg:w-2/5 space-y-6">
-          <span className="text-[#ff8555] font-bold tracking-widest text-sm uppercase">
+          <span className="text-[#ff6a00] font-bold tracking-widest text-sm uppercase">
             Testimonials
           </span>
           <h2 className="text-5xl lg:text-6xl font-extrabold text-[#1a2b3b] leading-tight">
             Trusted by Leading <br />
-            <span className="text-[#ff8555]">Filipino Brands</span>
+            <span className="text-[#ff6a00]">Brands</span>
           </h2>
           <p className="text-gray-600 text-lg max-w-md">
             See what business owners and entrepreneurs say about BazaarX.
@@ -57,7 +57,7 @@ function BrandTestimonials() {
 
         {/* RIGHT COLUMN: CARD + CONTROLS ON THE RIGHT */}
         <div className="lg:w-3/5 flex flex-col md:flex-row items-center gap-8">
-          
+
           {/* THE REVIEW CARD */}
           <div className="relative w-full max-w-xl min-h-[400px] flex items-center">
             <AnimatePresence mode="wait">
@@ -71,7 +71,7 @@ function BrandTestimonials() {
               >
                 <div className="flex gap-1 mb-6">
                   {[...Array(5)].map((_, i) => (
-                    <Star key={i} className="w-5 h-5 fill-[#ff8555] text-[#ff8555]" />
+                    <Star key={i} className="w-5 h-5 fill-[#ff6a00] text-[#ff6a00]" />
                   ))}
                 </div>
 
@@ -94,28 +94,28 @@ function BrandTestimonials() {
             </AnimatePresence>
           </div>
 
-            <div className="flex items-center gap-2 px-2">
-              {TESTIMONIALS.map((_, i) => (
-                <div 
-                  key={i} 
-                  className={`transition-all duration-300 rounded-full h-1.5 ${i === index ? "w-8 bg-[#ff8555]" : "w-2 bg-gray-300"}`} 
-                />
-              ))}
-            </div>
+          <div className="flex items-center gap-2 px-2">
+            {TESTIMONIALS.map((_, i) => (
+              <div
+                key={i}
+                className={`transition-all duration-300 rounded-full h-1.5 ${i === index ? "w-8 bg-[#FF6A00]" : "w-2 bg-gray-300"}`}
+              />
+            ))}
+          </div>
 
           <div className="flex flex-col items-center md:items-start gap-10">
             <div className="flex gap-4">
-              <button 
-                onClick={prev} 
-                className="p-4 rounded-full border border-gray-200 bg-white hover:bg-gray-50 transition-all active:scale-95 shadow-sm"
+              <button
+                onClick={prev}
+                className="p-4 rounded-full border border-gray-200 bg-white hover:bg-[#FF6A00] transition-all active:scale-95 shadow-sm group"
               >
-                <ArrowLeft className="w-6 h-6 text-gray-700" />
+                <ArrowLeft className="w-6 h-6 text-gray-700 group-hover:text-white transition-colors" />
               </button>
-              <button 
-                onClick={next} 
-                className="p-4 rounded-full bg-[#ff8555] hover:bg-[#ff703d] transition-all active:scale-95 shadow-lg shadow-orange-200"
+              <button
+                onClick={next}
+                className="p-4 rounded-full border border-gray-200 bg-white hover:bg-[#FF6A00] transition-all active:scale-95 shadow-sm group"
               >
-                <ArrowRight className="w-6 h-6 text-white" />
+                <ArrowRight className="w-6 h-6 text-gray-700 group-hover:text-white transition-colors" />
               </button>
             </div>
           </div>

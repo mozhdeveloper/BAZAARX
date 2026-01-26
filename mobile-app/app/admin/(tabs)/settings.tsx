@@ -13,6 +13,7 @@ import { useAdminAuth } from '../../../src/stores/adminStore';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import AdminDrawer from '../../../src/components/AdminDrawer';
+import { COLORS } from '../../../src/constants/theme';
 
 type NavigationProp = StackNavigationProp<any>;
 
@@ -68,7 +69,7 @@ export default function AdminSettingsScreen() {
           <Text style={styles.userName}>{user?.name || 'Admin User'}</Text>
           <Text style={styles.userEmail}>{user?.email || 'admin@bazaarph.com'}</Text>
           <View style={styles.roleBadge}>
-            <Shield size={14} color="#FF5722" />
+            <Shield size={14} color={COLORS.primary} />
             <Text style={styles.roleText}>{user?.role?.replace('_', ' ') || 'Administrator'}</Text>
           </View>
         </View>
@@ -106,9 +107,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F5F7',
   },
   header: {
-    backgroundColor: '#FF5722',
+    backgroundColor: COLORS.primary,
     paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingBottom: 24,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
   },
   headerContent: {
     flexDirection: 'row',
@@ -164,7 +167,7 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: '#FF5722',
+    backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,
@@ -197,7 +200,7 @@ const styles = StyleSheet.create({
   roleText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#FF5722',
+    color: COLORS.primary,
     textTransform: 'capitalize',
   },
   section: {

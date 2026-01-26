@@ -3,6 +3,7 @@ import {
   View,
   Text,
   StyleSheet,
+  TouchableOpacity,
   ScrollView,
   Pressable,
   Image,
@@ -48,7 +49,9 @@ export default function ReviewsScreen() {
   const [showReplyModal, setShowReplyModal] = useState(false);
   const [selectedReview, setSelectedReview] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
-
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
+  
   // Mock Reviews Data matching web
   const mockReviews: Review[] = [
     {
@@ -134,7 +137,8 @@ export default function ReviewsScreen() {
     },
   ];
 
-  const filteredReviews = mockReviews.filter((review) => {
+  const [allReviews, setAllReviews] = useState<Review[]>(mockReviews);
+  const filteredReviews = allReviews.filter((review) => {
     const matchesSearch =
       review.productName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       review.buyerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -144,8 +148,8 @@ export default function ReviewsScreen() {
   });
 
   const reviewStats = {
-    total: mockReviews.length,
-    average: (mockReviews.reduce((sum, r) => sum + r.rating, 0) / mockReviews.length).toFixed(1),
+    total: allReviews.length,
+    average: (allReviews.reduce((sum, r) => sum + r.rating, 0) / allReviews.length).toFixed(1),
     fiveStar: mockReviews.filter((r) => r.rating === 5).length,
     fourStar: mockReviews.filter((r) => r.rating === 4).length,
     threeStar: mockReviews.filter((r) => r.rating === 3).length,
@@ -159,9 +163,32 @@ export default function ReviewsScreen() {
   };
 
   const submitReply = () => {
-    setShowReplyModal(false);
-    setReplyText('');
-    setSelectedReview(null);
+    if (!selectedReview || !replyText.trim()) return;
+
+    setIsSubmitting(true);
+
+    // Simulate a network request delay
+    setTimeout(() => {
+      setAllReviews(prevReviews => 
+        prevReviews.map(review => 
+          review.id === selectedReview 
+            ? { 
+                ...review, 
+                reply: { message: replyText, date: new Date() } 
+              } 
+            : review
+        )
+      );
+
+      setIsSubmitting(false);
+      setShowReplyModal(false);
+      setReplyText('');
+      setSelectedReview(null);
+      
+      // Show success toast
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 3000);
+    }, 800);
   };
 
   const renderStars = (rating: number, size: number = 14) => {
@@ -184,16 +211,13 @@ export default function ReviewsScreen() {
     <View style={styles.container}>
 
       {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
-        <View style={styles.headerContent}>
-          <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
-            <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
-          </Pressable>
-          <View style={styles.headerTitleContainer}>
+      <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: '#FF5722' }]}>
+        <View style={styles.headerTop}>
+            <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
+                <ArrowLeft size={24} color="#FFF" strokeWidth={2.5} />
+            </Pressable>
             <Text style={styles.headerTitle}>Reviews & Ratings</Text>
-            <Text style={styles.headerSubtitle}>Customer feedback</Text>
-          </View>
-          <View style={{ width: 40 }} />
+            <View style={{ width: 40 }} />
         </View>
       </View>
 
@@ -357,6 +381,7 @@ export default function ReviewsScreen() {
               multiline
               numberOfLines={4}
               textAlignVertical="top"
+              autoFocus={true}
             />
             <View style={styles.modalActions}>
               <Pressable
@@ -365,13 +390,29 @@ export default function ReviewsScreen() {
               >
                 <Text style={styles.modalCancelText}>Cancel</Text>
               </Pressable>
-              <Pressable style={styles.modalSubmitButton} onPress={submitReply}>
-                <Text style={styles.modalSubmitText}>Send Reply</Text>
+              <Pressable 
+                style={[styles.modalSubmitButton, isSubmitting && { opacity: 0.7 }]} 
+                onPress={submitReply}
+                disabled={isSubmitting}
+              >
+                <Text style={styles.modalSubmitText}>
+                  {isSubmitting ? 'Sending...' : 'Send Reply'}
+                </Text>
               </Pressable>
             </View>
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* Success Toast Notification */}
+      {showSuccess && (
+        <View style={styles.toastContainer}>
+          <View style={styles.toast}>
+            <Check size={20} color="#FFFFFF" strokeWidth={3} />
+            <Text style={styles.toastText}>Reply sent successfully!</Text>
+          </View>
+        </View>
+      )}
     </View>
   );
 }
@@ -381,41 +422,21 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F5F5F7',
   },
-  header: {
-    backgroundColor: '#FF5722',
-    paddingHorizontal: 16,
-    paddingBottom: 16,
+  headerContainer: {
+    paddingHorizontal: 20,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+    paddingBottom: 20,
+    marginBottom: 10,
+    elevation: 4,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 4,
+    zIndex: 10,
   },
-  headerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  backButton: {
-    padding: 4,
-  },
-  headerTitleContainer: {
-    flex: 1,
-    alignItems: 'center',
-    gap: 2,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: 0.3,
-  },
-  headerSubtitle: {
-    fontSize: 13,
-    color: '#FFFFFF',
-    opacity: 0.9,
-    fontWeight: '500',
-  },
+  headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  headerIconButton: { padding: 4 },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFF' },
   scrollView: {
     flex: 1,
   },
@@ -706,5 +727,32 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  toastContainer: {
+    position: 'absolute',
+    top: 60,
+    left: 20,
+    right: 20,
+    alignItems: 'center',
+    zIndex: 999,
+  },
+  toast: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#10B981', // Success Green
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 100,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  toastText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
   },
 });

@@ -8,83 +8,146 @@ import {
   Image,
   ScrollView,
   Alert,
-  Linking,
+  ActivityIndicator,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Mail, Lock, Zap, CheckCircle, ArrowRight } from 'lucide-react-native';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { RootStackParamList } from '../../App';
+import { Mail, Lock, Eye, EyeOff, ArrowRight, Zap, CheckCircle2 } from 'lucide-react-native';
+import { useNavigation } from '@react-navigation/native';
+import { supabase } from '../../src/lib/supabase';
+import { useSellerStore } from '../../src/stores/sellerStore';
+import { LinearGradient } from 'expo-linear-gradient';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'SellerLogin'>;
+const { width } = Dimensions.get('window');
 
-export default function SellerLoginScreen({ navigation }: Props) {
+export default function SellerLoginScreen() {
+  const navigation = useNavigation<any>();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
 
-  const handleLogin = () => {
-    if (email === 'seller@bazaarx.ph' && password === 'seller123') {
-      navigation.replace('SellerStack');
-    } else if (email === 'buyer@bazaarx.ph' && password === 'password') {
-      Alert.alert('Wrong Portal', 'These are buyer credentials. Please use seller credentials.');
-    } else {
-      Alert.alert('Login Failed', 'Invalid credentials. Use demo credentials below.');
+  const handleLogin = async () => {
+    if (!email || !password) {
+      Alert.alert('Error', 'Please enter your email and password.');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password: password,
+      });
+
+      if (authError) throw authError;
+
+      if (authData.user) {
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('user_type')
+          .eq('id', authData.user.id)
+          .single();
+
+        if (profileError || !profile) {
+          await supabase.auth.signOut();
+          Alert.alert('Profile Error', 'Could not retrieve user profile.');
+          return;
+        }
+
+        if (profile.user_type !== 'seller') {
+          await supabase.auth.signOut();
+          Alert.alert('Access Denied', 'This account is not a registered seller.');
+          return;
+        }
+
+        const { data: sellerData, error: sellerError } = await supabase
+          .from('sellers')
+          .select('store_name, approval_status, business_permit_url, valid_id_url, proof_of_address_url, dti_registration_url, tax_id_url')
+          .eq('id', authData.user.id)
+          .single();
+
+        if (sellerError || !sellerData) {
+          Alert.alert('Error', 'Seller record not found.');
+        } else {
+          useSellerStore.getState().updateSellerInfo({
+            storeName: sellerData.store_name,
+            email: authData.user.email,
+            approval_status: sellerData.approval_status,
+            business_permit_url: sellerData.business_permit_url,
+            valid_id_url: sellerData.valid_id_url,
+            proof_of_address_url: sellerData.proof_of_address_url,
+            dti_registration_url: sellerData.dti_registration_url,
+            tax_id_url: sellerData.tax_id_url,
+          });
+        }
+
+        navigation.replace('SellerStack');
+      }
+    } catch (err: any) {
+      Alert.alert('Login Failed', err.message || 'An unexpected error occurred.');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const fillCredentials = (type: 'buyer' | 'seller') => {
-    if (type === 'buyer') {
-      setEmail('buyer@bazaarx.ph');
-      setPassword('password');
-    } else {
-      setEmail('seller@bazaarx.ph');
-      setPassword('seller123');
-    }
+  const fillDemoCredentials = () => {
+    setEmail('seller@bazaarph.com');
+    setPassword('password');
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Premium Logo Section */}
-        <View style={styles.logoSection}>
-          <Image
-            source={require('../../assets/icon.png')}
-            style={styles.logo}
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+
+        {/* Top Section with Logo */}
+        <View style={styles.topSection}>
+          <LinearGradient
+            colors={['#FFF', '#FFF9F1']}
+            style={styles.backgroundGradient}
           />
-          <Text style={styles.title}>Seller Centre</Text>
-          <Text style={styles.subtitle}>Manage your store & inventory</Text>
+          <View style={styles.logoWrapper}>
+            <Image
+              source={require('../../assets/icon.png')}
+              style={styles.logo}
+            />
+          </View>
+          <Text style={styles.title}>Welcome Back</Text>
+          <Text style={styles.subtitle}>Sign in to manage your BazaarX Store.</Text>
         </View>
 
-        {/* Premium Login Form */}
-        <View style={styles.formContainer}>
+        {/* Demo Access Card */}
+        <Pressable style={styles.demoCard} onPress={fillDemoCredentials}>
+          <View style={styles.demoInfo}>
+            <View style={styles.demoTag}>
+              <Text style={styles.demoTagText}>QUICK ACCESS</Text>
+            </View>
+            <Text style={styles.demoLabel}>Demo Seller Account</Text>
+          </View>
+          <View style={styles.demoButton}>
+            <Text style={styles.demoButtonText}>Auto-Fill</Text>
+          </View>
+        </Pressable>
+
+        <View style={styles.form}>
           {/* Email Input */}
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Email Address</Text>
-            <View
-              style={[
-                styles.inputWrapper,
-                emailFocused && styles.inputWrapperFocused,
-              ]}
-            >
-              <Mail
-                size={20}
-                color={emailFocused ? '#FF5722' : '#9CA3AF'}
-                strokeWidth={2}
-              />
+            <View style={[styles.inputWrapper, emailFocused && styles.inputFocused]}>
+              <Mail size={20} color={emailFocused ? '#FF6A00' : '#9CA3AF'} />
               <TextInput
                 style={styles.input}
-                placeholder="seller@bazaarx.ph"
+                placeholder="Enter your email"
                 value={email}
                 onChangeText={setEmail}
-                onFocus={() => setEmailFocused(true)}
-                onBlur={() => setEmailFocused(false)}
-                keyboardType="email-address"
+                // onFocus={() => setEmailFocused(true)}
+                // onBlur={() => setEmailFocused(false)}
                 autoCapitalize="none"
-                placeholderTextColor="#9CA3AF"
+                keyboardType="email-address"
               />
             </View>
           </View>
@@ -92,96 +155,66 @@ export default function SellerLoginScreen({ navigation }: Props) {
           {/* Password Input */}
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Password</Text>
-            <View
-              style={[
-                styles.inputWrapper,
-                passwordFocused && styles.inputWrapperFocused,
-              ]}
-            >
-              <Lock
-                size={20}
-                color={passwordFocused ? '#FF5722' : '#9CA3AF'}
-                strokeWidth={2}
-              />
+            <View style={[styles.inputWrapper, passwordFocused && styles.inputFocused]}>
+              <Lock size={20} color={passwordFocused ? '#FF6A00' : '#9CA3AF'} />
               <TextInput
                 style={styles.input}
-                placeholder="Enter your password"
+                placeholder="••••••••••••"
                 value={password}
                 onChangeText={setPassword}
-                onFocus={() => setPasswordFocused(true)}
-                onBlur={() => setPasswordFocused(false)}
-                secureTextEntry
-                placeholderTextColor="#9CA3AF"
+                // onFocus={() => setPasswordFocused(true)}
+                // onBlur={() => setPasswordFocused(false)}
+                secureTextEntry={!showPassword}
               />
+              <Pressable onPress={() => setShowPassword(!showPassword)}>
+                {showPassword ? <EyeOff size={20} color="#9CA3AF" /> : <Eye size={20} color="#9CA3AF" />}
+              </Pressable>
             </View>
           </View>
 
-          {/* Premium Login Button */}
+          <View style={styles.optionsRow}>
+            <Pressable style={styles.checkboxContainer}>
+              <View style={styles.checkbox} />
+              <Text style={styles.checkboxLabel}>Remember me</Text>
+            </Pressable>
+            <Pressable>
+              <Text style={styles.forgotText}>Forgot Password?</Text>
+            </Pressable>
+          </View>
+
           <Pressable
-            style={({ pressed }) => [
-              styles.loginButton,
-              pressed && styles.loginButtonPressed,
-            ]}
+            style={styles.loginButton}
             onPress={handleLogin}
+            disabled={loading}
           >
-            <Text style={styles.loginButtonText}>Sign In</Text>
-          </Pressable>
-
-          {/* Forgot Password */}
-          <Pressable style={styles.forgotPassword}>
-            <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+            <LinearGradient
+              colors={['#FF6A00', '#FF8C42']}
+              style={styles.loginGradient}
+            >
+              {loading ? (
+                <ActivityIndicator color="#FFF" />
+              ) : (
+                <View style={styles.loginContent}>
+                  <Text style={styles.loginButtonText}>Sign In</Text>
+                  <ArrowRight size={20} color="#FFF" />
+                </View>
+              )}
+            </LinearGradient>
           </Pressable>
         </View>
 
-        {/* Developer/Demo Access Section */}
-        <View style={styles.demoSection}>
-          <View style={styles.demoHeader}>
-            <Zap size={18} color="#FF5722" strokeWidth={2.5} />
-            <Text style={styles.demoTitle}>Developer / Demo Access</Text>
-          </View>
-
-          {/* Buyer Credentials Row */}
-          <Pressable
-            style={styles.demoRow}
-            onPress={() => fillCredentials('buyer')}
-          >
-            <View style={styles.demoInfo}>
-              <View style={styles.demoBadge}>
-                <Text style={styles.demoBadgeText}>BUYER</Text>
-              </View>
-              <View style={styles.demoCredentials}>
-                <Text style={styles.demoEmail}>buyer@bazaarx.ph</Text>
-                <Text style={styles.demoPassword}>password</Text>
-              </View>
-            </View>
-            <View style={styles.tapToFillButton}>
-              <Text style={styles.tapToFillText}>Tap to Fill</Text>
-            </View>
-          </Pressable>
-
-          {/* Seller Credentials Row */}
-          <Pressable
-            style={styles.demoRow}
-            onPress={() => fillCredentials('seller')}
-          >
-            <View style={styles.demoInfo}>
-              <View style={[styles.demoBadge, styles.demoBadgeSeller]}>
-                <Text style={styles.demoBadgeTextSeller}>SELLER</Text>
-              </View>
-              <View style={styles.demoCredentials}>
-                <Text style={styles.demoEmail}>seller@bazaarx.ph</Text>
-                <Text style={styles.demoPassword}>seller123</Text>
-              </View>
-            </View>
-            <View style={[styles.tapToFillButton, styles.tapToFillButtonSeller]}>
-              <Text style={[styles.tapToFillText, styles.tapToFillTextSeller]}>
-                Tap to Fill
-              </Text>
-            </View>
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>New to BazaarX? </Text>
+          <Pressable onPress={() => navigation.navigate('SellerSignup')}>
+            <Text style={styles.signupLink}>Create an account</Text>
           </Pressable>
         </View>
 
-        <View style={{ height: 40 }} />
+        <View style={styles.backToHome}>
+          <Pressable onPress={() => navigation.navigate('SellerAuthChoice')}>
+            <Text style={styles.backLink}>← Back to BazaarPH</Text>
+          </Pressable>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -193,35 +226,101 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   scrollContent: {
-    paddingHorizontal: 24,
+    paddingBottom: 40,
   },
-  // Premium Logo Section
-  logoSection: {
+  topSection: {
+    paddingTop: 40,
+    paddingBottom: 30,
     alignItems: 'center',
-    marginTop: 60,
-    marginBottom: 48,
+    paddingHorizontal: 25,
+  },
+  backgroundGradient: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  logoWrapper: {
+    width: 80,
+    height: 80,
+    backgroundColor: '#FF6A00',
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#FF6A00',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 15,
+    marginBottom: 25,
   },
   logo: {
-    width: 100,
-    height: 100,
-    marginBottom: 24,
-    borderRadius: 20,
+    width: 60,
+    height: 60,
+    borderRadius: 16,
   },
   title: {
     fontSize: 32,
     fontWeight: '800',
-    color: '#1F2937',
+    color: '#111827',
     marginBottom: 8,
-    letterSpacing: -0.5,
   },
   subtitle: {
     fontSize: 16,
     color: '#6B7280',
     fontWeight: '500',
+    textAlign: 'center',
   },
-  // Premium Form
-  formContainer: {
-    marginBottom: 40,
+  demoCard: {
+    marginHorizontal: 25,
+    backgroundColor: '#FFF5F0',
+    borderRadius: 20,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: '#FFE4D6',
+    marginBottom: 30,
+  },
+  demoInfo: {
+    flex: 1,
+  },
+  demoTag: {
+    backgroundColor: '#FFE4D6',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginBottom: 4,
+  },
+  demoTagText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#FF6A00',
+    letterSpacing: 1,
+  },
+  demoLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#4B5563',
+  },
+  demoButton: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FFE4D6',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  demoButtonText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FF6A00',
+  },
+  form: {
+    paddingHorizontal: 25,
   },
   inputGroup: {
     marginBottom: 20,
@@ -229,227 +328,110 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#1F2937',
+    color: '#374151',
     marginBottom: 10,
+    marginLeft: 4,
   },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F5F5F7',
-    borderRadius: 12,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 16,
     paddingHorizontal: 16,
-    paddingVertical: 16,
-    gap: 12,
+    height: 60,
     borderWidth: 2,
     borderColor: 'transparent',
+    gap: 12,
   },
-  inputWrapperFocused: {
-    borderColor: '#FF5722',
+  inputFocused: {
+    borderColor: '#FF6A00',
     backgroundColor: '#FFFFFF',
-    shadowColor: '#FF5722',
-    shadowOffset: { width: 0, height: 2 },
+    shadowColor: '#FF6A00',
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowRadius: 8,
   },
   input: {
     flex: 1,
     fontSize: 16,
-    color: '#1F2937',
-    fontWeight: '500',
+    color: '#111827',
+    fontWeight: '600',
   },
-  loginButton: {
-    backgroundColor: '#FF5722',
-    borderRadius: 12,
-    paddingVertical: 18,
-    alignItems: 'center',
-    marginTop: 12,
-    shadowColor: '#FF5722',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  loginButtonPressed: {
-    transform: [{ scale: 0.98 }],
-    shadowOpacity: 0.2,
-    elevation: 4,
-  },
-  loginButtonText: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: 0.5,
-  },
-  forgotPassword: {
-    alignItems: 'center',
-    marginTop: 20,
-  },
-  forgotPasswordText: {
-    fontSize: 15,
-    color: '#FF5722',
-    fontWeight: '700',
-  },
-  // Developer/Demo Access Section
-  demoSection: {
-    backgroundColor: '#FFF5F0',
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 2,
-    borderColor: '#FF5722',
-    borderStyle: 'dashed',
-  },
-  demoHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    marginBottom: 20,
-  },
-  demoTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#1F2937',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  demoRow: {
+  optionsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#FFE4D6',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    marginTop: 5,
+    marginBottom: 25,
   },
-  demoInfo: {
-    flex: 1,
-    gap: 8,
-  },
-  demoBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#E5E7EB',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  demoBadgeText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#4B5563',
-    letterSpacing: 0.5,
-  },
-  demoBadgeSeller: {
-    backgroundColor: '#FF5722',
-  },
-  demoBadgeTextSeller: {
-    color: '#FFFFFF',
-  },
-  demoCredentials: {
-    gap: 2,
-  },
-  demoEmail: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#1F2937',
-  },
-  demoPassword: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#6B7280',
-    fontFamily: 'monospace',
-  },
-  tapToFillButton: {
-    backgroundColor: '#F3F4F6',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  tapToFillButtonSeller: {
-    backgroundColor: '#FF5722',
-  },
-  tapToFillText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#6B7280',
-  },
-  tapToFillTextSeller: {
-    color: '#FFFFFF',
-  },
-  // Success Screen
-  successContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    backgroundColor: '#FFFFFF',
-  },
-  successTitle: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#1F2937',
-    marginTop: 24,
-    marginBottom: 8,
-  },
-  successMessage: {
-    fontSize: 16,
-    color: '#6B7280',
-    marginBottom: 32,
-  },
-  infoCard: {
-    backgroundColor: '#FFF5F0',
-    borderRadius: 16,
-    padding: 24,
-    borderWidth: 2,
-    borderColor: '#FF5722',
-    marginBottom: 24,
-  },
-  infoTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#1F2937',
-    marginBottom: 12,
-  },
-  infoText: {
-    fontSize: 14,
-    color: '#374151',
-    lineHeight: 22,
-    marginTop: 16,
-  },
-  enterButton: {
+  checkboxContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-    backgroundColor: '#FF5722',
-    paddingVertical: 18,
-    paddingHorizontal: 32,
-    borderRadius: 12,
-    shadowColor: '#FF5722',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 8,
-    width: '100%',
+    gap: 10,
   },
-  enterButtonText: {
-    fontSize: 17,
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#D1D5DB',
+  },
+  checkboxLabel: {
+    fontSize: 14,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  forgotText: {
+    fontSize: 14,
+    color: '#FF6A00',
+    fontWeight: '700',
+  },
+  loginButton: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    elevation: 5,
+    shadowColor: '#FF6A00',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 15,
+  },
+  loginGradient: {
+    height: 60,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loginContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  loginButtonText: {
+    fontSize: 18,
     fontWeight: '800',
     color: '#FFFFFF',
-    letterSpacing: 0.5,
   },
-  noteText: {
-    fontSize: 12,
+  footer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginTop: 35,
+  },
+  footerText: {
+    fontSize: 15,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  signupLink: {
+    fontSize: 15,
+    color: '#FF6A00',
+    fontWeight: '700',
+  },
+  backToHome: {
+    alignItems: 'center',
+    marginTop: 25,
+  },
+  backLink: {
+    fontSize: 14,
     color: '#9CA3AF',
-    textAlign: 'center',
-    fontStyle: 'italic',
-    paddingHorizontal: 16,
+    fontWeight: '700',
   },
 });

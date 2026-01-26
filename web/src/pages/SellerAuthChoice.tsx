@@ -1,129 +1,83 @@
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { Store, ArrowRight, UserPlus, LogIn } from 'lucide-react';
+import { ArrowLeft, LogIn, UserPlus } from 'lucide-react';
 
 export function SellerAuthChoice() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 to-orange-100 flex items-center justify-center p-4">
-      <div className="w-full max-w-4xl">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="text-center mb-12"
-        >
-          <div className="h-20 w-20 bg-orange-500 rounded-2xl flex items-center justify-center mx-auto mb-6">
-            <Store className="h-10 w-10 text-white" />
+    <div className="min-h-screen flex">
+      {/* Left Side */}
+      <div className='w-1/2 bg-gradient-to-br from-orange-50 via-orange-100 to-orange-50 flex items-center justify-center p-12'>
+        <div className='max-w-xl space-y-8'>
+          <div className='flex items-center space-x-2'>
+            <img
+              src='/Logo.png'
+              alt='BazaarPH Logo'
+              className='w-12 h-12 rounded-xl object-obtain'
+            />
+            <span className='text-xl font-semibold text-gray-900'>BazaarPH</span>
           </div>
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">Welcome to BazaarPH Seller</h1>
-          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            Start your journey as a seller on BazaarPH. Join thousands of Filipino entrepreneurs selling their products online.
-          </p>
-        </motion.div>
 
-        <div className="grid md:grid-cols-2 gap-6">
-          {/* Register Card */}
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-          >
-            <Link to="/seller/register">
-              <div className="bg-white rounded-2xl shadow-xl p-8 h-full hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 border-2 border-transparent hover:border-orange-500 group">
-                <div className="flex items-center justify-between mb-6">
-                  <div className="h-14 w-14 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                    <UserPlus className="h-7 w-7 text-white" />
-                  </div>
-                  <ArrowRight className="h-6 w-6 text-orange-500 opacity-0 group-hover:opacity-100 transition-opacity" />
-                </div>
-                
-                <h2 className="text-2xl font-bold text-gray-900 mb-3">Create New Account</h2>
-                <p className="text-gray-600 mb-6">
-                  New to BazaarPH? Register your business and start selling today. Complete our simple application process and get approved by our team.
-                </p>
-                
-                <div className="space-y-2 text-sm text-gray-700">
-                  <div className="flex items-center gap-2">
-                    <div className="h-1.5 w-1.5 bg-orange-500 rounded-full"></div>
-                    <span>Quick 5-step registration</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="h-1.5 w-1.5 bg-orange-500 rounded-full"></div>
-                    <span>Admin approval in 1-3 business days</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="h-1.5 w-1.5 bg-orange-500 rounded-full"></div>
-                    <span>Free to join and list products</span>
-                  </div>
-                </div>
-
-                <div className="mt-6 pt-6 border-t border-gray-200">
-                  <div className="inline-flex items-center gap-2 text-orange-600 font-medium group-hover:gap-3 transition-all">
-                    Get Started
-                    <ArrowRight className="h-4 w-4" />
-                  </div>
-                </div>
-              </div>
-            </Link>
-          </motion.div>
-
-          {/* Login Card */}
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.6, delay: 0.3 }}
-          >
-            <Link to="/seller/login">
-              <div className="bg-white rounded-2xl shadow-xl p-8 h-full hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 border-2 border-transparent hover:border-orange-500 group">
-                <div className="flex items-center justify-between mb-6">
-                  <div className="h-14 w-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                    <LogIn className="h-7 w-7 text-white" />
-                  </div>
-                  <ArrowRight className="h-6 w-6 text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity" />
-                </div>
-                
-                <h2 className="text-2xl font-bold text-gray-900 mb-3">Sign In to Your Account</h2>
-                <p className="text-gray-600 mb-6">
-                  Already have a seller account? Sign in to access your dashboard, manage products, and track your sales.
-                </p>
-                
-                <div className="space-y-2 text-sm text-gray-700">
-                  <div className="flex items-center gap-2">
-                    <div className="h-1.5 w-1.5 bg-blue-500 rounded-full"></div>
-                    <span>Access your seller dashboard</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="h-1.5 w-1.5 bg-blue-500 rounded-full"></div>
-                    <span>Manage products and orders</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="h-1.5 w-1.5 bg-blue-500 rounded-full"></div>
-                    <span>View analytics and reports</span>
-                  </div>
-                </div>
-
-                <div className="mt-6 pt-6 border-t border-gray-200">
-                  <div className="inline-flex items-center gap-2 text-blue-600 font-medium group-hover:gap-3 transition-all">
-                    Sign In Now
-                    <ArrowRight className="h-4 w-4" />
-                  </div>
-                </div>
-              </div>
-            </Link>
-          </motion.div>
+          <blockquote className="space-y-6">
+            <p className="text-4xl lg:text-5xl font-serif italic text-gray-900 leading-tight">
+              "BazaarPH has transformed how I manage my online store. My customers love the easy checkout system!"
+            </p>
+            <footer className="text-gray-600 text-lg">
+              - Juan Dela Cruz, Online Seller
+            </footer>
+          </blockquote>
         </div>
+      </div>
 
-        {/* Back to Home */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.6, delay: 0.5 }}
-          className="text-center mt-8"
-        >
-          <Link to="/" className="text-gray-600 hover:text-orange-600 transition-colors inline-flex items-center gap-2">
-            ← Back to BazaarPH
-          </Link>
-        </motion.div>
+      <div className='w-1/2 bg-white flex items-center justify-center p-12 relative'>
+        <button className='absolute top-8 right-8 flex items-center text-gray-600 hover:text-gray-900 transition-colors'>
+          
+          <ArrowLeft className='w-4 h-4 mr-1'/>
+          <Link to='/'>Home</Link>
+        </button>
+
+        <div className='max-w-md w-full space-y-8'>
+          <div className='text-center space-y-3'>
+            <h1 className='text-3xl font-bold text-gray-900'>Welcome to BazaarPH</h1>
+            <p className='text-gray-600'>Choose how you'd like to continue</p>
+          </div>
+
+          <div className='space-y-4'>
+
+            {/* Create Seller Account */}
+            <button className='w-full bg-orange-500 hover:bg-orange-600 text-white rounded-xl p-6 transition-all shadow-md hover:shadow-lg group'>
+              <div className='flex items-center justify-center space-x-3 mb-2'>
+                <div className='bg-white bg-opacity-20 p-2 rounded-lg'>
+                  <UserPlus className='w-6 h-6'/>
+                </div>
+                <Link to='/seller/register'>
+                  <span className='text-xl font-semibold'>Create Seller Account</span>
+                </Link>
+                
+              </div>
+              <p className='text-orange-50 text-sm'>Start selling and grow your business online</p>
+            </button>
+
+            {/* Sign */}
+            <button className='w-full bg-white hover:bg-gray-50 text-gray-900 border-2 border-gray-200 rounded-xl p-6 transition-all shadow-sm hover:shadow-md group'>
+              <div className='flex items-center justify-center space-x-3 mb-2'>
+                <div className='bg-orange-100 p-2 rounded-lg'>
+                  <LogIn className='w-6 h-6 text-orange-600'/>
+                </div>
+                <Link to='/seller/login'>
+                  <span className='text-xl font-semibold'>Sign in to your account</span>
+                </Link>
+                
+              </div>
+              <p className='text-gray-600 text-sm'>Access your store and manage your listing</p>
+            </button>
+          </div>
+
+          <div className='text-center pt-4 border-t border-gray-200'>
+            <p className='text-gray-600'>
+              Already have an Account?{' '}
+              <Link to='/seller/login' className='text-orange-500 hover:text-orange-600 font-semibold transition-colors'>Sign in</Link>
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );

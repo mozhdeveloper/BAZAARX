@@ -17,6 +17,9 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Warehouse, Home, Truck, CheckCircle, Package, Clock, Plane, MapPin } from 'lucide-react-native';
 import { useOrderStore } from '../src/stores/orderStore';
+import { useAuthStore } from '../src/stores/authStore';
+import { GuestLoginModal } from '../src/components/GuestLoginModal';
+import { COLORS } from '../src/constants/theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 
@@ -37,6 +40,9 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
   const { order } = route.params;
   const insets = useSafeAreaInsets();
   const { updateOrderStatus } = useOrderStore();
+  const { isGuest } = useAuthStore();
+
+
   
   // Phase state management
   const [currentStatusIndex, setCurrentStatusIndex] = useState(0); // Start from Order Placed
@@ -276,12 +282,12 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
                       ]}
                     >
                       <View style={styles.currentStepCenter}>
-                        <StatusIcon size={16} color="#FF5722" strokeWidth={2.5} />
+                        <StatusIcon size={16} color={COLORS.primary} strokeWidth={2.5} />
                       </View>
                     </Animated.View>
                   ) : isCompleted ? (
                     <View style={styles.completedStep}>
-                      <CheckCircle size={20} color="#FFFFFF" strokeWidth={3} fill="#FF5722" />
+                      <CheckCircle size={20} color="#FFFFFF" strokeWidth={3} fill={COLORS.primary} />
                     </View>
                   ) : (
                     <View style={styles.futureStep}>
@@ -384,7 +390,7 @@ const styles = StyleSheet.create({
   
   // ===== EDGE-TO-EDGE ORANGE HEADER =====
   header: {
-    backgroundColor: '#FF5722',
+    backgroundColor: COLORS.primary,
     paddingBottom: 20,
   },
   headerContent: {
@@ -510,8 +516,8 @@ const styles = StyleSheet.create({
     borderColor: '#E5E7EB',
   },
   nodeCircleActive: {
-    backgroundColor: '#FF5722',
-    borderColor: '#FF5722',
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
   },
   nodeLabel: {
     fontSize: 11,
@@ -539,7 +545,7 @@ const styles = StyleSheet.create({
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#FF5722',
+    backgroundColor: COLORS.primary,
     borderRadius: 4,
   },
   truckContainer: {
@@ -552,10 +558,10 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#FF5722',
+    backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#FF5722',
+    shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4,
     shadowRadius: 8,
@@ -598,7 +604,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#FF5722',
+    backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -608,10 +614,10 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#FF5722',
+    backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#FF5722',
+    shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4,
     shadowRadius: 10,
@@ -646,7 +652,7 @@ const styles = StyleSheet.create({
     marginVertical: 8,
   },
   timelineLineActive: {
-    backgroundColor: '#FF5722',
+    backgroundColor: COLORS.primary,
   },
   timelineLineFuture: {
     backgroundColor: '#E5E7EB',
@@ -663,7 +669,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   timelineStepTitleCurrent: {
-    color: '#FF5722',
+    color: COLORS.primary,
     fontWeight: '700',
   },
   timelineStepTitleFuture: {
@@ -696,13 +702,13 @@ const styles = StyleSheet.create({
   
   // Primary Solid Orange Button
   primaryButton: {
-    backgroundColor: '#FF5722',
+    backgroundColor: COLORS.primary,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 18,
     borderRadius: 25,
-    shadowColor: '#FF5722',
+    shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 10,
@@ -759,13 +765,13 @@ const styles = StyleSheet.create({
     marginBottom: 28,
   },
   popupButton: {
-    backgroundColor: '#FF5722',
+    backgroundColor: COLORS.primary,
     paddingVertical: 16,
     paddingHorizontal: 32,
     borderRadius: 25,
     width: '100%',
     alignItems: 'center',
-    shadowColor: '#FF5722',
+    shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 10,

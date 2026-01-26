@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -94,30 +94,72 @@ export function SellerProducts() {
     useProductStore();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { fetchProducts } = useProductStore();
+
+  useEffect(() => {
+    if (seller?.id) {
+      fetchProducts({ sellerId: seller.id });
+    }
+  }, [seller?.id, fetchProducts]);
 
   const handleLogout = () => {
     logout();
     navigate("/seller/auth");
   };
 
+  // Find this block in your SellerProducts component
   const filteredProducts = products.filter((product) => {
+    // 1. Check if the product belongs to the currently logged-in seller
+    const matchesSeller = product.sellerId === seller?.id;
+
+    // 2. Existing search logic
     const matchesSearch = product.name
       .toLowerCase()
       .includes(searchQuery.toLowerCase());
+
+    // 3. Existing status filter logic
     const matchesFilter =
       filterStatus === "all" ||
       (filterStatus === "active" && product.isActive) ||
       (filterStatus === "inactive" && !product.isActive);
-    return matchesSearch && matchesFilter;
+
+    // Only return true if it belongs to the seller AND matches search/filters
+    return matchesSeller && matchesSearch && matchesFilter;
   });
 
-  const handleToggleStatus = (id: string, currentStatus: boolean) => {
-    updateProduct(id, { isActive: !currentStatus });
+  const handleToggleStatus = async (id: string, currentStatus: boolean) => {
+    try {
+      await updateProduct(id, { isActive: !currentStatus });
+      toast({
+        title: currentStatus ? "Product Deactivated" : "Product Activated",
+        description: `Product status has been updated.`,
+      });
+    } catch (error) {
+      console.error("Error toggling status.", error);
+      toast({
+        title: "Update Failed",
+        description: "Failed to update product status.",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm("Are you sure you want to delete this product?")) {
-      deleteProduct(id);
+      try {
+        await deleteProduct(id);
+        toast({
+          title: "Product Deleted",
+          description: "Product has been successfully removed.",
+        });
+      } catch (error) {
+        console.error("Error deleting product.", error);
+        toast({
+          title: "Delete Failed",
+          description: "Failed to delete product.",
+          variant: "destructive",
+        });
+      }
     }
   };
 
@@ -131,34 +173,47 @@ export function SellerProducts() {
     setIsEditDialogOpen(true);
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (editingProduct) {
-      updateProduct(editingProduct.id, {
-        name: editFormData.name,
-        price: editFormData.price,
-        stock: editFormData.stock,
-      });
-      toast({
-        title: "Product Updated",
-        description: `${editFormData.name} has been successfully updated.`,
-      });
-      setIsEditDialogOpen(false);
-      setEditingProduct(null);
+      try {
+        // Call the store function which now updates Supabase
+        await updateProduct(editingProduct.id, {
+          name: editFormData.name,
+          price: editFormData.price,
+          stock: editFormData.stock,
+        });
+
+        toast({
+          title: "Product Updated",
+          description: `${editFormData.name} has been successfully updated in the database.`,
+        });
+
+        setIsEditDialogOpen(false);
+        setEditingProduct(null);
+      } catch (error) {
+        console.error("Error updating product.", error);
+        toast({
+          title: "Update Failed",
+          description: "There was an error updating the product. Please try again.",
+          variant: "destructive",
+        });
+      }
     }
   };
 
-  const handleBulkUpload = (products: BulkProductData[]) => {
+  const handleBulkUpload = async (products: BulkProductData[]) => {
     try {
-      bulkAddProducts(products);
+      await bulkAddProducts(products); // This now returns a Promise
       toast({
         title: "Bulk Upload Successful",
-        description: `${products.length} product(s) have been uploaded and sent to Quality Assurance.`,
+        description: `${products.length} products have been added to your inventory.`,
       });
+      setIsBulkUploadOpen(false);
     } catch (error) {
+      console.error("Error during bulk upload.", error);
       toast({
-        title: "Upload Failed",
-        description:
-          "There was an error uploading your products. Please try again.",
+        title: "Error",
+        description: "Failed to upload products. Please try again.",
         variant: "destructive",
       });
     }
@@ -516,6 +571,7 @@ export function AddProduct() {
   const navigate = useNavigate();
   const { addProduct } = useProductStore();
   const { seller } = useAuthStore();
+  const { toast } = useToast();
 
   const [formData, setFormData] = useState({
     name: "",
@@ -671,12 +727,13 @@ export function AddProduct() {
         sellerId: seller?.id || "",
       };
 
-      addProduct(productData);
+      await addProduct(productData);
 
       // Show success message
-      alert(
-        "Product added successfully! It will now go through the QA approval process."
-      );
+      toast({
+        title: "Product Added",
+        description: `${formData.name} has been successfully submitted for review.`,
+      });
       navigate("/seller/products");
     } catch (error) {
       console.error("Failed to add product:", error);

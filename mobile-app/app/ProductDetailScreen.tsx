@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,943 +8,604 @@ import {
   Pressable,
   Dimensions,
   TextInput,
+  StatusBar,
+  Alert,
+  Share,
+  Platform,
+  Modal,
+  TouchableWithoutFeedback,
+  FlatList,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, ShoppingCart, Star, BadgeCheck, ShieldCheck, Menu, Search, Camera, Share2, Heart, Plus, Minus, ThumbsUp, CheckCircle } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import {
+  ArrowLeft,
+  ShoppingCart,
+  Star,
+  BadgeCheck,
+  Search,
+  Camera,
+  Share2,
+  Heart,
+  Plus,
+  Minus,
+
+  MessageCircle,
+  Truck,
+  ShieldCheck,
+  ChevronRight,
+} from 'lucide-react-native';
 import { ProductCard } from '../src/components/ProductCard';
+import CameraSearchModal from '../src/components/CameraSearchModal';
+import StoreChatModal from '../src/components/StoreChatModal';
 import { useCartStore } from '../src/stores/cartStore';
+import { useWishlistStore } from '../src/stores/wishlistStore';
 import { trendingProducts } from '../src/data/products';
+import { COLORS } from '../src/constants/theme';
+import { useAuthStore } from '../src/stores/authStore';
+import { GuestLoginModal } from '../src/components/GuestLoginModal';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ProductDetail'>;
 
 const { width } = Dimensions.get('window');
+const BRAND_COLOR = COLORS.primary;
 
-// Demo reviews data matching web format
+// Standardized Mock Data
+const mockVariants = {
+  colors: [
+    { name: 'Graphite Black', value: '#374151' },
+    { name: 'Pearl White', value: '#F9FAFB' },
+    { name: 'Deep Navy', value: '#1E3A8A' },
+  ],
+  options: ['Single', 'Bundle Pack', 'Pro Edition'],
+};
+
 const demoReviews = [
   {
     id: '1',
     buyerName: 'Maria Santos',
-    buyerAvatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b5e5?w=150&h=150&fit=crop&crop=face',
+    avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b5e5?w=150',
     rating: 5,
-    title: 'Excellent Product!',
-    comment: 'Amazing product with great quality. Fast delivery and secure packaging. Highly recommended!',
-    images: ['https://images.unsplash.com/photo-1592750475338-74b7b21085ab?w=400&h=300&fit=crop'],
-    date: '2024-12-15',
-    helpful: 23,
-    verified: true
+    comment: 'Amazing product! Fast delivery.',
+    date: '2 days ago',
   },
   {
     id: '2',
     buyerName: 'Juan Dela Cruz',
-    buyerAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face',
+    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
     rating: 4,
-    title: 'Great value for money',
-    comment: 'Performance is excellent. Only minor issue is the packaging could be better. Overall very satisfied with the purchase.',
-    images: [],
-    date: '2024-12-10',
-    helpful: 15,
-    verified: true
+    comment: 'Great quality for the price.',
+    date: '1 week ago',
   },
-  {
+   {
     id: '3',
     buyerName: 'Anna Reyes',
-    buyerAvatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop&crop=face',
+    avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150',
     rating: 5,
-    title: 'Perfect for daily use',
-    comment: 'Quality is amazing and works perfectly. Comfortable for long use. Will definitely buy again!',
-    images: ['https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=300&fit=crop'],
-    date: '2024-12-05',
-    helpful: 8,
-    verified: true
-  }
+    comment: 'Highly recommended! Will order again.',
+    date: '2 weeks ago',
+  },
 ];
 
 export default function ProductDetailScreen({ route, navigation }: Props) {
   const insets = useSafeAreaInsets();
   const { product } = route.params;
+
+  // State
   const [activeTab, setActiveTab] = useState<'details' | 'support' | 'ratings'>('details');
+  const [selectedColor, setSelectedColor] = useState(mockVariants.colors[0]);
+  const [selectedOption, setSelectedOption] = useState(mockVariants.options[0]);
   const [quantity, setQuantity] = useState(1);
-  const [isFavorite, setIsFavorite] = useState(false);
+  const [showCameraSearch, setShowCameraSearch] = useState(false);
+  const [showChat, setShowChat] = useState(false);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showGuestModal, setShowGuestModal] = useState(false);
+  const [guestModalMessage, setGuestModalMessage] = useState('');
+
+  // Use product images if available, otherwise mock an array with the main image
+  const productImages = product.images || [product.image, product.image, product.image, product.image, product.image];
+
+  // Stores
   const addItem = useCartStore((state) => state.addItem);
   const setQuickOrder = useCartStore((state) => state.setQuickOrder);
+  const { addItem: addToWishlist, removeItem: removeFromWishlist, isInWishlist } = useWishlistStore();
+  const isFavorite = isInWishlist(product.id);
+
+  // Constants
+  const originalPrice = Math.round(product.price * 1.5); // Mock original price
+  const cartItemCount = useCartStore((state) => state.items.length);
 
   const relatedProducts = trendingProducts.filter((p) => p.id !== product.id).slice(0, 4);
 
+  // Handlers
   const handleAddToCart = () => {
-    addItem(product);
-    alert('Added to cart!');
+    const { isGuest } = useAuthStore.getState();
+    if (isGuest) {
+      setGuestModalMessage("Sign up to add items to your cart.");
+      setShowGuestModal(true);
+      return;
+    }
+    // Basic fix for adding with variants
+    addItem({ ...product, price: product.price }); 
+    Alert.alert('Added to Cart', 'Item has been added to your cart.');
   };
 
   const handleBuyNow = () => {
-    // Set as quick order and navigate to checkout
+    const { isGuest } = useAuthStore.getState();
+    if (isGuest) {
+      setGuestModalMessage("Sign up to buy items.");
+      setShowGuestModal(true);
+      return;
+    }
     setQuickOrder(product, quantity);
     navigation.navigate('Checkout');
   };
 
-  const renderStars = (rating: number) => {
-    return Array.from({ length: 5 }).map((_, i) => (
-      <Star
-        key={i}
-        size={16}
-        color={i < rating ? '#FF5722' : '#E5E7EB'}
-        fill={i < rating ? '#FF5722' : '#E5E7EB'}
-      />
-    ));
+  const handleShare = async () => {
+    await Share.share({ message: `Check out ${product.name} on BazaarX! ₱${product.price}` });
   };
+
+  const handleChat = () => {
+    const { isGuest } = useAuthStore.getState();
+    if (isGuest) {
+        setGuestModalMessage("Sign up to chat with sellers.");
+        setShowGuestModal(true);
+        return;
+    }
+    setShowChat(true);
+  }
+
+  const handleVisitStore = () => {
+    navigation.push('StoreDetail', { 
+      store: { 
+        id: product.sellerId || 'store_1', 
+        name: product.seller || 'TechHub Manila Official',
+        image: 'https://images.unsplash.com/photo-1472851294608-41551b33fcc3?w=150', // Mock Store Image
+        rating: product.sellerRating || 4.9,
+        followers: 1250,
+        description: 'Official distributor of premium tech gadgets.'
+      } 
+    });
+  };
+
+
 
   return (
     <View style={styles.container}>
-      {/* Orange Header with Search */}
-      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
-        <Pressable onPress={() => navigation.goBack()} style={styles.headerIcon}>
-          <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
-        </Pressable>
-        
-        <View style={styles.searchContainer}>
-          <Search size={18} color="#9CA3AF" />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search products..."
-            placeholderTextColor="#9CA3AF"
-          />
-          <Pressable style={styles.cameraButton}>
-            <Camera size={18} color="#FF5722" />
-          </Pressable>
-        </View>
+      <StatusBar barStyle="light-content" backgroundColor={BRAND_COLOR} />
 
-        <View style={styles.headerRight}>
-          <Pressable onPress={() => navigation.navigate('MainTabs', { screen: 'Cart' })} style={styles.cartContainer}>
-            <ShoppingCart size={24} color="#FFFFFF" strokeWidth={2.5} />
-            <View style={styles.cartBadge}>
-              <Text style={styles.cartBadgeText}>2</Text>
-            </View>
-          </Pressable>
-          <Pressable style={styles.menuButton}>
-            <Menu size={24} color="#FFFFFF" strokeWidth={2.5} />
-          </Pressable>
-        </View>
+      {/* --- HEADER (Matches Screenshot) --- */}
+      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+         <Pressable onPress={() => navigation.goBack()} style={styles.iconButton}>
+           <ArrowLeft size={24} color="#FFF" />
+         </Pressable>
+
+         <Pressable style={styles.headerSearchBar} onPress={() => setIsSearchFocused(true)}>
+             <Search size={18} color="#9CA3AF" />
+             <Text style={styles.headerSearchText}>Search product...</Text>
+             <View style={styles.cameraIcon}>
+                <Camera size={16} color={BRAND_COLOR} />
+             </View>
+         </Pressable>
+
+         <View style={styles.headerRight}>
+             <Pressable onPress={() => navigation.navigate('MainTabs', { screen: 'Cart' })} style={styles.iconButton}>
+               <ShoppingCart size={24} color="#FFF" />
+               {cartItemCount > 0 && (
+                 <View style={styles.badge}>
+                   <Text style={styles.badgeText}>{cartItemCount}</Text>
+                 </View>
+               )}
+             </Pressable>
+             <Pressable style={styles.iconButton} onPress={() => { /* Menu Action */ }}>
+                <View style={{ gap: 3 }}>
+                   <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: '#FFF' }} />
+                   <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: '#FFF' }} />
+                   <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: '#FFF' }} />
+                </View>
+             </Pressable>
+         </View>
       </View>
 
-      <ScrollView 
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 140 }}
-      >
-        {/* Product Image with Floating Icons */}
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
+        
+        {/* --- IMAGE CAROUSEL --- */}
         <View style={styles.imageContainer}>
-          <Image source={{ uri: product.image }} style={styles.productImage} resizeMode="cover" />
+          <ScrollView 
+            horizontal 
+            pagingEnabled 
+            showsHorizontalScrollIndicator={false}
+            onScroll={(e) => {
+              const contentOffsetX = e.nativeEvent.contentOffset.x;
+              const index = Math.round(contentOffsetX / (width || 1));
+              setCurrentImageIndex(index);
+            }}
+            scrollEventThrottle={16}
+          >
+            {productImages.map((img: string, index: number) => (
+              <Image key={index} source={{ uri: img }} style={styles.productImage} />
+            ))}
+          </ScrollView>
           
-          {/* Floating Action Icons */}
-          <View style={styles.floatingIcons}>
-            <Pressable style={styles.floatingIconButton}>
-              <Share2 size={20} color="#FF5722" strokeWidth={2.5} />
-            </Pressable>
-            <Pressable 
-              style={styles.floatingIconButton}
-              onPress={() => setIsFavorite(!isFavorite)}
-            >
-              <Heart 
-                size={20} 
-                color="#FF5722" 
-                fill={isFavorite ? "#FF5722" : "none"}
-                strokeWidth={2.5}
-              />
-            </Pressable>
+          {/* Page Indicator (Top Left) */}
+          <View style={styles.pageIndicator}>
+            <Text style={styles.pageText}>{currentImageIndex + 1}/{productImages.length}</Text>
           </View>
 
-          {/* Image Indicator */}
-          <View style={styles.imageIndicator}>
-            <Text style={styles.imageIndicatorText}>1/5</Text>
-          </View>
+          {/* Share Icon */}
+          <Pressable 
+              style={styles.shareFab} 
+              onPress={handleShare}
+          >
+              <Share2 size={20} color={BRAND_COLOR} />
+          </Pressable>
+
+          {/* Wishlist Heart */}
+          <Pressable 
+              style={styles.heartFab} 
+              onPress={() => {
+                const { isGuest } = useAuthStore.getState();
+                if (isGuest) {
+                    setGuestModalMessage("Sign up to save items.");
+                    setShowGuestModal(true);
+                    return;
+                }
+                isFavorite ? removeFromWishlist(product.id) : addToWishlist(product);
+              }}
+          >
+            <Heart size={20} color={isFavorite ? '#EF4444' : BRAND_COLOR} fill={isFavorite ? '#EF4444' : 'none'} />
+          </Pressable>
         </View>
 
-        {/* Product Info - Overlapping Card */}
-        <View style={styles.infoContainer}>
-          {/* Tags Row */}
-          <View style={styles.tagsRow}>
-            <View style={styles.bestsellerTag}>
-              <Star size={14} color="#8B5CF6" fill="#8B5CF6" />
-              <Text style={styles.bestsellerText}>Bestseller</Text>
+        {/* --- PRODUCT INFO CARD --- */}
+        <View style={styles.infoCard}>
+          {/* Tags */}
+          <View style={styles.tagRow}>
+            <View style={[styles.tag, { backgroundColor: '#EDE9FE' }]}>
+              <Star size={12} color="#7C3AED" fill="#7C3AED" />
+              <Text style={[styles.tagText, { color: '#7C3AED' }]}>Bestseller</Text>
             </View>
-            {product.originalPrice && (
-              <View style={styles.discountTag}>
-                <Text style={styles.discountText}>15% OFF</Text>
-              </View>
-            )}
+            <View style={[styles.tag, { backgroundColor: '#FEE2E2' }]}>
+              <Text style={[styles.tagText, { color: '#EF4444' }]}>15% OFF</Text>
+            </View>
           </View>
 
           <Text style={styles.productName}>{product.name}</Text>
+          <Text style={styles.subInfo}>{product.sold} sold this month • Free Shipping Available</Text>
 
-          <View style={styles.salesRow}>
-            <Text style={styles.salesText}>{product.sold} sold this month</Text>
-            <Text style={styles.shippingText}>• Free Shipping Available</Text>
-          </View>
-
+          {/* Price */}
           <View style={styles.priceRow}>
-            <Text style={styles.price}>₱{product.price.toLocaleString()}</Text>
-            {product.originalPrice && (
-              <Text style={styles.originalPrice}>₱{product.originalPrice.toLocaleString()}</Text>
-            )}
+            <Text style={styles.currentPrice}>₱{product.price.toLocaleString()}</Text>
+            <Text style={styles.originalPrice}>₱{originalPrice.toLocaleString()}</Text>
           </View>
 
-          <View style={styles.stockRow}>
+          {/* Stock & Ratings */}
+          <View style={styles.metaRow}>
             <Text style={styles.stockText}>In-Stock (12)</Text>
           </View>
-
-          <View style={styles.ratingRow}>
-            <View style={styles.stars}>{renderStars(Math.floor(product.rating))}</View>
-            <Text style={styles.ratingText}>{product.rating.toFixed(1)} ({product.sold.toLocaleString()})</Text>
-            <Text style={styles.questionsText}>14 Questions</Text>
-          </View>
-
-          {/* Quantity Selector */}
-          <View style={styles.quantityContainer}>
-            <Pressable 
-              style={styles.quantityButton}
-              onPress={() => setQuantity(Math.max(1, quantity - 1))}
-            >
-              <Minus size={20} color="#FF5722" strokeWidth={2.5} />
-            </Pressable>
-            <Text style={styles.quantityText}>{quantity}</Text>
-            <Pressable 
-              style={styles.quantityButton}
-              onPress={() => setQuantity(quantity + 1)}
-            >
-              <Plus size={20} color="#FF5722" strokeWidth={2.5} />
-            </Pressable>
-          </View>
-
-          {/* Seller Info */}
-          <View style={styles.sellerContainer}>
-            <View style={styles.sellerRow}>
-              <View style={styles.sellerInfo}>
-                <Text style={styles.sellerLabel}>Sold by:</Text>
-                <View style={styles.sellerHeader}>
-                  <Text style={styles.sellerName}>{product.seller}</Text>
-                  {product.sellerVerified && <BadgeCheck size={14} color="#FF5722" />}
-                </View>
-              </View>
-              <View style={styles.sellerRating}>
-                <Star size={14} color="#FF5722" fill="#FF5722" />
-                <Text style={styles.sellerRatingText}>{product.sellerRating.toFixed(1)}</Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Badges */}
-          <View style={styles.badgesRow}>
-            {product.isVerified && (
-              <View style={styles.badge}>
-                <ShieldCheck size={14} color="#FF5722" />
-                <Text style={styles.badgeText}>Verified Product</Text>
-              </View>
-            )}
-            {product.isFreeShipping && (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>Free Shipping</Text>
-              </View>
-            )}
-          </View>
-
-          {/* Tabs */}
-          <View style={styles.tabs}>
-            <Pressable
-              onPress={() => setActiveTab('details')}
-              style={[styles.tab, activeTab === 'details' && styles.activeTab]}
-            >
-              <Text style={[styles.tabText, activeTab === 'details' && styles.activeTabText]}>
-                Details
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={() => setActiveTab('support')}
-              style={[styles.tab, activeTab === 'support' && styles.activeTab]}
-            >
-              <Text style={[styles.tabText, activeTab === 'support' && styles.activeTabText]}>
-                Support
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={() => setActiveTab('ratings')}
-              style={[styles.tab, activeTab === 'ratings' && styles.activeTab]}
-            >
-              <Text style={[styles.tabText, activeTab === 'ratings' && styles.activeTabText]}>
-                Ratings
-              </Text>
-            </Pressable>
-          </View>
-
-          {/* Tab Content */}
-          <View style={styles.tabContent}>
-            {activeTab === 'details' && (
-              <Text style={styles.description}>
-                {product.description ||
-                  'High-quality product from verified seller. 100% authentic and tested for quality assurance. Fast and reliable shipping available.'}
-              </Text>
-            )}
-            {activeTab === 'support' && (
-              <Text style={styles.description}>
-                24/7 customer support available. Contact us anytime for product inquiries, shipping
-                updates, or returns.
-              </Text>
-            )}
-            {activeTab === 'ratings' && (
-              <View style={styles.ratingsContainer}>
-                {/* Rating Summary */}
-                <View style={styles.ratingSummary}>
-                  <Text style={styles.ratingScore}>{product.rating.toFixed(1)}</Text>
-                  <View style={styles.ratingStars}>
-                    {renderStars(Math.round(product.rating))}
-                  </View>
-                  <Text style={styles.ratingCount}>Based on {product.sold || demoReviews.length} reviews</Text>
-                </View>
-
-                {/* Reviews List */}
-                <View style={styles.reviewsList}>
-                  <Text style={styles.reviewsTitle}>Customer Reviews</Text>
-                  {demoReviews.map((review) => (
-                    <View key={review.id} style={styles.reviewCard}>
-                      {/* Reviewer Info */}
-                      <View style={styles.reviewHeader}>
-                        <Image source={{ uri: review.buyerAvatar }} style={styles.reviewerAvatar} />
-                        <View style={styles.reviewerInfo}>
-                          <View style={styles.reviewerNameRow}>
-                            <Text style={styles.reviewerName}>{review.buyerName}</Text>
-                            {review.verified && (
-                              <View style={styles.verifiedBadge}>
-                                <CheckCircle size={14} color="#10B981" fill="#10B981" />
-                                <Text style={styles.verifiedText}>Verified</Text>
-                              </View>
-                            )}
-                          </View>
-                          <View style={styles.reviewStars}>
-                            {renderStars(review.rating)}
-                          </View>
-                        </View>
-                      </View>
-
-                      {/* Review Content */}
-                      {review.title && (
-                        <Text style={styles.reviewTitle}>{review.title}</Text>
-                      )}
-                      <Text style={styles.reviewComment}>{review.comment}</Text>
-
-                      {/* Review Images */}
-                      {review.images && review.images.length > 0 && (
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.reviewImages}>
-                          {review.images.map((img, idx) => (
-                            <Image key={idx} source={{ uri: img }} style={styles.reviewImage} />
-                          ))}
-                        </ScrollView>
-                      )}
-
-                      {/* Review Footer */}
-                      <View style={styles.reviewFooter}>
-                        <Text style={styles.reviewDate}>{new Date(review.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</Text>
-                        <View style={styles.helpfulButton}>
-                          <ThumbsUp size={14} color="#6B7280" />
-                          <Text style={styles.helpfulText}>Helpful ({review.helpful})</Text>
-                        </View>
-                      </View>
-                    </View>
-                  ))}
-                </View>
-              </View>
-            )}
-          </View>
-
-          {/* Related Products */}
-          <View style={styles.relatedSection}>
-            <Text style={styles.relatedTitle}>You Might Also Like</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {relatedProducts.map((item) => (
-                <View key={item.id} style={styles.relatedProductCard}>
-                  <ProductCard
-                    product={item}
-                    onPress={() => navigation.push('ProductDetail', { product: item })}
-                  />
-                </View>
+           <View style={styles.ratingRow}>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Star key={i} size={14} color={i < 4 ? '#F59E0B' : '#E5E7EB'} fill={i < 4 ? '#F59E0B' : '#E5E7EB'} />
               ))}
-            </ScrollView>
+              <Text style={styles.ratingValue}>4.8 ({product.sold.toLocaleString()})</Text>
+              <Text style={styles.questionsLink}>14 Questions</Text>
+           </View>
+        </View>
+        <View style={styles.section}>
+          <View style={styles.quantityRow}>
+             <Pressable 
+                onPress={() => setQuantity(Math.max(1, quantity - 1))}
+                style={styles.qtyBtn}
+              >
+                <Minus size={20} color={BRAND_COLOR} />
+              </Pressable>
+              
+              <Text style={styles.qtyValue}>{quantity}</Text>
+              
+              <Pressable 
+                onPress={() => setQuantity(quantity + 1)}
+                style={styles.qtyBtn}
+              >
+                <Plus size={20} color={BRAND_COLOR} />
+              </Pressable>
           </View>
         </View>
+
+        {/* --- SELLER INFO --- */}
+        <Pressable onPress={handleVisitStore} style={styles.sellerSection}>
+          <View style={styles.sellerHeader}>
+            <Text style={styles.soldByLabel}>Sold by:</Text>
+            <View style={styles.sellerNameRow}>
+              <Image source={{ uri: 'https://images.unsplash.com/photo-1472851294608-41551b33fcc3?w=50' }} style={{width: 20, height: 20, borderRadius: 10}} />
+              <Text style={styles.sellerName}>{product.seller || 'TechHub Manila'}</Text>
+              <BadgeCheck size={14} color={BRAND_COLOR} fill="#FFF" />
+              <ChevronRight size={16} color="#9CA3AF" />
+            </View>
+            <View style={styles.sellerRating}>
+               <Star size={12} fill="#F59E0B" color="#F59E0B" />
+               <Text style={styles.sellerRatingText}>4.9</Text>
+            </View>
+          </View>
+          
+          <View style={styles.benefitsRow}>
+            <View style={styles.benefitChip}>
+              <ShieldCheck size={14} color={BRAND_COLOR} />
+              <Text style={styles.benefitText}>Verified Product</Text>
+            </View>
+            <View style={styles.benefitChip}>
+              <Truck size={14} color={BRAND_COLOR} />
+              <Text style={styles.benefitText}>Free Shipping</Text>
+            </View>
+          </View>
+        </Pressable>
+
+        {/* --- TABS --- */}
+        <View style={styles.tabContainer}>
+           <View style={styles.tabHeader}>
+              {(['details', 'support', 'ratings'] as const).map((tab) => (
+                <Pressable
+                  key={tab}
+                  onPress={() => setActiveTab(tab)}
+                  style={[styles.tabBtn, activeTab === tab && styles.activeTabBtn]}
+                >
+                  <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>
+                    {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                  </Text>
+                </Pressable>
+              ))}
+           </View>
+           
+           <View style={styles.tabContent}>
+              {activeTab === 'ratings' && (
+                 <View>
+                    <Text style={styles.reviewSummary}>4.8 out of 5 stars based on {product.sold} reviews.</Text>
+                    {demoReviews.map((review) => (
+                      <View key={review.id} style={styles.reviewCard}>
+                        <Image source={{ uri: review.avatar }} style={styles.reviewerAvatar} />
+                        <View style={styles.reviewContent}>
+                          <Text style={styles.reviewerName}>{review.buyerName}</Text>
+                          <View style={styles.reviewRatingRow}>
+                            {Array.from({ length: 5 }).map((_, i) => (
+                              <Star key={i} size={12} color={i < review.rating ? '#FBBF24' : '#E5E7EB'} fill={i < review.rating ? '#FBBF24' : '#E5E7EB'} />
+                            ))}
+                            <Text style={styles.reviewDate}>{review.date}</Text>
+                          </View>
+                          <Text style={styles.reviewText}>{review.comment}</Text>
+                        </View>
+                      </View>
+                    ))}
+                 </View>
+              )}
+              {activeTab === 'details' && (
+                 <Text style={styles.textContent}>
+                   High-fidelity sound with detailed staging. Ergonomic design for long-listening comfort.
+                   {'\n\n'}
+                   Features:
+                   {'\n'}• Active Noise Cancellation
+                   {'\n'}• 24-Hour Battery Life
+                   {'\n'}• Water Resistant (IPX4)
+                 </Text>
+              )}
+              {activeTab === 'support' && (
+                 <Text style={styles.textContent}>
+                   We offer a 7-day return policy for defective items. Please contact our support team for assistance.
+                 </Text>
+              )}
+           </View>
+        </View>
+
+        {/* --- RECOMMENDATIONS --- */}
+        <View style={styles.recommendations}>
+           <Text style={styles.sectionTitle}>You Might Also Like</Text>
+           <View style={styles.grid}>
+             {relatedProducts.map((p) => (
+                <View key={p.id} style={styles.gridItem}>
+                  <ProductCard product={p} onPress={() => navigation.push('ProductDetail', { product: p })} />
+                </View>
+             ))}
+           </View>
+        </View>
+
       </ScrollView>
 
-      {/* Bottom Bar */}
-      <View style={styles.bottomBar}>
-        <Pressable onPress={handleAddToCart} style={styles.addToCartButton}>
-          <ShoppingCart size={20} color="#FF5722" />
-          <Text style={styles.addToCartText}>Add to Cart</Text>
-        </Pressable>
-        <Pressable onPress={handleBuyNow} style={styles.buyNowButton}>
-          <Text style={styles.buyNowText}>Buy Now</Text>
-        </Pressable>
+      {/* --- BOTTOM ACTIONS (Matches Screenshot) --- */}
+      <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
+         <Pressable style={styles.addToCartBtn} onPress={handleAddToCart}>
+            <ShoppingCart size={20} color={BRAND_COLOR} style={{ marginRight: 8 }} />
+            <Text style={styles.addToCartText}>Add to Cart</Text>
+         </Pressable>
+
+         <Pressable style={styles.buyNowBtn} onPress={handleBuyNow}>
+            <Text style={styles.buyNowText}>Buy Now</Text>
+         </Pressable>
       </View>
+      
+      <CameraSearchModal visible={showCameraSearch} onClose={() => setShowCameraSearch(false)} />
+      
+      {showGuestModal && (
+        <GuestLoginModal 
+            visible={true}
+            onClose={() => setShowGuestModal(false)} 
+            message={guestModalMessage || "You need an account to buy items."}
+        />
+      )}
+
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F5F5F7',
-  },
-  header: {
+  container: { flex: 1, backgroundColor: '#F9FAFB' },
+  
+  // Header
+  header: { 
+    backgroundColor: BRAND_COLOR,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    backgroundColor: '#FF5722',
     gap: 12,
   },
-  headerIcon: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  searchContainer: {
+  headerSearchBar: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 999,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    backgroundColor: '#FFF',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    height: 36,
     gap: 8,
   },
-  searchInput: {
-    flex: 1,
-    fontSize: 14,
-    color: '#1F2937',
-    padding: 0,
-  },
-  cameraButton: {
-    width: 32,
-    height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFF5F0',
-    borderRadius: 999,
+  headerSearchText: { flex: 1, color: '#9CA3AF', fontSize: 13 },
+  cameraIcon: {
+      backgroundColor: '#FEE2E2',
+      borderRadius: 12,
+      padding: 4,
   },
   headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12
   },
-  cartContainer: {
+  iconButton: {
+    padding: 4,
     position: 'relative',
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cartBadge: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 999,
-    minWidth: 18,
-    height: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 5,
-  },
-  cartBadgeText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#FF5722',
-  },
-  menuButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  imageContainer: {
-    position: 'relative',
-    width: width,
-    height: width * 1.1,
-  },
-  productImage: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: '#FFFFFF',
-  },
-  floatingIcons: {
-    position: 'absolute',
-    bottom: 40,
-    right: 20,
-    gap: 12,
-  },
-  floatingIconButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 999,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  imageIndicator: {
-    position: 'absolute',
-    top: 20,
-    left: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  imageIndicatorText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#1F2937',
-  },
-  infoContainer: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
-    padding: 20,
-    marginTop: -60,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    elevation: 12,
-  },
-  tagsRow: {
-    flexDirection: 'row',
-    marginBottom: 12,
-    gap: 8,
-  },
-  bestsellerTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F3E8FF',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 999,
-    gap: 4,
-    borderWidth: 1,
-    borderColor: '#E9D5FF',
-  },
-  bestsellerText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#8B5CF6',
-    letterSpacing: 0.3,
-  },
-  discountTag: {
-    backgroundColor: '#FEE2E2',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#FECACA',
-  },
-  discountText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#DC2626',
-    letterSpacing: 0.3,
-  },
-  productName: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginBottom: 8,
-    letterSpacing: -0.3,
-    lineHeight: 26,
-  },
-  salesRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  salesText: {
-    fontSize: 13,
-    color: '#6B7280',
-    fontWeight: '500',
-  },
-  shippingText: {
-    fontSize: 13,
-    color: '#6B7280',
-    marginLeft: 4,
-    fontWeight: '500',
-  },
-  priceRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    marginBottom: 12,
-    gap: 8,
-  },
-  price: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#1F2937',
-    letterSpacing: -0.8,
-  },
-  originalPrice: {
-    fontSize: 16,
-    color: '#9CA3AF',
-    textDecorationLine: 'line-through',
-    fontWeight: '500',
-  },
-  stockRow: {
-    marginBottom: 12,
-  },
-  stockText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#10B981',
-  },
-  ratingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 20,
-    gap: 8,
-  },
-  stars: {
-    flexDirection: 'row',
-    gap: 2,
-  },
-  ratingText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#1F2937',
-  },
-  questionsText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#8B5CF6',
-    marginLeft: 'auto',
-  },
-  quantityContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 20,
-    gap: 24,
-  },
-  quantityButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 999,
-    borderWidth: 2,
-    borderColor: '#FF5722',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-  },
-  quantityText: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#1F2937',
-    minWidth: 40,
-    textAlign: 'center',
-  },
-  sellerContainer: {
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    backgroundColor: '#F9FAFB',
-    borderRadius: 16,
-    marginBottom: 16,
-  },
-  sellerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  sellerInfo: {
-    flex: 1,
-  },
-  sellerLabel: {
-    fontSize: 12,
-    color: '#6B7280',
-    marginBottom: 4,
-    fontWeight: '500',
-  },
-  sellerHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  sellerName: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#1F2937',
-    letterSpacing: 0.1,
-  },
-  sellerRating: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  sellerRatingText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1F2937',
-    marginLeft: 4,
-  },
-  badgesRow: {
-    flexDirection: 'row',
-    marginBottom: 16,
   },
   badge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFF5F0',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 999,
-    marginRight: 10,
+    position: 'absolute', top: -4, right: -4,
+    backgroundColor: '#FFF',
+    borderRadius: 10, width: 16, height: 16,
+    justifyContent: 'center', alignItems: 'center',
   },
-  badgeText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#FF5722',
-    marginLeft: 6,
-    letterSpacing: 0.2,
+  badgeText: { color: BRAND_COLOR, fontSize: 10, fontWeight: 'bold' },
+
+  // Image Area
+  imageContainer: {
+    width: width,
+    height: width, // Square aspect ratio
+    position: 'relative',
+    backgroundColor: '#FFF',
+    zIndex: 1,
   },
-  tabs: {
-    flexDirection: 'row',
-    backgroundColor: '#F9FAFB',
-    borderRadius: 16,
-    padding: 4,
-    marginBottom: 20,
-    gap: 4,
+  productImage: { width: width, height: width, resizeMode: 'cover' },
+  pageIndicator: {
+    position: 'absolute', top: 16, left: 16,
+    backgroundColor: '#FFF',
+    paddingHorizontal: 10, paddingVertical: 4,
+    borderRadius: 12, elevation: 2,
   },
-  tab: {
-    flex: 1,
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderRadius: 12,
-  },
-  activeTab: {
-    backgroundColor: '#FF5722',
-    shadowColor: '#FF5722',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  tabText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#6B7280',
-  },
-  activeTabText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
-  tabContent: {
-    marginBottom: 24,
-  },
-  description: {
-    fontSize: 15,
-    lineHeight: 24,
-    color: '#6B7280',
-    fontWeight: '500',
-  },
-  relatedSection: {
-    marginTop: 8,
-  },
-  relatedTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#1F2937',
-    marginBottom: 16,
-    letterSpacing: -0.5,
-  },
-  relatedProductCard: {
-    width: 160,
-    marginRight: 12,
-  },
-  bottomBar: {
+  pageText: { color: '#1F2937', fontSize: 12, fontWeight: '700' },
+  
+  shareFab: {
     position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
+    bottom: 96,
+    right: 16,
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: '#FFF',
+    alignItems: 'center', justifyContent: 'center',
+    elevation: 4, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 4,
+    zIndex: 11,
+  },
+  heartFab: {
+    position: 'absolute', 
+    bottom: 40,
+    right: 16,
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: '#FFF',
+    alignItems: 'center', justifyContent: 'center',
+    elevation: 6, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 6,
+    zIndex: 12,
+  },
+
+  // Info Card
+  infoCard: {
+    backgroundColor: '#FFF',
     padding: 20,
-    gap: 12,
-    backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    elevation: 12,
-  },
-  addToCartButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 2.5,
-    borderColor: '#FF5722',
-    borderRadius: 999,
-    paddingVertical: 16,
-  },
-  addToCartText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FF5722',
-    marginLeft: 8,
-    letterSpacing: 0.3,
-  },
-  buyNowButton: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FF5722',
-    borderRadius: 999,
-    paddingVertical: 16,
-    shadowColor: '#FF5722',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  buyNowText: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: 0.5,
-  },
-  ratingsContainer: {
-    gap: 20,
-  },
-  ratingSummary: {
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    padding: 20,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  ratingScore: {
-    fontSize: 48,
-    fontWeight: '700',
-    color: '#FF5722',
+    borderTopRightRadius: 24, // Kept to match rounded aesthetic even without overlap, or can be 0.
+    marginTop: -24,
+    zIndex: 2,
     marginBottom: 8,
   },
-  ratingStars: {
-    flexDirection: 'row',
-    gap: 4,
-    marginBottom: 8,
+  tagRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+  tag: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, gap: 4 },
+  tagText: { fontSize: 11, fontWeight: '700' },
+  productName: { fontSize: 18, fontWeight: '800', color: '#111827', marginBottom: 4, lineHeight: 26 },
+  subInfo: { fontSize: 12, color: '#6B7280', marginBottom: 16 },
+  
+  priceRow: { flexDirection: 'row', alignItems: 'baseline', gap: 8, marginBottom: 8 },
+  currentPrice: { fontSize: 28, fontWeight: '900', color: '#111827' },
+  originalPrice: { fontSize: 16, color: '#9CA3AF', textDecorationLine: 'line-through' },
+  
+  metaRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
+  stockText: { fontSize: 13, color: '#10B981', fontWeight: '700' },
+  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  ratingValue: { fontSize: 13, fontWeight: '600', color: '#111827', marginLeft: 4 },
+  questionsLink: { fontSize: 13, color: '#8B5CF6', fontWeight: '600', marginLeft: 'auto' },
+
+  // Selectors
+  section: { backgroundColor: '#FFF', padding: 16, marginBottom: 8 },
+  quantityRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 24, paddingVertical: 12 },
+  qtyBtn: { width: 44, height: 44, borderRadius: 22, borderWidth: 1.5, borderColor: BRAND_COLOR, justifyContent: 'center', alignItems: 'center' },
+  qtyValue: { fontSize: 20, fontWeight: '700', color: '#111827' },
+
+  // Seller Info
+  sellerSection: { backgroundColor: '#FFF', padding: 16, marginBottom: 8, marginHorizontal: 16, borderRadius: 16 },
+  sellerHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, flexWrap:'wrap' },
+  soldByLabel: { fontSize: 13, color: '#6B7280', marginRight: 4 },
+  sellerNameRow: { flexDirection: 'row', alignItems: 'center', flex:1, gap:6 },
+  sellerName: { fontSize: 14, fontWeight: '700', color: '#111827' },
+  sellerRating: { flexDirection:'row', alignItems:'center', gap:4 },
+  sellerRatingText: { fontSize: 14, fontWeight:'700', color: '#111827'},
+  benefitsRow: { flexDirection:'row', gap:12 },
+  benefitChip: { flexDirection:'row', alignItems:'center', gap:6, backgroundColor: '#FFF7ED', paddingHorizontal: 12, paddingVertical:8, borderRadius: 8 },
+  benefitText: { fontSize: 12, color: BRAND_COLOR, fontWeight:'600' },
+
+  // Tabs
+  tabContainer: { backgroundColor: '#FFF', paddingHorizontal:16, paddingTop:16, marginBottom:8 },
+  tabHeader: { flexDirection: 'row', gap: 24, marginBottom: 16 },
+  tabBtn: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20 },
+  activeTabBtn: { backgroundColor: BRAND_COLOR },
+  tabText: { fontSize: 14, fontWeight: '600', color: '#6B7280' },
+  activeTabText: { color: '#FFF' },
+  tabContent: { paddingBottom: 16 },
+  reviewSummary: { fontSize: 14, color: '#374151', marginBottom: 4 },
+  textContent: { fontSize: 14, color: '#374151', lineHeight: 20 }, 
+
+  // Reviews
+  reviewCard: { flexDirection: 'row', marginBottom: 16, borderBottomWidth: 1, borderBottomColor: '#F3F4F6', paddingBottom: 16 },
+  reviewerAvatar: { width: 40, height: 40, borderRadius: 20, marginRight: 12 },
+  reviewContent: { flex: 1 },
+  reviewerName: { fontSize: 14, fontWeight: '700', color: '#111827', marginBottom: 2 },
+  reviewRatingRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4, gap: 2 },
+  reviewDate: { fontSize: 12, color: '#9CA3AF' },
+  reviewText: { fontSize: 14, color: '#4B5563', lineHeight: 20 },
+
+  // Recommendations
+  recommendations: { padding: 16 },
+  sectionTitle: { fontSize: 18, fontWeight: '800', color: '#111827', marginBottom: 12 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  gridItem: { width: (width - 44) / 2 },
+
+  // Bottom Bar
+  bottomBar: {
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    backgroundColor: '#FFF', flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 16, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F3F4F6',
+    gap: 12, elevation: 8,
   },
-  ratingCount: {
-    fontSize: 14,
-    color: '#6B7280',
+  addToCartBtn: {
+     flex: 1, height: 48, flexDirection: 'row', justifyContent: 'center', alignItems: 'center',
+     borderRadius: 24, borderWidth: 2, borderColor: BRAND_COLOR, backgroundColor: '#FFF',
   },
-  reviewsList: {
-    gap: 12,
+  addToCartText: { color: BRAND_COLOR, fontWeight: '700', fontSize: 16 },
+  buyNowBtn: {
+     flex: 1, height: 48, justifyContent: 'center', alignItems: 'center',
+     borderRadius: 24, backgroundColor: BRAND_COLOR,
   },
-  reviewsTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginBottom: 8,
-  },
-  reviewCard: {
-    backgroundColor: '#FFFFFF',
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    gap: 12,
-  },
-  reviewHeader: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  reviewerAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#F3F4F6',
-  },
-  reviewerInfo: {
-    flex: 1,
-    gap: 6,
-  },
-  reviewerNameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  reviewerName: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#1F2937',
-  },
-  verifiedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#D1FAE5',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 12,
-  },
-  verifiedText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#10B981',
-  },
-  reviewStars: {
-    flexDirection: 'row',
-    gap: 2,
-  },
-  reviewTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#1F2937',
-  },
-  reviewComment: {
-    fontSize: 14,
-    color: '#4B5563',
-    lineHeight: 20,
-  },
-  reviewImages: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  reviewImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 8,
-    marginRight: 8,
-    backgroundColor: '#F3F4F6',
-  },
-  reviewFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
-  },
-  reviewDate: {
-    fontSize: 12,
-    color: '#9CA3AF',
-  },
-  helpfulButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  helpfulText: {
-    fontSize: 12,
-    color: '#6B7280',
-    fontWeight: '500',
-  },
+  buyNowText: { color: '#FFF', fontWeight: '700', fontSize: 16 },
 });
+

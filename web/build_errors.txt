@@ -1,0 +1,132 @@
+﻿src/components/CategoriesFooterStrip.tsx(58,19): error TS2322: Type 'string | null' is not assignable to type 'string | undefined'.
+  Type 'null' is not assignable to type 'string | undefined'.
+src/components/CategoriesFooterStrip.tsx(65,66): error TS2339: Property 'count' does not exist on type 'Category'.
+src/components/CategoryChip.tsx(33,9): error TS2322: Type 'string | null' is not assignable to type 'string | undefined'.
+  Type 'null' is not assignable to type 'string | undefined'.
+src/components/CategoryChip.tsx(41,21): error TS2339: Property 'count' does not exist on type 'Category'.
+src/components/ProductCard.tsx(14,31): error TS2551: Property 'originalPrice' does not exist on type 'Product'. Did you mean 'original_price'?
+src/components/ProductCard.tsx(14,56): error TS2551: Property 'originalPrice' does not exist on type 'Product'. Did you mean 'original_price'?
+src/components/ProductCard.tsx(16,28): error TS2551: Property 'originalPrice' does not exist on type 'Product'. Did you mean 'original_price'?
+src/components/ProductCard.tsx(16,70): error TS2551: Property 'originalPrice' does not exist on type 'Product'. Did you mean 'original_price'?
+src/components/ProductCard.tsx(29,24): error TS2551: Property 'image' does not exist on type 'Product'. Did you mean 'images'?
+src/components/ProductCard.tsx(38,18): error TS2551: Property 'isFreeShipping' does not exist on type 'Product'. Did you mean 'is_free_shipping'?
+src/components/ProductCard.tsx(43,18): error TS2339: Property 'isVerified' does not exist on type 'Product'.
+src/components/ProductCard.tsx(71,25): error TS2551: Property 'originalPrice' does not exist on type 'Product'. Did you mean 'original_price'?
+src/components/ProductCard.tsx(77,20): error TS2339: Property 'sold' does not exist on type 'Product'.
+src/components/ProductCard.tsx(83,24): error TS2339: Property 'seller' does not exist on type 'Product'.
+src/components/ProductCard.tsx(85,22): error TS2339: Property 'sellerVerified' does not exist on type 'Product'.
+src/components/ProductCard.tsx(92,65): error TS2339: Property 'sellerRating' does not exist on type 'Product'.
+src/components/ProductCard.tsx(95,78): error TS2339: Property 'sellerRating' does not exist on type 'Product'.
+src/components/VisualSearchModal.tsx(255,44): error TS2551: Property 'image' does not exist on type 'Product'. Did you mean 'images'?
+src/data/collections.ts(67,90): error TS2353: Object literal may only specify known properties, and 'count' does not exist in type 'Category'.
+src/data/collections.ts(68,163): error TS2353: Object literal may only specify known properties, and 'count' does not exist in type 'Category'.
+src/data/collections.ts(69,128): error TS2353: Object literal may only specify known properties, and 'count' does not exist in type 'Category'.
+src/data/collections.ts(70,105): error TS2353: Object literal may only specify known properties, and 'count' does not exist in type 'Category'.
+src/data/collections.ts(71,189): error TS2353: Object literal may only specify known properties, and 'count' does not exist in type 'Category'.
+src/data/collections.ts(72,113): error TS2353: Object literal may only specify known properties, and 'count' does not exist in type 'Category'.
+src/data/collections.ts(73,165): error TS2353: Object literal may only specify known properties, and 'count' does not exist in type 'Category'.
+src/data/collections.ts(74,141): error TS2353: Object literal may only specify known properties, and 'count' does not exist in type 'Category'.
+src/data/collections.ts(75,218): error TS2353: Object literal may only specify known properties, and 'count' does not exist in type 'Category'.
+src/data/collections.ts(76,137): error TS2353: Object literal may only specify known properties, and 'count' does not exist in type 'Category'.
+src/data/products.ts(8,5): error TS2561: Object literal may only specify known properties, but 'originalPrice' does not exist in type 'Product'. Did you mean to write 'original_price'?
+src/data/products.ts(24,5): error TS2561: Object literal may only specify known properties, but 'image' does not exist in type 'Product'. Did you mean to write 'images'?
+src/data/products.ts(39,5): error TS2561: Object literal may only specify known properties, but 'originalPrice' does not exist in type 'Product'. Did you mean to write 'original_price'?
+src/data/products.ts(55,5): error TS2561: Object literal may only specify known properties, but 'image' does not exist in type 'Product'. Did you mean to write 'images'?
+src/data/products.ts(70,5): error TS2561: Object literal may only specify known properties, but 'image' does not exist in type 'Product'. Did you mean to write 'images'?
+src/data/products.ts(85,5): error TS2561: Object literal may only specify known properties, but 'originalPrice' does not exist in type 'Product'. Did you mean to write 'original_price'?
+src/data/products.ts(104,5): error TS2561: Object literal may only specify known properties, but 'image' does not exist in type 'Product'. Did you mean to write 'images'?
+src/data/products.ts(119,5): error TS2561: Object literal may only specify known properties, but 'image' does not exist in type 'Product'. Did you mean to write 'images'?
+src/data/products.ts(134,5): error TS2561: Object literal may only specify known properties, but 'image' does not exist in type 'Product'. Did you mean to write 'images'?
+src/data/products.ts(149,5): error TS2561: Object literal may only specify known properties, but 'image' does not exist in type 'Product'. Did you mean to write 'images'?
+src/data/products.ts(167,5): error TS2561: Object literal may only specify known properties, but 'image' does not exist in type 'Product'. Did you mean to write 'images'?
+src/data/products.ts(182,5): error TS2561: Object literal may only specify known properties, but 'image' does not exist in type 'Product'. Did you mean to write 'images'?
+src/data/products.ts(197,5): error TS2561: Object literal may only specify known properties, but 'originalPrice' does not exist in type 'Product'. Did you mean to write 'original_price'?
+src/data/products.ts(213,5): error TS2561: Object literal may only specify known properties, but 'originalPrice' does not exist in type 'Product'. Did you mean to write 'original_price'?
+src/data/products.ts(229,5): error TS2561: Object literal may only specify known properties, but 'originalPrice' does not exist in type 'Product'. Did you mean to write 'original_price'?
+src/data/products.ts(245,5): error TS2561: Object literal may only specify known properties, but 'image' does not exist in type 'Product'. Did you mean to write 'images'?
+src/data/products.ts(260,5): error TS2561: Object literal may only specify known properties, but 'image' does not exist in type 'Product'. Did you mean to write 'images'?
+src/data/products.ts(275,5): error TS2561: Object literal may only specify known properties, but 'originalPrice' does not exist in type 'Product'. Did you mean to write 'original_price'?
+src/data/products.ts(291,5): error TS2561: Object literal may only specify known properties, but 'image' does not exist in type 'Product'. Did you mean to write 'images'?
+src/data/products.ts(306,5): error TS2561: Object literal may only specify known properties, but 'originalPrice' does not exist in type 'Product'. Did you mean to write 'original_price'?
+src/data/products.ts(322,5): error TS2561: Object literal may only specify known properties, but 'originalPrice' does not exist in type 'Product'. Did you mean to write 'original_price'?
+src/data/products.ts(338,5): error TS2561: Object literal may only specify known properties, but 'image' does not exist in type 'Product'. Did you mean to write 'images'?
+src/data/products.ts(353,5): error TS2561: Object literal may only specify known properties, but 'originalPrice' does not exist in type 'Product'. Did you mean to write 'original_price'?
+src/data/products.ts(369,5): error TS2561: Object literal may only specify known properties, but 'image' does not exist in type 'Product'. Did you mean to write 'images'?
+src/data/products.ts(384,5): error TS2561: Object literal may only specify known properties, but 'image' does not exist in type 'Product'. Did you mean to write 'images'?
+src/data/products.ts(399,5): error TS2561: Object literal may only specify known properties, but 'originalPrice' does not exist in type 'Product'. Did you mean to write 'original_price'?
+src/data/products.ts(419,5): error TS2561: Object literal may only specify known properties, but 'originalPrice' does not exist in type 'Product'. Did you mean to write 'original_price'?
+src/data/products.ts(437,5): error TS2561: Object literal may only specify known properties, but 'originalPrice' does not exist in type 'Product'. Did you mean to write 'original_price'?
+src/data/products.ts(455,5): error TS2561: Object literal may only specify known properties, but 'originalPrice' does not exist in type 'Product'. Did you mean to write 'original_price'?
+src/data/products.ts(473,5): error TS2561: Object literal may only specify known properties, but 'originalPrice' does not exist in type 'Product'. Did you mean to write 'original_price'?
+src/pages/ProductDetailPage.tsx(838,39): error TS2339: Property 'originalPrice' does not exist on type 'Product | SellerProduct | { id: string; name: string; price: number; originalPrice: number | undefined; image: string; images: string[]; category: string; rating: number; ... 5 more ...; description: string; }'.
+  Property 'originalPrice' does not exist on type 'Product'.
+src/pages/ProductDetailPage.tsx(856,30): error TS2339: Property 'image' does not exist on type 'never'.
+src/pages/ProductDetailPage.tsx(918,40): error TS2339: Property 'originalPrice' does not exist on type 'Product | SellerProduct | { id: string; name: string; price: number; originalPrice: number | undefined; image: string; images: string[]; category: string; rating: number; ... 5 more ...; description: string; }'.
+  Property 'originalPrice' does not exist on type 'Product'.
+src/pages/ProductDetailPage.tsx(1020,40): error TS2339: Property 'originalPrice' does not exist on type 'Product | SellerProduct | { id: string; name: string; price: number; originalPrice: number | undefined; image: string; images: string[]; category: string; rating: number; ... 5 more ...; description: string; }'.
+  Property 'originalPrice' does not exist on type 'Product'.
+src/pages/SearchPage.tsx(465,40): error TS2551: Property 'image' does not exist on type 'Product'. Did you mean 'images'?
+src/pages/SearchPage.tsx(469,34): error TS2551: Property 'isFreeShipping' does not exist on type 'Product'. Did you mean 'is_free_shipping'?
+src/pages/SearchPage.tsx(485,36): error TS2551: Property 'originalPrice' does not exist on type 'Product'. Did you mean 'original_price'?
+src/pages/SearchPage.tsx(487,41): error TS2551: Property 'originalPrice' does not exist on type 'Product'. Did you mean 'original_price'?
+src/pages/SearchPage.tsx(497,68): error TS2339: Property 'sold' does not exist on type 'Product'.
+src/pages/SearchPage.tsx(501,36): error TS2339: Property 'location' does not exist on type 'Product'.
+src/pages/SearchPage.tsx(583,34): error TS2551: Property 'image' does not exist on type 'Product'. Did you mean 'images'?
+src/pages/SearchPage.tsx(606,71): error TS2339: Property 'sold' does not exist on type 'Product'.
+src/pages/SellerOnboarding.tsx(272,9): error TS2322: Type '{ id: string; type: string; fileName: string; url: string; uploadDate: Date; isVerified: boolean; }[]' is not assignable to type 'SellerDocument[]'.
+  Type '{ id: string; type: string; fileName: string; url: string; uploadDate: Date; isVerified: boolean; }' is not assignable to type 'SellerDocument'.
+    Types of property 'type' are incompatible.
+      Type 'string' is not assignable to type '"other" | "business_permit" | "valid_id" | "proof_of_address" | "dti_registration" | "tax_id"'.
+src/services/authService.ts(44,10): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(values: never, options?: { onConflict?: string | undefined; ignoreDuplicates?: boolean | undefined; count?: "exact" | "planned" | "estimated" | undefined; } | undefined): PostgrestFilterBuilder<{ ...; }, ... 5 more ..., "POST">', gave the following error.
+    Argument of type '{ id: string; email: string; full_name: string | null; phone: string | null; user_type: "buyer" | "seller" | "admin"; avatar_url: null; last_login_at: null; }' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(values: never[], options?: { onConflict?: string | undefined; ignoreDuplicates?: boolean | undefined; count?: "exact" | "planned" | "estimated" | undefined; defaultToNull?: boolean | undefined; } | undefined): PostgrestFilterBuilder<...>', gave the following error.
+    Object literal may only specify known properties, and 'id' does not exist in type 'never[]'.
+src/services/authService.ts(64,69): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(values: never, options?: { onConflict?: string | undefined; ignoreDuplicates?: boolean | undefined; count?: "exact" | "planned" | "estimated" | undefined; } | undefined): PostgrestFilterBuilder<{ ...; }, ... 5 more ..., "POST">', gave the following error.
+    Argument of type '{ id: string; shipping_addresses: never[]; payment_methods: never[]; preferences: {}; followed_shops: never[]; }' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(values: never[], options?: { onConflict?: string | undefined; ignoreDuplicates?: boolean | undefined; count?: "exact" | "planned" | "estimated" | undefined; defaultToNull?: boolean | undefined; } | undefined): PostgrestFilterBuilder<...>', gave the following error.
+    Object literal may only specify known properties, and 'id' does not exist in type 'never[]'.
+src/services/authService.ts(76,69): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(values: never, options?: { onConflict?: string | undefined; ignoreDuplicates?: boolean | undefined; count?: "exact" | "planned" | "estimated" | undefined; } | undefined): PostgrestFilterBuilder<{ ...; }, ... 5 more ..., "POST">', gave the following error.
+    Argument of type '{ id: string; role: string; permissions: {}; }' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(values: never[], options?: { onConflict?: string | undefined; ignoreDuplicates?: boolean | undefined; count?: "exact" | "planned" | "estimated" | undefined; defaultToNull?: boolean | undefined; } | undefined): PostgrestFilterBuilder<...>', gave the following error.
+    Object literal may only specify known properties, and 'id' does not exist in type 'never[]'.
+src/services/authService.ts(114,17): error TS2345: Argument of type '{ last_login_at: string; }' is not assignable to parameter of type 'never'.
+src/services/authService.ts(228,18): error TS2339: Property 'email' does not exist on type 'never'.
+src/services/authService.ts(249,15): error TS2345: Argument of type 'Partial<Profile>' is not assignable to parameter of type 'never'.
+src/services/cartService.ts(56,10): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(values: never, options?: { count?: "exact" | "planned" | "estimated" | undefined; } | undefined): PostgrestFilterBuilder<{ PostgrestVersion: "12"; }, never, never, null, "carts", never, "POST">', gave the following error.
+    Argument of type '{ buyer_id: string; subtotal: number; discount_amount: number; shipping_cost: number; tax_amount: number; total_amount: number; promo_code: null; voucher_id: null; shipping_address_id: null; shipping_method: null; notes: null; expires_at: null; }' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(values: never[], options?: { count?: "exact" | "planned" | "estimated" | undefined; defaultToNull?: boolean | undefined; } | undefined): PostgrestFilterBuilder<{ PostgrestVersion: "12"; }, never, never, null, "carts", never, "POST">', gave the following error.
+    Object literal may only specify known properties, and 'buyer_id' does not exist in type 'never[]'.
+src/services/cartService.ts(145,17): error TS2345: Argument of type '{ quantity: any; }' is not assignable to parameter of type 'never'.
+src/services/cartService.ts(145,38): error TS2339: Property 'quantity' does not exist on type 'never'.
+src/services/cartService.ts(146,28): error TS2339: Property 'id' does not exist on type 'never'.
+src/services/cartService.ts(156,10): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(values: never, options?: { count?: "exact" | "planned" | "estimated" | undefined; } | undefined): PostgrestFilterBuilder<{ PostgrestVersion: "12"; }, never, never, null, "cart_items", never, "POST">', gave the following error.
+    Argument of type '{ cart_id: string; product_id: string; quantity: number; selected_variant: any; personalized_options: null; notes: string | null; }' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(values: never[], options?: { count?: "exact" | "planned" | "estimated" | undefined; defaultToNull?: boolean | undefined; } | undefined): PostgrestFilterBuilder<{ PostgrestVersion: "12"; }, never, never, null, "cart_items", never, "POST">', gave the following error.
+    Object literal may only specify known properties, and 'cart_id' does not exist in type 'never[]'.
+src/services/cartService.ts(195,15): error TS2345: Argument of type '{ quantity: number; }' is not assignable to parameter of type 'never'.
+src/services/cartService.ts(276,15): error TS2345: Argument of type '{ subtotal: number; discount_amount?: number | undefined; shipping_cost?: number | undefined; tax_amount?: number | undefined; total_amount: number; }' is not assignable to parameter of type 'never'.
+src/services/orderService.ts(36,75): error TS2345: Argument of type '{ p_buyer_id: string; p_seller_id: string; p_order_data: Omit<Order, "id" | "created_at" | "updated_at">; p_items: Omit<OrderItem, "id" | "created_at" | "updated_at">[]; }' is not assignable to parameter of type 'undefined'.
+src/services/orderService.ts(144,15): error TS2345: Argument of type '{ status: string; updated_at: string; }' is not assignable to parameter of type 'never'.
+src/services/orderService.ts(152,8): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(values: never, options?: { count?: "exact" | "planned" | "estimated" | undefined; } | undefined): PostgrestFilterBuilder<{ PostgrestVersion: "12"; }, never, never, null, "order_status_history", never, "POST">', gave the following error.
+    Argument of type '{ order_id: string; status: string; note: string | null; changed_by: string | null; changed_by_role: any; metadata: null; }' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(values: never[], options?: { count?: "exact" | "planned" | "estimated" | undefined; defaultToNull?: boolean | undefined; } | undefined): PostgrestFilterBuilder<{ PostgrestVersion: "12"; }, never, never, null, "order_status_history", never, "POST">', gave the following error.
+    Object literal may only specify known properties, and 'order_id' does not exist in type 'never[]'.
+src/services/orderService.ts(186,15): error TS2345: Argument of type '{ status: string; cancelled_at: string; notes: string | undefined; }' is not assignable to parameter of type 'never'.
+src/services/orderService.ts(215,74): error TS2345: Argument of type '{ p_seller_id: string; }' is not assignable to parameter of type 'undefined'.
+src/stores/adminStore.ts(198,25): error TS2339: Property 'user_type' does not exist on type 'never'.
+src/stores/adminStore.ts(210,30): error TS2339: Property 'email' does not exist on type 'never'.
+src/stores/adminStore.ts(211,29): error TS2339: Property 'full_name' does not exist on type 'never'.
+src/stores/adminStore.ts(213,31): error TS2339: Property 'avatar_url' does not exist on type 'never'.
+src/stores/adminStore.ts(213,107): error TS2339: Property 'full_name' does not exist on type 'never'.
+src/stores/adminStore.ts(824,19): error TS2345: Argument of type '{ approval_status: string; approved_at: string; approved_by: string; }' is not assignable to parameter of type 'never'.
+src/stores/adminStore.ts(883,19): error TS2345: Argument of type '{ approval_status: string; rejected_at: string; rejected_by: string; rejection_reason: string; }' is not assignable to parameter of type 'never'.
+src/stores/adminStore.ts(955,19): error TS2345: Argument of type '{ approval_status: string; suspended_at: string; suspended_by: string; suspension_reason: string; }' is not assignable to parameter of type 'never'.
+src/stores/adminStore.ts(1020,3): error TS2322: Type '(seller: Seller) => boolean | ""' is not assignable to type '(seller: Seller) => boolean'.
+  Type 'string | boolean' is not assignable to type 'boolean'.
+    Type 'string' is not assignable to type 'boolean'.

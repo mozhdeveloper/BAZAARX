@@ -19,6 +19,7 @@ import {
   BadgeCheck,
   Search,
   X,
+  Menu,
 } from 'lucide-react-native';
 import { useProductQAStore, ProductQAStatus } from '../../../src/stores/productQAStore';
 import { useSellerStore } from '../../../src/stores/sellerStore';
@@ -192,7 +193,7 @@ export default function SellerProductQAScreen() {
       <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#111827', marginTop: 8 }}>
         {count}
       </Text>
-      <Text style={{ fontSize: 11, fontWeight: '600', color: '#6B7280', marginTop: 4 }}>
+      <Text style={{ fontSize: 12, fontWeight: '600', color: '#6B7280', marginTop: 4 }}>
         {label}
       </Text>
     </TouchableOpacity>
@@ -204,10 +205,10 @@ export default function SellerProductQAScreen() {
       <SellerDrawer visible={drawerVisible} onClose={() => setDrawerVisible(false)} />
       
       {/* Header */}
-      <View style={{ backgroundColor: '#FF5722', paddingTop: insets.top + 16, paddingBottom: 20, paddingHorizontal: 20 }}>
+      <View style={{ backgroundColor: '#FF5722', paddingTop: insets.top + 16, paddingBottom: 20, paddingHorizontal: 20, borderBottomLeftRadius: 20, borderBottomRightRadius: 20,}}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
           <TouchableOpacity style={{ backgroundColor: 'rgba(255,255,255,0.2)', padding: 12, borderRadius: 12 }} onPress={() => setDrawerVisible(true)}>
-            <FileCheck size={24} color="#FFFFFF" strokeWidth={2} />
+            <Menu size={24} color="#FFFFFF" strokeWidth={2} />
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
             <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#FFFFFF' }}>
