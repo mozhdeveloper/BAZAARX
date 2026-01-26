@@ -7,32 +7,33 @@
 @layer base {
   :root {
     /* Backgrounds (Shadcn HSL format) */
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --background: hsl(0 0% 100%);
+    --foreground: hsl(222.2 84% 4.9%);
+    --card: hsl(0 0% 100%);
+    --card-foreground: hsl(222.2 84% 4.9%);
+    --popover: hsl(0 0% 100%);
+    --popover-foreground: hsl(222.2 84% 4.9%);
 
     /* Brand Colors (Hex for custom usage) */
     --brand-primary: #FF6A00;
     --brand-primary-dark: #D94F00;
     --brand-accent: #2563EB;
-    
+
     /* Brand Colors (HSL for Tailwind compatibility) */
-    --primary: 24 100% 50%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 24 100% 50%;
+    --primary: hsl(24 100% 50%);
+    --primary-foreground: hsl(0 0% 98%);
+    --secondary: hsl(210 40% 96.1%);
+    --secondary-foreground: hsl(222.2 47.4% 11.2%);
+    --muted: hsl(210 40% 96.1%);
+    --muted-foreground: hsl(215.4 16.3% 46.9%);
+    --accent: hsl(210 40% 96.1%);
+    --accent-foreground: hsl(222.2 47.4% 11.2%);
+    --destructive: hsl(0 72% 51%);
+    --destructive-foreground: hsl(210 40% 98%);
+    --border: hsl(214.3 31.8% 91.4%);
+    --btn-border: hsl(214.3 31.8% 91.4%);
+    --input: hsl(214.3 31.8% 91.4%);
+    --ring: hsl(24 100% 50%);
 
     /* Status Colors */
     --color-success: #22C55E;
@@ -55,16 +56,16 @@
 
     /* Fonts */
     --font-heading: "Montserrat", "Poppins", "Inter", system-ui, sans-serif;
-    --font-sans: "Inter", system-ui, sans-serif;   
+    --font-sans: "Inter", system-ui, sans-serif;
     --font-mono: "Fira Code", "JetBrains Mono", monospace;
-    
+
     /* Spacing */
     --spacing-xs: 4px;
     --spacing-sm: 8px;
     --spacing-md: 12px;
     --spacing-lg: 24px;
     --spacing-xl: 48px;
-    
+
     /* Shadows */
     --shadow-small: 0 2px 4px rgba(0, 17, 44, 0.1);
     --shadow-medium: 0 4px 8px rgba(0, 17, 44, 0.1);
@@ -76,7 +77,7 @@
     box-sizing: border-box;
     -webkit-tap-highlight-color: transparent;
   }
-  
+
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-sans);
@@ -112,18 +113,33 @@
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }
+
   .scrollbar-hide {
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
 
   @keyframes slide-in-right {
-    from { transform: translateX(400px); opacity: 0; }
-    to { transform: translateX(0); opacity: 1; }
+    from {
+      transform: translateX(400px);
+      opacity: 0;
+    }
+
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
   }
 
   @keyframes scaleUp {
-    0% { transform: scale(0.8); opacity: 0; }
-    100% { transform: scale(1); opacity: 1; }
+    0% {
+      transform: scale(0.8);
+      opacity: 0;
+    }
+
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
   }
 }

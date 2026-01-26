@@ -178,7 +178,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       <StatusBar barStyle="light-content" backgroundColor={BRAND_COLOR} />
 
       {/* --- HEADER (Matches Screenshot) --- */}
-      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
          <Pressable onPress={() => navigation.goBack()} style={styles.iconButton}>
            <ArrowLeft size={24} color="#FFF" />
          </Pressable>
@@ -443,8 +443,10 @@ const styles = StyleSheet.create({
   // Header
   header: { 
     backgroundColor: BRAND_COLOR,
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingBottom: 16,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,

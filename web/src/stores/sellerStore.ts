@@ -12,7 +12,8 @@ import {
   getProducts as fetchProductsDb,
   updateProduct as updateProductDb,
 } from '@/services/productService';
-import { getSellerOrders } from '@/services/orderService';
+import { getSellerOrders, updateOrderStatus as updateOrderStatusDb } from '@/services/orderService';
+import * as orderService from '@/services/orderService';
 import type { Seller as DBSeller, Database, Order, OrderItem } from '@/types/database.types';
 
 // Types
@@ -91,6 +92,8 @@ export interface SellerProduct {
 
 interface SellerOrder {
   id: string;
+  seller_id?: string; // UUID of the seller for database updates
+  buyer_id?: string; // UUID of the buyer for notifications
   buyerName: string;
   buyerEmail: string;
   items: {
@@ -216,11 +219,12 @@ interface ProductStore {
 
 interface OrderStore {
   orders: SellerOrder[];
+  sellerId: string | null;
   loading: boolean;
   error: string | null;
   fetchOrders: (sellerId: string) => Promise<void>;
   addOrder: (order: Omit<SellerOrder, 'id'>) => string;
-  updateOrderStatus: (id: string, status: SellerOrder['status']) => void;
+  updateOrderStatus: (id: string, status: SellerOrder['status']) => Promise<void>;
   updatePaymentStatus: (id: string, status: SellerOrder['paymentStatus']) => void;
   getOrdersByStatus: (status: SellerOrder['status']) => SellerOrder[];
   getOrderById: (id: string) => SellerOrder | undefined;
@@ -420,6 +424,8 @@ const mapOrderToSellerOrder = (order: any): SellerOrder => {
 
   return {
     id: order.id,
+    seller_id: order.seller_id,
+    buyer_id: order.buyer_id,
     buyerName: order.buyer_name || 'Unknown',
     buyerEmail: order.buyer_email || 'unknown@example.com',
     items,
@@ -1330,6 +1336,7 @@ export const useOrderStore = create<OrderStore>()(
   persist(
     (set, get) => ({
       orders: dummyOrders,
+      sellerId: null,
       loading: false,
       error: null,
 
@@ -1339,7 +1346,7 @@ export const useOrderStore = create<OrderStore>()(
           return;
         }
 
-        set({ loading: true, error: null });
+        set({ loading: true, error: null, sellerId });
         
         try {
           const dbOrders = await getSellerOrders(sellerId);
@@ -1396,7 +1403,7 @@ export const useOrderStore = create<OrderStore>()(
         }
       },
 
-      updateOrderStatus: (id, status) => {
+      updateOrderStatus: async (id, status) => {
         try {
           const order = get().orders.find(o => o.id === id);
           if (!order) {
@@ -1417,11 +1424,91 @@ export const useOrderStore = create<OrderStore>()(
             console.warn(`Invalid status transition: ${order.status} -> ${status}`);
           }
 
+          // Map seller status to database status
+          const statusToDbMap: Record<SellerOrder['status'], string> = {
+            'pending': 'pending_payment',
+            'confirmed': 'processing',
+            'shipped': 'shipped',
+            'delivered': 'delivered',
+            'cancelled': 'cancelled'
+          };
+
+          const dbStatus = statusToDbMap[status] || status;
+          console.log(`📝 Mapping seller status '${status}' to database status '${dbStatus}'`);
+
+          // Get seller ID from OrderStore (stored in fetchOrders)
+          let sellerId = get().sellerId;
+          
+          console.log(`👤 Current seller ID from OrderStore:`, sellerId);
+          console.log(`📦 Order object:`, order);
+          
+          // Fallback: Extract seller ID from order object if store doesn't have it
+          if (!sellerId && (order as any).seller_id) {
+            sellerId = (order as any).seller_id;
+            console.log(`✅ Fallback: Using seller_id from order object: ${sellerId}`);
+          }
+          
+          if (!sellerId) {
+            console.error('❌ No seller ID found! Cannot update database.');
+            console.error('Seller from store:', get().seller);
+            console.error('Order object:', order);
+            throw new Error('Seller ID is required to update order status');
+          }
+
+          console.log(`🔄 Updating order ${id} in database with seller ${sellerId}...`);
+          const success = await orderService.updateOrderStatus(
+            id,
+            dbStatus,
+            `Status updated to ${status}`,
+            sellerId,
+            'seller'
+          );
+
+          console.log(`📊 Database update result: ${success ? '✅ SUCCESS' : '❌ FAILED'}`);
+
+          if (!success) {
+            console.error('❌ Failed to update order status in database');
+            throw new Error('Database update failed');
+          }
+
+          console.log(`✅ Database updated successfully with status: ${dbStatus}`);
+
+          // Create notification for buyer if order has buyer_id
+          console.log(`📦 Order object:`, order);
+          console.log(`🆔 Order buyerId:`, order.buyerId);
+          
+          if (order.buyerId) {
+            const statusMessages: Record<string, string> = {
+              'confirmed': `Your order #${id.slice(-8)} has been confirmed and is being prepared.`,
+              'shipped': `Your order #${id.slice(-8)} has been shipped and is on its way!`,
+              'delivered': `Your order #${id.slice(-8)} has been delivered. Enjoy your purchase!`,
+              'cancelled': `Your order #${id.slice(-8)} has been cancelled.`
+            };
+
+            const message = statusMessages[status] || `Order #${id.slice(-8)} status updated to ${status}`;
+            
+            // Import notification service dynamically to avoid circular dependency
+            import('../services/notificationService').then(({ notifyBuyerOrderStatus }) => {
+              notifyBuyerOrderStatus({
+                buyerId: order.buyerId!,
+                orderId: id,
+                orderNumber: id.slice(-8),
+                status,
+                message
+              }).catch(err => {
+                console.error('Failed to create buyer notification:', err);
+              });
+            });
+          }
+
+          // Update local state
           set((state) => ({
             orders: state.orders.map(order =>
               order.id === id ? { ...order, status } : order
             )
           }));
+
+          console.log(`✅ Order ${id} status updated to ${status}`);
         } catch (error) {
           console.error('Failed to update order status:', error);
           throw error;

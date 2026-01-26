@@ -96,7 +96,7 @@ export const getSellerOrders = async (sellerId: string): Promise<Order[]> => {
 };
 
 /**
- * Get a single order by ID
+ * Get a single order by ID or order number
  */
 export const getOrderById = async (orderId: string): Promise<Order | null> => {
   if (!isSupabaseConfigured()) {
@@ -104,10 +104,13 @@ export const getOrderById = async (orderId: string): Promise<Order | null> => {
   }
 
   try {
+    // Check if orderId is a UUID or order_number
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(orderId);
+    
     const { data, error } = await supabase
       .from('orders')
       .select('*, order_items(*)')
-      .eq('id', orderId)
+      .eq(isUuid ? 'id' : 'order_number', orderId)
       .single();
 
     if (error) throw error;
@@ -351,6 +354,87 @@ export const cancelOrder = async (orderId: string, reason?: string): Promise<boo
     return true;
   } catch (error) {
     console.error('Error cancelling order:', error);
+    return false;
+  }
+};
+
+/**
+ * Submit order review and rating
+ */
+export const submitOrderReview = async (
+  orderId: string,
+  buyerId: string,
+  rating: number,
+  comment: string,
+  images?: string[]
+): Promise<boolean> => {
+  // Validate inputs
+  if (!orderId || !buyerId) {
+    console.error('Order ID and Buyer ID are required');
+    return false;
+  }
+
+  if (rating < 1 || rating > 5) {
+    console.error('Rating must be between 1 and 5');
+    return false;
+  }
+
+  if (!comment?.trim()) {
+    console.error('Review comment is required');
+    return false;
+  }
+
+  if (!isSupabaseConfigured()) {
+    const order = mockOrders.find(o => o.id === orderId && o.buyer_id === buyerId);
+    if (order) {
+      order.is_reviewed = true;
+      order.rating = rating;
+      order.review_comment = comment;
+      order.review_images = images || [];
+      order.review_date = new Date().toISOString();
+      return true;
+    }
+    return false;
+  }
+
+  try {
+    // Validate order exists, belongs to buyer, and is delivered
+    const order = await getOrderById(orderId);
+    if (!order || order.buyer_id !== buyerId) {
+      console.error('Order not found or does not belong to buyer');
+      return false;
+    }
+
+    if (order.status !== 'delivered') {
+      console.warn('Cannot review order that is not delivered');
+      return false;
+    }
+
+    if (order.is_reviewed) {
+      console.warn('Order has already been reviewed');
+      return false;
+    }
+
+    // Update order with review - use the actual UUID from the fetched order
+    const { error: updateError } = await supabase
+      .from('orders')
+      .update({
+        is_reviewed: true,
+        rating,
+        review_comment: comment.trim(),
+        review_images: images || [],
+        review_date: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', order.id)
+      .eq('buyer_id', buyerId);
+
+    if (updateError) throw updateError;
+
+    console.log(`✅ Review submitted for order ${orderId}: ${rating} stars`);
+    return true;
+  } catch (error) {
+    console.error('Error submitting review:', error);
     return false;
   }
 };

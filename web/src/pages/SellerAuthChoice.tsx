@@ -34,7 +34,7 @@ export function SellerAuthChoice() {
           <Link to='/'>Home</Link>
         </button>
 
-        <div className='max-w-md w-full space-y-8'>
+        <div className='max-w-sm w-full space-y-8'>
           <div className='text-center space-y-3'>
             <h1 className='text-3xl font-bold text-gray-900'>Welcome to BazaarPH</h1>
             <p className='text-gray-600'>Choose how you'd like to continue</p>
@@ -44,38 +44,29 @@ export function SellerAuthChoice() {
 
             {/* Create Seller Account */}
             <button className='w-full bg-orange-500 hover:bg-orange-600 text-white rounded-xl p-6 transition-all shadow-md hover:shadow-lg group'>
-              <div className='flex items-center justify-center space-x-3 mb-2'>
-                <div className='bg-white bg-opacity-20 p-2 rounded-lg'>
-                  <UserPlus className='w-6 h-6'/>
-                </div>
-                <Link to='/seller/register'>
+              <Link to='/seller/register'>
+                <div className='flex items-center justify-center space-x-3 mb-2'>
+                  <div className='bg-white bg-opacity-20 p-2 rounded-lg'>
+                    <UserPlus className='w-6 h-6'/>
+                  </div>
                   <span className='text-xl font-semibold'>Create Seller Account</span>
-                </Link>
-                
-              </div>
+                </div>
+              </Link>   
               <p className='text-orange-50 text-sm'>Start selling and grow your business online</p>
             </button>
 
             {/* Sign */}
             <button className='w-full bg-white hover:bg-gray-50 text-gray-900 border-2 border-gray-200 rounded-xl p-6 transition-all shadow-sm hover:shadow-md group'>
-              <div className='flex items-center justify-center space-x-3 mb-2'>
-                <div className='bg-orange-100 p-2 rounded-lg'>
-                  <LogIn className='w-6 h-6 text-orange-600'/>
+              <Link to='/seller/login'>
+                <div className='flex items-center justify-center space-x-3 mb-2'>
+                  <div className='bg-orange-100 p-2 rounded-lg'>
+                    <LogIn className='w-6 h-6 text-orange-600'/>
+                  </div>
+                    <span className='text-xl font-semibold'>Sign in to your account</span>
                 </div>
-                <Link to='/seller/login'>
-                  <span className='text-xl font-semibold'>Sign in to your account</span>
-                </Link>
-                
-              </div>
+              </Link>
               <p className='text-gray-600 text-sm'>Access your store and manage your listing</p>
             </button>
-          </div>
-
-          <div className='text-center pt-4 border-t border-gray-200'>
-            <p className='text-gray-600'>
-              Already have an Account?{' '}
-              <Link to='/seller/login' className='text-orange-500 hover:text-orange-600 font-semibold transition-colors'>Sign in</Link>
-            </p>
           </div>
         </div>
       </div>
