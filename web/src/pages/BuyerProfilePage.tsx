@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Address, useBuyerStore } from '../stores/buyerStore';
 import Header from '../components/Header';
@@ -36,13 +37,15 @@ import {
   Loader2,
   Package,
   Plus,
-  Trash2
+  Trash2,
+  ChevronLeft
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { regions, provinces, cities, barangays } from "select-philippines-address";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export default function BuyerProfilePage() {
+  const navigate = useNavigate();
   const { toast } = useToast();
 
   const { profile, updateProfile, addresses, followedShops, setAddresses, addAddress, updateAddress } = useBuyerStore();
@@ -398,96 +401,132 @@ export default function BuyerProfilePage() {
     <div className="min-h-screen bg-gray-50">
       <Header />
 
-      {/* Mobile-style Orange Header Section */}
-      <div className="bg-[#ff6a00] pb-24 pt-8 rounded-b-[3rem] shadow-sm relative overflow-hidden">
-        {/* Decorative background circles */}
-        <div className="absolute top-0 left-0 w-64 h-64 bg-white/10 rounded-full -translate-x-1/2 -translate-y-1/2 blur-3xl" />
-        <div className="absolute bottom-0 right-0 w-64 h-64 bg-white/10 rounded-full translate-x-1/2 translate-y-1/2 blur-3xl" />
+      {/* Custom Profile Header - Modern Dark Orange Style */}
+      <div className="relative bg-[#2b1203]/70 pt-8 pb-10 overflow-hidden">
+        {/* Background Image with Dark Orange Overlay */}
+        <div className="absolute inset-0">
+          <div
+            className="absolute inset-0 bg-center bg-cover opacity-45 scale-110 blur-sm"
+            style={{ backgroundImage: `url(${profile.avatar})` }}
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#2b1200]/50 via-[#4d2000]/50 to-[#7a3300]/20" />
+        </div>
 
         <div className="max-w-6xl mx-auto px-4 relative z-10">
-          <div className="flex items-center gap-6 text-white">
+          <div className="mb-4">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate(-1)}
+              className="hover:bg-white/10 px-3 -ml-2 text-white/80 hover:text-white transition-all rounded-full backdrop-blur-md bg-white/5"
+            >
+              <ChevronLeft className="w-5 h-5 mr-1" />
+              Back
+            </Button>
+          </div>
+
+          <div className="flex flex-col md:flex-row items-center md:items-end gap-6 md:gap-8">
+            {/* Profile Avatar */}
             <div className="relative group cursor-pointer" onClick={handleOpenEdit}>
-              <div className="w-24 h-24 rounded-full bg-white p-1 shadow-xl">
+              <div className="w-28 h-28 md:w-32 md:h-32 rounded-full bg-white p-1 shadow-2xl overflow-hidden ring-4 ring-white/10">
                 <img
                   src={profile.avatar}
                   alt="Profile"
-                  className="w-full h-full rounded-full object-cover"
+                  className="w-full h-full rounded-full object-cover transition-transform group-hover:scale-105"
                 />
               </div>
               <div className="absolute bottom-1 right-1 bg-white text-[#ff6a00] p-1.5 rounded-full shadow-lg border-2 border-[#ff6a00]">
-                <Edit2 className="w-4 h-4" />
+                <Edit2 className="w-3.5 h-3.5" />
               </div>
             </div>
 
-            <div className="flex-1">
-              <h1 className="text-3xl font-bold mb-1 opacity-100 text-shadow-sm">
-                {profile.firstName} {profile.lastName}
-              </h1>
-              <div className="flex items-center gap-4 text-white/90 text-sm font-medium">
-                <span className="flex items-center gap-1 bg-white/20 px-3 py-1 rounded-full backdrop-blur-sm">
-                  <Mail className="w-3.5 h-3.5" />
-                  {profile.email}
-                </span>
-                <span className="flex items-center gap-1 bg-white/20 px-3 py-1 rounded-full backdrop-blur-sm">
-                  <Shield className="w-3.5 h-3.5" />
+            {/* Profile Details */}
+            <div className="flex-1 text-center md:text-left mt-6 -mb-6">
+              <div className="flex flex-col md:flex-row items-center gap-3 mb-2">
+                <h1 className="text-3xl md:text-4xl font-bold text-white tracking-tight">
+                  {profile.firstName} {profile.lastName}
+                </h1>
+                <Badge className="bg-white text-[#ff6a00] hover:bg-white border-none py-0.5 px-3 flex items-center gap-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-sm">
                   Verified Member
-                </span>
+                </Badge>
+              </div>
+
+              <div className="flex flex-col gap-1 mb-5">
+                <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 text-white/80 text-sm font-medium">
+                  <span className="flex items-center gap-1.5 bg-black/20 px-3 py-1 rounded-full backdrop-blur-md border border-white/10">
+                    <Mail className="w-3.5 h-3.5 text-orange-400" />
+                    {profile.email}
+                  </span>
+                  <span className="flex items-center gap-1.5 bg-black/20 px-3 py-1 rounded-full backdrop-blur-md border border-white/10">
+                    <Phone className="w-3.5 h-3.5 text-orange-400" />
+                    {profile.phone}
+                  </span>
+                </div>
+
+                {/* Profile Stats - Styled like Seller Storefront */}
+                <div className="flex items-center justify-center md:justify-start gap-6 mt-4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-white text-base font-bold">{profile.totalOrders}</span>
+                    <span className="text-white/50 text-[10px] font-bold uppercase tracking-widest">Orders</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-white text-base font-bold">{profile.bazcoins}</span>
+                      <span className="text-white/50 text-[10px] font-bold uppercase tracking-widest">Bazcoins</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-white text-base font-bold">{followedShops.length}</span>
+                    <span className="text-white/50 text-[10px] font-bold uppercase tracking-widest">Following</span>
+                  </div>
+                </div>
               </div>
             </div>
 
-            <Button
-              onClick={handleOpenEdit}
-              className="bg-white/20 hover:bg-white/30 text-white border-0 backdrop-blur-md shadow-lg"
-            >
-              <Edit2 className="w-4 h-4 mr-2" />
-              Edit Profile
-            </Button>
+            <div className="flex items-center gap-3">
+              <Button
+                onClick={handleOpenEdit}
+                className="bg-[#ff6a00] hover:bg-[#e65e00] text-white font-bold h-10 px-6 rounded-xl shadow-lg shadow-orange-600/20 flex items-center gap-2"
+              >
+                <Edit2 className="w-4 h-4" />
+                Edit Profile
+              </Button>
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 -mt-16 pb-12 relative z-20">
-        {/* Floating Stats Card matching Mobile logic */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-2xl shadow-xl p-6 mb-8 border border-gray-100/50"
-        >
-          <div className="grid grid-cols-3 divide-x divide-gray-100">
-            <div className="px-4 py-2 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-gray-50 rounded-xl transition-colors">
-              <div className="text-3xl font-bold text-[#ff6a00] mb-1">{profile.totalOrders}</div>
-              <div className="text-xs font-semibold uppercase tracking-wider text-gray-400 flex items-center gap-1">
-                <Package className="w-3 h-3" />
-                Orders
-              </div>
-            </div>
+      <div className="max-w-6xl mx-auto px-4 pt-10 pb-12 relative z-20">
 
-            <div className="px-4 py-2 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-gray-50 rounded-xl transition-colors">
-              <div className="text-3xl font-bold text-[#fbbf24] mb-1">{profile.bazcoins}</div>
-              <div className="text-xs font-semibold uppercase tracking-wider text-gray-400 flex items-center gap-1">
-                <div className="w-3 h-3 rounded-full bg-[#fbbf24] flex items-center justify-center text-[8px] text-white font-bold">B</div>
-                Bazcoins
-              </div>
-            </div>
-
-            <div className="px-4 py-2 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-gray-50 rounded-xl transition-colors">
-              <div className="text-3xl font-bold text-[#ff6a00] mb-1">{followedShops.length}</div>
-              <div className="text-xs font-semibold uppercase tracking-wider text-gray-400 flex items-center gap-1">
-                <Heart className="w-3 h-3" />
-                Following
-              </div>
-            </div>
-          </div>
-        </motion.div>
 
         {/* Content Tabs */}
-        <Tabs defaultValue="personal" className="space-y-6">
-          <div className="sticky top-20 z-10 bg-gray-50/95 backdrop-blur-sm py-2">
-            <TabsList className="grid w-full grid-cols-4 bg-white p-1 rounded-xl shadow-sm border border-gray-200">
-              <TabsTrigger value="personal" className="data-[state=active]:bg-[#ff6a00] data-[state=active]:text-white rounded-lg">Personal Info</TabsTrigger>
-              <TabsTrigger value="addresses" className="data-[state=active]:bg-[#ff6a00] data-[state=active]:text-white rounded-lg">Addresses</TabsTrigger>
-              <TabsTrigger value="following" className="data-[state=active]:bg-[#ff6a00] data-[state=active]:text-white rounded-lg">Following</TabsTrigger>
-              <TabsTrigger value="settings" className="data-[state=active]:bg-[#ff6a00] data-[state=active]:text-white rounded-lg">Settings</TabsTrigger>
+        <Tabs defaultValue="personal" className="-mt-4 space-y-4">
+          <div className="sticky top-20 z-30 flex justify-center w-full mb-4 py-2 backdrop-blur-[2px]">
+            <TabsList className="inline-flex h-auto items-center justify-center rounded-full bg-gray-100/80 p-1 shadow-sm">
+              <TabsTrigger
+                value="personal"
+                className="rounded-full px-8 py-1.5 text-sm font-medium text-gray-500 data-[state=active]:bg-white data-[state=active]:text-[#ff6a00] data-[state=active]:shadow-sm transition-all"
+              >
+                Personal Info
+              </TabsTrigger>
+              <TabsTrigger
+                value="addresses"
+                className="rounded-full px-8 py-1.5 text-sm font-medium text-gray-500 data-[state=active]:bg-white data-[state=active]:text-[#ff6a00] data-[state=active]:shadow-sm transition-all"
+              >
+                Addresses
+              </TabsTrigger>
+              <TabsTrigger
+                value="following"
+                className="rounded-full px-8 py-1.5 text-sm font-medium text-gray-500 data-[state=active]:bg-white data-[state=active]:text-[#ff6a00] data-[state=active]:shadow-sm transition-all"
+              >
+                Following
+              </TabsTrigger>
+              <TabsTrigger
+                value="settings"
+                className="rounded-full px-8 py-1.5 text-sm font-medium text-gray-500 data-[state=active]:bg-white data-[state=active]:text-[#ff6a00] data-[state=active]:shadow-sm transition-all"
+              >
+                Settings
+              </TabsTrigger>
             </TabsList>
           </div>
 

@@ -16,6 +16,13 @@ import {
 } from 'lucide-react';
 import Header from '../components/Header';
 import { BazaarFooter } from '../components/ui/bazaar-footer';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../components/ui/select";
 import { featuredStores } from '../data/stores';
 
 const StoresPage: React.FC = () => {
@@ -166,33 +173,64 @@ const StoresPage: React.FC = () => {
 
               <div className="flex items-center gap-2">
                 {/* Location Filter */}
-                <div className="relative min-w-[140px]">
-                  <select
-                    value={selectedLocation}
-                    onChange={(e) => setSelectedLocation(e.target.value)}
-                    className="w-full pl-3 pr-8 py-1.5 rounded-xl border border-gray-200 text-xs text-gray-700 focus:border-orange-500 focus:outline-none appearance-none hover:border-gray-300 transition-colors cursor-pointer bg-white"
-                  >
-                    <option value="All">All Locations</option>
-                    {locations.filter(l => l !== 'All').map(loc => (
-                      <option key={loc} value={loc}>{loc}</option>
-                    ))}
-                  </select>
-                  <ChevronDown className="absolute right-2.5 top-1/2 transform -translate-y-1/2 text-gray-400 w-3 h-3 pointer-events-none" />
+                <div className="flex items-center gap-3">
+                  <Select value={selectedLocation} onValueChange={setSelectedLocation}>
+                    <SelectTrigger className="w-[160px] h-8 bg-white border-gray-200 rounded-[12px] text-gray-700 text-[13px] focus:ring-1 focus:ring-orange-100 focus:ring-offset-0 shadow-sm hover:border-gray-300 hover:shadow-md transition-all px-4">
+                      <SelectValue placeholder="Location" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-2xl border-gray-100 p-1 shadow-xl">
+                      <SelectItem
+                        value="All"
+                        className="rounded-xl data-[state=checked]:bg-[#ff6a00] data-[state=checked]:text-white focus:bg-orange-50 focus:text-[#ff6a00] cursor-pointer"
+                      >
+                        All Locations
+                      </SelectItem>
+                      {locations.filter(l => l !== 'All').map(loc => (
+                        <SelectItem
+                          key={loc}
+                          value={loc}
+                          className="rounded-xl data-[state=checked]:bg-[#ff6a00] data-[state=checked]:text-white focus:bg-orange-50 focus:text-[#ff6a00] cursor-pointer"
+                        >
+                          {loc}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 {/* Sort By Filter */}
-                <div className="relative min-w-[140px]">
-                  <select
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value)}
-                    className="w-full pl-3 pr-8 py-1.5 rounded-xl border border-gray-200 text-xs text-gray-700 focus:border-orange-500 focus:outline-none appearance-none hover:border-gray-300 transition-colors cursor-pointer bg-white"
-                  >
-                    <option value="featured">Featured Stores</option>
-                    <option value="rating">Highest Rated</option>
-                    <option value="newest">Newest Joiners</option>
-                    <option value="popular">Most Popular</option>
-                  </select>
-                  <ChevronDown className="absolute right-2.5 top-1/2 transform -translate-y-1/2 text-gray-400 w-3 h-3 pointer-events-none" />
+                <div className="flex items-center gap-3">
+                  <Select value={sortBy} onValueChange={setSortBy}>
+                    <SelectTrigger className="w-[160px] h-8 bg-white border-gray-200 rounded-[12px] text-gray-700 text-[13px] focus:ring-1 focus:ring-orange-100 focus:ring-offset-0 shadow-sm hover:border-gray-300 hover:shadow-md transition-all px-4">
+                      <SelectValue placeholder="Sort by" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-2xl border-gray-100 p-1 shadow-xl">
+                      <SelectItem
+                        value="featured"
+                        className="rounded-xl data-[state=checked]:bg-[#ff6a00] data-[state=checked]:text-white focus:bg-orange-50 focus:text-[#ff6a00] cursor-pointer"
+                      >
+                        Featured Stores
+                      </SelectItem>
+                      <SelectItem
+                        value="rating"
+                        className="rounded-xl data-[state=checked]:bg-[#ff6a00] data-[state=checked]:text-white focus:bg-orange-50 focus:text-[#ff6a00] cursor-pointer"
+                      >
+                        Highest Rated
+                      </SelectItem>
+                      <SelectItem
+                        value="newest"
+                        className="rounded-xl data-[state=checked]:bg-[#ff6a00] data-[state=checked]:text-white focus:bg-orange-50 focus:text-[#ff6a00] cursor-pointer"
+                      >
+                        Newest Joiners
+                      </SelectItem>
+                      <SelectItem
+                        value="popular"
+                        className="rounded-xl data-[state=checked]:bg-[#ff6a00] data-[state=checked]:text-white focus:bg-orange-50 focus:text-[#ff6a00] cursor-pointer"
+                      >
+                        Most Popular
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
             </div>
