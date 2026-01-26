@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { notifySellerNewOrder, notifyBuyerOrderStatus } from '@/services/notificationService';
 
 // Unified Product interface for cart system
 export interface Product {
@@ -8,6 +9,7 @@ export interface Product {
   price: number;
   image: string;
   seller: string;
+  sellerId?: string; // Seller UUID for database notifications
   rating: number;
   category: string;
   originalPrice?: number;
@@ -67,7 +69,17 @@ export interface Order {
 export interface OrderNotification {
   id: string;
   orderId: string;
-  type: 'seller_confirmed' | 'shipped' | 'delivered' | 'cancelled';
+  type: 
+    | 'seller_confirmed' 
+    | 'shipped' 
+    | 'delivered' 
+    | 'cancelled'
+    // Seller notifications
+    | 'seller_new_order'
+    | 'seller_cancellation_request'
+    | 'seller_return_request'
+    | 'seller_return_approved'
+    | 'seller_return_rejected';
   message: string;
   timestamp: Date;
   read: boolean;
@@ -88,6 +100,7 @@ interface CartStore {
   updateOrderStatus: (orderId: string, status: Order['status']) => void;
   simulateOrderProgression: (orderId: string) => void;
   addNotification: (orderId: string, type: OrderNotification['type'], message: string) => void;
+  addSellerNotification: (orderId: string, type: 'seller_new_order' | 'seller_cancellation_request' | 'seller_return_request' | 'seller_return_approved' | 'seller_return_rejected', message: string) => void;
   markNotificationRead: (notificationId: string) => void;
   clearNotifications: () => void;
   getUnreadNotifications: () => OrderNotification[];
@@ -268,32 +281,7 @@ export const useCartStore = create<CartStore>()(
     (set, get) => ({
       items: [],
       orders: [],
-      notifications: [
-        {
-          id: 'notif-1',
-          orderId: 'order-001',
-          type: 'seller_confirmed',
-          message: 'Your order has been confirmed by the seller!',
-          timestamp: new Date(Date.now() - 5 * 60000), // 5 minutes ago
-          read: false,
-        },
-        {
-          id: 'notif-2',
-          orderId: 'order-002',
-          type: 'shipped',
-          message: 'Your order is on the way! Track your delivery.',
-          timestamp: new Date(Date.now() - 30 * 60000), // 30 minutes ago
-          read: false,
-        },
-        {
-          id: 'notif-3',
-          orderId: 'order-003',
-          type: 'delivered',
-          message: 'Your order has been delivered!',
-          timestamp: new Date(Date.now() - 2 * 3600000), // 2 hours ago
-          read: true,
-        },
-      ],
+      notifications: [],
 
       addToCart: (product: Product) => {
         set((state) => {
@@ -442,6 +430,30 @@ export const useCartStore = create<CartStore>()(
                 // Create the seller order
                 const sellerOrderId = sellerOrderStore.addOrder(sellerOrderData);
                 console.log(`Created seller order ${sellerOrderId} for ${sellerName}`);
+
+                // Send seller notification about new order (both local and database)
+                get().addSellerNotification(
+                  orderId,
+                  'seller_new_order',
+                  `New order #${orderId.slice(-8)} from ${orderData.shippingAddress.fullName}. Total: ₱${sellerTotal.toLocaleString()}`
+                );
+
+                // Save notification to database if we have seller_id
+                const firstItem = items[0];
+                console.log('🔍 First item for seller notification:', firstItem);
+                console.log('🔍 First item sellerId:', firstItem?.sellerId);
+                if (firstItem?.sellerId) {
+                  console.log('✅ Saving seller notification to database for seller:', firstItem.sellerId);
+                  notifySellerNewOrder({
+                    sellerId: firstItem.sellerId,
+                    orderId,
+                    orderNumber: orderId.slice(-8),
+                    buyerName: orderData.shippingAddress.fullName || 'Unknown Buyer',
+                    total: sellerTotal
+                  }).catch(error => {
+                    console.error('Failed to save seller notification to database:', error);
+                  });
+                }
               } catch (sellerOrderError) {
                 console.error(`Failed to create seller order for ${sellerName}:`, sellerOrderError);
                 // Log but don't fail - buyer order is already created
@@ -474,8 +486,64 @@ export const useCartStore = create<CartStore>()(
               : order
           ),
         }));
+
+        // Auto-generate seller notifications based on status change
+        const order = get().orders.find(o => o.id === orderId);
+        if (order) {
+          const sellerName = order.items[0]?.seller || 'Seller';
+          
+          // Map status changes to seller notification types
+          let notificationType: OrderNotification['type'] | null = null;
+          let notificationMessage = '';
+
+          switch (status) {
+            case 'confirmed':
+              notificationType = 'seller_confirmed';
+              notificationMessage = `Order #${orderId.slice(-8)} has been confirmed. Please prepare for shipment.`;
+              break;
+            case 'shipped':
+              notificationType = 'shipped';
+              notificationMessage = `Order #${orderId.slice(-8)} has been marked as shipped.`;
+              break;
+            case 'delivered':
+              notificationType = 'delivered';
+              notificationMessage = `Order #${orderId.slice(-8)} has been delivered to the customer.`;
+              break;
+            case 'cancelled':
+              notificationType = 'cancelled';
+              notificationMessage = `Order #${orderId.slice(-8)} has been cancelled.`;
+              break;
+            case 'returned':
+              notificationType = 'seller_return_approved';
+              notificationMessage = `Order #${orderId.slice(-8)} has been returned by the customer.`;
+              break;
+            default:
+              break;
+          }
+
+          if (notificationType) {
+            get().addNotification(orderId, notificationType, notificationMessage);
+          }
+        }
       },
       addNotification: (orderId, type, message) => {
+        const notificationId = `notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        set((state) => ({
+          notifications: [
+            {
+              id: notificationId,
+              orderId,
+              type,
+              message,
+              timestamp: new Date(),
+              read: false
+            },
+            ...state.notifications
+          ]
+        }));
+      },
+
+      addSellerNotification: (orderId, type, message) => {
         const notificationId = `notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
         set((state) => ({
           notifications: [
