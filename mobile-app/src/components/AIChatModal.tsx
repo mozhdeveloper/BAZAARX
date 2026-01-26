@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { ArrowLeft, Send, Bot, MoreVertical, Scale, Ticket } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { COLORS } from '../constants/theme';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../App';
@@ -126,7 +127,7 @@ export default function AIChatModal({ visible, onClose }: AIChatModalProps) {
     return (
       <View style={styles.comparisonCard}>
         <View style={styles.comparisonHeader}>
-          <Scale size={18} color="#FF5722" strokeWidth={2.5} />
+          <Scale size={18} color={COLORS.primary} strokeWidth={2.5} />
           <Text style={styles.comparisonTitle}>{comparison.title}</Text>
         </View>
         
@@ -297,7 +298,7 @@ export default function AIChatModal({ visible, onClose }: AIChatModalProps) {
         keyboardVerticalOffset={0}
       >
         {/* Universal Header - Edge to Edge Orange */}
-        <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+        <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
           <Pressable onPress={onClose} style={styles.backButton}>
             <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
           </Pressable>
@@ -345,7 +346,7 @@ export default function AIChatModal({ visible, onClose }: AIChatModalProps) {
                 >
                   {!message.isUser && (
                     <View style={styles.aiAvatar}>
-                      <Bot size={18} color="#FF5722" strokeWidth={2.5} />
+                      <Bot size={18} color={COLORS.primary} strokeWidth={2.5} />
                     </View>
                   )}
                   <View
@@ -391,7 +392,7 @@ export default function AIChatModal({ visible, onClose }: AIChatModalProps) {
           {isTyping && (
             <View style={[styles.messageBubble, styles.aiBubble]}>
               <View style={styles.aiAvatar}>
-                <Bot size={18} color="#FF5722" strokeWidth={2.5} />
+                <Bot size={18} color={COLORS.primary} strokeWidth={2.5} />
               </View>
               <View style={styles.typingIndicator}>
                 <View style={styles.typingDot} />
@@ -443,7 +444,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingBottom: 16,
-    backgroundColor: '#FF5722',
+    backgroundColor: COLORS.primary,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
   },
   backButton: {
     width: 40,
@@ -536,7 +539,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   userMessageContent: {
-    backgroundColor: '#FF5722',
+    backgroundColor: COLORS.primary,
     paddingVertical: 14,
     paddingHorizontal: 18,
     borderRadius: 20,
@@ -632,7 +635,7 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   productColumnSelected: {
-    borderColor: '#FF5722',
+    borderColor: COLORS.primary,
     backgroundColor: '#FFF5F0',
   },
   productImage: {
@@ -653,7 +656,7 @@ const styles = StyleSheet.create({
   productPrice: {
     fontSize: 17,
     fontWeight: '800',
-    color: '#FF5722',
+    color: COLORS.primary,
     marginBottom: 12,
     letterSpacing: -0.3,
   },
@@ -707,10 +710,10 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#FF5722',
+    backgroundColor: COLORS.primary,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#FF5722',
+    shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,

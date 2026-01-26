@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { ArrowLeft, Send, MoreVertical, Store, CheckCircle2, Ticket } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { COLORS } from '../constants/theme';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../App';
@@ -140,7 +141,7 @@ export default function StoreChatModal({ visible, onClose, storeName }: StoreCha
                 keyboardVerticalOffset={0}
             >
                 {/* Header - Store Brand Color */}
-                <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+                <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
                     <Pressable onPress={onClose} style={styles.backButton}>
                         <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
                     </Pressable>
@@ -272,9 +273,11 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingHorizontal: 16,
+        paddingHorizontal: 20,
         paddingBottom: 16,
-        backgroundColor: '#FF5722',
+        backgroundColor: COLORS.primary,
+        borderBottomLeftRadius: 20,
+        borderBottomRightRadius: 20,
     },
     backButton: {
         padding: 8,
@@ -333,7 +336,7 @@ const styles = StyleSheet.create({
     },
     userBubble: {
         alignSelf: 'flex-end',
-        backgroundColor: '#FF5722',
+        backgroundColor: COLORS.primary,
         borderBottomRightRadius: 4,
     },
     storeBubble: {
@@ -421,7 +424,7 @@ const styles = StyleSheet.create({
         width: 44,
         height: 44,
         borderRadius: 22,
-        backgroundColor: '#FF5722',
+        backgroundColor: COLORS.primary,
         justifyContent: 'center',
         alignItems: 'center',
     },
