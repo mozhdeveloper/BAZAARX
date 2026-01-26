@@ -11,13 +11,13 @@ import {
   ScrollView,
   Image,
   StatusBar,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Search, SlidersHorizontal, X, Check, Camera, ShoppingCart, Star, CheckCircle2 } from 'lucide-react-native';
 import CameraSearchModal from '../src/components/CameraSearchModal';
 import { ProductCard } from '../src/components/ProductCard';
-import { trendingProducts, bestSellerProducts, newArrivals } from '../src/data/products';
-import { useProductQAStore } from '../src/stores/productQAStore';
+import { supabase } from '../src/lib/supabase';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -56,27 +56,148 @@ export default function ShopScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const cartItems = useCartStore((state) => state.items);
   const BRAND_COLOR = COLORS.primary;
-  
-  const qaProducts = useProductQAStore((state) => state.products);
-  const verifiedQAProducts = qaProducts
-    .filter(qp => qp.status === 'ACTIVE_VERIFIED')
-    .map(qp => ({
-      ...qp,
-      rating: 4.5,
-      sold: 0,
-      seller: qp.vendor,
-      isVerified: true,
-      location: 'Philippines',
-    } as unknown as Product));
 
-  const allAvailableProducts = [...verifiedQAProducts, ...trendingProducts, ...bestSellerProducts, ...newArrivals];
-  
+  const [dbProducts, setDbProducts] = useState<Product[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [sellers, setSellers] = useState<any[]>([]);
+
   const { searchQuery: initialSearchQuery, customResults, category: initialCategory } = route.params || {};
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery || '');
   const [selectedCategory, setSelectedCategory] = useState(initialCategory || 'all');
   const [selectedSort, setSelectedSort] = useState('relevance');
   const [showFiltersModal, setShowFiltersModal] = useState(false);
   const [showCameraSearch, setShowCameraSearch] = useState(false);
+
+  useEffect(() => {
+    const loadProducts = async () => {
+      setIsLoading(true);
+      setFetchError(null);
+      try {
+        console.log('[Shop] Fetching products from Supabase');
+        const { data, error } = await supabase
+          .from('products')
+          .select(`
+            *,
+            seller:sellers!products_seller_id_fkey (
+              business_name,
+              store_name,
+              rating,
+              business_address,
+              id,
+              is_verified
+            )
+          `)
+          .eq('is_active', true)
+          .eq('approval_status', 'approved')
+          .order('created_at', { ascending: false });
+
+        let rows = data || [];
+
+        if (error) {
+          console.log('[Shop] Product fetch error:', error.message);
+          setFetchError(error.message);
+          setDbProducts([]);
+        } else {
+          // Fallback: if no approved products, fetch pending (for testing environments)
+          if (rows.length === 0) {
+            console.log('[Shop] No approved products, falling back to pending');
+            const { data: pendingData, error: pendingError } = await supabase
+              .from('products')
+              .select(`
+                *,
+                seller:sellers!products_seller_id_fkey (
+                  business_name,
+                  store_name,
+                  rating,
+                  business_address,
+                  id,
+                  is_verified
+                )
+              `)
+              .eq('is_active', true)
+              .eq('approval_status', 'pending')
+              .order('created_at', { ascending: false });
+            if (!pendingError && pendingData) {
+              rows = pendingData;
+            }
+          }
+          console.log('[Shop] Products fetched:', rows.length);
+          const mapped: Product[] = (rows || []).map((row: any) => {
+            const imageUrl =
+              row.primary_image ||
+              (Array.isArray(row.images) && row.images.length > 0 ? row.images[0] : 'https://images.unsplash.com/photo-1514228742587-6b1558fcf93a?w=300&h=300&fit=crop');
+            const priceNum = typeof row.price === 'number' ? row.price : parseFloat(row.price || '0');
+            const originalNum = row.original_price != null
+              ? (typeof row.original_price === 'number' ? row.original_price : parseFloat(row.original_price))
+              : undefined;
+            const ratingNum = typeof row.rating === 'number' ? row.rating : parseFloat(row.rating || '4.5') || 4.5;
+            const sellerName = row.seller?.store_name || row.seller?.business_name || 'Verified Seller';
+            const sellerRating = typeof row.seller?.rating === 'number'
+              ? row.seller.rating
+              : parseFloat(row.seller?.rating || '4.8') || 4.8;
+            const sellerVerified = !!row.seller?.is_verified;
+            const location = row.seller?.business_address || 'Philippines';
+
+            return {
+              id: row.id,
+              name: row.name,
+              price: priceNum,
+              originalPrice: originalNum,
+              image: imageUrl,
+              images: Array.isArray(row.images) ? row.images : undefined,
+              rating: ratingNum,
+              sold: row.sales_count || 0,
+              seller: sellerName,
+              sellerId: row.seller?.id || undefined,
+              sellerRating,
+              sellerVerified,
+              isFreeShipping: !!row.is_free_shipping,
+              isVerified: true,
+              location,
+              description: row.description || '',
+              category: row.category || '',
+              stock: row.stock,
+            } as Product;
+          });
+          setDbProducts(mapped);
+          console.log('[Shop] Mapped products:', mapped.length);
+        }
+      } catch (e: any) {
+        console.log('[Shop] Product fetch exception:', e?.message);
+        setFetchError(e?.message || 'Failed to load products');
+        setDbProducts([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadProducts();
+  }, []);
+
+  useEffect(() => {
+    const loadSellers = async () => {
+      try {
+        console.log('[Shop] Fetching verified sellers');
+        const { data, error } = await supabase
+          .from('sellers')
+          .select('id, store_name, rating, is_verified, city, province')
+          .eq('is_verified', false)
+          .eq('approval_status', 'pending')
+          .order('rating', { ascending: false });
+        if (error) {
+          console.log('[Shop] Seller fetch error:', error.message);
+          setSellers([]);
+          return;
+        }
+        console.log('[Shop] Sellers fetched:', (data || []).length);
+        setSellers(data || []);
+      } catch (e: any) {
+        console.log('[Shop] Seller fetch exception:', e?.message);
+        setSellers([]);
+      }
+    };
+    loadSellers();
+  }, []);
 
   useEffect(() => {
     if (route.params?.searchQuery) {
@@ -89,7 +210,7 @@ export default function ShopScreen({ navigation, route }: Props) {
 
   const filteredProducts = useMemo(() => {
     if (customResults && customResults.length > 0) return customResults;
-    let filtered = allAvailableProducts.filter(product => {
+    let filtered = dbProducts.filter(product => {
       const name = product.name || '';
       const category = product.category || '';
       const matchesSearch = name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -99,12 +220,30 @@ export default function ShopScreen({ navigation, route }: Props) {
     if (selectedSort === 'price-low') filtered.sort((a, b) => a.price - b.price);
     if (selectedSort === 'price-high') filtered.sort((a, b) => b.price - a.price);
     return filtered;
-  }, [searchQuery, selectedCategory, selectedSort, customResults]);
+  }, [dbProducts, searchQuery, selectedCategory, selectedSort, customResults]);
+
+  const verifiedStores = useMemo(() => {
+    const stores = (sellers || []).map((s) => {
+      const previews = dbProducts
+        .filter(p => p.sellerId === s.id)
+        .slice(0, 2)
+        .map(p => p.image);
+      return {
+        id: s.id,
+        name: s.store_name,
+        verified: !!s.is_verified,
+        rating: typeof s.rating === 'number' ? s.rating : parseFloat(s.rating || '4.8') || 4.8,
+        location: s.city && s.province ? `${s.city}, ${s.province}` : 'Philippines',
+        products: previews,
+      };
+    });
+    return stores;
+  }, [sellers, dbProducts]);
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
-      
+
       <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: BRAND_COLOR }]}>
         <View style={styles.headerTop}>
           <View style={styles.searchBarWrapper}>
@@ -138,24 +277,37 @@ export default function ShopScreen({ navigation, route }: Props) {
       </View>
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        {isLoading && (
+          <View style={[styles.debugBox, { borderColor: BRAND_COLOR }]}>
+            <ActivityIndicator color={BRAND_COLOR} />
+            <Text style={styles.debugText}>Loading products…</Text>
+          </View>
+        )}
+        {!isLoading && (
+          <View style={[styles.debugBox, { borderColor: fetchError ? '#EF4444' : BRAND_COLOR }]}>
+            <Text style={styles.debugText}>Products: {dbProducts.length}</Text>
+            <Text style={styles.debugText}>Verified Stores: {verifiedStores.length}</Text>
+            {!!fetchError && <Text style={[styles.debugText, { color: '#EF4444' }]}>Error: {fetchError}</Text>}
+          </View>
+        )}
         <View style={styles.storesSection}>
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionTitle}>Verified Official Stores</Text>
             {/* SEE ALL IS NOW CLICKABLE */}
             <Pressable onPress={() => navigation.navigate('AllStores')}>
-              <Text style={{color: BRAND_COLOR, fontWeight: '700'}}>See All</Text>
+              <Text style={{ color: BRAND_COLOR, fontWeight: '700' }}>See All</Text>
             </Pressable>
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.storesScroll}>
-            {(officialStores || []).map((store) => (
+            {(verifiedStores || []).map((store) => (
               /* CLICKABLE STORE CARD */
-              <Pressable 
-                key={store.id} 
+              <Pressable
+                key={store.id}
                 style={styles.storeCard}
                 onPress={() => navigation.navigate('StoreDetail', { store })}
               >
                 <View style={styles.storeHeader}>
-                  <View style={styles.storeLogo}><Text style={{fontSize: 22}}>{store.logo}</Text></View>
+                  <View style={styles.storeLogo}><Text style={{ fontSize: 22 }}>🏬</Text></View>
                   <View style={styles.storeInfo}>
                     <View style={styles.storeNameRow}>
                       <Text style={styles.storeName} numberOfLines={1}>{store.name}</Text>
@@ -166,8 +318,8 @@ export default function ShopScreen({ navigation, route }: Props) {
                       <Text style={styles.ratingText}>{store.rating}</Text>
                     </View>
                   </View>
-                  <View style={[styles.visitBtn, {borderColor: BRAND_COLOR}]}>
-                    <Text style={[styles.visitBtnText, {color: BRAND_COLOR}]}>Visit</Text>
+                  <View style={[styles.visitBtn, { borderColor: BRAND_COLOR }]}>
+                    <Text style={[styles.visitBtnText, { color: BRAND_COLOR }]}>Visit</Text>
                   </View>
                 </View>
                 <View style={styles.storeProducts}>
@@ -198,12 +350,19 @@ export default function ShopScreen({ navigation, route }: Props) {
               <ProductCard product={product} onPress={() => navigation.navigate('ProductDetail', { product })} />
             </View>
           ))}
+          {!isLoading && filteredProducts.length === 0 && (
+            <View style={styles.emptyBox}>
+              <Text style={styles.emptyTitle}>No products found</Text>
+              <Text style={styles.emptyText}>Check that products are approved and active.</Text>
+              <Text style={styles.emptyText}>Verify Supabase env and RLS policies.</Text>
+            </View>
+          )}
         </View>
         <View style={{ height: 100 }} />
       </ScrollView>
 
       <CameraSearchModal visible={showCameraSearch} onClose={() => setShowCameraSearch(false)} />
-      
+
       <Modal visible={showFiltersModal} animationType="slide" transparent={true}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -228,39 +387,39 @@ export default function ShopScreen({ navigation, route }: Props) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F9FAFB' },
-  headerContainer: { 
-    paddingHorizontal: 20, 
-    borderBottomLeftRadius: 20, 
+  headerContainer: {
+    paddingHorizontal: 20,
+    borderBottomLeftRadius: 20,
     borderBottomRightRadius: 20,
     paddingBottom: 15,
   },
-  headerTop: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 12 
+    gap: 12
   },
-  searchBarWrapper: { 
-    flex: 1, 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    backgroundColor: '#FFFFFF', 
-    borderRadius: 100, 
-    paddingHorizontal: 16, 
-    height: 45, 
-    gap: 10 
+  searchBarWrapper: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 100,
+    paddingHorizontal: 16,
+    height: 45,
+    gap: 10
   },
   searchInput: { flex: 1, fontSize: 14, color: '#1F2937' },
   headerRight: { flexDirection: 'row', gap: 10 },
   headerIconButton: { padding: 4, position: 'relative' },
-  badge: { 
-    position: 'absolute', 
-    top: 0, 
-    right: 0, 
-    minWidth: 16, 
-    height: 16, 
-    borderRadius: 8, 
-    alignItems: 'center', 
+  badge: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 4,
   },
@@ -270,18 +429,18 @@ const styles = StyleSheet.create({
   sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 15 },
   sectionTitle: { fontSize: 19, fontWeight: '800', color: '#1F2937' },
   storesScroll: { paddingHorizontal: 20, gap: 15 },
-  storeCard: { 
-    width: 280, 
-    backgroundColor: '#FFF', 
-    borderRadius: 20, 
-    padding: 16, 
-    borderWidth: 1, 
-    borderColor: '#F1F1F1', 
-    elevation: 4, 
-    shadowColor: '#000', 
-    shadowOffset: { width: 0, height: 4 }, 
-    shadowOpacity: 0.05, 
-    shadowRadius: 10 
+  storeCard: {
+    width: 280,
+    backgroundColor: '#FFF',
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#F1F1F1',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10
   },
   storeHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 15 },
   storeLogo: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#F9FAFB', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#F3F4F6' },
@@ -298,8 +457,8 @@ const styles = StyleSheet.create({
   chip: { paddingHorizontal: 18, paddingVertical: 9, borderRadius: 25, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB' },
   chipText: { fontSize: 13, fontWeight: '600', color: '#9CA3AF' },
   productsGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: PADDING, justifyContent: 'space-between' },
-  cardWrapper: { 
-    width: ITEM_WIDTH, 
+  cardWrapper: {
+    width: ITEM_WIDTH,
     marginBottom: 20,
     backgroundColor: '#FFF',
     borderRadius: 18,
@@ -309,6 +468,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 6,
   },
+  debugBox: { marginTop: 12, marginHorizontal: 20, borderWidth: 1, borderRadius: 12, padding: 10, backgroundColor: '#FFF', flexDirection: 'row', gap: 10, alignItems: 'center' },
+  debugText: { fontSize: 12, color: '#4B5563' },
+  emptyBox: { alignItems: 'center', justifyContent: 'center', paddingVertical: 40, width: '100%' },
+  emptyTitle: { fontSize: 16, fontWeight: '800', color: '#1F2937' },
+  emptyText: { fontSize: 12, color: '#6B7280', marginTop: 4 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalContent: { backgroundColor: '#FFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: 40 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', padding: 24, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },

@@ -26,7 +26,7 @@ type Props = CompositeScreenProps<
 >;
 
 export default function CartScreen({ navigation }: Props) {
-  const { items, removeItem, updateQuantity, getTotal, clearCart, clearQuickOrder } = useCartStore();
+  const { items, removeItem, updateQuantity, getTotal, clearCart, clearQuickOrder, initializeForCurrentUser } = useCartStore();
   const insets = useSafeAreaInsets();
   const BRAND_COLOR = COLORS.primary;
   const [showGuestModal, setShowGuestModal] = useState(false);
@@ -36,7 +36,17 @@ export default function CartScreen({ navigation }: Props) {
     clearQuickOrder();
   }, []);
 
+  useEffect(() => {
+    const { isGuest } = useAuthStore.getState();
+    if (!isGuest) {
+      initializeForCurrentUser();
+    }
+  }, []);
   const [selectedIds, setSelectedIds] = useState<string[]>(items.map(item => item.id));
+
+  useEffect(() => {
+    setSelectedIds(items.map(item => item.id));
+  }, [items]);
 
   const selectedItems = useMemo(() => items.filter(item => selectedIds.includes(item.id)), [items, selectedIds]);
   const subtotal = selectedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
@@ -59,11 +69,11 @@ export default function CartScreen({ navigation }: Props) {
           </View>
         </View>
         <GuestLoginModal
-            visible={true}
-            onClose={() => navigation.navigate('MainTabs', { screen: 'Home' })}
-            message="Sign up to view your cart."
-            hideCloseButton={true}
-            cancelText="Go back to Home"
+          visible={true}
+          onClose={() => navigation.navigate('MainTabs', { screen: 'Home' })}
+          message="Sign up to view your cart."
+          hideCloseButton={true}
+          cancelText="Go back to Home"
         />
       </View>
     );
@@ -80,7 +90,7 @@ export default function CartScreen({ navigation }: Props) {
   };
 
   const toggleSelectItem = (id: string) => {
-    setSelectedIds(prev => 
+    setSelectedIds(prev =>
       prev.includes(id) ? prev.filter(itemId => itemId !== id) : [...prev, id]
     );
   };
@@ -127,7 +137,7 @@ export default function CartScreen({ navigation }: Props) {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
-      
+
       {/* 1. BRANDED ROUNDED HEADER */}
       <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: BRAND_COLOR }]}>
         <View style={styles.headerTop}>
@@ -158,8 +168,8 @@ export default function CartScreen({ navigation }: Props) {
         )}
       </View>
 
-      <ScrollView 
-        style={styles.scrollContainer} 
+      <ScrollView
+        style={styles.scrollContainer}
         contentContainerStyle={{ paddingBottom: 200 }}
         showsVerticalScrollIndicator={false}
       >
@@ -191,11 +201,11 @@ export default function CartScreen({ navigation }: Props) {
           <View style={styles.benefitBanner}>
             <Truck size={20} color={BRAND_COLOR} strokeWidth={2.5} />
             <Text style={styles.benefitText}>
-              Add <Text style={{ color: BRAND_COLOR, fontWeight: '800' }}>₱{(500 - subtotal).toLocaleString()}</Text> more for <Text style={{fontWeight: '800'}}>FREE</Text> shipping
+              Add <Text style={{ color: BRAND_COLOR, fontWeight: '800' }}>₱{(500 - subtotal).toLocaleString()}</Text> more for <Text style={{ fontWeight: '800' }}>FREE</Text> shipping
             </Text>
           </View>
         )}
-        
+
         {subtotal >= 500 && (
           <View style={styles.successBanner}>
             <CheckCircle2 size={20} color="#166534" strokeWidth={2.5} />
@@ -234,13 +244,13 @@ export default function CartScreen({ navigation }: Props) {
             onPress={() => {
               const { isGuest } = useAuthStore.getState();
               if (isGuest) {
-                 setShowGuestModal(true);
-                 return;
+                setShowGuestModal(true);
+                return;
               }
               navigation.navigate('Checkout');
             }}
             style={[
-              styles.checkoutBtn, 
+              styles.checkoutBtn,
               { backgroundColor: BRAND_COLOR, opacity: selectedIds.length === 0 ? 0.6 : 1 }
             ]}
             disabled={selectedIds.length === 0}
@@ -249,9 +259,9 @@ export default function CartScreen({ navigation }: Props) {
           </Pressable>
         </View>
       </View>
-      <GuestLoginModal 
-        visible={showGuestModal} 
-        onClose={() => setShowGuestModal(false)} 
+      <GuestLoginModal
+        visible={showGuestModal}
+        onClose={() => setShowGuestModal(false)}
         message="You need an account to checkout items."
       />
     </View>
@@ -261,22 +271,22 @@ export default function CartScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F9FAFB' },
   // HEADER STYLE TO MATCH HOMESCREEN
-  headerContainer: { 
-    paddingHorizontal: 20, 
-    borderBottomLeftRadius: 20, 
+  headerContainer: {
+    paddingHorizontal: 20,
+    borderBottomLeftRadius: 20,
     borderBottomRightRadius: 20,
     paddingBottom: 20,
   },
-  headerTop: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
   },
   headerIconButton: { padding: 4 },
   headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFFFFF' },
   clearButton: { paddingHorizontal: 12 },
   clearText: { fontSize: 14, fontWeight: '600', color: 'rgba(255,255,255,0.8)' },
-  
+
   selectAllBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -331,15 +341,15 @@ const styles = StyleSheet.create({
   totalLabel: { fontSize: 16, fontWeight: '800', color: '#1F2937' },
   totalValue: { fontSize: 24, fontWeight: '900' },
 
-  bottomBar: { 
-    position: 'absolute', 
-    left: 12, 
-    right: 12, 
-    backgroundColor: '#FFFFFF', 
-    borderRadius: 30, 
-    elevation: 20, 
-    shadowColor: '#000', 
-    shadowOpacity: 0.15, 
+  bottomBar: {
+    position: 'absolute',
+    left: 12,
+    right: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 30,
+    elevation: 20,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
     shadowRadius: 25,
     paddingVertical: 4
   },
