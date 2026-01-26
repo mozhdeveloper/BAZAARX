@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import type { CartItem, ProductVariant } from '@/types/database.types';
+import { notifySellerNewOrder } from './notificationService';
 
 // Define the payload for the checkout process
 export interface CheckoutPayload {
@@ -149,6 +150,22 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
 
             if (orderError) throw orderError;
             createdOrderIds.push(orderData.order_number);
+
+            console.log(`✅ Order created: ${orderData.order_number} for seller ${sellerId}`);
+
+            // 🔔 Create seller notification for new order
+            const orderTotal = sellerItems.reduce((sum, item) => sum + (item.quantity * (item.selected_variant?.price || item.product?.price || 0)), 0);
+            console.log(`🔔 Creating seller notification for order ${orderData.order_number}`);
+            
+            notifySellerNewOrder({
+                sellerId: sellerId,
+                orderId: orderData.id,
+                orderNumber: orderData.order_number,
+                buyerName: shippingAddress.fullName,
+                total: orderTotal
+            }).catch(err => {
+                console.error('❌ Failed to create seller notification:', err);
+            });
 
             // Create Order Items
             const orderItemsData = sellerItems.map(item => ({

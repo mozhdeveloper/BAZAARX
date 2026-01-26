@@ -1475,9 +1475,9 @@ export const useOrderStore = create<OrderStore>()(
 
           // Create notification for buyer if order has buyer_id
           console.log(`📦 Order object:`, order);
-          console.log(`🆔 Order buyerId:`, order.buyerId);
+          console.log(`🆔 Order buyer_id:`, order.buyer_id);
           
-          if (order.buyerId) {
+          if (order.buyer_id) {
             const statusMessages: Record<string, string> = {
               'confirmed': `Your order #${id.slice(-8)} has been confirmed and is being prepared.`,
               'shipped': `Your order #${id.slice(-8)} has been shipped and is on its way!`,
@@ -1487,18 +1487,22 @@ export const useOrderStore = create<OrderStore>()(
 
             const message = statusMessages[status] || `Order #${id.slice(-8)} status updated to ${status}`;
             
+            console.log(`🚀 Creating buyer notification for order ${id}`);
+            
             // Import notification service dynamically to avoid circular dependency
             import('../services/notificationService').then(({ notifyBuyerOrderStatus }) => {
               notifyBuyerOrderStatus({
-                buyerId: order.buyerId!,
+                buyerId: order.buyer_id!,
                 orderId: id,
                 orderNumber: id.slice(-8),
                 status,
                 message
               }).catch(err => {
-                console.error('Failed to create buyer notification:', err);
+                console.error('❌ Failed to create buyer notification:', err);
               });
             });
+          } else {
+            console.warn(`⚠️ No buyer_id found for order ${id}, skipping buyer notification`);
           }
 
           // Update local state
