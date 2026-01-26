@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
-  ArrowLeft,
+  ChevronLeft,
   Package,
   Truck,
   CheckCircle,
@@ -140,7 +140,7 @@ export default function OrderDetailPage() {
             }),
             estimatedDelivery: new Date(
               orderData.estimated_delivery_date ||
-                Date.now() + 3 * 24 * 60 * 60 * 1000,
+              Date.now() + 3 * 24 * 60 * 60 * 1000,
             ),
             items: (orderData.order_items || []).map((item: any) => ({
               id: item.id,
@@ -342,14 +342,15 @@ export default function OrderDetailPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Header */}
         <div className="mb-6">
-          <Button
-            variant="ghost"
-            onClick={() => navigate("/orders")}
-            className="mb-4 -ml-2"
+          <button
+            onClick={() => navigate(-1)}
+            className="flex items-center gap-2 text-gray-600 hover:text-[#ff6a00] transition-colors mb-4 group"
           >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Orders
-          </Button>
+            <div className="p-1.5">
+              <ChevronLeft className="w-4 h-4 mt-3" />
+            </div>
+            <span className="font-medium text-sm mt-3">Back to Orders</span>
+          </button>
 
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>

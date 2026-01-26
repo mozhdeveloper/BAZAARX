@@ -4,8 +4,6 @@ import { motion } from "framer-motion";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import {
   Filter,
-  Grid,
-  List,
   Star,
   MapPin,
   Truck,
@@ -13,8 +11,7 @@ import {
   Clock,
   BadgeCheck,
   ShoppingCart,
-  RotateCcw,
-  ChevronUp,
+  Menu,
 } from "lucide-react";
 import Header from "../components/Header";
 import { BazaarFooter } from "../components/ui/bazaar-footer";
@@ -61,8 +58,6 @@ type ShopProduct = {
   sellerVerified?: boolean;
 };
 
-// FlashSaleProduct interface removed
-
 // Flash sale products are now derived from real products in the component
 
 const categoryOptions = [
@@ -90,7 +85,6 @@ export default function ShopPage() {
   const [selectedCategory, setSelectedCategory] = useState("All Categories");
   const [selectedSort, setSelectedSort] = useState("relevance");
   const [priceRange, setPriceRange] = useState<number[]>([0, 100000]);
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [showFilters, setShowFilters] = useState(false);
   const [showCartModal, setShowCartModal] = useState(false);
   const [addedProduct, setAddedProduct] = useState<{
@@ -99,6 +93,7 @@ export default function ShopPage() {
   } | null>(null);
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [showVisualSearchModal, setShowVisualSearchModal] = useState(false);
+  const [isToolbarSticky, setIsToolbarSticky] = useState(true);
 
   // Flash Sale Countdown
   const [timeLeft, setTimeLeft] = useState({
@@ -141,10 +136,25 @@ export default function ShopPage() {
     };
   }, [fetchProducts, subscribeToProducts]);
 
-  // Sync search query from URL
   useEffect(() => {
     setSearchQuery(searchParams.get("q") || "");
   }, [searchParams]);
+
+  // Handle toolbar scroll visibility
+  useEffect(() => {
+    const handleScroll = () => {
+      // Threshold: Header (~80px) + Flash Sale (~400px) + Half of first grid row (~200px)
+      // This hide the sticky toolbar after scrolling past the initial focus area
+      if (window.scrollY > 850) {
+        setIsToolbarSticky(false);
+      } else {
+        setIsToolbarSticky(true);
+      }
+    };
+
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   const allProducts = useMemo<ShopProduct[]>(() => {
     const dbProducts = sellerProducts
@@ -230,7 +240,6 @@ export default function ShopPage() {
 
   const resetFilters = () => {
     setSearchQuery("");
-    setSelectedCategory("All Categories");
     setSelectedSort("relevance");
     setPriceRange([0, 100000]);
   };
@@ -292,9 +301,9 @@ export default function ShopPage() {
           </motion.div>
         </div>
 
-        <div className="py-2">
+        <div className="py-2 md:py-4">
           {/* Flash Sale Section */}
-          <div className="mb-6 bg-white border-l-[8px] border-l-orange-500 rounded-2xl p-4 shadow-[0_4px_20px_rgba(0,0,0,0.08)] hover:shadow-[0_8px_30px_rgba(255,106,0,0.15)] transition-all">
+          <div className="mb-8 bg-white border-l-[8px] border-l-orange-500 rounded-2xl py-4 px-8 shadow-[0_4px_20px_rgba(0,0,0,0.08)] hover:shadow-[0_8px_30px_rgba(255,106,0,0.15)] transition-all">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <div className="p-1.5 bg-orange-50 rounded-lg text-orange-600">
@@ -367,144 +376,160 @@ export default function ShopPage() {
           </div>
 
           <div className="flex flex-col lg:flex-row gap-8">
-            {/* Filters Sidebar */}
+            {/* Categories Sidebar */}
             <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className={`lg:w-64 lg:sticky lg:top-20 lg:self-start ${showFilters ? "block" : "hidden lg:block"
-                }`}
+              initial={false}
+              animate={{
+                height: showFilters ? "auto" : 0,
+                opacity: showFilters ? 1 : 0,
+                marginBottom: showFilters ? 24 : 0
+              }}
+              className={`lg:hidden overflow-hidden w-full`}
             >
-              <div className="bg-white rounded-2xl p-6 shadow-sm">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-lg font-semibold text-gray-900">Filters</h3>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={resetFilters}
-                    className="text-gray-600 hover:text-[#FF5722] gap-1"
-                  >
-                    <RotateCcw className="w-4 h-4" />
-                    Reset
-                  </Button>
-                </div>
-
-                <div className="flex flex-col gap-6">
-                  {/* Categories Section */}
-                  <div>
-                    <div className="flex items-center justify-between mb-4 px-1">
-                      <h3 className="font-semibold text-gray-900">Categories</h3>
-                      <ChevronUp className="w-4 h-4 text-gray-500" />
-                    </div>
-
-                    <div className="flex flex-col gap-1">
-                      {categoryOptions.map((category) => {
-                        const isSelected = selectedCategory === category;
-                        return (
-                          <button
-                            key={category}
-                            onClick={() => setSelectedCategory(category)}
-                            className={`w-full text-left px-4 py-2.5 rounded-lg text-sm transition-all duration-200
-                              ${isSelected
-                                ? "bg-[#ff6a00] text-white font-medium shadow-sm"
-                                : "text-gray-600 hover:bg-gray-50 hover:text-gray-900 font-normal"
-                              }
-                            `}
-                          >
-                            {category}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Price Range (Fixed at Bottom) */}
-                  <div className="px-1">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="font-semibold text-gray-900">Price Range</h3>
-                      <ChevronUp className="w-4 h-4 text-gray-500" />
-                    </div>
-                    <div className="px-2">
-                      <Slider
-                        min={0}
-                        max={100000}
-                        step={100}
-                        value={priceRange}
-                        onValueChange={setPriceRange}
-                        className="w-full"
-                      />
-                      <div className="flex items-center justify-between mt-3 text-sm">
-                        <span className="text-gray-600">
-                          ₱{priceRange[0].toLocaleString()}
-                        </span>
-                        <span className="text-gray-600">
-                          ₱{priceRange[1].toLocaleString()}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
+              <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                <div className="flex flex-col gap-1">
+                  {categoryOptions.map((category) => {
+                    const isSelected = selectedCategory === category;
+                    return (
+                      <button
+                        key={category}
+                        onClick={() => {
+                          setSelectedCategory(category);
+                          setShowFilters(false);
+                        }}
+                        className={`w-full text-left px-4 rounded-xl transition-all duration-300
+                          ${isSelected
+                            ? "bg-[#ff6a00] text-white font-bold shadow-md py-4 text-base"
+                            : "text-gray-600 hover:bg-gray-50 hover:text-gray-900 font-normal py-2.5 text-sm"
+                          }
+                        `}
+                      >
+                        {category}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </motion.div>
+
+            {/* Desktop Sidebar (Fixed/Sticky) */}
+            <div className="hidden lg:block w-64 sticky top-20 self-start">
+              <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                <h3 className="font-semibold text-gray-900 mb-4 px-1">Categories</h3>
+                <div className="flex flex-col gap-1">
+                  {categoryOptions.map((category) => {
+                    const isSelected = selectedCategory === category;
+                    return (
+                      <button
+                        key={category}
+                        onClick={() => setSelectedCategory(category)}
+                        className={`w-full text-left px-4 rounded-xl transition-all duration-300
+                          ${isSelected
+                            ? "bg-[#ff6a00] text-white font-bold shadow-md py-4 text-base"
+                            : "text-gray-600 hover:bg-gray-50 hover:text-gray-900 font-normal py-2.5 text-sm"
+                          }
+                        `}
+                      >
+                        {category}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
 
             {/* Main Content */}
             <div className="flex-1">
               {/* Toolbar */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="bg-white rounded-2xl p-4 mb-6 shadow-sm"
+                animate={{
+                  opacity: isToolbarSticky ? 1 : 0,
+                  y: isToolbarSticky ? 0 : -20,
+                  pointerEvents: isToolbarSticky ? "auto" : "none"
+                }}
+                className="sticky top-[72px] z-30 mb-6 bg-gray-50/80 backdrop-blur-md py-3 -mx-2 px-2 rounded-xl transition-all duration-300"
               >
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                   <div className="flex items-center gap-4">
                     <button
                       onClick={() => setShowFilters(!showFilters)}
-                      className="lg:hidden flex items-center gap-2 px-4 py-2 bg-gray-100 rounded-lg text-sm font-medium"
+                      className="lg:hidden flex items-center gap-2 px-4 py-2 bg-gray-100/80 hover:bg-gray-200/80 rounded-xl text-xs font-semibold text-gray-700 transition-colors"
                     >
-                      <Filter className="w-4 h-4" />
-                      Filters
+                      <Menu className="w-4 h-4" />
+                      Categories
                     </button>
 
-                    <p className="text-gray-600 text-sm">
+                    <p className="text-gray-600 text-xs">
                       Showing {filteredProducts.length} results
                     </p>
                   </div>
 
-                  <div className="flex items-center gap-4">
-                    {/* Sort Dropdown */}
-                    <Select value={selectedSort} onValueChange={setSelectedSort}>
-                      <SelectTrigger className="w-[180px] border-gray-200">
-                        <SelectValue placeholder="Sort by" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {sortOptions.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                  <div className="flex flex-col items-end gap-1.5">
+                    <div className="flex flex-wrap items-center gap-3 md:gap-4">
+                      <Filter className="w-4 h-4 text-gray-400 mr-1" />
 
-                    {/* View Mode Toggle */}
-                    <div className="flex items-center bg-gray-100 rounded-lg p-1">
-                      <button
-                        onClick={() => setViewMode("grid")}
-                        className={`p-2 rounded-md transition-colors ${viewMode === "grid"
-                          ? "bg-white shadow-sm"
-                          : "text-gray-400"
-                          }`}
-                      >
-                        <Grid className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => setViewMode("list")}
-                        className={`p-2 rounded-md transition-colors ${viewMode === "list"
-                          ? "bg-white shadow-sm"
-                          : "text-gray-400"
-                          }`}
-                      >
-                        <List className="w-4 h-4" />
-                      </button>
+                      <Select value={selectedSort} onValueChange={setSelectedSort}>
+                        <SelectTrigger className="w-[130px] md:w-[150px] h-8 border-gray-200 rounded-xl bg-white transition-all hover:border-[#ff6a00] hover:shadow-sm text-[11px] text-gray-700">
+                          <SelectValue placeholder="Sort by" />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-xl border-gray-100">
+                          {sortOptions.map((option) => (
+                            <SelectItem key={option.value} value={option.value} className="text-xs">
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+
+                      {/* Price Range Filter */}
+                      <div className="hidden md:flex items-center gap-2 py-1 px-3 bg-white border border-gray-200 rounded-xl h-8">
+                        <span className="text-[9px] text-gray-500 uppercase tracking-wider">Price</span>
+                        <div className="w-16 lg:w-24 pt-1">
+                          <Slider
+                            min={0}
+                            max={100000}
+                            step={100}
+                            value={priceRange}
+                            onValueChange={setPriceRange}
+                            className="w-full text-[#ff6a00]"
+                          />
+                        </div>
+                        <div className="flex items-center gap-1 text-[11px] text-gray-700">
+                          <div className="flex items-center bg-gray-50/50 px-2 py-0.5 rounded-lg border border-transparent focus-within:border-[#ff6a00] transition-colors">
+                            <span className="text-gray-400 font-normal mr-0.5">₱</span>
+                            <input
+                              type="text"
+                              value={priceRange[0].toLocaleString()}
+                              onChange={(e) => {
+                                const val = parseInt(e.target.value.replace(/[^0-9]/g, "")) || 0;
+                                setPriceRange([val, priceRange[1]]);
+                              }}
+                              className="w-12 bg-transparent outline-none text-center"
+                            />
+                          </div>
+                          <span className="text-gray-300 font-normal">-</span>
+                          <div className="flex items-center bg-gray-50/50 px-2 py-0.5 rounded-lg border border-transparent focus-within:border-[#ff6a00] transition-colors">
+                            <span className="text-gray-400 font-normal mr-0.5">₱</span>
+                            <input
+                              type="text"
+                              value={priceRange[1].toLocaleString()}
+                              onChange={(e) => {
+                                const val = parseInt(e.target.value.replace(/[^0-9]/g, "")) || 0;
+                                setPriceRange([priceRange[0], val]);
+                              }}
+                              className="w-16 bg-transparent outline-none text-center"
+                            />
+                          </div>
+                        </div>
+                      </div>
                     </div>
+                    <button
+                      onClick={resetFilters}
+                      className="text-[12px] -mb-3 font-small text-[#ff6a00] hover:text-[#e65f00] transition-colors pr-2"
+                    >
+                      Clear Filters
+                    </button>
                   </div>
                 </div>
               </motion.div>
@@ -514,11 +539,7 @@ export default function ShopPage() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.2 }}
-                className={
-                  viewMode === "grid"
-                    ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
-                    : "space-y-4"
-                }
+                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
               >
                 {filteredProducts.map((product, index) => (
                   <motion.div
@@ -526,13 +547,10 @@ export default function ShopPage() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.05 }}
-                    className={`bg-white rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden group cursor-pointer ${viewMode === "list" ? "flex" : ""
-                      }`}
+                    className="bg-white rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden group cursor-pointer"
                     onClick={() => navigate(`/product/${product.id}`)}
                   >
-                    <div
-                      className={viewMode === "list" ? "w-48 flex-shrink-0" : ""}
-                    >
+                    <div>
                       <div className="relative aspect-square overflow-hidden">
                         <img
                           src={product.image}
