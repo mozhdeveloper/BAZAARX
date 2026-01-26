@@ -50,12 +50,12 @@ export default function OrderDetailPage() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [dbOrder, setDbOrder] = useState<Order | null>(null);
-  const [chatMessage, setChatMessage] = useState('');
+  const [chatMessage, setChatMessage] = useState("");
 
   // Review modal state
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [reviewRating, setReviewRating] = useState(0);
-  const [reviewComment, setReviewComment] = useState('');
+  const [reviewComment, setReviewComment] = useState("");
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
 
   // Initialize chat messages with lazy initialization
@@ -175,7 +175,9 @@ export default function OrderDetailPage() {
             },
             paymentMethod: {
               type: (orderData.payment_method as any)?.type || "cod",
-              details: (orderData.payment_method as any)?.details || "",
+              details: (orderData.payment_method as any)?.details
+                ? JSON.stringify((orderData.payment_method as any).details)
+                : "",
             },
             trackingNumber: orderData.tracking_number || undefined,
           };
@@ -329,7 +331,7 @@ export default function OrderDetailPage() {
   const handleShareOrder = () => {
     if (navigator.share) {
       navigator.share({
-        title: `Order #${order.orderNumber}`,
+        title: order.orderNumber,
         text: `Check out my order from BazaarPH!`,
         url: window.location.href,
       });
@@ -345,11 +347,11 @@ export default function OrderDetailPage() {
 
   const handleSubmitReview = async () => {
     if (reviewRating === 0) {
-      alert('Please select a rating');
+      alert("Please select a rating");
       return;
     }
     if (!reviewComment.trim()) {
-      alert('Please write a review comment');
+      alert("Please write a review comment");
       return;
     }
 
@@ -357,24 +359,28 @@ export default function OrderDetailPage() {
     try {
       const success = await submitOrderReview(
         order.id,
-        dbOrder?.buyer_id || '',
+        dbOrder?.buyer_id || "",
         reviewRating,
         reviewComment,
-        []
+        [],
       );
 
       if (success) {
-        alert('✅ Review submitted successfully! Thank you for your feedback.');
+        alert("✅ Review submitted successfully! Thank you for your feedback.");
         setShowReviewModal(false);
         setReviewRating(0);
-        setReviewComment('');
-        
+        setReviewComment("");
+
         // Refresh order data to show is_reviewed status
         if (orderId) {
-          const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(orderId);
+          const isUuid =
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+              orderId,
+            );
           const { data } = await supabase
-            .from('orders')
-            .select(`
+            .from("orders")
+            .select(
+              `
               *,
               order_items (
                 *,
@@ -384,20 +390,21 @@ export default function OrderDetailPage() {
                   image_url
                 )
               )
-            `)
-            .eq(isUuid ? 'id' : 'order_number', orderId)
+            `,
+            )
+            .eq(isUuid ? "id" : "order_number", orderId)
             .single();
-          
+
           if (data) {
             setDbOrder(data);
           }
         }
       } else {
-        alert('Failed to submit review. Please try again.');
+        alert("Failed to submit review. Please try again.");
       }
     } catch (error) {
-      console.error('Error submitting review:', error);
-      alert('An error occurred. Please try again.');
+      console.error("Error submitting review:", error);
+      alert("An error occurred. Please try again.");
     } finally {
       setIsSubmittingReview(false);
     }
@@ -422,7 +429,7 @@ export default function OrderDetailPage() {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
-                Order #{order.orderNumber}
+                {order.orderNumber}
               </h1>
               <p className="text-gray-600 mt-1">
                 {formatDate(order.createdAt)}
@@ -451,8 +458,6 @@ export default function OrderDetailPage() {
             </div>
           </div>
         </div>
-
-
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column - Order Details */}
@@ -576,23 +581,25 @@ export default function OrderDetailPage() {
                         <p className="font-semibold text-gray-900">
                           ₱{(item.price * item.quantity).toLocaleString()}
                         </p>
-                        {order.status === "delivered" && !dbOrder?.is_reviewed && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setShowReviewModal(true)}
-                            className="mt-2 text-orange-600 border-orange-300 hover:bg-orange-50"
-                          >
-                            <Star className="w-3 h-3 mr-1" />
-                            Review
-                          </Button>
-                        )}
-                        {order.status === "delivered" && dbOrder?.is_reviewed && (
-                          <div className="mt-2 flex items-center gap-1 text-sm text-green-600">
-                            <CheckCircle className="w-4 h-4" />
-                            <span>Reviewed</span>
-                          </div>
-                        )}
+                        {order.status === "delivered" &&
+                          !dbOrder?.is_reviewed && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setShowReviewModal(true)}
+                              className="mt-2 text-orange-600 border-orange-300 hover:bg-orange-50"
+                            >
+                              <Star className="w-3 h-3 mr-1" />
+                              Review
+                            </Button>
+                          )}
+                        {order.status === "delivered" &&
+                          dbOrder?.is_reviewed && (
+                            <div className="mt-2 flex items-center gap-1 text-sm text-green-600">
+                              <CheckCircle className="w-4 h-4" />
+                              <span>Reviewed</span>
+                            </div>
+                          )}
                       </div>
                     </div>
                   ))}
@@ -742,7 +749,6 @@ export default function OrderDetailPage() {
                       )}
                     </div>
                   </div>
-
                 </div>
               </CardContent>
             </Card>
@@ -849,7 +855,9 @@ export default function OrderDetailPage() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-semibold text-gray-900">Write a Review</h3>
+              <h3 className="text-xl font-semibold text-gray-900">
+                Write a Review
+              </h3>
               <button
                 onClick={() => setShowReviewModal(false)}
                 className="text-gray-500 hover:text-gray-700"
@@ -876,7 +884,7 @@ export default function OrderDetailPage() {
                           "w-8 h-8",
                           star <= reviewRating
                             ? "fill-yellow-400 text-yellow-400"
-                            : "text-gray-300"
+                            : "text-gray-300",
                         )}
                       />
                     </button>
@@ -913,7 +921,7 @@ export default function OrderDetailPage() {
                   className="flex-1 bg-orange-500 hover:bg-orange-600 text-white"
                   disabled={isSubmittingReview}
                 >
-                  {isSubmittingReview ? 'Submitting...' : 'Submit Review'}
+                  {isSubmittingReview ? "Submitting..." : "Submit Review"}
                 </Button>
               </div>
             </div>
