@@ -83,11 +83,18 @@ export const getSellerOrders = async (sellerId: string): Promise<Order[]> => {
   try {
     const { data, error } = await supabase
       .from('orders')
-      .select('*, order_items(*)')
+      .select(`
+        *,
+        order_items(*)
+      `)
       .eq('seller_id', sellerId)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
+    
+    console.log('📦 Fetched orders sample (first order):', data?.[0]);
+    console.log('🔍 First order buyer_id:', data?.[0]?.buyer_id);
+    
     return data || [];
   } catch (error) {
     console.error('Error fetching seller orders:', error);
