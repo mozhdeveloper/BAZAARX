@@ -23,9 +23,10 @@ import {
 
 interface HeaderProps {
   transparentOnTop?: boolean;
+  hideSearch?: boolean;
 }
 
-const Header: React.FC<HeaderProps> = ({ transparentOnTop = false }) => {
+const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = false }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { profile, logout, getTotalCartItems, initializeCart, subscribeToProfile, unsubscribeFromProfile } = useBuyerStore();
@@ -86,14 +87,14 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false }) => {
                 alt="BazaarX Logo"
                 className="h-12 w-auto object-contain"
               />
-              <span 
+              <span
                 className="font-['Tenor Sans'] text-2xl font-bold tracking-tight hidden md:block text-[var(--brand-primary)]">
                 BazaarX
               </span>
             </div>
           </div>
 
-          {!isSearchPage && (
+          {!isSearchPage && !hideSearch && (
             <div className={`hidden md:flex flex-1 items-center justify-center lg:absolute lg:left-1/2 lg:-translate-x-1/2 lg:w-full lg:max-w-2xl px-4 lg:px-8 transition-opacity duration-300 ${transparentOnTop && !isScrolled ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
               <div className="relative w-full max-w-xl lg:max-w-full group">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -102,7 +103,7 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false }) => {
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
-                  > 
+                  >
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -139,9 +140,9 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false }) => {
           )}
 
           {/* Right Navigation */}
-          <div 
+          <div
             className="flex items-center justify-end text-gray-700 shrink-0 gap-[var(--spacing-md)]">
-            {!isSearchPage && (
+            {!isSearchPage && !hideSearch && (
               <button
                 onClick={() => navigate("/search")}
                 className="md:hidden p-2 hover:bg-gray-100 rounded-full transition-colors"
