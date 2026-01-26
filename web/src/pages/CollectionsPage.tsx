@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { ArrowRight, Sparkles, TrendingUp, Heart, Star } from 'lucide-react';
 import Header from '../components/Header';
 import { BazaarFooter } from '../components/ui/bazaar-footer';
@@ -13,10 +13,32 @@ const CollectionsPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-b from-orange-50/30 to-white">
       <Header />
-      
+
       {/* Hero Section - Glass-like Gradient */}
-      <div className="">
-        <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 py-16 bg-gradient-to-br from-orange-100/20 via-orange-200/50 to-orange-200/50 backdrop-blur-md border-xl border-orange-200/30 rounded-3xl">
+      <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 pt-0 flex flex-col gap-2">
+        {/* Page Navigation */}
+        <div className="flex items-center justify-center gap-10 pt-1 pb-1">
+          <Link
+            to="/shop"
+            className="text-sm text-gray-500 hover:text-[var(--brand-primary)] transition-all duration-300"
+          >
+            Shop
+          </Link>
+          <Link
+            to="/collections"
+            className="text-sm text-[var(--brand-primary)]"
+          >
+            Collections
+          </Link>
+          <Link
+            to="/stores"
+            className="text-sm text-gray-500 hover:text-[var(--brand-primary)] transition-all duration-300"
+          >
+            Stores
+          </Link>
+        </div>
+
+        <div className="w-full py-4 bg-gradient-to-br from-orange-100/20 via-orange-200/50 to-orange-200/50 backdrop-blur-md border border-orange-200/30 rounded-3xl">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -29,8 +51,8 @@ const CollectionsPage: React.FC = () => {
                 Collections
               </span>
             </h1>
-            
-            <p className="text-lg text-gray-700 max-w-2xl mx-auto">
+
+            <p className="text-medium text-gray-700 max-w-2xl mx-auto">
               Explore carefully curated collections featuring the best products from Filipino sellers
             </p>
           </motion.div>
@@ -52,11 +74,10 @@ const CollectionsPage: React.FC = () => {
               {['All', 'Trending', 'New', 'Popular'].map((filter) => (
                 <button
                   key={filter}
-                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                    filter === 'All'
-                      ? 'bg-orange-500 text-white'
-                      : 'bg-white border border-gray-200 text-gray-600 hover:border-orange-500 hover:text-orange-500'
-                  }`}
+                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${filter === 'All'
+                    ? 'bg-orange-500 text-white'
+                    : 'bg-white border border-gray-200 text-gray-600 hover:border-orange-500 hover:text-orange-500'
+                    }`}
                 >
                   {filter}
                 </button>
@@ -90,10 +111,10 @@ const CollectionsPage: React.FC = () => {
                     }}
                     transition={{ duration: 0.3 }}
                   />
-                  
+
                   {/* Overlay Gradient */}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-                  
+
                   {/* Badge */}
                   {collection.badge && (
                     <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-sm font-medium flex items-center gap-1">
@@ -126,7 +147,7 @@ const CollectionsPage: React.FC = () => {
                     <p className="text-white/90 text-sm mb-3 line-clamp-2">
                       {collection.description}
                     </p>
-                    
+
                     {/* Stats */}
                     <div className="flex items-center gap-4 text-white/80 text-sm mb-4">
                       <div className="flex items-center gap-1">
@@ -174,7 +195,7 @@ const CollectionsPage: React.FC = () => {
               <ArrowRight className="w-5 h-5" />
             </button>
           </div>
-          
+
           {/* Decorative Elements */}
           <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-32 translate-x-32" />
           <div className="absolute bottom-0 left-0 w-96 h-96 bg-white/10 rounded-full translate-y-48 -translate-x-48" />
@@ -190,7 +211,7 @@ const CollectionsPage: React.FC = () => {
           <h2 className="text-3xl font-bold text-gray-900 text-center mb-12">
             Why Shop Our Collections?
           </h2>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {[
               {
