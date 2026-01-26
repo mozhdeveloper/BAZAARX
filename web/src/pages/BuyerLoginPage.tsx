@@ -230,7 +230,7 @@ export default function BuyerLoginPage() {
 
           <form onSubmit={handleLogin} className="space-y-5">
             <div className="space-y-1.5">
-              <label className="text-sm font-bold text-[var(--text-secondary)] ml-1">Email Address</label>
+              <label className="text-sm font-bold text-[var(--text-primary)] ml-1">Email Address</label>
               <div className="relative">
                 <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] w-4 h-4" />
                 <input
@@ -247,7 +247,7 @@ export default function BuyerLoginPage() {
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-sm font-bold text-[var(--text-secondary)] ml-1">Password</label>
+              <label className="text-sm font-bold text-[var(--text-primary)] ml-1">Password</label>
               <div className="relative">
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] w-4 h-4" />
                 <input
@@ -272,7 +272,7 @@ export default function BuyerLoginPage() {
                   type="checkbox"
                   className="w-4 h-4 rounded border-[var(--border)] text-[var(--primary)] focus:ring-[var(--primary)]"
                 />
-                <span className="text-sm text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] transition-colors">
+                <span className="text-sm text-[var(--text-primary)] group-hover:text-[var(--text-primary)] transition-colors">
                   Remember me
                 </span>
               </div>
@@ -298,7 +298,7 @@ export default function BuyerLoginPage() {
             <button
               type="button"
               onClick={handleGoogleSignIn}
-              className="btn-ghost w-full h-14 text-sm font-medium flex items-center border-2 border-[var(--border)] hover:border-[var(--brand-primary)] hover:bg-[var(--secondary)]/5 rounded-[var(--radius-md)] justify-center gap-3"
+              className="w-full h-14 text-sm font-medium flex items-center border-2 border-[var(--border)] hover:border-[var(--brand-primary)] hover:bg-[var(--secondary)]/5 rounded-[var(--radius-md)] justify-center gap-3 transition-all duration-200"
               disabled={isLoading}
             >
               <img
