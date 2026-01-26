@@ -12,8 +12,11 @@ import {
     Image,
     Dimensions,
 } from 'react-native';
-import { ArrowLeft, Send, MoreVertical, Store, CheckCircle2 } from 'lucide-react-native';
+import { ArrowLeft, Send, MoreVertical, Store, CheckCircle2, Ticket } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../../App';
 
 const { width } = Dimensions.get('window');
 
@@ -22,6 +25,10 @@ interface Message {
     text: string;
     isUser: boolean;
     timestamp: Date;
+    action?: {
+        label: string;
+        target: 'CreateTicket';
+    };
 }
 
 interface StoreChatModalProps {
@@ -39,6 +46,7 @@ const quickReplies = [
 
 export default function StoreChatModal({ visible, onClose, storeName }: StoreChatModalProps) {
     const insets = useSafeAreaInsets();
+    const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
     const [messages, setMessages] = useState<Message[]>([
         {
             id: '1',
@@ -80,24 +88,48 @@ export default function StoreChatModal({ visible, onClose, storeName }: StoreCha
             // Simulate Store typing and response
             setTimeout(() => {
                 setIsTyping(false);
+                const response = getAutoResponse(messageText);
                 const autoResponse: Message = {
                     id: (Date.now() + 1).toString(),
-                    text: getAutoResponse(messageText),
+                    text: response.text,
                     isUser: false,
                     timestamp: new Date(),
+                    action: response.action,
                 };
                 setMessages((prev) => [...prev, autoResponse]);
             }, 1500);
         }
     };
 
-    const getAutoResponse = (input: string): string => {
+    const getAutoResponse = (input: string): { text: string, action?: { label: string, target: 'CreateTicket' } } => {
         const lower = input.toLowerCase();
-        if (lower.includes('available')) return "Yes, this item is in stock and ready to ship! 📦";
-        if (lower.includes('real photo') || lower.includes('picture')) return "Sending you actual photos shortly... 📸";
-        if (lower.includes('discount') || lower.includes('price')) return "You can claim our store vouchers for extra savings! 💰";
-        if (lower.includes('ship')) return "We ship daily at 4PM. Orders placed before then ship today! 🚚";
-        return "Thanks for your message! Our staff will get back to you shortly.";
+        
+        // Smart Redirect Logic
+        // Smart Redirect Logic
+        const ticketKeywords = ['ticket', 'refund', 'return', 'complaint', 'broken', 'missing', 'damaged', 'received wrong', 'bad quality', 'support', 'technical error', 'app bug'];
+        if (ticketKeywords.some(keyword => lower.includes(keyword))) {
+            return {
+                text: "We're sorry to hear you're having trouble. For issues like this, it's best to open an official support ticket so we can track and resolve it properly.",
+                action: {
+                    label: 'Create a Ticket',
+                    target: 'CreateTicket'
+                }
+            };
+        }
+
+        if (lower.includes('available')) return { text: "Yes, this item is in stock and ready to ship! 📦" };
+        if (lower.includes('real photo') || lower.includes('picture')) return { text: "Sending you actual photos shortly... 📸" };
+        if (lower.includes('discount') || lower.includes('price')) return { text: "You can claim our store vouchers for extra savings! 💰" };
+        if (lower.includes('ship')) return { text: "We ship daily at 4PM. Orders placed before then ship today! 🚚" };
+        
+        return { text: "Thanks for your message! Our staff will get back to you shortly." };
+    };
+
+    const handleAction = (target: string) => {
+        if (target === 'CreateTicket') {
+            onClose();
+            navigation.navigate('CreateTicket');
+        }
     };
 
     return (
@@ -126,9 +158,17 @@ export default function StoreChatModal({ visible, onClose, storeName }: StoreCha
                         </View>
                     </View>
 
-                    <Pressable style={styles.menuButton}>
-                        <MoreVertical size={24} color="#FFFFFF" />
-                    </Pressable>
+                    <View style={{ flexDirection: 'row' }}>
+                        <Pressable 
+                            style={styles.menuButton} 
+                            onPress={() => handleAction('CreateTicket')}
+                        >
+                            <Ticket size={24} color="#FFFFFF" />
+                        </Pressable>
+                        <Pressable style={styles.menuButton}>
+                            <MoreVertical size={24} color="#FFFFFF" />
+                        </Pressable>
+                    </View>
                 </View>
 
                 {/* Messages */}
@@ -154,6 +194,19 @@ export default function StoreChatModal({ visible, onClose, storeName }: StoreCha
                             ]}>
                                 {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </Text>
+
+                            {/* Action Button */}
+                            {message.action && (
+                                <Pressable 
+                                    style={styles.actionButton}
+                                    onPress={() => message.action && handleAction(message.action.target)}
+                                >
+                                    <Text style={styles.actionButtonText}>{message.action.label}</Text>
+                                    <View style={{ marginLeft: 6 }}>
+                                        <ArrowLeft size={16} color="#FFF" style={{ transform: [{ rotate: '180deg' }] }} />
+                                    </View>
+                                </Pressable>
+                            )}
                         </View>
                     ))}
 
@@ -374,5 +427,22 @@ const styles = StyleSheet.create({
     },
     sendButtonDisabled: {
         backgroundColor: '#E5E7EB',
+    },
+    actionButton: {
+        marginTop: 12,
+        backgroundColor: '#10B981', // Success/Green
+        paddingVertical: 10,
+        paddingHorizontal: 16,
+        borderRadius: 8,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        // Removed gap for compatibility
+        minHeight: 40,
+    },
+    actionButtonText: {
+        color: '#FFF',
+        fontWeight: '600',
+        fontSize: 13,
     },
 });
