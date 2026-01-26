@@ -337,7 +337,7 @@ export default function OrdersPage() {
     <div className="min-h-screen bg-white">
       <Header />
 
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
         {/* Success notification for new order */}
         {newOrderId && showSuccessBanner && (
           <motion.div
@@ -372,57 +372,57 @@ export default function OrdersPage() {
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-8 -mt-4"
+          className="mb-4 -mt-2"
         >
           <Button
             variant="ghost"
             onClick={() => navigate('/shop')}
-            className="mb-4 -ml-2"
+            className="mb-1 -ml-2 h-8 text-xs"
           >
-            <ArrowLeft className="w-4 h-4 mr-2" />
+            <ArrowLeft className="w-3.5 h-3.5 mr-2" />
             Back to Shop
           </Button>
-          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">My Orders</h1>
-          <p className="text-gray-600 -mb-4">Track and manage all your orders</p>
+          <h1 className="text-xl lg:text-2xl font-bold text-gray-900">My Orders</h1>
+          <p className="text-gray-500 text-sm">Track and manage all your orders</p>
         </motion.div>
 
-
-        {/* Filters */}
         {/* Filters */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-4 flex flex-col md:flex-row md:items-center justify-between gap-4"
+          className="mb-4 flex flex-col lg:flex-row items-stretch lg:items-center gap-3 lg:gap-4"
         >
-          {/* Status Navigation */}
-          <div className="overflow-x-auto scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0 flex-1 min-w-0">
-            <nav className="inline-flex bg-gray-100/80 p-1 rounded-full min-w-full sm:min-w-0">
-              {statusOptions.map((option) => (
-                <button
-                  key={option.value}
-                  onClick={() => setStatusFilter(option.value)}
-                  className={cn(
-                    "px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all duration-300 hover:scale-105 active:scale-95",
-                    statusFilter === option.value
-                      ? "bg-white text-[#FF5722] shadow-md shadow-gray-200/50"
-                      : "text-gray-500 hover:text-gray-700 hover:bg-white/50"
-                  )}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </nav>
+          {/* Status Navigation Container */}
+          <div className="flex-1 relative min-w-0">
+            <div className="overflow-x-auto scrollbar-hide pb-0.5">
+              <div className="inline-flex items-center p-1 bg-gray-50/80 rounded-full border border-gray-100 shadow-sm min-w-full md:min-w-max">
+                {statusOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    onClick={() => setStatusFilter(option.value)}
+                    className={cn(
+                      "px-4 py-1.5 rounded-full text-[11px] sm:text-xs font-medium whitespace-nowrap transition-all duration-300",
+                      statusFilter === option.value
+                        ? "bg-white text-[#FF5722] shadow-md shadow-orange-500/10 ring-1 ring-orange-500/10"
+                        : "text-gray-500 hover:text-[#FF5722] hover:bg-white/50"
+                    )}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
 
-          {/* Search */}
-          <div className="relative w-full md:w-48 lg:w-80">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#FF5722] w-4 h-4" />
+          {/* Search bar */}
+          <div className="relative w-full lg:w-64 xl:w-72 flex-shrink-0 self-center">
+            <Search className="absolute left-3.5 top-1/2 transform -translate-y-1/2 text-[#FF5722] w-3.5 h-3.5" />
             <input
               type="text"
-              placeholder="Search orders by product name or ID ..."
+              placeholder="Search orders..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-1.5 border-2 border-gray-200 rounded-full focus:outline-none focus:ring-[#FF6a00] focus:border-[#FF6a00] bg-white text-sm text-gray-900 placeholder-gray-400 shadow-sm transition-all hover:border-[#FF6a00]/50"
+              className="w-full pl-10 pr-4 py-1.5 border-2 border-gray-100 rounded-full focus:outline-none focus:ring-2 focus:ring-[#FF6a00]/10 focus:border-[#FF6a00] bg-white text-xs sm:text-sm text-gray-900 placeholder-gray-400 shadow-sm transition-all hover:border-[#FF5722]/30"
             />
           </div>
         </motion.div>
@@ -467,11 +467,10 @@ export default function OrdersPage() {
                   className="bg-white border border-gray-200 rounded-xl p-3 sm:p-4 hover:shadow-lg transition-shadow"
                 >
                   {order.status === 'reviewed' ? (
-                    // COMPRESSED LAYOUT
                     <div className="flex flex-col gap-2">
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between cursor-pointer hover:bg-gray-50 rounded-lg -mx-2 px-2 py-1 transition-colors" onClick={() => navigate(`/order/${encodeURIComponent(order.id)}`)}>
                         <div className="flex items-center gap-3">
-                          <h3 className="font-semibold text-gray-900">Order #{order.id.includes('_') ? order.id.split('_')[1] : order.id}</h3>
+                          <h3 className="font-semibold text-gray-900">Order #{order.id}</h3>
                           <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border ${getStatusColor(order.status)}`}>
                             {getStatusIcon(order.status)}
                             <span className="capitalize">Reviewed</span>
@@ -482,7 +481,7 @@ export default function OrdersPage() {
                           <span>{formatDate(order.createdAt)}</span>
                         </div>
                       </div>
-                      <div className="space-y-2 cursor-pointer hover:bg-gray-50 rounded-lg -mx-2 px-2 py-1 transition-colors" onClick={() => navigate(`/order/${order.id}`)}>
+                      <div className="space-y-2 cursor-pointer hover:bg-gray-50 rounded-lg -mx-2 px-2 py-1 transition-colors" onClick={() => navigate(`/order/${encodeURIComponent(order.id)}`)}>
                         {order.items.slice(0, 1).map(item => (
                           <div key={item.id} className="flex items-center justify-between gap-3 w-full">
                             <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -528,9 +527,9 @@ export default function OrdersPage() {
                   ) : (
                     <div className="flex flex-col gap-2">
                       {/* Compact Header */}
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between cursor-pointer hover:bg-gray-50 rounded-lg -mx-2 px-2 py-1 transition-colors" onClick={() => navigate(`/order/${encodeURIComponent(order.id)}`)}>
                         <div className="flex items-center gap-3">
-                          <h3 className="font-semibold text-gray-900">Order #{order.id.includes('_') ? order.id.split('_')[1] : order.id}</h3>
+                          <h3 className="font-semibold text-gray-900">Order #{order.id}</h3>
                           {/* New Order Indicator */}
                           {isNewOrder(order) && (
                             <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-orange-500 text-white animate-pulse">
@@ -549,9 +548,7 @@ export default function OrdersPage() {
                         </div>
                       </div>
 
-                      {/* Compact Items List */}
-                      {/* Compact Items List */}
-                      <div className="space-y-2 cursor-pointer hover:bg-gray-50 rounded-lg -mx-2 px-2 py-1 transition-colors" onClick={() => navigate(`/order/${order.id}`)}>
+                      <div className="space-y-2 cursor-pointer hover:bg-gray-50 rounded-lg -mx-2 px-2 py-1 transition-colors" onClick={() => navigate(`/order/${encodeURIComponent(order.id)}`)}>
                         {order.items.slice(0, 1).map(item => (
                           <div key={item.id} className="flex items-center justify-between gap-3 w-full">
                             <div className="flex items-center gap-3 flex-1 min-w-0">
