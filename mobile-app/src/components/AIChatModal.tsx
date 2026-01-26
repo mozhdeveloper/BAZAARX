@@ -12,8 +12,11 @@ import {
   Image,
   Dimensions,
 } from 'react-native';
-import { ArrowLeft, Send, Bot, MoreVertical, Scale } from 'lucide-react-native';
+import { ArrowLeft, Send, Bot, MoreVertical, Scale, Ticket } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../../App';
 
 const { width } = Dimensions.get('window');
 
@@ -36,6 +39,10 @@ interface Message {
   isUser: boolean;
   timestamp: Date;
   comparison?: ProductComparison;
+  action?: {
+      label: string;
+      target: 'CreateTicket';
+  };
 }
 
 interface AIChatModalProps {
@@ -52,6 +59,7 @@ const suggestedQuestions = [
 
 export default function AIChatModal({ visible, onClose }: AIChatModalProps) {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -156,6 +164,21 @@ export default function AIChatModal({ visible, onClose }: AIChatModalProps) {
   const getDummyResponse = (input: string): Message | null => {
     const lowerInput = input.toLowerCase();
     
+    // Smart Redirect Logic
+    const ticketKeywords = ['ticket', 'refund', 'return', 'complaint', 'broken', 'missing', 'damaged', 'received wrong', 'bad quality', 'support', 'technical error', 'app bug'];
+    if (ticketKeywords.some(keyword => lowerInput.includes(keyword))) {
+        return {
+            id: (Date.now() + 1).toString(),
+            text: "I can help with that! It sounds like you might need to raise an official support ticket. You can do that right here:",
+            isUser: false,
+            timestamp: new Date(),
+            action: {
+                label: 'Create a Ticket',
+                target: 'CreateTicket'
+            }
+        };
+    }
+
     if (lowerInput.includes('compare') && (lowerInput.includes('earbud') || lowerInput.includes('headphone'))) {
       return {
         id: (Date.now() + 1).toString(),
@@ -259,6 +282,13 @@ export default function AIChatModal({ visible, onClose }: AIChatModalProps) {
     }
   };
 
+  const handleAction = (target: string) => {
+    if (target === 'CreateTicket') {
+        onClose();
+        navigation.navigate('CreateTicket');
+    }
+  };
+
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView
@@ -272,9 +302,14 @@ export default function AIChatModal({ visible, onClose }: AIChatModalProps) {
             <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
           </Pressable>
           <Text style={styles.headerTitle}>AI Assistant</Text>
-          <Pressable onPress={handleClearChat} style={styles.menuButton}>
-            <Text style={styles.clearText}>Clear</Text>
-          </Pressable>
+          <View style={{ flexDirection: 'row' }}>
+            <Pressable onPress={() => handleAction('CreateTicket')} style={styles.menuButton}>
+                <Ticket size={24} color="#FFFFFF" />
+            </Pressable>
+            <Pressable onPress={handleClearChat} style={styles.menuButton}>
+                <Text style={styles.clearText}>Clear</Text>
+            </Pressable>
+          </View>
         </View>
 
         {/* Messages - Light Grey Background */}
@@ -327,6 +362,19 @@ export default function AIChatModal({ visible, onClose }: AIChatModalProps) {
                     >
                       {message.text}
                     </Text>
+
+                    {/* Action Button */}
+                    {message.action && (
+                        <Pressable 
+                            style={styles.actionButton}
+                            onPress={() => message.action && handleAction(message.action.target)}
+                        >
+                            <Text style={styles.actionButtonText}>{message.action.label}</Text>
+                            <View style={{ marginLeft: 6 }}>
+                                <ArrowLeft size={16} color="#FFF" style={{ transform: [{ rotate: '180deg' }] }} />
+                            </View>
+                        </Pressable>
+                    )}
                   </View>
                 </View>
               )}
@@ -672,5 +720,21 @@ const styles = StyleSheet.create({
     backgroundColor: '#D1D5DB',
     shadowColor: '#000',
     shadowOpacity: 0.1,
+  },
+  actionButton: {
+    marginTop: 12,
+    backgroundColor: '#10B981', // Success/Green
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 40,
+  },
+  actionButtonText: {
+    color: '#FFF',
+    fontWeight: '600',
+    fontSize: 13,
   },
 });
