@@ -11,7 +11,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { useBuyerStore } from "../stores/buyerStore";
-import { signIn } from "../services/authService";
+import { signIn, signInWithProvider } from "../services/authService";
 import { supabase } from "../lib/supabase";
 
 export default function BuyerLoginPage() {
@@ -128,15 +128,25 @@ export default function BuyerLoginPage() {
     }
   };
 
-  const handleGoogleSignIn = () => {
+  const handleGoogleSignIn = async () => {
     setError("");
-    alert("Google Sign-In integration coming soon!");
+    setIsLoading(true);
+    await signInWithProvider("google");
+    // Since this redirects, we don't need to unset loading unless it fails immediately, but for UX safety:
+    setTimeout(() => setIsLoading(false), 3000);
   };
 
   const handleDemoLogin = () => {
     setEmail("buyer@bazaarx.ph");
     setPassword("password");
     setError("");
+  };
+
+  const handleFacebookSignIn = async () => {
+    setError("");
+    setIsLoading(true);
+    await signInWithProvider("facebook");
+    setTimeout(() => setIsLoading(false), 3000);
   };
 
   return (
@@ -183,7 +193,7 @@ export default function BuyerLoginPage() {
             BazaarX
           </h1>
           <p className="text-orange-500 font-bold text-[10px] lg:text-xs uppercase tracking-[0.2em] mb-2 lg:mb-5 whitespace-nowrap">
-            From Global Factories Directly to Your Doorstep
+            From Global Factories to Your Doorstep
           </p>
         </motion.div>
 
@@ -230,7 +240,7 @@ export default function BuyerLoginPage() {
 
           <form onSubmit={handleLogin} className="space-y-5">
             <div className="space-y-1.5">
-              <label className="text-sm font-bold text-[var(--text-secondary)] ml-1">Email Address</label>
+              <label className="text-sm font-bold text-[var(--text-primary)] ml-1">Email Address</label>
               <div className="relative">
                 <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] w-4 h-4" />
                 <input
@@ -247,7 +257,7 @@ export default function BuyerLoginPage() {
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-sm font-bold text-[var(--text-secondary)] ml-1">Password</label>
+              <label className="text-sm font-bold text-[var(--text-primary)] ml-1">Password</label>
               <div className="relative">
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] w-4 h-4" />
                 <input
@@ -272,7 +282,7 @@ export default function BuyerLoginPage() {
                   type="checkbox"
                   className="w-4 h-4 rounded border-[var(--border)] text-[var(--primary)] focus:ring-[var(--primary)]"
                 />
-                <span className="text-sm text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] transition-colors">
+                <span className="text-sm text-[var(--text-primary)] group-hover:text-[var(--text-primary)] transition-colors">
                   Remember me
                 </span>
               </div>
@@ -295,19 +305,35 @@ export default function BuyerLoginPage() {
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={handleGoogleSignIn}
-              className="btn-ghost w-full h-14 text-sm font-medium flex items-center border-2 border-[var(--border)] hover:border-[var(--brand-primary)] hover:bg-[var(--secondary)]/5 rounded-[var(--radius-md)] justify-center gap-3"
-              disabled={isLoading}
-            >
-              <img
-                src="https://www.svgrepo.com/show/475656/google-color.svg"
-                className="w-5 h-5"
-                alt="Google"
-              />
-              Google
-            </button>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={handleGoogleSignIn}
+                className="w-full h-14 text-sm font-medium flex items-center border-2 border-[var(--border)] hover:border-[var(--brand-primary)] hover:bg-[var(--secondary)]/5 rounded-[var(--radius-md)] justify-center gap-2 transition-all duration-200"
+                disabled={isLoading}
+              >
+                <img
+                  src="https://www.svgrepo.com/show/475656/google-color.svg"
+                  className="w-5 h-5"
+                  alt="Google"
+                />
+                <span>Google</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleFacebookSignIn}
+                className="w-full h-14 text-sm font-medium flex items-center border-2 border-[var(--border)] hover:border-[var(--brand-primary)] hover:bg-[var(--secondary)]/5 rounded-[var(--radius-md)] justify-center gap-2 transition-all duration-200"
+                disabled={isLoading}
+              >
+                <img
+                  src="https://www.svgrepo.com/show/475647/facebook-color.svg"
+                  className="w-5 h-5"
+                  alt="Facebook"
+                />
+                <span>Facebook</span>
+              </button>
+            </div>
           </form>
 
           <p className="mt-8 text-center text-[#6B7280] text-sm">

@@ -16,6 +16,7 @@ import { Mail, Lock, Eye, EyeOff, ArrowRight, Zap, CheckCircle2 } from 'lucide-r
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../../src/lib/supabase';
 import { useSellerStore } from '../../src/stores/sellerStore';
+import { useAuthStore } from '../../src/stores/authStore';
 import { LinearGradient } from 'expo-linear-gradient';
 
 const { width } = Dimensions.get('window');
@@ -84,6 +85,10 @@ export default function SellerLoginScreen() {
             dti_registration_url: sellerData.dti_registration_url,
             tax_id_url: sellerData.tax_id_url,
           });
+          
+          // Sync with AuthStore
+          useAuthStore.getState().addRole('seller');
+          useAuthStore.getState().switchRole('seller');
         }
 
         navigation.replace('SellerStack');

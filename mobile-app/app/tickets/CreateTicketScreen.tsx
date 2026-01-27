@@ -12,10 +12,12 @@ type Props = NativeStackScreenProps<RootStackParamList, 'CreateTicket'>;
 
 const CATEGORIES: TicketCategory[] = ['Order', 'Account', 'Payment', 'Technical', 'Other'];
 
-export default function CreateTicketScreen({ navigation }: Props) {
+export default function CreateTicketScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
-  const [subject, setSubject] = useState('');
-  const [description, setDescription] = useState('');
+  const { initialSubject, initialDescription } = (route.params as any) || {};
+
+  const [subject, setSubject] = useState(initialSubject || '');
+  const [description, setDescription] = useState(initialDescription || '');
   const [category, setCategory] = useState<TicketCategory>('Order');
   const [showcategoryPicker, setShowCategoryPicker] = useState(false);
   const [loading, setLoading] = useState(false);

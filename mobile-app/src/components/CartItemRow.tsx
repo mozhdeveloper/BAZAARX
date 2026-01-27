@@ -20,7 +20,7 @@ export const CartItemRow: React.FC<CartItemRowProps> = ({
   return (
     <View style={styles.container}>
       <Image source={{ uri: item.image }} style={styles.image} resizeMode="cover" />
-      
+
       <View style={styles.infoContainer}>
         <Text style={styles.name} numberOfLines={2}>
           {item.name}
@@ -29,14 +29,14 @@ export const CartItemRow: React.FC<CartItemRowProps> = ({
           {item.seller}
         </Text>
         <Text style={styles.price}>₱{item.price.toLocaleString()}</Text>
-        
+
         <View style={styles.actionsContainer}>
           <QuantityStepper
             value={item.quantity}
             onIncrement={onIncrement}
             onDecrement={onDecrement}
           />
-          
+
           <Pressable onPress={onRemove} style={styles.removeButton}>
             <Trash2 size={18} color="#EF4444" />
           </Pressable>
@@ -49,25 +49,21 @@ export const CartItemRow: React.FC<CartItemRowProps> = ({
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 16,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
+    // REMOVED: backgroundColor, borderRadius, shadow, and elevation 
+    // This allows the component to be "transparent" and sit inside the parent card
+    paddingVertical: 12,
+    paddingRight: 12,
+    flex: 1,
   },
   image: {
-    width: 100,
-    height: 100,
+    width: 90,
+    height: 90,
     borderRadius: 12,
     backgroundColor: '#F8FAFC',
   },
   infoContainer: {
     flex: 1,
-    marginLeft: 16,
+    marginLeft: 12, // Reduced spacing
     justifyContent: 'space-between',
   },
   name: {
@@ -94,15 +90,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    marginTop: 8, // Added spacing to prevent overlap with price
   },
   removeButton: {
     padding: 8,
     backgroundColor: '#FEE2E2',
-    borderRadius: 999,
-    shadowColor: '#EF4444',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    borderRadius: 10,
   },
 });

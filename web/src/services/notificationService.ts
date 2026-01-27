@@ -33,6 +33,37 @@ export async function createNotification(params: {
   priority?: 'low' | 'normal' | 'high' | 'urgent';
 }): Promise<Notification | null> {
   try {
+    // Validate required parameters
+    if (!params.userId) {
+      console.error('❌ createNotification: userId is required', { params });
+      return null;
+    }
+    if (!params.userType) {
+      console.error('❌ createNotification: userType is required', { params });
+      return null;
+    }
+    if (!params.type) {
+      console.error('❌ createNotification: type is required', { params });
+      return null;
+    }
+    if (!params.title) {
+      console.error('❌ createNotification: title is required', { params });
+      return null;
+    }
+    if (!params.message) {
+      console.error('❌ createNotification: message is required', { params });
+      return null;
+    }
+
+    console.log(`📢 Creating ${params.userType} notification:`, {
+      userId: params.userId,
+      userType: params.userType,
+      type: params.type,
+      title: params.title,
+      message: params.message,
+      priority: params.priority || 'normal'
+    });
+
     const { data, error } = await supabase
       .from('notifications')
       .insert({
@@ -52,14 +83,23 @@ export async function createNotification(params: {
       .single();
 
     if (error) {
-      console.error('❌ Error creating notification:', error);
+      console.error('❌ Supabase error creating notification:', {
+        code: (error as any).code,
+        message: error.message,
+        details: (error as any).details,
+        params: params
+      });
       return null;
     }
 
-    console.log('✅ Notification created:', data);
+    console.log('✅ Notification created successfully:', data?.id);
     return data;
   } catch (error) {
-    console.error('❌ Exception creating notification:', error);
+    console.error('❌ Exception creating notification:', {
+      error,
+      params,
+      stack: (error as any)?.stack
+    });
     return null;
   }
 }
@@ -207,7 +247,20 @@ export async function notifySellerNewOrder(params: {
   buyerName: string;
   total: number;
 }): Promise<Notification | null> {
-  return createNotification({
+  console.log('📦 notifySellerNewOrder called with:', {
+    sellerId: params.sellerId,
+    orderId: params.orderId,
+    orderNumber: params.orderNumber,
+    buyerName: params.buyerName,
+    total: params.total
+  });
+
+  if (!params.sellerId) {
+    console.error('❌ notifySellerNewOrder: sellerId is missing!', { params });
+    return null;
+  }
+
+  const result = await createNotification({
     userId: params.sellerId,
     userType: 'seller',
     type: 'seller_new_order',
@@ -219,6 +272,11 @@ export async function notifySellerNewOrder(params: {
     actionData: { orderId: params.orderId },
     priority: 'high'
   });
+
+  if (!result) {
+    console.error('❌ notifySellerNewOrder: Failed to create notification', { params });
+  }
+  return result;
 }
 
 /**
@@ -231,6 +289,19 @@ export async function notifyBuyerOrderStatus(params: {
   status: string;
   message: string;
 }): Promise<Notification | null> {
+  console.log('🚀 notifyBuyerOrderStatus called with:', {
+    buyerId: params.buyerId,
+    orderId: params.orderId,
+    orderNumber: params.orderNumber,
+    status: params.status,
+    message: params.message
+  });
+
+  if (!params.buyerId) {
+    console.error('❌ notifyBuyerOrderStatus: buyerId is missing!', { params });
+    return null;
+  }
+
   const iconMap: Record<string, { icon: string; bg: string }> = {
     confirmed: { icon: 'CheckCircle', bg: 'bg-blue-500' },
     shipped: { icon: 'Truck', bg: 'bg-orange-500' },
@@ -240,7 +311,9 @@ export async function notifyBuyerOrderStatus(params: {
 
   const iconInfo = iconMap[params.status] || { icon: 'Bell', bg: 'bg-gray-500' };
 
-  return createNotification({
+  console.log(`📋 Creating buyer notification for status '${params.status}'`, { iconInfo });
+
+  const result = await createNotification({
     userId: params.buyerId,
     userType: 'buyer',
     type: `order_${params.status}`,
@@ -252,4 +325,9 @@ export async function notifyBuyerOrderStatus(params: {
     actionData: { orderId: params.orderId },
     priority: 'normal'
   });
+
+  if (!result) {
+    console.error('❌ notifyBuyerOrderStatus: Failed to create notification', { params });
+  }
+  return result;
 }

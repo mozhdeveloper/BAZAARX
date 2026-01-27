@@ -341,9 +341,12 @@ export const useCartStore = create<CartStore>()(
       },
 
       createOrder: (orderData) => {
+        console.log('📋 createOrder called with:', { orderData });
         const orderId = `order_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         const currentItems = get().items;
         const total = get().getTotalPrice();
+
+        console.log('📋 Order items:', { count: currentItems.length, items: currentItems });
 
         // Generate tracking number
         const trackingNumber = `BPH${new Date().getFullYear()}${String(Date.now()).slice(-6)}`;
@@ -395,8 +398,10 @@ export const useCartStore = create<CartStore>()(
             });
 
             // Create a seller order for each seller with proper validation
+            console.log('🛍️ Processing seller orders:', { sellerCount: Object.keys(itemsBySeller).length, sellers: Object.keys(itemsBySeller) });
             Object.entries(itemsBySeller).forEach(([sellerName, items]) => {
               try {
+                console.log(`🏪 Creating seller order for: ${sellerName} with ${items.length} items`);
                 const sellerTotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
                 // Validate seller order data before creating
@@ -429,7 +434,7 @@ export const useCartStore = create<CartStore>()(
 
                 // Create the seller order
                 const sellerOrderId = sellerOrderStore.addOrder(sellerOrderData);
-                console.log(`Created seller order ${sellerOrderId} for ${sellerName}`);
+                console.log(`✅ Created seller order ${sellerOrderId} for ${sellerName}`);
 
                 // Send seller notification about new order (both local and database)
                 get().addSellerNotification(
@@ -441,6 +446,7 @@ export const useCartStore = create<CartStore>()(
                 // Save notification to database if we have seller_id
                 const firstItem = items[0];
                 console.log('🔍 First item for seller notification:', firstItem);
+                console.log('🔍 First item keys:', firstItem ? Object.keys(firstItem) : 'null');
                 console.log('🔍 First item sellerId:', firstItem?.sellerId);
                 if (firstItem?.sellerId) {
                   console.log('✅ Saving seller notification to database for seller:', firstItem.sellerId);
@@ -453,17 +459,19 @@ export const useCartStore = create<CartStore>()(
                   }).catch(error => {
                     console.error('Failed to save seller notification to database:', error);
                   });
+                } else {
+                  console.warn('⚠️ No sellerId found in items, skipping DB notification');
                 }
               } catch (sellerOrderError) {
-                console.error(`Failed to create seller order for ${sellerName}:`, sellerOrderError);
+                console.error(`❌ Failed to create seller order for ${sellerName}:`, sellerOrderError);
                 // Log but don't fail - buyer order is already created
               }
             });
           }).catch(importError => {
-            console.error('Failed to import seller store:', importError);
+            console.error('❌ Failed to import seller store:', importError);
           });
         } catch (error) {
-          console.error('Error in seller order creation process:', error);
+          console.error('❌ Error in seller order creation process:', error);
           // Don't fail the buyer order if seller order creation fails
         }
 

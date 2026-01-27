@@ -1,4 +1,4 @@
-﻿import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -28,6 +28,7 @@ import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList, TabParamList } from '../App';
 import type { Order } from '../src/types';
+import { supabase } from '../src/lib/supabase';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<TabParamList, 'Orders'>,
@@ -56,12 +57,137 @@ export default function OrdersScreen({ navigation, route }: Props) {
   const [selectedStatus, setSelectedStatus] = useState<Order['status'] | 'all'>('all');
   const [sortOrder, setSortOrder] = useState<'latest' | 'oldest'>('latest');
   
-  // Get all orders and filter locally for flexibility
-  const orders = useOrderStore((state) => state.orders);
+  const [dbOrders, setDbOrders] = useState<Order[]>([]);
   const updateOrderStatus = useOrderStore((state) => state.updateOrderStatus);
   const addItem = useCartStore((state) => state.addItem); 
   const insets = useSafeAreaInsets();
   const BRAND_COLOR = COLORS.primary;
+
+  React.useEffect(() => {
+    const loadOrders = async () => {
+      if (!user?.id) return;
+      try {
+        const { data, error } = await supabase
+          .from('orders')
+          .select(`
+            *,
+            items:order_items (
+              *,
+              product:products (
+                *,
+                seller:sellers!products_seller_id_fkey (
+                  business_name,
+                  store_name,
+                  business_address,
+                  rating,
+                  is_verified
+                )
+              )
+            )
+          `)
+          .eq('buyer_id', user.id)
+          .order('created_at', { ascending: false });
+        if (error) {
+          setDbOrders([]);
+          return;
+        }
+        const mapped: Order[] = (data || []).map((order: any) => {
+          const statusMap: Record<string, Order['status']> = {
+            pending_payment: 'pending',
+            paid: 'processing',
+            processing: 'processing',
+            ready_to_ship: 'processing',
+            shipped: 'shipped',
+            out_for_delivery: 'shipped',
+            delivered: 'delivered',
+            completed: 'delivered',
+            cancelled: 'canceled',
+            canceled: 'canceled',
+            returned: 'delivered',
+            refunded: 'delivered',
+          };
+          const items = (order.items || []).map((it: any) => {
+            const p = it.product || {};
+            const image =
+              p.primary_image ||
+              (Array.isArray(p.images) && p.images.length > 0 ? p.images[0] : '');
+            const priceNum =
+              typeof it.unit_price === 'number'
+                ? it.unit_price
+                : typeof p.price === 'number'
+                ? p.price
+                : parseFloat(p.price || '0');
+            const sellerObj = p.seller || {};
+            return {
+              id: p.id || it.product_id,
+              name: p.name || 'Product',
+              price: priceNum || 0,
+              originalPrice:
+                typeof p.original_price === 'number'
+                  ? p.original_price
+                  : parseFloat(p.original_price || '0') || undefined,
+              image: image || '',
+              images: Array.isArray(p.images) ? p.images : [],
+              rating: typeof p.rating === 'number' ? p.rating : 0,
+              sold: typeof p.sold === 'number' ? p.sold : 0,
+              seller: sellerObj.store_name || sellerObj.business_name || 'Official Store',
+              sellerId: p.seller_id || sellerObj.id,
+              sellerRating:
+                typeof sellerObj.rating === 'number'
+                  ? sellerObj.rating
+                  : parseFloat(sellerObj.rating || '0') || 0,
+              sellerVerified: !!sellerObj.is_verified,
+              isFreeShipping: !!p.is_free_shipping,
+              isVerified: !!p.is_verified,
+              location: sellerObj.business_address || 'Philippines',
+              description: p.description || '',
+              category: p.category || 'general',
+              stock:
+                typeof p.stock === 'number'
+                  ? p.stock
+                  : parseInt(p.stock || '0') || undefined,
+              reviews: p.reviews || [],
+              quantity: it.quantity || 1,
+            };
+          });
+          const shippingFee =
+            typeof order.shipping_cost === 'number'
+              ? order.shipping_cost
+              : parseFloat(order.shipping_cost || '0') || 0;
+          const totalNum =
+            typeof order.total_amount === 'number'
+              ? order.total_amount
+              : parseFloat(order.total_amount || '0') || items.reduce((sum: number, i: any) => sum + (i.price * i.quantity), 0) + shippingFee;
+          return {
+            id: order.id,
+            transactionId: order.id,
+            items,
+            total: totalNum,
+            shippingFee,
+            status: statusMap[order.status] || 'pending',
+            isPaid: order.status === 'paid' || order.status === 'processing' || order.status === 'shipped' || order.status === 'delivered',
+            scheduledDate: new Date(order.created_at).toLocaleDateString(),
+            deliveryDate: order.estimated_delivery_date || undefined,
+            shippingAddress: {
+              name: order.shipping_name || user.name || 'BazaarX User',
+              email: user.email || '',
+              phone: user.phone || '',
+              address: (order.shipping_address as any)?.address || '',
+              city: (order.shipping_address as any)?.city || '',
+              region: (order.shipping_address as any)?.region || '',
+              postalCode: (order.shipping_address as any)?.postalCode || '',
+            },
+            paymentMethod: typeof order.payment_method === 'string' ? order.payment_method : 'Pay on Delivery',
+            createdAt: order.created_at,
+          } as Order;
+        });
+        setDbOrders(mapped);
+      } catch (e) {
+        setDbOrders([]);
+      }
+    };
+    loadOrders();
+  }, [user?.id]);
 
   const filteredOrders = useMemo(() => {
     // If Returns tab, no need to filter standard orders here, handled in render
@@ -72,24 +198,24 @@ export default function OrdersScreen({ navigation, route }: Props) {
     switch(activeTab) {
       case 'toPay':
         // Assuming 'pending' means unpaid (e.g. awaiting payment or COD confirmation)
-        baseOrders = orders.filter(o => o.status === 'pending');
+        baseOrders = dbOrders.filter(o => o.status === 'pending');
         break;
       case 'toShip':
          // 'processing' means paid/confirmed and waiting shipment
-        baseOrders = orders.filter(o => o.status === 'processing');
+        baseOrders = dbOrders.filter(o => o.status === 'processing');
         break;
       case 'toReceive':
-        baseOrders = orders.filter(o => o.status === 'shipped');
+        baseOrders = dbOrders.filter(o => o.status === 'shipped');
         break;
       case 'completed':
         // Show delivered orders, BUT exclude those that have return requests (they go to Returns tab)
-        baseOrders = orders.filter(o => 
+        baseOrders = dbOrders.filter(o => 
           o.status === 'delivered' && 
           !returnRequests.some(req => req.orderId === o.id)
         );
         break;
       case 'cancelled':
-        baseOrders = orders.filter(o => o.status === 'canceled');
+        baseOrders = dbOrders.filter(o => o.status === 'canceled');
         break;
       default:
         baseOrders = [];
@@ -110,7 +236,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
       const dateB = new Date(b.createdAt).getTime();
       return sortOrder === 'latest' ? dateB - dateA : dateA - dateB;
     });
-  }, [activeTab, orders, selectedStatus, searchQuery, sortOrder]);
+  }, [activeTab, dbOrders, selectedStatus, searchQuery, sortOrder]);
 
   const handleBuyAgain = (order: Order) => {
     if (order.items.length > 0) {
@@ -200,8 +326,8 @@ export default function OrdersScreen({ navigation, route }: Props) {
 
   const renderReturnItem = (returnReq: any) => {
     const firstItem = returnReq.items?.[0];
-    const originalOrder = orders.find(o => o.id === returnReq.orderId);
-    const productInfo = originalOrder?.items.find(i => i.id === firstItem?.itemId) || {
+    const originalOrder = dbOrders.find((o: Order) => o.id === returnReq.orderId);
+    const productInfo = originalOrder?.items.find((i: any) => i.id === firstItem?.itemId) || {
       name: `Item from Order #${returnReq.orderId}`,
       image: returnReq.images?.[0] || 'https://via.placeholder.com/150',
       price: returnReq.amount || 0

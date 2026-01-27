@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,15 +10,15 @@ import {
   Image,
   Dimensions,
   StatusBar,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Search, Bell, Camera, Bot, X, Package, Timer, MapPin, ChevronDown, ArrowLeft, Clock, MessageSquare } from 'lucide-react-native';
+import { Search, Bell, Camera, Bot, X, Package, Timer, MapPin, ChevronDown, ArrowLeft, Clock, MessageSquare, MessageCircle } from 'lucide-react-native';
 import { ProductCard } from '../src/components/ProductCard';
 import CameraSearchModal from '../src/components/CameraSearchModal';
 import AIChatModal from '../src/components/AIChatModal';
 import LocationModal from '../src/components/LocationModal';
 import ProductRequestModal from '../src/components/ProductRequestModal';
-import { trendingProducts, bestSellerProducts } from '../src/data/products';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -61,11 +61,43 @@ export default function HomeScreen({ navigation }: Props) {
   const [deliveryAddress, setDeliveryAddress] = useState('123 Main St, Manila');
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [recentSearches] = useState(['wireless earbuds', 'leather bag']);
-  
+  const [dbProducts, setDbProducts] = useState<Product[]>([]);
+  const [isLoadingProducts, setIsLoadingProducts] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [activeSlide, setActiveSlide] = useState(0);
+  const scrollRef = useRef<ScrollView>(null);
+
+  const promoSlides = [
+    {
+      id: '1',
+      title: '24% off shipping today on all purchases',
+      brand: 'Official BazaarX Store',
+      tag: 'SPECIAL OFFER',
+      image: 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=400',
+      color: BRAND_COLOR
+    },
+    {
+      id: '2',
+      title: 'New Summer Collection Available Now',
+      brand: 'Fashion Hub',
+      tag: 'NEW ARRIVAL',
+      image: 'https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=400',
+      color: '#059669' // Green
+    },
+    {
+      id: '3',
+      title: 'Get 50% Off on Selected Electronics',
+      brand: 'TechZone',
+      tag: 'FLASH DEAL',
+      image: 'https://images.unsplash.com/photo-1550009158-9ebf69173e03?w=400',
+      color: '#DC2626' // Red
+    }
+  ];
+
   // Fetch seller products and convert to buyer Product format
   const sellerProducts = useSellerStore((state) => state.products);
   const seller = useSellerStore((state) => state.seller);
-  
+
   const convertedSellerProducts: Product[] = sellerProducts
     .filter(p => p.isActive) // Only show active products
     .map(p => ({
@@ -88,7 +120,7 @@ export default function HomeScreen({ navigation }: Props) {
       category: p.category,
       stock: p.stock,
     }));
-  
+
   // Display name logic
   const username = user?.name ? user.name.split(' ')[0] : 'Guest';
 
@@ -96,11 +128,102 @@ export default function HomeScreen({ navigation }: Props) {
     { id: '1', title: 'Order Shipped! 📦', message: 'Your order #A238567K has been shipped!', time: '2h ago', read: false, icon: Package, color: '#3B82F6' },
   ];
 
-  // Merge static products with live seller products
-  const allProducts = [...trendingProducts, ...bestSellerProducts, ...convertedSellerProducts];
   const filteredProducts = searchQuery.trim()
-    ? allProducts.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    ? dbProducts.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()))
     : [];
+
+  useEffect(() => {
+    const loadProducts = async () => {
+      setIsLoadingProducts(true);
+      setFetchError(null);
+      try {
+        const { data, error } = await supabase
+          .from('products')
+          .select(`
+            *,
+            seller:sellers!products_seller_id_fkey (
+              business_name,
+              store_name,
+              rating,
+              business_address,
+              id,
+              is_verified
+            )
+          `)
+          .eq('is_active', true)
+          .eq('approval_status', 'pending')
+          .order('created_at', { ascending: false });
+        if (error) {
+          setFetchError(error.message);
+          setDbProducts([]);
+          return;
+        }
+        const mapped: Product[] = (data || []).map((row: any) => {
+          const imageUrl =
+            row.primary_image ||
+            (Array.isArray(row.images) && row.images.length > 0 ? row.images[0] : '');
+          const priceNum = typeof row.price === 'number' ? row.price : parseFloat(row.price || '0');
+          const originalNum = row.original_price != null
+            ? (typeof row.original_price === 'number' ? row.original_price : parseFloat(row.original_price))
+            : undefined;
+          const ratingNum = typeof row.rating === 'number' ? row.rating : parseFloat(row.rating || '4.5') || 4.5;
+          const sellerName = row.seller?.store_name || row.seller?.business_name || 'Verified Seller';
+          const sellerRating = typeof row.seller?.rating === 'number'
+            ? row.seller.rating
+            : parseFloat(row.seller?.rating || '4.8') || 4.8;
+          const sellerVerified = !!row.seller?.is_verified;
+          const location = row.seller?.business_address || 'Philippines';
+          return {
+            id: row.id,
+            name: row.name,
+            price: priceNum,
+            originalPrice: originalNum,
+            image: imageUrl || '',
+            images: Array.isArray(row.images) ? row.images : undefined,
+            rating: ratingNum,
+            sold: row.sales_count || 0,
+            seller: sellerName,
+            sellerId: row.seller?.id || undefined,
+            sellerRating,
+            sellerVerified,
+            isFreeShipping: !!row.is_free_shipping,
+            isVerified: true,
+            location,
+            description: row.description || '',
+            category: row.category || '',
+            stock: row.stock,
+          } as Product;
+        });
+        setDbProducts(mapped);
+      } catch (e: any) {
+        setFetchError(e?.message || 'Failed to load products');
+        setDbProducts([]);
+      } finally {
+        setIsLoadingProducts(false);
+      }
+    };
+    loadProducts();
+  }, []);
+
+  // Auto-scroll logic
+  useEffect(() => {
+    const interval = setInterval(() => {
+      let nextSlide = activeSlide + 1;
+      if (nextSlide >= promoSlides.length) nextSlide = 0;
+      
+      scrollRef.current?.scrollTo({ x: nextSlide * width, animated: true });
+      setActiveSlide(nextSlide);
+    }, 4000); // 4 seconds interval
+
+    return () => clearInterval(interval);
+  }, [activeSlide]);
+
+  const flashSaleProducts = dbProducts
+    .filter(p => typeof p.originalPrice === 'number' && (p.originalPrice as number) > p.price)
+    .sort((a, b) => ((b.originalPrice || 0) - b.price) - ((a.originalPrice || 0) - a.price))
+    .slice(0, 10);
+
+  const popularProducts = [...dbProducts].sort((a, b) => (b.sold || 0) - (a.sold || 0)).slice(0, 6);
 
   const handleProductPress = (product: Product) => {
     navigation.navigate('ProductDetail', { product });
@@ -116,9 +239,9 @@ export default function HomeScreen({ navigation }: Props) {
           <View style={styles.headerLeft}>
             {/* PROFILE AVATAR CLICKABLE LOGIC */}
             <Pressable onPress={() => navigation.navigate('MainTabs', { screen: 'Profile' })}>
-              <Image 
-                source={{ uri: user?.avatar || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100' }} 
-                style={styles.avatar} 
+              <Image
+                source={{ uri: user?.avatar || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100' }}
+                style={styles.avatar}
               />
             </Pressable>
 
@@ -129,14 +252,14 @@ export default function HomeScreen({ navigation }: Props) {
           </View>
           <View style={styles.headerRight}>
             <Pressable onPress={() => setIsSearchFocused(true)} style={styles.headerIconButton}><Search size={24} color="#FFF" /></Pressable>
-            <Pressable 
+            <Pressable
               onPress={() => {
                 if (isGuest) {
                   setShowGuestModal(true);
                 } else {
                   setShowNotifications(true);
                 }
-              }} 
+              }}
               style={styles.headerIconButton}
             >
               <Bell size={24} color="#FFF" />
@@ -217,16 +340,48 @@ export default function HomeScreen({ navigation }: Props) {
           </View>
         ) : activeTab === 'Home' ? (
           <>
-            <View style={styles.promoWrapper}>
-              <View style={[styles.promoBox, { borderLeftWidth: 6, borderLeftColor: BRAND_COLOR }]}>
-                <View style={styles.promoTextPart}>
-                  <View style={[styles.promoBadge, { backgroundColor: BRAND_COLOR }]}>
-                    <Text style={styles.promoBadgeText}>SPECIAL OFFER</Text>
+            {/* SPECIAL OFFER CAROUSEL */}
+            <View style={styles.carouselContainer}>
+              <ScrollView 
+                ref={scrollRef}
+                horizontal 
+                pagingEnabled 
+                showsHorizontalScrollIndicator={false}
+                onScroll={(e) => {
+                  const x = e.nativeEvent.contentOffset.x;
+                  const index = Math.round(x / width);
+                  if (index !== activeSlide) setActiveSlide(index);
+                }}
+                scrollEventThrottle={16}
+              >
+                {promoSlides.map((slide) => (
+                  <View key={slide.id} style={[styles.promoBox, { width: width - 40 }]}>
+                    <View style={[styles.promoBorder, { backgroundColor: slide.color }]} />
+                    <View style={styles.promoTextPart}>
+                      <View style={[styles.promoBadge, { backgroundColor: slide.color }]}>
+                        <Text style={styles.promoBadgeText}>{slide.tag}</Text>
+                      </View>
+                      <Text style={styles.promoHeadline}>{slide.title}</Text>
+                      <Text style={styles.promoBrandName}>{slide.brand}</Text>
+                    </View>
+                    <View style={styles.promoImgPart}>
+                      <Image source={{ uri: slide.image }} style={styles.promoImg} />
+                    </View>
                   </View>
-                  <Text style={styles.promoHeadline}>24% off shipping today on all purchases</Text>
-                  <Text style={styles.promoBrandName}>Official BazaarX Store</Text>
-                </View>
-                <View style={styles.promoImgPart}><Image source={{ uri: 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=400' }} style={styles.promoImg} /></View>
+                ))}
+              </ScrollView>
+              
+              {/* Pagination Dots */}
+              <View style={styles.paginationContainer}>
+                {promoSlides.map((_, i) => (
+                  <View 
+                    key={i} 
+                    style={[
+                      styles.paginationDot, 
+                      { backgroundColor: i === activeSlide ? BRAND_COLOR : '#E5E7EB', width: i === activeSlide ? 20 : 8 }
+                    ]} 
+                  />
+                ))}
               </View>
             </View>
 
@@ -240,10 +395,16 @@ export default function HomeScreen({ navigation }: Props) {
                 </View>
               </View>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingLeft: 20, paddingBottom: 10 }}>
-                {bestSellerProducts.map(p => (
+                {flashSaleProducts.map(p => (
                   <View key={p.id} style={styles.itemBoxContainerHorizontal}>
                     <ProductCard product={p} onPress={() => handleProductPress(p)} />
-                    <View style={[styles.discountTag, { backgroundColor: BRAND_COLOR }]}><Text style={styles.discountTagText}>-50%</Text></View>
+                    <View style={[styles.discountTag, { backgroundColor: BRAND_COLOR }]}>
+                      <Text style={styles.discountTagText}>
+                        {p.originalPrice && p.originalPrice > p.price
+                          ? `-${Math.round(((p.originalPrice - p.price) / p.originalPrice) * 100)}%`
+                          : ''}
+                      </Text>
+                    </View>
                   </View>
                 ))}
               </ScrollView>
@@ -272,7 +433,7 @@ export default function HomeScreen({ navigation }: Props) {
                 <Pressable onPress={() => navigation.navigate('Shop', {})}><Text style={styles.gridSeeAll}>View All</Text></Pressable>
               </View>
               <View style={styles.gridBody}>
-                {allProducts.slice(0, 6).map((product) => (
+                {popularProducts.map((product) => (
                   <View key={product.id} style={styles.itemBoxContainerVertical}>
                     <ProductCard product={product} onPress={() => handleProductPress(product)} />
                   </View>
@@ -285,8 +446,8 @@ export default function HomeScreen({ navigation }: Props) {
             <Text style={styles.categorySectionTitle}>Shop by Category</Text>
             <View style={styles.categoryGrid}>
               {categories.map((item) => (
-                <Pressable 
-                  key={item.id} 
+                <Pressable
+                  key={item.id}
                   style={styles.categoryCardBox}
                   onPress={() => navigation.navigate('Shop', { category: item.id })}
                 >
@@ -300,8 +461,8 @@ export default function HomeScreen({ navigation }: Props) {
         )}
       </ScrollView>
 
-      <Pressable style={[styles.aiFloatingButton, { backgroundColor: BRAND_COLOR, bottom: 90 }]} onPress={() => setShowAIChat(true)}>
-        <Bot size={28} color="#FFF" />
+      <Pressable style={[styles.aiFloatingButton, { backgroundColor: BRAND_COLOR, bottom: 90 }]} onPress={() => navigation.navigate('Messages')}>
+        <MessageCircle size={28} color="#FFF" />
       </Pressable>
 
       <ProductRequestModal visible={showProductRequest} onClose={() => setShowProductRequest(false)} />
@@ -311,9 +472,9 @@ export default function HomeScreen({ navigation }: Props) {
 
       {showGuestModal && (
         <GuestLoginModal
-            visible={true}
-            onClose={() => setShowGuestModal(false)}
-            message="Sign up to view your notifications."
+          visible={true}
+          onClose={() => setShowGuestModal(false)}
+          message="Sign up to view your notifications."
         />
       )}
 
@@ -363,9 +524,36 @@ const styles = StyleSheet.create({
   deliveryContent: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   deliveryText: { fontSize: 13, color: '#4B5563', flex: 1 },
   deliveryAddressBold: { fontWeight: '700', color: '#1F2937' },
+
   contentScroll: { flex: 1 },
-  promoWrapper: { padding: 20, paddingBottom: 10 },
-  promoBox: { backgroundColor: '#FFF', borderRadius: 20, padding: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8 },
+  carouselContainer: { marginVertical: 15 },
+  promoWrapper: { marginVertical: 15 },
+  promoBox: { 
+    height: 160, 
+    backgroundColor: '#FFF', 
+    borderRadius: 20, 
+    padding: 20, 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-between', 
+    elevation: 4, 
+    shadowColor: '#000', 
+    shadowOffset: { width: 0, height: 4 }, 
+    shadowOpacity: 0.1, 
+    shadowRadius: 8,
+    marginHorizontal: 20, // Add spacing for carousel items if we use padding logic? No, width is specific.
+    // Wait, ScrollView with pagingEnabled needs exact width match.
+    // Width is set inline to (width - 40).
+    overflow: 'hidden',
+    position: 'relative'
+  },
+  promoBorder: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 6,
+  },
   promoTextPart: { flex: 0.65 },
   promoBadge: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4, marginBottom: 8 },
   promoBadgeText: { color: '#FFF', fontSize: 10, fontWeight: '900' },
@@ -428,5 +616,16 @@ const styles = StyleSheet.create({
   notificationItem: { flexDirection: 'row', padding: 18 },
   notificationIcon: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginRight: 15 },
   notifItemTitle: { fontSize: 16, fontWeight: '700', color: '#1F2937' },
-  notifItemMsg: { fontSize: 14, color: '#4B5563' }
+  notifItemMsg: { fontSize: 14, color: '#4B5563' },
+  paginationContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 10,
+    gap: 6
+  },
+  paginationDot: {
+    height: 8,
+    borderRadius: 4,
+  }
 });

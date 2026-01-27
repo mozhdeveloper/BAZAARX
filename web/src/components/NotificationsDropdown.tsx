@@ -1,14 +1,29 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Bell, Package, Truck, CheckCircle, XCircle } from "lucide-react";
+import {
+  Bell,
+  Package,
+  Truck,
+  CheckCircle,
+  XCircle,
+  ShoppingBag,
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useCartStore } from "@/stores/cartStore";
 import { OrderNotification } from "@/stores/cartStore";
+import { useAuthStore } from "@/stores/sellerStore";
+import { getCurrentUser, isSupabaseConfigured } from "@/lib/supabase";
+import {
+  getNotifications as getDbNotifications,
+  markAllAsRead as markAllDbAsRead,
+  markAsRead as markDbAsRead,
+  type Notification as DbNotification,
+} from "@/services/notificationService";
 
 function Dot({ className }: { className?: string }) {
   return (
@@ -41,6 +56,24 @@ function getNotificationIcon(type: OrderNotification["type"]) {
   }
 }
 
+function getDbNotificationIcon(n: DbNotification) {
+  // Map DB notification types to icons
+  if (n.type === "seller_new_order")
+    return <ShoppingBag className="w-4 h-4 text-green-600" />;
+  if (n.type.startsWith("order_")) {
+    const status = n.type.replace("order_", "");
+    if (status === "confirmed")
+      return <CheckCircle className="w-4 h-4 text-green-600" />;
+    if (status === "shipped")
+      return <Truck className="w-4 h-4 text-blue-600" />;
+    if (status === "delivered")
+      return <Package className="w-4 h-4 text-orange-600" />;
+    if (status === "cancelled")
+      return <XCircle className="w-4 h-4 text-red-600" />;
+  }
+  return <Bell className="w-4 h-4 text-gray-600" />;
+}
+
 function getTimeAgo(timestamp: Date): string {
   const now = new Date();
   const diffMs = now.getTime() - new Date(timestamp).getTime();
@@ -58,25 +91,180 @@ function getTimeAgo(timestamp: Date): string {
 export function NotificationsDropdown() {
   const navigate = useNavigate();
   const { notifications, markNotificationRead } = useCartStore();
+  const { seller } = useAuthStore();
   const [open, setOpen] = useState(false);
-  const unreadCount = notifications.filter((n) => n.read === false).length;
+  const [dbNotifications, setDbNotifications] = useState<DbNotification[]>([]);
+  const [dbLoading, setDbLoading] = useState(false);
+  const [buyerId, setBuyerId] = useState<string | null>(null);
 
-  const handleMarkAllAsRead = () => {
+  // Determine current user context: seller (from auth store) or buyer (from supabase auth)
+  const userContext = useMemo(() => {
+    if (seller?.id) {
+      console.log("[Notifications] Seller context detected:", seller.id);
+      return { userId: seller.id, userType: "seller" as const };
+    }
+    return null; // Fallback to buyer via supabase below
+  }, [seller?.id]);
+
+  // Initialize buyer ID on mount
+  useEffect(() => {
+    let mounted = true;
+    async function initBuyerId() {
+      if (userContext) {
+        console.log(
+          "[Notifications] Using seller context, skipping buyer ID init",
+        );
+        return;
+      }
+      try {
+        const user = await getCurrentUser();
+        if (mounted) {
+          if (user?.id) {
+            console.log("[Notifications] Buyer ID initialized:", user.id);
+            setBuyerId(user.id);
+          } else {
+            console.log("[Notifications] No authenticated buyer found");
+          }
+        }
+      } catch (e) {
+        console.error("[Notifications] Failed to get current user:", e);
+      }
+    }
+    initBuyerId();
+    return () => {
+      mounted = false;
+    };
+  }, [userContext]);
+
+  // Fetch notifications on mount and when dropdown opens
+  useEffect(() => {
+    let mounted = true;
+    async function loadNotifications() {
+      if (!isSupabaseConfigured()) {
+        console.log("[Notifications] Supabase not configured, skipping fetch");
+        return;
+      }
+
+      setDbLoading(true);
+      try {
+        const userId = userContext?.userId || buyerId;
+        const userType = userContext?.userType || "buyer";
+
+        if (!userId) {
+          console.log("[Notifications] No userId available, skipping fetch");
+          setDbNotifications([]);
+          setDbLoading(false);
+          return;
+        }
+
+        console.log("[Notifications] Fetching notifications for:", {
+          userId,
+          userType,
+        });
+        const rows = await getDbNotifications(userId, userType, 50);
+        if (mounted) {
+          console.log("[Notifications] Fetched", rows.length, "notifications");
+          setDbNotifications(rows);
+        }
+      } catch (e) {
+        console.error(
+          "[Notifications] Failed to load notifications from DB:",
+          e,
+        );
+      } finally {
+        if (mounted) setDbLoading(false);
+      }
+    }
+
+    loadNotifications();
+
+    // Refresh every 30 seconds when dropdown is open
+    let pollInterval: ReturnType<typeof setInterval> | null = null;
+    if (open) {
+      console.log("[Notifications] Dropdown opened, starting poll");
+      pollInterval = setInterval(() => {
+        loadNotifications();
+      }, 30000);
+    }
+
+    return () => {
+      mounted = false;
+      if (pollInterval) clearInterval(pollInterval);
+    };
+  }, [userContext?.userId, userContext?.userType, buyerId, open]);
+
+  const unreadCountLocal = notifications.filter((n) => n.read === false).length;
+  const unreadCountDb = dbNotifications.filter(
+    (n) => n.is_read === false,
+  ).length;
+  const unreadCount = unreadCountDb || unreadCountLocal;
+
+  const handleMarkAllAsRead = async () => {
+    // Mark local store notifications
     notifications.forEach((notification) => {
       if (!notification.read) {
         markNotificationRead(notification.id);
       }
     });
+    // Mark DB notifications
+    try {
+      const userId = userContext?.userId || buyerId;
+      const userType = userContext?.userType || "buyer";
+      if (userId) {
+        console.log("[Notifications] Marking all as read for:", {
+          userId,
+          userType,
+        });
+        await markAllDbAsRead(userId, userType);
+        setDbNotifications((prev) =>
+          prev.map((n) => ({
+            ...n,
+            is_read: true,
+            read_at: new Date().toISOString(),
+          })),
+        );
+      }
+    } catch (e) {
+      console.error(
+        "[Notifications] Failed to mark all notifications read in DB:",
+        e,
+      );
+    }
   };
 
-  const handleNotificationClick = (notification: OrderNotification) => {
+  const handleNotificationClickLocal = (notification: OrderNotification) => {
     markNotificationRead(notification.id);
     setOpen(false);
-    // Navigate to order detail or delivery tracking based on status
     if (notification.type === "shipped" || notification.type === "delivered") {
       navigate(`/delivery-tracking/${notification.orderId}`);
     } else {
       navigate(`/orders/${notification.orderId}`);
+    }
+  };
+
+  const handleNotificationClickDb = async (n: DbNotification) => {
+    try {
+      await markDbAsRead(n.id);
+      setDbNotifications((prev) =>
+        prev.map((x) =>
+          x.id === n.id
+            ? { ...x, is_read: true, read_at: new Date().toISOString() }
+            : x,
+        ),
+      );
+    } catch (e) {
+      console.error("[Notifications] Failed to mark notification read:", e);
+    }
+    setOpen(false);
+    if (n.action_url) {
+      navigate(n.action_url);
+      return;
+    }
+    // Fallback navigation based on type
+    if (n.type.startsWith("order_")) {
+      navigate(`/orders/${(n.action_data as any)?.orderId ?? ""}`);
+    } else if (n.type === "seller_new_order") {
+      navigate(`/seller/orders/${(n.action_data as any)?.orderId ?? ""}`);
     }
   };
 
@@ -113,7 +301,39 @@ export function NotificationsDropdown() {
           className="-mx-1 my-1 h-px bg-border"
         ></div>
 
-        {notifications.length === 0 ? (
+        {dbLoading ? (
+          <div className="px-3 py-8 text-center text-sm text-muted-foreground">
+            <Bell className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+            <p>Loading notifications…</p>
+          </div>
+        ) : dbNotifications.length > 0 ? (
+          <div className="max-h-[400px] overflow-y-auto">
+            {dbNotifications.map((n) => (
+              <div
+                key={n.id}
+                className="rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent cursor-pointer"
+                onClick={() => handleNotificationClickDb(n)}
+              >
+                <div className="relative flex items-start gap-3 pe-3">
+                  <div className="mt-0.5">{getDbNotificationIcon(n)}</div>
+                  <div className="flex-1 space-y-1">
+                    <p className="text-foreground/90 leading-snug">{n.title}</p>
+                    <p className="text-muted-foreground text-xs">{n.message}</p>
+                    <div className="text-xs text-muted-foreground">
+                      {getTimeAgo(new Date(n.created_at))}
+                    </div>
+                  </div>
+                  {!n.is_read && (
+                    <div className="absolute end-0 top-1">
+                      <span className="sr-only">Unread</span>
+                      <Dot className="text-[var(--brand-primary)]" />
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : notifications.length === 0 ? (
           <div className="px-3 py-8 text-center text-sm text-muted-foreground">
             <Bell className="w-12 h-12 mx-auto mb-2 text-gray-300" />
             <p>No notifications yet</p>
@@ -124,7 +344,7 @@ export function NotificationsDropdown() {
               <div
                 key={notification.id}
                 className="rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent cursor-pointer"
-                onClick={() => handleNotificationClick(notification)}
+                onClick={() => handleNotificationClickLocal(notification)}
               >
                 <div className="relative flex items-start gap-3 pe-3">
                   <div className="mt-0.5">
@@ -150,6 +370,6 @@ export function NotificationsDropdown() {
           </div>
         )}
       </PopoverContent>
-    </Popover >
+    </Popover>
   );
 }

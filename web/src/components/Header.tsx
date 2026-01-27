@@ -16,6 +16,7 @@ import { NotificationsDropdown } from "./NotificationsDropdown";
 import { useBuyerStore } from "../stores/buyerStore";
 import VisualSearchModal from "./VisualSearchModal";
 import ProductRequestModal from "./ProductRequestModal";
+import SupportModal from "./SupportModal";
 import {
   trendingProducts,
   bestSellerProducts,
@@ -34,6 +35,7 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [showVisualSearchModal, setShowVisualSearchModal] = useState(false);
+  const [showSupportModal, setShowSupportModal] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement>(null);
 
@@ -351,6 +353,17 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
 
                         <button
                           onClick={() => {
+                            setShowSupportModal(true);
+                            setShowProfileMenu(false);
+                          }}
+                          className="w-full flex items-center gap-3 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-orange-50 hover:text-[#ff6a00] rounded-lg transition-all"
+                        >
+                          <Headset className="h-3.5 w-3.5" />
+                          Support
+                        </button>
+
+                        <button
+                          onClick={() => {
                             logout();
                             setShowProfileMenu(false);
                             navigate('/login');
@@ -395,6 +408,11 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
       <ProductRequestModal
         isOpen={showRequestModal}
         onClose={() => setShowRequestModal(false)}
+      />
+
+      <SupportModal
+        isOpen={showSupportModal}
+        onClose={() => setShowSupportModal(false)}
       />
     </header>
   );

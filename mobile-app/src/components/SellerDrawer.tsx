@@ -30,8 +30,10 @@ import {
   CreditCard,
   User,
   LogOut,
+  LifeBuoy,
 } from 'lucide-react-native';
 import { useSellerStore } from '../stores/sellerStore';
+import { useAuthStore } from '../stores/authStore';
 
 interface MenuItem {
   icon: any;
@@ -56,6 +58,7 @@ export default function SellerDrawer({ visible, onClose }: SellerDrawerProps) {
   const navigation = useNavigation<SellerNavigationProp>();
   const insets = useSafeAreaInsets();
   const { seller, logout } = useSellerStore();
+  const { switchRole } = useAuthStore();
 
   const drawerWidth = Math.min(Dimensions.get('window').width * 0.85, 320);
   const translateX = useRef(new Animated.Value(-drawerWidth)).current;
@@ -112,6 +115,13 @@ export default function SellerDrawer({ visible, onClose }: SellerDrawerProps) {
     });
   };
 
+  const handleSwitchToBuyer = () => {
+    closeWithAnimation(() => {
+        switchRole('buyer');
+        navigation.navigate('MainTabs' as never);
+    });
+  };
+
   const handleLogout = () => {
     closeWithAnimation(() => {
       logout();
@@ -151,6 +161,7 @@ export default function SellerDrawer({ visible, onClose }: SellerDrawerProps) {
       label: 'Account',
       items: [
         { icon: Settings, label: 'Settings', route: 'Settings', inTab: true },
+        { icon: LifeBuoy, label: 'Support', route: 'TicketList' },
       ],
     },
   ];
@@ -215,6 +226,25 @@ export default function SellerDrawer({ visible, onClose }: SellerDrawerProps) {
                 })}
               </View>
             ))}
+
+            {/* Switch to Buyer */}
+            <View style={styles.menuSection}>
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={handleSwitchToBuyer}
+                activeOpacity={0.7}
+              >
+                <View style={styles.menuItemContent}>
+                  <View style={[styles.iconContainer, { backgroundColor: '#E0F2FE' }]}>
+                    <User size={20} color="#0EA5E9" strokeWidth={2} />
+                  </View>
+                  <View>
+                    <Text style={styles.menuItemLabel}>Switch to Buyer</Text>
+                    <Text style={{ fontSize: 11, color: '#6B7280' }}>Shop on BazaarX</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            </View>
 
             {/* Logout */}
             <View style={styles.menuSection}>
