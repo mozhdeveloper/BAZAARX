@@ -45,6 +45,7 @@ import HistoryScreen from './app/HistoryScreen';
 // Ticketing Module
 import CreateTicketScreen from './app/tickets/CreateTicketScreen';
 import TicketDetailScreen from './app/tickets/TicketDetailScreen';
+import MessagesScreen from './app/MessagesScreen';
 
 // Import types
 import type { Product, Order } from './src/types';
@@ -90,6 +91,7 @@ export type RootStackParamList = {
   History: undefined;
   CreateTicket: undefined;
   TicketDetail: { ticketId: string };
+  Messages: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -244,6 +246,7 @@ export default function App() {
           <Stack.Screen name="HelpSupport" component={HelpCenterScreen} />
           <Stack.Screen name="CreateTicket" component={CreateTicketScreen} />
           <Stack.Screen name="TicketDetail" component={TicketDetailScreen} />
+          <Stack.Screen name="Messages" component={MessagesScreen} />
           <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
         </Stack.Navigator>
       </NavigationContainer>

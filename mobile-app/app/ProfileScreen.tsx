@@ -8,6 +8,7 @@ import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList, TabParamList } from '../App';
 import { useAuthStore } from '../src/stores/authStore';
+import { useSellerStore } from '../src/stores/sellerStore';
 import { useWishlistStore } from '../src/stores/wishlistStore';
 import { supabase } from '../src/lib/supabase';
 import { COLORS } from '../src/constants/theme';
@@ -20,9 +21,12 @@ type Props = CompositeScreenProps<
 
 export default function ProfileScreen({ navigation }: Props) {
   const { user, logout, updateProfile, isGuest } = useAuthStore();
+  const seller = useSellerStore(state => state.seller);
   const wishlistItems = useWishlistStore(state => state.items);
   const insets = useSafeAreaInsets();
   const BRAND_COLOR = COLORS.primary;
+
+  const isSeller = user?.roles?.includes('seller') || (seller && !!seller.storeName);
 
   // Guest Modal State
   const [showGuestModal, setShowGuestModal] = React.useState(false);
@@ -269,8 +273,10 @@ export default function ProfileScreen({ navigation }: Props) {
           </View>
           <View style={styles.headerInfo}>
             <Text style={styles.userName}>{profile.firstName} {profile.lastName}</Text>
-            <Text style={styles.userSub}>{profile.email}</Text>
-            <Text style={styles.userSub}>{profile.phone}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2, opacity: 0.9 }}>
+               <User size={12} color="#FFF" style={{ marginRight: 6 }} />
+               <Text style={{ color: '#FFF', fontSize: 13, fontWeight: '600', letterSpacing: 0.5 }}>Buyer Account</Text>
+            </View>
           </View>
         </View>
 
@@ -320,18 +326,7 @@ export default function ProfileScreen({ navigation }: Props) {
           </View>
         </View>
 
-        <View style={styles.menuGroup}>
-          <Text style={styles.groupTitle}>Selling</Text>
-          <View style={styles.card}>
-            <Pressable style={styles.menuItem} onPress={() => navigation.navigate('SellerAuthChoice')}>
-              <View style={[styles.iconContainer, { backgroundColor: '#FFF5F0' }]}>
-                <Store size={20} color={BRAND_COLOR} strokeWidth={2} />
-              </View>
-              <Text style={styles.menuLabel}>Start Selling</Text>
-              <ChevronRight size={18} color="#D1D5DB" />
-            </Pressable>
-          </View>
-        </View>
+
 
         <View style={styles.menuGroup}>
           <Text style={styles.groupTitle}>Settings</Text>
@@ -360,8 +355,41 @@ export default function ProfileScreen({ navigation }: Props) {
                 <ChevronRight size={18} color="#D1D5DB" />
               </Pressable>
             ))}
-          </View>
         </View>
+
+        </View>
+
+        {/* 3.5 SELLING SWITCH (Moved to Footer) */}
+        {isSeller ? (
+          <Pressable 
+            style={[styles.logoutBtn, { marginBottom: 15, borderColor: '#FED7AA', backgroundColor: '#FFF7ED' }]}
+            onPress={() => {
+              useAuthStore.getState().switchRole('seller');
+              navigation.navigate('SellerStack');
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <View style={[styles.iconContainer, { width: 32, height: 32, backgroundColor: '#FFEDD5', margin: 0, marginRight: 0 }]}>
+                <Store size={18} color={BRAND_COLOR} strokeWidth={2.5} />
+              </View>
+              <View>
+                 <Text style={[styles.logoutText, { color: BRAND_COLOR, fontSize: 16 }]}>Switch to Seller Mode</Text>
+              </View>
+            </View>
+          </Pressable>
+        ) : (
+          <Pressable 
+             style={[styles.logoutBtn, { marginBottom: 15, borderColor: '#FED7AA', backgroundColor: '#FFF7ED' }]}
+             onPress={() => navigation.navigate('SellerAuthChoice')}
+          >
+             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+               <View style={[styles.iconContainer, { width: 32, height: 32, backgroundColor: '#FFEDD5', margin: 0, marginRight: 0 }]}>
+                 <Store size={18} color={BRAND_COLOR} strokeWidth={2.5} />
+               </View>
+               <Text style={[styles.logoutText, { color: BRAND_COLOR, fontSize: 16 }]}>Start Selling</Text>
+             </View>
+          </Pressable>
+        )}
 
         {/* 4. LOGOUT BUTTON */}
         <Pressable style={styles.logoutBtn} onPress={handleLogout}>

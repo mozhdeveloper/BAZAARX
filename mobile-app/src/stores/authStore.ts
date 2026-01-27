@@ -2,24 +2,6 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-interface User {
-  id: string;
-  name: string;
-  email: string;
-  phone: string;
-  avatar?: string;
-}
-
-interface AuthState {
-  user: User | null;
-  isAuthenticated: boolean;
-  hasCompletedOnboarding: boolean;
-  login: (email: string, password: string) => Promise<boolean>;
-  logout: () => void;
-  completeOnboarding: () => void;
-  updateProfile: (updates: Partial<User>) => void;
-}
-
 export interface SavedCard {
   id: string;
   last4: string;
@@ -35,6 +17,7 @@ interface User {
   phone: string;
   avatar?: string;
   savedCards?: SavedCard[];
+  roles?: string[]; // 'buyer', 'seller', 'admin'
 }
 
 interface AuthState {
@@ -42,23 +25,31 @@ interface AuthState {
   isAuthenticated: boolean;
   hasCompletedOnboarding: boolean;
   isGuest: boolean;
+  activeRole: 'buyer' | 'seller';
+  
   setUser: (user: User) => void; // Used after successful Supabase login
   logout: () => void;
   completeOnboarding: () => void;
   resetOnboarding: () => void; // For testing/debugging
   loginAsGuest: () => void;
   updateProfile: (updates: Partial<User>) => void;
+  
+  // Role Management
+  switchRole: (role: 'buyer' | 'seller') => void;
+  addRole: (role: string) => void;
+
   // Kept for backward compatibility if any, but logic is now external
   login: (email: string, password: string) => Promise<boolean>; 
 }
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       user: null,
       isAuthenticated: false,
       hasCompletedOnboarding: false,
       isGuest: false,
+      activeRole: 'buyer', // Default to buyer
 
       setUser: (user: User) => {
         // Mock saved cards if none exist (for demo)
@@ -68,7 +59,18 @@ export const useAuthStore = create<AuthState>()(
                 { id: 'card_2', last4: '8888', brand: 'MasterCard', expiry: '10/26' },
             ];
         }
-        set({ user, isAuthenticated: true, isGuest: false });
+        
+        // Ensure roles exist
+        if (!user.roles) {
+          user.roles = ['buyer'];
+        }
+
+        set({ 
+          user, 
+          isAuthenticated: true, 
+          isGuest: false,
+          activeRole: 'buyer' // Always start as buyer on login
+        });
       },
 
       // Deprecated: Login logic moved to LoginScreen to handle Supabase directly
@@ -82,6 +84,7 @@ export const useAuthStore = create<AuthState>()(
           user: null,
           isAuthenticated: false,
           isGuest: false,
+          activeRole: 'buyer',
         });
       },
 
@@ -97,12 +100,14 @@ export const useAuthStore = create<AuthState>()(
         set({
           isAuthenticated: true,
           isGuest: true,
+          activeRole: 'buyer',
           user: {
             id: 'guest',
             name: 'Guest User',
             email: 'guest@bazaarx.ph',
             phone: '',
             avatar: '',
+            roles: ['buyer'],
           }
         });
       },
@@ -111,6 +116,26 @@ export const useAuthStore = create<AuthState>()(
         set((state) => ({
           user: state.user ? { ...state.user, ...updates } : null,
         }));
+      },
+
+      switchRole: (role: 'buyer' | 'seller') => {
+        set({ activeRole: role });
+      },
+
+      addRole: (role: string) => {
+        set((state) => {
+          if (!state.user) return state;
+          const roles = state.user.roles || [];
+          if (!roles.includes(role)) {
+            return {
+              user: {
+                ...state.user,
+                roles: [...roles, role]
+              }
+            };
+          }
+          return state;
+        });
       },
     }),
     {
