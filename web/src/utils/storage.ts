@@ -157,6 +157,37 @@ export const uploadReviewImages = async (
 };
 
 /**
+ * Validate document file for seller verification
+ */
+export const validateDocumentFile = (file: File): { valid: boolean; error?: string } => {
+  const allowedTypes: Record<string, { maxSize: number; label: string }> = {
+    'application/pdf': { maxSize: 10 * 1024 * 1024, label: 'PDF' },
+    'image/jpeg': { maxSize: 5 * 1024 * 1024, label: 'JPEG' },
+    'image/jpg': { maxSize: 5 * 1024 * 1024, label: 'JPG' },
+    'image/png': { maxSize: 5 * 1024 * 1024, label: 'PNG' },
+  };
+
+  const config = allowedTypes[file.type];
+  if (!config) {
+    return {
+      valid: false,
+      error: `Invalid file type "${file.type}". Please upload PDF, JPG, or PNG files.`
+    };
+  }
+
+  if (file.size > config.maxSize) {
+    const maxSizeMB = (config.maxSize / (1024 * 1024)).toFixed(1);
+    const actualSizeMB = (file.size / (1024 * 1024)).toFixed(1);
+    return {
+      valid: false,
+      error: `File too large (${actualSizeMB}MB). Maximum ${maxSizeMB}MB for ${config.label} files.`
+    };
+  }
+
+  return { valid: true };
+};
+
+/**
  * Upload seller documents (business registration, etc.)
  */
 export const uploadSellerDocument = async (
@@ -166,6 +197,12 @@ export const uploadSellerDocument = async (
 ): Promise<string | null> => {
   if (!isSupabaseConfigured()) {
     return `mock://document/${file.name}`;
+  }
+
+  // Validate file before upload
+  const validation = validateDocumentFile(file);
+  if (!validation.valid) {
+    throw new Error(validation.error);
   }
 
   try {
@@ -188,9 +225,10 @@ export const uploadSellerDocument = async (
     return publicUrl;
   } catch (error) {
     console.error('Document upload failed:', error);
-    return null;
+    throw error;
   }
 };
+
 
 /**
  * Get file size in human-readable format
