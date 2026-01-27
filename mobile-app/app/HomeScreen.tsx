@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -64,6 +64,35 @@ export default function HomeScreen({ navigation }: Props) {
   const [dbProducts, setDbProducts] = useState<Product[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [activeSlide, setActiveSlide] = useState(0);
+  const scrollRef = useRef<ScrollView>(null);
+
+  const promoSlides = [
+    {
+      id: '1',
+      title: '24% off shipping today on all purchases',
+      brand: 'Official BazaarX Store',
+      tag: 'SPECIAL OFFER',
+      image: 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=400',
+      color: BRAND_COLOR
+    },
+    {
+      id: '2',
+      title: 'New Summer Collection Available Now',
+      brand: 'Fashion Hub',
+      tag: 'NEW ARRIVAL',
+      image: 'https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=400',
+      color: '#059669' // Green
+    },
+    {
+      id: '3',
+      title: 'Get 50% Off on Selected Electronics',
+      brand: 'TechZone',
+      tag: 'FLASH DEAL',
+      image: 'https://images.unsplash.com/photo-1550009158-9ebf69173e03?w=400',
+      color: '#DC2626' // Red
+    }
+  ];
 
   // Fetch seller products and convert to buyer Product format
   const sellerProducts = useSellerStore((state) => state.products);
@@ -175,6 +204,19 @@ export default function HomeScreen({ navigation }: Props) {
     };
     loadProducts();
   }, []);
+
+  // Auto-scroll logic
+  useEffect(() => {
+    const interval = setInterval(() => {
+      let nextSlide = activeSlide + 1;
+      if (nextSlide >= promoSlides.length) nextSlide = 0;
+      
+      scrollRef.current?.scrollTo({ x: nextSlide * width, animated: true });
+      setActiveSlide(nextSlide);
+    }, 4000); // 4 seconds interval
+
+    return () => clearInterval(interval);
+  }, [activeSlide]);
 
   const flashSaleProducts = dbProducts
     .filter(p => typeof p.originalPrice === 'number' && (p.originalPrice as number) > p.price)
@@ -298,16 +340,48 @@ export default function HomeScreen({ navigation }: Props) {
           </View>
         ) : activeTab === 'Home' ? (
           <>
-            <View style={styles.promoWrapper}>
-              <View style={[styles.promoBox, { borderLeftWidth: 6, borderLeftColor: BRAND_COLOR }]}>
-                <View style={styles.promoTextPart}>
-                  <View style={[styles.promoBadge, { backgroundColor: BRAND_COLOR }]}>
-                    <Text style={styles.promoBadgeText}>SPECIAL OFFER</Text>
+            {/* SPECIAL OFFER CAROUSEL */}
+            <View style={styles.carouselContainer}>
+              <ScrollView 
+                ref={scrollRef}
+                horizontal 
+                pagingEnabled 
+                showsHorizontalScrollIndicator={false}
+                onScroll={(e) => {
+                  const x = e.nativeEvent.contentOffset.x;
+                  const index = Math.round(x / width);
+                  if (index !== activeSlide) setActiveSlide(index);
+                }}
+                scrollEventThrottle={16}
+              >
+                {promoSlides.map((slide) => (
+                  <View key={slide.id} style={[styles.promoBox, { width: width - 40 }]}>
+                    <View style={[styles.promoBorder, { backgroundColor: slide.color }]} />
+                    <View style={styles.promoTextPart}>
+                      <View style={[styles.promoBadge, { backgroundColor: slide.color }]}>
+                        <Text style={styles.promoBadgeText}>{slide.tag}</Text>
+                      </View>
+                      <Text style={styles.promoHeadline}>{slide.title}</Text>
+                      <Text style={styles.promoBrandName}>{slide.brand}</Text>
+                    </View>
+                    <View style={styles.promoImgPart}>
+                      <Image source={{ uri: slide.image }} style={styles.promoImg} />
+                    </View>
                   </View>
-                  <Text style={styles.promoHeadline}>24% off shipping today on all purchases</Text>
-                  <Text style={styles.promoBrandName}>Official BazaarX Store</Text>
-                </View>
-                <View style={styles.promoImgPart}><Image source={{ uri: 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=400' }} style={styles.promoImg} /></View>
+                ))}
+              </ScrollView>
+              
+              {/* Pagination Dots */}
+              <View style={styles.paginationContainer}>
+                {promoSlides.map((_, i) => (
+                  <View 
+                    key={i} 
+                    style={[
+                      styles.paginationDot, 
+                      { backgroundColor: i === activeSlide ? BRAND_COLOR : '#E5E7EB', width: i === activeSlide ? 20 : 8 }
+                    ]} 
+                  />
+                ))}
               </View>
             </View>
 
@@ -450,9 +524,36 @@ const styles = StyleSheet.create({
   deliveryContent: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   deliveryText: { fontSize: 13, color: '#4B5563', flex: 1 },
   deliveryAddressBold: { fontWeight: '700', color: '#1F2937' },
+
   contentScroll: { flex: 1 },
-  promoWrapper: { padding: 20, paddingBottom: 10 },
-  promoBox: { backgroundColor: '#FFF', borderRadius: 20, padding: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8 },
+  carouselContainer: { marginVertical: 15 },
+  promoWrapper: { marginVertical: 15 },
+  promoBox: { 
+    height: 160, 
+    backgroundColor: '#FFF', 
+    borderRadius: 20, 
+    padding: 20, 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-between', 
+    elevation: 4, 
+    shadowColor: '#000', 
+    shadowOffset: { width: 0, height: 4 }, 
+    shadowOpacity: 0.1, 
+    shadowRadius: 8,
+    marginHorizontal: 20, // Add spacing for carousel items if we use padding logic? No, width is specific.
+    // Wait, ScrollView with pagingEnabled needs exact width match.
+    // Width is set inline to (width - 40).
+    overflow: 'hidden',
+    position: 'relative'
+  },
+  promoBorder: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 6,
+  },
   promoTextPart: { flex: 0.65 },
   promoBadge: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4, marginBottom: 8 },
   promoBadgeText: { color: '#FFF', fontSize: 10, fontWeight: '900' },
@@ -515,5 +616,16 @@ const styles = StyleSheet.create({
   notificationItem: { flexDirection: 'row', padding: 18 },
   notificationIcon: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginRight: 15 },
   notifItemTitle: { fontSize: 16, fontWeight: '700', color: '#1F2937' },
-  notifItemMsg: { fontSize: 14, color: '#4B5563' }
+  notifItemMsg: { fontSize: 14, color: '#4B5563' },
+  paginationContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 10,
+    gap: 6
+  },
+  paginationDot: {
+    height: 8,
+    borderRadius: 4,
+  }
 });
