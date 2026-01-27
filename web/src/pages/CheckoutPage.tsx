@@ -1196,9 +1196,9 @@ export default function CheckoutPage() {
                     if (!profile) return;
                     setIsSaving(true);
                     try {
-                      const { supabase } = await import('../lib/supabase'); //
+                      const { addressService } = await import('../services/addressService');
 
-                      const dbPayload = {
+                      const addressPayload = {
                         user_id: profile.id,
                         label: newAddr.label,
                         first_name: newAddr.firstName,
@@ -1213,20 +1213,15 @@ export default function CheckoutPage() {
                         is_default: newAddr.isDefault,
                       };
 
-                      const { data, error } = await supabase.from('addresses').insert([dbPayload]).select().single(); //
-                      if (error) throw error;
+                      const savedAddress = await addressService.createAddress(addressPayload);
 
-                      const addressToSave: Address = {
-                        ...newAddr,
-                        id: data.id,
-                        fullName: `${newAddr.firstName} ${newAddr.lastName}`,
-                      };
-
-                      addAddress(addressToSave);
-                      setSelectedAddress(addressToSave);
+                      addAddress(savedAddress);
+                      setSelectedAddress(savedAddress);
                       setIsAddressModalOpen(false);
-                    } catch (error) {
+                      toast({ title: "Address saved successfully" });
+                    } catch (error: any) {
                       console.error("Error saving address:", error);
+                      toast({ title: "Error", description: error.message || "Failed to save address", variant: "destructive" });
                     } finally {
                       setIsSaving(false);
                     }
