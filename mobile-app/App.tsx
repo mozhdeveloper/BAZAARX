@@ -25,6 +25,8 @@ import DeliveryTrackingScreen from './app/DeliveryTrackingScreen';
 import ProfileScreen from './app/ProfileScreen';
 import FollowingShopsScreen from './app/FollowingShopsScreen';
 import WishlistScreen from './app/WishlistScreen';
+import SharedWishlistScreen from './app/SharedWishlistScreen';
+import FindRegistryScreen from './app/FindRegistryScreen';
 import AddressesScreen from './app/AddressesScreen';
 import SettingsScreen from './app/SettingsScreen';
 import NotificationsScreen from './app/NotificationsScreen';
@@ -77,6 +79,8 @@ export type RootStackParamList = {
   DeliveryTracking: { order: Order };
   FollowingShops: undefined;
   Wishlist: undefined;
+  SharedWishlist: { wishlistId?: string; userId?: string };
+  FindRegistry: undefined;
   Addresses: undefined;
   Settings: undefined;
   Notifications: undefined;
@@ -233,6 +237,8 @@ export default function App() {
           <Stack.Screen name="DeliveryTracking" component={DeliveryTrackingScreen} />
           <Stack.Screen name="FollowingShops" component={FollowingShopsScreen} />
           <Stack.Screen name="Wishlist" component={WishlistScreen} />
+          <Stack.Screen name="SharedWishlist" component={SharedWishlistScreen} />
+          <Stack.Screen name="FindRegistry" component={FindRegistryScreen} />
           <Stack.Screen name="Addresses" component={AddressesScreen} />
           <Stack.Screen name="Settings" component={SettingsScreen} />
           <Stack.Screen name="Notifications" component={NotificationsScreen} />
