@@ -30,6 +30,7 @@ import {
   CreditCard,
   User,
   LogOut,
+  LifeBuoy,
 } from 'lucide-react-native';
 import { useSellerStore } from '../stores/sellerStore';
 
@@ -151,6 +152,7 @@ export default function SellerDrawer({ visible, onClose }: SellerDrawerProps) {
       label: 'Account',
       items: [
         { icon: Settings, label: 'Settings', route: 'Settings', inTab: true },
+        { icon: LifeBuoy, label: 'Support', route: 'TicketList' },
       ],
     },
   ];
