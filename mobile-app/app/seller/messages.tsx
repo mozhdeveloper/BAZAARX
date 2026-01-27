@@ -20,11 +20,8 @@ import {
   Send,
   Image as ImageIcon,
   Paperclip,
-  X
-  X,
   Ticket,
-  Image as ImageIcon,
-  Paperclip
+  X
 } from 'lucide-react-native';
 import { Alert } from 'react-native';
 
@@ -274,7 +271,17 @@ export default function MessagesScreen() {
               </View>
             </View>
           </View>
-
+          <View style={styles.chatHeaderActions}>
+            <Pressable 
+              style={styles.iconButton}
+              onPress={() => (navigation as any).navigate('CreateTicket', {
+                initialSubject: `Issue with Order from ${activeConversation?.buyerName}`,
+                initialDescription: `Regarding conversation with ${activeConversation?.buyerName}...`
+              })}
+            >
+              <Ticket size={20} color="#FFFFFF" strokeWidth={2.5} />
+            </Pressable>
+          </View>
         </View>
       </View>
 
@@ -504,7 +511,13 @@ const styles = StyleSheet.create({
     opacity: 0.9,
     fontWeight: '500',
   },
-
+  chatHeaderActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  iconButton: {
+    padding: 6,
+  },
   messagesContainer: {
     flex: 1,
     backgroundColor: '#F9FAFB',
