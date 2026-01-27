@@ -397,10 +397,10 @@ export interface CartItem {
 
 export interface Review {
   id: string; // UUID
+  order_id: string;
   product_id: string;
-  seller_id: string;
   buyer_id: string;
-  order_id: string | null;
+  seller_id: string;
   // Review Content
   rating: number; // 1-5
   comment: string | null;
@@ -408,13 +408,11 @@ export interface Review {
   // Engagement
   helpful_count: number;
   // Seller Reply
-  seller_reply: {
-    comment: string;
-    date: string;
-  } | null;
+  seller_reply: Record<string, any> | null;
   // Status
   is_verified_purchase: boolean;
   is_hidden: boolean;
+  is_edited: boolean;
   // Timestamps
   created_at: string;
   updated_at: string;

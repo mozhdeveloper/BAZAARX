@@ -760,113 +760,113 @@ export default function OrdersPage() {
                         ) : order.status === "pending" ||
                           order.status === "confirmed" ||
                           order.status ===
-                            "shipped" ? /* In Progress - Track Order */
-                        null : order.status === "delivered" ? (
-                          /* Delivered - See Details and Review */
-                          <>
-                            <Button
-                              onClick={() => {
-                                setOrderToReview(order);
-                                setReviewModalOpen(true);
-                              }}
-                              size="sm"
-                              variant="outline"
-                              className="border-[#FF5722] text-[#FF5722] hover:bg-[#ff6a00] hover:text-white hover:border-[#ff6a00]"
-                            >
-                              <Star className="w-4 h-4 mr-1" />
-                              Write Review
-                            </Button>
-                            {isWithinReturnWindow(order) && (
+                          "shipped" ? /* In Progress - Track Order */
+                          null : order.status === "delivered" ? (
+                            /* Delivered - See Details and Review */
+                            <>
                               <Button
                                 onClick={() => {
-                                  setOrderToReturn(order);
-                                  setReturnModalOpen(true);
+                                  setOrderToReview(order);
+                                  setReviewModalOpen(true);
                                 }}
                                 size="sm"
                                 variant="outline"
                                 className="border-[#FF5722] text-[#FF5722] hover:bg-[#ff6a00] hover:text-white hover:border-[#ff6a00]"
                               >
-                                <RotateCcw className="w-4 h-4 mr-1" />
-                                Return/Refund
+                                <Star className="w-4 h-4 mr-1" />
+                                Write Review
                               </Button>
-                            )}
-                          </>
-                        ) : order.status === "cancelled" ? (
-                          /* Canceled - View Details */
-                          <Button
-                            onClick={() =>
-                              navigate(`/order/${encodeURIComponent(order.id)}`)
-                            }
-                            variant="outline"
-                            size="sm"
-                            className="border-gray-300 text-gray-500 hover:bg-gray-50"
-                          >
-                            <Eye className="w-4 h-4 mr-1" />
-                            View Details
-                          </Button>
-                        ) : order.status === "returned" ? (
-                          /* Returned - View Return Details */
-                          <Button
-                            onClick={() => setViewReturnDetails(order)}
-                            variant="outline"
-                            size="sm"
-                            className="border-[#FF5722] text-[#FF5722] hover:bg-orange-50"
-                          >
-                            <Eye className="w-4 h-4 mr-1" />
-                            View Details
-                          </Button>
-                        ) : order.status === "reviewed" ? (
-                          /* Reviewed - Show Details */
-                          <div className="flex flex-col items-end gap-3 text-right w-full sm:w-auto mt-4 sm:mt-0">
-                            <div className="flex flex-col items-end gap-1">
-                              <div className="flex items-center gap-1 bg-yellow-50 px-3 py-1.5 rounded-lg border border-yellow-100 mb-1">
-                                <span className="text-xs font-semibold text-yellow-700 uppercase tracking-wide mr-1">
-                                  Your Rating
-                                </span>
-                                <div className="flex">
-                                  {[1, 2, 3, 4, 5].map((star) => (
-                                    <Star
-                                      key={star}
-                                      className={`w-4 h-4 ${star <= (order.review?.rating || 5) ? "fill-yellow-400 text-yellow-400" : "text-gray-200"}`}
-                                    />
-                                  ))}
-                                </div>
-                              </div>
-                              {order.review?.submittedAt && (
-                                <span className="text-xs text-gray-400">
-                                  Submitted on{" "}
-                                  {new Date(
-                                    order.review.submittedAt,
-                                  ).toLocaleDateString()}
-                                </span>
+                              {isWithinReturnWindow(order) && (
+                                <Button
+                                  onClick={() => {
+                                    setOrderToReturn(order);
+                                    setReturnModalOpen(true);
+                                  }}
+                                  size="sm"
+                                  variant="outline"
+                                  className="border-[#FF5722] text-[#FF5722] hover:bg-[#ff6a00] hover:text-white hover:border-[#ff6a00]"
+                                >
+                                  <RotateCcw className="w-4 h-4 mr-1" />
+                                  Return/Refund
+                                </Button>
                               )}
-                            </div>
-
-                            {order.review?.comment && (
-                              <p className="text-sm text-gray-700 italic bg-gray-50 p-3 rounded-lg border border-gray-100 text-left w-full sm:max-w-md">
-                                "{order.review.comment}"
-                              </p>
-                            )}
-
-                            {order.review?.images &&
-                              order.review.images.length > 0 && (
-                                <div className="flex gap-2 justify-end mt-1">
-                                  {order.review.images.map((img, idx) => (
-                                    <div
-                                      key={idx}
-                                      className="w-12 h-12 rounded-lg border border-gray-200 overflow-hidden"
-                                    >
-                                      <img
-                                        src={img}
-                                        alt={`Review ${idx}`}
-                                        className="w-full h-full object-cover"
+                            </>
+                          ) : order.status === "cancelled" ? (
+                            /* Canceled - View Details */
+                            <Button
+                              onClick={() =>
+                                navigate(`/order/${encodeURIComponent(order.id)}`)
+                              }
+                              variant="outline"
+                              size="sm"
+                              className="border-gray-300 text-gray-500 hover:bg-gray-50"
+                            >
+                              <Eye className="w-4 h-4 mr-1" />
+                              View Details
+                            </Button>
+                          ) : order.status === "returned" ? (
+                            /* Returned - View Return Details */
+                            <Button
+                              onClick={() => setViewReturnDetails(order)}
+                              variant="outline"
+                              size="sm"
+                              className="border-[#FF5722] text-[#FF5722] hover:bg-orange-50"
+                            >
+                              <Eye className="w-4 h-4 mr-1" />
+                              View Details
+                            </Button>
+                          ) : order.status === "reviewed" ? (
+                            /* Reviewed - Show Details */
+                            <div className="flex flex-col items-end gap-3 text-right w-full sm:w-auto mt-4 sm:mt-0">
+                              <div className="flex flex-col items-end gap-1">
+                                <div className="flex items-center gap-1 bg-yellow-50 px-3 py-1.5 rounded-lg border border-yellow-100 mb-1">
+                                  <span className="text-xs font-semibold text-yellow-700 uppercase tracking-wide mr-1">
+                                    Your Rating
+                                  </span>
+                                  <div className="flex">
+                                    {[1, 2, 3, 4, 5].map((star) => (
+                                      <Star
+                                        key={star}
+                                        className={`w-4 h-4 ${star <= (order.review?.rating || 5) ? "fill-yellow-400 text-yellow-400" : "text-gray-200"}`}
                                       />
-                                    </div>
-                                  ))}
+                                    ))}
+                                  </div>
                                 </div>
+                                {order.review?.submittedAt && (
+                                  <span className="text-xs text-gray-400">
+                                    Submitted on{" "}
+                                    {new Date(
+                                      order.review.submittedAt,
+                                    ).toLocaleDateString()}
+                                  </span>
+                                )}
+                              </div>
+
+                              {order.review?.comment && (
+                                <p className="text-sm text-gray-700 italic bg-gray-50 p-3 rounded-lg border border-gray-100 text-left w-full sm:max-w-md">
+                                  "{order.review.comment}"
+                                </p>
                               )}
-                          </div>
-                        ) : null}
+
+                              {order.review?.images &&
+                                order.review.images.length > 0 && (
+                                  <div className="flex gap-2 justify-end mt-1">
+                                    {order.review.images.map((img, idx) => (
+                                      <div
+                                        key={idx}
+                                        className="w-12 h-12 rounded-lg border border-gray-200 overflow-hidden"
+                                      >
+                                        <img
+                                          src={img}
+                                          alt={`Review ${idx}`}
+                                          className="w-full h-full object-cover"
+                                        />
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                            </div>
+                          ) : null}
                       </div>
                     </div>
                   </div>
@@ -998,14 +998,14 @@ export default function OrdersPage() {
               )}
               {(selectedOrderData.status === "shipped" ||
                 selectedOrderData.status === "delivered") && (
-                <Button
-                  className="bg-[var(--brand-primary)] hover:bg-[var(--brand-secondary)] text-white"
-                  onClick={() => setTrackingOrder(selectedOrderData.id)}
-                >
-                  <MapPin className="w-4 h-4 mr-2" />
-                  Track Order
-                </Button>
-              )}
+                  <Button
+                    className="bg-[var(--brand-primary)] hover:bg-[var(--brand-secondary)] text-white"
+                    onClick={() => setTrackingOrder(selectedOrderData.id)}
+                  >
+                    <MapPin className="w-4 h-4 mr-2" />
+                    Track Order
+                  </Button>
+                )}
               <Button
                 variant="outline"
                 className="border-gray-300 text-gray-700 hover:bg-gray-50"
@@ -1186,7 +1186,8 @@ export default function OrdersPage() {
         <ReviewModal
           isOpen={reviewModalOpen}
           onClose={() => setReviewModalOpen(false)}
-          orderId={orderToReview.id}
+          orderId={orderToReview.dbId} // Use actual UUID for DB operations
+          displayOrderId={orderToReview.id} // Use order number for display
           sellerName={orderToReview.items[0]?.seller || "Bazaar Seller"}
           items={orderToReview.items.map((item: any) => ({
             id: item.id,
