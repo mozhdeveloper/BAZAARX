@@ -12,8 +12,12 @@ import {
   Image,
   Dimensions,
 } from 'react-native';
-import { ArrowLeft, Send, Bot, MoreVertical, Scale } from 'lucide-react-native';
+import { ArrowLeft, Send, Bot, MoreVertical, Scale, Ticket } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { COLORS } from '../constants/theme';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../../App';
 
 const { width } = Dimensions.get('window');
 
@@ -36,6 +40,10 @@ interface Message {
   isUser: boolean;
   timestamp: Date;
   comparison?: ProductComparison;
+  action?: {
+      label: string;
+      target: 'CreateTicket';
+  };
 }
 
 interface AIChatModalProps {
@@ -52,6 +60,7 @@ const suggestedQuestions = [
 
 export default function AIChatModal({ visible, onClose }: AIChatModalProps) {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -118,7 +127,7 @@ export default function AIChatModal({ visible, onClose }: AIChatModalProps) {
     return (
       <View style={styles.comparisonCard}>
         <View style={styles.comparisonHeader}>
-          <Scale size={18} color="#FF5722" strokeWidth={2.5} />
+          <Scale size={18} color={COLORS.primary} strokeWidth={2.5} />
           <Text style={styles.comparisonTitle}>{comparison.title}</Text>
         </View>
         
@@ -156,6 +165,21 @@ export default function AIChatModal({ visible, onClose }: AIChatModalProps) {
   const getDummyResponse = (input: string): Message | null => {
     const lowerInput = input.toLowerCase();
     
+    // Smart Redirect Logic
+    const ticketKeywords = ['ticket', 'refund', 'return', 'complaint', 'broken', 'missing', 'damaged', 'received wrong', 'bad quality', 'support', 'technical error', 'app bug'];
+    if (ticketKeywords.some(keyword => lowerInput.includes(keyword))) {
+        return {
+            id: (Date.now() + 1).toString(),
+            text: "I can help with that! It sounds like you might need to raise an official support ticket. You can do that right here:",
+            isUser: false,
+            timestamp: new Date(),
+            action: {
+                label: 'Create a Ticket',
+                target: 'CreateTicket'
+            }
+        };
+    }
+
     if (lowerInput.includes('compare') && (lowerInput.includes('earbud') || lowerInput.includes('headphone'))) {
       return {
         id: (Date.now() + 1).toString(),
@@ -259,6 +283,13 @@ export default function AIChatModal({ visible, onClose }: AIChatModalProps) {
     }
   };
 
+  const handleAction = (target: string) => {
+    if (target === 'CreateTicket') {
+        onClose();
+        navigation.navigate('CreateTicket');
+    }
+  };
+
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView
@@ -267,14 +298,19 @@ export default function AIChatModal({ visible, onClose }: AIChatModalProps) {
         keyboardVerticalOffset={0}
       >
         {/* Universal Header - Edge to Edge Orange */}
-        <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+        <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
           <Pressable onPress={onClose} style={styles.backButton}>
             <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
           </Pressable>
           <Text style={styles.headerTitle}>AI Assistant</Text>
-          <Pressable onPress={handleClearChat} style={styles.menuButton}>
-            <Text style={styles.clearText}>Clear</Text>
-          </Pressable>
+          <View style={{ flexDirection: 'row' }}>
+            <Pressable onPress={() => handleAction('CreateTicket')} style={styles.menuButton}>
+                <Ticket size={24} color="#FFFFFF" />
+            </Pressable>
+            <Pressable onPress={handleClearChat} style={styles.menuButton}>
+                <Text style={styles.clearText}>Clear</Text>
+            </Pressable>
+          </View>
         </View>
 
         {/* Messages - Light Grey Background */}
@@ -310,7 +346,7 @@ export default function AIChatModal({ visible, onClose }: AIChatModalProps) {
                 >
                   {!message.isUser && (
                     <View style={styles.aiAvatar}>
-                      <Bot size={18} color="#FF5722" strokeWidth={2.5} />
+                      <Bot size={18} color={COLORS.primary} strokeWidth={2.5} />
                     </View>
                   )}
                   <View
@@ -327,6 +363,19 @@ export default function AIChatModal({ visible, onClose }: AIChatModalProps) {
                     >
                       {message.text}
                     </Text>
+
+                    {/* Action Button */}
+                    {message.action && (
+                        <Pressable 
+                            style={styles.actionButton}
+                            onPress={() => message.action && handleAction(message.action.target)}
+                        >
+                            <Text style={styles.actionButtonText}>{message.action.label}</Text>
+                            <View style={{ marginLeft: 6 }}>
+                                <ArrowLeft size={16} color="#FFF" style={{ transform: [{ rotate: '180deg' }] }} />
+                            </View>
+                        </Pressable>
+                    )}
                   </View>
                 </View>
               )}
@@ -343,7 +392,7 @@ export default function AIChatModal({ visible, onClose }: AIChatModalProps) {
           {isTyping && (
             <View style={[styles.messageBubble, styles.aiBubble]}>
               <View style={styles.aiAvatar}>
-                <Bot size={18} color="#FF5722" strokeWidth={2.5} />
+                <Bot size={18} color={COLORS.primary} strokeWidth={2.5} />
               </View>
               <View style={styles.typingIndicator}>
                 <View style={styles.typingDot} />
@@ -395,7 +444,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingBottom: 16,
-    backgroundColor: '#FF5722',
+    backgroundColor: COLORS.primary,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
   },
   backButton: {
     width: 40,
@@ -488,7 +539,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   userMessageContent: {
-    backgroundColor: '#FF5722',
+    backgroundColor: COLORS.primary,
     paddingVertical: 14,
     paddingHorizontal: 18,
     borderRadius: 20,
@@ -584,7 +635,7 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   productColumnSelected: {
-    borderColor: '#FF5722',
+    borderColor: COLORS.primary,
     backgroundColor: '#FFF5F0',
   },
   productImage: {
@@ -605,7 +656,7 @@ const styles = StyleSheet.create({
   productPrice: {
     fontSize: 17,
     fontWeight: '800',
-    color: '#FF5722',
+    color: COLORS.primary,
     marginBottom: 12,
     letterSpacing: -0.3,
   },
@@ -659,10 +710,10 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#FF5722',
+    backgroundColor: COLORS.primary,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#FF5722',
+    shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -672,5 +723,21 @@ const styles = StyleSheet.create({
     backgroundColor: '#D1D5DB',
     shadowColor: '#000',
     shadowOpacity: 0.1,
+  },
+  actionButton: {
+    marginTop: 12,
+    backgroundColor: '#10B981', // Success/Green
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 40,
+  },
+  actionButtonText: {
+    color: '#FFF',
+    fontWeight: '600',
+    fontSize: 13,
   },
 });

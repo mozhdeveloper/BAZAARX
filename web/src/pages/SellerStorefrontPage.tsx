@@ -217,32 +217,36 @@ export default function SellerStorefrontPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header transparentOnTop />
+      <Header hideSearch />
 
-      {/* Seller Header - Clean Style */}
-      <div className="bg-gray-50 pb-6 pt-28 rounded-b-[3rem] border-b-2 border-[#ff6a00] relative overflow-hidden">
+      {/* Seller Header - Modern Dark Orange Style */}
+      <div className="relative bg-[#2b1203]/80 pt-12 pb-10 overflow-hidden">
+        {/* Background Image with Dark Orange Overlay */}
         <div className="absolute inset-0">
           <div
-            className="absolute inset-0 bg-center bg-cover opacity-30"
+            className="absolute inset-0 bg-center bg-cover opacity-50 scale-105"
             style={{ backgroundImage: `url(${seller.avatar})` }}
           />
-
+          <div className="absolute inset-0 bg-gradient-to-t from-[#2b1203]/85 via-[#4d2000]/60 to-[#7a3300]/30" />
         </div>
+
         <div className="max-w-7xl mx-auto px-4 relative z-10">
-          <div className="mb-4">
+          <div className="mb-6">
             <Button
               variant="ghost"
               size="sm"
               onClick={() => navigate(-1)}
-              className="hover:bg-transparent px-0 -ml-1 text-gray-600 hover:text-[#ff6a00] transition-colors"
+              className="hover:bg-white/10 px-3 -ml-2 text-white/80 hover:text-white transition-all rounded-full backdrop-blur-md bg-white/5"
             >
               <ChevronLeft className="w-5 h-5 mr-1" />
               Back
             </Button>
           </div>
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6 text-gray-900">
-            <div className="relative group">
-              <div className="w-24 h-24 rounded-full bg-white p-1 shadow-md border border-gray-200">
+
+          <div className="flex flex-col md:flex-row items-center md:items-end gap-6 md:gap-8">
+            {/* Store Avatar */}
+            <div className="relative">
+              <div className="w-32 h-32 md:w-36 md:h-36 rounded-full bg-white p-1 shadow-2xl overflow-hidden">
                 <img
                   src={seller.avatar}
                   alt={seller.name}
@@ -250,100 +254,81 @@ export default function SellerStorefrontPage() {
                 />
               </div>
               {seller.isVerified && (
-                <div className="absolute bottom-1 right-1 bg-orange-500 text-white p-1.5 rounded-full shadow-lg border-2 border-white">
-                  <Shield className="w-4 h-4" />
+                <div className="absolute bottom-2 right-2 bg-[#FF6A00] text-white p-1.5 rounded-full shadow-lg border-[3px] border-[#1a0b02]">
+                  <Shield className="w-4 h-4 fill-current" />
                 </div>
               )}
             </div>
 
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-1">
-                <h1 className="text-3xl font-bold">
+            {/* Store Details */}
+            <div className="flex-1 text-center md:text-left">
+              <div className="flex flex-col md:flex-row items-center gap-3 mb-2">
+                <h1 className="text-3xl font-bold text-white tracking-tight">
                   {seller.name}
                 </h1>
                 {seller.isVerified && (
-                  <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full text-xs font-medium border border-orange-200 flex items-center gap-1">
-                    <Shield className="w-3 h-3" />
-                    Verified Seller
-                  </span>
+                  <Badge className="bg-white text-[#FF6A00] hover:bg-white border-none py-0.5 px-3 hidden md:flex items-center gap-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider">
+                    Verified Store
+                  </Badge>
                 )}
               </div>
 
-              <div className="flex items-center gap-4 text-gray-600 text-sm font-medium">
-                <span className="flex items-center gap-1">
-                  <MapPin className="w-3.5 h-3.5" />
-                  {seller.location}
-                </span>
-                <span className="flex items-center gap-1">
-                  <Calendar className="w-3.5 h-3.5" />
-                  Est. {seller.established}
-                </span>
-              </div>
-              <div className="mt-4 flex flex-wrap items-center gap-x-8 gap-y-4">
-                <div className="flex flex-col items-start gap-1">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">
-                    Followers
+              <div className="flex flex-col gap-1 mb-5">
+                <div className="flex items-center justify-center md:justify-start gap-4 text-white/80 text-sm font-medium">
+                  <span className="flex items-center">
+                    {seller.location}
                   </span>
-                  <span className="flex items-center gap-1.5 text-lg font-bold text-[#ff6a00]">
-                    <Users className="w-5 h-5" />
-                    {seller.followers.toLocaleString()}
+                  <span className="w-1.5 h-1.5 rounded-full bg-orange-500/50 hidden md:block" />
+                  <span className="flex items-center">
+                    Est. {seller.established}
                   </span>
                 </div>
 
-                <div className="h-8 w-px bg-gray-200 hidden sm:block"></div>
-
-                <div className="flex flex-col items-start gap-1">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">
-                    Rating
-                  </span>
-                  <span className="flex items-center gap-1.5 text-lg font-bold text-[#ff6a00]">
-                    <Star className="w-5 h-5 fill-current" />
-                    {seller.rating}
-                  </span>
-                </div>
-
-                <div className="h-8 w-px bg-gray-200 hidden sm:block"></div>
-
-                <div className="flex flex-col items-start gap-1">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">
-                    Response Time
-                  </span>
-                  <span className="flex items-center gap-1.5 text-lg font-bold text-[#ff6a00]">
-                    <MessageCircle className="w-5 h-5" />
-                    {seller.responseTime}
-                  </span>
+                <div className="flex items-center justify-center md:justify-start gap-6 mt-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-white text-base font-bold">{seller.rating}</span>
+                    <span className="text-white/50 text-[10px] font-bold uppercase tracking-widest">Rating</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-white text-base font-bold">{seller.followers.toLocaleString()}</span>
+                    <span className="text-white/50 text-[10px] font-bold uppercase tracking-widest">Followers</span>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="bg-white hover:bg-[#ff6a00] text-gray-700 border-gray-200 shadow-sm"
-              >
-                <MessageCircle className="h-4 w-4 mr-2" />
-                Chat
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="bg-white hover:bg-[#ff6a00] text-gray-700 border-gray-200 shadow-sm"
-              >
-                <Share2 className="h-4 w-4 mr-2" />
-                Share
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => isFollowing(seller.id) ? unfollowShop(seller.id) : followShop(seller.id)}
-                className={`shadow-sm ${isFollowing(seller.id)
-                  ? 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
-                  : 'bg-[#ff6a00] text-white hover:bg-[#ff6a00]/90'
-                  }`}
-              >
-                <Heart className={cn('h-4 w-4 mr-2', isFollowing(seller.id) && 'fill-current')} />
-                {isFollowing(seller.id) ? 'Unfollow' : 'Follow'}
-              </Button>
+              {/* Action Buttons */}
+              <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 mt-6">
+                <Button
+                  onClick={() => isFollowing(seller.id) ? unfollowShop(seller.id) : followShop(seller.id)}
+                  className={cn(
+                    "h-10 px-8 rounded-xl font-bold transition-all duration-300 min-w-[130px]",
+                    isFollowing(seller.id)
+                      ? "bg-white/10 text-white border border-white/20 hover:bg-white/20 backdrop-blur-md"
+                      : "bg-[#FF6A00] text-white hover:bg-[#E65A00] shadow-lg shadow-orange-600/20"
+                  )}
+                >
+                  {isFollowing(seller.id) ? (
+                    <><Heart className="w-4 h-4 mr-2 fill-current" /> Following</>
+                  ) : (
+                    <><Heart className="w-4 h-4 mr-2" /> Follow</>
+                  )}
+                </Button>
+
+                <Button
+                  variant="outline"
+                  className="h-10 px-8 rounded-xl font-bold bg-transparent border-2 border-white/20 text-white hover:bg-white hover:text-[#1a0b02] transition-all min-w-[130px]"
+                >
+                  Chat
+                </Button>
+
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-10 w-10 rounded-xl bg-white/5 text-white border border-white/10 hover:bg-white/10 backdrop-blur-md transition-all"
+                >
+                  <Share2 className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
           </div>
         </div>
@@ -383,30 +368,61 @@ export default function SellerStorefrontPage() {
               {/* Filters and Controls */}
               <div className="flex items-center justify-between">
                 <div className="flex flex-wrap items-center gap-4">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-3">
                     <Filter className="h-4 w-4 text-gray-400" />
                     <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                      <SelectTrigger className="w-[180px] bg-white border-gray-200 text-sm font-medium focus:ring-[#ff6a00] focus:ring-offset-0">
+                      <SelectTrigger className="w-[160px] h-8 bg-white border-gray-200 rounded-[12px] text-gray-700 text-[13px] focus:ring-1 focus:ring-orange-100 focus:ring-offset-0 shadow-sm hover:border-gray-300 hover:shadow-md transition-all px-4">
                         <SelectValue placeholder="Category" />
                       </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Categories</SelectItem>
+                      <SelectContent className="rounded-2xl border-gray-100 p-1 shadow-xl">
+                        <SelectItem
+                          value="all"
+                          className="rounded-xl data-[state=checked]:bg-[#ff6a00] data-[state=checked]:text-white focus:bg-orange-50 focus:text-[#ff6a00] cursor-pointer"
+                        >
+                          All Categories
+                        </SelectItem>
                         {seller.categories.map((cat) => (
-                          <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                          <SelectItem
+                            key={cat}
+                            value={cat}
+                            className="rounded-xl data-[state=checked]:bg-[#ff6a00] data-[state=checked]:text-white focus:bg-orange-50 focus:text-[#ff6a00] cursor-pointer"
+                          >
+                            {cat}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-3">
                     <Select value={sortBy} onValueChange={setSortBy}>
-                      <SelectTrigger className="w-[180px] bg-white border-gray-200 text-sm font-medium focus:ring-[#ff6a00] focus:ring-offset-0">
+                      <SelectTrigger className="w-[160px] h-8 bg-white border-gray-200 rounded-[12px] text-gray-700 text-[13px] focus:ring-1 focus:ring-orange-100 focus:ring-offset-0 shadow-sm hover:border-gray-300 hover:shadow-md transition-all px-4">
                         <SelectValue placeholder="Sort by" />
                       </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="popular">Popular</SelectItem>
-                        <SelectItem value="newest">Newest</SelectItem>
-                        <SelectItem value="price-low">Price: Low to High</SelectItem>
-                        <SelectItem value="price-high">Price: High to Low</SelectItem>
+                      <SelectContent className="rounded-2xl border-gray-100 p-1 shadow-xl">
+                        <SelectItem
+                          value="popular"
+                          className="rounded-xl data-[state=checked]:bg-[#ff6a00] data-[state=checked]:text-white focus:bg-orange-50 focus:text-[#ff6a00] cursor-pointer"
+                        >
+                          Popular
+                        </SelectItem>
+                        <SelectItem
+                          value="newest"
+                          className="rounded-xl data-[state=checked]:bg-[#ff6a00] data-[state=checked]:text-white focus:bg-orange-50 focus:text-[#ff6a00] cursor-pointer"
+                        >
+                          Newest
+                        </SelectItem>
+                        <SelectItem
+                          value="price-low"
+                          className="rounded-xl data-[state=checked]:bg-[#ff6a00] data-[state=checked]:text-white focus:bg-orange-50 focus:text-[#ff6a00] cursor-pointer"
+                        >
+                          Price: Low to High
+                        </SelectItem>
+                        <SelectItem
+                          value="price-high"
+                          className="rounded-xl data-[state=checked]:bg-[#ff6a00] data-[state=checked]:text-white focus:bg-orange-50 focus:text-[#ff6a00] cursor-pointer"
+                        >
+                          Price: High to Low
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

@@ -17,7 +17,7 @@ import {
   Star,
   Shield,
   AlertCircle,
-  ArrowLeft,
+  ChevronLeft,
 } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -174,14 +174,15 @@ export default function EnhancedCartPage() {
       <div className="max-w-7xl mx-auto px-4 py-4">
         <div className="mb-2 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <Button
-              variant="ghost"
-              onClick={() => navigate('/shop')}
-              className="mb-0 -mt-6 -ml-2"
+            <button
+              onClick={() => navigate(-1)}
+              className="flex items-center gap-2 text-gray-600 hover:text-[#ff6a00] transition-colors mb-4 group"
             >
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Continue Shopping
-            </Button>
+              <div className="p-1.5">
+                <ChevronLeft className="w-4 h-4 mt-2" />
+              </div>
+              <span className="font-medium text-sm mt-2">Continue Shopping</span>
+            </button>
             <div className="flex flex-wrap items-baseline gap-3">
               <h1 className="text-3xl font-bold text-gray-900 mb-1">
                 Shopping Cart
