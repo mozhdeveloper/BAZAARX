@@ -10,9 +10,10 @@ import {
   Image,
   Dimensions,
   StatusBar,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Search, Bell, Camera, Bot, X, Package, Timer, MapPin, ChevronDown, ArrowLeft, Clock, MessageSquare } from 'lucide-react-native';
+import { Search, Bell, Camera, Bot, X, Package, Timer, MapPin, ChevronDown, ArrowLeft, Clock, MessageSquare, MessageCircle } from 'lucide-react-native';
 import { ProductCard } from '../src/components/ProductCard';
 import CameraSearchModal from '../src/components/CameraSearchModal';
 import AIChatModal from '../src/components/AIChatModal';
@@ -386,8 +387,8 @@ export default function HomeScreen({ navigation }: Props) {
         )}
       </ScrollView>
 
-      <Pressable style={[styles.aiFloatingButton, { backgroundColor: BRAND_COLOR, bottom: 90 }]} onPress={() => setShowAIChat(true)}>
-        <Bot size={28} color="#FFF" />
+      <Pressable style={[styles.aiFloatingButton, { backgroundColor: BRAND_COLOR, bottom: 90 }]} onPress={() => navigation.navigate('Messages')}>
+        <MessageCircle size={28} color="#FFF" />
       </Pressable>
 
       <ProductRequestModal visible={showProductRequest} onClose={() => setShowProductRequest(false)} />
