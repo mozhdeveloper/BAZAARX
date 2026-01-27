@@ -546,41 +546,42 @@ export const useAuthStore = create<AuthStore>()(
           }
 
           // 2) Create seller record (use upsert to handle conflicts)
-          const sellerRow = {
+          const { sellerService } = await import('@/services/sellerService');
+
+          const sellerData = {
             id: user.id,
             business_name: sellerData.businessName || sellerData.storeName || 'My Store',
             store_name: sellerData.storeName || 'My Store',
-            store_description: sellerData.storeDescription || null,
+            store_description: sellerData.storeDescription || '',
             store_category: sellerData.storeCategory || ['General'],
             business_type: sellerData.businessType || 'sole_proprietor',
-            business_registration_number: sellerData.businessRegistrationNumber || null,
-            tax_id_number: sellerData.taxIdNumber || null,
+            business_registration_number: sellerData.businessRegistrationNumber || '',
+            tax_id_number: sellerData.taxIdNumber || '',
             business_address: sellerData.businessAddress || sellerData.storeAddress || '',
-            city: sellerData.city || null,
-            province: sellerData.province || null,
-            postal_code: sellerData.postalCode || null,
-            bank_name: sellerData.bankName || null,
-            account_name: sellerData.accountName || null,
-            account_number: sellerData.accountNumber || null,
+            city: sellerData.city || '',
+            province: sellerData.province || '',
+            postal_code: sellerData.postalCode || '',
+            bank_name: sellerData.bankName || '',
+            account_name: sellerData.accountName || '',
+            account_number: sellerData.accountNumber || '',
             is_verified: false,
             approval_status: 'pending' as const,
             rating: 0,
             total_sales: 0,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            join_date: new Date().toISOString().split('T')[0],
           };
 
+          const savedSeller = await sellerService.upsertSeller(sellerData);
 
-          const { error: sellerError } = await supabase.from('sellers').upsert(sellerRow, {
-            onConflict: 'id',
-            ignoreDuplicates: false
-          });
-
-          if (sellerError) {
-            console.error('Seller insert failed:', sellerError);
+          if (!savedSeller) {
+            console.error('Seller insert failed');
             return false;
           }
 
           // 3) Set local auth state as pending (awaiting approval)
-          set({ seller: mapDbSellerToSeller(sellerRow as DBSeller), isAuthenticated: false });
+          set({ seller: mapDbSellerToSeller(savedSeller), isAuthenticated: false });
           return true;
         } catch (err) {
           console.error('Registration error:', err);
@@ -1347,7 +1348,7 @@ export const useOrderStore = create<OrderStore>()(
         }
 
         set({ loading: true, error: null, sellerId });
-        
+
         try {
           const dbOrders = await getSellerOrders(sellerId);
           const sellerOrders = dbOrders.map(mapOrderToSellerOrder);
@@ -1438,16 +1439,16 @@ export const useOrderStore = create<OrderStore>()(
 
           // Get seller ID from OrderStore (stored in fetchOrders)
           let sellerId = get().sellerId;
-          
+
           console.log(`👤 Current seller ID from OrderStore:`, sellerId);
           console.log(`📦 Order object:`, order);
-          
+
           // Fallback: Extract seller ID from order object if store doesn't have it
           if (!sellerId && (order as any).seller_id) {
             sellerId = (order as any).seller_id;
             console.log(`✅ Fallback: Using seller_id from order object: ${sellerId}`);
           }
-          
+
           if (!sellerId) {
             console.error('❌ No seller ID found! Cannot update database.');
             console.error('Seller from store:', get().seller);
@@ -1476,7 +1477,7 @@ export const useOrderStore = create<OrderStore>()(
           // Create notification for buyer if order has buyer_id
           console.log(`📦 Order object:`, order);
           console.log(`🆔 Order buyer_id:`, order.buyer_id);
-          
+
           if (order.buyer_id) {
             const statusMessages: Record<string, string> = {
               'confirmed': `Your order #${id.slice(-8)} has been confirmed and is being prepared.`,
@@ -1486,9 +1487,9 @@ export const useOrderStore = create<OrderStore>()(
             };
 
             const message = statusMessages[status] || `Order #${id.slice(-8)} status updated to ${status}`;
-            
+
             console.log(`🚀 Creating buyer notification for order ${id}`);
-            
+
             // Import notification service dynamically to avoid circular dependency
             import('../services/notificationService').then(({ notifyBuyerOrderStatus }) => {
               notifyBuyerOrderStatus({
