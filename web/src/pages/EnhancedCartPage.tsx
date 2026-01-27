@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useBuyerStore } from "../stores/buyerStore";
 import Header from "../components/Header";
@@ -17,12 +17,14 @@ import {
   Star,
   Shield,
   AlertCircle,
+  ChevronLeft,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
 export default function EnhancedCartPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const {
     cartItems,
     groupedCart,
@@ -56,6 +58,42 @@ export default function EnhancedCartPage() {
   useEffect(() => {
     groupCartBySeller();
   }, [cartItems]);
+
+  // Track processed navigation to prevent re-selecting if user unselects
+  const processedKeyRef = useRef<string | null>(null);
+
+  // Handle auto-selection from navigation state (e.g. Buy Again)
+  useEffect(() => {
+    const state = location.state as { selectedItems?: string[] } | null;
+
+    // Check if we have items selection request and cart has items
+    if (state?.selectedItems && state.selectedItems.length > 0 && cartItems.length > 0) {
+      // If we already processed this navigation key, don't force selection again
+      if (processedKeyRef.current === location.key) {
+        return;
+      }
+
+      // Small timeout to ensure store state is settled
+      const timer = setTimeout(() => {
+        // Then select the requested items
+        state.selectedItems.forEach(id => {
+          // Find all matching items (handling variants)
+          const items = cartItems.filter(i => i.id === id);
+          items.forEach(item => {
+            // Select if not already selected
+            if (!item.selected) {
+              toggleItemSelection(item.id, item.selectedVariant?.id);
+            }
+          });
+        });
+      }, 500);
+
+      // Mark this navigation as processed
+      processedKeyRef.current = location.key;
+
+      return () => clearTimeout(timer);
+    }
+  }, [location.state, cartItems, location.key]); // Depend on cartItems to ensure fresh state
 
   const totalItems = getCartItemCount();
   const selectedCount = getSelectedCount();
@@ -133,31 +171,45 @@ export default function EnhancedCartPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        <div className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="max-w-7xl mx-auto px-4 py-4">
+        <div className="mb-2 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">
-              Shopping Cart
-            </h1>
-            <p className="text-gray-600">
-              {totalItems} {totalItems === 1 ? "item" : "items"} from{" "}
-              {Object.keys(groupedCart).length} seller
-              {Object.keys(groupedCart).length === 1 ? "" : "s"}
-            </p>
+            <button
+              onClick={() => navigate(-1)}
+              className="flex items-center gap-2 text-gray-600 hover:text-[#ff6a00] transition-colors mb-4 group"
+            >
+              <div className="p-1.5">
+                <ChevronLeft className="w-4 h-4 mt-2" />
+              </div>
+              <span className="font-medium text-sm mt-2">Continue Shopping</span>
+            </button>
+            <div className="flex flex-wrap items-baseline gap-3">
+              <h1 className="text-3xl font-bold text-gray-900 mb-1">
+                Shopping Cart
+              </h1>
+              <p className="text-gray-500 text-xs italic">
+                {totalItems} {totalItems === 1 ? "item" : "items"} from{" "}
+                {Object.keys(groupedCart).length} seller
+                {Object.keys(groupedCart).length === 1 ? "" : "s"}
+              </p>
+            </div>
           </div>
-          
-          <div className="flex items-center gap-2 bg-white px-4 py-3 rounded-lg border border-gray-200 shadow-sm">
-            <Checkbox 
-              checked={allSelected || (someSelected ? "indeterminate" : false)} 
-              onCheckedChange={(checked) => selectAllItems(checked === true)}
-            />
-            <span className="text-sm font-medium text-gray-700">Select All Items ({totalItems})</span>
-          </div>
+
+
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-2">
           {/* Cart Items - Grouped by Seller */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="lg:col-span-2 space-y-2">
+            {/* Sticky Select All Bar */}
+            <div className="sticky top-4 z-10 bg-gray-50/95 backdrop-blur-sm py-2 flex items-center justify-end gap-2">
+              <Checkbox
+                checked={allSelected || (someSelected ? "indeterminate" : false)}
+                onCheckedChange={(checked) => selectAllItems(checked === true)}
+              />
+              <span className="text-xs font-small text-gray-600">Select All Items ({totalItems})</span>
+            </div>
+
             <AnimatePresence>
               {Object.entries(groupedCart).map(
                 ([sellerId, group], sellerIndex) => (
@@ -173,7 +225,7 @@ export default function EnhancedCartPage() {
                     <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
                       <div className="flex items-center justify-between gap-4">
                         <div className="flex items-center gap-3">
-                          <Checkbox 
+                          <Checkbox
                             checked={group.items.every(item => item.selected)}
                             onCheckedChange={(checked) => toggleSellerSelection(sellerId, checked === true)}
                           />
@@ -257,7 +309,7 @@ export default function EnhancedCartPage() {
                           className="flex gap-4 p-4 border border-gray-100 rounded-lg hover:border-gray-200 transition-colors"
                         >
                           <div className="flex items-center h-full pt-8 mr-2">
-                            <Checkbox 
+                            <Checkbox
                               checked={item.selected || false}
                               onCheckedChange={() => toggleItemSelection(item.id, item.selectedVariant?.id)}
                             />
@@ -366,7 +418,7 @@ export default function EnhancedCartPage() {
             animate={{ opacity: 1, x: 0 }}
             className="lg:col-span-1"
           >
-            <div className="bg-white rounded-xl border border-gray-200 p-6 sticky top-4">
+            <div className="bg-white rounded-xl border border-gray-200 p-6 sticky top-24">
               <h3 className="text-xl font-semibold text-gray-900 mb-6">
                 Order Summary
               </h3>

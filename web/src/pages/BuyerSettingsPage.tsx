@@ -194,14 +194,11 @@ export default function BuyerSettingsPage() {
     if (!profile) return;
     setIsSaving(true);
     try {
-      const { supabase } = await import('../lib/supabase');
+      const { addressService } = await import('../services/addressService');
 
       // FIX: Clear existing default in DB and Local State
       if (newAddress.isDefault) {
-        await supabase
-          .from('addresses')
-          .update({ is_default: false })
-          .eq('user_id', profile.id);
+        await addressService.setDefaultAddress(profile.id, ''); // Clear all defaults first
 
         // Update local store to reset other defaults
         addresses.forEach(addr => {
@@ -209,7 +206,7 @@ export default function BuyerSettingsPage() {
         });
       }
 
-      const dbPayload = {
+      const addressPayload = {
         user_id: profile.id,
         label: newAddress.label,
         first_name: newAddress.firstName,
@@ -225,16 +222,11 @@ export default function BuyerSettingsPage() {
       };
 
       if (editingId) {
-        const { error } = await supabase.from('addresses').update(dbPayload).eq('id', editingId);
-        if (error) throw error;
-        updateAddress(editingId, { ...newAddress, id: editingId });
+        const updatedAddress = await addressService.updateAddress(editingId, addressPayload);
+        updateAddress(editingId, updatedAddress);
       } else {
-        const { data, error } = await supabase.from('addresses').insert([dbPayload]).select().single();
-        if (error) throw error;
-        addAddress({
-          ...newAddress, id: data.id,
-          fullName: ''
-        });
+        const savedAddress = await addressService.createAddress(addressPayload);
+        addAddress(savedAddress);
       }
       setIsAddressOpen(false);
       toast({ title: editingId ? "Address updated" : "Address added" });
@@ -331,9 +323,14 @@ export default function BuyerSettingsPage() {
                     </Button>
                     <Button variant="ghost" size="sm" className="text-red-500" onClick={async () => {
                       if (confirm("Delete?")) {
-                        const { supabase } = await import('../lib/supabase');
-                        await supabase.from('addresses').delete().eq('id', address.id);
-                        deleteAddress(address.id);
+                        try {
+                          const { addressService } = await import('../services/addressService');
+                          await addressService.deleteAddress(address.id);
+                          deleteAddress(address.id);
+                          toast({ title: "Address deleted" });
+                        } catch (error: any) {
+                          toast({ title: "Error", description: error.message, variant: "destructive" });
+                        }
                       }
                     }}>
                       <Trash2 className="h-4 w-4" />

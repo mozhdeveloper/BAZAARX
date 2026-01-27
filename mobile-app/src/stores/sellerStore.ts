@@ -409,6 +409,7 @@ export const useSellerStore = create<SellerStore>()(
             throw new Error('Product category is required');
           }
 
+      
           set((state) => ({
             products: [...state.products, product],
           }));
@@ -441,12 +442,14 @@ export const useSellerStore = create<SellerStore>()(
       orders: dummyOrders,
 
       updateOrderStatus: (orderId, status) => {
+        // Update seller's order list
         set((state) => ({
           orders: state.orders.map((o) =>
             o.orderId === orderId ? { ...o, status } : o
           ),
         }));
 
+    
         // SYNC TO BUYER: Also update the buyer's order store
         try {
           import('./orderStore').then(({ useOrderStore }) => {
@@ -551,9 +554,9 @@ export const useSellerStore = create<SellerStore>()(
       // Settings
       updateSellerInfo: (updates) =>
         set((state) => ({
-          seller: { ...state.seller, ...updates as any },
+          seller: { ...state.seller, ...updates },
         })),
-
+      
       // Auth
       logout: () => {
         // Clear seller data - can be enhanced to clear AsyncStorage if needed

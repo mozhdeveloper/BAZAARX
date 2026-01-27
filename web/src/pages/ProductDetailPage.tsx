@@ -34,7 +34,7 @@ import { cn } from "../lib/utils";
 import { getProductById } from "../services/productService";
 import { ProductWithSeller } from "../types/database.types";
 
-interface ProductDetailPageProps {}
+interface ProductDetailPageProps { }
 
 interface Reply {
   id: number;
@@ -811,7 +811,7 @@ const reviewsData: Record<string, any[]> = {
   ],
 };
 
-export default function ProductDetailPage({}: ProductDetailPageProps) {
+export default function ProductDetailPage({ }: ProductDetailPageProps) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { addToCart, setQuickOrder, profile } = useBuyerStore();
@@ -867,61 +867,61 @@ export default function ProductDetailPage({}: ProductDetailPageProps) {
   // Handle both camelCase (from store) and snake_case (from DB)
   const normalizedProduct = sellerProduct
     ? {
-        id: (sellerProduct as any).id,
-        name: (sellerProduct as any).name,
-        price: (sellerProduct as any).price,
-        originalPrice:
-          (sellerProduct as any).original_price ||
-          (sellerProduct as any).originalPrice,
-        image:
-          (sellerProduct as any).images?.[0] ||
-          (sellerProduct as any).primary_image ||
-          (sellerProduct as any).image ||
-          "https://placehold.co/400?text=Product",
-        images: (sellerProduct as any).images || [],
-        category: (sellerProduct as any).category,
-        rating: (sellerProduct as any).rating || 0,
-        sold:
-          (sellerProduct as any).sales_count !== undefined
-            ? (sellerProduct as any).sales_count
-            : (sellerProduct as any).sales || 0,
-        seller:
-          (sellerProduct as any).seller?.store_name ||
-          (sellerProduct as any).sellerName ||
-          sellerNameFallback,
-        location:
-          (sellerProduct as any).seller?.business_address ||
-          (sellerProduct as any).sellerLocation ||
-          "Metro Manila",
-        isFreeShipping: (sellerProduct as any).is_free_shipping || true,
-        isVerified: true,
-        description: (sellerProduct as any).description,
-        sizes: (sellerProduct as any).sizes || [],
-        colors: (sellerProduct as any).colors || [],
-        stock: (sellerProduct as any).stock || 0,
-        sellerId:
-          (sellerProduct as any).seller_id ||
-          (sellerProduct as any).sellerId ||
-          "",
-      }
+      id: (sellerProduct as any).id,
+      name: (sellerProduct as any).name,
+      price: (sellerProduct as any).price,
+      originalPrice:
+        (sellerProduct as any).original_price ||
+        (sellerProduct as any).originalPrice,
+      image:
+        (sellerProduct as any).images?.[0] ||
+        (sellerProduct as any).primary_image ||
+        (sellerProduct as any).image ||
+        "https://placehold.co/400?text=Product",
+      images: (sellerProduct as any).images || [],
+      category: (sellerProduct as any).category,
+      rating: (sellerProduct as any).rating || 0,
+      sold:
+        (sellerProduct as any).sales_count !== undefined
+          ? (sellerProduct as any).sales_count
+          : (sellerProduct as any).sales || 0,
+      seller:
+        (sellerProduct as any).seller?.store_name ||
+        (sellerProduct as any).sellerName ||
+        sellerNameFallback,
+      location:
+        (sellerProduct as any).seller?.business_address ||
+        (sellerProduct as any).sellerLocation ||
+        "Metro Manila",
+      isFreeShipping: (sellerProduct as any).is_free_shipping || true,
+      isVerified: true,
+      description: (sellerProduct as any).description,
+      sizes: (sellerProduct as any).sizes || [],
+      colors: (sellerProduct as any).colors || [],
+      stock: (sellerProduct as any).stock || 0,
+      sellerId:
+        (sellerProduct as any).seller_id ||
+        (sellerProduct as any).sellerId ||
+        "",
+    }
     : baseProduct
       ? {
-          ...baseProduct,
-          originalPrice:
-            (baseProduct as any).originalPrice ||
-            (baseProduct as any).original_price,
-          sizes: (baseProduct as any).sizes || [],
-          colors: (baseProduct as any).colors || [],
-          stock: (baseProduct as any).stock || 0,
-          sellerId:
-            (baseProduct as any).sellerId ||
-            (baseProduct as any).seller_id ||
-            "",
-          sold:
-            (baseProduct as any).sales_count !== undefined
-              ? (baseProduct as any).sales_count
-              : (baseProduct as any).sold || 0,
-        }
+        ...baseProduct,
+        originalPrice:
+          (baseProduct as any).originalPrice ||
+          (baseProduct as any).original_price,
+        sizes: (baseProduct as any).sizes || [],
+        colors: (baseProduct as any).colors || [],
+        stock: (baseProduct as any).stock || 0,
+        sellerId:
+          (baseProduct as any).sellerId ||
+          (baseProduct as any).seller_id ||
+          "",
+        sold:
+          (baseProduct as any).sales_count !== undefined
+            ? (baseProduct as any).sales_count
+            : (baseProduct as any).sold || 0,
+      }
       : null;
 
   const currentSeller =
@@ -946,17 +946,17 @@ export default function ProductDetailPage({}: ProductDetailPageProps) {
     colors:
       normalizedProduct?.colors && normalizedProduct.colors.length > 0
         ? normalizedProduct.colors.map((c: any) =>
-            typeof c === "string"
-              ? {
-                  name: c,
-                  value: c,
-                  image:
-                    normalizedProduct?.image ||
-                    (normalizedProduct as any)?.images?.[0] ||
-                    "",
-                }
-              : c,
-          )
+          typeof c === "string"
+            ? {
+              name: c,
+              value: c,
+              image:
+                normalizedProduct?.image ||
+                (normalizedProduct as any)?.images?.[0] ||
+                "",
+            }
+            : c,
+        )
         : [],
     types: ["Standard"],
     images:
@@ -1046,12 +1046,15 @@ export default function ProductDetailPage({}: ProductDetailPageProps) {
           <p className="text-gray-600 mb-4">
             The product you're looking for doesn't exist.
           </p>
-          <Button
-            onClick={() => navigate("/shop")}
-            className="bg-[var(--brand-primary)] hover:bg-[var(--brand-secondary)]"
+          <button
+            onClick={() => navigate(-1)}
+            className="flex items-center gap-2 text-gray-600 hover:text-[#ff6a00] transition-colors mb-4 group"
           >
-            Back to Shop
-          </Button>
+            <div className="p-1.5">
+              <ChevronLeft className="w-4 h-4" />
+            </div>
+            <span className="font-medium text-sm">Back to Shop</span>
+          </button>
         </div>
       </div>
     );
@@ -1100,12 +1103,12 @@ export default function ProductDetailPage({}: ProductDetailPageProps) {
 
     const selectedVariant = hasVariations
       ? {
-          id: `var-${normalizedProduct.id}-${selectedSize || "default"}-${colorName}`,
-          name: variantName,
-          price: productData.price,
-          stock: normalizedProduct.stock || 100,
-          image: productData.colors[selectedColor]?.image || productImage,
-        }
+        id: `var-${normalizedProduct.id}-${selectedSize || "default"}-${colorName}`,
+        name: variantName,
+        price: productData.price,
+        stock: normalizedProduct.stock || 100,
+        image: productData.colors[selectedColor]?.image || productImage,
+      }
       : undefined;
 
     // Create proper product object for buyerStore
@@ -1284,13 +1287,13 @@ export default function ProductDetailPage({}: ProductDetailPageProps) {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 md:py-6">
         <button
-          onClick={() => navigate("/shop")}
+          onClick={() => navigate(-1)}
           className="flex items-center gap-2 text-gray-600 hover:text-[#ff6a00] transition-colors mb-4 group"
         >
-          <div className="p-1.5 group-hover:[#ff6a00]/10 transition-colors">
+          <div className="p-1.5">
             <ChevronLeft className="w-4 h-4" />
           </div>
-          <span className="font-medium text-sm">Back to Shop</span>
+          <span className="font-medium text-sm">Back</span>
         </button>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-16">
@@ -1335,7 +1338,7 @@ export default function ProductDetailPage({}: ProductDetailPageProps) {
                   {Math.round(
                     ((productData.originalPrice - productData.price) /
                       productData.originalPrice) *
-                      100,
+                    100,
                   )}
                   % OFF
                 </Badge>
@@ -1346,7 +1349,10 @@ export default function ProductDetailPage({}: ProductDetailPageProps) {
           {/* Details Section (Right Side) */}
           <div className="lg:col-span-5 flex flex-col pt-2">
             {/* Store Profile - Compact Header */}
-            <div className="flex items-center justify-between mb-2 pb-2 border-b border-gray-100">
+            <div
+              className="flex items-center justify-between mb-2 pb-2 border-b border-gray-100 group cursor-pointer"
+              onClick={() => navigate(`/seller/${normalizedProduct?.sellerId || "seller-001"}`)}
+            >
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-full bg-gray-50 overflow-hidden border border-gray-100 shrink-0">
                   <img
@@ -1372,18 +1378,10 @@ export default function ProductDetailPage({}: ProductDetailPageProps) {
                   <Star className="w-3 h-3 fill-current" />{" "}
                   {currentSeller.rating}
                 </div>
-                <Button
-                  onClick={() =>
-                    navigate(
-                      `/seller/${normalizedProduct?.sellerId || "seller-001"}`,
-                    )
-                  }
-                  className="bg-transparent hover:bg-transparent text-gray-900 hover:text-[#ff6a00] font-semibold p-0 h-auto transition-colors flex items-center gap-1 text-sm"
-                  variant="ghost"
-                >
-                  Visit Store
-                  <ChevronRight className="w-4 h-4 text-[#ff6a00]" />
-                </Button>
+                <div className="flex items-center gap-1 text-xs text-gray-600 group-hover:text-[#ff6a00] transition-colors">
+                  <span>Visit Store</span>
+                  <ChevronRight className="w-4 h-4" />
+                </div>
               </div>
             </div>
             <span className="text-gray-500 text-sm font-medium mb-1">

@@ -38,51 +38,205 @@ import {
   Clock,
   Eye,
   Upload,
+  ChevronDown,
+  ChevronUp,
+  X,
+  AlertTriangle,
 } from 'lucide-react-native';
+import { supabase } from '../../src/lib/supabase';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system/legacy';
+import { decode } from 'base64-arraybuffer';
 
 export default function StoreProfileScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<SellerStackParamList>>();
   const insets = useSafeAreaInsets();
-  const [editSection, setEditSection] = useState<'basic' | null>(null);
-  const [storeLogoUri, setStoreLogoUri] = useState<string | null>(null);
 
-  const isVerified = true; // Mock verified status
-  const seller = {
-    storeName: 'My Awesome Store',
-    id: 'seller123',
-    rating: '4.8',
-    totalSales: 1234,
-    storeDescription: 'Quality products at affordable prices. We offer the best selection of electronics and gadgets.',
-    ownerName: 'Juan Dela Cruz',
-    email: 'seller@bazaarph.com',
-    phone: '+63 917 123 4567',
-    businessName: 'My Awesome Business Inc.',
-    businessType: 'Corporation',
-    businessRegistrationNumber: 'BRN-2024-12345',
-    taxIdNumber: '123-456-789-000',
-    businessAddress: '123 Main St',
-    city: 'Manila',
-    province: 'Metro Manila',
-    postalCode: '1000',
-    bankName: 'BDO Unibank',
-    accountName: 'My Awesome Store',
-    accountNumber: '1234567890',
-    joinDate: '2024-01-15',
-    storeCategory: ['Electronics', 'Gadgets', 'Accessories'],
-  };
+  const [loading, setLoading] = React.useState(true);
+  const [seller, setSeller] = React.useState<any>(null);
+  const [expandedSections, setExpandedSections] = React.useState({
+    business: true,
+    banking: false,
+    categories: false,
+    documents: false,
+  });
 
   const [formData, setFormData] = useState({
-    storeName: seller.storeName,
-    storeDescription: seller.storeDescription,
-    phone: seller.phone,
-    ownerName: seller.ownerName,
-    email: seller.email,
+    storeName: '',
+    storeDescription: '',
+    phone: '',
+    ownerName: '',
+    email: '',
   });
+
+  const getSectionStatus = (data: any, fields: string[]) => {
+    if (isVerified) return 'Verified';
+    if (!data) return 'Action Required';
+
+    const filledFields = fields.filter(field => !!data[field]);
+    if (filledFields.length === 0) return 'Action Required';
+    if (filledFields.length < fields.length) return 'Incomplete';
+    return isPending ? 'Under Review' : 'Under Review';
+  };
+
+  const statusColors: any = {
+    'Verified': '#10B981',
+    'Under Review': '#F59E0B',
+    'Incomplete': '#6366F1',
+    'Action Required': '#EF4444',
+  };
+
+  const [businessForm, setBusinessForm] = useState({
+    businessName: '',
+    businessType: '',
+    businessRegistrationNumber: '',
+    taxIdNumber: '',
+    businessAddress: '',
+    city: '',
+    province: '',
+    postalCode: '',
+  });
+
+  const [bankingForm, setBankingForm] = useState({
+    bankName: '',
+    accountName: '',
+    accountNumber: '',
+  });
+
+  const [editSection, setEditSection] = useState<'basic' | 'business' | 'banking' | null>(null);
+  const [storeLogoUri, setStoreLogoUri] = useState<string | null>(null);
+
+  const fetchSellerData = async () => {
+    try {
+      setLoading(true);
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (!user) {
+        Alert.alert('Error', 'User not authenticated');
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('sellers')
+        .select('*, profiles(full_name, email, phone)')
+        .eq('id', user.id)
+        .single();
+
+      if (error) throw error;
+
+      if (data) {
+        const profile = Array.isArray(data.profiles) ? data.profiles[0] : data.profiles;
+        const sellerData = {
+          ...data,
+          owner_name: profile?.full_name || data.owner_name,
+          email: profile?.email || data.email,
+          phone: profile?.phone || data.phone,
+        };
+        setSeller(sellerData);
+        setFormData({
+          storeName: data.store_name || '',
+          storeDescription: data.store_description || '',
+          phone: sellerData.phone || '',
+          ownerName: sellerData.owner_name || '',
+          email: sellerData.email || '',
+        });
+        setBusinessForm({
+          businessName: data.business_name || '',
+          businessType: data.business_type || '',
+          businessRegistrationNumber: data.business_registration_number || '',
+          taxIdNumber: data.tax_id_number || '',
+          businessAddress: data.business_address || '',
+          city: data.city || '',
+          province: data.province || '',
+          postalCode: data.postal_code || '',
+        });
+        setBankingForm({
+          bankName: data.bank_name || '',
+          accountName: data.account_name || '',
+          accountNumber: data.account_number || '',
+        });
+        setStoreLogoUri(data.avatar_url || null);
+      }
+    } catch (error: any) {
+      console.error('Error fetching seller data:', error);
+      Alert.alert('Error', 'Failed to fetch seller data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    let sellersSubscription: any;
+    let profilesSubscription: any;
+
+    fetchSellerData();
+
+    const setupSubscriptions = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      sellersSubscription = supabase
+        .channel('sellers-realtime')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'sellers', filter: `id=eq.${user.id}` },
+          (payload) => {
+            if (payload.new) {
+              setSeller((prev: any) => ({ ...prev, ...payload.new }));
+            }
+          }
+        )
+        .subscribe();
+
+      profilesSubscription = supabase
+        .channel('profiles-realtime')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'profiles', filter: `id=eq.${user.id}` },
+          (payload) => {
+            if (payload.new && Object.keys(payload.new).length > 0) {
+              const newData = payload.new as any;
+              setSeller((prev: any) => ({
+                ...prev,
+                owner_name: newData.full_name,
+                email: newData.email,
+                phone: newData.phone,
+              }));
+              setFormData((prev) => ({
+                ...prev,
+                ownerName: newData.full_name,
+                email: newData.email,
+                phone: newData.phone,
+              }));
+            }
+          }
+        )
+        .subscribe();
+    };
+
+    setupSubscriptions();
+
+    return () => {
+      if (sellersSubscription) supabase.removeChannel(sellersSubscription);
+      if (profilesSubscription) supabase.removeChannel(profilesSubscription);
+    };
+  }, []);
+
+  const toggleSection = (section: keyof typeof expandedSections) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [section]: !prev[section]
+    }));
+  };
+
+  const isVerified = seller?.is_verified || seller?.approval_status === 'approved';
+  const isPending = seller?.approval_status === 'pending';
+  const isRejected = seller?.approval_status === 'rejected';
 
   const handlePickImage = async () => {
     try {
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      
+
       if (!permissionResult.granted) {
         Alert.alert('Permission Required', 'Please allow access to your photo library to update your store logo.');
         return;
@@ -106,7 +260,7 @@ export default function StoreProfileScreen() {
   const handleCaptureImage = async () => {
     try {
       const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
-      
+
       if (!permissionResult.granted) {
         Alert.alert('Permission Required', 'Please allow access to your camera to capture a store logo.');
         return;
@@ -137,17 +291,248 @@ export default function StoreProfileScreen() {
         text: 'Choose from Library',
         onPress: handlePickImage,
       },
-      {
-        text: 'Cancel',
-        style: 'cancel',
-      },
     ]);
   };
 
-  const handleSave = () => {
-    // Save logic here
-    setEditSection(null);
+  const [newCategory, setNewCategory] = useState('');
+
+  const handleAddCategory = async () => {
+    if (!newCategory.trim()) return;
+    try {
+      const currentCategories = seller?.store_category || [];
+      if (currentCategories.includes(newCategory.trim())) {
+        Alert.alert('Info', 'Category already exists');
+        return;
+      }
+      const updatedCategories = [...currentCategories, newCategory.trim()];
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { error } = await supabase
+        .from('sellers')
+        .update({ store_category: updatedCategories })
+        .eq('id', user.id);
+
+      if (error) throw error;
+
+      setSeller({ ...seller, store_category: updatedCategories });
+      setNewCategory('');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to add category');
+    }
   };
+
+  const handleRemoveCategory = async (category: string) => {
+    try {
+      const updatedCategories = (seller?.store_category || []).filter((c: string) => c !== category);
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { error } = await supabase
+        .from('sellers')
+        .update({ store_category: updatedCategories })
+        .eq('id', user.id);
+
+      if (error) throw error;
+
+      setSeller({ ...seller, store_category: updatedCategories });
+    } catch (error) {
+      Alert.alert('Error', 'Failed to remove category');
+    }
+  };
+
+  const handleSaveBasic = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Update basic seller info
+      const { error: sellerError } = await supabase
+        .from('sellers')
+        .update({
+          store_name: formData.storeName,
+          store_description: formData.storeDescription,
+        })
+        .eq('id', user.id);
+
+      if (sellerError) throw sellerError;
+
+      // Update profile info
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({
+          full_name: formData.ownerName,
+          email: formData.email,
+          phone: formData.phone,
+        })
+        .eq('id', user.id);
+
+      if (profileError) throw profileError;
+
+      setSeller((prev: any) => ({
+        ...prev,
+        store_name: formData.storeName,
+        store_description: formData.storeDescription,
+        owner_name: formData.ownerName,
+        email: formData.email,
+        phone: formData.phone,
+      }));
+      setEditSection(null);
+      Alert.alert('Success', 'Profile updated successfully');
+    } catch (error) {
+      console.error('Save basic error:', error);
+      Alert.alert('Error', 'Failed to save changes');
+    }
+  };
+
+  const handleSaveBusiness = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('sellers')
+        .update({
+          business_name: businessForm.businessName,
+          business_type: businessForm.businessType,
+          business_registration_number: businessForm.businessRegistrationNumber,
+          tax_id_number: businessForm.taxIdNumber,
+          business_address: businessForm.businessAddress,
+          city: businessForm.city,
+          province: businessForm.province,
+          postal_code: businessForm.postalCode,
+        })
+        .eq('id', user.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      if (data) {
+        setSeller((prev: any) => ({ ...prev, ...data }));
+        Alert.alert('Success', 'Business information updated');
+      }
+      setEditSection(null);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to save business information');
+    }
+  };
+
+  const handleSaveBanking = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('sellers')
+        .update({
+          bank_name: bankingForm.bankName,
+          account_name: bankingForm.accountName,
+          account_number: bankingForm.accountNumber,
+        })
+        .eq('id', user.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      if (data) {
+        setSeller((prev: any) => ({ ...prev, ...data }));
+        Alert.alert('Success', 'Banking information updated');
+      }
+      setEditSection(null);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to save banking information');
+    }
+  };
+
+  const [uploadingDoc, setUploadingDoc] = useState<string | null>(null);
+
+  const handleDocumentUpload = async (docKey: string, columnName: string) => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['application/pdf', 'image/*'],
+      });
+
+      if (result.canceled) return;
+
+      const file = result.assets[0];
+      setUploadingDoc(docKey);
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user.id}/${docKey}_${Date.now()}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      // Use FileSystem to read as base64 for robust upload
+      const base64 = await FileSystem.readAsStringAsync(file.uri, {
+        encoding: 'base64' as any,
+      });
+      const arrayBuffer = decode(base64);
+
+      const { error: uploadError } = await supabase.storage
+        .from('seller-documents')
+        .upload(filePath, arrayBuffer, {
+          contentType: file.mimeType || 'application/octet-stream',
+          upsert: true
+        });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('seller-documents')
+        .getPublicUrl(filePath);
+
+      const { error: updateError } = await supabase
+        .from('sellers')
+        .update({ [columnName]: publicUrl })
+        .eq('id', user.id);
+
+      if (updateError) throw updateError;
+
+      setSeller((prev: any) => ({ ...prev, [columnName]: publicUrl }));
+      Alert.alert('Success', `${docKey} uploaded successfully`);
+    } catch (error: any) {
+      console.error('Upload error:', error);
+      Alert.alert('Error', `Upload failed: ${error.message || 'Unknown error'}`);
+    } finally {
+      setUploadingDoc(null);
+    }
+  };
+
+  const handleSave = () => {
+    if (editSection === 'basic') handleSaveBasic();
+    else if (editSection === 'business') handleSaveBusiness();
+    else if (editSection === 'banking') handleSaveBanking();
+  };
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <Text>Loading Profile...</Text>
+      </View>
+    );
+  }
+
+  if (!seller) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', padding: 20 }]}>
+        <AlertCircle size={48} color="#EF4444" style={{ marginBottom: 16 }} />
+        <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#111827', textAlign: 'center' }}>Store Not Found</Text>
+        <Text style={{ fontSize: 14, color: '#6B7280', textAlign: 'center', marginTop: 8 }}>We couldn't retrieve your store profile information.</Text>
+        <TouchableOpacity
+          style={[styles.saveButton, { marginTop: 24, paddingHorizontal: 32 }]}
+          onPress={fetchSellerData}
+        >
+          <Text style={styles.saveButtonText}>Retry</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -179,11 +564,11 @@ export default function StoreProfileScreen() {
                 <Image source={{ uri: storeLogoUri }} style={styles.logoContainer} />
               ) : (
                 <View style={styles.logoContainer}>
-                  <Text style={styles.logoText}>{seller.storeName?.charAt(0)}</Text>
+                  <Text style={styles.logoText}>{seller?.store_name?.charAt(0)}</Text>
                 </View>
               )}
-              <TouchableOpacity 
-                style={styles.cameraButton} 
+              <TouchableOpacity
+                style={styles.cameraButton}
                 activeOpacity={0.7}
                 onPress={handleCameraPress}
               >
@@ -193,10 +578,10 @@ export default function StoreProfileScreen() {
 
             {/* Store Info */}
             <View style={styles.storeInfoColumn}>
-              <Text style={styles.storeName} numberOfLines={1}>{seller.storeName || 'Your Store'}</Text>
+              <Text style={styles.storeName} numberOfLines={1}>{seller?.store_name || 'Your Store'}</Text>
               <View style={styles.storeUrlRow}>
                 <Globe size={12} color="#6B7280" strokeWidth={2} />
-                <Text style={styles.storeUrl} numberOfLines={1}>bazaarph.com/store/{seller.id}</Text>
+                <Text style={styles.storeUrl} numberOfLines={1}>bazaarph.com/store/{seller?.id}</Text>
               </View>
             </View>
           </View>
@@ -206,7 +591,7 @@ export default function StoreProfileScreen() {
             <View style={styles.statCard}>
               <Award size={16} color="#6B7280" strokeWidth={2} />
               <Text style={styles.statLabel}>Rating</Text>
-              <Text style={styles.statValue}>{seller.rating}/5</Text>
+              <Text style={styles.statValue}>{seller?.rating || '0'}/5</Text>
             </View>
             <View style={styles.statCard}>
               <Package size={16} color="#6B7280" strokeWidth={2} />
@@ -216,7 +601,7 @@ export default function StoreProfileScreen() {
             <View style={styles.statCard}>
               <TrendingUp size={16} color="#6B7280" strokeWidth={2} />
               <Text style={styles.statLabel}>Sales</Text>
-              <Text style={styles.statValue}>{seller.totalSales}</Text>
+              <Text style={styles.statValue}>{seller?.total_sales || 0}</Text>
             </View>
             <View style={styles.statCard}>
               <Users size={16} color="#6B7280" strokeWidth={2} />
@@ -319,23 +704,23 @@ export default function StoreProfileScreen() {
             <View style={styles.infoGrid}>
               <View style={styles.infoItem}>
                 <Text style={styles.infoLabel}>Owner Name</Text>
-                <Text style={styles.infoValue}>{seller.ownerName || 'Not provided'}</Text>
+                <Text style={styles.infoValue}>{seller?.owner_name || 'Not provided'}</Text>
               </View>
               <View style={styles.infoItem}>
                 <Text style={styles.infoLabel}>Email Address</Text>
-                <Text style={styles.infoValue}>{seller.email}</Text>
+                <Text style={styles.infoValue}>{seller?.email}</Text>
               </View>
               <View style={styles.infoItem}>
                 <Text style={styles.infoLabel}>Phone Number</Text>
-                <Text style={styles.infoValue}>{seller.phone || 'Not provided'}</Text>
+                <Text style={styles.infoValue}>{seller?.phone || 'Not provided'}</Text>
               </View>
               <View style={styles.infoItem}>
                 <Text style={styles.infoLabel}>Store Name</Text>
-                <Text style={styles.infoValue}>{seller.storeName || 'Your Store'}</Text>
+                <Text style={styles.infoValue}>{seller?.store_name || 'Your Store'}</Text>
               </View>
               <View style={[styles.infoItem, styles.infoItemFull]}>
                 <Text style={styles.infoLabel}>Store Description</Text>
-                <Text style={styles.infoValue}>{seller.storeDescription || 'No description added'}</Text>
+                <Text style={styles.infoValue}>{seller?.store_description || 'No description added'}</Text>
               </View>
             </View>
           )}
@@ -343,223 +728,412 @@ export default function StoreProfileScreen() {
 
         {/* Business Information */}
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
+          <TouchableOpacity
+            style={styles.sectionHeader}
+            onPress={() => toggleSection('business')}
+            activeOpacity={0.7}
+          >
             <View style={styles.sectionTitleRow}>
               <Building2 size={20} color="#FF6A00" strokeWidth={2} />
               <Text style={styles.sectionTitle}>Business Information</Text>
+              {(() => {
+                const status = getSectionStatus(seller, ['business_name', 'business_type', 'business_registration_number', 'tax_id_number', 'business_address', 'city', 'province']);
+                return (
+                  <View style={styles.sectionStatus}>
+                    <View style={[styles.statusIndicator, { backgroundColor: statusColors[status] }]} />
+                    <Text style={[styles.statusText, { color: statusColors[status] }]}>
+                      {status}
+                    </Text>
+                  </View>
+                );
+              })()}
             </View>
-            {isVerified ? (
-                <View style={styles.verifiedLockBadge}>
-                  <Lock size={12} color="#10B981" strokeWidth={2.5} />
-                  <Text style={styles.verifiedLockText}>Verified & Locked</Text>
-                </View>
-              ) : ( 
-              <View style={styles.pendingBadge}>
-                <AlertCircle size={12} color="#F59E0B" strokeWidth={2.5} />
-                <Text style={styles.pendingText}>Pending</Text>
+            {expandedSections.business ? <ChevronUp size={20} color="#6B7280" /> : <ChevronDown size={20} color="#6B7280" />}
+          </TouchableOpacity>
+
+          {expandedSections.business && (
+            <>
+              <View style={{ marginBottom: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                {!isVerified && editSection !== 'business' && (
+                  <TouchableOpacity
+                    onPress={() => setEditSection('business')}
+                    style={styles.editIconButton}
+                  >
+                    <Edit2 size={16} color="#6B7280" strokeWidth={2} />
+                  </TouchableOpacity>
+                )}
               </View>
-            )}
-          </View>
 
-          <View style={styles.infoGrid}>
-            <View style={styles.infoItem}>
-              <Text style={styles.infoLabel}>Business Name</Text>
-              <Text style={styles.infoValue}>{seller.businessName || 'Not provided'}</Text>
-            </View>
-            <View style={styles.infoItem}>
-              <Text style={styles.infoLabel}>Business Type</Text>
-              <Text style={styles.infoValue}>{seller.businessType || 'Not provided'}</Text>
-            </View>
-            <View style={styles.infoItem}>
-              <Text style={styles.infoLabel}>Registration Number</Text>
-              <Text style={[styles.infoValue, styles.monoText]}>{seller.businessRegistrationNumber || 'Not provided'}</Text>
-            </View>
-            <View style={styles.infoItem}>
-              <Text style={styles.infoLabel}>Tax ID Number (TIN)</Text>
-              <Text style={[styles.infoValue, styles.monoText]}>{seller.taxIdNumber || 'Not provided'}</Text>
-            </View>
-            <View style={[styles.infoItem, styles.infoItemFull]}>
-              <Text style={styles.infoLabel}>Business Address</Text>
-              <Text style={styles.infoValue}>
-                {seller.businessAddress && seller.city && seller.province && seller.postalCode
-                  ? `${seller.businessAddress}, ${seller.city}, ${seller.province} ${seller.postalCode}`
-                  : 'Not provided'}
-              </Text>
-            </View>
-          </View>
+              {editSection === 'business' ? (
+                <View style={styles.formContent}>
+                  <View style={styles.formFieldFull}>
+                    <Text style={styles.fieldLabel}>Business Name</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      value={businessForm.businessName}
+                      onChangeText={(text) => setBusinessForm({ ...businessForm, businessName: text })}
+                      placeholder="As registered with DTI/SEC"
+                    />
+                  </View>
+                  <View style={styles.formRow}>
+                    <View style={styles.formField}>
+                      <Text style={styles.fieldLabel}>Business Type</Text>
+                      <TextInput
+                        style={styles.textInput}
+                        value={businessForm.businessType}
+                        onChangeText={(text) => setBusinessForm({ ...businessForm, businessType: text })}
+                        placeholder="e.g. Sole Proprietorship"
+                      />
+                    </View>
+                    <View style={styles.formField}>
+                      <Text style={styles.fieldLabel}>Reg Number</Text>
+                      <TextInput
+                        style={styles.textInput}
+                        value={businessForm.businessRegistrationNumber}
+                        onChangeText={(text) => setBusinessForm({ ...businessForm, businessRegistrationNumber: text })}
+                        placeholder="Registration #"
+                      />
+                    </View>
+                  </View>
+                  <View style={styles.formFieldFull}>
+                    <Text style={styles.fieldLabel}>Tax ID Number (TIN)</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      value={businessForm.taxIdNumber}
+                      onChangeText={(text) => setBusinessForm({ ...businessForm, taxIdNumber: text })}
+                      placeholder="000-000-000-000"
+                    />
+                  </View>
+                  <View style={styles.formFieldFull}>
+                    <Text style={styles.fieldLabel}>Business Address</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      value={businessForm.businessAddress}
+                      onChangeText={(text) => setBusinessForm({ ...businessForm, businessAddress: text })}
+                      placeholder="Street, Barangay"
+                    />
+                  </View>
+                  <View style={styles.formRow}>
+                    <View style={styles.formField}>
+                      <Text style={styles.fieldLabel}>City</Text>
+                      <TextInput
+                        style={styles.textInput}
+                        value={businessForm.city}
+                        onChangeText={(text) => setBusinessForm({ ...businessForm, city: text })}
+                        placeholder="City"
+                      />
+                    </View>
+                    <View style={styles.formField}>
+                      <Text style={styles.fieldLabel}>Province</Text>
+                      <TextInput
+                        style={styles.textInput}
+                        value={businessForm.province}
+                        onChangeText={(text) => setBusinessForm({ ...businessForm, province: text })}
+                        placeholder="Province"
+                      />
+                    </View>
+                  </View>
+                  <View style={styles.formActions}>
+                    <TouchableOpacity onPress={handleSave} style={styles.saveButton}>
+                      <Text style={styles.saveButtonText}>Save Business Info</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => setEditSection(null)}
+                      style={styles.cancelButton}
+                    >
+                      <Text style={styles.cancelButtonText}>Cancel</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : (
+                <View style={styles.infoGrid}>
+                  <View style={styles.infoItem}>
+                    <Text style={styles.infoLabel}>Business Name</Text>
+                    <Text style={styles.infoValue}>{seller?.business_name || 'Not provided'}</Text>
+                  </View>
+                  <View style={styles.infoItem}>
+                    <Text style={styles.infoLabel}>Business Type</Text>
+                    <Text style={styles.infoValue}>{seller?.business_type || 'Not provided'}</Text>
+                  </View>
+                  <View style={styles.infoItem}>
+                    <Text style={styles.infoLabel}>Registration Number</Text>
+                    <Text style={[styles.infoValue, styles.monoText]}>{seller?.business_registration_number || 'Not provided'}</Text>
+                  </View>
+                  <View style={styles.infoItem}>
+                    <Text style={styles.infoLabel}>Tax ID Number (TIN)</Text>
+                    <Text style={[styles.infoValue, styles.monoText]}>{seller?.tax_id_number || 'Not provided'}</Text>
+                  </View>
+                  <View style={[styles.infoItem, styles.infoItemFull]}>
+                    <Text style={styles.infoLabel}>Business Address</Text>
+                    <Text style={styles.infoValue}>
+                      {seller?.business_address
+                        ? `${seller?.business_address}, ${seller?.city}, ${seller?.province} ${seller?.postal_code || ''}`
+                        : 'Not provided'}
+                    </Text>
+                  </View>
+                </View>
+              )}
 
-          {isVerified && (
-            <View style={styles.verifiedAlert}>
-              <CheckCircle size={16} color="#10B981" strokeWidth={2} />
-              <Text style={styles.verifiedAlertText}>
-                Your business information has been verified and cannot be edited. Contact support if you need to make changes.
-              </Text>
-            </View>
+              {isVerified && (
+                <View style={[styles.verifiedAlert, { marginTop: 16 }]}>
+                  <CheckCircle size={16} color="#10B981" strokeWidth={2} />
+                  <Text style={styles.verifiedAlertText}>
+                    Verified business details cannot be edited.
+                  </Text>
+                </View>
+              )}
+            </>
           )}
         </View>
 
         {/* Banking Information */}
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
+          <TouchableOpacity
+            style={styles.sectionHeader}
+            onPress={() => toggleSection('banking')}
+            activeOpacity={0.7}
+          >
             <View style={styles.sectionTitleRow}>
               <CreditCard size={20} color="#FF6A00" strokeWidth={2} />
               <Text style={styles.sectionTitle}>Banking Information</Text>
-              
+              <View style={styles.sectionStatus}>
+                {(() => {
+                  const status = getSectionStatus(seller, ['bank_name', 'account_name', 'account_number']);
+                  return (
+                    <>
+                      <View style={[styles.statusIndicator, { backgroundColor: statusColors[status] }]} />
+                      <Text style={[styles.statusText, { color: statusColors[status] }]}>
+                        {status}
+                      </Text>
+                    </>
+                  );
+                })()}
+              </View>
             </View>
-            {isVerified ? (
-                <View style={styles.verifiedLockBadge}>
-                  <Lock size={12} color="#10B981" strokeWidth={2.5} />
-                  <Text style={styles.verifiedLockText}>Verified & Locked</Text>
+            {expandedSections.banking ? <ChevronUp size={20} color="#6B7280" /> : <ChevronDown size={20} color="#6B7280" />}
+          </TouchableOpacity>
+
+          {expandedSections.banking && (
+            <>
+              <View style={{ marginBottom: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                {!isVerified && editSection !== 'banking' && (
+                  <TouchableOpacity
+                    onPress={() => setEditSection('banking')}
+                    style={styles.editIconButton}
+                  >
+                    <Edit2 size={16} color="#6B7280" strokeWidth={2} />
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {editSection === 'banking' ? (
+                <View style={styles.formContent}>
+                  <View style={styles.formFieldFull}>
+                    <Text style={styles.fieldLabel}>Bank Name</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      value={bankingForm.bankName}
+                      onChangeText={(text) => setBankingForm({ ...bankingForm, bankName: text })}
+                      placeholder="e.g. BDO, BPI, GCash"
+                    />
+                  </View>
+                  <View style={styles.formFieldFull}>
+                    <Text style={styles.fieldLabel}>Account Name</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      value={bankingForm.accountName}
+                      onChangeText={(text) => setBankingForm({ ...bankingForm, accountName: text })}
+                      placeholder="Full Name on Account"
+                    />
+                  </View>
+                  <View style={styles.formFieldFull}>
+                    <Text style={styles.fieldLabel}>Account Number</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      value={bankingForm.accountNumber}
+                      onChangeText={(text) => setBankingForm({ ...bankingForm, accountNumber: text })}
+                      placeholder="Account Number"
+                      keyboardType="numeric"
+                    />
+                  </View>
+                  <View style={styles.formActions}>
+                    <TouchableOpacity onPress={handleSave} style={styles.saveButton}>
+                      <Text style={styles.saveButtonText}>Save Banking Info</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => setEditSection(null)}
+                      style={styles.cancelButton}
+                    >
+                      <Text style={styles.cancelButtonText}>Cancel</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
-              ) : ( 
-                <View style={styles.pendingBadge}>
-                  <AlertCircle size={12} color="#F59E0B" strokeWidth={2.5} />
-                  <Text style={styles.pendingText}>Pending</Text>
+              ) : (
+                <View style={styles.infoGrid}>
+                  <View style={styles.infoItem}>
+                    <Text style={styles.infoLabel}>Bank Name</Text>
+                    <Text style={styles.infoValue}>{seller?.bank_name || 'Not provided'}</Text>
+                  </View>
+                  <View style={styles.infoItem}>
+                    <Text style={styles.infoLabel}>Account Name</Text>
+                    <Text style={styles.infoValue}>{seller?.account_name || 'Not provided'}</Text>
+                  </View>
+                  <View style={[styles.infoItem, styles.infoItemFull]}>
+                    <Text style={styles.infoLabel}>Account Number</Text>
+                    <Text style={[styles.infoValue, styles.monoText]}>
+                      {seller?.account_number ? `****${seller.account_number.slice(-4)}` : 'Not provided'}
+                    </Text>
+                  </View>
                 </View>
               )}
-          </View>
 
-          <View style={styles.infoGrid}>
-            <View style={styles.infoItem}>
-              <Text style={styles.infoLabel}>Bank Name</Text>
-              <Text style={styles.infoValue}>{seller.bankName || 'Not provided'}</Text>
-            </View>
-            <View style={styles.infoItem}>
-              <Text style={styles.infoLabel}>Account Name</Text>
-              <Text style={styles.infoValue}>{seller.accountName || 'Not provided'}</Text>
-            </View>
-            <View style={[styles.infoItem, styles.infoItemFull]}>
-              <Text style={styles.infoLabel}>Account Number</Text>
-              <Text style={[styles.infoValue, styles.monoText]}>
-                {seller.accountNumber ? `****${seller.accountNumber.slice(-4)}` : 'Not provided'}
-              </Text>
-            </View>
-          </View>
-
-          {isVerified && (
-            <View style={styles.verifiedAlert}>
-              <CheckCircle size={16} color="#10B981" strokeWidth={2} />
-              <Text style={styles.verifiedAlertText}>
-                Your banking information has been verified and secured. Contact support if you need to update these details.
-              </Text>
-            </View>
+              {isVerified && (
+                <View style={[styles.verifiedAlert, { marginTop: 16 }]}>
+                  <CheckCircle size={16} color="#10B981" strokeWidth={2} />
+                  <Text style={styles.verifiedAlertText}>
+                    Banking details are secured and locked.
+                  </Text>
+                </View>
+              )}
+            </>
           )}
         </View>
 
         {/* Verification Documents */}
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
+          <TouchableOpacity
+            style={styles.sectionHeader}
+            onPress={() => toggleSection('documents')}
+            activeOpacity={0.7}
+          >
             <View style={styles.sectionTitleRow}>
               <FileText size={20} color="#FF6A00" strokeWidth={2} />
               <Text style={styles.sectionTitle}>Verification Documents</Text>
+              <View style={styles.sectionStatus}>
+                {(() => {
+                  const requiredDocs = ['business_permit_url', 'valid_id_url', 'proof_of_address_url', 'dti_registration_url', 'tax_id_url'];
+                  const status = getSectionStatus(seller, requiredDocs);
+                  return (
+                    <>
+                      <View style={[styles.statusIndicator, { backgroundColor: statusColors[status] }]} />
+                      <Text style={[styles.statusText, { color: statusColors[status] }]}>
+                        {status}
+                      </Text>
+                    </>
+                  );
+                })()}
+              </View>
             </View>
-            {isVerified ? (
-              <View style={styles.verifiedStatusBadge}>
-                <CheckCircle size={12} color="#10B981" strokeWidth={2.5} />
-                <Text style={styles.verifiedStatusText}>All Verified</Text>
-              </View>
-            ) : (
-              <View style={styles.reviewBadge}>
-                <Clock size={12} color="#F59E0B" strokeWidth={2.5} />
-                <Text style={styles.reviewText}>Under Review</Text>
-              </View>
-            )}
-          </View>
+            {expandedSections.documents ? <ChevronUp size={20} color="#6B7280" /> : <ChevronDown size={20} color="#6B7280" />}
+          </TouchableOpacity>
 
-          {/* Document Cards */}
-          <View style={styles.documentCard}>
-            <View style={styles.documentHeader}>
-              <View style={styles.documentIconContainer}>
-                <View style={[styles.documentIcon, isVerified ? styles.documentIconVerified : styles.documentIconPending]}>
-                  <FileText size={20} color={isVerified ? '#10B981' : '#F59E0B'} strokeWidth={2} />
+          {expandedSections.documents && (
+            <>
+              {[
+                { name: 'Business Permit', key: 'business_permit_url', label: 'Business Permit/DTI' },
+                { name: 'Government ID', key: 'valid_id_url', label: 'Government-Issued ID' },
+                { name: 'Proof of Address', key: 'proof_of_address_url', label: 'Proof of Address' },
+                { name: 'DTI/SEC', key: 'dti_registration_url', label: 'DTI/SEC Registration' },
+                { name: 'BIR TIN', key: 'tax_id_url', label: 'BIR Tax ID (TIN)' },
+              ].map((doc) => (
+                <View key={doc.key} style={styles.documentCard}>
+                  <View style={styles.documentHeader}>
+                    <View style={styles.documentIconContainer}>
+                      <View style={[styles.documentIcon, seller?.[doc.key] ? styles.documentIconVerified : styles.documentIconPending]}>
+                        <FileText size={20} color={seller?.[doc.key] ? '#10B981' : '#F59E0B'} strokeWidth={2} />
+                      </View>
+                      <View style={styles.documentInfo}>
+                        <Text style={styles.documentTitle}>{doc.label}</Text>
+                        <Text style={styles.documentSubtitle}>
+                          {seller?.[doc.key] ? 'Document uploaded' : 'Not Provided'}
+                        </Text>
+                      </View>
+                    </View>
+                    {!isVerified && (
+                      <TouchableOpacity
+                        style={[styles.viewButton, { backgroundColor: uploadingDoc === doc.name ? '#F3F4F6' : '#FFFFFF' }]}
+                        onPress={() => handleDocumentUpload(doc.name, doc.key)}
+                        disabled={!!uploadingDoc}
+                      >
+                        {uploadingDoc === doc.name ? (
+                          <Clock size={16} color="#6B7280" />
+                        ) : (
+                          <Upload size={16} color="#6B7280" />
+                        )}
+                      </TouchableOpacity>
+                    )}
+                  </View>
                 </View>
-                <View style={styles.documentInfo}>
-                  <Text style={styles.documentTitle}>Government-Issued ID</Text>
-                  <Text style={styles.documentSubtitle}>Submitted during registration</Text>
-                </View>
-              </View>
-              <TouchableOpacity style={styles.viewButton}>
-                <Eye size={16} color="#6B7280" strokeWidth={2} />
-              </TouchableOpacity>
-            </View>
-            {isVerified && (
-              <View style={styles.verifiedStatusRow}>
-                <CheckCircle size={14} color="#10B981" strokeWidth={2} />
-                <Text style={styles.verifiedDateText}>Verified on {new Date(seller.joinDate).toLocaleDateString()}</Text>
-              </View>
-            )}
-          </View>
+              ))}
 
-          <View style={styles.documentCard}>
-            <View style={styles.documentHeader}>
-              <View style={styles.documentIconContainer}>
-                <View style={[styles.documentIcon, isVerified ? styles.documentIconVerified : styles.documentIconPending]}>
-                  <Building2 size={20} color={isVerified ? '#10B981' : '#F59E0B'} strokeWidth={2} />
+              {!isVerified && !isPending && (
+                <View style={[styles.pendingAlert, { marginTop: 8 }]}>
+                  <AlertCircle size={16} color="#F59E0B" strokeWidth={2} />
+                  <Text style={styles.pendingAlertText}>
+                    Ensure all documents are clear and valid. Verification takes 1-2 business days.
+                  </Text>
                 </View>
-                <View style={styles.documentInfo}>
-                  <Text style={styles.documentTitle}>Business Permit/DTI</Text>
-                  <Text style={styles.documentSubtitle}>Business registration document</Text>
-                </View>
-              </View>
-              <TouchableOpacity style={styles.viewButton}>
-                <Eye size={16} color="#6B7280" strokeWidth={2} />
-              </TouchableOpacity>
-            </View>
-            {isVerified && (
-              <View style={styles.verifiedStatusRow}>
-                <CheckCircle size={14} color="#10B981" strokeWidth={2} />
-                <Text style={styles.verifiedDateText}>Verified on {new Date(seller.joinDate).toLocaleDateString()}</Text>
-              </View>
-            )}
-          </View>
-
-          <View style={styles.documentCard}>
-            <View style={styles.documentHeader}>
-              <View style={styles.documentIconContainer}>
-                <View style={[styles.documentIcon, isVerified ? styles.documentIconVerified : styles.documentIconPending]}>
-                  <CreditCard size={20} color={isVerified ? '#10B981' : '#F59E0B'} strokeWidth={2} />
-                </View>
-                <View style={styles.documentInfo}>
-                  <Text style={styles.documentTitle}>Bank Account Verification</Text>
-                  <Text style={styles.documentSubtitle}>Proof of bank account ownership</Text>
-                </View>
-              </View>
-              <TouchableOpacity style={styles.viewButton}>
-                <Eye size={16} color="#6B7280" strokeWidth={2} />
-              </TouchableOpacity>
-            </View>
-            {isVerified && (
-              <View style={styles.verifiedStatusRow}>
-                <CheckCircle size={14} color="#10B981" strokeWidth={2} />
-                <Text style={styles.verifiedDateText}>Verified on {new Date(seller.joinDate).toLocaleDateString()}</Text>
-              </View>
-            )}
-          </View>
-
-          {!isVerified && (
-            <View style={styles.pendingAlert}>
-              <AlertCircle size={16} color="#F59E0B" strokeWidth={2} />
-              <Text style={styles.pendingAlertText}>
-                Your documents are currently being reviewed by our team. This usually takes 1-2 business days. You'll be notified once verification is complete.
-              </Text>
-            </View>
+              )}
+            </>
           )}
         </View>
 
         {/* Store Categories */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Store Categories</Text>
-          <View style={styles.categoriesContainer}>
-            {seller.storeCategory && seller.storeCategory.length > 0 ? (
-              seller.storeCategory.map((category, index) => (
-                <View key={index} style={styles.categoryBadge}>
-                  <Text style={styles.categoryText}>{category}</Text>
+          <TouchableOpacity
+            style={styles.sectionHeader}
+            onPress={() => toggleSection('categories')}
+            activeOpacity={0.7}
+          >
+            <View style={styles.sectionTitleRow}>
+              <Package size={20} color="#FF6A00" strokeWidth={2} />
+              <Text style={styles.sectionTitle}>Store Categories</Text>
+            </View>
+            {expandedSections.categories ? <ChevronUp size={20} color="#6B7280" /> : <ChevronDown size={20} color="#6B7280" />}
+          </TouchableOpacity>
+
+          {expandedSections.categories && (
+            <>
+              {!isVerified && (
+                <View style={styles.categoryInputRow}>
+                  <TextInput
+                    style={[styles.textInput, { flex: 1 }]}
+                    value={newCategory}
+                    onChangeText={setNewCategory}
+                    placeholder="Add a category..."
+                  />
+                  <TouchableOpacity
+                    style={styles.addCategoryButton}
+                    onPress={handleAddCategory}
+                  >
+                    <Text style={styles.addCategoryText}>Add</Text>
+                  </TouchableOpacity>
                 </View>
-              ))
-            ) : (
-              <Text style={styles.noCategoriesText}>No categories selected</Text>
-            )}
-          </View>
+              )}
+              <View style={styles.categoriesContainer}>
+                {seller?.store_category && seller.store_category.length > 0 ? (
+                  seller.store_category.map((category: string, index: number) => (
+                    <View key={index} style={styles.categoryBadge}>
+                      <Text style={styles.categoryText}>{category}</Text>
+                      {!isVerified && (
+                        <TouchableOpacity
+                          onPress={() => handleRemoveCategory(category)}
+                          style={styles.removeCategoryButton}
+                        >
+                          <X size={12} color="#C2410C" strokeWidth={3} />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  ))
+                ) : (
+                  <Text style={styles.noCategoriesText}>No categories selected</Text>
+                )}
+              </View>
+              {!isVerified && seller?.store_category?.length > 0 && (
+                <Text style={{ fontSize: 10, color: '#9CA3AF', marginTop: 8 }}>Click (X) to remove a category</Text>
+              )}
+            </>
+          )}
         </View>
 
         {/* Store Banner */}
@@ -1021,5 +1595,66 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#9CA3AF',
     marginTop: 4,
+  },
+  rejectionAlert: {
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FEE2E2',
+    borderRadius: 12,
+    margin: 16,
+    padding: 16,
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'flex-start',
+  },
+  rejectionTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#991B1B',
+    marginBottom: 2,
+  },
+  rejectionText: {
+    fontSize: 13,
+    color: '#B91C1C',
+    lineHeight: 18,
+  },
+  sectionStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  statusIndicator: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  statusText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  categoryInputRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 12,
+  },
+  addCategoryButton: {
+    backgroundColor: '#FF6A00',
+    paddingHorizontal: 16,
+    justifyContent: 'center',
+    borderRadius: 8,
+  },
+  addCategoryText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  removeCategoryButton: {
+    marginLeft: 8,
+    backgroundColor: 'rgba(194, 65, 12, 0.1)',
+    borderRadius: 10,
+    width: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

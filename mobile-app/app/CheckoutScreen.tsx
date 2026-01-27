@@ -13,7 +13,7 @@ import {
   Switch,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, MapPin, CreditCard, Shield, Tag, X, ChevronDown, Check, Plus } from 'lucide-react-native';
+import { ArrowLeft, MapPin, CreditCard, Shield, Tag, X, ChevronDown, Check, Plus, ShieldCheck } from 'lucide-react-native';
 import { COLORS } from '../src/constants/theme';
 
 // Dummy voucher codes
@@ -35,11 +35,35 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Checkout'>;
 
 type CheckoutStep = 'shipping' | 'payment' | 'confirmation';
 
-export default function CheckoutScreen({ navigation }: Props) {
+export default function CheckoutScreen({ navigation, route }: Props) {
   const { items, getTotal, clearCart, quickOrder, clearQuickOrder, getQuickOrderTotal } = useCartStore();
   const createOrder = useOrderStore((state) => state.createOrder);
   const { user } = useAuthStore();
   const insets = useSafeAreaInsets();
+  
+  // Extract params safely
+  const params = (route.params || {}) as any;
+  const isGift = params?.isGift || false;
+  const recipientName = params?.recipientName || 'Registry Owner';
+  const registryLocation = params?.registryLocation || 'Philippines';
+
+  // Override address state if it's a gift
+  React.useEffect(() => {
+    if (isGift) {
+        setUseDefaultAddress(false);
+        // Set a partial address for the order record, but UI will show masked version
+        setAddress({
+            ...DEFAULT_ADDRESS,
+            name: recipientName,
+            address: 'Confidential Registry Address',
+            city: registryLocation,
+            region: '',
+            postalCode: '0000', 
+            // We use 'Confidential...' as placeholder so order system accepts it, 
+            // but backend/fulfillment would use the actual hidden registry ID/Address logic in a real app.
+        });
+    }
+  }, [isGift, recipientName, registryLocation]);
 
   // Determine which items to checkout: quick order takes precedence
   const checkoutItems = quickOrder ? [quickOrder] : items;
@@ -271,6 +295,8 @@ export default function CheckoutScreen({ navigation }: Props) {
             ))}
           </View>
 
+
+
           {/* Shipping Address Card */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeaderWithBadge}>
@@ -283,91 +309,117 @@ export default function CheckoutScreen({ navigation }: Props) {
             </View>
           </View>
 
-          {/* Toggle Default Address */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, backgroundColor: '#F9FAFB', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB' }}>
-            <Text style={{ fontSize: 14, fontWeight: '600', color: '#111827' }}>Use Default / Home Address</Text>
-            <Switch
-              trackColor={{ false: '#D1D5DB', true: COLORS.primary }}
-              thumbColor={useDefaultAddress ? '#FFFFFF' : '#f4f3f4'}
-              ios_backgroundColor="#3e3e3e"
-              onValueChange={() => setUseDefaultAddress(prev => !prev)}
-              value={useDefaultAddress}
-            />
-          </View>
-
-          {useDefaultAddress ? (
-             <View style={{ backgroundColor: '#FFF4ED', borderRadius: 12, padding: 16, borderWidth: 1, borderColor: '#FFE4E6' }}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                   <View style={{ flex: 1 }}>
-                       <Text style={{ fontSize: 16, fontWeight: '700', color: '#111827', marginBottom: 4 }}>{DEFAULT_ADDRESS.name}</Text>
-                       <Text style={{ fontSize: 14, color: '#4B5563', marginBottom: 2 }}>{DEFAULT_ADDRESS.phone}</Text>
-                       <Text style={{ fontSize: 14, color: '#4B5563', marginBottom: 2 }}>{DEFAULT_ADDRESS.address}</Text>
-                       <Text style={{ fontSize: 14, color: '#4B5563' }}>{DEFAULT_ADDRESS.city}, {DEFAULT_ADDRESS.region}, {DEFAULT_ADDRESS.postalCode}</Text>
+          {isGift ? (
+             /* REGISTRY PRIVACY MODE */
+             <View style={{ backgroundColor: '#F0FDF4', borderRadius: 12, padding: 16, borderWidth: 1, borderColor: '#BBF7D0' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
+                   <View style={{ backgroundColor: '#DCFCE7', padding: 8, borderRadius: 20 }}>
+                       <ShieldCheck size={24} color="#166534" />
                    </View>
-                   <View style={{ backgroundColor: COLORS.primary, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4 }}>
-                       <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>Default</Text>
+                   <View style={{ flex: 1 }}>
+                       <Text style={{ fontSize: 16, fontWeight: '700', color: '#14532D', marginBottom: 4 }}>Registry Gift Address</Text>
+                       <Text style={{ fontSize: 14, fontWeight: '600', color: '#166534', marginBottom: 2 }}>Recipient: {recipientName}</Text>
+                       <Text style={{ fontSize: 14, color: '#166534' }}>Location: {registryLocation}</Text>
+                       
+                       <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 12, gap: 6 }}>
+                           <Shield size={12} color="#15803D" />
+                           <Text style={{ fontSize: 11, color: '#15803D', fontStyle: 'italic' }}>
+                               Full address is hidden for privacy.
+                           </Text>
+                       </View>
                    </View>
                 </View>
              </View>
           ) : (
-             <View>
-                <TextInput
-                    style={styles.input}
-                    placeholder="Full Name *"
-                    placeholderTextColor="#9CA3AF"
-                    value={address.name}
-                    onChangeText={(text) => setAddress({ ...address, name: text })}
-                />
-                <TextInput
-                    style={styles.input}
-                    placeholder="Email"
-                    placeholderTextColor="#9CA3AF"
-                    value={address.email}
-                    onChangeText={(text) => setAddress({ ...address, email: text })}
-                    keyboardType="email-address"
-                />
-                <TextInput
-                    style={styles.input}
-                    placeholder="Phone Number *"
-                    placeholderTextColor="#9CA3AF"
-                    value={address.phone}
-                    onChangeText={(text) => setAddress({ ...address, phone: text })}
-                    keyboardType="phone-pad"
-                />
-                <TextInput
-                    style={[styles.input, styles.textArea]}
-                    placeholder="Complete Address *"
-                    placeholderTextColor="#9CA3AF"
-                    value={address.address}
-                    onChangeText={(text) => setAddress({ ...address, address: text })}
-                    multiline
-                    numberOfLines={3}
-                />
-                <View style={styles.row}>
-                    <TextInput
-                    style={[styles.input, styles.halfInput]}
-                    placeholder="City *"
-                    placeholderTextColor="#9CA3AF"
-                    value={address.city}
-                    onChangeText={(text) => setAddress({ ...address, city: text })}
-                    />
-                    <TextInput
-                    style={[styles.input, styles.halfInput]}
-                    placeholder="Region"
-                    placeholderTextColor="#9CA3AF"
-                    value={address.region}
-                    onChangeText={(text) => setAddress({ ...address, region: text })}
+             /* STANDARD ADDRESS MODE */
+             <>
+                {/* Toggle Default Address */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, backgroundColor: '#F9FAFB', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB' }}>
+                    <Text style={{ fontSize: 14, fontWeight: '600', color: '#111827' }}>Use Default / Home Address</Text>
+                    <Switch
+                    trackColor={{ false: '#D1D5DB', true: COLORS.primary }}
+                    thumbColor={useDefaultAddress ? '#FFFFFF' : '#f4f3f4'}
+                    ios_backgroundColor="#3e3e3e"
+                    onValueChange={() => setUseDefaultAddress(prev => !prev)}
+                    value={useDefaultAddress}
                     />
                 </View>
-                <TextInput
-                    style={styles.input}
-                    placeholder="Postal Code"
-                    placeholderTextColor="#9CA3AF"
-                    value={address.postalCode}
-                    onChangeText={(text) => setAddress({ ...address, postalCode: text })}
-                    keyboardType="number-pad"
-                />
-             </View>
+
+                {useDefaultAddress ? (
+                    <View style={{ backgroundColor: '#FFF4ED', borderRadius: 12, padding: 16, borderWidth: 1, borderColor: '#FFE4E6' }}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <View style={{ flex: 1 }}>
+                            <Text style={{ fontSize: 16, fontWeight: '700', color: '#111827', marginBottom: 4 }}>{DEFAULT_ADDRESS.name}</Text>
+                            <Text style={{ fontSize: 14, color: '#4B5563', marginBottom: 2 }}>{DEFAULT_ADDRESS.phone}</Text>
+                            <Text style={{ fontSize: 14, color: '#4B5563', marginBottom: 2 }}>{DEFAULT_ADDRESS.address}</Text>
+                            <Text style={{ fontSize: 14, color: '#4B5563' }}>{DEFAULT_ADDRESS.city}, {DEFAULT_ADDRESS.region}, {DEFAULT_ADDRESS.postalCode}</Text>
+                        </View>
+                        <View style={{ backgroundColor: COLORS.primary, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4 }}>
+                            <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>Default</Text>
+                        </View>
+                        </View>
+                    </View>
+                ) : (
+                    <View>
+                        <TextInput
+                            style={styles.input}
+                            placeholder="Full Name *"
+                            placeholderTextColor="#9CA3AF"
+                            value={address.name}
+                            onChangeText={(text) => setAddress({ ...address, name: text })}
+                        />
+                        <TextInput
+                            style={styles.input}
+                            placeholder="Email"
+                            placeholderTextColor="#9CA3AF"
+                            value={address.email}
+                            onChangeText={(text) => setAddress({ ...address, email: text })}
+                            keyboardType="email-address"
+                        />
+                        <TextInput
+                            style={styles.input}
+                            placeholder="Phone Number *"
+                            placeholderTextColor="#9CA3AF"
+                            value={address.phone}
+                            onChangeText={(text) => setAddress({ ...address, phone: text })}
+                            keyboardType="phone-pad"
+                        />
+                        <TextInput
+                            style={[styles.input, styles.textArea]}
+                            placeholder="Complete Address *"
+                            placeholderTextColor="#9CA3AF"
+                            value={address.address}
+                            onChangeText={(text) => setAddress({ ...address, address: text })}
+                            multiline
+                            numberOfLines={3}
+                        />
+                        <View style={styles.row}>
+                            <TextInput
+                            style={[styles.input, styles.halfInput]}
+                            placeholder="City *"
+                            placeholderTextColor="#9CA3AF"
+                            value={address.city}
+                            onChangeText={(text) => setAddress({ ...address, city: text })}
+                            />
+                            <TextInput
+                            style={[styles.input, styles.halfInput]}
+                            placeholder="Region"
+                            placeholderTextColor="#9CA3AF"
+                            value={address.region}
+                            onChangeText={(text) => setAddress({ ...address, region: text })}
+                            />
+                        </View>
+                        <TextInput
+                            style={styles.input}
+                            placeholder="Postal Code"
+                            placeholderTextColor="#9CA3AF"
+                            value={address.postalCode}
+                            onChangeText={(text) => setAddress({ ...address, postalCode: text })}
+                            keyboardType="number-pad"
+                        />
+                    </View>
+                )}
+             </>
           )}
         </View>
 
@@ -633,7 +685,9 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: COLORS.primary,
-    paddingBottom: 12,
+    paddingBottom: 16, // Increased slightly for better proportion with rounded corners
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
     shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
