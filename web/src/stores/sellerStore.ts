@@ -387,7 +387,7 @@ const dummyOrders: SellerOrder[] = [];
 const mapOrderToSellerOrder = (order: any): SellerOrder => {
   // Handle order_items - it might be nested or need to be fetched separately
   const orderItems = Array.isArray(order.order_items) ? order.order_items : [];
-  
+
   const items = orderItems.map((item: any) => ({
     productId: item.product_id || '',
     productName: item.product_name || 'Unknown Product',
@@ -1340,23 +1340,23 @@ export const useOrderStore = create<OrderStore>()(
         }
 
         set({ loading: true, error: null });
-        
+
         try {
           const dbOrders = await getSellerOrders(sellerId);
           const sellerOrders = dbOrders.map(mapOrderToSellerOrder);
-          
-          set({ 
+
+          set({
             orders: sellerOrders,
             loading: false,
             error: null
           });
-          
+
           console.log(`✅ Fetched ${sellerOrders.length} orders for seller ${sellerId}`);
         } catch (error) {
           console.error('Failed to fetch orders:', error);
-          set({ 
-            loading: false, 
-            error: error instanceof Error ? error.message : 'Failed to fetch orders' 
+          set({
+            loading: false,
+            error: error instanceof Error ? error.message : 'Failed to fetch orders'
           });
         }
       },
