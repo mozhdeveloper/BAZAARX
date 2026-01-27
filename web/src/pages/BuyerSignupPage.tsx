@@ -170,6 +170,11 @@ export default function BuyerSignupPage() {
     alert("Google Sign-Up integration coming soon!");
   };
 
+  const handleFacebookSignup = () => {
+    setError("");
+    alert("Facebook Sign-Up integration coming soon!");
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 via-white to-orange-50 relative overflow-hidden py-12">
       {/* Decorative background elements */}
@@ -450,21 +455,35 @@ export default function BuyerSignupPage() {
               </div>
             </div>
 
-            {/* Google Sign Up */}
-            <Button
-              type="button"
-              onClick={handleGoogleSignup}
-              variant="outline"
-              className="w-full h-11 border-2 border-gray-200 hover:border-gray-300 hover:bg-gray-50 rounded-xl font-medium transition-all text-sm"
-              disabled={isLoading}
-            >
-              <img
-                src="https://www.svgrepo.com/show/475656/google-color.svg"
-                alt="Google"
-                className="w-4 h-4 mr-2"
-              />
-              Sign up with Google
-            </Button>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={handleGoogleSignup}
+                className="w-full h-14 text-sm font-medium flex items-center border-2 border-[var(--border)] hover:border-[var(--brand-primary)] hover:bg-[var(--secondary)]/5 rounded-[var(--radius-md)] justify-center gap-2 transition-all duration-200"
+                disabled={isLoading}
+              >
+                <img
+                  src="https://www.svgrepo.com/show/475656/google-color.svg"
+                  className="w-5 h-5"
+                  alt="Google"
+                />
+                <span>Google</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleFacebookSignup}
+                className="w-full h-14 text-sm font-medium flex items-center border-2 border-[var(--border)] hover:border-[var(--brand-primary)] hover:bg-[var(--secondary)]/5 rounded-[var(--radius-md)] justify-center gap-2 transition-all duration-200"
+                disabled={isLoading}
+              >
+                <img
+                  src="https://www.svgrepo.com/show/475647/facebook-color.svg"
+                  className="w-5 h-5"
+                  alt="Facebook"
+                />
+                <span>Facebook</span>
+              </button>
+            </div>
           </form>
 
           {/* Sign In Link */}
