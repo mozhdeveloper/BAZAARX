@@ -11,7 +11,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { useBuyerStore } from "../stores/buyerStore";
-import { signIn } from "../services/authService";
+import { signIn, signInWithProvider } from "../services/authService";
 import { supabase } from "../lib/supabase";
 
 export default function BuyerLoginPage() {
@@ -128,9 +128,12 @@ export default function BuyerLoginPage() {
     }
   };
 
-  const handleGoogleSignIn = () => {
+  const handleGoogleSignIn = async () => {
     setError("");
-    alert("Google Sign-In integration coming soon!");
+    setIsLoading(true);
+    await signInWithProvider("google");
+    // Since this redirects, we don't need to unset loading unless it fails immediately, but for UX safety:
+    setTimeout(() => setIsLoading(false), 3000);
   };
 
   const handleDemoLogin = () => {
@@ -139,9 +142,11 @@ export default function BuyerLoginPage() {
     setError("");
   };
 
-  const handleFacebookSignIn = () => {
+  const handleFacebookSignIn = async () => {
     setError("");
-    alert("Facebook Sign-In integration coming soon!");
+    setIsLoading(true);
+    await signInWithProvider("facebook");
+    setTimeout(() => setIsLoading(false), 3000);
   };
 
   return (

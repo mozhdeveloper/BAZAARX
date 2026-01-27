@@ -481,7 +481,7 @@ export function SellerRegister() {
                             type="tel"
                             value={formData.phone}
                             onChange={handleChange}
-                            className="w-full pl-10 pr-4 py-46 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:border-primary outline-none transition-all shadow-sm text-sm"
+                            className="w-full pl-10 px-5 py-4 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:border-primary outline-none transition-all shadow-sm text-sm"
                             placeholder='+63 912 345 6789'
                           />
                         </div>

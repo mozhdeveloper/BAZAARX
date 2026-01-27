@@ -68,7 +68,7 @@ export const signUp = async (
           preferences: {},
           followed_shops: [],
         }, { onConflict: 'id' });
-        
+
         if (buyerError) console.error('Buyer profile error:', buyerError);
       } else if (userData.user_type === 'seller') {
         // Seller record created separately during registration flow
@@ -78,7 +78,7 @@ export const signUp = async (
           role: 'admin',
           permissions: {},
         }, { onConflict: 'id' });
-        
+
         if (adminError) console.error('Admin profile error:', adminError);
       }
     }
@@ -119,6 +119,36 @@ export const signIn = async (email: string, password: string) => {
   } catch (error: any) {
     console.error('Signin error:', error);
     return { user: null, session: null, error };
+  }
+};
+
+/**
+ * Sign in with OAuth provider (Google, Facebook)
+ */
+export const signInWithProvider = async (provider: 'google' | 'facebook') => {
+  if (!isSupabaseConfigured()) {
+    console.warn(`Supabase not configured - mock ${provider} signin`);
+    // Ideally we would mock the flow, but for now just return success
+    return { data: { url: window.location.origin }, error: null };
+  }
+
+  try {
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: `${window.location.origin}/`,
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent',
+        },
+      },
+    });
+
+    if (error) throw error;
+    return { data, error: null };
+  } catch (error: any) {
+    console.error(`${provider} signin error:`, error);
+    return { data: null, error };
   }
 };
 

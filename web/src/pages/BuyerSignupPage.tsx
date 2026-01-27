@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { useBuyerStore } from "../stores/buyerStore";
 import { Checkbox } from "../components/ui/checkbox";
-import { signUp } from "../services/authService";
+import { signUp, signInWithProvider } from "../services/authService";
 import { supabase } from "../lib/supabase";
 
 export default function BuyerSignupPage() {
@@ -163,14 +163,18 @@ export default function BuyerSignupPage() {
     }
   };
 
-  const handleGoogleSignup = () => {
+  const handleGoogleSignup = async () => {
     setError("");
-    alert("Google Sign-Up integration coming soon!");
+    setIsLoading(true);
+    await signInWithProvider("google");
+    setTimeout(() => setIsLoading(false), 3000);
   };
 
-  const handleFacebookSignup = () => {
+  const handleFacebookSignup = async () => {
     setError("");
-    alert("Facebook Sign-Up integration coming soon!");
+    setIsLoading(true);
+    await signInWithProvider("facebook");
+    setTimeout(() => setIsLoading(false), 3000);
   };
 
   return (
@@ -264,7 +268,7 @@ export default function BuyerSignupPage() {
                     placeholder="Juan"
                     value={formData.firstName}
                     onChange={handleChange}
-                    className="w-full pl-11 pr-4 py-3 bg-[var(--secondary)]/10 border border-[var(--border)] rounded-[var(--radius-md)] focus:ring-4 focus:ring-[var(--primary)]/10 focus:bg-white focus:border-[var(--brand-primary)] outline-none transition-all text-sm"
+                    className="w-full pl-11 pr-4 py-4 bg-[var(--secondary)]/10 border border-[var(--border)] rounded-[var(--radius-md)] focus:ring-4 focus:ring-[var(--primary)]/10 focus:bg-white focus:border-[var(--brand-primary)] outline-none transition-all text-sm"
                     disabled={isLoading}
                   />
                 </div>
@@ -287,7 +291,7 @@ export default function BuyerSignupPage() {
                     placeholder="Dela Cruz"
                     value={formData.lastName}
                     onChange={handleChange}
-                    className="w-full pl-11 pr-4 py-3 bg-[var(--secondary)]/10 border border-[var(--border)] rounded-[var(--radius-md)] focus:ring-4 focus:ring-[var(--primary)]/10 focus:bg-white focus:border-[var(--brand-primary)] outline-none transition-all text-sm"
+                    className="w-full pl-11 pr-4 py-4 bg-[var(--secondary)]/10 border border-[var(--border)] rounded-[var(--radius-md)] focus:ring-4 focus:ring-[var(--primary)]/10 focus:bg-white focus:border-[var(--brand-primary)] outline-none transition-all text-sm"
                     disabled={isLoading}
                   />
                 </div>
@@ -310,7 +314,7 @@ export default function BuyerSignupPage() {
                   placeholder="you@example.com"
                   value={formData.email}
                   onChange={handleChange}
-                  className="w-full pl-11 pr-4 py-3 bg-[var(--secondary)]/10 border border-[var(--border)] rounded-[var(--radius-md)] focus:ring-4 focus:ring-[var(--primary)]/10 focus:bg-white focus:border-[var(--brand-primary)] outline-none transition-all text-sm"
+                  className="w-full pl-11 pr-4 py-4 bg-[var(--secondary)]/10 border border-[var(--border)] rounded-[var(--radius-md)] focus:ring-4 focus:ring-[var(--primary)]/10 focus:bg-white focus:border-[var(--brand-primary)] outline-none transition-all text-sm"
                   disabled={isLoading}
                 />
               </div>
@@ -332,14 +336,14 @@ export default function BuyerSignupPage() {
                   placeholder="+63 912 345 6789"
                   value={formData.phone}
                   onChange={handleChange}
-                  className="w-full pl-11 pr-4 py-3 bg-[var(--secondary)]/10 border border-[var(--border)] rounded-[var(--radius-md)] focus:ring-4 focus:ring-[var(--primary)]/10 focus:bg-white focus:border-[var(--brand-primary)] outline-none transition-all text-sm"
+                  className="w-full pl-11 pr-4 py-4 bg-[var(--secondary)]/10 border border-[var(--border)] rounded-[var(--radius-md)] focus:ring-4 focus:ring-[var(--primary)]/10 focus:bg-white focus:border-[var(--brand-primary)] outline-none transition-all text-sm"
                   disabled={isLoading}
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 <label
                   htmlFor="password"
                   className="text-sm font-bold text-[var(--text-primary)] ml-1"
@@ -355,7 +359,7 @@ export default function BuyerSignupPage() {
                     placeholder="••••••••"
                     value={formData.password}
                     onChange={handleChange}
-                    className="w-full pl-11 pr-11 py-3 bg-[var(--secondary)]/10 border border-[var(--border)] rounded-[var(--radius-md)] focus:ring-4 focus:ring-[var(--primary)]/10 focus:bg-white focus:border-[var(--brand-primary)] outline-none transition-all text-sm"
+                    className="w-full pl-11 pr-11 py-4 bg-[var(--secondary)]/10 border border-[var(--border)] rounded-[var(--radius-md)] focus:ring-4 focus:ring-[var(--primary)]/10 focus:bg-white focus:border-[var(--brand-primary)] outline-none transition-all text-sm"
                     disabled={isLoading}
                   />
                   <button
@@ -385,7 +389,7 @@ export default function BuyerSignupPage() {
                     placeholder="••••••••"
                     value={formData.confirmPassword}
                     onChange={handleChange}
-                    className="w-full pl-11 pr-11 py-3 bg-[var(--secondary)]/10 border border-[var(--border)] rounded-[var(--radius-md)] focus:ring-4 focus:ring-[var(--primary)]/10 focus:bg-white focus:border-[var(--brand-primary)] outline-none transition-all text-sm"
+                    className="w-full pl-11 pr-11 py-4 bg-[var(--secondary)]/10 border border-[var(--border)] rounded-[var(--radius-md)] focus:ring-4 focus:ring-[var(--primary)]/10 focus:bg-white focus:border-[var(--brand-primary)] outline-none transition-all text-sm"
                     disabled={isLoading}
                   />
                   <button
