@@ -4,7 +4,26 @@ import * as cartService from '@/services/cartService';
 import { getCurrentUser, supabase } from '@/lib/supabase';
 import { ReactNode } from 'react';
 
-// Enhanced interfaces for buyer features
+export interface Message {
+  id: string;
+  senderId: string;
+  text: string;
+  images?: string[];
+  timestamp: string;
+  isRead: boolean;
+}
+
+export interface Conversation {
+  id: string;
+  sellerId: string;
+  sellerName: string;
+  sellerImage?: string;
+  lastMessage: string;
+  lastMessageTime: string;
+  unreadCount: number;
+  messages: Message[];
+  isOnline: boolean;
+}
 export interface Seller {
   id: string;
   name: string;
@@ -241,6 +260,13 @@ interface BuyerStore {
   // Real-time
   subscribeToProfile: (userId: string) => void;
   unsubscribeFromProfile: () => void;
+
+  // Messaging
+  conversations: Conversation[];
+  addConversation: (conversation: Conversation) => void;
+  updateConversation: (convId: string, updates: Partial<Conversation>) => void;
+  addChatMessage: (convId: string, message: Message) => void;
+  deleteConversation: (convId: string) => void;
 }
 
 let profileSubscription: any = null;
@@ -962,6 +988,49 @@ export const useBuyerStore = create<BuyerStore>()(persist(
         supabase.removeChannel(profileSubscription);
         profileSubscription = null;
       }
+    },
+
+    // Messaging Implementation
+    conversations: [],
+    addConversation: (conversation) => {
+      set((state) => ({
+        conversations: [conversation, ...state.conversations.filter(c => c.sellerId !== conversation.sellerId)]
+      }));
+    },
+    updateConversation: (convId, updates) => {
+      set((state) => ({
+        conversations: state.conversations.map(c =>
+          c.id === convId ? { ...c, ...updates } : c
+        )
+      }));
+    },
+    addChatMessage: (convId, message) => {
+      set((state) => ({
+        conversations: state.conversations.map(c =>
+          c.id === convId
+            ? {
+              ...c,
+              messages: [...c.messages, message],
+              lastMessage: message.senderId === 'buyer'
+                ? (message.text ? `You: ${message.text}` : `You sent ${message.images && message.images.length > 1 ? `${message.images.length} images` : 'an image'}`)
+                : (message.text || (message.images && message.images.length > 0 ? `Sent ${message.images.length > 1 ? `${message.images.length} images` : 'an image'}` : '')),
+              lastMessageTime: message.timestamp,
+              unreadCount: message.senderId !== 'buyer' ? c.unreadCount + 1 : c.unreadCount
+            }
+            : c
+        )
+      }));
+    },
+    deleteConversation: (convId) => {
+      set((state) => {
+        const conversation = state.conversations.find(c => c.id === convId);
+        if (!conversation) return state;
+
+        return {
+          conversations: state.conversations.filter(c => c.id !== convId),
+          viewedSellers: state.viewedSellers.filter(s => s.id !== conversation.sellerId)
+        };
+      });
     }
   }),
   {
@@ -971,7 +1040,8 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       addresses: state.addresses,
       followedShops: state.followedShops,
       cartItems: state.cartItems,
-      reviews: state.reviews
+      reviews: state.reviews,
+      conversations: state.conversations
     })
   }
 ));

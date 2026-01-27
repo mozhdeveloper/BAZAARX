@@ -316,6 +316,7 @@ export default function SellerStorefrontPage() {
 
                 <Button
                   variant="outline"
+                  onClick={() => navigate(`/messages?sellerId=${seller.id}`)}
                   className="h-10 px-8 rounded-xl font-bold bg-transparent border-2 border-white/20 text-white hover:bg-white hover:text-[#1a0b02] transition-all min-w-[130px]"
                 >
                   Chat
