@@ -38,21 +38,39 @@ import {
   Package,
   Plus,
   Trash2,
-  ChevronLeft
+  ChevronLeft,
+  CreditCard,
+  Smartphone,
+  Wallet,
+  Store
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { regions, provinces, cities, barangays } from "select-philippines-address";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { supabase } from '@/lib/supabase';
 
 export default function BuyerProfilePage() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const { profile, updateProfile, addresses, followedShops, setAddresses, addAddress, updateAddress } = useBuyerStore();
+  const { profile, updateProfile, addresses, followedShops, setAddresses, addAddress, updateAddress, addCard, deleteCard, setDefaultPaymentMethod } = useBuyerStore();
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isAddressOpen, setIsAddressOpen] = useState(false);
+  const [isCardModalOpen, setIsCardModalOpen] = useState(false);
+  const [isSeller, setIsSeller] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+
+  const [newPaymentMethod, setNewPaymentMethod] = useState({
+    type: 'card' as 'card' | 'wallet',
+    brand: 'Visa', // Also used for Wallet name like GCash
+    number: '',    // For cards
+    expiry: '',    // For cards
+    cvv: '',       // For cards
+    name: '',      // Cardholder name
+    accountNumber: '', // For wallets (GCash number etc)
+    isDefault: false
+  });
 
   const [regionList, setRegionList] = useState<any[]>([]);
   const [provinceList, setProvinceList] = useState<any[]>([]);
@@ -63,6 +81,24 @@ export default function BuyerProfilePage() {
   useEffect(() => {
     regions().then((res) => setRegionList(res));
   }, []);
+
+  // Check if user is also a seller
+  useEffect(() => {
+    const checkSellerStatus = async () => {
+      if (profile?.email) {
+        const { data } = await supabase
+          .from('sellers')
+          .select('id')
+          .eq('email', profile.email)
+          .single();
+
+        if (data) {
+          setIsSeller(true);
+        }
+      }
+    };
+    checkSellerStatus();
+  }, [profile?.email]);
 
   // 2. Handle Region Selection
   const onRegionChange = (regionCode: string) => {
@@ -395,11 +431,96 @@ export default function BuyerProfilePage() {
     }
   };
 
+  const handleSetDefaultAddress = async (addressId: string) => {
+    if (!profile) return;
+
+    // 1. Update Local Store (Optimistic UI)
+    updateAddress(addressId, { isDefault: true });
+
+    try {
+      const { supabase } = await import('../lib/supabase');
+
+      // 2. Unset all defaults for this user
+      await supabase
+        .from('addresses')
+        .update({ is_default: false })
+        .eq('user_id', profile.id);
+
+      // 3. Set new default
+      const { error } = await supabase
+        .from('addresses')
+        .update({ is_default: true })
+        .eq('id', addressId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Default Address Updated",
+        description: "Your primary shipping address has been updated.",
+      });
+    } catch (error) {
+      console.error("Error setting default address:", error);
+      toast({
+        title: "Update Failed",
+        description: "Could not save your default address preference.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleAddCard = async () => {
+    if (!profile) return;
+    setIsSaving(true);
+
+    try {
+      const isCard = newPaymentMethod.type === 'card';
+      const cardData = {
+        id: `${newPaymentMethod.type}_${Date.now()}`,
+        type: newPaymentMethod.type,
+        brand: newPaymentMethod.brand,
+        last4: isCard ? newPaymentMethod.number.replace(/\s/g, '').slice(-4) : undefined,
+        expiry: isCard ? newPaymentMethod.expiry : undefined,
+        accountNumber: !isCard ? `09*******${newPaymentMethod.accountNumber.slice(-2)}` : undefined,
+        isDefault: newPaymentMethod.isDefault
+      };
+
+      addCard(cardData);
+
+      if (newPaymentMethod.isDefault) {
+        setDefaultPaymentMethod(cardData.id);
+      }
+
+      toast({
+        title: isCard ? "Card Added" : "Wallet Linked",
+        description: `Your ${newPaymentMethod.brand} has been saved successfully.`,
+      });
+      setIsCardModalOpen(false);
+      setNewPaymentMethod({ type: 'card', brand: 'Visa', number: '', expiry: '', cvv: '', name: '', accountNumber: '', isDefault: false });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to add payment method.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeleteCard = (id: string) => {
+    if (!confirm("Are you sure you want to remove this payment method?")) return;
+    deleteCard(id);
+    toast({
+      title: "Card Removed",
+      description: "The payment method has been deleted.",
+    });
+  };
+
   if (!profile) return null;
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header />
+      {!isCardModalOpen && !isAddressOpen && <Header />}
 
       {/* Custom Profile Header - Modern Dark Orange Style */}
       <div className="relative bg-[#2b1203]/70 pt-8 pb-10 overflow-hidden">
@@ -485,11 +606,11 @@ export default function BuyerProfilePage() {
 
             <div className="flex items-center gap-3">
               <Button
-                onClick={handleOpenEdit}
+                onClick={() => isSeller ? navigate('/seller') : navigate('/seller/auth')}
                 className="bg-[#ff6a00] hover:bg-[#e65e00] text-white font-bold h-10 px-6 rounded-xl shadow-lg shadow-orange-600/20 flex items-center gap-2"
               >
-                <Edit2 className="w-4 h-4" />
-                Edit Profile
+                <Store className="w-4 h-4" />
+                {isSeller ? 'Switch to Seller Mode' : 'Start Selling'}
               </Button>
             </div>
           </div>
@@ -514,6 +635,12 @@ export default function BuyerProfilePage() {
                 className="rounded-full px-8 py-1.5 text-sm font-medium text-gray-500 data-[state=active]:bg-white data-[state=active]:text-[#ff6a00] data-[state=active]:shadow-sm transition-all"
               >
                 Addresses
+              </TabsTrigger>
+              <TabsTrigger
+                value="payments"
+                className="rounded-full px-8 py-1.5 text-sm font-medium text-gray-500 data-[state=active]:bg-white data-[state=active]:text-[#ff6a00] data-[state=active]:shadow-sm transition-all"
+              >
+                Payment Methods
               </TabsTrigger>
               <TabsTrigger
                 value="following"
@@ -628,32 +755,57 @@ export default function BuyerProfilePage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {addresses.map((address) => (
                 <Card key={address.id} className="relative group border-gray-100">
-                  <CardContent className="p-6">
-                    <div className="flex justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-bold">{address.label}</h3>
-                        {address.isDefault && <Badge>Default</Badge>}
-                      </div>
-                      <Button variant="ghost" size="sm" onClick={() => handleOpenAddressModal(address)}>
-                        <Edit2 className="w-4 h-4" />
-                      </Button>
+                  <CardContent className="p-6 h-full flex flex-col justify-between">
+                    <div className="flex justify-between items-start">
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-bold text-[#ff6a00] text-lg">{address.label}</h3>
+                          {address.isDefault && (
+                            <Badge className="bg-orange-50 text-[#ff6a00] border-none text-[10px] font-bold">DEFAULT</Badge>
+                          )}
+                        </div>
 
-                      {/* ADD THIS DELETE BUTTON */}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                        onClick={() => handleDeleteAddress(address.id)}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                        <div className="text-sm space-y-1 text-gray-600">
+                          <p className="font-bold text-gray-900">{address.firstName} {address.lastName}</p>
+                          <p className="font-medium text-gray-500">{address.phone}</p>
+                          <p className="text-gray-500 line-clamp-2">
+                            {address.street}, {address.barangay}, {address.city}, {address.province} {address.postalCode}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-1 -mr-2 -mt-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleOpenAddressModal(address)}
+                          className="text-gray-400 hover:text-gray-900 p-0 w-8 h-8 hover:bg-transparent transition-colors"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDeleteAddress(address.id)}
+                          className="text-gray-400 hover:text-red-500 p-0 w-8 h-8 hover:bg-transparent transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </div>
-                    <div className="text-sm space-y-1 text-gray-600">
-                      <p className="font-semibold text-black">{address.firstName} {address.lastName}</p>
-                      <p>{address.phone}</p>
-                      <p>{address.street}, {address.barangay}</p>
-                      <p>{address.city}, {address.province} {address.postalCode}</p>
-                    </div>
+
+                    {!address.isDefault && (
+                      <div className="flex justify-end mt-4 pt-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleSetDefaultAddress(address.id)}
+                          className="text-gray-400 hover:text-[#ff6a00] p-0 h-auto text-[10px] font-bold uppercase tracking-wider hover:bg-transparent transition-colors"
+                        >
+                          Set as default
+                        </Button>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               ))}
@@ -700,6 +852,98 @@ export default function BuyerProfilePage() {
                   </CardContent>
                 </Card>
               ))}
+            </motion.div>
+          </TabsContent>
+
+          <TabsContent value="payments">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+            >
+              {profile.paymentMethods?.map((method) => (
+                <Card key={method.id} className="relative overflow-hidden group border-2 border-gray-100 shadow-lg bg-white text-gray-900 min-h-[180px]">
+                  <div className="absolute top-0 right-0 p-6 opacity-[0.03] transform translate-x-4 -translate-y-4">
+                    {method.type === 'card' ? <CreditCard className="w-32 h-32" /> : <Smartphone className="w-32 h-32" />}
+                  </div>
+
+                  <CardContent className="pt-6 px-6 pb-3 h-full flex flex-col justify-between relative z-10">
+                    <div className="flex justify-between items-start">
+                      <div className="space-y-1">
+                        <h3 className="text-xl font-bold tracking-tight">{method.brand}</h3>
+                        {method.type === 'wallet' && <p className="text-xs text-gray-500 font-medium">Digital Wallet</p>}
+                      </div>
+                      {method.isDefault && (
+                        <Badge className="bg-orange-50 text-[#ff6a00] border-none text-[10px] font-bold">DEFAULT</Badge>
+                      )}
+                    </div>
+
+                    <div className="space-y-4">
+                      {method.type === 'card' ? (
+                        <div className="flex items-center gap-4 text-gray-600">
+                          <div className="flex gap-1.5">
+                            {[1, 2, 3, 4].map(i => <div key={i} className="w-1.5 h-1.5 rounded-full bg-gray-200" />)}
+                          </div>
+                          <div className="flex gap-1.5">
+                            {[1, 2, 3, 4].map(i => <div key={i} className="w-1.5 h-1.5 rounded-full bg-gray-200" />)}
+                          </div>
+                          <div className="flex gap-1.5">
+                            {[1, 2, 3, 4].map(i => <div key={i} className="w-1.5 h-1.5 rounded-full bg-gray-200" />)}
+                          </div>
+                          <span className="text-lg font-mono tracking-[0.2em]">{method.last4}</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-3">
+                          <span className="text-lg font-mono tracking-wider text-gray-700">{method.accountNumber}</span>
+                        </div>
+                      )}
+
+                      <div className="flex justify-between items-end mt-auto pt-4">
+                        <div className="space-y-0.5">
+                          {method.type === 'card' && (
+                            <>
+                              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Expires</p>
+                              <p className="font-mono text-sm text-gray-700">{method.expiry}</p>
+                            </>
+                          )}
+                        </div>
+                        <div className="flex gap-2">
+                          {!method.isDefault && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setDefaultPaymentMethod(method.id)}
+                              className="text-gray-400 hover:text-[#ff6a00] p-0 transition-colors text-[10px] font-bold uppercase tracking-wider h-auto bg-transparent hover:bg-transparent"
+                            >
+                              Set as default
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDeleteCard(method.id)}
+                            className="text-gray-400 hover:text-red-500 p-0 transition-colors w-auto h-auto bg-transparent hover:bg-transparent"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+
+              {/* Add New Card Button */}
+              <button
+                onClick={() => setIsCardModalOpen(true)}
+                className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-gray-200 rounded-2xl hover:border-[#ff6a00] hover:bg-orange-50/50 transition-all duration-300 min-h-[180px] group"
+              >
+                <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mb-3 group-hover:bg-[#ff6a00] transition-colors">
+                  <Plus className="w-6 h-6 text-gray-400 group-hover:text-white transition-colors" />
+                </div>
+                <span className="font-bold text-gray-600 group-hover:text-[#ff6a00] transition-colors">Add New Payment Method</span>
+                <p className="text-xs text-gray-400 mt-1">Visa, Mastercard, etc.</p>
+              </button>
             </motion.div>
           </TabsContent>
 
@@ -838,6 +1082,148 @@ export default function BuyerProfilePage() {
             <Button onClick={handleSaveAddress} disabled={isSaving} className="bg-[#ff6a00] hover:bg-[#e65e00] text-white">
               {isSaving && <Loader2 className="animate-spin w-4 h-4 mr-2" />}
               {editingId ? 'Update Address' : 'Save Address'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Payment Method Modal */}
+      <Dialog open={isCardModalOpen} onOpenChange={setIsCardModalOpen}>
+        <DialogContent className="sm:max-w-[420px] rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold">Add Payment Method</DialogTitle>
+            <DialogDescription>Choose your preferred payment type.</DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6 py-4">
+            {/* Type Selector */}
+            <div className="flex p-1 bg-gray-100 rounded-xl">
+              <button
+                onClick={() => setNewPaymentMethod({ ...newPaymentMethod, type: 'card', brand: 'Visa' })}
+                className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-bold rounded-lg transition-all ${newPaymentMethod.type === 'card' ? 'bg-white text-[#ff6a00] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+              >
+                <CreditCard className="w-4 h-4" />
+                Card
+              </button>
+              <button
+                onClick={() => setNewPaymentMethod({ ...newPaymentMethod, type: 'wallet', brand: 'GCash' })}
+                className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-bold rounded-lg transition-all ${newPaymentMethod.type === 'wallet' ? 'bg-white text-[#ff6a00] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+              >
+                <Smartphone className="w-4 h-4" />
+                Digital Wallet
+              </button>
+            </div>
+
+            {newPaymentMethod.type === 'card' ? (
+              <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold uppercase tracking-wider text-gray-500">Card Brand</Label>
+                  <Select value={newPaymentMethod.brand} onValueChange={(val) => setNewPaymentMethod({ ...newPaymentMethod, brand: val })}>
+                    <SelectTrigger className="rounded-xl border-gray-100 bg-gray-50/50">
+                      <SelectValue placeholder="Select Brand" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Visa">Visa</SelectItem>
+                      <SelectItem value="MasterCard">MasterCard</SelectItem>
+                      <SelectItem value="American Express">American Express</SelectItem>
+                      <SelectItem value="JCB">JCB</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold uppercase tracking-wider text-gray-500">Card Number</Label>
+                  <div className="relative">
+                    <Input
+                      placeholder="0000 0000 0000 0000"
+                      value={newPaymentMethod.number}
+                      onChange={e => setNewPaymentMethod({ ...newPaymentMethod, number: e.target.value })}
+                      className="rounded-xl border-gray-100 bg-gray-50/50 pl-10"
+                    />
+                    <CreditCard className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold uppercase tracking-wider text-gray-500">Expiry (MM/YY)</Label>
+                    <Input
+                      placeholder="MM/YY"
+                      value={newPaymentMethod.expiry}
+                      onChange={e => setNewPaymentMethod({ ...newPaymentMethod, expiry: e.target.value })}
+                      className="rounded-xl border-gray-100 bg-gray-50/50"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold uppercase tracking-wider text-gray-500">CVV</Label>
+                    <Input
+                      type="password"
+                      placeholder="***"
+                      value={newPaymentMethod.cvv}
+                      onChange={e => setNewPaymentMethod({ ...newPaymentMethod, cvv: e.target.value })}
+                      className="rounded-xl border-gray-100 bg-gray-50/50"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold uppercase tracking-wider text-gray-500">Cardholder Name</Label>
+                  <Input
+                    placeholder="Full Name as shown on card"
+                    value={newPaymentMethod.name}
+                    onChange={e => setNewPaymentMethod({ ...newPaymentMethod, name: e.target.value })}
+                    className="rounded-xl border-gray-100 bg-gray-50/50"
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold uppercase tracking-wider text-gray-500">Wallet Provider</Label>
+                  <Select value={newPaymentMethod.brand} onValueChange={(val) => setNewPaymentMethod({ ...newPaymentMethod, brand: val })}>
+                    <SelectTrigger className="rounded-xl border-gray-100 bg-gray-50/50">
+                      <SelectValue placeholder="Select Wallet" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="GCash">GCash</SelectItem>
+                      <SelectItem value="Maya">Maya</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold uppercase tracking-wider text-gray-500">Mobile Number</Label>
+                  <div className="relative">
+                    <Input
+                      placeholder="09XX XXX XXXX"
+                      value={newPaymentMethod.accountNumber}
+                      onChange={e => setNewPaymentMethod({ ...newPaymentMethod, accountNumber: e.target.value })}
+                      className="rounded-xl border-gray-100 bg-gray-50/50 pl-10"
+                    />
+                    <Smartphone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  </div>
+                  <p className="text-[10px] text-gray-400 italic">Enter the registered number for your {newPaymentMethod.brand} account.</p>
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+              <div className="space-y-0.5">
+                <Label className="text-sm font-bold text-gray-700">Set as default</Label>
+                <p className="text-[10px] text-gray-500">Make this your primary payment method</p>
+              </div>
+              <Switch
+                checked={newPaymentMethod.isDefault}
+                onCheckedChange={(checked) => setNewPaymentMethod({ ...newPaymentMethod, isDefault: checked })}
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="sm:justify-between gap-3">
+            <Button variant="ghost" className="rounded-xl" onClick={() => setIsCardModalOpen(false)}>Cancel</Button>
+            <Button className="bg-[#ff6a00] hover:bg-[#e65e00] rounded-xl px-8" onClick={handleAddCard} disabled={isSaving}>
+              {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              {newPaymentMethod.type === 'card' ? 'Save Card' : 'Link Wallet'}
             </Button>
           </DialogFooter>
         </DialogContent>

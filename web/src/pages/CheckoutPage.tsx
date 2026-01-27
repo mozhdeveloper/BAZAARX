@@ -208,14 +208,38 @@ export default function CheckoutPage() {
     paymentMethod: "card",
   });
 
+  useEffect(() => {
+    if (profile?.paymentMethods) {
+      const defaultMethod = profile.paymentMethods.find(m => m.isDefault);
+      if (defaultMethod) {
+        if (defaultMethod.type === 'card' && defaultMethod.last4) {
+          setFormData(prev => ({
+            ...prev,
+            paymentMethod: 'card',
+            cardNumber: `**** **** **** ${defaultMethod.last4}`,
+            expiryDate: defaultMethod.expiry || "",
+            cvv: "***"
+          }));
+        } else if (defaultMethod.type === 'wallet') {
+          setFormData(prev => ({
+            ...prev,
+            paymentMethod: defaultMethod.brand.toLowerCase() === 'gcash' ? 'gcash' : 'paymaya',
+            gcashNumber: defaultMethod.brand.toLowerCase() === 'gcash' ? defaultMethod.accountNumber : prev.gcashNumber,
+            paymayaNumber: defaultMethod.brand.toLowerCase() === 'maya' ? defaultMethod.accountNumber : prev.paymayaNumber,
+          }));
+        }
+      }
+    }
+  }, [profile]);
+
   // Demo: Ensure saved cards exist
   useEffect(() => {
     if (profile) {
       let updates: any = {};
-      if (!profile.savedCards || profile.savedCards.length === 0) {
-        updates.savedCards = [
-          { id: 'card_demo_1', last4: '4242', brand: 'Visa', expiry: '12/28' },
-          { id: 'card_demo_2', last4: '8888', brand: 'MasterCard', expiry: '10/26' },
+      if (!profile.paymentMethods || profile.paymentMethods.length === 0) {
+        updates.paymentMethods = [
+          { id: 'card_demo_1', type: 'card', last4: '4242', brand: 'Visa', expiry: '12/28', isDefault: true },
+          { id: 'card_demo_2', type: 'card', last4: '8888', brand: 'MasterCard', expiry: '10/26', isDefault: false },
         ];
       }
 
@@ -318,18 +342,18 @@ export default function CheckoutPage() {
       if (!formData.expiryDate?.trim())
         newErrors.expiryDate = "Expiry date is required";
       if (!formData.cvv?.trim()) newErrors.cvv = "CVV is required";
-    } else if (
-      formData.paymentMethod === "gcash" &&
-      formData.gcashNumber?.trim()
-    ) {
-      if (formData.gcashNumber.length < 11)
-        newErrors.gcashNumber = "Valid GCash number required";
-    } else if (
-      formData.paymentMethod === "paymaya" &&
-      formData.paymayaNumber?.trim()
-    ) {
-      if (formData.paymayaNumber.length < 11)
-        newErrors.paymayaNumber = "Valid PayMaya number required";
+    } else if (formData.paymentMethod === "gcash") {
+      if (!formData.gcashNumber?.trim()) {
+        newErrors.gcashNumber = "GCash number is required";
+      } else if (formData.gcashNumber.replace(/\D/g, '').length < 11) {
+        newErrors.gcashNumber = "Valid 11-digit GCash number required";
+      }
+    } else if (formData.paymentMethod === "paymaya") {
+      if (!formData.paymayaNumber?.trim()) {
+        newErrors.paymayaNumber = "PayMaya number is required";
+      } else if (formData.paymayaNumber.replace(/\D/g, '').length < 11) {
+        newErrors.paymayaNumber = "Valid 11-digit PayMaya number required";
+      }
     }
 
     setErrors(newErrors);
@@ -624,24 +648,23 @@ export default function CheckoutPage() {
                 {/* Payment Details */}
                 {formData.paymentMethod === "card" && (
                   <div className="space-y-4">
-                    {profile?.savedCards && profile.savedCards.length > 0 && (
+                    {profile?.paymentMethods?.filter(pm => pm.type === 'card' && pm.last4).length ? (
                       <div className="mb-4">
                         <label className="block text-sm font-medium text-gray-700 mb-2">Saved Cards</label>
                         <div className="space-y-2">
-                          {profile.savedCards.map((card) => (
+                          {profile.paymentMethods.filter(pm => pm.type === 'card' && pm.last4).map((card) => (
                             <div
                               key={card.id}
                               onClick={() => {
                                 handleInputChange("cardNumber", `**** **** **** ${card.last4}`);
-                                handleInputChange("expiryDate", card.expiry);
+                                handleInputChange("expiryDate", card.expiry || "");
                                 handleInputChange("cvv", "***");
-                                // In a real app we wouldn't auto-fill CVV, requiring user input
                               }}
                               className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
                             >
-                              <div className={`w-4 h-4 rounded-full border mr-3 flex items-center justify-center ${formData.cardNumber?.endsWith(card.last4) ? "border-[var(--brand-primary)] bg-[var(--brand-primary)]" : "border-gray-300"
+                              <div className={`w-4 h-4 rounded-full border mr-3 flex items-center justify-center ${formData.cardNumber?.endsWith(card.last4 || "") ? "border-[var(--brand-primary)] bg-[var(--brand-primary)]" : "border-gray-300"
                                 }`}>
-                                {formData.cardNumber?.endsWith(card.last4) && <Check className="w-3 h-3 text-white" />}
+                                {formData.cardNumber?.endsWith(card.last4 || "") && <Check className="w-3 h-3 text-white" />}
                               </div>
                               <div className="flex-1">
                                 <p className="font-medium text-gray-900">{card.brand} ending in {card.last4}</p>
@@ -661,7 +684,7 @@ export default function CheckoutPage() {
                           </div>
                         </div>
                       </div>
-                    )}
+                    ) : null}
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2">
                       <div className="md:col-span-2">
@@ -758,7 +781,21 @@ export default function CheckoutPage() {
                 )}
 
                 {formData.paymentMethod === "gcash" && (
-                  <div>
+                  <div className="space-y-4">
+                    {profile?.paymentMethods?.filter(pm => pm.type === 'wallet' && pm.brand === 'GCash').map(wallet => (
+                      <div
+                        key={wallet.id}
+                        onClick={() => handleInputChange("gcashNumber", wallet.accountNumber || "")}
+                        className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors mb-2"
+                      >
+                        <div className={`w-4 h-4 rounded-full border mr-3 flex items-center justify-center ${formData.gcashNumber === wallet.accountNumber ? "border-[var(--brand-primary)] bg-[var(--brand-primary)]" : "border-gray-300"}`}>
+                          {formData.gcashNumber === wallet.accountNumber && <Check className="w-3 h-3 text-white" />}
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-medium text-gray-900">Linked GCash: {wallet.accountNumber}</p>
+                        </div>
+                      </div>
+                    ))}
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       GCash Number *
                     </label>
@@ -783,7 +820,21 @@ export default function CheckoutPage() {
                 )}
 
                 {formData.paymentMethod === "paymaya" && (
-                  <div>
+                  <div className="space-y-4">
+                    {profile?.paymentMethods?.filter(pm => pm.type === 'wallet' && pm.brand === 'Maya').map(wallet => (
+                      <div
+                        key={wallet.id}
+                        onClick={() => handleInputChange("paymayaNumber", wallet.accountNumber || "")}
+                        className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors mb-2"
+                      >
+                        <div className={`w-4 h-4 rounded-full border mr-3 flex items-center justify-center ${formData.paymayaNumber === wallet.accountNumber ? "border-[var(--brand-primary)] bg-[var(--brand-primary)]" : "border-gray-300"}`}>
+                          {formData.paymayaNumber === wallet.accountNumber && <Check className="w-3 h-3 text-white" />}
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-medium text-gray-900">Linked Maya: {wallet.accountNumber}</p>
+                        </div>
+                      </div>
+                    ))}
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       PayMaya Number *
                     </label>
