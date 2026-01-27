@@ -25,6 +25,7 @@ import BuyerFollowingPage from "./pages/BuyerFollowingPage";
 import BuyerSettingsPage from "./pages/BuyerSettingsPage";
 import BuyerLoginPage from "./pages/BuyerLoginPage";
 import BuyerSignupPage from "./pages/BuyerSignupPage";
+import MessagesPage from "./pages/MessagesPage";
 import { ProtectedBuyerRoute } from "./components/ProtectedBuyerRoute";
 
 // Seller Pages
@@ -134,6 +135,13 @@ function App() {
             }
           />
           <Route path="/seller/:sellerId" element={<SellerStorefrontPage />} />
+          <Route path="/messages"
+            element={
+              <ProtectedBuyerRoute>
+                <MessagesPage />
+              </ProtectedBuyerRoute>
+            }
+          />
           <Route path="/reviews" element={<ReviewsPage />} />
           <Route path="/my-reviews"
             element={
