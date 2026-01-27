@@ -18,8 +18,9 @@ import {
   ArrowLeft,
   Search,
   Send,
-  Phone,
-  Video,
+  Image as ImageIcon,
+  Paperclip,
+  X
   X,
   Ticket,
   Image as ImageIcon,
@@ -273,17 +274,7 @@ export default function MessagesScreen() {
               </View>
             </View>
           </View>
-          <View style={styles.chatHeaderActions}>
-            <Pressable style={styles.iconButton}>
-              <Phone size={20} color="#FFFFFF" strokeWidth={2.5} />
-            </Pressable>
-            <Pressable style={styles.iconButton}>
-              <Video size={20} color="#FFFFFF" strokeWidth={2.5} />
-            </Pressable>
-            <Pressable style={styles.iconButton} onPress={handleEscalate}>
-              <Ticket size={20} color="#FFFFFF" strokeWidth={2.5} />
-            </Pressable>
-          </View>
+
         </View>
       </View>
 
@@ -513,13 +504,7 @@ const styles = StyleSheet.create({
     opacity: 0.9,
     fontWeight: '500',
   },
-  chatHeaderActions: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  iconButton: {
-    padding: 6,
-  },
+
   messagesContainer: {
     flex: 1,
     backgroundColor: '#F9FAFB',
