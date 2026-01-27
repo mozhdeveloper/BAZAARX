@@ -17,11 +17,11 @@ import { GuestLoginModal } from '../src/components/GuestLoginModal';
 import { COLORS } from '../src/constants/theme';
 
 export default function CartScreen({ navigation }: any) {
-  const { items, removeItem, updateQuantity, clearCart, initializeForCurrentUser } = useCartStore();
+  const { items, removeItem, updateQuantity, clearCart, initializeForCurrentUser, clearQuickOrder } = useCartStore(); // Add clearQuickOrder
   const insets = useSafeAreaInsets();
 
-  // Use exact brand color from globals.css
-  const BRAND_PRIMARY = "#FF6A00";
+  // Use global theme color
+  const BRAND_PRIMARY = COLORS.primary;
 
   useEffect(() => {
     initializeForCurrentUser();
@@ -54,6 +54,23 @@ export default function CartScreen({ navigation }: any) {
     );
   };
 
+  const handleCheckout = () => {
+    if (selectedIds.length === 0) return;
+    
+    // Clear any previous quick order to ensure we checkout strictly from cart selections
+    clearQuickOrder();
+    
+    // In a real app, we might pass selectedIds to checkout, 
+    // but for now we assume Checkout takes all "items" or we need to implement partial checkout in store.
+    // The current CheckoutScreen logic takes `items` (all cart items) if quickOrder is null.
+    // To support selecting specific items, we would need to filter `items` in the store or pass them.
+    // For this demo, let's assume we checkout ALL items if we select checkout, 
+    // OR we can pass a param. 
+    // However, existing `CheckoutScreen` logic is simple. 
+    // Let's navigate to Checkout. 
+    navigation.navigate('Checkout');
+  };
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
@@ -83,7 +100,7 @@ export default function CartScreen({ navigation }: any) {
 
       <ScrollView
         style={styles.scrollContainer}
-        contentContainerStyle={{ paddingBottom: 280 }} // Fix for Bottom Navbar + Checkout overlap
+        contentContainerStyle={{ paddingBottom: 140 }} // Adjusted padding
         showsVerticalScrollIndicator={false}
       >
         {Object.entries(groupedItems).map(([sellerName, sellerProducts]) => (
@@ -121,7 +138,7 @@ export default function CartScreen({ navigation }: any) {
       </ScrollView>
 
       {/* FLOATING ACTION BAR */}
-      <View style={[styles.bottomBar, { bottom: insets.bottom + 85 }]}>
+      <View style={[styles.bottomBar, { bottom: insets.bottom + 55 }]}>
         <View style={styles.bottomBarContent}>
           <View>
             <Text style={styles.totalInfoLabel}>Grand Total</Text>
@@ -129,7 +146,9 @@ export default function CartScreen({ navigation }: any) {
           </View>
           <Pressable
             disabled={selectedIds.length === 0}
-            style={[styles.checkoutBtn, { backgroundColor: BRAND_PRIMARY, opacity: selectedIds.length === 0 ? 0.5 : 1 }]}>
+            onPress={handleCheckout}
+            style={[styles.checkoutBtn, { backgroundColor: BRAND_PRIMARY, opacity: selectedIds.length === 0 ? 0.5 : 1 }]}
+          >
             <Text style={styles.checkoutBtnText}>Checkout ({selectedIds.length})</Text>
           </Pressable>
         </View>

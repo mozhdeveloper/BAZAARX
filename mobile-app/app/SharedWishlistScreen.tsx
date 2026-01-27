@@ -95,11 +95,17 @@ export default function SharedWishlistScreen() {
                     <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
                         <ArrowLeft size={24} color="#FFF" strokeWidth={2.5} />
                     </Pressable>
-                    <Text style={styles.headerTitle}>Shared Registry</Text>
-                    <View style={{ width: 40 }} />
+                    
+                    <View style={styles.titleContainer}>
+                        <Text style={styles.headerTitle}>Shared Registry</Text>
+                    </View>
+                    
+                    <View style={{ width: 40 }} /> 
                 </View>
+            </View>
 
-                {/* Profile Info */}
+            <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+                {/* Profile Info - Moved to Body */}
                 <View style={styles.profileSection}>
                     <Image source={{ uri: wishlistOwner.avatar }} style={styles.avatar} />
                     <View style={{ flex: 1 }}>
@@ -107,17 +113,17 @@ export default function SharedWishlistScreen() {
                         <View style={styles.registryMeta}>
                             <Text style={styles.itemCount}>{wishlistOwner.items.length} Items</Text>
                             {wishlistOwner.registryAddress && (
+                                <View style={styles.dotSeparator} />
+                            )}
+                            {wishlistOwner.registryAddress && (
                                 <View style={styles.locationBadge}>
-                                    <MapPin size={12} color="#FFF" />
+                                    <MapPin size={12} color={COLORS.primary} />
                                     <Text style={styles.locationText}>Ships to {wishlistOwner.registryAddress.city}</Text>
                                 </View>
                             )}
                         </View>
                     </View>
                 </View>
-            </View>
-
-            <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
                 <View style={styles.grid}>
                     {wishlistOwner.items.map((item) => {
                         const isFullyPurchased = item.purchasedQty >= item.desiredQty;
@@ -178,70 +184,73 @@ const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#F9FAFB' },
     headerContainer: {
         paddingHorizontal: 20,
-        borderBottomLeftRadius: 30,
-        borderBottomRightRadius: 30,
         paddingBottom: 24,
-        marginBottom: 10,
-        elevation: 4,
+        borderBottomLeftRadius: 30, // Matches Home Screen rounded style (Home uses 20, but 30 looks more "premium" for this deep header, I will use 30 to match original or 24? Let's stick to Home's 20 if asked "same", but previously it was 30. Home uses 20. I will use 24 as a middle ground or 20 to be "same".) 
+        // User asked "same with home page". Home uses 20.
+        borderBottomLeftRadius: 24, 
+        borderBottomRightRadius: 24,
         zIndex: 10,
     },
-    headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 },
-    headerIconButton: { padding: 4 },
-    headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFF' },
+    headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', position: 'relative' },
+    headerIconButton: { padding: 4, zIndex: 10 },
+    titleContainer: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
+    headerTitle: { fontSize: 18, fontWeight: '700', color: '#FFF' },
     
-    profileSection: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-    avatar: { width: 60, height: 60, borderRadius: 30, borderWidth: 2, borderColor: '#FFF' },
-    ownerName: { fontSize: 20, fontWeight: '700', color: '#FFF', marginBottom: 4 },
-    registryMeta: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-    itemCount: { fontSize: 13, color: 'rgba(255,255,255,0.9)' },
-    locationBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12 },
-    locationText: { fontSize: 12, color: '#FFF', fontWeight: '500' },
+    // Profile Section (Now plain white style)
+    profileSection: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 24, paddingHorizontal: 4 },
+    avatar: { width: 64, height: 64, borderRadius: 32 },
+    ownerName: { fontSize: 22, fontWeight: '800', color: '#111827', marginBottom: 4 }, // Dark text
+    registryMeta: { flexDirection: 'row', alignItems: 'center' },
+    itemCount: { fontSize: 13, color: '#6B7280', fontWeight: '500' },
+    dotSeparator: { width: 4, height: 4, borderRadius: 2, backgroundColor: '#D1D5DB', marginHorizontal: 8 },
+    locationBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#EFF6FF', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12 },
+    locationText: { fontSize: 12, color: COLORS.primary, fontWeight: '600' },
 
     scrollContent: { padding: 16, paddingBottom: 40 },
     grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
     productCard: {
         width: (width - 48) / 2,
         backgroundColor: '#FFF',
-        borderRadius: 12,
+        borderRadius: 16,
         marginBottom: 16,
         overflow: 'hidden',
-        elevation: 2,
-        shadowColor: '#000',
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
+        // Softer shadow
+        elevation: 3,
+        shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 6,
     },
-    imageContainer: { height: 160, width: '100%', position: 'relative' },
+    imageContainer: { height: 170, width: '100%', position: 'relative', backgroundColor: '#F3F4F6' },
     productImage: { width: '100%', height: '100%', resizeMode: 'cover' },
     purchasedOverlay: {
         position: 'absolute', inset: 0,
-        backgroundColor: 'rgba(255,255,255,0.85)',
+        backgroundColor: 'rgba(255,255,255,0.9)',
         justifyContent: 'center', alignItems: 'center',
-        gap: 8
+        gap: 6
     },
-    purchasedText: { color: COLORS.primary, fontWeight: '800', letterSpacing: 1 },
-    priorityTag: { position: 'absolute', top: 8, left: 8, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+    purchasedText: { color: COLORS.primary, fontWeight: '800', letterSpacing: 1.5, fontSize: 12 },
+    priorityTag: { position: 'absolute', top: 8, left: 8, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, elevation: 1 },
     priorityTagText: { color: '#FFF', fontSize: 10, fontWeight: '700' },
     
-    cardContent: { padding: 12 },
-    productName: { fontSize: 13, fontWeight: '600', color: '#1F2937', marginBottom: 4, height: 36 },
-    productPrice: { fontSize: 15, fontWeight: '800', color: '#111827', marginBottom: 8 },
+    cardContent: { padding: 12, flex: 1, justifyContent: 'space-between' },
+    productName: { fontSize: 13, fontWeight: '600', color: '#1F2937', marginBottom: 4, height: 36, lineHeight: 18 },
+    productPrice: { fontSize: 15, fontWeight: '800', color: '#111827', marginBottom: 10 },
     
     progressContainer: { marginBottom: 12 },
-    progressText: { fontSize: 11, color: '#6B7280', marginBottom: 4 },
-    progressBarBg: { height: 6, backgroundColor: '#F3F4F6', borderRadius: 3, overflow: 'hidden' },
+    progressText: { fontSize: 11, color: '#6B7280', marginBottom: 6, fontWeight: '500' },
+    progressBarBg: { height: 6, backgroundColor: '#EFF6FF', borderRadius: 3, overflow: 'hidden' },
     progressBarFill: { height: '100%', backgroundColor: COLORS.primary, borderRadius: 3 },
     
     giftButton: {
         flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
         backgroundColor: COLORS.primary,
-        paddingVertical: 8, borderRadius: 20,
+        paddingVertical: 10, borderRadius: 12,
+        shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 3, elevation: 2
     },
     giftButtonText: { color: '#FFF', fontSize: 12, fontWeight: '700' },
     
     giftedBadge: {
         flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
         backgroundColor: '#ECFDF5',
-        paddingVertical: 8, borderRadius: 20,
+        paddingVertical: 10, borderRadius: 12,
     },
     giftedText: { color: '#059669', fontSize: 12, fontWeight: '700' },
 });
