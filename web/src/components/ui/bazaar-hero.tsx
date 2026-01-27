@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowUpRight, Menu, Search, MessageCircle } from "lucide-react";
+import { ArrowUpRight, Menu, Search, Bot, ShoppingBag, Store } from "lucide-react";
 import { Link } from "react-router-dom";
 import {
   motion,
@@ -64,7 +64,11 @@ export function BazaarHero() {
               <div className="flex items-center justify-between w-full">
                 {/* Left Section: Logo + Nav */}
                 <div className="flex items-center gap-6">
-                  <Link to="/" className="flex items-center gap-2">
+                  <Link
+                    to="/"
+                    className="flex items-center gap-2 hover:scale-110 transition-transform duration-300 transform origin-left"
+                    onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                  >
                     <img
                       src="/BazaarX.png"
                       alt="BazaarX Logo"
@@ -75,18 +79,7 @@ export function BazaarHero() {
                     </span>
                   </Link>
 
-                  <nav className="hidden lg:flex items-center gap-5">
-                    {navigation.map((item) => (
-                      <Link
-                        key={item.name}
-                        to={item.href}
-                        className="cursor-pointer relative group hover:text-[var(--brand-primary)] transition-colors text-[var(--text-primary)] font-small text-base"
-                      >
-                        {item.name}
-                      </Link>
-                    ))}
 
-                  </nav>
 
                   <Sheet>
                     <SheetTrigger asChild className="lg:hidden">
@@ -143,7 +136,7 @@ export function BazaarHero() {
                           onClick={() => setIsAIChatOpen(true)}
                           className="w-full justify-start gap-2 h-12 hover:bg-accent transition-colors"
                         >
-                          <MessageCircle className="w-4 h-4" />
+                          <Bot className="w-4 h-4" />
                           AI Assistant
                         </Button>
                       </div>
@@ -162,22 +155,14 @@ export function BazaarHero() {
 
                 <div className="hidden md:flex items-center gap-2">
                   <div className="flex items-center gap-1 mr-2">
-                    <Link to="/search">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="cursor-pointer relative group hover:text-[var(--brand-primary)] transition-colors h-9 w-9"
-                      >
-                        <Search className="w-5 h-5" />
-                      </Button>
-                    </Link>
+
                     <Button
                       variant="ghost"
                       size="icon"
                       onClick={() => setIsAIChatOpen(true)}
-                      className="cursor-pointer relative group hover:text-[var(--brand-primary)] transition-colors h-9 w-9"
+                      className="cursor-pointer relative group hover:text-[var(--brand-primary)] hover:bg-transparent transition-colors h-9 w-9"
                     >
-                      <MessageCircle className="w-5 h-5" />
+                      <Bot className="w-5 h-5" />
                     </Button>
                   </div>
                   <Link to="/seller/auth">
@@ -200,9 +185,10 @@ export function BazaarHero() {
         </AnimatePresence>
 
         <Hero
+          className="min-h-[95vh]"
           title={
-            <div className="flex flex-col items-center gap-3 sm:gap-4 md:gap-6 mt-10 sm:mt-14 md:mt-22">
-              <span className="font-fondamento text-6xl sm:text-7xl md:text-8xl lg:text-9xl xl:text-[10rem] text-[var(--brand-primary)]">
+            <div className="flex flex-col items-center gap-3 sm:gap-4 md:gap-6">
+              <span className="font-fondamento font-bold tracking-tighter text-6xl sm:text-7xl md:text-8xl lg:text-9xl xl:text-[12rem] text-[var(--brand-primary)]">
                 BazaarX
               </span>
               <div className="h-16 sm:h-24 md:h-32 lg:h-36 w-px bg-gradient-to-b from-transparent via-[var(--brand-primary)] to-transparent" />
@@ -213,13 +199,21 @@ export function BazaarHero() {
           actions={[
             {
               label: "Start Shopping",
-              href: "/login",
+              href: "/shop",
               variant: "default",
+              className: "bg-[#FF6A00] hover:bg-base text-white rounded-2xl pl-6 pr-4 py-4 text-sm font-medium shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 group flex items-center gap-2",
+              icon: (
+                <ShoppingBag className="w-4 h-4 text-white transition-colors" />
+              )
             },
             {
               label: "Explore Stores",
               href: "/stores",
               variant: "outline",
+              className: "bg-white hover:text-gray-900 hover:bg-base text-gray-900 border border-gray-200 rounded-2xl pl-6 pr-4 py-4 text-sm font-medium shadow-sm hover:shadow-md hover:scale-105 transition-all duration-300 group flex items-center gap-2",
+              icon: (
+                <Store className="w-4 h-4 text-gray-900" />
+              )
             },
           ]}
           titleClassName="bg-gradient-to-r from-[var(--brand-primary)] via-[var(--brand-primary)]/90 to-[var(--brand-primary-dark)] bg-clip-text text-transparent"

@@ -9,7 +9,7 @@ import {
   ChevronDown,
   ShoppingBag,
   Camera,
-  Headset,
+  MessageCircle,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { NotificationsDropdown } from "./NotificationsDropdown";
@@ -97,7 +97,7 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
             </div>
           </div>
 
-          {!isSearchPage && !hideSearch && (
+          {(!isSearchPage || location.pathname === "/stores") && !hideSearch && (
             <div className={`hidden md:flex flex-1 items-center justify-center lg:absolute lg:left-1/2 lg:-translate-x-1/2 lg:w-full lg:max-w-2xl px-4 lg:px-8 transition-opacity duration-300 ${transparentOnTop && !isScrolled ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
               <div className="relative w-full max-w-xl lg:max-w-full group">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -117,27 +117,34 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
                 </div>
                 <input
                   type="text"
-                  placeholder="Search for products, brands, categories"
+                  placeholder={location.pathname === "/stores" ? "Search for stores..." : "Search for products, brands, categories"}
                   className="w-full pl-10 pr-12 py-2.5 bg-white border-2 border-transparent focus:border-[#ff6a00] rounded-full text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-4 focus:ring-orange-100 transition-all text-sm shadow-sm"
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       const query = (e.target as HTMLInputElement).value;
-                      navigate(
-                        `/search${query ? "?q=" + encodeURIComponent(query) : ""
-                        }`
-                      );
+                      if (location.pathname === "/stores") {
+                        navigate(`/stores${query ? "?q=" + encodeURIComponent(query) : ""}`);
+                        // Force a re-render or state update if needed, though navigate should trigger location change in StoresPage
+                      } else {
+                        navigate(
+                          `/search${query ? "?q=" + encodeURIComponent(query) : ""
+                          }`
+                        );
+                      }
                     }
                   }}
+                  defaultValue={new URLSearchParams(location.search).get("q") || ""}
                 />
 
-                {/* Camera Button */}
-                <button
-                  onClick={() => setShowVisualSearchModal(true)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 text-gray-400 hover:text-[#ff6a00] transition-colors rounded-full hover:bg-gray-100"
-                  title="Search by image"
-                >
-                  <Camera className="w-5 h-5" />
-                </button>
+                {location.pathname !== "/stores" && (
+                  <button
+                    onClick={() => setShowVisualSearchModal(true)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-[#ff6a00] transition-colors rounded-full hover:bg-gray-100 p-1"
+                    title="Search by image"
+                  >
+                    <Camera className="w-5 h-5" />
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -211,6 +218,15 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
                   d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"
                 />
               </svg>
+            </button>
+
+            {/* Messages */}
+            <button
+              onClick={() => navigate("/messages")}
+              className="relative p-2 hover:text-[#ff6a00] hover:bg-gray-50 rounded-full transition-colors"
+              title="Messages"
+            >
+              <MessageCircle className="h-6 w-6" />
             </button>
 
             {/* Notifications */}
