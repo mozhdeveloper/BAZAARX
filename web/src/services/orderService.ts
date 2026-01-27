@@ -91,10 +91,10 @@ export const getSellerOrders = async (sellerId: string): Promise<Order[]> => {
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    
+
     console.log('📦 Fetched orders sample (first order):', data?.[0]);
     console.log('🔍 First order buyer_id:', data?.[0]?.buyer_id);
-    
+
     return data || [];
   } catch (error) {
     console.error('Error fetching seller orders:', error);
@@ -113,7 +113,7 @@ export const getOrderById = async (orderId: string): Promise<Order | null> => {
   try {
     // Check if orderId is a UUID or order_number
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(orderId);
-    
+
     const { data, error } = await supabase
       .from('orders')
       .select('*, order_items(*)')
@@ -368,6 +368,12 @@ export const cancelOrder = async (orderId: string, reason?: string): Promise<boo
 /**
  * Submit order review and rating
  */
+import { createReview, hasReviewForProduct } from './reviewService';
+
+/**
+ * Submit order review and rating
+ * Refactored to create individual reviews for each product in the order
+ */
 export const submitOrderReview = async (
   orderId: string,
   buyerId: string,
@@ -405,40 +411,95 @@ export const submitOrderReview = async (
   }
 
   try {
-    // Validate order exists, belongs to buyer, and is delivered
-    const order = await getOrderById(orderId);
-    if (!order || order.buyer_id !== buyerId) {
-      console.error('Order not found or does not belong to buyer');
+    // 1. Fetch Order and Items
+    const { data: order, error: orderError } = await supabase
+      .from('orders')
+      .select(`
+        *,
+        order_items (
+          product_id
+        )
+      `)
+      .eq('id', orderId)
+      .eq('buyer_id', buyerId)
+      .maybeSingle();
+
+    if (orderError || !order) {
+      console.error('Order not found or access denied:', orderError);
       return false;
     }
 
-    if (order.status !== 'delivered') {
-      console.warn('Cannot review order that is not delivered');
+    // 2. Validate Status
+    if (order.status !== 'delivered' && order.status !== 'completed') {
+      console.warn('Cannot review order that is not delivered or completed');
       return false;
     }
 
-    if (order.is_reviewed) {
-      console.warn('Order has already been reviewed');
+    // 3. Create Review for EACH item in the order
+    // This bridges the legacy "Order Review" UI with the new "Product Review" schema
+    const orderItems = order.order_items || [];
+    let successCount = 0;
+
+    for (const item of orderItems) {
+      // Check for existing review to avoid duplicates
+      const exists = await hasReviewForProduct(orderId, item.product_id);
+      if (exists) {
+        console.log(`Review already exists for product ${item.product_id}`);
+        continue;
+      }
+
+      console.log(`Creating review for product ${item.product_id}...`);
+
+      const reviewPayload = {
+        order_id: orderId,
+        product_id: item.product_id,
+        buyer_id: buyerId,
+        seller_id: order.seller_id,
+        rating: rating,
+        comment: comment.trim(),
+        images: images || [],
+        is_verified_purchase: true,
+        helpful_count: 0,
+        seller_reply: null, // JSONB compatible
+        is_hidden: false,
+        is_edited: false
+      };
+
+      const review = await createReview(reviewPayload);
+
+      if (review) {
+        successCount++;
+        console.log(`✅ Review created for product ${item.product_id}`);
+      } else {
+        console.error(`❌ Failed to create review for product ${item.product_id}`);
+      }
+    }
+
+    if (successCount === 0) {
+      console.warn('No reviews were successfully created');
       return false;
     }
 
-    // Update order with review - use the actual UUID from the fetched order
+    // 4. Mark Order as Reviewed (Legacy / Status Flag)
+    // We still update this flag so the UI knows not to show the "Rate" button again
     const { error: updateError } = await supabase
       .from('orders')
       .update({
         is_reviewed: true,
-        rating,
-        review_comment: comment.trim(),
-        review_images: images || [],
-        review_date: new Date().toISOString(),
+        rating, // Legacy field
+        review_comment: comment.trim(), // Legacy field
+        // review_date: new Date().toISOString(), // Legacy field - omitted to avoid potential schema issues if strict
         updated_at: new Date().toISOString(),
       })
-      .eq('id', order.id)
-      .eq('buyer_id', buyerId);
+      .eq('id', orderId);
 
-    if (updateError) throw updateError;
+    if (updateError) {
+      console.error('Failed to update order status:', updateError);
+      // Return true anyway because reviews were verified created
+      return true;
+    }
 
-    console.log(`✅ Review submitted for order ${orderId}: ${rating} stars`);
+    console.log(`✅ Reviews generated for ${successCount} items in order ${orderId}`);
     return true;
   } catch (error) {
     console.error('Error submitting review:', error);

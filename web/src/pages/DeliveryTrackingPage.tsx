@@ -96,7 +96,7 @@ function DeliveryTrackingPage() {
             }),
             estimatedDelivery: new Date(
               orderData.estimated_delivery_date ||
-                Date.now() + 3 * 24 * 60 * 60 * 1000,
+              Date.now() + 3 * 24 * 60 * 60 * 1000,
             ),
             items: (orderData.order_items || []).map((item: any) => ({
               id: item.id,
@@ -265,7 +265,7 @@ function DeliveryTrackingPage() {
     const now = new Date();
     const estimatedTime = new Date(
       now.getTime() +
-        (2 - (currentStep / deliverySteps.length) * 2) * 60 * 60 * 1000,
+      (2 - (currentStep / deliverySteps.length) * 2) * 60 * 60 * 1000,
     );
     return estimatedTime.toLocaleTimeString("en-PH", {
       hour: "2-digit",
@@ -442,22 +442,20 @@ function DeliveryTrackingPage() {
                       transition={{ delay: index * 0.3 }}
                     >
                       <div
-                        className={`relative ${
-                          step.status === "completed"
+                        className={`relative ${step.status === "completed"
                             ? "animate-pulse"
                             : step.status === "current"
                               ? "animate-bounce"
                               : ""
-                        }`}
+                          }`}
                       >
                         <div
-                          className={`w-6 h-6 rounded-full border-3 ${
-                            step.status === "completed"
+                          className={`w-6 h-6 rounded-full border-3 ${step.status === "completed"
                               ? "bg-green-500 border-green-600 shadow-lg shadow-green-500/50"
                               : step.status === "current"
                                 ? "bg-orange-500 border-orange-600 shadow-lg shadow-orange-500/50 animate-ping"
                                 : "bg-gray-300 border-gray-400"
-                          }`}
+                            }`}
                         />
 
                         {/* Location Tooltip */}
@@ -589,13 +587,12 @@ function DeliveryTrackingPage() {
                       transition={{ delay: index * 0.1 }}
                     >
                       <div
-                        className={`w-8 h-8 rounded-full flex items-center justify-center border-2 mt-1 ${
-                          isCompleted
+                        className={`w-8 h-8 rounded-full flex items-center justify-center border-2 mt-1 ${isCompleted
                             ? "bg-green-500 border-green-600 text-white"
                             : isCurrent
                               ? "bg-blue-500 border-blue-600 text-white animate-pulse"
                               : "bg-gray-100 border-gray-300 text-gray-400"
-                        }`}
+                          }`}
                       >
                         {isCompleted ? (
                           <CheckCircle className="w-4 h-4" />
@@ -608,30 +605,27 @@ function DeliveryTrackingPage() {
                         <div className="flex justify-between items-start">
                           <div>
                             <h4
-                              className={`font-medium ${
-                                isCompleted || isCurrent
+                              className={`font-medium ${isCompleted || isCurrent
                                   ? "text-gray-900"
                                   : "text-gray-500"
-                              }`}
+                                }`}
                             >
                               {step.location.name}
                             </h4>
                             <p
-                              className={`text-sm ${
-                                isCompleted || isCurrent
+                              className={`text-sm ${isCompleted || isCurrent
                                   ? "text-gray-600"
                                   : "text-gray-400"
-                              }`}
+                                }`}
                             >
                               {step.description}
                             </p>
                           </div>
                           <span
-                            className={`text-xs font-medium ${
-                              isCompleted || isCurrent
+                            className={`text-xs font-medium ${isCompleted || isCurrent
                                 ? "text-gray-500"
                                 : "text-gray-400"
-                            }`}
+                              }`}
                           >
                             {step.time}
                           </span>
@@ -994,6 +988,7 @@ function DeliveryTrackingPage() {
         isOpen={showReviewModal}
         onClose={() => setShowReviewModal(false)}
         orderId={order.id}
+        displayOrderId={order.orderNumber}
         sellerId="seller-1"
         sellerName={order.items[0]?.seller || "BazaarPH Store"}
         items={order.items.map((item) => ({

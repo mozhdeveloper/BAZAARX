@@ -10,6 +10,7 @@ interface ReviewModalProps {
   isOpen: boolean;
   onClose: () => void;
   orderId: string;
+  displayOrderId?: string;
   sellerId?: string;
   sellerName: string;
   items: Array<{
@@ -23,6 +24,7 @@ export function ReviewModal({
   isOpen,
   onClose,
   orderId,
+  displayOrderId,
   sellerId,
   sellerName,
   items,
@@ -162,7 +164,7 @@ export function ReviewModal({
                       <h2 className="text-2xl font-bold">
                         Rate Your Experience
                       </h2>
-                      <p className="text-orange-100">Order #{orderId}</p>
+                      <p className="text-orange-100">Order #{displayOrderId || orderId}</p>
                     </div>
                   </div>
                 </div>
@@ -232,11 +234,10 @@ export function ReviewModal({
                             disabled={isSubmitting}
                           >
                             <Star
-                              className={`w-10 h-10 ${
-                                star <= (hoveredRating || rating)
-                                  ? "fill-orange-500 text-orange-500"
-                                  : "text-gray-300"
-                              } transition-colors`}
+                              className={`w-10 h-10 ${star <= (hoveredRating || rating)
+                                ? "fill-orange-500 text-orange-500"
+                                : "text-gray-300"
+                                } transition-colors`}
                             />
                           </button>
                         ))}
