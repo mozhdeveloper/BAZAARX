@@ -134,14 +134,14 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
 
   return (
     <View style={styles.container}>
-      {/* Edge-to-Edge Orange Header */}
-      <View style={[styles.header, { paddingTop: insets.top }]}>
-        <View style={styles.headerContent}>
-          <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
-            <ArrowLeft size={24} color="#FFFFFF" />
+      {/* Edge-to-Edge Orange Header - BRANDED */}
+      <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: COLORS.primary }]}>
+        <View style={styles.headerTop}>
+          <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
+            <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
           </Pressable>
           <Text style={styles.headerTitle}>Order Details</Text>
-          <View style={{ width: 24 }} />
+          <View style={{ width: 40 }} />
         </View>
       </View>
 
@@ -192,10 +192,12 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
             <React.Fragment key={index}>
               {index > 0 && <View style={styles.itemDivider} />}
               <View style={styles.itemRow}>
-                <Image 
-                  source={{ uri: item.image || 'https://via.placeholder.com/60' }}
-                  style={styles.itemImage}
-                />
+                <Pressable onPress={() => navigation.navigate('ProductDetail', { product: item })}>
+                  <Image 
+                    source={{ uri: item.image || 'https://via.placeholder.com/60' }}
+                    style={styles.itemImage}
+                  />
+                </Pressable>
                 <View style={styles.itemInfo}>
                   <Text style={styles.itemName}>{item.name}</Text>
                   <Text style={styles.itemVariant}>
@@ -426,23 +428,29 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F5F7',
   },
   // ===== EDGE-TO-EDGE HEADER =====
-  header: {
-    backgroundColor: COLORS.primary,
-    paddingBottom: 16,
+  headerContainer: {
+    paddingHorizontal: 20,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+    paddingBottom: 20,
+    marginBottom: 10,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    zIndex: 10,
   },
-  headerContent: {
+  headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 12,
   },
-  backButton: {
+  headerIconButton: {
     padding: 4,
   },
   headerTitle: {
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: '800',
     color: '#FFFFFF',
     letterSpacing: 0.3,
   },

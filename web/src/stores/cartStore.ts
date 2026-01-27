@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { notifySellerNewOrder, notifyBuyerOrderStatus } from '@/services/notificationService';
 
 // Unified Product interface for cart system
 export interface Product {
@@ -8,6 +9,7 @@ export interface Product {
   price: number;
   image: string;
   seller: string;
+  sellerId?: string; // Seller UUID for database notifications
   rating: number;
   category: string;
   originalPrice?: number;
@@ -29,7 +31,7 @@ export interface Order {
   orderNumber?: string; // User-friendly order number
   items: CartItem[];
   total: number;
-  status: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
+  status: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled' | 'returned' | 'reviewed';
   isPaid: boolean; // Payment status
   createdAt: Date;
   date: string; // Formatted date string
@@ -46,13 +48,38 @@ export interface Order {
     details?: string;
   };
   estimatedDelivery: Date;
+  deliveryDate?: Date; // Actual delivery date
   trackingNumber?: string;
+  returnRequest?: {
+    reason: string;
+    solution: string;
+    comments: string;
+    files: File[];
+    refundAmount: number;
+    submittedAt: Date;
+  };
+  review?: {
+    rating: number;
+    comment: string;
+    images: string[];
+    submittedAt: Date;
+  };
 }
 
 export interface OrderNotification {
   id: string;
   orderId: string;
-  type: 'seller_confirmed' | 'shipped' | 'delivered' | 'cancelled';
+  type: 
+    | 'seller_confirmed' 
+    | 'shipped' 
+    | 'delivered' 
+    | 'cancelled'
+    // Seller notifications
+    | 'seller_new_order'
+    | 'seller_cancellation_request'
+    | 'seller_return_request'
+    | 'seller_return_approved'
+    | 'seller_return_rejected';
   message: string;
   timestamp: Date;
   read: boolean;
@@ -73,9 +100,12 @@ interface CartStore {
   updateOrderStatus: (orderId: string, status: Order['status']) => void;
   simulateOrderProgression: (orderId: string) => void;
   addNotification: (orderId: string, type: OrderNotification['type'], message: string) => void;
+  addSellerNotification: (orderId: string, type: 'seller_new_order' | 'seller_cancellation_request' | 'seller_return_request' | 'seller_return_approved' | 'seller_return_rejected', message: string) => void;
   markNotificationRead: (notificationId: string) => void;
   clearNotifications: () => void;
   getUnreadNotifications: () => OrderNotification[];
+  updateOrderWithReturnRequest: (orderId: string, returnRequest: Order['returnRequest']) => void;
+  updateOrderWithReview: (orderId: string, review: Order['review']) => void;
 }
 
 // Sample orders for testing the complete flow
@@ -101,10 +131,10 @@ const sampleOrders: Order[] = [
     status: 'shipped',
     isPaid: true, // Card payment - Already paid
     createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // 2 days ago
-    date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric' 
+    date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
     }),
     estimatedDelivery: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000), // tomorrow
     trackingNumber: 'BPH2024120001',
@@ -141,12 +171,13 @@ const sampleOrders: Order[] = [
     status: 'delivered',
     isPaid: true, // Card - Already paid
     createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000), // 5 days ago
-    date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric' 
+    date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
     }),
     estimatedDelivery: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // delivered 2 days ago
+    deliveryDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // delivered 2 days ago
     trackingNumber: 'BPH2024120002',
     shippingAddress: {
       fullName: 'Juan Dela Cruz',
@@ -182,10 +213,10 @@ const sampleOrders: Order[] = [
     status: 'pending',
     isPaid: false, // COD - Not yet paid
     createdAt: new Date(Date.now() - 0.5 * 24 * 60 * 60 * 1000),
-    date: new Date(Date.now() - 0.5 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric' 
+    date: new Date(Date.now() - 0.5 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
     }),
     estimatedDelivery: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000),
     trackingNumber: 'BPH2024120003',
@@ -223,10 +254,10 @@ const sampleOrders: Order[] = [
     status: 'confirmed',
     isPaid: true, // PayMaya - Already paid
     createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
-    date: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric' 
+    date: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
     }),
     estimatedDelivery: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000),
     trackingNumber: 'BPH2024120004',
@@ -250,37 +281,12 @@ export const useCartStore = create<CartStore>()(
     (set, get) => ({
       items: [],
       orders: [],
-      notifications: [
-        {
-          id: 'notif-1',
-          orderId: 'order-001',
-          type: 'seller_confirmed',
-          message: 'Your order has been confirmed by the seller!',
-          timestamp: new Date(Date.now() - 5 * 60000), // 5 minutes ago
-          read: false,
-        },
-        {
-          id: 'notif-2',
-          orderId: 'order-002',
-          type: 'shipped',
-          message: 'Your order is on the way! Track your delivery.',
-          timestamp: new Date(Date.now() - 30 * 60000), // 30 minutes ago
-          read: false,
-        },
-        {
-          id: 'notif-3',
-          orderId: 'order-003',
-          type: 'delivered',
-          message: 'Your order has been delivered!',
-          timestamp: new Date(Date.now() - 2 * 3600000), // 2 hours ago
-          read: true,
-        },
-      ],
-      
+      notifications: [],
+
       addToCart: (product: Product) => {
         set((state) => {
           const existingItem = state.items.find(item => item.id === product.id);
-          
+
           if (existingItem) {
             return {
               ...state,
@@ -298,20 +304,20 @@ export const useCartStore = create<CartStore>()(
           }
         });
       },
-      
+
       removeFromCart: (productId: string) => {
         set((state) => ({
           ...state,
           items: state.items.filter(item => item.id !== productId),
         }));
       },
-      
+
       updateQuantity: (productId: string, quantity: number) => {
         if (quantity <= 0) {
           get().removeFromCart(productId);
           return;
         }
-        
+
         set((state) => ({
           ...state,
           items: state.items.map(item =>
@@ -321,41 +327,44 @@ export const useCartStore = create<CartStore>()(
           ),
         }));
       },
-      
+
       clearCart: () => {
         set((state) => ({ ...state, items: [] }));
       },
-      
+
       getTotalItems: () => {
         return get().items.reduce((total, item) => total + item.quantity, 0);
       },
-      
+
       getTotalPrice: () => {
         return get().items.reduce((total, item) => total + (item.price * item.quantity), 0);
       },
-      
+
       createOrder: (orderData) => {
+        console.log('📋 createOrder called with:', { orderData });
         const orderId = `order_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         const currentItems = get().items;
         const total = get().getTotalPrice();
-        
+
+        console.log('📋 Order items:', { count: currentItems.length, items: currentItems });
+
         // Generate tracking number
         const trackingNumber = `BPH${new Date().getFullYear()}${String(Date.now()).slice(-6)}`;
-        
+
         // Calculate estimated delivery (2-5 days based on shipping method)
         const deliveryDays = orderData.paymentMethod?.type === 'cod' ? 5 : 3;
         const estimatedDelivery = new Date(Date.now() + deliveryDays * 24 * 60 * 60 * 1000);
         const createdAt = new Date();
-        
+
         const newOrder: Order = {
           id: orderId,
           items: [...currentItems],
           total,
           createdAt,
-          date: createdAt.toLocaleDateString('en-US', { 
-            year: 'numeric', 
-            month: 'short', 
-            day: 'numeric' 
+          date: createdAt.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
           }),
           estimatedDelivery,
           trackingNumber,
@@ -364,20 +373,20 @@ export const useCartStore = create<CartStore>()(
           shippingAddress: orderData.shippingAddress,
           paymentMethod: orderData.paymentMethod,
         };
-        
+
         set((state) => ({
           ...state,
           orders: [...state.orders, newOrder],
           items: [], // Clear cart after order
         }));
-        
+
         // Also create seller orders - group items by seller
         // This is done asynchronously to not block buyer checkout
         try {
           // Dynamically import to avoid circular dependency
           import('./sellerStore').then(({ useOrderStore }) => {
             const sellerOrderStore = useOrderStore.getState();
-            
+
             // Group cart items by seller
             const itemsBySeller: { [seller: string]: CartItem[] } = {};
             currentItems.forEach(item => {
@@ -387,15 +396,17 @@ export const useCartStore = create<CartStore>()(
               }
               itemsBySeller[seller].push(item);
             });
-            
+
             // Create a seller order for each seller with proper validation
+            console.log('🛍️ Processing seller orders:', { sellerCount: Object.keys(itemsBySeller).length, sellers: Object.keys(itemsBySeller) });
             Object.entries(itemsBySeller).forEach(([sellerName, items]) => {
               try {
+                console.log(`🏪 Creating seller order for: ${sellerName} with ${items.length} items`);
                 const sellerTotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-                
+
                 // Validate seller order data before creating
                 const paymentStatus: 'pending' | 'paid' = orderData.paymentMethod?.type === 'cod' ? 'pending' : 'paid';
-                
+
                 const sellerOrderData = {
                   buyerName: orderData.shippingAddress.fullName || 'Unknown Buyer',
                   buyerEmail: 'buyer@bazaarph.com', // TODO: Get from auth when available
@@ -423,30 +434,57 @@ export const useCartStore = create<CartStore>()(
 
                 // Create the seller order
                 const sellerOrderId = sellerOrderStore.addOrder(sellerOrderData);
-                console.log(`Created seller order ${sellerOrderId} for ${sellerName}`);
+                console.log(`✅ Created seller order ${sellerOrderId} for ${sellerName}`);
+
+                // Send seller notification about new order (both local and database)
+                get().addSellerNotification(
+                  orderId,
+                  'seller_new_order',
+                  `New order #${orderId.slice(-8)} from ${orderData.shippingAddress.fullName}. Total: ₱${sellerTotal.toLocaleString()}`
+                );
+
+                // Save notification to database if we have seller_id
+                const firstItem = items[0];
+                console.log('🔍 First item for seller notification:', firstItem);
+                console.log('🔍 First item keys:', firstItem ? Object.keys(firstItem) : 'null');
+                console.log('🔍 First item sellerId:', firstItem?.sellerId);
+                if (firstItem?.sellerId) {
+                  console.log('✅ Saving seller notification to database for seller:', firstItem.sellerId);
+                  notifySellerNewOrder({
+                    sellerId: firstItem.sellerId,
+                    orderId,
+                    orderNumber: orderId.slice(-8),
+                    buyerName: orderData.shippingAddress.fullName || 'Unknown Buyer',
+                    total: sellerTotal
+                  }).catch(error => {
+                    console.error('Failed to save seller notification to database:', error);
+                  });
+                } else {
+                  console.warn('⚠️ No sellerId found in items, skipping DB notification');
+                }
               } catch (sellerOrderError) {
-                console.error(`Failed to create seller order for ${sellerName}:`, sellerOrderError);
+                console.error(`❌ Failed to create seller order for ${sellerName}:`, sellerOrderError);
                 // Log but don't fail - buyer order is already created
               }
             });
           }).catch(importError => {
-            console.error('Failed to import seller store:', importError);
+            console.error('❌ Failed to import seller store:', importError);
           });
         } catch (error) {
-          console.error('Error in seller order creation process:', error);
+          console.error('❌ Error in seller order creation process:', error);
           // Don't fail the buyer order if seller order creation fails
         }
-        
+
         // Start order progression simulation
         get().simulateOrderProgression(orderId);
-        
+
         return orderId;
       },
-      
+
       getOrderById: (orderId: string) => {
         return get().orders.find(order => order.id === orderId);
       },
-      
+
       updateOrderStatus: (orderId: string, status: Order['status']) => {
         set((state) => ({
           ...state,
@@ -456,8 +494,64 @@ export const useCartStore = create<CartStore>()(
               : order
           ),
         }));
+
+        // Auto-generate seller notifications based on status change
+        const order = get().orders.find(o => o.id === orderId);
+        if (order) {
+          const sellerName = order.items[0]?.seller || 'Seller';
+          
+          // Map status changes to seller notification types
+          let notificationType: OrderNotification['type'] | null = null;
+          let notificationMessage = '';
+
+          switch (status) {
+            case 'confirmed':
+              notificationType = 'seller_confirmed';
+              notificationMessage = `Order #${orderId.slice(-8)} has been confirmed. Please prepare for shipment.`;
+              break;
+            case 'shipped':
+              notificationType = 'shipped';
+              notificationMessage = `Order #${orderId.slice(-8)} has been marked as shipped.`;
+              break;
+            case 'delivered':
+              notificationType = 'delivered';
+              notificationMessage = `Order #${orderId.slice(-8)} has been delivered to the customer.`;
+              break;
+            case 'cancelled':
+              notificationType = 'cancelled';
+              notificationMessage = `Order #${orderId.slice(-8)} has been cancelled.`;
+              break;
+            case 'returned':
+              notificationType = 'seller_return_approved';
+              notificationMessage = `Order #${orderId.slice(-8)} has been returned by the customer.`;
+              break;
+            default:
+              break;
+          }
+
+          if (notificationType) {
+            get().addNotification(orderId, notificationType, notificationMessage);
+          }
+        }
       },
       addNotification: (orderId, type, message) => {
+        const notificationId = `notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        set((state) => ({
+          notifications: [
+            {
+              id: notificationId,
+              orderId,
+              type,
+              message,
+              timestamp: new Date(),
+              read: false
+            },
+            ...state.notifications
+          ]
+        }));
+      },
+
+      addSellerNotification: (orderId, type, message) => {
         const notificationId = `notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
         set((state) => ({
           notifications: [
@@ -492,17 +586,39 @@ export const useCartStore = create<CartStore>()(
       // Simulate realistic order progression
       simulateOrderProgression: (orderId: string) => {
         const updateStatus = get().updateOrderStatus;
-        
+
         // Confirmed after 2 seconds
         setTimeout(() => {
           updateStatus(orderId, 'confirmed');
-          
+
           // Shipped after 1 minute (for demo purposes, normally would be hours/days)
           setTimeout(() => {
             updateStatus(orderId, 'shipped');
           }, 60000); // 1 minute
-          
+
         }, 2000); // 2 seconds
+      },
+
+      updateOrderWithReturnRequest: (orderId: string, returnRequest: Order['returnRequest']) => {
+        set((state) => ({
+          ...state,
+          orders: state.orders.map(order =>
+            order.id === orderId
+              ? { ...order, status: 'returned' as const, returnRequest }
+              : order
+          ),
+        }));
+      },
+
+      updateOrderWithReview: (orderId: string, review: Order['review']) => {
+        set((state) => ({
+          ...state,
+          orders: state.orders.map(order =>
+            order.id === orderId
+              ? { ...order, status: 'reviewed' as const, review }
+              : order
+          ),
+        }));
       },
     }),
     {
@@ -515,23 +631,23 @@ export const useCartStore = create<CartStore>()(
           if (state.orders.length === 0) {
             state.orders = sampleOrders;
           }
-          
+
           // Validate and clean cart items
-          state.items = state.items.filter(item => 
-            item.id && 
-            item.name && 
-            item.price > 0 && 
+          state.items = state.items.filter(item =>
+            item.id &&
+            item.name &&
+            item.price > 0 &&
             item.quantity > 0
           );
-          
+
           // Ensure all orders have required fields
-          state.orders = state.orders.filter(order => 
-            order.id && 
-            order.items.length > 0 && 
-            order.total > 0 && 
+          state.orders = state.orders.filter(order =>
+            order.id &&
+            order.items.length > 0 &&
+            order.total > 0 &&
             order.shippingAddress
           );
-          
+
           console.log('Cart store rehydrated with', state.items.length, 'items and', state.orders.length, 'orders');
         }
       },

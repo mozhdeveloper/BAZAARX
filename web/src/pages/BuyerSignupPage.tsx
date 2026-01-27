@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   Eye,
   EyeOff,
@@ -10,11 +10,9 @@ import {
   Phone,
   AlertCircle,
   CheckCircle2,
+  ArrowRight,
 } from "lucide-react";
 import { useBuyerStore } from "../stores/buyerStore";
-import { Button } from "../components/ui/button";
-import { Input } from "../components/ui/input";
-import { Label } from "../components/ui/label";
 import { Checkbox } from "../components/ui/checkbox";
 import { signUp } from "../services/authService";
 import { supabase } from "../lib/supabase";
@@ -30,10 +28,10 @@ export default function BuyerSignupPage() {
     phone: "",
     password: "",
     confirmPassword: "",
+    terms: false,
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -83,7 +81,7 @@ export default function BuyerSignupPage() {
       return;
     }
 
-    if (!agreedToTerms) {
+    if (!formData.terms) {
       setError("Please agree to the Terms of Service and Privacy Policy.");
       return;
     }
@@ -176,282 +174,278 @@ export default function BuyerSignupPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 via-white to-orange-50 relative overflow-hidden py-12">
-      {/* Decorative background elements */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-orange-200 rounded-full mix-blend-multiply filter blur-xl opacity-30 animate-blob"></div>
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-orange-300 rounded-full mix-blend-multiply filter blur-xl opacity-30 animate-blob animation-delay-2000"></div>
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-orange-100 rounded-full mix-blend-multiply filter blur-xl opacity-30 animate-blob animation-delay-4000"></div>
+
+    <div className="min-h-screen relative overflow-hidden font-sans bg-slate-50">
+      <div className="absolute inset-0 bg-gradient-to-br from-white via-orange-50/30 to-white animate-gradient [background-size:400%_400%]"></div>
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <motion.div
+          animate={{
+            x: [0, 50, 0],
+            y: [0, -30, 0],
+            scale: [1, 1.1, 1]
+          }}
+          transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+          className="absolute -top-40 -right-40 w-[600px] h-[600px] bg-orange-200/20 rounded-full mix-blend-multiply filter blur-3xl opacity-40"
+        ></motion.div>
+        <motion.div
+          animate={{
+            x: [0, -40, 0],
+            y: [0, 60, 0],
+            scale: [1, 1.2, 1]
+          }}
+          transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
+          className="absolute -bottom-40 -left-40 w-[600px] h-[600px] bg-orange-300/20 rounded-full mix-blend-multiply filter blur-3xl opacity-40"
+        ></motion.div>
+        <motion.div
+          animate={{
+            opacity: [0.1, 0.3, 0.1]
+          }}
+          transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
+          className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-orange-100/10 rounded-full mix-blend-multiply filter blur-3xl opacity-20"
+        ></motion.div>
       </div>
 
-      {/* Signup Card */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="relative z-10 w-full max-w-md mx-4"
-      >
-        <div className="bg-white/80 backdrop-blur-lg rounded-3xl shadow-2xl border border-orange-100 p-8">
-          {/* Logo */}
-          <div className="flex justify-center mb-6">
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ type: "spring", stiffness: 200, damping: 15 }}
-              className="w-20 h-20 rounded-2xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center shadow-lg"
-            >
-              <img
-                src="/Logo.png"
-                alt="BazaarX Logo"
-                className="w-16 h-16 object-contain"
-              />
-            </motion.div>
+      <div className="relative z-10 min-h-screen flex flex-col md:flex-row items-center justify-center p-6 lg:p-12">
+        <motion.div
+          initial={{ opacity: 0, x: -50 }}
+          animate={{ opacity: 1, x: 0 }}
+          className="w-full md:w-1/2 flex flex-col items-center justify-center mb-12 md:mb-0"
+        >
+          <h1 className="font-fondamento text-[13vw] leading-[0.85] text-[#FF6A00] tracking-tighter cursor-default select-none transition-all duration-300">
+            BazaarX
+          </h1>
+          <p className="text-orange-500 font-bold text-[10px] lg:text-xs uppercase tracking-[0.2em] mb-2 lg:mb-5 whitespace-nowrap">
+            From Global Factories Directly to Your Doorstep
+          </p>
+        </motion.div>
+
+        {/* Right - Signup Card */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="w-full max-w-md bg-white/80 backdrop-blur-xl p-10 rounded-[50px] shadow-[0_20px_50px_rgba(255,106,0,0.1)] border border-white/50 md:ml-32"
+        >
+          <div className="mb-8">
+            <div className="w-10 h-10 bg-white shadow-sm rounded-[var(--radius-md)] flex items-center justify-center mb-4 overflow-hidden border border-[var(--border)]">
+              <img src="/BazaarX.png" alt="BazaarX" className="w-8 h-8 object-contain" />
+            </div>
+            <h2 className="text-2xl font-bold text-[var(--text-primary)] font-heading">Create Account</h2>
+            <p className="text-[var(--text-secondary)] text-sm font-sans">Join thousand of Filipino shoppers.</p>
           </div>
 
-          {/* Title */}
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">
-              Create Account
-            </h1>
-            <p className="text-gray-600">Join thousands of Filipino shoppers</p>
-          </div>
-
-          {/* Error Message */}
           {error && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3"
-            >
-              <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
-              <p className="text-sm text-red-700">{error}</p>
-            </motion.div>
+            <AnimatePresence>
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mb-6 p-4 bg-red-50 text-[var(--color-error)] rounded-[var(--radius-md)] flex items-center gap-3 text-sm border border-red-100"
+              >
+                <AlertCircle size={18} /> {error}
+              </motion.div>
+            </AnimatePresence>
           )}
 
-          {/* Signup Form */}
-          <form onSubmit={handleSignup} className="space-y-4">
-            {/* Name Fields */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label
+          <form onSubmit={handleSignup} className="space-y-5">
+            {/* First Name */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <label
                   htmlFor="firstName"
-                  className="text-gray-700 font-medium mb-2 block text-sm"
+                  className="text-sm font-bold text-[var(--text-primary)] ml-1"
                 >
                   First Name
-                </Label>
+                </label>
                 <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <Input
+                  <User className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] w-4 h-4" />
+                  <input
                     id="firstName"
                     name="firstName"
                     type="text"
                     placeholder="Juan"
                     value={formData.firstName}
                     onChange={handleChange}
-                    className="pl-10 h-11 rounded-xl border-gray-200 focus:border-orange-500 focus:ring-orange-500 text-sm"
+                    className="w-full pl-11 pr-4 py-3 bg-[var(--secondary)]/10 border border-[var(--border)] rounded-[var(--radius-md)] focus:ring-4 focus:ring-[var(--primary)]/10 focus:bg-white focus:border-[var(--brand-primary)] outline-none transition-all text-sm"
                     disabled={isLoading}
                   />
                 </div>
               </div>
-              <div>
-                <Label
+
+              {/* Last Name */}
+              <div className="space-y-1">
+                <label
                   htmlFor="lastName"
-                  className="text-gray-700 font-medium mb-2 block text-sm"
+                  className="text-sm font-bold text-[var(--text-primary)] ml-1"
                 >
                   Last Name
-                </Label>
+                </label>
                 <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <Input
+                  <User className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] w-4 h-4" />
+                  <input
                     id="lastName"
                     name="lastName"
                     type="text"
                     placeholder="Dela Cruz"
                     value={formData.lastName}
                     onChange={handleChange}
-                    className="pl-10 h-11 rounded-xl border-gray-200 focus:border-orange-500 focus:ring-orange-500 text-sm"
+                    className="w-full pl-11 pr-4 py-3 bg-[var(--secondary)]/10 border border-[var(--border)] rounded-[var(--radius-md)] focus:ring-4 focus:ring-[var(--primary)]/10 focus:bg-white focus:border-[var(--brand-primary)] outline-none transition-all text-sm"
                     disabled={isLoading}
                   />
                 </div>
               </div>
             </div>
 
-            {/* Email Input */}
-            <div>
-              <Label
+            <div className="space-y-1">
+              <label
                 htmlFor="email"
-                className="text-gray-700 font-medium mb-2 block text-sm"
+                className="text-sm font-bold text-[var(--text-primary)] ml-1"
               >
                 Email Address
-              </Label>
+              </label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] w-4 h-4" />
+                <input
                   id="email"
                   name="email"
                   type="email"
                   placeholder="you@example.com"
                   value={formData.email}
                   onChange={handleChange}
-                  className="pl-10 h-11 rounded-xl border-gray-200 focus:border-orange-500 focus:ring-orange-500 text-sm"
+                  className="w-full pl-11 pr-4 py-3 bg-[var(--secondary)]/10 border border-[var(--border)] rounded-[var(--radius-md)] focus:ring-4 focus:ring-[var(--primary)]/10 focus:bg-white focus:border-[var(--brand-primary)] outline-none transition-all text-sm"
                   disabled={isLoading}
                 />
               </div>
             </div>
 
-            {/* Phone Input */}
-            <div>
-              <Label
+            <div className="space-y-1">
+              <label
                 htmlFor="phone"
-                className="text-gray-700 font-medium mb-2 block text-sm"
+                className="text-sm font-bold text-[var(--text-primary)] ml-1"
               >
                 Phone Number
-              </Label>
+              </label>
               <div className="relative">
-                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
+                <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] w-4 h-4" />
+                <input
                   id="phone"
                   name="phone"
                   type="tel"
-                  placeholder="09XX XXX XXXX"
+                  placeholder="+63 912 345 6789"
                   value={formData.phone}
                   onChange={handleChange}
-                  className="pl-10 h-11 rounded-xl border-gray-200 focus:border-orange-500 focus:ring-orange-500 text-sm"
+                  className="w-full pl-11 pr-4 py-3 bg-[var(--secondary)]/10 border border-[var(--border)] rounded-[var(--radius-md)] focus:ring-4 focus:ring-[var(--primary)]/10 focus:bg-white focus:border-[var(--brand-primary)] outline-none transition-all text-sm"
                   disabled={isLoading}
                 />
               </div>
             </div>
 
-            {/* Password Input */}
-            <div>
-              <Label
-                htmlFor="password"
-                className="text-gray-700 font-medium mb-2 block text-sm"
-              >
-                Password
-              </Label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  id="password"
-                  name="password"
-                  type={showPassword ? "text" : "password"}
-                  placeholder="••••••••"
-                  value={formData.password}
-                  onChange={handleChange}
-                  className="pl-10 pr-10 h-11 rounded-xl border-gray-200 focus:border-orange-500 focus:ring-orange-500 text-sm"
-                  disabled={isLoading}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  disabled={isLoading}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <label
+                  htmlFor="password"
+                  className="text-sm font-bold text-[var(--text-primary)] ml-1"
                 >
-                  {showPassword ? (
-                    <EyeOff className="h-4 w-4" />
-                  ) : (
-                    <Eye className="h-4 w-4" />
-                  )}
-                </button>
+                  Password
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] w-4 h-4" />
+                  <input
+                    id="password"
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="••••••••"
+                    value={formData.password}
+                    onChange={handleChange}
+                    className="w-full pl-11 pr-11 py-3 bg-[var(--secondary)]/10 border border-[var(--border)] rounded-[var(--radius-md)] focus:ring-4 focus:ring-[var(--primary)]/10 focus:bg-white focus:border-[var(--brand-primary)] outline-none transition-all text-sm"
+                    disabled={isLoading}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                    disabled={isLoading}
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
               </div>
-            </div>
 
-            {/* Confirm Password Input */}
-            <div>
-              <Label
-                htmlFor="confirmPassword"
-                className="text-gray-700 font-medium mb-2 block text-sm"
-              >
-                Confirm Password
-              </Label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  id="confirmPassword"
-                  name="confirmPassword"
-                  type={showConfirmPassword ? "text" : "password"}
-                  placeholder="••••••••"
-                  value={formData.confirmPassword}
-                  onChange={handleChange}
-                  className="pl-10 pr-10 h-11 rounded-xl border-gray-200 focus:border-orange-500 focus:ring-orange-500 text-sm"
-                  disabled={isLoading}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  disabled={isLoading}
+              <div className="space-y-1">
+                <label
+                  htmlFor="confirmPassword"
+                  className="text-sm font-bold text-[var(--text-primary)] ml-1"
                 >
-                  {showConfirmPassword ? (
-                    <EyeOff className="h-4 w-4" />
-                  ) : (
-                    <Eye className="h-4 w-4" />
-                  )}
-                </button>
+                  Confirm Password
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] w-4 h-4" />
+                  <input
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    type={showConfirmPassword ? "text" : "password"}
+                    placeholder="••••••••"
+                    value={formData.confirmPassword}
+                    onChange={handleChange}
+                    className="w-full pl-11 pr-11 py-3 bg-[var(--secondary)]/10 border border-[var(--border)] rounded-[var(--radius-md)] focus:ring-4 focus:ring-[var(--primary)]/10 focus:bg-white focus:border-[var(--brand-primary)] outline-none transition-all text-sm"
+                    disabled={isLoading}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                    disabled={isLoading}
+                  >
+                    {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
               </div>
             </div>
 
-            {/* Terms and Conditions */}
             <div className="flex items-start gap-2 pt-2">
               <Checkbox
                 id="terms"
-                checked={agreedToTerms}
+                checked={formData.terms}
                 onCheckedChange={(checked) =>
-                  setAgreedToTerms(checked as boolean)
+                  setFormData((prev) => ({ ...prev, terms: !!checked }))
                 }
-                className="mt-1"
+                className="rounded-md border-[var(--border)] text-[var(--brand-primary)] focus:ring-[var(--brand-primary)]"
                 disabled={isLoading}
               />
-              <label
-                htmlFor="terms"
-                className="text-sm text-gray-600 cursor-pointer"
-              >
+              <div className="flex-1 text-xs text-[var(--text-primary)]">
                 I agree to the{" "}
                 <Link
                   to="/terms"
-                  className="text-orange-600 hover:text-orange-700 font-medium"
+                  className="font-bold text-[var(--brand-primary)] hover:underline"
                 >
                   Terms of Service
                 </Link>{" "}
                 and{" "}
                 <Link
                   to="/privacy"
-                  className="text-orange-600 hover:text-orange-700 font-medium"
+                  className="font-bold text-[var(--brand-primary)] hover:underline"
                 >
                   Privacy Policy
                 </Link>
-              </label>
+              </div>
             </div>
 
-            {/* Sign Up Button */}
-            <Button
+            <button
               type="submit"
               disabled={isLoading}
-              className="w-full h-11 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 mt-6"
+              className="btn-primary w-full h-14 text-lg rounded-[var(--radius-md)] shadow-[var(--shadow-medium)] flex items-center justify-center gap-2 mt-2"
             >
               {isLoading ? (
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  Creating account...
-                </div>
+                <div className="w-5 h-5 border-2 border-[var(--brand-primary)]/30 border-t-[var(--brand-primary)] rounded-full animate-spin" />
               ) : (
-                <>
-                  <CheckCircle2 className="h-4 w-4 mr-2" />
-                  Create Account
-                </>
+                <>Sign Up <ArrowRight size={18} /></>
               )}
-            </Button>
+            </button>
 
-            {/* Divider */}
-            <div className="relative my-5">
+            <div className="relative my-6">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-200"></div>
+                <div className="w-full border-t border-[var(--border)]"></div>
               </div>
-              <div className="relative flex justify-center text-xs">
-                <span className="px-3 bg-white text-gray-500">
-                  Or sign up with
-                </span>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-4 bg-white text-[var(--text-muted)] font-medium font-sans uppercase tracking-wider">Or sign up with</span>
               </div>
             </div>
 
@@ -486,50 +480,11 @@ export default function BuyerSignupPage() {
             </div>
           </form>
 
-          {/* Sign In Link */}
-          <div className="mt-6 text-center">
-            <p className="text-gray-600 text-sm">
-              Already have an account?{" "}
-              <Link
-                to="/login"
-                className="text-orange-600 hover:text-orange-700 font-semibold"
-              >
-                Sign in
-              </Link>
-            </p>
-          </div>
-        </div>
-
-        {/* Benefits */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.3 }}
-          className="mt-6 bg-white/60 backdrop-blur-sm rounded-2xl p-4 border border-orange-100"
-        >
-          <p className="text-sm font-semibold text-gray-700 mb-3 text-center">
-            What you'll get:
-          </p>
-          <div className="grid grid-cols-2 gap-3 text-xs">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-orange-500 flex-shrink-0" />
-              <span className="text-gray-600">100 Welcome Points</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-orange-500 flex-shrink-0" />
-              <span className="text-gray-600">Free Shipping</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-orange-500 flex-shrink-0" />
-              <span className="text-gray-600">Exclusive Deals</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-orange-500 flex-shrink-0" />
-              <span className="text-gray-600">Buyer Protection</span>
-            </div>
+          <div className="mt-8 text-center text-[var(--text-secondary)] text-sm">
+            Already have an account? <Link to="/login" className="text-[var(--brand-primary)] font-bold hover:underline ml-1">Sign in here!</Link>
           </div>
         </motion.div>
-      </motion.div>
+      </div>
     </div>
   );
 }

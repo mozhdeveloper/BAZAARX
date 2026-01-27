@@ -211,23 +211,13 @@ export default function ReviewsScreen() {
     <View style={styles.container}>
 
       {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
-        <View style={styles.headerContent}>
-          <View style={styles.headerLeft}>
-            {/* Back/Menu Button */}
-            <TouchableOpacity 
-              style={styles.iconContainer} 
-              onPress={() => navigation.goBack()}
-            >
-              <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2} />
-            </TouchableOpacity>
-            
-            {/* Title Stack */}
-            <View style={styles.titleContainer}>
-              <Text style={styles.headerTitle}>Reviews & Ratings</Text>
-              <Text style={styles.headerSubtitle}>Customer feedback</Text>
-            </View>
-          </View>
+      <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: '#FF5722' }]}>
+        <View style={styles.headerTop}>
+            <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
+                <ArrowLeft size={24} color="#FFF" strokeWidth={2.5} />
+            </Pressable>
+            <Text style={styles.headerTitle}>Reviews & Ratings</Text>
+            <View style={{ width: 40 }} />
         </View>
       </View>
 
@@ -432,52 +422,21 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F5F5F7',
   },
-  header: {
-    backgroundColor: '#FF5722',
+  headerContainer: {
     paddingHorizontal: 20,
-    paddingBottom: 16,
-    // Shadow for elevation
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+    paddingBottom: 20,
+    marginBottom: 10,
+    elevation: 4,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 4,
-    // The signature rounded bottom corners
-    borderBottomLeftRadius: 20, 
-    borderBottomRightRadius: 20,
+    zIndex: 10,
   },
-  headerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-start', // Keeps everything tucked to the left
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    flex: 1,
-  },
-  iconContainer: {
-    backgroundColor: 'rgba(255,255,255,0.2)', // Translucent glass effect
-    padding: 12,
-    borderRadius: 12,
-  },
-  titleContainer: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: 0.3,
-  },
-  headerSubtitle: {
-    fontSize: 13,
-    color: '#FFFFFF',
-    opacity: 0.9,
-    fontWeight: '500',
-  },
+  headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  headerIconButton: { padding: 4 },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFF' },
   scrollView: {
     flex: 1,
   },

@@ -1,8 +1,10 @@
-import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { X, Star, Camera, Package, ThumbsUp } from 'lucide-react';
-import { Button } from './ui/button';
-import { useBuyerStore } from '../stores/buyerStore';
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { X, Star, Camera, Package, ThumbsUp } from "lucide-react";
+import { Button } from "./ui/button";
+import { useBuyerStore } from "../stores/buyerStore";
+import { submitOrderReview } from "../services/orderService";
+import { supabase } from "../lib/supabase";
 
 interface ReviewModalProps {
   isOpen: boolean;
@@ -17,10 +19,17 @@ interface ReviewModalProps {
   }>;
 }
 
-export function ReviewModal({ isOpen, onClose, orderId, sellerId, sellerName, items }: ReviewModalProps) {
+export function ReviewModal({
+  isOpen,
+  onClose,
+  orderId,
+  sellerId,
+  sellerName,
+  items,
+}: ReviewModalProps) {
   const [rating, setRating] = useState(0);
   const [hoveredRating, setHoveredRating] = useState(0);
-  const [reviewText, setReviewText] = useState('');
+  const [reviewText, setReviewText] = useState("");
   const [images, setImages] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -28,72 +37,78 @@ export function ReviewModal({ isOpen, onClose, orderId, sellerId, sellerName, it
 
   const handleSubmit = async () => {
     if (rating === 0) {
-      alert('Please select a rating');
+      alert("Please select a rating");
       return;
     }
 
     setIsSubmitting(true);
 
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    // Add review to buyer store for each product
-    items.forEach(item => {
-      addReview({
-        productId: item.id,
-        sellerId: sellerId || 'seller-1',
-        buyerId: 'buyer-1',
-        buyerName: 'John Doe',
-        buyerAvatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=John',
-        rating,
-        comment: reviewText || 'Great product!',
-        images: images,
-        verified: true
-      });
-    });
-
-    // NEW: Submit rating to seller order store (database-ready cross-store sync)
     try {
-      const { useOrderStore } = await import('../stores/sellerStore');
-      const sellerStore = useOrderStore.getState();
-      
-      // Update seller order with buyer rating
-      sellerStore.addOrderRating(
+      // Get current user session to retrieve buyer_id
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const buyerId = session?.user?.id;
+
+      if (!buyerId) {
+        alert("You must be logged in to submit a review");
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Submit review to Supabase using our service
+      const success = await submitOrderReview(
         orderId,
+        buyerId,
         rating,
-        reviewText || 'Great product!',
-        images
+        reviewText || "Great product!",
+        images,
       );
-      
-      console.log(`✅ Rating synced to seller order ${orderId}: ${rating} stars`);
+
+      if (!success) {
+        alert("Failed to submit review. Please try again.");
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Add review to buyer store for display (legacy support)
+      items.forEach((item) => {
+        addReview({
+          productId: item.id,
+          sellerId: sellerId || "seller-1",
+          buyerId: buyerId,
+          buyerName: session?.user?.user_metadata?.full_name || "Anonymous",
+          buyerAvatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${buyerId}`,
+          rating,
+          comment: reviewText || "Great product!",
+          images: images,
+          verified: true,
+        });
+      });
+
+      console.log(
+        `✅ Review submitted successfully for order ${orderId}: ${rating} stars`,
+      );
+
+      setSubmitted(true);
+      setIsSubmitting(false);
+
+      // Auto close after 2 seconds
+      setTimeout(() => {
+        onClose();
+        resetForm();
+      }, 2000);
     } catch (error) {
-      console.error('Failed to sync rating to seller store:', error);
-      // Don't fail the review submission if seller sync fails
+      console.error("Error submitting review:", error);
+      alert("An error occurred. Please try again.");
+      setIsSubmitting(false);
     }
-
-    // Also update buyer order status to delivered
-    try {
-      const { useCartStore } = await import('../stores/cartStore');
-      const cartStore = useCartStore.getState();
-      cartStore.updateOrderStatus(orderId, 'delivered');
-    } catch (error) {
-      console.error('Failed to update buyer order status:', error);
-    }
-
-    setSubmitted(true);
-    setIsSubmitting(false);
-
-    // Auto close after 2 seconds
-    setTimeout(() => {
-      onClose();
-      resetForm();
-    }, 2000);
   };
 
   const resetForm = () => {
     setRating(0);
     setHoveredRating(0);
-    setReviewText('');
+    setReviewText("");
     setImages([]);
     setSubmitted(false);
   };
@@ -101,8 +116,10 @@ export function ReviewModal({ isOpen, onClose, orderId, sellerId, sellerName, it
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files) {
-      const newImages = Array.from(files).map(file => URL.createObjectURL(file));
-      setImages(prev => [...prev, ...newImages].slice(0, 5)); // Max 5 images
+      const newImages = Array.from(files).map((file) =>
+        URL.createObjectURL(file),
+      );
+      setImages((prev) => [...prev, ...newImages].slice(0, 5)); // Max 5 images
     }
   };
 
@@ -136,13 +153,15 @@ export function ReviewModal({ isOpen, onClose, orderId, sellerId, sellerName, it
                   >
                     <X className="w-5 h-5" />
                   </button>
-                  
+
                   <div className="flex items-center gap-3 mb-2">
                     <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
                       <Star className="w-6 h-6" />
                     </div>
                     <div>
-                      <h2 className="text-2xl font-bold">Rate Your Experience</h2>
+                      <h2 className="text-2xl font-bold">
+                        Rate Your Experience
+                      </h2>
                       <p className="text-orange-100">Order #{orderId}</p>
                     </div>
                   </div>
@@ -156,8 +175,12 @@ export function ReviewModal({ isOpen, onClose, orderId, sellerId, sellerName, it
                       {sellerName.charAt(0)}
                     </div>
                     <div>
-                      <p className="font-semibold text-gray-900">{sellerName}</p>
-                      <p className="text-sm text-gray-600">How was your shopping experience?</p>
+                      <p className="font-semibold text-gray-900">
+                        {sellerName}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        How was your shopping experience?
+                      </p>
                     </div>
                   </div>
 
@@ -169,15 +192,24 @@ export function ReviewModal({ isOpen, onClose, orderId, sellerId, sellerName, it
                     </h3>
                     <div className="space-y-2 max-h-32 overflow-y-auto">
                       {items.map((item) => (
-                        <div key={item.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                        <div
+                          key={item.id}
+                          className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg"
+                        >
                           <div className="w-10 h-10 bg-gray-200 rounded-lg flex items-center justify-center">
                             {item.image ? (
-                              <img src={item.image} alt={item.name} className="w-full h-full object-cover rounded-lg" />
+                              <img
+                                src={item.image}
+                                alt={item.name}
+                                className="w-full h-full object-cover rounded-lg"
+                              />
                             ) : (
                               <Package className="w-5 h-5 text-gray-400" />
                             )}
                           </div>
-                          <p className="font-medium text-gray-900 text-sm flex-1">{item.name}</p>
+                          <p className="font-medium text-gray-900 text-sm flex-1">
+                            {item.name}
+                          </p>
                         </div>
                       ))}
                     </div>
@@ -185,7 +217,9 @@ export function ReviewModal({ isOpen, onClose, orderId, sellerId, sellerName, it
 
                   {/* Star Rating */}
                   <div className="space-y-3">
-                    <h3 className="font-semibold text-gray-900">Overall Rating</h3>
+                    <h3 className="font-semibold text-gray-900">
+                      Overall Rating
+                    </h3>
                     <div className="flex items-center gap-3">
                       <div className="flex gap-2">
                         {[1, 2, 3, 4, 5].map((star) => (
@@ -200,8 +234,8 @@ export function ReviewModal({ isOpen, onClose, orderId, sellerId, sellerName, it
                             <Star
                               className={`w-10 h-10 ${
                                 star <= (hoveredRating || rating)
-                                  ? 'fill-orange-500 text-orange-500'
-                                  : 'text-gray-300'
+                                  ? "fill-orange-500 text-orange-500"
+                                  : "text-gray-300"
                               } transition-colors`}
                             />
                           </button>
@@ -214,15 +248,45 @@ export function ReviewModal({ isOpen, onClose, orderId, sellerId, sellerName, it
                       )}
                     </div>
                     <div className="flex gap-2 text-sm text-gray-600">
-                      <span className={rating === 1 ? 'text-orange-500 font-medium' : ''}>Poor</span>
+                      <span
+                        className={
+                          rating === 1 ? "text-orange-500 font-medium" : ""
+                        }
+                      >
+                        Poor
+                      </span>
                       <span>•</span>
-                      <span className={rating === 2 ? 'text-orange-500 font-medium' : ''}>Fair</span>
+                      <span
+                        className={
+                          rating === 2 ? "text-orange-500 font-medium" : ""
+                        }
+                      >
+                        Fair
+                      </span>
                       <span>•</span>
-                      <span className={rating === 3 ? 'text-orange-500 font-medium' : ''}>Good</span>
+                      <span
+                        className={
+                          rating === 3 ? "text-orange-500 font-medium" : ""
+                        }
+                      >
+                        Good
+                      </span>
                       <span>•</span>
-                      <span className={rating === 4 ? 'text-orange-500 font-medium' : ''}>Very Good</span>
+                      <span
+                        className={
+                          rating === 4 ? "text-orange-500 font-medium" : ""
+                        }
+                      >
+                        Very Good
+                      </span>
                       <span>•</span>
-                      <span className={rating === 5 ? 'text-orange-500 font-medium' : ''}>Excellent</span>
+                      <span
+                        className={
+                          rating === 5 ? "text-orange-500 font-medium" : ""
+                        }
+                      >
+                        Excellent
+                      </span>
                     </div>
                   </div>
 
@@ -238,7 +302,9 @@ export function ReviewModal({ isOpen, onClose, orderId, sellerId, sellerName, it
                       className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent resize-none h-32"
                       disabled={isSubmitting}
                     />
-                    <p className="text-xs text-gray-500">{reviewText.length}/500 characters</p>
+                    <p className="text-xs text-gray-500">
+                      {reviewText.length}/500 characters
+                    </p>
                   </div>
 
                   {/* Image Upload */}
@@ -256,7 +322,9 @@ export function ReviewModal({ isOpen, onClose, orderId, sellerId, sellerName, it
                             className="w-20 h-20 object-cover rounded-lg border-2 border-gray-200"
                           />
                           <button
-                            onClick={() => setImages(images.filter((_, i) => i !== index))}
+                            onClick={() =>
+                              setImages(images.filter((_, i) => i !== index))
+                            }
                             className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                             disabled={isSubmitting}
                           >
@@ -278,7 +346,9 @@ export function ReviewModal({ isOpen, onClose, orderId, sellerId, sellerName, it
                         </label>
                       )}
                     </div>
-                    <p className="text-xs text-gray-500">You can add up to 5 photos</p>
+                    <p className="text-xs text-gray-500">
+                      You can add up to 5 photos
+                    </p>
                   </div>
 
                   {/* Submit Button */}
@@ -294,7 +364,7 @@ export function ReviewModal({ isOpen, onClose, orderId, sellerId, sellerName, it
                           Submitting...
                         </div>
                       ) : (
-                        'Submit Review'
+                        "Submit Review"
                       )}
                     </Button>
                   </div>
@@ -310,8 +380,12 @@ export function ReviewModal({ isOpen, onClose, orderId, sellerId, sellerName, it
                 >
                   <ThumbsUp className="w-10 h-10 text-green-600" />
                 </motion.div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">Thank You!</h2>
-                <p className="text-gray-600 mb-4">Your review has been submitted successfully.</p>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                  Thank You!
+                </h2>
+                <p className="text-gray-600 mb-4">
+                  Your review has been submitted successfully.
+                </p>
                 <p className="text-sm text-gray-500">
                   Your feedback helps other shoppers make better decisions.
                 </p>

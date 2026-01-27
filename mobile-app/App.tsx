@@ -29,10 +29,11 @@ import AddressesScreen from './app/AddressesScreen';
 import SettingsScreen from './app/SettingsScreen';
 import NotificationsScreen from './app/NotificationsScreen';
 import PaymentMethodsScreen from './app/PaymentMethodsScreen';
-import HelpSupportScreen from './app/HelpSupportScreen';
+import HelpCenterScreen from './app/HelpCenterScreen';
 import PrivacyPolicyScreen from './app/PrivacyPolicyScreen';
 import SellerLoginScreen from './app/seller/login';
 import SellerSignupScreen from './app/seller/signup';
+import SellerAuthChoiceScreen from './app/seller/auth';
 import SellerStack from './app/seller/SellerStack';
 import AdminStack from './app/admin/AdminStack';
 import AllStoresScreen from './app/AllStoresScreen';
@@ -41,6 +42,9 @@ import ReturnRequestScreen from './app/ReturnRequestScreen';
 import ReturnDetailScreen from './app/ReturnDetailScreen';
 import ReturnOrdersScreen from './app/ReturnOrdersScreen';
 import HistoryScreen from './app/HistoryScreen';
+// Ticketing Module
+import CreateTicketScreen from './app/tickets/CreateTicketScreen';
+import TicketDetailScreen from './app/tickets/TicketDetailScreen';
 
 // Import types
 import type { Product, Order } from './src/types';
@@ -60,6 +64,7 @@ export type RootStackParamList = {
   Signup: undefined;
   SellerLogin: undefined;
   SellerSignup: undefined;
+  SellerAuthChoice: undefined;
   SellerStack: undefined;
   AdminStack: undefined;
   MainTabs: NavigatorScreenParams<TabParamList>;
@@ -83,6 +88,8 @@ export type RootStackParamList = {
   ReturnDetail: { returnId: string };
   ReturnOrders: undefined;
   History: undefined;
+  CreateTicket: undefined;
+  TicketDetail: { ticketId: string };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -205,6 +212,11 @@ export default function App() {
             options={{ animation: 'slide_from_bottom' }}
           />
           <Stack.Screen
+            name="SellerAuthChoice"
+            component={SellerAuthChoiceScreen}
+            options={{ animation: 'fade' }}
+          />
+          <Stack.Screen
             name="SellerStack"
             component={SellerStack}
             options={{ headerShown: false }}
@@ -229,7 +241,9 @@ export default function App() {
           <Stack.Screen name="ReturnDetail" component={ReturnDetailScreen} />
           <Stack.Screen name="ReturnOrders" component={ReturnOrdersScreen} options={{ headerShown: false }} />
           <Stack.Screen name="History" component={HistoryScreen} />
-          <Stack.Screen name="HelpSupport" component={HelpSupportScreen} />
+          <Stack.Screen name="HelpSupport" component={HelpCenterScreen} />
+          <Stack.Screen name="CreateTicket" component={CreateTicketScreen} />
+          <Stack.Screen name="TicketDetail" component={TicketDetailScreen} />
           <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
         </Stack.Navigator>
       </NavigationContainer>

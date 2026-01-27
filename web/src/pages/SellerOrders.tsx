@@ -55,6 +55,10 @@ import {
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { sellerLinks } from "@/config/sellerLinks";
+import {
+  markOrderAsShipped,
+  markOrderAsDelivered,
+} from "@/services/orderService";
 
 const Logo = () => (
   <Link
@@ -97,6 +101,17 @@ export function SellerOrders() {
     "all",
   );
   const [selectedOrder, setSelectedOrder] = useState<string | null>(null);
+  const [trackingModal, setTrackingModal] = useState<{
+    isOpen: boolean;
+    orderId: string | null;
+    trackingNumber: string;
+    isLoading: boolean;
+  }>({
+    isOpen: false,
+    orderId: null,
+    trackingNumber: "",
+    isLoading: false,
+  });
 
   const { seller, logout } = useAuthStore();
   const { orders, loading, fetchOrders, updateOrderStatus, addTrackingNumber } =
@@ -113,6 +128,73 @@ export function SellerOrders() {
   const handleLogout = () => {
     logout();
     navigate("/seller/auth");
+  };
+
+  const handleMarkAsShipped = async () => {
+    if (!trackingModal.orderId || !trackingModal.trackingNumber.trim()) {
+      alert("Please enter a tracking number");
+      return;
+    }
+
+    setTrackingModal((prev) => ({ ...prev, isLoading: true }));
+
+    try {
+      const success = await markOrderAsShipped(
+        trackingModal.orderId,
+        trackingModal.trackingNumber,
+        seller!.id,
+      );
+
+      if (success) {
+        // Update local store
+        addTrackingNumber(trackingModal.orderId, trackingModal.trackingNumber);
+        updateOrderStatus(trackingModal.orderId, "shipped");
+
+        // Refresh orders from database
+        await fetchOrders(seller!.id);
+
+        // Close modal and show success
+        setTrackingModal({
+          isOpen: false,
+          orderId: null,
+          trackingNumber: "",
+          isLoading: false,
+        });
+        alert("✅ Order marked as shipped! Buyer notification sent.");
+      } else {
+        alert("❌ Failed to mark order as shipped. Please try again.");
+      }
+    } catch (error) {
+      console.error("Error marking order as shipped:", error);
+      alert("An error occurred. Please try again.");
+    } finally {
+      setTrackingModal((prev) => ({ ...prev, isLoading: false }));
+    }
+  };
+
+  const handleMarkAsDelivered = async (orderId: string) => {
+    if (!window.confirm("Mark this order as delivered?")) {
+      return;
+    }
+
+    try {
+      const success = await markOrderAsDelivered(orderId, seller!.id);
+
+      if (success) {
+        // Update local store
+        updateOrderStatus(orderId, "delivered");
+
+        // Refresh orders from database
+        await fetchOrders(seller!.id);
+
+        alert("✅ Order marked as delivered! Payout will be processed.");
+      } else {
+        alert("❌ Failed to mark order as delivered. Please try again.");
+      }
+    } catch (error) {
+      console.error("Error marking order as delivered:", error);
+      alert("An error occurred. Please try again.");
+    }
   };
 
   const filteredOrders = orders.filter((order) => {
@@ -612,15 +694,34 @@ export function SellerOrders() {
                             </>
                           )}
                           {order.status === "confirmed" && (
+                            <>
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setTrackingModal({
+                                    isOpen: true,
+                                    orderId: order.id,
+                                    trackingNumber: "",
+                                    isLoading: false,
+                                  });
+                                }}
+                                className="text-purple-600"
+                              >
+                                <Truck className="h-4 w-4 mr-2" />
+                                Mark as Shipped
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                          {order.status === "shipped" && (
                             <DropdownMenuItem
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleStatusUpdate(order.id, "shipped");
+                                handleMarkAsDelivered(order.id);
                               }}
-                              className="text-purple-600"
+                              className="text-green-600"
                             >
-                              <Truck className="h-4 w-4 mr-2" />
-                              Mark as Shipped
+                              <CheckCircle className="h-4 w-4 mr-2" />
+                              Confirm Delivered
                             </DropdownMenuItem>
                           )}
                         </DropdownMenuContent>
@@ -807,8 +908,16 @@ export function SellerOrders() {
                                   </span>
                                 </div>
                                 {order.reviewComment && (
-                                  <p className="text-sm text-gray-700 italic">
+                                  <p className="text-sm text-gray-700 italic mb-2">
                                     "{order.reviewComment}"
+                                  </p>
+                                )}
+                                {order.reviewDate && (
+                                  <p className="text-xs text-gray-500">
+                                    Reviewed on{" "}
+                                    {new Date(
+                                      order.reviewDate,
+                                    ).toLocaleDateString()}
                                   </p>
                                 )}
                               </div>
@@ -821,6 +930,71 @@ export function SellerOrders() {
                 </CardContent>
               </Card>
             </motion.div>
+          )}
+
+          {/* Tracking Number Modal */}
+          {trackingModal.isOpen && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4"
+              >
+                <h2 className="text-xl font-bold text-gray-900 mb-4">
+                  Enter Tracking Number
+                </h2>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Tracking Number
+                    </label>
+                    <Input
+                      type="text"
+                      placeholder="e.g., TRK123456789"
+                      value={trackingModal.trackingNumber}
+                      onChange={(e) =>
+                        setTrackingModal((prev) => ({
+                          ...prev,
+                          trackingNumber: e.target.value,
+                        }))
+                      }
+                      className="border-gray-300"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      This will be sent to the buyer for tracking their package
+                    </p>
+                  </div>
+
+                  <div className="flex gap-3 pt-4">
+                    <Button
+                      variant="outline"
+                      onClick={() =>
+                        setTrackingModal({
+                          isOpen: false,
+                          orderId: null,
+                          trackingNumber: "",
+                          isLoading: false,
+                        })
+                      }
+                      disabled={trackingModal.isLoading}
+                      className="flex-1"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={handleMarkAsShipped}
+                      disabled={trackingModal.isLoading}
+                      className="flex-1 bg-orange-600 hover:bg-orange-700"
+                    >
+                      {trackingModal.isLoading
+                        ? "Processing..."
+                        : "Mark as Shipped"}
+                    </Button>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
           )}
         </div>
       </div>
