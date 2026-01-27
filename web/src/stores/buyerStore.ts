@@ -171,14 +171,17 @@ export interface BuyerProfile {
   totalOrders: number;
   totalSpent: number;
   bazcoins: number;
-  savedCards?: SavedCard[];
+  paymentMethods?: PaymentMethod[];
 }
 
-export interface SavedCard {
+export interface PaymentMethod {
   id: string;
-  last4: string;
-  brand: string;
-  expiry: string;
+  type: 'card' | 'wallet';
+  brand: string; // Visa, MasterCard, GCash, Maya, etc.
+  last4?: string; // For cards
+  expiry?: string; // For cards
+  accountNumber?: string; // For wallets (masked)
+  isDefault: boolean;
 }
 
 interface BuyerStore {
@@ -267,6 +270,9 @@ interface BuyerStore {
   updateConversation: (convId: string, updates: Partial<Conversation>) => void;
   addChatMessage: (convId: string, message: Message) => void;
   deleteConversation: (convId: string) => void;
+  addCard: (card: PaymentMethod) => void;
+  deleteCard: (id: string) => void;
+  setDefaultPaymentMethod: (id: string) => void;
 }
 
 let profileSubscription: any = null;
@@ -322,11 +328,11 @@ export const useBuyerStore = create<BuyerStore>()(persist(
     profile: null,
 
     setProfile: (profile) => {
-      // Mock saved cards for demo
-      if (!profile.savedCards) {
-        profile.savedCards = [
-          { id: 'card_web_1', last4: '1111', brand: 'Visa', expiry: '05/30' },
-          { id: 'card_web_2', last4: '2222', brand: 'MasterCard', expiry: '09/25' },
+      // Mock payment methods for demo
+      if (!profile.paymentMethods) {
+        profile.paymentMethods = [
+          { id: 'card_demo_1', type: 'card', last4: '1111', brand: 'Visa', expiry: '05/30', isDefault: true },
+          { id: 'wallet_demo_1', type: 'wallet', brand: 'GCash', accountNumber: '09*******12', isDefault: false },
         ];
       }
       set({ profile });
@@ -363,15 +369,35 @@ export const useBuyerStore = create<BuyerStore>()(persist(
 
     setAddresses: (addresses) => set({ addresses }),
 
-    addAddress: (address) => set((state) => ({
-      addresses: [...state.addresses, address]
-    })),
+    addAddress: (address) => set((state) => {
+      // If the new address is default, unset default for all existing addresses
+      const updatedAddresses = address.isDefault
+        ? state.addresses.map(addr => ({ ...addr, isDefault: false }))
+        : state.addresses;
 
-    updateAddress: (id, updatedAddress) => set((state) => ({
-      addresses: state.addresses.map(addr =>
-        addr.id === id ? { ...addr, ...updatedAddress } : addr
-      )
-    })),
+      return {
+        addresses: [...updatedAddresses, address]
+      };
+    }),
+
+    updateAddress: (id, updatedAddress) => set((state) => {
+      // If we are setting this address as default, unset others
+      // Note: check explicitly if isDefault is present and true in updates
+      const isSettingDefault = updatedAddress.isDefault === true;
+
+      return {
+        addresses: state.addresses.map(addr => {
+          if (addr.id === id) {
+            return { ...addr, ...updatedAddress };
+          }
+          // If we are setting the target as default, unset others
+          if (isSettingDefault) {
+            return { ...addr, isDefault: false };
+          }
+          return addr;
+        })
+      };
+    }),
 
     deleteAddress: (id) => set((state) => ({
       addresses: state.addresses.filter(addr => addr.id !== id)
@@ -382,6 +408,30 @@ export const useBuyerStore = create<BuyerStore>()(persist(
         ...addr,
         isDefault: addr.id === id
       }))
+    })),
+
+    addCard: (card) => set((state) => ({
+      profile: state.profile ? {
+        ...state.profile,
+        paymentMethods: [...(state.profile.paymentMethods || []), card]
+      } : null
+    })),
+
+    deleteCard: (id) => set((state) => ({
+      profile: state.profile ? {
+        ...state.profile,
+        paymentMethods: (state.profile.paymentMethods || []).filter(c => c.id !== id)
+      } : null
+    })),
+
+    setDefaultPaymentMethod: (id) => set((state) => ({
+      profile: state.profile ? {
+        ...state.profile,
+        paymentMethods: (state.profile.paymentMethods || []).map(m => ({
+          ...m,
+          isDefault: m.id === id
+        }))
+      } : null
     })),
 
     // Following Shops
