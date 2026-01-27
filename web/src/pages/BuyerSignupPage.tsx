@@ -168,6 +168,11 @@ export default function BuyerSignupPage() {
     alert("Google Sign-Up integration coming soon!");
   };
 
+  const handleFacebookSignup = () => {
+    setError("");
+    alert("Facebook Sign-Up integration coming soon!");
+  };
+
   return (
 
     <div className="min-h-screen relative overflow-hidden font-sans bg-slate-50">
@@ -444,19 +449,35 @@ export default function BuyerSignupPage() {
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={handleGoogleSignup}
-              className="w-full h-14 text-sm font-medium flex items-center border-2 border-[var(--border)] hover:border-[var(--brand-primary)] hover:bg-[var(--secondary)]/5 rounded-[var(--radius-md)] justify-center gap-3 transition-all duration-200"
-              disabled={isLoading}
-            >
-              <img
-                src="https://www.svgrepo.com/show/475656/google-color.svg"
-                className="w-5 h-5"
-                alt="Google"
-              />
-              Google
-            </button>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={handleGoogleSignup}
+                className="w-full h-14 text-sm font-medium flex items-center border-2 border-[var(--border)] hover:border-[var(--brand-primary)] hover:bg-[var(--secondary)]/5 rounded-[var(--radius-md)] justify-center gap-2 transition-all duration-200"
+                disabled={isLoading}
+              >
+                <img
+                  src="https://www.svgrepo.com/show/475656/google-color.svg"
+                  className="w-5 h-5"
+                  alt="Google"
+                />
+                <span>Google</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleFacebookSignup}
+                className="w-full h-14 text-sm font-medium flex items-center border-2 border-[var(--border)] hover:border-[var(--brand-primary)] hover:bg-[var(--secondary)]/5 rounded-[var(--radius-md)] justify-center gap-2 transition-all duration-200"
+                disabled={isLoading}
+              >
+                <img
+                  src="https://www.svgrepo.com/show/475647/facebook-color.svg"
+                  className="w-5 h-5"
+                  alt="Facebook"
+                />
+                <span>Facebook</span>
+              </button>
+            </div>
           </form>
 
           <div className="mt-8 text-center text-[var(--text-secondary)] text-sm">
