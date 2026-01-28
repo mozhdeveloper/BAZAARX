@@ -160,8 +160,10 @@ export default function ShopScreen({ navigation, route }: Props) {
               stock: row.stock,
             } as Product;
           });
-          setDbProducts(mapped);
-          console.log('[Shop] Mapped products:', mapped.length);
+          // Deduplicate by ID just in case
+          const uniqueMapped = Array.from(new Map(mapped.map(item => [item.id, item])).values());
+          setDbProducts(uniqueMapped);
+          console.log('[Shop] Mapped products:', uniqueMapped.length);
         }
       } catch (e: any) {
         console.log('[Shop] Product fetch exception:', e?.message);

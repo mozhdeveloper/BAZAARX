@@ -1,36 +1,100 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, StatusBar, Dimensions, Share, Alert, Pressable, Modal, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, StatusBar, Dimensions, Share, Alert, Pressable, Modal, TextInput, Image, Switch, KeyboardAvoidingView, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, Heart, ShoppingBag, Share2, MoreVertical, Edit2, Check, X, Search } from 'lucide-react-native';
+import { ArrowLeft, Heart, ShoppingBag, Share2, MoreVertical, Edit2, Search, FolderHeart, Plus, Lock, Globe, User, X, Store, ChevronRight } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { ProductCard } from '../src/components/ProductCard';
 import { useWishlistStore, WishlistItem } from '../src/stores/wishlistStore';
 import { useAuthStore } from '../src/stores/authStore';
 import { GuestLoginModal } from '../src/components/GuestLoginModal';
-import WishlistSettingsModal from '../src/components/WishlistSettingsModal';
 import { COLORS } from '../src/constants/theme';
 
 const { width } = Dimensions.get('window');
 
-// Item Edit Modal Component
+// Create List Modal (Bottom Sheet Style)
+const CreateListModal = ({ visible, onClose, onCreate }: any) => {
+    const [name, setName] = useState('');
+    const [isPrivate, setIsPrivate] = useState(true);
+    const insets = useSafeAreaInsets();
+
+    const handleCreate = () => {
+        if (!name.trim()) return;
+        onCreate(name, isPrivate ? 'private' : 'shared');
+        setName('');
+        setIsPrivate(true);
+        onClose();
+    };
+
+    return (
+        <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+            <View style={styles.bottomSheetOverlay}>
+                <Pressable style={styles.backdrop} onPress={onClose} />
+                <KeyboardAvoidingView 
+                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                    style={{ width: '100%' }}
+                >
+                    <View style={[styles.bottomSheetContent, { paddingBottom: insets.bottom + 20 }]}>
+                        <View style={styles.bsHeader}>
+                            <Text style={styles.bsTitle}>Create a new list</Text>
+                            <Pressable onPress={onClose} style={styles.closeBtn}>
+                                <X size={24} color="#374151" />
+                            </Pressable>
+                        </View>
+                        
+                        <Text style={styles.inputLabel}>List Name</Text>
+                        <TextInput 
+                            style={styles.bsInput} 
+                            value={name} 
+                            onChangeText={setName} 
+                            placeholder="e.g. Birthday Wishlist"
+                            placeholderTextColor="#9CA3AF"
+                            autoFocus
+                        />
+
+                        <View style={styles.bsSwitchRow}>
+                            <View style={{flex: 1}}>
+                                <Text style={styles.switchLabel}>Keep private</Text>
+                                <Text style={styles.switchSub}>Only you can see this list. Shared lists can be viewed by anyone with the link.</Text>
+                            </View>
+                            <Switch 
+                                value={isPrivate} 
+                                onValueChange={setIsPrivate}
+                                trackColor={{ false: '#E5E7EB', true: COLORS.primary }}
+                                thumbColor="#FFF"
+                            />
+                        </View>
+
+                        <Pressable onPress={handleCreate} style={[styles.createBtn, !name.trim() && styles.disabledBtn]}>
+                            <Text style={styles.createBtnText}>Create List</Text>
+                        </Pressable>
+                    </View>
+                </KeyboardAvoidingView>
+            </View>
+        </Modal>
+    );
+};
+
+// Item Edit Modal Component (Kept for Item View)
 const ItemEditModal = ({ visible, onClose, item, onSave }: any) => {
     const [priority, setPriority] = useState(item?.priority || 'medium');
     const [qty, setQty] = useState(item?.desiredQty?.toString() || '1');
+    const [isPrivate, setIsPrivate] = useState(item?.isPrivate || false);
 
     useEffect(() => {
         if (item) {
             setPriority(item.priority || 'medium');
             setQty(item.desiredQty?.toString() || '1');
+            setIsPrivate(item.isPrivate || false);
         }
     }, [item]);
 
     return (
         <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-            <View style={styles.editModalOverlay}>
-                <View style={styles.editModalContent}>
-                    <Text style={styles.editModalTitle}>Edit Item</Text>
+            <View style={styles.modalOverlay}>
+                <View style={styles.modalContent}>
+                    <Text style={styles.modalTitle}>Edit Item</Text>
                     
-                    <Text style={styles.editLabel}>Priority</Text>
+                    <Text style={styles.inputLabel}>Priority</Text>
                     <View style={styles.priorityRow}>
                         {(['low', 'medium', 'high'] as const).map((p) => (
                             <Pressable 
@@ -45,23 +109,35 @@ const ItemEditModal = ({ visible, onClose, item, onSave }: any) => {
                         ))}
                     </View>
 
-                    <Text style={styles.editLabel}>Desired Quantity</Text>
+                    <Text style={styles.inputLabel}>Desired Quantity</Text>
                     <View style={styles.qtyContainer}>
                         <Pressable onPress={() => setQty(Math.max(1, parseInt(qty || '1') - 1).toString())} style={styles.qtyBtn}><Text>-</Text></Pressable>
                         <TextInput style={styles.qtyInput} value={qty} onChangeText={setQty} keyboardType="numeric" />
                         <Pressable onPress={() => setQty((parseInt(qty || '1') + 1).toString())} style={styles.qtyBtn}><Text>+</Text></Pressable>
                     </View>
 
-                    <View style={styles.editActions}>
-                        <Pressable style={styles.cancelBtn} onPress={onClose}><Text>Cancel</Text></Pressable>
+                     <View style={[styles.switchRow, { marginBottom: 30, paddingRight: 0 }]}>
+                        <View>
+                            <Text style={styles.switchLabel}>Keep item private</Text>
+                            <Text style={styles.switchSub}>Hide this item from shared views</Text>
+                        </View>
+                        <Switch 
+                            value={isPrivate} 
+                            onValueChange={setIsPrivate}
+                            trackColor={{ false: '#E5E7EB', true: COLORS.primary }}
+                        />
+                    </View>
+
+                    <View style={styles.modalActions}>
+                        <Pressable style={styles.modalBtn} onPress={onClose}><Text style={styles.cancelText}>Cancel</Text></Pressable>
                         <Pressable 
-                            style={styles.saveBtn} 
+                            style={[styles.modalBtn, styles.primaryBtn]} 
                             onPress={() => {
-                                onSave(item.id, { priority, desiredQty: parseInt(qty) });
+                                onSave(item.id, { priority, desiredQty: parseInt(qty), isPrivate });
                                 onClose();
                             }}
                         >
-                            <Text style={{ color: '#FFF' }}>Save</Text>
+                            <Text style={styles.primaryBtnText}>Save</Text>
                         </Pressable>
                     </View>
                 </View>
@@ -74,11 +150,16 @@ export default function WishlistScreen() {
     const insets = useSafeAreaInsets();
     const navigation = useNavigation<any>();
 
-    const { items, removeItem, shareWishlist, updateItem } = useWishlistStore();
+    const { items, categories, createCategory, updateItem, shareWishlist } = useWishlistStore();
     const { isGuest } = useAuthStore();
+    
+    // UI State
     const [showGuestModal, setShowGuestModal] = useState(false);
-    const [showSettings, setShowSettings] = useState(false);
+    const [showCreateModal, setShowCreateModal] = useState(false);
     const [editingItem, setEditingItem] = useState<WishlistItem | null>(null);
+    
+    // Navigation State
+    const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
 
     useEffect(() => {
         if (isGuest) {
@@ -91,13 +172,10 @@ export default function WishlistScreen() {
     };
 
     const handleShare = async () => {
-        if (items.length === 0) {
-            Alert.alert('Empty Wishlist', 'Add items to your wishlist before sharing.');
-            return;
-        }
-        
         try {
-            const url = await shareWishlist();
+            // Share current category or default
+            const catId = selectedCategoryId || 'default';
+            const url = await shareWishlist(catId);
             await Share.share({
                 message: `Check out my registry on BazaarX! ${url}`,
                 url: url
@@ -107,6 +185,18 @@ export default function WishlistScreen() {
         }
     };
 
+    const handleCreateList = (name: string, privacy: 'private' | 'shared') => {
+        createCategory(name, privacy);
+        // Optional: Auto-select new category? For now just stay on list
+    };
+
+    // Filter items based on selected category
+    const displayedItems = selectedCategoryId 
+        ? items.filter(item => item.categoryId === selectedCategoryId || (selectedCategoryId === 'default' && !item.categoryId))
+        : items;
+
+    const currentCategoryName = categories.find(c => c.id === selectedCategoryId)?.name || 'All Items';
+
     return (
         <View style={styles.container}>
             <StatusBar barStyle="light-content" />
@@ -114,90 +204,174 @@ export default function WishlistScreen() {
             {/* Header */}
             <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: COLORS.primary }]}>
                 <View style={styles.headerTop}>
-                    <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
+                    <Pressable 
+                        onPress={() => {
+                            if (selectedCategoryId) {
+                                setSelectedCategoryId(null); // Go back to categories
+                            } else {
+                                navigation.goBack();
+                            }
+                        }} 
+                        style={styles.headerIconButton}
+                    >
                         <ArrowLeft size={24} color="#FFF" strokeWidth={2.5} />
                     </Pressable>
                     
                     <View style={styles.titleContainer}>
-                        <Text style={styles.headerTitle}>My Wishlist</Text>
+                        <Text style={styles.headerTitle}>
+                            {selectedCategoryId ? currentCategoryName : 'My Wishlists'}
+                        </Text>
                     </View>
 
-                    <View style={{ flexDirection: 'row', gap: 8 }}>
-                        <Pressable onPress={handleShare} style={styles.headerIconButton}>
-                            <Share2 size={24} color="#FFF" />
-                        </Pressable>
-                        <Pressable onPress={() => setShowSettings(true)} style={styles.headerIconButton}>
-                            <MoreVertical size={24} color="#FFF" />
-                        </Pressable>
+                    <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                        {selectedCategoryId && (
+                            <Pressable onPress={handleShare} style={styles.headerIconButton}>
+                                <Share2 size={24} color="#FFF" />
+                            </Pressable>
+                        )}
+                        
+                        {!selectedCategoryId && (
+                             <Pressable onPress={() => setShowCreateModal(true)} style={[styles.createHeaderBtn]}>
+                                <Plus size={20} color={COLORS.primary} strokeWidth={3} />
+                             </Pressable>
+                        )}
                     </View>
                 </View>
             </View>
 
             <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-                {items.length === 0 ? (
-                    <View style={styles.emptyState}>
-                        <View style={styles.emptyIconContainer}>
-                            <Heart size={48} color="#D1D5DB" fill="#D1D5DB" />
-                        </View>
-                        <Text style={styles.emptyTitle}>Your registry is empty</Text>
-                        <Text style={styles.emptyText}>Tap the heart icon on products to add them.</Text>
-                        <Pressable style={styles.shopNowButton} onPress={() => navigation.navigate('MainTabs', { screen: 'Shop' })}>
-                            <ShoppingBag size={20} color="#FFF" />
-                            <Text style={styles.shopNowText}>Start Shopping</Text>
-                        </Pressable>
+                
+                {/* Find Registry Banner (ALWAYS VISIBLE) */}
+                <View style={styles.findRegistryContainer}>
+                    <View style={styles.findRegistryContent}>
+                        <Text style={styles.findRegistryTitle}>Looking for a friend?</Text>
+                        <Text style={styles.findRegistrySubtitle}>Find their registry to send a gift.</Text>
                     </View>
-                ) : (
-                    <>
-                        <View style={styles.findRegistryContainer}>
-                            <View style={styles.findRegistryContent}>
-                                <Text style={styles.findRegistryTitle}>Looking for a friend?</Text>
-                                <Text style={styles.findRegistrySubtitle}>Find their registry to send a gift.</Text>
-                            </View>
-                            <Pressable style={styles.findRegistryBtn} onPress={() => navigation.navigate('FindRegistry')}>
-                                <Search size={16} color={COLORS.primary} style={{ marginRight: 6 }} />
-                                <Text style={styles.findRegistryBtnText}>Find Registry</Text>
-                            </Pressable>
-                        </View>
+                    <Pressable style={styles.findRegistryBtn} onPress={() => navigation.navigate('FindRegistry')}>
+                        <Search size={16} color={COLORS.primary} style={{ marginRight: 6 }} />
+                        <Text style={styles.findRegistryBtnText}>Find Registry</Text>
+                    </Pressable>
+                </View>
 
-                        <Text style={styles.countText}>{items.length} Items Saved</Text>
-                        <View style={styles.list}>
-                            {items.map((item) => (
-                                <View key={item.id} style={styles.listItem}>
-                                    <View style={styles.itemCardContainer}>
-                                        <ProductCard
-                                            product={item}
-                                            onPress={() => handleProductPress(item)}
-                                            // Compact Mode props if component supported it, using standard for now
-                                        />
-                                        {/* Overlay Controls */}
-                                        <View style={styles.itemControls}>
-                                            <Pressable style={styles.editIconBtn} onPress={() => setEditingItem(item)}>
-                                                <Edit2 size={16} color="#FFF" />
-                                            </Pressable>
+                {/* --- CATEGORIES VIEW (1 COLUMN VERTICAL) --- */}
+                {!selectedCategoryId && (
+                    <View>
+                        {/* No "Create New List" card here anymore, moved to header */}
+                        
+                        <View style={styles.categoriesList}>
+                            {categories.map((cat) => {
+                                const categoryItems = items.filter(i => i.categoryId === cat.id || (cat.id === 'default' && !i.categoryId));
+                                const itemCount = categoryItems.length;
+                                // Use first item image as cover, or fallback
+                                const coverImage = cat.image || categoryItems[0]?.image;
+                                
+                                return (
+                                    <Pressable key={cat.id} style={styles.cardContainer} onPress={() => setSelectedCategoryId(cat.id)}>
+                                        {/* Banner Image */}
+                                        <View style={styles.cardBanner}>
+                                            {coverImage ? (
+                                                <Image source={{ uri: coverImage }} style={styles.bannerImage} resizeMode="cover" />
+                                            ) : (
+                                                <View style={styles.placeholderBanner}>
+                                                    <FolderHeart size={48} color="#9CA3AF" />
+                                                </View>
+                                            )}
                                         </View>
-                                    </View>
-                                    
-                                    {/* Registry Details */}
-                                    <View style={styles.registryDetails}>
-                                        <View style={[styles.priorityBadge, { 
-                                            backgroundColor: item.priority === 'high' ? '#FEE2E2' : item.priority === 'medium' ? '#FEF3C7' : '#E0F2FE'
-                                        }]}>
-                                            <Text style={[styles.priorityText, {
-                                                color: item.priority === 'high' ? '#DC2626' : item.priority === 'medium' ? '#D97706' : '#0284C7'
+
+                                        {/* Profile Content */}
+                                        <View style={styles.cardContent}>
+                                            <View style={styles.cardProfileContainer}>
+                                                <View style={styles.cardProfile}>
+                                                    <User size={24} color={COLORS.primary} strokeWidth={2.5} />
+                                                </View>
+                                            </View>
+
+                                            <View style={styles.cardHeader}>
+                                                <View style={{flex: 1, paddingRight: 10}}>
+                                                    <Text style={styles.cardTitle}>{cat.name}</Text>
+                                                    <View style={styles.cardRatingRow}>
+                                                        <View style={styles.privacyTag}>
+                                                            {cat.privacy === 'private' ? <Lock size={10} color="#6B7280"/> : <Globe size={10} color="#6B7280"/>}
+                                                            <Text style={styles.privacyTagText}>{cat.privacy === 'private' ? 'Private' : 'Shared'}</Text>
+                                                        </View>
+                                                        <Text style={styles.itemCountDetail}>{itemCount} items</Text>
+                                                    </View>
+                                                </View>
+                                                
+                                                <View style={styles.visitShopBtn}>
+                                                    <Text style={styles.visitShopText}>View List</Text>
+                                                </View>
+                                            </View>
+                                        </View>
+                                    </Pressable>
+                                );
+                            })}
+                        </View>
+                    </View>
+                )}
+
+                {/* --- ITEMS VIEW --- */}
+                {selectedCategoryId && (
+                    <View>
+                        {displayedItems.length === 0 ? (
+                             <View style={styles.emptyState}>
+                                <View style={styles.emptyIconContainer}>
+                                    <Heart size={48} color="#D1D5DB" fill="#D1D5DB" />
+                                </View>
+                                <Text style={styles.emptyTitle}>This list is empty</Text>
+                                <Text style={styles.emptyText}>Go add some items to it!</Text>
+                                <Pressable style={styles.shopNowButton} onPress={() => navigation.navigate('MainTabs', { screen: 'Shop' })}>
+                                    <ShoppingBag size={20} color="#FFF" />
+                                    <Text style={styles.shopNowText}>Start Shopping</Text>
+                                </Pressable>
+                            </View>
+                        ) : (
+                            <View style={styles.itemsGrid}>
+                                {displayedItems.map((item) => (
+                                    <View key={item.id} style={styles.listItem}>
+                                        <View style={styles.itemCardContainer}>
+                                            <ProductCard
+                                                product={item}
+                                                onPress={() => handleProductPress(item)}
+                                            />
+                                            {/* Item Privacy Badge */}
+                                            {item.isPrivate && (
+                                                <View style={styles.itemPrivacyBadge}>
+                                                    <Lock size={12} color="#FFF" />
+                                                </View>
+                                            )}
+
+                                            {/* Overlay Controls */}
+                                            <View style={styles.itemControls}>
+                                                <Pressable style={styles.editIconBtn} onPress={() => setEditingItem(item)}>
+                                                    <Edit2 size={16} color="#FFF" />
+                                                </Pressable>
+                                            </View>
+                                        </View>
+                                        
+                                        {/* Registry Details */}
+                                        <View style={styles.registryDetails}>
+                                            <View style={[styles.priorityBadge, { 
+                                                backgroundColor: item.priority === 'high' ? '#FEE2E2' : item.priority === 'medium' ? '#FEF3C7' : '#E0F2FE'
                                             }]}>
-                                                {item.priority?.toUpperCase()}
+                                                <Text style={[styles.priorityText, {
+                                                    color: item.priority === 'high' ? '#DC2626' : item.priority === 'medium' ? '#D97706' : '#0284C7'
+                                                }]}>
+                                                    {item.priority?.toUpperCase()}
+                                                </Text>
+                                            </View>
+                                            <Text style={styles.qtyText}>
+                                                Needs: <Text style={{fontWeight:'700'}}>{item.desiredQty}</Text> • 
+                                                Has: <Text style={{fontWeight:'700', color: COLORS.primary}}>{item.purchasedQty || 0}</Text>
                                             </Text>
                                         </View>
-                                        <Text style={styles.qtyText}>
-                                            Needs: <Text style={{fontWeight:'700'}}>{item.desiredQty}</Text> • 
-                                            Has: <Text style={{fontWeight:'700', color: COLORS.primary}}>{item.purchasedQty || 0}</Text>
-                                        </Text>
                                     </View>
-                                </View>
-                            ))}
-                        </View>
-                    </>
+                                ))}
+                            </View>
+                        )}
+                    </View>
                 )}
+
             </ScrollView>
 
             <GuestLoginModal
@@ -210,9 +384,10 @@ export default function WishlistScreen() {
                 cancelText="Go back to Home"
             />
 
-            <WishlistSettingsModal 
-                visible={showSettings}
-                onClose={() => setShowSettings(false)}
+            <CreateListModal 
+                visible={showCreateModal}
+                onClose={() => setShowCreateModal(false)}
+                onCreate={handleCreateList}
             />
 
             <ItemEditModal 
@@ -238,16 +413,98 @@ const styles = StyleSheet.create({
     },
     headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', position: 'relative' },
     headerIconButton: { padding: 4, zIndex: 10 },
+    createHeaderBtn: { backgroundColor: '#FFF', padding: 6, borderRadius: 20 },
     titleContainer: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
     headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFF' },
     scrollContent: { padding: 16, paddingBottom: 40, minHeight: '100%' },
-    countText: { fontSize: 14, fontWeight: '600', color: '#6B7280', marginBottom: 16 },
-    list: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+    
+    // Categories List (Card Style)
+    categoriesList: { gap: 20, paddingBottom: 20 },
+    cardContainer: {
+        backgroundColor: '#FFF',
+        borderRadius: 16,
+        overflow: 'hidden',
+        elevation: 3,
+        shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 4,
+        marginBottom: 4,
+    },
+    cardBanner: {
+        height: 140,
+        width: '100%',
+        backgroundColor: '#E5E7EB',
+    },
+    bannerImage: { width: '100%', height: '100%' },
+    placeholderBanner: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F3F4F6' },
+    cardContent: {
+        paddingHorizontal: 16,
+        paddingBottom: 16,
+        paddingTop: 8,
+        position: 'relative',
+    },
+    cardProfileContainer: {
+        position: 'absolute',
+        top: -24,
+        left: 16,
+        zIndex: 10,
+    },
+    cardProfile: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        backgroundColor: '#FFF',
+        alignItems: 'center',
+        justifyContent: 'center',
+        elevation: 2,
+        shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2,
+    },
+    cardHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginTop: 24, // Clear the profile pic
+    },
+    cardTitle: {
+        fontSize: 18,
+        fontWeight: '800',
+        color: '#111827',
+        marginBottom: 4,
+    },
+    cardRatingRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    privacyTag: {
+        flexDirection: 'row', alignItems: 'center', gap: 4,
+        paddingHorizontal: 6, paddingVertical: 2,
+        backgroundColor: '#F3F4F6', borderRadius: 4,
+    },
+    privacyTagText: { fontSize: 10, fontWeight: '600', color: '#6B7280' },
+    itemCountDetail: { fontSize: 12, color: '#6B7280' },
+    
+    visitShopBtn: {
+        backgroundColor: COLORS.primary,
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderRadius: 20,
+    },
+    visitShopText: {
+        color: '#FFF',
+        fontWeight: '700',
+        fontSize: 14,
+    },
+
+    // Items Grid
+    itemsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
     listItem: { width: (width - 48) / 2, marginBottom: 24 },
     itemCardContainer: { position: 'relative' },
     itemControls: {
         position: 'absolute', top: 8, right: 8,
         flexDirection: 'row', gap: 8,
+    },
+    itemPrivacyBadge: {
+        position: 'absolute', top: 8, left: 8,
+        backgroundColor: 'rgba(0,0,0,0.6)', padding: 6, borderRadius: 20,
     },
     editIconBtn: {
         backgroundColor: 'rgba(0,0,0,0.6)', padding: 6, borderRadius: 20,
@@ -276,18 +533,99 @@ const styles = StyleSheet.create({
     findRegistryBtnText: { fontSize: 12, fontWeight: '700', color: COLORS.primary },
 
     // Empty State
-    emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', marginTop: 100 },
+    emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', marginTop: 60 },
     emptyIconContainer: { width: 100, height: 100, borderRadius: 50, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center', marginBottom: 24 },
     emptyTitle: { fontSize: 20, fontWeight: '800', color: '#111827', marginBottom: 8 },
     emptyText: { fontSize: 15, color: '#6B7280', textAlign: 'center', marginBottom: 32 },
     shopNowButton: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FF5722', paddingHorizontal: 24, paddingVertical: 14, borderRadius: 30, elevation: 4 },
     shopNowText: { fontSize: 16, fontWeight: '700', color: '#FFF' },
 
-    // Edit Modal
-    editModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
-    editModalContent: { backgroundColor: '#FFF', width: '80%', padding: 20, borderRadius: 16, elevation: 5 },
-    editModalTitle: { fontSize: 18, fontWeight: '700', marginBottom: 16 },
-    editLabel: { fontSize: 14, color: '#6B7280', marginBottom: 8 },
+    // Modals
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
+    modalContent: { backgroundColor: '#FFF', width: '85%', padding: 20, borderRadius: 16, elevation: 5 },
+    modalTitle: { fontSize: 18, fontWeight: '700', marginBottom: 20 },
+    inputLabel: { fontSize: 14, color: '#6B7280', marginBottom: 8, fontWeight: '600' },
+    modalInput: { borderBottomWidth: 1, borderColor: '#E5E7EB', paddingVertical: 8, marginBottom: 20, fontSize: 16 },
+    modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12, marginTop: 10 },
+    modalBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8 },
+    primaryBtn: { backgroundColor: COLORS.primary },
+    cancelText: { color: '#6B7280', fontWeight: '600' },
+    primaryBtnText: { color: '#FFF', fontWeight: '700' },
+    
+    // Switch
+    switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
+    switchLabel: { fontSize: 16, fontWeight: '600', color: '#111827' },
+    switchSub: { fontSize: 12, color: '#6B7280' },
+
+    // New Bottom Sheet Styles
+    bottomSheetOverlay: {
+        flex: 1,
+        justifyContent: 'flex-end',
+        backgroundColor: 'rgba(0,0,0,0.5)',
+    },
+    backdrop: {
+        ...StyleSheet.absoluteFillObject,
+    },
+    bottomSheetContent: {
+        backgroundColor: '#FFF',
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+        padding: 24,
+        elevation: 10,
+        shadowColor: '#000', shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.1, shadowRadius: 10,
+    },
+    bsHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 24,
+    },
+    bsTitle: {
+        fontSize: 20,
+        fontWeight: '800',
+        color: '#111827',
+    },
+    closeBtn: {
+        padding: 4,
+        backgroundColor: '#F3F4F6',
+        borderRadius: 20,
+    },
+    bsInput: {
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+        borderRadius: 12,
+        paddingHorizontal: 16,
+        paddingVertical: 14,
+        fontSize: 16,
+        color: '#111827',
+        marginTop: 8,
+        marginBottom: 24,
+        backgroundColor: '#F9FAFB',
+    },
+    bsSwitchRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 32,
+    },
+    createBtn: {
+        backgroundColor: COLORS.primary,
+        paddingVertical: 16,
+        borderRadius: 30,
+        alignItems: 'center',
+        elevation: 2,
+    },
+    disabledBtn: {
+        backgroundColor: '#D1D5DB',
+        elevation: 0,
+    },
+    createBtnText: {
+        color: '#FFF',
+        fontSize: 16,
+        fontWeight: '800',
+    },
+
+    // Item Edit Specific
     priorityRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
     priorityOption: { flex: 1, padding: 8, borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, alignItems: 'center' },
     selectedPriority: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
@@ -295,7 +633,4 @@ const styles = StyleSheet.create({
     qtyContainer: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 24 },
     qtyBtn: { width: 32, height: 32, borderRadius: 16, borderWidth: 1, borderColor: '#E5E7EB', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F3F4F6' },
     qtyInput: { width: 60, textAlign: 'center', fontSize: 16, fontWeight: '700', borderBottomWidth: 1, borderColor: '#E5E7EB' },
-    editActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12 },
-    cancelBtn: { padding: 10 },
-    saveBtn: { backgroundColor: COLORS.primary, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8 },
 });
