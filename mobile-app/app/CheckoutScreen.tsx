@@ -46,6 +46,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
   const isGift = params?.isGift || false;
   const recipientName = params?.recipientName || 'Registry Owner';
   const registryLocation = params?.registryLocation || 'Philippines';
+  const recipientId = params?.recipientId || 'user_123'; // Mock recipient ID if not passed
 
   // Override address state if it's a gift
   React.useEffect(() => {
@@ -97,6 +98,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
   const [paymentMethod, setPaymentMethod] = useState<'cod' | 'gcash' | 'card' | 'paymongo'>('cod');
   const [voucherCode, setVoucherCode] = useState('');
   const [appliedVoucher, setAppliedVoucher] = useState<keyof typeof VOUCHERS | null>(null);
+  const [isAnonymous, setIsAnonymous] = useState(false);
 
   // Bazcoins Logic
   const earnedBazcoins = Math.floor(checkoutSubtotal / 10);
@@ -168,7 +170,11 @@ export default function CheckoutScreen({ navigation, route }: Props) {
 
     // Create order
     try {
-      const order = createOrder(checkoutItems, address, paymentMethod);
+      const order = createOrder(checkoutItems, address, paymentMethod, {
+        isGift,
+        isAnonymous,
+        recipientId: isGift ? recipientId : undefined
+      });
       
       // Check if online payment (GCash, PayMongo, PayMaya, Card)
       const isOnlinePayment = paymentMethod.toLowerCase() !== 'cod' && paymentMethod.toLowerCase() !== 'cash on delivery';
@@ -328,6 +334,20 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                            </Text>
                        </View>
                    </View>
+                </View>
+
+                 {/* Anonymous Toggle */}
+                 <View style={{ marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderColor: '#BBF7D0', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <View>
+                        <Text style={{ fontSize: 14, fontWeight: '700', color: '#14532D' }}>Keep me anonymous</Text>
+                        <Text style={{ fontSize: 12, color: '#15803D' }}>Do not disclose my name to recipient</Text>
+                    </View>
+                    <Switch
+                        trackColor={{ false: '#D1D5DB', true: '#166534' }}
+                        thumbColor={isAnonymous ? '#FFFFFF' : '#f4f3f4'}
+                        onValueChange={setIsAnonymous}
+                        value={isAnonymous}
+                    />
                 </View>
              </View>
           ) : (

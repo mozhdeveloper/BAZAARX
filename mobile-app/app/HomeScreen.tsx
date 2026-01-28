@@ -194,7 +194,9 @@ export default function HomeScreen({ navigation }: Props) {
             stock: row.stock,
           } as Product;
         });
-        setDbProducts(mapped);
+        // Deduplicate
+        const uniqueMapped = Array.from(new Map(mapped.map(item => [item.id, item])).values());
+        setDbProducts(uniqueMapped);
       } catch (e: any) {
         setFetchError(e?.message || 'Failed to load products');
         setDbProducts([]);

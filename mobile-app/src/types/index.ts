@@ -37,6 +37,9 @@ export interface Order {
   shippingAddress: ShippingAddress;
   paymentMethod: string;
   createdAt: string;
+  isGift?: boolean;
+  isAnonymous?: boolean;
+  recipientId?: string;
 }
 
 export interface ShippingAddress {

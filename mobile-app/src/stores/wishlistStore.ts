@@ -9,27 +9,35 @@ export interface WishlistItem extends Product {
     desiredQty: number;
     purchasedQty: number; // For registry logic
     addedAt: string;
+    categoryId?: string; // Link to a specific list
+    isPrivate?: boolean; // Item-level privacy
 }
 
-export interface WishlistSettings {
-    privacy: 'public' | 'shared' | 'private';
-    shippingAddressId?: string; // ID of the address to use for gifts
-    defaultPriority: 'low' | 'medium' | 'high';
+export interface WishlistCategory {
+    id: string;
+    name: string;
+    description?: string;
+    image?: string; 
+    privacy: 'private' | 'shared'; // PER CATEGORY SETTING
 }
+
+// Removed global WishlistSettings interface as requested
 
 interface WishlistState {
     items: WishlistItem[];
-    wishlistId: string;
-    settings: WishlistSettings;
+    categories: WishlistCategory[];
     
-    addItem: (product: Product, priority?: 'low' | 'medium' | 'high', desiredQty?: number) => void;
+    addItem: (product: Product, priority?: 'low' | 'medium' | 'high', desiredQty?: number, categoryId?: string) => void;
     removeItem: (productId: string) => void;
     updateItem: (productId: string, updates: Partial<WishlistItem>) => void;
-    updateSettings: (settings: Partial<WishlistSettings>) => void;
+    
+    // Category Management
+    createCategory: (name: string, privacy: 'private' | 'shared', description?: string) => string; 
+    deleteCategory: (categoryId: string) => void;
     
     isInWishlist: (productId: string) => boolean;
     clearWishlist: () => void;
-    shareWishlist: () => Promise<string>;
+    shareWishlist: (categoryId: string) => Promise<string>; // Share specific list
     
     // Registry Logic
     markAsPurchased: (productId: string, qty: number) => void;
@@ -39,13 +47,11 @@ export const useWishlistStore = create<WishlistState>()(
     persist(
         (set, get) => ({
             items: [],
-            wishlistId: 'wishlist_' + Math.random().toString(36).substr(2, 9),
-            settings: {
-                privacy: 'shared',
-                defaultPriority: 'medium'
-            },
+            categories: [
+                { id: 'default', name: 'General Favorites', description: 'My favorite items.', privacy: 'private' },
+            ],
 
-            addItem: (product, priority = 'medium', desiredQty = 1) => {
+            addItem: (product, priority = 'medium', desiredQty = 1, categoryId = 'default') => {
                 const { items } = get();
                 const existing = items.find(item => item.id === product.id);
                 
@@ -55,7 +61,8 @@ export const useWishlistStore = create<WishlistState>()(
                         priority,
                         desiredQty,
                         purchasedQty: 0,
-                        addedAt: new Date().toISOString()
+                        addedAt: new Date().toISOString(),
+                        categoryId
                     };
                     set({ items: [...items, newItem] });
                 }
@@ -75,9 +82,27 @@ export const useWishlistStore = create<WishlistState>()(
                 });
             },
 
-            updateSettings: (newSettings) => {
-                const { settings } = get();
-                set({ settings: { ...settings, ...newSettings } });
+            createCategory: (name, privacy, description) => {
+                const { categories } = get();
+                const newId = 'list_' + Date.now();
+                const newCategory = { id: newId, name, privacy, description };
+                set({ categories: [...categories, newCategory] });
+                return newId;
+            },
+
+            deleteCategory: (categoryId) => {
+                const { categories, items } = get();
+                // Move items from deleted category to default
+                if (categoryId === 'default') return; // Cannot delete default
+                
+                const updatedItems = items.map(item => 
+                    item.categoryId === categoryId ? { ...item, categoryId: 'default' } : item
+                );
+                
+                set({ 
+                    categories: categories.filter(c => c.id !== categoryId),
+                    items: updatedItems
+                });
             },
 
             isInWishlist: (productId) => {
@@ -89,9 +114,8 @@ export const useWishlistStore = create<WishlistState>()(
                 set({ items: [] });
             },
 
-            shareWishlist: async () => {
-                const { wishlistId } = get();
-                return `https://bazaarx.app/wishlist/${wishlistId}`;
+            shareWishlist: async (categoryId) => {
+                return `https://bazaarx.app/wishlist/${categoryId}`;
             },
 
             markAsPurchased: (productId, qty) => {
