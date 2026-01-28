@@ -30,7 +30,7 @@ export interface Order {
   items: CartItem[];
   total: number;
   shippingFee: number;
-  status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'canceled';
+  status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
   isPaid: boolean;
   scheduledDate: string;
   deliveryDate?: string;
