@@ -1,6 +1,7 @@
 /**
  * Admin Service
  * Handles all admin-related database operations
+ * Adheres to the Class-based Service Layer Architecture
  */
 
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
@@ -15,11 +16,23 @@ export interface AdminData {
 }
 
 export class AdminService {
+    private static instance: AdminService;
+
+    private constructor() { }
+
+    public static getInstance(): AdminService {
+        if (!AdminService.instance) {
+            AdminService.instance = new AdminService();
+        }
+        return AdminService.instance;
+    }
+
     /**
      * Get admin by ID
      */
     async getAdminById(adminId: string): Promise<AdminData | null> {
         if (!isSupabaseConfigured()) {
+            console.warn('Supabase not configured - cannot fetch admin');
             return null;
         }
 
@@ -34,7 +47,7 @@ export class AdminService {
             return data;
         } catch (error) {
             console.error('Error fetching admin:', error);
-            return null;
+            throw new Error('Failed to fetch admin information.');
         }
     }
 
@@ -43,6 +56,7 @@ export class AdminService {
      */
     async getPendingSellers(): Promise<SellerData[]> {
         if (!isSupabaseConfigured()) {
+            console.warn('Supabase not configured - cannot fetch pending sellers');
             return [];
         }
 
@@ -57,7 +71,7 @@ export class AdminService {
             return data || [];
         } catch (error) {
             console.error('Error fetching pending sellers:', error);
-            return [];
+            throw new Error('Failed to fetch pending sellers.');
         }
     }
 
@@ -86,7 +100,7 @@ export class AdminService {
             };
         } catch (error) {
             console.error('Error fetching platform stats:', error);
-            return null;
+            throw new Error('Failed to fetch platform statistics.');
         }
     }
 
@@ -95,6 +109,7 @@ export class AdminService {
      */
     async getAllBuyers(): Promise<any[]> {
         if (!isSupabaseConfigured()) {
+            console.warn('Supabase not configured - cannot fetch buyers');
             return [];
         }
 
@@ -108,7 +123,7 @@ export class AdminService {
             return data || [];
         } catch (error) {
             console.error('Error fetching buyers:', error);
-            return [];
+            throw new Error('Failed to fetch all buyers.');
         }
     }
 
@@ -117,6 +132,7 @@ export class AdminService {
      */
     async getAllOrders(): Promise<any[]> {
         if (!isSupabaseConfigured()) {
+            console.warn('Supabase not configured - cannot fetch orders');
             return [];
         }
 
@@ -130,39 +146,34 @@ export class AdminService {
             return data || [];
         } catch (error) {
             console.error('Error fetching orders:', error);
-            return [];
+            throw new Error('Failed to fetch all orders.');
         }
     }
 
     /**
      * Ban/Suspend user
      */
-    async banUser(userId: string, userType: 'buyer' | 'seller'): Promise<boolean> {
+    async banUser(userId: string, userType: 'buyer' | 'seller'): Promise<void> {
         if (!isSupabaseConfigured()) {
-            return false;
+            throw new Error('Supabase not configured');
         }
 
         try {
-            // This would typically involve updating a status field
-            // For now, we'll update the profile or respective table
             const table = userType === 'buyer' ? 'buyers' : 'sellers';
 
             const { error } = await supabase
                 .from(table)
                 .update({
-                    // Add a status field in your schema if needed
                     updated_at: new Date().toISOString(),
                 })
                 .eq('id', userId);
 
             if (error) throw error;
-            return true;
         } catch (error) {
             console.error('Error banning user:', error);
-            return false;
+            throw new Error('Failed to ban user.');
         }
     }
 }
 
-// Export singleton instance
-export const adminService = new AdminService();
+export const adminService = AdminService.getInstance();

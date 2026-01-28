@@ -19,9 +19,7 @@ import { OrderNotification } from "@/stores/cartStore";
 import { useAuthStore } from "@/stores/sellerStore";
 import { getCurrentUser, isSupabaseConfigured } from "@/lib/supabase";
 import {
-  getNotifications as getDbNotifications,
-  markAllAsRead as markAllDbAsRead,
-  markAsRead as markDbAsRead,
+  notificationService,
   type Notification as DbNotification,
 } from "@/services/notificationService";
 
@@ -161,7 +159,7 @@ export function NotificationsDropdown() {
           userId,
           userType,
         });
-        const rows = await getDbNotifications(userId, userType, 50);
+        const rows = await notificationService.getNotifications(userId, userType, 50);
         if (mounted) {
           console.log("[Notifications] Fetched", rows.length, "notifications");
           setDbNotifications(rows);
@@ -215,7 +213,7 @@ export function NotificationsDropdown() {
           userId,
           userType,
         });
-        await markAllDbAsRead(userId, userType);
+        await notificationService.markAllAsRead(userId, userType);
         setDbNotifications((prev) =>
           prev.map((n) => ({
             ...n,
@@ -244,7 +242,7 @@ export function NotificationsDropdown() {
 
   const handleNotificationClickDb = async (n: DbNotification) => {
     try {
-      await markDbAsRead(n.id);
+      await notificationService.markAsRead(n.id);
       setDbNotifications((prev) =>
         prev.map((x) =>
           x.id === n.id
