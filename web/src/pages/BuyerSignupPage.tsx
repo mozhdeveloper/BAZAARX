@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { useBuyerStore } from "../stores/buyerStore";
 import { Checkbox } from "../components/ui/checkbox";
-import { signUp, signInWithProvider } from "../services/authService";
+import { authService } from "../services/authService";
 import { supabase } from "../lib/supabase";
 
 export default function BuyerSignupPage() {
@@ -91,7 +91,7 @@ export default function BuyerSignupPage() {
     try {
       const fullName = `${formData.firstName} ${formData.lastName}`;
 
-      const { user, error: signUpError } = await signUp(
+      const result = await authService.signUp(
         formData.email,
         formData.password,
         {
@@ -101,18 +101,13 @@ export default function BuyerSignupPage() {
         },
       );
 
-      if (signUpError) {
-        console.error("Signup error:", signUpError);
-        setError(signUpError.message || "Signup failed. Please try again.");
-        setIsLoading(false);
-        return;
-      }
-
-      if (!user) {
+      if (!result || !result.user) {
         setError("Signup failed. Please try again.");
         setIsLoading(false);
         return;
       }
+
+      const { user } = result;
 
       // Buyer record is already created by authService.signUp()
       const { data: buyerRow } = await supabase
@@ -166,14 +161,14 @@ export default function BuyerSignupPage() {
   const handleGoogleSignup = async () => {
     setError("");
     setIsLoading(true);
-    await signInWithProvider("google");
+    await authService.signInWithProvider("google");
     setTimeout(() => setIsLoading(false), 3000);
   };
 
   const handleFacebookSignup = async () => {
     setError("");
     setIsLoading(true);
-    await signInWithProvider("facebook");
+    await authService.signInWithProvider("facebook");
     setTimeout(() => setIsLoading(false), 3000);
   };
 

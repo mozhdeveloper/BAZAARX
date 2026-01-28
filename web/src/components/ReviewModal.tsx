@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, Star, Camera, Package, ThumbsUp } from "lucide-react";
 import { Button } from "./ui/button";
 import { useBuyerStore } from "../stores/buyerStore";
-import { submitOrderReview } from "../services/orderService";
+import { orderService } from "../services/orderService";
 import { supabase } from "../lib/supabase";
 
 interface ReviewModalProps {
@@ -59,7 +59,7 @@ export function ReviewModal({
       }
 
       // Submit review to Supabase using our service
-      const success = await submitOrderReview(
+      const success = await orderService.submitOrderReview(
         orderId,
         buyerId,
         rating,

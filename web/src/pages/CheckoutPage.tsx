@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { processCheckout } from "@/services/checkoutService"; // Import checkout service
+import { checkoutService } from "@/services/checkoutService"; // Import checkout service
 import {
   ArrowLeft,
   MapPin,
@@ -445,7 +445,7 @@ export default function CheckoutPage() {
         email: profile.email
       };
 
-      const result = await processCheckout(payload);
+      const result = await checkoutService.processCheckout(payload);
 
       if (!result.success) {
         throw new Error(result.error);

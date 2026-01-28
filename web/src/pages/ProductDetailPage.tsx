@@ -31,7 +31,7 @@ import { Button } from "../components/ui/button";
 import Header from "../components/Header";
 import { BazaarFooter } from "../components/ui/bazaar-footer";
 import { cn } from "../lib/utils";
-import { getProductById } from "../services/productService";
+import { productService } from "../services/productService";
 import { ProductWithSeller } from "../types/database.types";
 import { ProductReviews } from "@/components/reviews/ProductReviews";
 
@@ -816,7 +816,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
 
       setIsLoading(true);
       try {
-        const product = await getProductById(id);
+        const product = await productService.getProductById(id);
         if (product) {
           setDbProduct(product);
         }
@@ -971,7 +971,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
   const [replyText, setReplyText] = useState("");
   const [reviewFilter, setReviewFilter] = useState("all");
 
-  
+
 
   if (!normalizedProduct) {
     return (
@@ -1510,7 +1510,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
               </div>
             )}
 
-                        {activeTab === "reviews" && (
+            {activeTab === "reviews" && (
               <ProductReviews
                 productId={normalizedProduct.id}
                 rating={productData.rating}

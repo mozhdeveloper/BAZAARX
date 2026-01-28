@@ -55,10 +55,7 @@ import {
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { sellerLinks } from "@/config/sellerLinks";
-import {
-  markOrderAsShipped,
-  markOrderAsDelivered,
-} from "@/services/orderService";
+import { orderService } from "@/services/orderService";
 
 const Logo = () => (
   <Link
@@ -139,7 +136,7 @@ export function SellerOrders() {
     setTrackingModal((prev) => ({ ...prev, isLoading: true }));
 
     try {
-      const success = await markOrderAsShipped(
+      const success = await orderService.markOrderAsShipped(
         trackingModal.orderId,
         trackingModal.trackingNumber,
         seller!.id,
@@ -178,7 +175,7 @@ export function SellerOrders() {
     }
 
     try {
-      const success = await markOrderAsDelivered(orderId, seller!.id);
+      const success = await orderService.markOrderAsDelivered(orderId, seller!.id);
 
       if (success) {
         // Update local store
@@ -592,15 +589,15 @@ export function SellerOrders() {
                         className={cn(
                           "font-medium",
                           order.status === "pending" &&
-                            "bg-yellow-100 text-yellow-700 hover:bg-yellow-100",
+                          "bg-yellow-100 text-yellow-700 hover:bg-yellow-100",
                           order.status === "confirmed" &&
-                            "bg-blue-100 text-blue-700 hover:bg-blue-100",
+                          "bg-blue-100 text-blue-700 hover:bg-blue-100",
                           order.status === "shipped" &&
-                            "bg-purple-100 text-purple-700 hover:bg-purple-100",
+                          "bg-purple-100 text-purple-700 hover:bg-purple-100",
                           order.status === "delivered" &&
-                            "bg-green-100 text-green-700 hover:bg-green-100",
+                          "bg-green-100 text-green-700 hover:bg-green-100",
                           order.status === "cancelled" &&
-                            "bg-red-100 text-red-700 hover:bg-red-100",
+                          "bg-red-100 text-red-700 hover:bg-red-100",
                         )}
                       >
                         {order.status.charAt(0).toUpperCase() +
@@ -615,11 +612,11 @@ export function SellerOrders() {
                         className={cn(
                           "font-medium",
                           order.paymentStatus === "paid" &&
-                            "bg-green-100 text-green-700 hover:bg-green-100",
+                          "bg-green-100 text-green-700 hover:bg-green-100",
                           order.paymentStatus === "pending" &&
-                            "bg-yellow-100 text-yellow-700 hover:bg-yellow-100",
+                          "bg-yellow-100 text-yellow-700 hover:bg-yellow-100",
                           order.paymentStatus === "refunded" &&
-                            "bg-red-100 text-red-700 hover:bg-red-100",
+                          "bg-red-100 text-red-700 hover:bg-red-100",
                         )}
                       >
                         {order.paymentStatus.charAt(0).toUpperCase() +
@@ -741,8 +738,8 @@ export function SellerOrders() {
                 </h3>
                 <p className="text-gray-600 text-sm">
                   {searchQuery ||
-                  filterStatus !== "all" ||
-                  channelFilter !== "all"
+                    filterStatus !== "all" ||
+                    channelFilter !== "all"
                     ? "Try adjusting your search or filters"
                     : "Orders will appear here when customers make purchases"}
                 </p>

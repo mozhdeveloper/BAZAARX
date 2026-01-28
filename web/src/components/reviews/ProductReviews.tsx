@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Star, ThumbsUp, MessageCircle, Flag, MoreHorizontal, User, Filter } from "lucide-react";
-import { getProductReviews } from "@/services/reviewService";
+import { reviewService } from "@/services/reviewService";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea"; // Assuming exists
 import { cn } from "@/lib/utils"; // Assuming exists
@@ -46,7 +46,7 @@ export function ProductReviews({ productId, rating, reviewCount }: ProductReview
 
     const fetchReviews = async () => {
         setLoading(true);
-        const result = await getProductReviews(productId, page, 5); // 5 per page
+        const result = await reviewService.getProductReviews(productId, page, 5); // 5 per page
         if (page === 1) {
             setReviews(result.reviews);
         } else {

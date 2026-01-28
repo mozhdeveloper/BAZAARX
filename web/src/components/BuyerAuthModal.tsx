@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "./ui/button";
-import { signUp, signIn } from "../services/authService";
+import { authService } from "../services/authService";
 import { supabase } from "../lib/supabase";
 
 interface BuyerAuthModalProps {
@@ -67,22 +67,18 @@ export function BuyerAuthModal({
         }
 
         // Supabase signup for buyer
-        const { user, error: signUpError } = await signUp(email, password, {
+        const result = await authService.signUp(email, password, {
           full_name: fullName,
           user_type: "buyer",
         });
 
-        if (signUpError) {
-          setError(signUpError.message || "Signup failed");
+        if (!result || !result.user) {
+          setError("Signup failed");
           setIsLoading(false);
           return;
         }
 
-        if (!user) {
-          setError("Failed to create account");
-          setIsLoading(false);
-          return;
-        }
+        const { user } = result;
 
         // Buyer record is already created by authService.signUp()
         // No need to create it again here
@@ -91,19 +87,15 @@ export function BuyerAuthModal({
         onAuthSuccess?.(user.id, email);
       } else {
         // Login with Supabase
-        const { user, error: signInError } = await signIn(email, password);
+        const result = await authService.signIn(email, password);
 
-        if (signInError) {
+        if (!result || !result.user) {
           setError("Invalid email or password");
           setIsLoading(false);
           return;
         }
 
-        if (!user) {
-          setError("Login failed");
-          setIsLoading(false);
-          return;
-        }
+        const { user } = result;
 
         // Verify user is a buyer
         const { data: buyerData, error: buyerError } = await supabase
