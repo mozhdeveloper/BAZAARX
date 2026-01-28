@@ -18,6 +18,8 @@ import {
   RotateCcw,
   X,
   ShoppingBag,
+  Store,
+  ChevronRight,
 } from "lucide-react";
 import { useCartStore } from "../stores/cartStore";
 import { Button } from "../components/ui/button";
@@ -150,7 +152,8 @@ export default function OrdersPage() {
           .select(
             `
             *,
-            items:order_items (*)
+            items:order_items (*),
+            seller:sellers (store_name, id)
           `,
           )
           .eq("buyer_id", profile.id)
@@ -228,6 +231,8 @@ export default function OrdersPage() {
               type: pm?.type || "cod",
               details: pm?.details ? JSON.stringify(pm.details) : "",
             },
+            storeName: (order as any).seller?.store_name || "Unknown Store",
+            sellerId: (order as any).seller?.id || order.seller_id,
           };
         });
 
@@ -506,71 +511,63 @@ export default function OrdersPage() {
               >
                 {order.status === "reviewed" ? (
                   <div className="flex flex-col gap-2">
-                    <div
-                      className="flex items-center justify-between cursor-pointer hover:bg-gray-50 rounded-lg -mx-2 px-2 py-1 transition-colors"
-                      onClick={() =>
-                        navigate(`/order/${encodeURIComponent(order.id)}`)
-                      }
-                    >
-                      <div className="flex items-center gap-3">
-                        <h3 className="font-semibold text-gray-900">
-                          {order.orderNumber || order.id}
-                        </h3>
+                    <div className="border-b border-gray-100 pb-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 group/store cursor-pointer" onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/seller/${(order as any).sellerId}`);
+                      }}>
+                        <span className="font-bold text-gray-900 group-hover/store:text-[#FF5722]">{(order as any).storeName}</span>
+                        <button className="text-[10px] sm:text-xs text-gray-400 flex items-center gap-1 hover:text-[#FF5722] transition-colors">
+                          View Store <ChevronRight className="w-3 h-3" />
+                        </button>
+                      </div>
+
+                      <div className="flex items-center gap-2 sm:gap-3 self-end sm:self-auto">
                         <div
                           className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border ${getStatusColor(order.status)}`}
                         >
                           {getStatusIcon(order.status)}
                           <span className="capitalize">Reviewed</span>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <Calendar className="w-3.5 h-3.5" />
-                        <span>{formatDate(order.createdAt)}</span>
+                        <span className="hidden sm:inline text-xs text-gray-300">|</span>
+                        <span className="text-sm text-gray-500 font-mono hidden sm:inline">{order.orderNumber || order.id}</span>
                       </div>
                     </div>
                     <div
-                      className="space-y-2 cursor-pointer hover:bg-gray-50 rounded-lg -mx-2 px-2 py-1 transition-colors"
+                      className="space-y-0 cursor-pointer hover:bg-gray-50 rounded-lg -mx-2 px-2 py-1 transition-colors"
                       onClick={() =>
                         navigate(`/order/${encodeURIComponent(order.id)}`)
                       }
                     >
-                      {order.items.slice(0, 1).map((item) => (
+                      {order.items.map((item) => (
                         <div
                           key={item.id}
-                          className="flex items-center justify-between gap-3 w-full"
+                          className="flex items-center justify-between gap-3 w-full border-b border-gray-50 pb-2 last:border-0 last:pb-0"
                         >
                           <div className="flex items-center gap-3 flex-1 min-w-0">
                             <img
                               src={item.image}
                               alt={item.name}
-                              className="w-10 h-10 object-cover rounded shadow-sm border border-gray-100"
+                              className="w-12 h-12 object-cover rounded-md shadow-sm border border-gray-100"
                             />
-                            <div className="flex flex-wrap items-baseline gap-x-2">
-                              <span className="text-sm font-medium text-gray-800">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:gap-4">
+                              <span className="text-sm font-medium text-gray-800 line-clamp-2">
                                 {item.name}
                               </span>
-                              <span className="text-sm text-gray-500">
+                              <span className="text-xs text-gray-500">
                                 x{item.quantity}
-                              </span>
-                              <span className="text-base font-bold text-[#FF6a00]">
-                                ₱{item.price.toLocaleString()}
                               </span>
                             </div>
                           </div>
-                          <div className="text-base sm:text-lg font-bold text-gray-900 whitespace-nowrap pl-2">
-                            Total:{" "}
-                            <span className="text-[#FF6a00]">
-                              ₱{order.total.toLocaleString()}
-                            </span>
+                          <div className="text-sm font-semibold text-gray-900 whitespace-nowrap pl-2">
+                            ₱{item.price.toLocaleString()}
                           </div>
                         </div>
                       ))}
-                      {order.items.length > 1 && (
-                        <div className="pl-13 text-xs text-gray-500 font-medium pt-1">
-                          + {order.items.length - 1} more item
-                          {order.items.length - 1 > 1 ? "s" : ""}
-                        </div>
-                      )}
+                      <div className="flex justify-end items-center pt-2 border-t border-gray-50">
+                        <span className="text-sm text-gray-500 mr-2">Order Total:</span>
+                        <span className="text-lg font-bold text-[#FF5722]">₱{order.total.toLocaleString()}</span>
+                      </div>
                     </div>
                     {order.review && (
                       <div className="mt-2 pl-13 sm:pl-0">
@@ -620,19 +617,20 @@ export default function OrdersPage() {
                 ) : (
                   <div className="flex flex-col gap-2">
                     {/* Compact Header */}
-                    <div
-                      className="flex items-center justify-between cursor-pointer hover:bg-gray-50 rounded-lg -mx-2 px-2 py-1 transition-colors"
-                      onClick={() =>
-                        navigate(`/order/${encodeURIComponent(order.id)}`)
-                      }
-                    >
-                      <div className="flex items-center gap-3">
-                        <h3 className="font-semibold text-gray-900">
-                          {order.orderNumber || order.id}
-                        </h3>
-                        {/* New Order Indicator */}
+                    <div className="border-b border-gray-100 pb-2 mb-0 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 group/store cursor-pointer" onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/seller/${(order as any).sellerId}`);
+                      }}>
+                        <span className="font-bold text-gray-900 group-hover/store:text-[#FF5722]">{(order as any).storeName}</span>
+                        <button className="text-[10px] sm:text-xs text-gray-400 flex items-center gap-1 hover:text-[#FF5722] transition-colors">
+                          View Store <ChevronRight className="w-3 h-3" />
+                        </button>
+                      </div>
+
+                      <div className="flex items-center gap-2 sm:gap-3 self-end sm:self-auto">
                         {isNewOrder(order) && (
-                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-orange-500 text-white animate-pulse">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-orange-500 text-white animate-pulse">
                             <span className="w-1.5 h-1.5 rounded-full bg-white"></span>
                             NEW
                           </span>
@@ -647,56 +645,46 @@ export default function OrdersPage() {
                               : order.status}
                           </span>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <Calendar className="w-3.5 h-3.5" />
-                        <span>{formatDate(order.createdAt)}</span>
+                        <span className="hidden sm:inline text-xs text-gray-300">|</span>
+                        <span className="text-sm text-gray-500 font-mono hidden sm:inline">{order.orderNumber || order.id}</span>
                       </div>
                     </div>
 
                     <div
-                      className="space-y-2 cursor-pointer hover:bg-gray-50 rounded-lg -mx-2 px-2 py-1 transition-colors"
+                      className="space-y-0 cursor-pointer hover:bg-gray-50 rounded-lg -mx-2 px-2 py-1 transition-colors"
                       onClick={() =>
                         navigate(`/order/${encodeURIComponent(order.id)}`)
                       }
                     >
-                      {order.items.slice(0, 1).map((item) => (
+                      {order.items.map((item) => (
                         <div
                           key={item.id}
-                          className="flex items-center justify-between gap-3 w-full"
+                          className="flex items-center justify-between gap-3 w-full border-b border-gray-50 pb-2 last:border-0 last:pb-0"
                         >
                           <div className="flex items-center gap-3 flex-1 min-w-0">
                             <img
                               src={item.image}
                               alt={item.name}
-                              className="w-10 h-10 object-cover rounded shadow-sm border border-gray-100"
+                              className="w-12 h-12 object-cover rounded-md shadow-sm border border-gray-100"
                             />
-                            <div className="flex flex-wrap items-baseline gap-x-2">
-                              <span className="text-sm font-medium text-gray-800">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:gap-4">
+                              <span className="text-sm font-medium text-gray-800 line-clamp-2">
                                 {item.name}
                               </span>
-                              <span className="text-sm text-gray-500">
+                              <span className="text-xs text-gray-500">
                                 x{item.quantity}
-                              </span>
-                              <span className="text-base font-bold text-[#FF6a00]">
-                                ₱{item.price.toLocaleString()}
                               </span>
                             </div>
                           </div>
-                          <div className="text-base sm:text-lg font-bold text-gray-900 whitespace-nowrap pl-2">
-                            Total:{" "}
-                            <span className="text-[#FF6a00]">
-                              ₱{order.total.toLocaleString()}
-                            </span>
+                          <div className="text-sm font-semibold text-gray-900 whitespace-nowrap pl-2">
+                            ₱{item.price.toLocaleString()}
                           </div>
                         </div>
                       ))}
-                      {order.items.length > 1 && (
-                        <div className="pl-13 text-xs text-gray-500 font-medium pt-1">
-                          + {order.items.length - 1} more item
-                          {order.items.length - 1 > 1 ? "s" : ""}
-                        </div>
-                      )}
+                      <div className="flex justify-end items-center pt-2 border-t border-gray-50">
+                        <span className="text-sm text-gray-500 mr-2">Order Total:</span>
+                        <span className="text-lg font-bold text-[#FF5722]">₱{order.total.toLocaleString()}</span>
+                      </div>
                     </div>
 
                     {/* Order Footer */}
@@ -744,7 +732,7 @@ export default function OrdersPage() {
                         )}
                       </div>
 
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 -mr-1 -mb-1 -mt-2">
                         {/* Pending Payment - Show Cancel and Track */}
                         {order.status === "pending" && !order.isPaid ? (
                           <>
@@ -752,7 +740,7 @@ export default function OrdersPage() {
                               onClick={() => alert("Order canceled")}
                               size="sm"
                               variant="outline"
-                              className="border-gray-300 text-gray-700 hover:bg-gray-50"
+                              className="border-red-500 text-red-500 hover:bg-red-500 hover:text-white text-xs font-semibold"
                             >
                               Cancel Order
                             </Button>
@@ -760,113 +748,113 @@ export default function OrdersPage() {
                         ) : order.status === "pending" ||
                           order.status === "confirmed" ||
                           order.status ===
-                            "shipped" ? /* In Progress - Track Order */
-                        null : order.status === "delivered" ? (
-                          /* Delivered - See Details and Review */
-                          <>
-                            <Button
-                              onClick={() => {
-                                setOrderToReview(order);
-                                setReviewModalOpen(true);
-                              }}
-                              size="sm"
-                              variant="outline"
-                              className="border-[#FF5722] text-[#FF5722] hover:bg-[#ff6a00] hover:text-white hover:border-[#ff6a00]"
-                            >
-                              <Star className="w-4 h-4 mr-1" />
-                              Write Review
-                            </Button>
-                            {isWithinReturnWindow(order) && (
+                          "shipped" ? /* In Progress - Track Order */
+                          null : order.status === "delivered" ? (
+                            /* Delivered - See Details and Review */
+                            <>
                               <Button
                                 onClick={() => {
-                                  setOrderToReturn(order);
-                                  setReturnModalOpen(true);
+                                  setOrderToReview(order);
+                                  setReviewModalOpen(true);
                                 }}
                                 size="sm"
                                 variant="outline"
                                 className="border-[#FF5722] text-[#FF5722] hover:bg-[#ff6a00] hover:text-white hover:border-[#ff6a00]"
                               >
-                                <RotateCcw className="w-4 h-4 mr-1" />
-                                Return/Refund
+                                <Star className="w-4 h-4 mr-1" />
+                                Write Review
                               </Button>
-                            )}
-                          </>
-                        ) : order.status === "cancelled" ? (
-                          /* Canceled - View Details */
-                          <Button
-                            onClick={() =>
-                              navigate(`/order/${encodeURIComponent(order.id)}`)
-                            }
-                            variant="outline"
-                            size="sm"
-                            className="border-gray-300 text-gray-500 hover:bg-gray-50"
-                          >
-                            <Eye className="w-4 h-4 mr-1" />
-                            View Details
-                          </Button>
-                        ) : order.status === "returned" ? (
-                          /* Returned - View Return Details */
-                          <Button
-                            onClick={() => setViewReturnDetails(order)}
-                            variant="outline"
-                            size="sm"
-                            className="border-[#FF5722] text-[#FF5722] hover:bg-orange-50"
-                          >
-                            <Eye className="w-4 h-4 mr-1" />
-                            View Details
-                          </Button>
-                        ) : order.status === "reviewed" ? (
-                          /* Reviewed - Show Details */
-                          <div className="flex flex-col items-end gap-3 text-right w-full sm:w-auto mt-4 sm:mt-0">
-                            <div className="flex flex-col items-end gap-1">
-                              <div className="flex items-center gap-1 bg-yellow-50 px-3 py-1.5 rounded-lg border border-yellow-100 mb-1">
-                                <span className="text-xs font-semibold text-yellow-700 uppercase tracking-wide mr-1">
-                                  Your Rating
-                                </span>
-                                <div className="flex">
-                                  {[1, 2, 3, 4, 5].map((star) => (
-                                    <Star
-                                      key={star}
-                                      className={`w-4 h-4 ${star <= (order.review?.rating || 5) ? "fill-yellow-400 text-yellow-400" : "text-gray-200"}`}
-                                    />
-                                  ))}
-                                </div>
-                              </div>
-                              {order.review?.submittedAt && (
-                                <span className="text-xs text-gray-400">
-                                  Submitted on{" "}
-                                  {new Date(
-                                    order.review.submittedAt,
-                                  ).toLocaleDateString()}
-                                </span>
+                              {isWithinReturnWindow(order) && (
+                                <Button
+                                  onClick={() => {
+                                    setOrderToReturn(order);
+                                    setReturnModalOpen(true);
+                                  }}
+                                  size="sm"
+                                  variant="outline"
+                                  className="border-[#FF5722] text-[#FF5722] hover:bg-[#ff6a00] hover:text-white hover:border-[#ff6a00]"
+                                >
+                                  <RotateCcw className="w-4 h-4 mr-1" />
+                                  Return/Refund
+                                </Button>
                               )}
-                            </div>
-
-                            {order.review?.comment && (
-                              <p className="text-sm text-gray-700 italic bg-gray-50 p-3 rounded-lg border border-gray-100 text-left w-full sm:max-w-md">
-                                "{order.review.comment}"
-                              </p>
-                            )}
-
-                            {order.review?.images &&
-                              order.review.images.length > 0 && (
-                                <div className="flex gap-2 justify-end mt-1">
-                                  {order.review.images.map((img, idx) => (
-                                    <div
-                                      key={idx}
-                                      className="w-12 h-12 rounded-lg border border-gray-200 overflow-hidden"
-                                    >
-                                      <img
-                                        src={img}
-                                        alt={`Review ${idx}`}
-                                        className="w-full h-full object-cover"
+                            </>
+                          ) : order.status === "cancelled" ? (
+                            /* Canceled - View Details */
+                            <Button
+                              onClick={() =>
+                                navigate(`/order/${encodeURIComponent(order.id)}`)
+                              }
+                              variant="outline"
+                              size="sm"
+                              className="border-gray-300 text-gray-500 hover:bg-gray-50"
+                            >
+                              <Eye className="w-4 h-4 mr-1" />
+                              View Details
+                            </Button>
+                          ) : order.status === "returned" ? (
+                            /* Returned - View Return Details */
+                            <Button
+                              onClick={() => setViewReturnDetails(order)}
+                              variant="outline"
+                              size="sm"
+                              className="border-[#FF5722] text-[#FF5722] hover:bg-orange-50"
+                            >
+                              <Eye className="w-4 h-4 mr-1" />
+                              View Details
+                            </Button>
+                          ) : order.status === "reviewed" ? (
+                            /* Reviewed - Show Details */
+                            <div className="flex flex-col items-end gap-3 text-right w-full sm:w-auto mt-4 sm:mt-0">
+                              <div className="flex flex-col items-end gap-1">
+                                <div className="flex items-center gap-1 bg-yellow-50 px-3 py-1.5 rounded-lg border border-yellow-100 mb-1">
+                                  <span className="text-xs font-semibold text-yellow-700 uppercase tracking-wide mr-1">
+                                    Your Rating
+                                  </span>
+                                  <div className="flex">
+                                    {[1, 2, 3, 4, 5].map((star) => (
+                                      <Star
+                                        key={star}
+                                        className={`w-4 h-4 ${star <= (order.review?.rating || 5) ? "fill-yellow-400 text-yellow-400" : "text-gray-200"}`}
                                       />
-                                    </div>
-                                  ))}
+                                    ))}
+                                  </div>
                                 </div>
+                                {order.review?.submittedAt && (
+                                  <span className="text-xs text-gray-400">
+                                    Submitted on{" "}
+                                    {new Date(
+                                      order.review.submittedAt,
+                                    ).toLocaleDateString()}
+                                  </span>
+                                )}
+                              </div>
+
+                              {order.review?.comment && (
+                                <p className="text-sm text-gray-700 italic bg-gray-50 p-3 rounded-lg border border-gray-100 text-left w-full sm:max-w-md">
+                                  "{order.review.comment}"
+                                </p>
                               )}
-                          </div>
-                        ) : null}
+
+                              {order.review?.images &&
+                                order.review.images.length > 0 && (
+                                  <div className="flex gap-2 justify-end mt-1">
+                                    {order.review.images.map((img, idx) => (
+                                      <div
+                                        key={idx}
+                                        className="w-12 h-12 rounded-lg border border-gray-200 overflow-hidden"
+                                      >
+                                        <img
+                                          src={img}
+                                          alt={`Review ${idx}`}
+                                          className="w-full h-full object-cover"
+                                        />
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                            </div>
+                          ) : null}
                       </div>
                     </div>
                   </div>
@@ -998,14 +986,14 @@ export default function OrdersPage() {
               )}
               {(selectedOrderData.status === "shipped" ||
                 selectedOrderData.status === "delivered") && (
-                <Button
-                  className="bg-[var(--brand-primary)] hover:bg-[var(--brand-secondary)] text-white"
-                  onClick={() => setTrackingOrder(selectedOrderData.id)}
-                >
-                  <MapPin className="w-4 h-4 mr-2" />
-                  Track Order
-                </Button>
-              )}
+                  <Button
+                    className="bg-[var(--brand-primary)] hover:bg-[var(--brand-secondary)] text-white"
+                    onClick={() => setTrackingOrder(selectedOrderData.id)}
+                  >
+                    <MapPin className="w-4 h-4 mr-2" />
+                    Track Order
+                  </Button>
+                )}
               <Button
                 variant="outline"
                 className="border-gray-300 text-gray-700 hover:bg-gray-50"

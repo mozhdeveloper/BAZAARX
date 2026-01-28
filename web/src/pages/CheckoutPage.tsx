@@ -23,6 +23,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { useToast } from "@/hooks/use-toast";
 
 // Dummy voucher codes
 const VOUCHERS = {
@@ -97,6 +98,7 @@ const paymentMethods = [
 ];
 
 export default function CheckoutPage() {
+  const { toast } = useToast();
   const navigate = useNavigate();
   const { createOrder } = useCartStore();
   const {
@@ -501,7 +503,7 @@ export default function CheckoutPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      <Header />
+      {!isAddressModalOpen && <Header />}
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Header */}
@@ -1103,7 +1105,7 @@ export default function CheckoutPage() {
 
                 <Button
                   variant="outline"
-                  className="w-full border-dashed border-2 py-8 text-gray-500 hover:text-[var(--brand-primary)]"
+                  className="w-full border-dashed border-2 py-8 text-gray-500 hover:text-white"
                   onClick={() => setAddressView('add')}
                 >
                   <Plus className="w-4 h-4 mr-2" /> Add New Address
