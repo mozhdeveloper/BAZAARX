@@ -49,7 +49,7 @@ interface AuthState {
   loginAsGuest: () => void;
   updateProfile: (updates: Partial<User>) => void;
   // Kept for backward compatibility if any, but logic is now external
-  login: (email: string, password: string) => Promise<boolean>; 
+  login: (email: string, password: string) => Promise<boolean>;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -63,10 +63,10 @@ export const useAuthStore = create<AuthState>()(
       setUser: (user: User) => {
         // Mock saved cards if none exist (for demo)
         if (!user.savedCards) {
-            user.savedCards = [
-                { id: 'card_1', last4: '4242', brand: 'Visa', expiry: '12/28' },
-                { id: 'card_2', last4: '8888', brand: 'MasterCard', expiry: '10/26' },
-            ];
+          user.savedCards = [
+            { id: 'card_1', last4: '4242', brand: 'Visa', expiry: '12/28' },
+            { id: 'card_2', last4: '8888', brand: 'MasterCard', expiry: '10/26' },
+          ];
         }
         set({ user, isAuthenticated: true, isGuest: false });
       },

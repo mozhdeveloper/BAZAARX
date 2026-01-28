@@ -55,21 +55,21 @@ export interface Category {
   icon: string;
 }
 
-export type ReturnStatus = 
-  | 'pending_review' 
-  | 'seller_response_required' 
-  | 'approved' 
-  | 'rejected' 
-  | 'item_returned' 
-  | 'refund_processing' 
-  | 'refunded' 
+export type ReturnStatus =
+  | 'pending_review'
+  | 'seller_response_required'
+  | 'approved'
+  | 'rejected'
+  | 'item_returned'
+  | 'refund_processing'
+  | 'refunded'
   | 'escalated';
 
-export type ReturnReason = 
-  | 'defective' 
-  | 'damaged' 
-  | 'incorrect' 
-  | 'not_as_described' 
+export type ReturnReason =
+  | 'defective'
+  | 'damaged'
+  | 'incorrect'
+  | 'not_as_described'
   | 'other';
 
 export type ReturnType = 'refund_only' | 'return_refund' | 'replacement';
