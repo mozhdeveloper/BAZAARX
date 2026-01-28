@@ -197,7 +197,7 @@ const dummyOrders: Order[] = [
     ],
     total: 1847,
     shippingFee: 50,
-    status: 'canceled',
+    status: 'cancelled',
     isPaid: false, // COD - Canceled before payment
     scheduledDate: '12/18/2025',
     shippingAddress: {

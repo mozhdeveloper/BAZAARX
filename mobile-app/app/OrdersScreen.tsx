@@ -101,8 +101,8 @@ export default function OrdersScreen({ navigation, route }: Props) {
             out_for_delivery: 'shipped',
             delivered: 'delivered',
             completed: 'delivered',
-            cancelled: 'canceled',
-            canceled: 'canceled',
+            cancelled: 'cancelled',
+            canceled: 'cancelled',
             returned: 'delivered',
             refunded: 'delivered',
           };
@@ -160,7 +160,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
               : parseFloat(order.total_amount || '0') || items.reduce((sum: number, i: any) => sum + (i.price * i.quantity), 0) + shippingFee;
           return {
             id: order.id,
-            transactionId: order.id,
+            transactionId: order.transaction_id || order.id,
             items,
             total: totalNum,
             shippingFee,
@@ -215,7 +215,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
         );
         break;
       case 'cancelled':
-        baseOrders = dbOrders.filter(o => o.status === 'canceled');
+        baseOrders = dbOrders.filter(o => o.status === 'cancelled');
         break;
       default:
         baseOrders = [];
@@ -243,10 +243,8 @@ export default function OrdersScreen({ navigation, route }: Props) {
       order.items.forEach(item => {
         addItem(item as any); 
       });
-      Alert.alert('Added to Cart', 'Items have been added back to your cart.', [
-        { text: 'View Cart', onPress: () => navigation.navigate('MainTabs', { screen: 'Cart' }) },
-        { text: 'OK', style: 'cancel' }
-      ]);
+      // Direct the buyer to checkout
+      navigation.navigate('Checkout');
     }
   };
 
@@ -272,11 +270,55 @@ export default function OrdersScreen({ navigation, route }: Props) {
       case 'delivered': 
       case 'approved':
       case 'refunded': return { bg: '#F0FDF4', text: '#166534' }; // Green
-      case 'canceled': 
+      case 'refunded': return { bg: '#F0FDF4', text: '#166534' }; // Green
+      case 'cancelled': 
       case 'rejected': return { bg: '#FEE2E2', text: '#DC2626' }; // Red
       case 'pending_review': return { bg: '#FEF3C7', text: '#D97706' }; // Yellow
       default: return { bg: '#F3F4F6', text: '#374151' }; // Gray
     }
+  };
+
+  const handleCancelOrder = (order: Order) => {
+    Alert.alert(
+      'Cancel Order',
+      'Are you sure you want to cancel? Don/t worry, you have not been charged for this order. You can easily buy these items again later.',
+      [
+        { text: 'Keep Order', style: 'cancel' },
+        {
+          text: 'Yes, Cancel Order',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // 1. Update Supabase
+              const { error } = await supabase
+                .from('orders')
+                .update({ status: 'cancelled' })
+                .eq('id', order.id);
+
+              if (error) throw error;
+
+              // 2. Update Local Store
+              updateOrderStatus(order.id, 'cancelled');
+
+              // 3. Update Local State (dbOrders) to reflect change immediately
+              setDbOrders(prev => prev.map(o => 
+                o.id === order.id ? { ...o, status: 'cancelled' } : o
+              ));
+              
+              Alert.alert('Order Cancelled', 'Your order has been moved to the Cancelled list.');
+            } catch (e) {
+              console.log('Error canceling order:', e);
+              // Fallback for demo/offline: just update local state
+              updateOrderStatus(order.id, 'cancelled');
+              setDbOrders(prev => prev.map(o => 
+                o.id === order.id ? { ...o, status: 'cancelled' } : o
+              ));
+              Alert.alert('Order Cancelled', 'Your order has been moved to the Cancelled list (Offline Mode).');
+            }
+          }
+        }
+      ]
+    );
   };
 
   const renderActionButtons = (order: Order) => {
@@ -302,11 +344,18 @@ export default function OrdersScreen({ navigation, route }: Props) {
     }
     switch (order.status) {
       case 'pending':
-        // For "To Pay", maybe show "Pay Now" or "Details"
         return (
-          <Pressable style={styles.outlineButton} onPress={() => navigation.navigate('OrderDetail', { order })}>
-            <Text style={styles.outlineButtonText}>View Details</Text>
-          </Pressable>
+          <View style={styles.buttonRow}>
+            <Pressable 
+              style={[styles.outlineButton, { flex: 1, borderColor: '#EF4444', marginRight: 8, backgroundColor: '#FEF2F2' }]} 
+              onPress={() => handleCancelOrder(order)}
+            >
+              <Text style={[styles.outlineButtonText, { color: '#EF4444' }]}>Cancel</Text>
+            </Pressable>
+            <Pressable style={[styles.outlineButton, { flex: 1 }]} onPress={() => navigation.navigate('OrderDetail', { order })}>
+              <Text style={styles.outlineButtonText}>View Details</Text>
+            </Pressable>
+          </View>
         );
       case 'processing':
       case 'shipped':
@@ -358,7 +407,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
               <Clock size={12} color="#9CA3AF" />
               <Text style={styles.dateText}>Requested: {new Date(returnReq.createdAt).toLocaleDateString()}</Text>
             </View>
-            <Text style={[styles.totalAmount, { color: BRAND_COLOR }]}>Refund: â‚±{returnReq.amount.toLocaleString()}</Text>
+            <Text style={[styles.totalAmount, { color: BRAND_COLOR }]}>Refund: ₱{returnReq.amount.toLocaleString()}</Text>
           </View>
         </View>
         <View style={styles.cardFooter}>
@@ -478,7 +527,11 @@ export default function OrdersScreen({ navigation, route }: Props) {
                       {order.status.toUpperCase()}
                     </Text>
                   </View>
-                  <Text style={styles.orderIdText}>#{order.transactionId}</Text>
+                  <Text style={styles.orderIdText}>
+                    {order.transactionId.length > 20 
+                      ? `TRK-${order.transactionId.slice(0, 8).toUpperCase()}` 
+                      : order.transactionId.startsWith('TXN') ? order.transactionId : `#${order.transactionId}`}
+                  </Text>
                 </View>
                 
                 <View style={styles.cardBody}>
@@ -491,7 +544,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
                       <Clock size={12} color="#9CA3AF" />
                       <Text style={styles.dateText}>{order.scheduledDate}</Text>
                     </View>
-                    <Text style={[styles.totalAmount, { color: BRAND_COLOR }]}>â‚±{order.total.toLocaleString()}</Text>
+                    <Text style={[styles.totalAmount, { color: BRAND_COLOR }]}>₱{order.total.toLocaleString()}</Text>
                   </View>
                 </View>
                 <View style={styles.cardFooter}>
