@@ -353,17 +353,6 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
 
                         <button
                           onClick={() => {
-                            setShowSupportModal(true);
-                            setShowProfileMenu(false);
-                          }}
-                          className="w-full flex items-center gap-3 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-orange-50 hover:text-[#ff6a00] rounded-lg transition-all"
-                        >
-                          <Headset className="h-3.5 w-3.5" />
-                          Support
-                        </button>
-
-                        <button
-                          onClick={() => {
                             logout();
                             setShowProfileMenu(false);
                             navigate('/login');
