@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Search, 
-  X, 
-  TrendingUp, 
-  Clock, 
-  Star, 
+import {
+  Search,
+  X,
+  TrendingUp,
+  Clock,
+  Star,
   Filter,
   ChevronDown,
   Sparkles,
@@ -16,8 +16,16 @@ import {
 } from 'lucide-react';
 import Header from '../components/Header';
 import { BazaarFooter } from '../components/ui/bazaar-footer';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../components/ui/select";
 import ProductRequestModal from '../components/ProductRequestModal';
 import VisualSearchModal from '../components/VisualSearchModal';
+import { Slider } from "../components/ui/slider";
 import { trendingProducts, bestSellerProducts, newArrivals } from '../data/products';
 
 
@@ -102,7 +110,7 @@ const SearchPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const hasInitialized = useRef(false);
-  
+
   // Initialize searchQuery from URL if present
   const [searchQuery, setSearchQuery] = useState(() => {
     return new URLSearchParams(location.search).get('q') || '';
@@ -114,10 +122,10 @@ const SearchPage: React.FC = () => {
   const [showResults, setShowResults] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [sortBy, setSortBy] = useState('relevance');
-  const [priceRange, setPriceRange] = useState('all');
+  const [priceRange, setPriceRange] = useState<number[]>([0, 100000]);
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [showVisualSearchModal, setShowVisualSearchModal] = useState(false);
-  
+
   // Flash Sale Countdown
   const [timeLeft, setTimeLeft] = useState({
     hours: 2,
@@ -135,11 +143,11 @@ const SearchPage: React.FC = () => {
     // Simulate search with animation
     setTimeout(() => {
       const allProducts = [...trendingProducts, ...bestSellerProducts, ...newArrivals] as unknown as SearchProduct[];
-      const results = allProducts.filter(product => 
+      const results = allProducts.filter(product =>
         product.name.toLowerCase().includes(query.toLowerCase()) ||
         product.category.toLowerCase().includes(query.toLowerCase())
       );
-      
+
       setSearchResults(results);
       setIsSearching(false);
       setShowResults(true);
@@ -152,18 +160,18 @@ const SearchPage: React.FC = () => {
       // Perform search in async manner
       const searchTimeout = setTimeout(() => {
         const allProducts = [...trendingProducts, ...bestSellerProducts, ...newArrivals] as unknown as SearchProduct[];
-        const results = allProducts.filter(product => 
+        const results = allProducts.filter(product =>
           product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
           product.category.toLowerCase().includes(searchQuery.toLowerCase())
         );
-        
+
         setSearchResults(results);
         setIsSearching(false);
         setShowResults(true);
       }, 800);
-      
+
       hasInitialized.current = true;
-      
+
       return () => clearTimeout(searchTimeout);
     }
   }, [searchQuery]);
@@ -199,47 +207,47 @@ const SearchPage: React.FC = () => {
     <div className="min-h-screen bg-gray-50">
       <Header />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-2 pb-8">
+
         {/* Search Header */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-8"
+          className="mb-6"
         >
           {/* Large Search Bar */}
-          <div className="relative max-w-3xl mx-auto mb-6">
-            <Search className="absolute left-6 top-1/2 transform -translate-y-1/2 text-gray-400 w-6 h-6" />
+          <div className="relative max-w-2xl mx-auto mb-6">
+            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5 pointer-events-none" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyPress={handleKeyPress}
               placeholder="Search for products, brands, categories..."
-              className="w-full pl-16 pr-56 py-5 text-lg rounded-2xl border-2 border-gray-200 focus:border-orange-500 focus:outline-none transition-colors shadow-sm"
+              className="w-full pl-12 pr-44 py-3 text-sm bg-white border-2 border-gray-100 focus:border-[#ff6a00] rounded-full text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-4 focus:ring-orange-100 transition-all shadow-sm"
               autoFocus
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="absolute right-52 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                className="absolute right-36 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             )}
-            
+
             {/* Camera/Visual Search Button */}
             <button
               onClick={() => setShowVisualSearchModal(true)}
-              className="absolute right-36 top-1/2 transform -translate-y-1/2 p-3 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors group"
+              className="absolute right-28 top-1/2 transform -translate-y-1/2 p-2 text-gray-400 hover:text-[#ff6a00] rounded-full hover:bg-orange-50 transition-colors"
               title="Search by image"
             >
               <Camera className="w-5 h-5" />
             </button>
-            
+
             <button
               onClick={() => handleSearch(searchQuery)}
-              className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-gradient-to-r from-orange-500 to-red-500 text-white px-8 py-3 rounded-xl font-semibold hover:shadow-lg transition-all"
+              className="absolute right-1.5 top-1/2 transform -translate-y-1/2 bg-gradient-to-r from-orange-500 to-red-500 text-white px-6 py-2 rounded-full text-sm font-semibold hover:shadow-md transition-all active:scale-95"
             >
               Search
             </button>
@@ -278,20 +286,20 @@ const SearchPage: React.FC = () => {
           </div>
 
           <div className="relative z-10">
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
-                <div className="p-3 bg-white/20 backdrop-blur-sm rounded-xl">
-                  <Flame className="w-8 h-8" />
+                <div className="p-2 bg-white/20 backdrop-blur-sm rounded-lg">
+                  <Flame className="w-7 h-7" />
                 </div>
                 <div>
                   <h2 className="text-3xl font-bold">Flash Sale</h2>
-                  <p className="text-white/90">Up to 50% OFF - Limited Time!</p>
+                  <p className="text-s text-white/80">Up to 50% OFF - Limited Time!</p>
                 </div>
               </div>
 
               {/* Countdown Timer */}
               <div className="flex items-center gap-3">
-                <Clock className="w-6 h-6" />
+                <Clock className="w-5 h-5" />
                 <div className="flex gap-2">
                   {[
                     { label: 'Hours', value: timeLeft.hours },
@@ -299,11 +307,11 @@ const SearchPage: React.FC = () => {
                     { label: 'Secs', value: timeLeft.seconds }
                   ].map((item, index) => (
                     <React.Fragment key={item.label}>
-                      <div className="bg-white/20 backdrop-blur-sm rounded-xl p-3 min-w-[70px] text-center">
-                        <div className="text-2xl font-bold">{String(item.value).padStart(2, '0')}</div>
-                        <div className="text-xs text-white/80">{item.label}</div>
+                      <div className="bg-white/20 backdrop-blur-sm rounded-lg p-1 min-w-[50px] text-center">
+                        <div className="text-lg font-bold">{String(item.value).padStart(2, '0')}</div>
+                        <div className="text-[12px] text-white/80">{item.label}</div>
                       </div>
-                      {index < 2 && <div className="text-2xl font-bold self-center">:</div>}
+                      {index < 2 && <div className="text-lg font-bold self-center">:</div>}
                     </React.Fragment>
                   ))}
                 </div>
@@ -311,7 +319,7 @@ const SearchPage: React.FC = () => {
             </div>
 
             {/* Flash Sale Products */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
               {flashSaleProducts.map((product, index) => (
                 <motion.div
                   key={product.id}
@@ -319,43 +327,43 @@ const SearchPage: React.FC = () => {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.1 }}
                   onClick={() => navigate(`/product/${product.id}`)}
-                  className="bg-white rounded-xl p-4 cursor-pointer hover:scale-105 transition-transform"
+                  className="bg-white rounded-xl p-3 cursor-pointer hover:scale-105 transition-transform"
                 >
-                  <div className="relative mb-3">
+                  <div className="relative mb-2">
                     <img
                       src={product.image}
                       alt={product.name}
-                      className="w-full h-40 object-cover rounded-lg"
+                      className="w-full h-32 object-cover rounded-lg"
                     />
-                    <div className="absolute top-2 right-2 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">
+                    <div className="absolute top-2 right-2 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
                       -{product.discount}%
                     </div>
                   </div>
-                  
-                  <h3 className="text-gray-900 font-semibold text-sm mb-2 line-clamp-2 h-10">
+
+                  <h3 className="text-gray-900 font-semibold text-sm mb-1.5 line-clamp-2 h-8">
                     {product.name}
                   </h3>
-                  
+
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="text-red-500 text-xl font-bold">₱{product.salePrice.toLocaleString()}</span>
-                    <span className="text-gray-400 text-sm line-through">₱{product.originalPrice.toLocaleString()}</span>
+                    <span className="text-red-500 text-lg font-bold">₱{product.salePrice.toLocaleString()}</span>
+                    <span className="text-gray-400 text-xs line-through">₱{product.originalPrice.toLocaleString()}</span>
                   </div>
 
                   {/* Progress Bar */}
                   <div className="mb-2">
-                    <div className="flex justify-between text-xs text-gray-600 mb-1">
+                    <div className="flex justify-between text-[10px] text-gray-600 mb-1">
                       <span>Sold: {product.sold}</span>
-                      <span>{Math.round((product.sold / product.stock) * 100)}%</span>
+                      <span>{Math.round(Math.min((product.sold / product.stock) * 100, 100))}%</span>
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div 
-                        className="bg-gradient-to-r from-orange-500 to-red-500 h-2 rounded-full"
-                        style={{ width: `${(product.sold / product.stock) * 100}%` }}
+                    <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                      <div
+                        className="bg-gradient-to-r from-orange-500 to-red-500 h-1.5 rounded-full"
+                        style={{ width: `${Math.min((product.sold / product.stock) * 100, 100)}%` }}
                       />
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1 text-xs">
+                  <div className="flex items-center gap-1 text-[10px]">
                     <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
                     <span className="text-gray-600">{product.rating}</span>
                   </div>
@@ -399,77 +407,119 @@ const SearchPage: React.FC = () => {
               exit={{ opacity: 0 }}
             >
               {/* Filters & Sort */}
-              <div className="bg-white rounded-xl p-4 mb-6 shadow-sm">
-                <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
-                  <div className="flex items-center gap-4 flex-wrap">
-                    {/* Categories */}
-                    <div className="flex gap-2">
-                      {categories.map((cat) => (
-                        <button
-                          key={cat}
-                          onClick={() => setSelectedCategory(cat)}
-                          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                            selectedCategory === cat
-                              ? 'bg-orange-500 text-white'
-                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                          }`}
-                        >
-                          {cat}
-                        </button>
-                      ))}
+              <div className="mb-6">
+                <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
+                  {/* Category Filter */}
+                  <div className="flex-1">
+                    <div className="flex flex-wrap gap-1 md:gap-1">
+                      {categories.map((cat) => {
+                        const isActive = selectedCategory === cat;
+                        return (
+                          <button
+                            key={cat}
+                            onClick={() => setSelectedCategory(cat)}
+                            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-300 whitespace-nowrap border
+                              ${isActive
+                                ? "bg-[var(--brand-primary)] border-[var(--brand-primary)] text-white shadow-sm scale-105"
+                                : "bg-white border-gray-100 text-gray-500 hover:border-orange-200 hover:text-orange-500"
+                              }`}
+                          >
+                            {cat}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-4">
-                    {/* Sort By */}
-                    <div className="relative">
-                      <select
-                        value={sortBy}
-                        onChange={(e) => setSortBy(e.target.value)}
-                        className="appearance-none bg-gray-100 px-4 py-2 pr-10 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-orange-500"
-                      >
-                        <option value="relevance">Most Relevant</option>
-                        <option value="price-low">Price: Low to High</option>
-                        <option value="price-high">Price: High to Low</option>
-                        <option value="rating">Highest Rated</option>
-                        <option value="newest">Newest</option>
-                      </select>
-                      <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-600 pointer-events-none" />
+                  {/* Filter Dropdowns */}
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 text-gray-400">
+                      <Filter className="w-4 h-4" />
                     </div>
 
-                    {/* Price Range */}
-                    <div className="relative">
-                      <select
-                        value={priceRange}
-                        onChange={(e) => setPriceRange(e.target.value)}
-                        className="appearance-none bg-gray-100 px-4 py-2 pr-10 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-orange-500"
-                      >
-                        <option value="all">All Prices</option>
-                        <option value="under-500">Under ₱500</option>
-                        <option value="500-1000">₱500 - ₱1,000</option>
-                        <option value="1000-2000">₱1,000 - ₱2,000</option>
-                        <option value="over-2000">Over ₱2,000</option>
-                      </select>
-                      <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-600 pointer-events-none" />
+                    <div className="flex items-center gap-2">
+                      {/* Sort By */}
+                      <div className="flex items-center gap-3">
+                        <Select value={sortBy} onValueChange={setSortBy}>
+                          <SelectTrigger className="w-[150px] h-8 bg-white border-gray-200 rounded-[12px] text-gray-700 text-[12px] focus:ring-1 focus:ring-orange-100 focus:ring-offset-0 shadow-sm hover:border-gray-300 hover:shadow-md transition-all px-4">
+                            <SelectValue placeholder="Sort by" />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-2xl border-gray-100 p-1 shadow-xl">
+                            <SelectItem value="relevance" className="rounded-xl data-[state=checked]:bg-[#ff6a00] data-[state=checked]:text-white focus:bg-orange-50 focus:text-[#ff6a00] cursor-pointer">Most Relevant</SelectItem>
+                            <SelectItem value="price-low" className="rounded-xl data-[state=checked]:bg-[#ff6a00] data-[state=checked]:text-white focus:bg-orange-50 focus:text-[#ff6a00] cursor-pointer">Price: Low to High</SelectItem>
+                            <SelectItem value="price-high" className="rounded-xl data-[state=checked]:bg-[#ff6a00] data-[state=checked]:text-white focus:bg-orange-50 focus:text-[#ff6a00] cursor-pointer">Price: High to Low</SelectItem>
+                            <SelectItem value="rating" className="rounded-xl data-[state=checked]:bg-[#ff6a00] data-[state=checked]:text-white focus:bg-orange-50 focus:text-[#ff6a00] cursor-pointer">Highest Rated</SelectItem>
+                            <SelectItem value="newest" className="rounded-xl data-[state=checked]:bg-[#ff6a00] data-[state=checked]:text-white focus:bg-orange-50 focus:text-[#ff6a00] cursor-pointer">Newest</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Price Range */}
+                      <div className="flex items-center gap-2 py-1 px-3 bg-white border border-gray-200 rounded-xl h-8">
+                        <span className="text-[12px] text-gray-700 tracking-wider">Price</span>
+                        <div className="w-16 lg:w-24 pt-1">
+                          <Slider
+                            min={0}
+                            max={100000}
+                            step={100}
+                            value={priceRange}
+                            onValueChange={setPriceRange}
+                            className="w-full text-[#ff6a00]"
+                          />
+                        </div>
+                        <div className="flex items-center gap-1 text-[11px] text-gray-700">
+                          <div className="flex items-center bg-gray-50/50 px-2 py-0.5 rounded-lg border border-transparent focus-within:border-[#ff6a00] transition-colors">
+                            <span className="text-gray-400 font-normal mr-0.5">₱</span>
+                            <input
+                              type="text"
+                              value={priceRange[0].toLocaleString()}
+                              onChange={(e) => {
+                                const val = parseInt(e.target.value.replace(/[^0-9]/g, "")) || 0;
+                                setPriceRange([val, priceRange[1]]);
+                              }}
+                              className="w-12 bg-transparent outline-none text-center"
+                            />
+                          </div>
+                          <span className="text-gray-300 font-normal">-</span>
+                          <div className="flex items-center bg-gray-50/50 px-2 py-0.5 rounded-lg border border-transparent focus-within:border-[#ff6a00] transition-colors">
+                            <span className="text-gray-400 font-normal mr-0.5">₱</span>
+                            <input
+                              type="text"
+                              value={priceRange[1].toLocaleString()}
+                              onChange={(e) => {
+                                const val = parseInt(e.target.value.replace(/[^0-9]/g, "")) || 0;
+                                setPriceRange([priceRange[0], val]);
+                              }}
+                              className="w-16 bg-transparent outline-none text-center"
+                            />
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="mt-4 pt-4 border-t border-gray-200 flex items-center justify-between">
-                  <p className="text-sm text-gray-600">
+                <div className="mt-2 flex items-center justify-between pt-1 -mb-2">
+                  <p className="text-xs text-gray-600">
                     Found <span className="font-semibold text-gray-900">{searchResults.length}</span> results for "<span className="font-semibold text-gray-900">{searchQuery}</span>"
                   </p>
-                  <button className="text-sm text-orange-500 hover:text-orange-600 font-medium flex items-center gap-1">
-                    <Filter className="w-4 h-4" />
-                    More Filters
+                  <button
+                    onClick={() => {
+                      setSortBy('relevance');
+                      setPriceRange([0, 100000]);
+                      setSelectedCategory('All');
+                    }}
+                    className="text-xs text-orange-500 hover:text-orange-600 font-medium"
+                  >
+                    Clear Filters
                   </button>
                 </div>
               </div>
 
               {/* Results Grid */}
-              {searchResults.length > 0 ? (
+              {searchResults.filter(p => p.price >= priceRange[0] && p.price <= priceRange[1]).length > 0 ? (
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 mb-12">
-                  {searchResults.map((product, index) => (
+                  {searchResults.filter(p => p.price >= priceRange[0] && p.price <= priceRange[1]).map((product, index) => (
                     <motion.div
                       key={product.id}
                       initial={{ opacity: 0, scale: 0.9 }}
@@ -490,12 +540,12 @@ const SearchPage: React.FC = () => {
                           </div>
                         )}
                       </div>
-                      
+
                       <div className="p-4">
                         <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2 group-hover:text-orange-500 transition-colors">
                           {product.name}
                         </h3>
-                        
+
                         <div className="flex items-center gap-2 mb-2">
                           <span className="text-orange-500 text-xl font-bold">
                             ₱{product.price.toLocaleString()}
@@ -538,7 +588,7 @@ const SearchPage: React.FC = () => {
                   <p className="text-gray-600 mb-6">
                     We couldn't find any products matching "<span className="font-semibold">{searchQuery}</span>"
                   </p>
-                  
+
                   {/* CTA to Request Product */}
                   <div className="max-w-md mx-auto">
                     <div className="bg-gradient-to-r from-orange-50 to-orange-100 border-2 border-orange-200 rounded-xl p-6 mb-4">
@@ -554,7 +604,7 @@ const SearchPage: React.FC = () => {
                         <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                       </button>
                     </div>
-                    
+
                     <p className="text-sm text-gray-500">
                       Or try different keywords to refine your search
                     </p>
@@ -606,12 +656,12 @@ const SearchPage: React.FC = () => {
                     <TrendingUp className="w-4 h-4" />
                   </div>
                 </div>
-                
+
                 <div className="p-4">
                   <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2">
                     {product.name}
                   </h3>
-                  
+
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-orange-500 text-xl font-bold">
                       ₱{product.price.toLocaleString()}
