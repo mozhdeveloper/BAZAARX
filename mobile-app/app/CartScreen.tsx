@@ -8,7 +8,7 @@ import {
   StatusBar,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, CheckCircle, Circle, Store } from 'lucide-react-native';
+import { ArrowLeft, CheckCircle, Circle, Store, Flame } from 'lucide-react-native';
 import { CartItemRow } from '../src/components/CartItemRow';
 import { useCartStore } from '../src/stores/cartStore';
 import { COLORS } from '../src/constants/theme';
@@ -40,6 +40,12 @@ export default function CartScreen({ navigation }: any) {
 
   const selectedItems = items.filter(item => selectedIds.includes(item.id));
   const subtotal = selectedItems.reduce((sum, item) => sum + ((item.price || 0) * item.quantity), 0);
+  const totalSavings = selectedItems.reduce((sum, item) => {
+    const savings = (item.originalPrice && item.originalPrice > (item.price || 0)) 
+      ? (item.originalPrice - (item.price || 0)) * item.quantity 
+      : 0;
+    return sum + savings;
+  }, 0);
   const shippingFee = (subtotal > 500 || subtotal === 0) ? 0 : 50;
   const total = subtotal + shippingFee;
 
@@ -109,7 +115,7 @@ export default function CartScreen({ navigation }: any) {
 
       <ScrollView
         style={styles.scrollContainer}
-        contentContainerStyle={{ paddingBottom: 140 }} // Adjusted padding
+        contentContainerStyle={{ paddingBottom: 200 }} // Increased padding to ensure visibility
         showsVerticalScrollIndicator={false}
       >
         {/* SELLER GROUPS */}
@@ -167,15 +173,19 @@ export default function CartScreen({ navigation }: any) {
         {items.length > 0 && (
           <View style={styles.summaryCard}>
             <Text style={styles.summaryTitle}>Order Summary</Text>
+            {totalSavings > 0 && (
+              <View style={styles.savingsBanner}>
+                <View style={styles.savingsIconContainer}>
+                  <Flame size={14} color="#FFF" fill="#FFF" />
+                </View>
+                <Text style={styles.savingsBannerText}>
+                  You're saving <Text style={{ fontWeight: '800' }}>₱{totalSavings.toLocaleString()}</Text> on this order!
+                </Text>
+              </View>
+            )}
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Subtotal</Text>
               <Text style={styles.summaryValue}>₱{subtotal.toLocaleString()}</Text>
-            </View>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Shipping</Text>
-              <Text style={[styles.summaryValue, shippingFee === 0 && { color: BRAND_PRIMARY }]}>
-                {shippingFee === 0 ? 'FREE' : `₱${shippingFee}`}
-              </Text>
             </View>
             <View style={styles.dashedDivider} />
             <View style={styles.totalRow}>
@@ -303,6 +313,31 @@ const styles = StyleSheet.create({
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
   summaryLabel: { fontSize: 14, color: '#6B7280' },
   summaryValue: { fontSize: 14, fontWeight: '600', color: '#1F2937' },
+  savingsBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF2F2',
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#FEE2E2',
+  },
+  savingsIconContainer: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#EF4444',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  savingsBannerText: {
+    fontSize: 13,
+    color: '#B91C1C',
+    fontWeight: '500',
+    flex: 1,
+  },
   dashedDivider: { height: 1, backgroundColor: '#E5E7EB', marginVertical: 16, borderStyle: 'dashed', borderWidth: 0.5, borderColor: '#D1D5DB' },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   totalLabel: { fontSize: 16, fontWeight: '800', color: '#1F2937' },

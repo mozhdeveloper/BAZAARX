@@ -604,9 +604,9 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   cardTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#1F2937',
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#111827',
     letterSpacing: 0.2,
   },
   cardContent: {
@@ -633,11 +633,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   itemName: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#1F2937',
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
     marginBottom: 6,
-    lineHeight: 20,
+    lineHeight: 22,
   },
   itemVariant: {
     fontSize: 13,
@@ -645,15 +645,15 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   itemPrice: {
-    fontSize: 17,
-    fontWeight: '700',
+    fontSize: 18,
+    fontWeight: '800',
     color: COLORS.primary,
   },
   // ===== SHIPPING ADDRESS =====
   addressName: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1F2937',
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#111827',
     marginBottom: 6,
   },
   addressPhone: {
@@ -682,8 +682,8 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   summaryLabel: {
-    fontSize: 15,
-    color: '#6B7280',
+    fontSize: 16,
+    color: '#4B5563',
     fontWeight: '500',
   },
   summaryValue: {
@@ -707,13 +707,13 @@ const styles = StyleSheet.create({
     paddingTop: 4,
   },
   totalLabel: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#1F2937',
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#111827',
   },
   totalValue: {
-    fontSize: 24,
-    fontWeight: '700',
+    fontSize: 28,
+    fontWeight: '900',
     color: '#FF5722',
     letterSpacing: 0.3,
   },
