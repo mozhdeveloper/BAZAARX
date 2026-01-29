@@ -75,7 +75,9 @@ export default function SellerLoginScreen() {
         if (sellerError || !sellerData) {
           Alert.alert('Error', 'Seller record not found.');
         } else {
+          // IMPORTANT: Include the seller ID from Supabase auth
           useSellerStore.getState().updateSellerInfo({
+            id: authData.user.id, // This is critical for QA and product queries
             storeName: sellerData.store_name,
             email: authData.user.email,
             approval_status: sellerData.approval_status,

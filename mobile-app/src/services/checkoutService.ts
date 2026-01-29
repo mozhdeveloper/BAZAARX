@@ -89,7 +89,7 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
         // 2. Group items by seller
         const itemsBySeller: Record<string, typeof items> = {};
         items.forEach(item => {
-            const sellerId = item.sellerId;
+            const sellerId = item.seller_id;
             if (!sellerId) {
                 throw new Error(`Missing seller information for product: ${item.name}`);
             }
@@ -109,7 +109,7 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
 
             // Calculate subtotal for this specific order
             const orderSubtotal = sellerItems.reduce(
-                (sum, item) => sum + (item.quantity * item.price),
+                (sum, item) => sum + (item.quantity * (item.price || 0)),
                 0
             );
 
@@ -153,8 +153,8 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                 product_name: item.name,
                 product_images: item.images || [item.image],
                 quantity: item.quantity,
-                price: item.price,
-                subtotal: item.quantity * item.price,
+                price: item.price || 0,
+                subtotal: item.quantity * (item.price || 0),
                 selected_variant: null, // Can be extended for variant support
                 status: 'pending',
                 is_reviewed: false,

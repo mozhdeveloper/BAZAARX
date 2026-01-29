@@ -150,6 +150,7 @@ export default function HomeScreen({ navigation }: Props) {
       setIsLoadingProducts(true);
       setFetchError(null);
       try {
+        // BUYER VIEW: Only show approved products that passed QA
         const { data, error } = await supabase
           .from('products')
           .select(`
@@ -164,7 +165,7 @@ export default function HomeScreen({ navigation }: Props) {
             )
           `)
           .eq('is_active', true)
-          .eq('approval_status', 'pending')
+          .eq('approval_status', 'approved')
           .order('created_at', { ascending: false });
         if (error) {
           setFetchError(error.message);

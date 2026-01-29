@@ -125,36 +125,16 @@ export default function ShopScreen({ navigation, route }: Props) {
           .eq('approval_status', 'approved')
           .order('created_at', { ascending: false });
 
-        let rows = data || [];
+        // BUYER VIEW: Only show approved products that passed QA
+        const rows = data || [];
 
         if (error) {
           console.log('[Shop] Product fetch error:', error.message);
           setFetchError(error.message);
           setDbProducts([]);
         } else {
-          // Fallback: if no approved products, fetch pending (for testing environments)
-          if (rows.length === 0) {
-            console.log('[Shop] No approved products, falling back to pending');
-            const { data: pendingData, error: pendingError } = await supabase
-              .from('products')
-              .select(`
-                *,
-                seller:sellers!products_seller_id_fkey (
-                  business_name,
-                  store_name,
-                  rating,
-                  business_address,
-                  id,
-                  is_verified
-                )
-              `)
-              .eq('is_active', true)
-              .eq('approval_status', 'pending')
-              .order('created_at', { ascending: false });
-            if (!pendingError && pendingData) {
-              rows = pendingData;
-            }
-          }
+          // Only approved products are visible to buyers
+          // Products must pass QA flow (ACTIVE_VERIFIED) to be approved
           console.log('[Shop] Products fetched:', rows.length);
           const mapped: Product[] = (rows || []).map((row: any) => {
             const imageUrl =

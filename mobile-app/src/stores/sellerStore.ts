@@ -132,7 +132,7 @@ interface SellerStore {
   loading: boolean;
   error: string | null;
   fetchProducts: (sellerId?: string) => Promise<void>;
-  addProduct: (product: SellerProduct) => Promise<void>;
+  addProduct: (product: SellerProduct) => Promise<string>; // Returns the database product ID
   updateProduct: (id: string, updates: Partial<SellerProduct>) => Promise<void>;
   deleteProduct: (id: string) => Promise<void>;
   toggleProductStatus: (id: string) => void;
@@ -574,9 +574,11 @@ export const useSellerStore = create<SellerStore>()(
               updatedAt: dbProduct.updated_at || new Date().toISOString(),
             };
             set((state) => ({ products: [...state.products, newProduct] }));
+            return dbProduct.id || product.id; // Return the database ID
           } else {
             // Fallback: local state only
             set((state) => ({ products: [...state.products, product] }));
+            return product.id; // Return the local ID
           }
         } catch (error) {
           console.error('Error adding product:', error);

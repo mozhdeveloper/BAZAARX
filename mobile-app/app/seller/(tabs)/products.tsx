@@ -25,6 +25,15 @@ import * as FileSystem from 'expo-file-system/legacy'; //
 import * as Sharing from 'expo-sharing';
 import SellerDrawer from '../../../src/components/SellerDrawer';
 
+// Generate a proper UUID for product IDs
+const generateUUID = (): string => {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+};
+
 export default function SellerProductsScreen() {
   const { products, loading, error, fetchProducts, toggleProductStatus, deleteProduct, seller, updateProduct } = useSellerStore();
   const { addProductToQA } = useProductQAStore();
@@ -212,7 +221,7 @@ export default function SellerProductsScreen() {
     return true;
   };
 
-  const handleAddProduct = () => {
+  const handleAddProduct = async () => {
     if (!validateForm()) return;
 
     try {
@@ -223,7 +232,7 @@ export default function SellerProductsScreen() {
 
       const newProduct: SellerProduct = {
         sellerId: seller?.id,  
-        id: `PROD-${Date.now()}`,
+        id: generateUUID(), // Use proper UUID for database compatibility
         name: formData.name.trim(),
         description: formData.description.trim(),
         price: parseFloat(formData.price),
@@ -245,22 +254,12 @@ export default function SellerProductsScreen() {
         updatedAt: new Date().toISOString(),
       };
 
-      // Add to seller store first
+      // Add to seller store first - this inserts into Supabase and returns the DB ID
       const { addProduct } = useSellerStore.getState();
-      addProduct(newProduct);
+      const dbProductId = await addProduct(newProduct);
 
-      // Add to product QA flow
-      addProductToQA({
-        id: newProduct.id,
-        name: newProduct.name,
-        description: newProduct.description,
-        vendor: seller?.storeName || 'Tech Shop PH',
-        price: newProduct.price,
-        originalPrice: newProduct.originalPrice,
-        category: newProduct.category,
-        image: firstImage,
-        images: validImages,
-      });
+      // Add to product QA flow using the database product ID
+      await addProductToQA(dbProductId, seller?.storeName || 'Tech Shop PH');
 
       Alert.alert(
         'Product Submitted',
@@ -400,20 +399,18 @@ export default function SellerProductsScreen() {
     }
   };
 
-  const confirmBulkUpload = () => {
+  const confirmBulkUpload = async () => {
     const { addProduct } = useSellerStore.getState();
     
-    bulkPreviewProducts.forEach(product => {
-      // Convert preview ID to actual ID
-      const finalProduct = { ...product, id: `PROD-${Date.now()}-${Math.random()}` };
+    for (const product of bulkPreviewProducts) {
+      // Convert preview ID to actual UUID for database compatibility
+      const finalProduct = { ...product, id: generateUUID() };
       
-      addProduct(finalProduct); //
-      addProductToQA({
-        ...finalProduct,
-        image: finalProduct.images[0],
-        vendor: seller?.storeName || 'Tech Shop PH',
-      }); //
-    });
+      // Add to seller store - this inserts into Supabase and returns the DB ID
+      const dbProductId = await addProduct(finalProduct);
+      // Add to product QA flow using the database product ID
+      await addProductToQA(dbProductId, seller?.storeName || 'Tech Shop PH');
+    }
 
     Alert.alert('Success', `${bulkPreviewProducts.length} products added to inventory.`);
     setBulkPreviewProducts([]);
