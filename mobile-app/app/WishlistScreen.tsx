@@ -76,13 +76,12 @@ const CreateListModal = ({ visible, onClose, onCreate }: any) => {
 
 // Item Edit Modal Component (Kept for Item View)
 const ItemEditModal = ({ visible, onClose, item, onSave }: any) => {
-    const [priority, setPriority] = useState(item?.priority || 'medium');
     const [qty, setQty] = useState(item?.desiredQty?.toString() || '1');
     const [isPrivate, setIsPrivate] = useState(item?.isPrivate || false);
 
     useEffect(() => {
         if (item) {
-            setPriority(item.priority || 'medium');
+
             setQty(item.desiredQty?.toString() || '1');
             setIsPrivate(item.isPrivate || false);
         }
@@ -94,20 +93,7 @@ const ItemEditModal = ({ visible, onClose, item, onSave }: any) => {
                 <View style={styles.modalContent}>
                     <Text style={styles.modalTitle}>Edit Item</Text>
                     
-                    <Text style={styles.inputLabel}>Priority</Text>
-                    <View style={styles.priorityRow}>
-                        {(['low', 'medium', 'high'] as const).map((p) => (
-                            <Pressable 
-                                key={p} 
-                                style={[styles.priorityOption, priority === p && styles.selectedPriority]}
-                                onPress={() => setPriority(p)}
-                            >
-                                <Text style={[styles.priorityOptionText, priority === p && { color: '#FFF' }]}>
-                                    {p.charAt(0).toUpperCase() + p.slice(1)}
-                                </Text>
-                            </Pressable>
-                        ))}
-                    </View>
+
 
                     <Text style={styles.inputLabel}>Desired Quantity</Text>
                     <View style={styles.qtyContainer}>
@@ -133,7 +119,7 @@ const ItemEditModal = ({ visible, onClose, item, onSave }: any) => {
                         <Pressable 
                             style={[styles.modalBtn, styles.primaryBtn]} 
                             onPress={() => {
-                                onSave(item.id, { priority, desiredQty: parseInt(qty), isPrivate });
+                                onSave(item.id, { desiredQty: parseInt(qty), isPrivate });
                                 onClose();
                             }}
                         >
