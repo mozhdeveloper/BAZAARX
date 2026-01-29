@@ -419,6 +419,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
       if (isQuickCheckout) {
         clearQuickOrder();
       }
+
       
       // Check if online payment (GCash, PayMongo, PayMaya, Card)
 
