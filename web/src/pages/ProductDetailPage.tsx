@@ -37,6 +37,17 @@ import { ProductReviews } from "@/components/reviews/ProductReviews";
 
 interface ProductDetailPageProps { }
 
+interface EnhancedReview {
+  id: number;
+  user: string;
+  rating: number;
+  date: string;
+  comment: string;
+  helpful: number;
+  isLiked: boolean;
+  replies: any[];
+}
+
 
 
 // Enhanced product data with more details

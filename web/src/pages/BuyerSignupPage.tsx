@@ -98,6 +98,8 @@ export default function BuyerSignupPage() {
           full_name: fullName,
           phone: formData.phone,
           user_type: "buyer",
+          email: formData.email,
+          password: formData.password,
         },
       );
 

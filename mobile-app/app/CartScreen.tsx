@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, CheckCircle, Circle, Store } from 'lucide-react-native';
 import { CartItemRow } from '../src/components/CartItemRow';
 import { useCartStore } from '../src/stores/cartStore';
+import { COLORS } from '../src/constants/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function CartScreen({ navigation }: any) {
@@ -61,6 +62,8 @@ export default function CartScreen({ navigation }: any) {
         return [...prev, ...newIds];
       });
     }
+  };
+
   const handleCheckout = () => {
     if (selectedIds.length === 0) return;
     

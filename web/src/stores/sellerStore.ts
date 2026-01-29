@@ -527,6 +527,8 @@ export const useAuthStore = create<AuthStore>()(
             full_name: sellerData.ownerName || sellerData.storeName || sellerData.email?.split('@')[0],
             phone: sellerData.phone,
             user_type: 'seller',
+            email: sellerData.email!,
+            password: sellerData.password!,
           });
 
           if (!result || !result.user) {
@@ -539,7 +541,7 @@ export const useAuthStore = create<AuthStore>()(
           // 2) Create seller record (use upsert to handle conflicts)
           const { sellerService } = await import('@/services/sellerService');
 
-          const sellerData = {
+          const sellerInsertData = {
             id: user.id,
             business_name: sellerData.businessName || sellerData.storeName || 'My Store',
             store_name: sellerData.storeName || 'My Store',
@@ -555,6 +557,11 @@ export const useAuthStore = create<AuthStore>()(
             bank_name: sellerData.bankName || '',
             account_name: sellerData.accountName || '',
             account_number: sellerData.accountNumber || '',
+            business_permit_url: null,
+            valid_id_url: null,
+            proof_of_address_url: null,
+            dti_registration_url: null,
+            tax_id_url: null,
             is_verified: false,
             approval_status: 'pending' as const,
             rating: 0,
@@ -564,7 +571,7 @@ export const useAuthStore = create<AuthStore>()(
             join_date: new Date().toISOString().split('T')[0],
           };
 
-          const savedSeller = await sellerService.upsertSeller(sellerData);
+          const savedSeller = await sellerService.upsertSeller(sellerInsertData);
 
           if (!savedSeller) {
             console.error('Seller insert failed');
@@ -1433,7 +1440,7 @@ export const useOrderStore = create<OrderStore>()(
 
           if (!sellerId) {
             console.error('❌ No seller ID found! Cannot update database.');
-            console.error('Seller from store:', get().seller);
+            console.error('Seller from store:', useAuthStore.getState().seller);
             console.error('Order object:', order);
             throw new Error('Seller ID is required to update order status');
           }
