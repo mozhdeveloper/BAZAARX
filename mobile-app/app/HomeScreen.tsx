@@ -13,7 +13,7 @@ import {
   Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Search, Bell, Camera, Bot, X, Package, Timer, MapPin, ChevronDown, ArrowLeft, Clock, MessageSquare, MessageCircle } from 'lucide-react-native';
+import { Search, Bell, Camera, Bot, X, Package, Timer, MapPin, ChevronDown, ArrowLeft, Clock, MessageSquare, MessageCircle, CheckCircle2 } from 'lucide-react-native';
 import { ProductCard } from '../src/components/ProductCard';
 import CameraSearchModal from '../src/components/CameraSearchModal';
 import AIChatModal from '../src/components/AIChatModal';
@@ -58,6 +58,7 @@ export default function HomeScreen({ navigation }: Props) {
   const [showCameraSearch, setShowCameraSearch] = useState(false);
   const [showProductRequest, setShowProductRequest] = useState(false);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [sellers, setSellers] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
 
   // LOCATION STATE
@@ -110,17 +111,17 @@ export default function HomeScreen({ navigation }: Props) {
       name: p.name,
       price: p.price,
       originalPrice: p.originalPrice,
-      image: p.image,
-      images: p.images,
-      rating: 4.5, // Default rating for new products
-      sold: p.sold,
-      seller: seller.storeName,
-      sellerId: seller.id,
+      image: (p.images && p.images.length > 0) ? p.images[0] : '',
+      images: p.images || [],
+      rating: 4.5,
+      sold: p.sales || 0, // SellerProduct has 'sales', mapping to 'sold'
+      seller: seller?.storeName || 'Verified Seller',
+      sellerId: seller?.id,
       sellerRating: 4.9,
       sellerVerified: true,
-      isFreeShipping: p.price >= 1000, // Free shipping for orders over 1000
+      isFreeShipping: (p.price || 0) >= 1000, // Free shipping for orders over 1000
       isVerified: true,
-      location: `${seller.city}, ${seller.province}`,
+      location: seller ? `${seller.city}, ${seller.province}` : 'Philippines',
       description: p.description,
       category: p.category,
       stock: p.stock,
@@ -134,7 +135,14 @@ export default function HomeScreen({ navigation }: Props) {
   ];
 
   const filteredProducts = searchQuery.trim()
-    ? dbProducts.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    ? dbProducts.filter(p => (p.name || '').toLowerCase().includes(searchQuery.toLowerCase()))
+    : [];
+
+  const filteredStores = searchQuery.trim()
+    ? (sellers || []).filter((s: any) => 
+        (s.store_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (s.business_name || '').toLowerCase().includes(searchQuery.toLowerCase())
+      )
     : [];
 
   useEffect(() => {
@@ -212,6 +220,14 @@ export default function HomeScreen({ navigation }: Props) {
     loadProducts();
   }, []);
 
+  useEffect(() => {
+    const fetchSellers = async () => {
+      const { data } = await supabase.from('sellers').select('*');
+      if (data) setSellers(data);
+    };
+    fetchSellers();
+  }, []);
+
   // --- NEW: FETCH DEFAULT ADDRESS ---
   useEffect(() => {
     if (!user) return;
@@ -280,8 +296,8 @@ export default function HomeScreen({ navigation }: Props) {
   }, [activeSlide]);
 
   const flashSaleProducts = dbProducts
-    .filter(p => typeof p.originalPrice === 'number' && (p.originalPrice as number) > p.price)
-    .sort((a, b) => ((b.originalPrice || 0) - b.price) - ((a.originalPrice || 0) - a.price))
+    .filter(p => typeof p.originalPrice === 'number' && typeof p.price === 'number' && (p.originalPrice as number) > p.price)
+    .sort((a, b) => (((b.originalPrice || 0) - (b.price || 0)) - ((a.originalPrice || 0) - (a.price || 0))))
     .slice(0, 10);
 
   const popularProducts = [...dbProducts].sort((a, b) => (b.sold || 0) - (a.sold || 0)).slice(0, 6);
@@ -391,14 +407,44 @@ export default function HomeScreen({ navigation }: Props) {
               </View>
             ) : (
               <View style={styles.resultsSection}>
-                <Text style={styles.discoveryTitle}>{filteredProducts.length} results found</Text>
-                <View style={styles.gridBody}>
-                  {filteredProducts.map(p => (
-                    <View key={p.id} style={styles.itemBoxContainerVertical}>
-                      <ProductCard product={p} onPress={() => handleProductPress(p)} />
+                <Text style={styles.discoveryTitle}>{filteredProducts.length + filteredStores.length} results found</Text>
+                
+                {filteredStores.length > 0 && (
+                  <View style={{ marginBottom: 20 }}>
+                    <Text style={styles.sectionHeader}>Stores</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
+                      {filteredStores.map(s => (
+                        <Pressable 
+                          key={s.id} 
+                          style={styles.storeSearchResultCard}
+                          onPress={() => navigation.navigate('StoreDetail', { store: { ...s, name: s.store_name, verified: !!s.is_verified } })}
+                        >
+                          <View style={styles.storeSearchIcon}><Text style={{ fontSize: 20 }}>🏬</Text></View>
+                          <View style={{ flex: 1 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                              <Text style={styles.storeSearchName} numberOfLines={1}>{s.store_name}</Text>
+                              {s.is_verified && <CheckCircle2 size={14} color={BRAND_COLOR} fill="#FFF" />}
+                            </View>
+                            <Text style={styles.storeSearchLocation}>{s.city}, {s.province}</Text>
+                          </View>
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
+
+                {filteredProducts.length > 0 && (
+                  <View>
+                    <Text style={styles.sectionHeader}>Products</Text>
+                    <View style={styles.gridBody}>
+                      {filteredProducts.map(p => (
+                        <View key={p.id} style={styles.itemBoxContainerVertical}>
+                          <ProductCard product={p} onPress={() => handleProductPress(p)} />
+                        </View>
+                      ))}
                     </View>
-                  ))}
-                </View>
+                  </View>
+                )}
               </View>
             )}
           </View>
@@ -464,7 +510,7 @@ export default function HomeScreen({ navigation }: Props) {
                     <ProductCard product={p} onPress={() => handleProductPress(p)} />
                     <View style={[styles.discountTag, { backgroundColor: BRAND_COLOR }]}>
                       <Text style={styles.discountTagText}>
-                        {p.originalPrice && p.originalPrice > p.price
+                        {p.originalPrice && typeof p.price === 'number' && p.originalPrice > p.price
                           ? `-${Math.round(((p.originalPrice - p.price) / p.originalPrice) * 100)}%`
                           : ''}
                       </Text>
@@ -687,6 +733,21 @@ const styles = StyleSheet.create({
   notificationIcon: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginRight: 15 },
   notifItemTitle: { fontSize: 16, fontWeight: '700', color: '#1F2937' },
   notifItemMsg: { fontSize: 14, color: '#4B5563' },
+  sectionHeader: { fontSize: 16, fontWeight: '800', color: '#1F2937', marginBottom: 12 },
+  storeSearchResultCard: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    backgroundColor: '#FFF', 
+    padding: 12, 
+    borderRadius: 16, 
+    width: 220,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: '#F3F4F6'
+  },
+  storeSearchIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#F9FAFB', alignItems: 'center', justifyContent: 'center' },
+  storeSearchName: { fontSize: 14, fontWeight: '700', color: '#1F2937' },
+  storeSearchLocation: { fontSize: 12, color: '#6B7280' },
   paginationContainer: {
     flexDirection: 'row',
     justifyContent: 'center',

@@ -177,7 +177,7 @@ export default function LocationModal({
       const data = await response.json();
       
       if (data && data.display_name) {
-        const simpleAddress = data.display_name.split(',').slice(0, 3).join(',');
+        const simpleAddress = (data.display_name || '').split(',').slice(0, 3).join(',');
         setSearchQuery(simpleAddress);
         setSelectedAddressId(null);
       }

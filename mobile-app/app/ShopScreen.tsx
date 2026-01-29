@@ -183,8 +183,6 @@ export default function ShopScreen({ navigation, route }: Props) {
         const { data, error } = await supabase
           .from('sellers')
           .select('id, store_name, rating, is_verified, city, province')
-          .eq('is_verified', false)
-          .eq('approval_status', 'pending')
           .order('rating', { ascending: false });
         if (error) {
           console.log('[Shop] Seller fetch error:', error.message);
@@ -219,15 +217,23 @@ export default function ShopScreen({ navigation, route }: Props) {
       const matchesCategory = selectedCategory === 'all' || category.toLowerCase().replace(/\s+/g, '-') === selectedCategory;
       return matchesSearch && matchesCategory;
     });
-    if (selectedSort === 'price-low') filtered.sort((a, b) => a.price - b.price);
-    if (selectedSort === 'price-high') filtered.sort((a, b) => b.price - a.price);
+    if (selectedSort === 'price-low') filtered.sort((a, b) => (a.price || 0) - (b.price || 0));
+    if (selectedSort === 'price-high') filtered.sort((a, b) => (b.price || 0) - (a.price || 0));
     return filtered;
   }, [dbProducts, searchQuery, selectedCategory, selectedSort, customResults]);
 
   const verifiedStores = useMemo(() => {
-    const stores = (sellers || []).map((s) => {
+    const query = searchQuery.toLowerCase().trim();
+    const filteredSellers = query
+      ? (sellers || []).filter(s => 
+          (s.store_name || '').toLowerCase().includes(query) ||
+          (s.business_name || '').toLowerCase().includes(query)
+        )
+      : (sellers || []);
+
+    const stores = filteredSellers.map((s) => {
       const previews = dbProducts
-        .filter(p => p.sellerId === s.id)
+        .filter(p => p.seller_id === s.id)
         .slice(0, 2)
         .map(p => p.image);
       return {
@@ -240,7 +246,7 @@ export default function ShopScreen({ navigation, route }: Props) {
       };
     });
     return stores;
-  }, [sellers, dbProducts]);
+  }, [sellers, dbProducts, searchQuery]);
 
   return (
     <View style={styles.container}>
@@ -292,47 +298,62 @@ export default function ShopScreen({ navigation, route }: Props) {
             {!!fetchError && <Text style={[styles.debugText, { color: '#EF4444' }]}>Error: {fetchError}</Text>}
           </View>
         )}
-        <View style={styles.storesSection}>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>Verified Official Stores</Text>
-            {/* SEE ALL IS NOW CLICKABLE */}
-            <Pressable onPress={() => navigation.navigate('AllStores')}>
-              <Text style={{ color: BRAND_COLOR, fontWeight: '700' }}>See All</Text>
-            </Pressable>
+        {(searchQuery.trim() !== '' || verifiedStores.length > 0) && (
+          <View style={styles.storesSection}>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionTitle}>
+                {searchQuery.trim() !== '' ? 'Stores' : 'Verified Official Stores'}
+              </Text>
+              {searchQuery.trim() === '' && (
+                <Pressable onPress={() => navigation.navigate('AllStores')}>
+                  <Text style={{ color: BRAND_COLOR, fontWeight: '700' }}>See All</Text>
+                </Pressable>
+              )}
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.storesScroll}>
+              {(verifiedStores || []).map((store) => (
+                <Pressable
+                  key={store.id}
+                  style={styles.storeCard}
+                  onPress={() => navigation.navigate('StoreDetail', { store })}
+                >
+                  <View style={styles.storeHeader}>
+                    <View style={styles.storeLogo}><Text style={{ fontSize: 22 }}>🏬</Text></View>
+                    <View style={styles.storeInfo}>
+                      <View style={styles.storeNameRow}>
+                        <Text style={styles.storeName} numberOfLines={1}>{store.name}</Text>
+                        {store.verified && <CheckCircle2 size={14} color={BRAND_COLOR} fill="#FFF" />}
+                      </View>
+                      <View style={styles.ratingRow}>
+                        <Star size={10} color={BRAND_COLOR} fill={BRAND_COLOR} />
+                        <Text style={styles.ratingText}>{store.rating}</Text>
+                      </View>
+                    </View>
+                    <View style={[styles.visitBtn, { borderColor: BRAND_COLOR }]}>
+                      <Text style={[styles.visitBtnText, { color: BRAND_COLOR }]}>Visit</Text>
+                    </View>
+                  </View>
+                  <View style={styles.storeProducts}>
+                    {(store.products || []).slice(0, 2).map((url, i) => (
+                      <Image key={i} source={{ uri: url }} style={styles.storeProductThumb} />
+                    ))}
+                  </View>
+                </Pressable>
+              ))}
+              {searchQuery.trim() !== '' && verifiedStores.length === 0 && (
+                <View style={{ padding: 20, alignItems: 'center' }}>
+                  <Text style={{ color: '#9CA3AF', fontStyle: 'italic' }}>No stores found for "{searchQuery}"</Text>
+                </View>
+              )}
+            </ScrollView>
           </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.storesScroll}>
-            {(verifiedStores || []).map((store) => (
-              /* CLICKABLE STORE CARD */
-              <Pressable
-                key={store.id}
-                style={styles.storeCard}
-                onPress={() => navigation.navigate('StoreDetail', { store })}
-              >
-                <View style={styles.storeHeader}>
-                  <View style={styles.storeLogo}><Text style={{ fontSize: 22 }}>🏬</Text></View>
-                  <View style={styles.storeInfo}>
-                    <View style={styles.storeNameRow}>
-                      <Text style={styles.storeName} numberOfLines={1}>{store.name}</Text>
-                      {store.verified && <CheckCircle2 size={14} color={BRAND_COLOR} fill="#FFF" />}
-                    </View>
-                    <View style={styles.ratingRow}>
-                      <Star size={10} color={BRAND_COLOR} fill={BRAND_COLOR} />
-                      <Text style={styles.ratingText}>{store.rating}</Text>
-                    </View>
-                  </View>
-                  <View style={[styles.visitBtn, { borderColor: BRAND_COLOR }]}>
-                    <Text style={[styles.visitBtnText, { color: BRAND_COLOR }]}>Visit</Text>
-                  </View>
-                </View>
-                <View style={styles.storeProducts}>
-                  {(store.products || []).slice(0, 2).map((url, i) => (
-                    <Image key={i} source={{ uri: url }} style={styles.storeProductThumb} />
-                  ))}
-                </View>
-              </Pressable>
-            ))}
-          </ScrollView>
-        </View>
+        )}
+
+        {searchQuery.trim() !== '' && (
+          <View style={{ paddingHorizontal: 20, marginTop: 20 }}>
+            <Text style={styles.sectionTitle}>Products</Text>
+          </View>
+        )}
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryScroll}>
           {(categories || []).map((cat) => (
