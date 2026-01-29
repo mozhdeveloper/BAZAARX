@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CartItem, Product } from '../types';
+// TODO: separate supabase logic to a separate file
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from './authStore';
 
@@ -112,14 +113,13 @@ export const useCartStore = create<CartStore>()(
 
             const mapped: CartItem[] = (data || []).map((row: any) => {
               const p = row.product || {};
-              const image = p.primary_image || (Array.isArray(p.images) && p.images.length > 0 ? p.images[0] : '');
+              const image = p.primay_image || (Array.isArray(p.images) && p.images.length > 0 ? p.images[0] : '');
               const sellerObj = p.seller || {};
               return {
                 id: p.id || row.product_id,
                 name: p.name || 'Product',
                 price: typeof p.price === 'number' ? p.price : parseFloat(p.price || '0'),
                 originalPrice: typeof p.original_price === 'number' ? p.original_price : parseFloat(p.original_price || '0') || undefined,
-                image: image || '',
                 images: Array.isArray(p.images) ? p.images : [],
                 rating: typeof p.rating === 'number' ? p.rating : 0,
                 sold: typeof p.sales_count === 'number' ? p.sales_count : 0,
