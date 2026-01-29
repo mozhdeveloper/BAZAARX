@@ -34,6 +34,7 @@ interface WishlistState {
     // Category Management
     createCategory: (name: string, privacy: 'private' | 'shared', description?: string) => string; 
     deleteCategory: (categoryId: string) => void;
+    updateCategory: (categoryId: string, updates: Partial<WishlistCategory>) => void;
     
     isInWishlist: (productId: string) => boolean;
     clearWishlist: () => void;
@@ -102,6 +103,15 @@ export const useWishlistStore = create<WishlistState>()(
                 set({ 
                     categories: categories.filter(c => c.id !== categoryId),
                     items: updatedItems
+                });
+            },
+
+            updateCategory: (categoryId, updates) => {
+                const { categories } = get();
+                set({
+                    categories: categories.map(c => 
+                        c.id === categoryId ? { ...c, ...updates } : c
+                    )
                 });
             },
 

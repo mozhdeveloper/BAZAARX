@@ -22,6 +22,11 @@ export interface SellerData {
     bank_name?: string;
     account_name?: string;
     account_number?: string;
+    business_permit_url?: string | null;
+    valid_id_url?: string | null;
+    proof_of_address_url?: string | null;
+    dti_registration_url?: string | null;
+    tax_id_url?: string | null;
     is_verified: boolean;
     approval_status: 'pending' | 'approved' | 'rejected';
     rejection_reason?: string;

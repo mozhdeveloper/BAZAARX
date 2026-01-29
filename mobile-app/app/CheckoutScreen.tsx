@@ -18,7 +18,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { ArrowLeft, MapPin, CreditCard, Shield, Tag, X, ChevronDown, Check, Plus, ShieldCheck, ChevronRight } from 'lucide-react-native';
 import { COLORS } from '../src/constants/theme';
 import { supabase } from '../src/lib/supabase';
-import { processCheckout } from '../src/services/checkoutService';
+import { processCheckout } from '@/services/checkoutService';
 import { useCartStore } from '../src/stores/cartStore';
 import { useAuthStore } from '../src/stores/authStore';
 import { useOrderStore } from '../src/stores/orderStore';
@@ -68,22 +68,34 @@ export default function CheckoutScreen({ navigation, route }: Props) {
   const recipientId = params?.recipientId || 'user_123'; // Mock recipient ID if not passed
 
   // Override address state if it's a gift
+  // Override address state if it's a gift
   React.useEffect(() => {
     if (isGift) {
-      setUseDefaultAddress(false);
-      // Set a partial address for the order record, but UI will show masked version
-      setAddress({
-        ...DEFAULT_ADDRESS,
-        name: recipientName,
-        address: 'Confidential Registry Address',
-        city: registryLocation,
-        region: '',
-        postalCode: '0000',
-        // We use 'Confidential...' as placeholder so order system accepts it, 
-        // but backend/fulfillment would use the actual hidden registry ID/Address logic in a real app.
-      });
+        setUseDefaultAddress(false);
+        const registryAddress: Address = {
+            id: 'registry-hidden-1',
+            user_id: user?.id || 'guest',
+            label: 'Registry Address',
+            first_name: recipientName,
+            last_name: '(Hidden)',
+            phone: '****',
+            street: 'Confidential Registry Address',
+            barangay: '',
+            city: registryLocation,
+            province: '',
+            region: '',
+            postal_code: '0000',
+            is_default: false
+        };
+        
+        // AUTO-SELECT this address so validation passes
+        setSelectedAddress(registryAddress);
+        setTempSelectedAddress(registryAddress);
+        
+        // Also update the form state for good measure, though less critical if selectedAddress is used
+        setAddress(registryAddress);
     }
-  }, [isGift, recipientName, registryLocation]);
+  }, [isGift, recipientName, registryLocation, user?.id]);
 
   const DEFAULT_ADDRESS: ShippingAddress = {
     name: 'Juan Dela Cruz',
@@ -130,6 +142,36 @@ export default function CheckoutScreen({ navigation, route }: Props) {
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState<CheckoutStep>('shipping');
 
+  // Web Port Compatibility State
+  const [useDefaultAddress, setUseDefaultAddress] = useState(true);
+  const DEFAULT_ADDRESS = {
+    name: user?.name || 'Guest User',
+    phone: user?.phone || '',
+    address: 'Default Address',
+    city: 'City',
+    region: 'Region',
+    postalCode: '0000'
+  };
+  const [address, setAddress] = useState<any>(DEFAULT_ADDRESS);
+
+  const createOrder = (items: CartItem[], addr: any, payment: string, options: any) => {
+    return {
+      id: `ORD-${Date.now()}`,
+      transactionId: `TRX-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      items,
+      total: total, // Use the calculated total
+      shippingFee,
+      totalAmount: total, // Keep for backward compatibility if needed, but 'total' is the interface
+      shippingAddress: addr,
+      paymentMethod: payment,
+      status: 'pending',
+      isPaid: false,
+      scheduledDate: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+      ...options
+    };
+  };
+
   // Address Management
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [selectedAddress, setSelectedAddress] = useState<Address | null>(null);
@@ -141,6 +183,8 @@ export default function CheckoutScreen({ navigation, route }: Props) {
   const [voucherCode, setVoucherCode] = useState('');
   const [appliedVoucher, setAppliedVoucher] = useState<keyof typeof VOUCHERS | null>(null);
   const [isAnonymous, setIsAnonymous] = useState(false);
+
+
 
   // Bazcoins Logic
   const earnedBazcoins = Math.floor(checkoutSubtotal / 10);
@@ -201,6 +245,14 @@ export default function CheckoutScreen({ navigation, route }: Props) {
         if (!addressError && addressData) {
           console.log('[Checkout] Fetched addresses:', addressData.length, 'addresses');
           setAddresses(addressData);
+
+          // If this is a gift, DO NOT overwrite the selected address with defaults
+          // The other useEffect handles setting the registry address
+          if (isGift) {
+            console.log('[Checkout] Gift mode active, skipping default address selection');
+            setIsLoadingAddresses(false);
+            return;
+          }
 
           // Priority: 1) Address from HomeScreen location modal (via route params)
           //           2) Default saved address
@@ -368,6 +420,13 @@ export default function CheckoutScreen({ navigation, route }: Props) {
       if (isQuickCheckout) {
         clearQuickOrder();
       }
+      const order = createOrder(checkoutItems, address, paymentMethod, {
+        isGift,
+        isAnonymous,
+        recipientId: isGift ? recipientId : undefined
+      });
+      
+      // Check if online payment (GCash, PayMongo, PayMaya, Card)
 
       const isOnlinePayment = paymentMethod.toLowerCase() !== 'cod' && paymentMethod.toLowerCase() !== 'cash on delivery';
 
@@ -553,27 +612,27 @@ export default function CheckoutScreen({ navigation, route }: Props) {
               </View>
             </View>
 
-            {/* Delivery Address Display */}
 
-            {isGift ? (
-              /* REGISTRY PRIVACY MODE */
-              <View style={{ backgroundColor: '#F0FDF4', borderRadius: 12, padding: 16, borderWidth: 1, borderColor: '#BBF7D0' }}>
+          
+          {isGift ? (
+             /* REGISTRY PRIVACY MODE */
+             <View style={{ backgroundColor: '#F0FDF4', borderRadius: 12, padding: 16, borderWidth: 1, borderColor: '#BBF7D0' }}>
                 <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
-                  <View style={{ backgroundColor: '#DCFCE7', padding: 8, borderRadius: 20 }}>
-                    <ShieldCheck size={24} color="#166534" />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 16, fontWeight: '700', color: '#14532D', marginBottom: 4 }}>Registry Gift Address</Text>
-                    <Text style={{ fontSize: 14, fontWeight: '600', color: '#166534', marginBottom: 2 }}>Recipient: {recipientName}</Text>
-                    <Text style={{ fontSize: 14, color: '#166534' }}>Location: {registryLocation}</Text>
-
-                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 12, gap: 6 }}>
-                      <Shield size={12} color="#15803D" />
-                      <Text style={{ fontSize: 11, color: '#15803D', fontStyle: 'italic' }}>
-                        Full address is hidden for privacy.
-                      </Text>
-                    </View>
-                  </View>
+                   <View style={{ backgroundColor: '#DCFCE7', padding: 8, borderRadius: 20 }}>
+                       <ShieldCheck size={24} color="#166534" />
+                   </View>
+                   <View style={{ flex: 1 }}>
+                       <Text style={{ fontSize: 16, fontWeight: '700', color: '#14532D', marginBottom: 4 }}>Registry Gift Address</Text>
+                       <Text style={{ fontSize: 14, fontWeight: '600', color: '#166534', marginBottom: 2 }}>Recipient: {recipientName}</Text>
+                       <Text style={{ fontSize: 14, color: '#166534' }}>Location: {registryLocation}</Text>
+                       
+                       <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 12, gap: 6 }}>
+                           <Shield size={12} color="#15803D" />
+                           <Text style={{ fontSize: 11, color: '#15803D', fontStyle: 'italic' }}>
+                               Full address is hidden for privacy.
+                           </Text>
+                       </View>
+                   </View>
                 </View>
 
                 {/* Anonymous Toggle */}
@@ -589,52 +648,72 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                     value={isAnonymous}
                   />
                 </View>
-              </View>
-            ) : (
-              /* STANDARD ADDRESS MODE */
-              <>
-                {isLoadingAddresses ? (
-                  <View style={{ padding: 20, alignItems: 'center' }}>
-                    <ActivityIndicator size="small" color={COLORS.primary} />
-                    <Text style={{ marginTop: 8, color: '#6B7280' }}>Loading addresses...</Text>
-                  </View>
-                ) : selectedAddress ? (
-                  <Pressable
-                    style={{
-                      backgroundColor: '#FFF4ED',
-                      borderRadius: 12,
-                      padding: 16,
-                      borderWidth: 1,
-                      borderColor: '#FFE4E6'
-                    }}
-                    onPress={() => {
-                      console.log('[Checkout] Opening address modal, addresses count:', addresses.length);
-                      setShowAddressModal(true);
-                    }}
-                  >
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                      <View style={{ flex: 1 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-                          <Text style={{ fontSize: 16, fontWeight: '700', color: '#111827' }}>
-                            {selectedAddress.first_name} {selectedAddress.last_name}
-                          </Text>
-                          {selectedAddress.is_default && (
-                            <View style={{ backgroundColor: COLORS.primary, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4, marginLeft: 8 }}>
-                              <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>Default</Text>
-                            </View>
-                          )}
-                        </View>
-                        <Text style={{ fontSize: 14, color: '#4B5563', marginBottom: 2 }}>{selectedAddress.phone}</Text>
-                        <Text style={{ fontSize: 14, color: '#4B5563', marginBottom: 2 }}>
-                          {selectedAddress.street}, {selectedAddress.barangay}
-                        </Text>
-                        <Text style={{ fontSize: 14, color: '#4B5563' }}>
-                          {selectedAddress.city}, {selectedAddress.province}, {selectedAddress.postal_code}
-                        </Text>
+
+                {useDefaultAddress ? (
+                    isLoadingAddresses ? (
+                      <View style={{ padding: 20, alignItems: 'center' }}>
+                        <ActivityIndicator size="small" color={COLORS.primary} />
+                        <Text style={{ marginTop: 8, color: '#6B7280' }}>Loading addresses...</Text>
                       </View>
-                      <ChevronRight size={20} color={COLORS.primary} />
-                    </View>
-                  </Pressable>
+                    ) : selectedAddress ? (
+                      <Pressable
+                        style={{
+                          backgroundColor: '#FFF4ED',
+                          borderRadius: 12,
+                          padding: 16,
+                          borderWidth: 1,
+                          borderColor: '#FFE4E6'
+                        }}
+                        onPress={() => {
+                          console.log('[Checkout] Opening address modal');
+                          setShowAddressModal(true);
+                        }}
+                      >
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <View style={{ flex: 1 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                              <Text style={{ fontSize: 16, fontWeight: '700', color: '#111827' }}>
+                                {selectedAddress.first_name} {selectedAddress.last_name}
+                              </Text>
+                              {selectedAddress.is_default && (
+                                <View style={{ backgroundColor: COLORS.primary, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4, marginLeft: 8 }}>
+                                  <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>Default</Text>
+                                </View>
+                              )}
+                            </View>
+                            <Text style={{ fontSize: 14, color: '#4B5563', marginBottom: 2 }}>{selectedAddress.phone}</Text>
+                            <Text style={{ fontSize: 14, color: '#4B5563', marginBottom: 2 }}>
+                              {selectedAddress.street}, {selectedAddress.barangay}
+                            </Text>
+                            <Text style={{ fontSize: 14, color: '#4B5563' }}>
+                              {selectedAddress.city}, {selectedAddress.province}, {selectedAddress.postal_code}
+                            </Text>
+                          </View>
+                          <ChevronRight size={20} color={COLORS.primary} />
+                        </View>
+                      </Pressable>
+                    ) : (
+                      <Pressable
+                        style={{
+                          backgroundColor: '#F9FAFB',
+                          borderRadius: 12,
+                          padding: 20,
+                          borderWidth: 2,
+                          borderColor: '#E5E7EB',
+                          borderStyle: 'dashed',
+                          alignItems: 'center'
+                        }}
+                        onPress={() => navigation.navigate('Addresses')}
+                      >
+                        <Plus size={24} color={COLORS.primary} />
+                        <Text style={{ marginTop: 8, fontSize: 14, fontWeight: '600', color: '#111827' }}>
+                          Add Delivery Address
+                        </Text>
+                        <Text style={{ fontSize: 12, color: '#6B7280' }}>
+                          Tap to add your shipping address
+                        </Text>
+                      </Pressable>
+                    ) 
                 ) : (
                   <Pressable
                     style={{
@@ -657,9 +736,12 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                     </Text>
                   </Pressable>
                 )}
-              </>
-            )}
-          </View>
+             </>
+          )}
+        </View>
+
+        {/* Payment Method Card */}
+
 
           {/* Payment Method Card */}
           {/* Payment Method Card */}
