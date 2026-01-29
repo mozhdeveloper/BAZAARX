@@ -35,30 +35,7 @@ const PADDING = 20;
 const GAP = 15;
 const ITEM_WIDTH = (width - (PADDING * 2) - GAP) / 2;
 
-const officialStores = [
-  {
-    id: '1',
-    name: 'Nike Official',
-    logo: '🏃',
-    verified: true,
-    rating: 4.9,
-    products: [
-      'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=200',
-      'https://images.unsplash.com/photo-1606107557195-0e29a4b5b4aa?w=200',
-    ],
-  },
-  {
-    id: '2',
-    name: 'Adidas Store',
-    logo: '👟',
-    verified: true,
-    rating: 4.8,
-    products: [
-      'https://images.unsplash.com/photo-1560769629-975ec94e6a86?w=200',
-      'https://images.unsplash.com/photo-1600185365926-3a2ce3cdb9eb?w=200',
-    ],
-  },
-];
+import { officialStores } from '../src/data/stores';
 
 const categories = [
   { id: 'all', name: 'All' },
@@ -117,6 +94,12 @@ export default function ShopScreen({ navigation, route }: Props) {
     return filtered;
   }, [searchQuery, selectedCategory, selectedSort, customResults]);
 
+  const filteredStores = useMemo(() => {
+    return officialStores.filter(store => 
+      store.name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [searchQuery]);
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
@@ -154,47 +137,57 @@ export default function ShopScreen({ navigation, route }: Props) {
       </View>
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        <View style={styles.storesSection}>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>Verified Official Stores</Text>
-            {/* SEE ALL IS NOW CLICKABLE */}
-            <Pressable onPress={() => console.log('Navigate to All Stores')}>
-              <Text style={{color: BRAND_COLOR, fontWeight: '700'}}>See All</Text>
-            </Pressable>
+        {(searchQuery === '' || filteredStores.length > 0) && (
+          <View style={styles.storesSection}>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionTitle}>
+                {searchQuery === '' ? 'Verified Official Stores' : 'Stores'}
+              </Text>
+              {searchQuery === '' && (
+                <Pressable onPress={() => navigation.navigate('AllStores')}>
+                  <Text style={{color: BRAND_COLOR, fontWeight: '700'}}>See All</Text>
+                </Pressable>
+              )}
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.storesScroll}>
+              {filteredStores.map((store) => (
+                <Pressable 
+                  key={store.id} 
+                  style={styles.storeCard}
+                  onPress={() => navigation.navigate('StoreDetail', { store })}
+                >
+                  <View style={styles.storeHeader}>
+                    <View style={styles.storeLogo}><Text style={{fontSize: 22}}>{store.logo}</Text></View>
+                    <View style={styles.storeInfo}>
+                      <View style={styles.storeNameRow}>
+                        <Text style={styles.storeName} numberOfLines={1}>{store.name}</Text>
+                        {store.verified && <CheckCircle2 size={14} color={BRAND_COLOR} fill="#FFF" />}
+                      </View>
+                      <View style={styles.ratingRow}>
+                        <Star size={10} color={BRAND_COLOR} fill={BRAND_COLOR} />
+                        <Text style={styles.ratingText}>{store.rating}</Text>
+                      </View>
+                    </View>
+                    <View style={[styles.visitBtn, {borderColor: BRAND_COLOR}]}>
+                      <Text style={[styles.visitBtnText, {color: BRAND_COLOR}]}>Visit</Text>
+                    </View>
+                  </View>
+                  <View style={styles.storeProducts}>
+                    {store.products.map((url, i) => (
+                      <Image key={i} source={{ uri: url }} style={styles.storeProductThumb} />
+                    ))}
+                  </View>
+                </Pressable>
+              ))}
+            </ScrollView>
           </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.storesScroll}>
-            {officialStores.map((store) => (
-              /* CLICKABLE STORE CARD */
-              <Pressable 
-                key={store.id} 
-                style={styles.storeCard}
-                onPress={() => console.log(`Maps to store: ${store.name}`)}
-              >
-                <View style={styles.storeHeader}>
-                  <View style={styles.storeLogo}><Text style={{fontSize: 22}}>{store.logo}</Text></View>
-                  <View style={styles.storeInfo}>
-                    <View style={styles.storeNameRow}>
-                      <Text style={styles.storeName} numberOfLines={1}>{store.name}</Text>
-                      {store.verified && <CheckCircle2 size={14} color={BRAND_COLOR} fill="#FFF" />}
-                    </View>
-                    <View style={styles.ratingRow}>
-                      <Star size={10} color={BRAND_COLOR} fill={BRAND_COLOR} />
-                      <Text style={styles.ratingText}>{store.rating}</Text>
-                    </View>
-                  </View>
-                  <View style={[styles.visitBtn, {borderColor: BRAND_COLOR}]}>
-                    <Text style={[styles.visitBtnText, {color: BRAND_COLOR}]}>Visit</Text>
-                  </View>
-                </View>
-                <View style={styles.storeProducts}>
-                  {store.products.map((url, i) => (
-                    <Image key={i} source={{ uri: url }} style={styles.storeProductThumb} />
-                  ))}
-                </View>
-              </Pressable>
-            ))}
-          </ScrollView>
-        </View>
+        )}
+
+        {searchQuery !== '' && (
+          <View style={{ paddingHorizontal: 20, marginTop: 10, marginBottom: 10 }}>
+            <Text style={styles.sectionTitle}>Products</Text>
+          </View>
+        )}
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryScroll}>
           {categories.map((cat) => (

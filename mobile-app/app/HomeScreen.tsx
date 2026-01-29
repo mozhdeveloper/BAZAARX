@@ -12,15 +12,16 @@ import {
   StatusBar,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Search, Bell, Camera, Bot, X, Package, Timer, MapPin, ChevronDown, ArrowLeft, Clock, MessageSquare, Flame } from 'lucide-react-native';
+import { Search, Bell, Camera, Bot, X, Package, Timer, MapPin, ChevronDown, ArrowLeft, Clock, MessageSquare, Flame, CheckCircle } from 'lucide-react-native';
 import { ProductCard } from '../src/components/ProductCard';
-import { FlashSaleCard } from '../src/components/FlashSaleCard';
+import { FlashSaleSection } from '../src/components/FlashSaleSection';
 import { LinearGradient } from 'expo-linear-gradient';
 import CameraSearchModal from '../src/components/CameraSearchModal';
 import AIChatModal from '../src/components/AIChatModal';
 import LocationModal from '../src/components/LocationModal';
 import ProductRequestModal from '../src/components/ProductRequestModal';
 import { trendingProducts, bestSellerProducts } from '../src/data/products';
+import { officialStores } from '../src/data/stores';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -97,6 +98,10 @@ export default function HomeScreen({ navigation }: Props) {
   const allProducts = [...trendingProducts, ...bestSellerProducts];
   const filteredProducts = searchQuery.trim()
     ? allProducts.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    : [];
+
+  const filteredStores = searchQuery.trim()
+    ? officialStores.filter(s => s.name.toLowerCase().includes(searchQuery.toLowerCase()))
     : [];
 
   const handleProductPress = (product: Product) => {
@@ -189,7 +194,70 @@ export default function HomeScreen({ navigation }: Props) {
               </View>
             ) : (
               <View style={styles.resultsSection}>
-                <Text style={styles.discoveryTitle}>{filteredProducts.length} results found</Text>
+                <Text style={styles.discoveryTitle}>
+                  {filteredProducts.length + filteredStores.length} results found
+                </Text>
+
+                {filteredStores.length > 0 && (
+                  <View style={{ marginBottom: 24 }}>
+                    <Text style={[styles.sectionTitle, { paddingHorizontal: 0, marginBottom: 12 }]}>Stores</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
+                      {filteredStores.map(store => (
+                        <Pressable 
+                          key={store.id}
+                          onPress={() => navigation.navigate('StoreDetail', { store })}
+                          style={{
+                            width: 200,
+                            backgroundColor: '#FFFFFF',
+                            borderRadius: 12,
+                            padding: 12,
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            gap: 12,
+                            borderWidth: 1,
+                            borderColor: '#F3F4F6',
+                            elevation: 2,
+                            shadowColor: '#000',
+                            shadowOffset: { width: 0, height: 2 },
+                            shadowOpacity: 0.05,
+                            shadowRadius: 4
+                          }}
+                        >
+                          <View style={{ 
+                            width: 48, 
+                            height: 48, 
+                            borderRadius: 24, 
+                            backgroundColor: '#F3F4F6', 
+                            alignItems: 'center', 
+                            justifyContent: 'center',
+                            overflow: 'hidden'
+                          }}>
+                            {store.logo.startsWith('http') ? (
+                              <Image source={{ uri: store.logo }} style={{ width: '100%', height: '100%' }} />
+                            ) : (
+                              <Text style={{ fontSize: 24 }}>{store.logo}</Text>
+                            )}
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                              <Text style={{ fontSize: 15, fontWeight: '700', color: '#1F2937' }} numberOfLines={1}>
+                                {store.name}
+                              </Text>
+                              {store.verified && (
+                                <CheckCircle size={14} color="#3B82F6" fill="#FFF" />
+                              )}
+                            </View>
+                            <Text style={{ fontSize: 12, color: '#6B7280' }} numberOfLines={1}>
+                                {store.rating} ★ • {store.followers} followers
+                            </Text>
+                          </View>
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
+
+                <Text style={[styles.sectionTitle, { paddingHorizontal: 0, marginBottom: 12 }]}>Products</Text>
                 <View style={styles.gridBody}>
                   {filteredProducts.map(p => (
                     <View key={p.id} style={styles.itemBoxContainerVertical}>
@@ -263,7 +331,7 @@ export default function HomeScreen({ navigation }: Props) {
                     contentContainerStyle={styles.flashListContent}
                   >
                     {[...bestSellerProducts, ...trendingProducts].slice(0, 6).map((p, index) => (
-                      <FlashSaleCard 
+                      <FlashSaleSection 
                         key={p.id} 
                         product={{...p, originalPrice: p.price * 1.5}} 
                         soldPercentage={0.4 + (index * 0.1)} 
@@ -427,6 +495,7 @@ const styles = StyleSheet.create({
   aiFloatingButton: { position: 'absolute', right: 20, width: 60, height: 60, borderRadius: 30, justifyContent: 'center', alignItems: 'center', elevation: 8, shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 6 },
   searchDiscovery: { padding: 20 },
   discoveryTitle: { fontSize: 18, fontWeight: '800', color: '#1F2937', marginBottom: 15 },
+  sectionTitle: { fontSize: 18, fontWeight: '800', color: '#1F2937', marginBottom: 15 },
   recentSection: { marginBottom: 20 },
   searchRecentItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
   searchRecentText: { fontSize: 15, color: '#4B5563' },
