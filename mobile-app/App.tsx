@@ -25,6 +25,8 @@ import DeliveryTrackingScreen from './app/DeliveryTrackingScreen';
 import ProfileScreen from './app/ProfileScreen';
 import FollowingShopsScreen from './app/FollowingShopsScreen';
 import WishlistScreen from './app/WishlistScreen';
+import SharedWishlistScreen from './app/SharedWishlistScreen';
+import FindRegistryScreen from './app/FindRegistryScreen';
 import AddressesScreen from './app/AddressesScreen';
 import SettingsScreen from './app/SettingsScreen';
 import NotificationsScreen from './app/NotificationsScreen';
@@ -45,6 +47,7 @@ import HistoryScreen from './app/HistoryScreen';
 // Ticketing Module
 import CreateTicketScreen from './app/tickets/CreateTicketScreen';
 import TicketDetailScreen from './app/tickets/TicketDetailScreen';
+import MessagesScreen from './app/MessagesScreen';
 
 // Import types
 import type { Product, Order } from './src/types';
@@ -76,6 +79,8 @@ export type RootStackParamList = {
   DeliveryTracking: { order: Order };
   FollowingShops: undefined;
   Wishlist: undefined;
+  SharedWishlist: { wishlistId?: string; userId?: string };
+  FindRegistry: undefined;
   Addresses: undefined;
   Settings: undefined;
   Notifications: undefined;
@@ -90,6 +95,7 @@ export type RootStackParamList = {
   History: undefined;
   CreateTicket: undefined;
   TicketDetail: { ticketId: string };
+  Messages: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -231,6 +237,8 @@ export default function App() {
           <Stack.Screen name="DeliveryTracking" component={DeliveryTrackingScreen} />
           <Stack.Screen name="FollowingShops" component={FollowingShopsScreen} />
           <Stack.Screen name="Wishlist" component={WishlistScreen} />
+          <Stack.Screen name="SharedWishlist" component={SharedWishlistScreen} />
+          <Stack.Screen name="FindRegistry" component={FindRegistryScreen} />
           <Stack.Screen name="Addresses" component={AddressesScreen} />
           <Stack.Screen name="Settings" component={SettingsScreen} />
           <Stack.Screen name="Notifications" component={NotificationsScreen} />
@@ -244,6 +252,7 @@ export default function App() {
           <Stack.Screen name="HelpSupport" component={HelpCenterScreen} />
           <Stack.Screen name="CreateTicket" component={CreateTicketScreen} />
           <Stack.Screen name="TicketDetail" component={TicketDetailScreen} />
+          <Stack.Screen name="Messages" component={MessagesScreen} />
           <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
         </Stack.Navigator>
       </NavigationContainer>

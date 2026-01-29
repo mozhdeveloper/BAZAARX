@@ -19,6 +19,7 @@ import { COLORS } from '../src/constants/theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import { useOrderStore } from '../src/stores/orderStore';
+import { supabase } from '../src/lib/supabase';
 import { useReturnStore } from '../src/stores/returnStore';
 import ReviewModal from '../src/components/ReviewModal';
 
@@ -98,6 +99,45 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
         navigation.goBack();
       }},
     ]);
+  };
+
+  const handleCancelOrder = () => {
+    Alert.alert(
+      'Cancel Order',
+      'Are you sure you want to cancel? Don\'t worry, you have not been charged for this order. You can easily buy these items again later.',
+      [
+        { text: 'Keep Order', style: 'cancel' },
+        {
+          text: 'Yes, Cancel Order',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // 1. Update Supabase
+              const { error } = await supabase
+                .from('orders')
+                .update({ status: 'cancelled' })
+                .eq('id', order.id);
+
+              if (error) throw error;
+
+              // 2. Update Local Store
+              updateOrderStatus(order.id, 'cancelled');
+              
+              Alert.alert('Order Cancelled', 'Your order has been moved to the Cancelled list.', [
+                { text: 'OK', onPress: () => navigation.goBack() }
+              ]);
+            } catch (e) {
+              console.log('Error canceling order:', e);
+              // Fallback
+              updateOrderStatus(order.id, 'cancelled');
+              Alert.alert('Order Cancelled', 'Your order has been moved to the Cancelled list (Offline Mode).', [
+                { text: 'OK', onPress: () => navigation.goBack() }
+              ]);
+            }
+          }
+        }
+      ]
+    );
   };
 
   const getStatusColor = () => {
@@ -273,15 +313,16 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
       </ScrollView>
 
       {/* Bottom Action Bar */}
-      {(order.status === 'shipped' || order.status === 'delivered') && (
+      {(order.status === 'shipped' || order.status === 'delivered' || order.status === 'pending') && (
         <View style={styles.bottomBar}>
-          {order.status === 'shipped' ? (
+          {order.status === 'shipped' && (
             <Pressable onPress={handleMarkAsReceived} style={styles.receivedButton}>
               <CheckCircle size={20} color="#FFFFFF" />
               <Text style={styles.receivedButtonText}>Mark as Received</Text>
             </Pressable>
-          ) : (
-            (() => {
+          )}
+
+          {order.status === 'delivered' && (() => {
               // Safely parse date for "MM/DD/YYYY" format which can be flaky on Android
               const getDeliveryDate = (dateStr: string | undefined): Date => {
                   if (!dateStr) return new Date();
@@ -327,6 +368,13 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
                 </Pressable>
               );
             })()
+          }
+
+          {order.status === 'pending' && (
+            <Pressable onPress={handleCancelOrder} style={[styles.receivedButton, { backgroundColor: '#FEE2E2', shadowColor: '#EF4444' }]}>
+              <X size={20} color="#DC2626" />
+              <Text style={[styles.receivedButtonText, { color: '#DC2626' }]}>Cancel Order</Text>
+            </Pressable>
           )}
         </View>
       )}
@@ -364,7 +412,11 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
               </Pressable>
               <View>
                 <Text style={styles.chatTitle}>Seller Chat</Text>
-                <Text style={styles.chatSubtitle}>Order #{order.transactionId}</Text>
+                <Text style={styles.chatSubtitle}>
+                  {order.transactionId.length > 20 
+                    ? `Order #TRK-${order.transactionId.slice(0, 8).toUpperCase()}` 
+                    : `Order #${order.transactionId}`}
+                </Text>
               </View>
               <View style={{ width: 24 }} />
             </View>

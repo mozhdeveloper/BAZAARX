@@ -12,7 +12,8 @@ import {
   Users,
   Search,
   ChevronDown,
-  Filter
+  Filter,
+  ArrowUpRight
 } from 'lucide-react';
 import Header from '../components/Header';
 import { BazaarFooter } from '../components/ui/bazaar-footer';
@@ -31,6 +32,17 @@ const StoresPage: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedLocation, setSelectedLocation] = useState('All');
   const [sortBy, setSortBy] = useState('featured');
+  const location = useLocation();
+
+  React.useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const q = params.get('q');
+    if (q !== null) {
+      setSearchQuery(q);
+    } else {
+      setSearchQuery('');
+    }
+  }, [location.search]);
 
   const categories = ['All', 'Electronics', 'Fashion', 'Food & Beverages', 'Home & Living', 'Filipino Crafts', 'Beauty & Personal Care'];
   const locations = ['All', 'Metro Manila', 'Luzon', 'Visayas', 'Mindanao'];
@@ -46,7 +58,7 @@ const StoresPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header hideSearch={true} />
+      <Header />
 
       <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 pt-0 flex flex-col gap-2">
         {/* Page Navigation */}
@@ -91,7 +103,7 @@ const StoresPage: React.FC = () => {
                   </span>
                 </h1>
                 <p className="text-medium text-gray-700 max-w-2xl mx-auto">
-                  Shop from verified stores and trusted brands .
+                  Shop from verified stores and trusted brands.
                 </p>
               </motion.div>
             </div>
@@ -118,19 +130,7 @@ const StoresPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Search Bar */}
-          <div className="max-w-2xl mx-auto pt-2">
-            <div className="relative">
-              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-3.5 h-3.5" />
-              <input
-                type="text"
-                placeholder="Search for stores..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-1.5 rounded-full border border-gray-200 text-sm focus:border-orange-500 focus:outline-none transition-colors"
-              />
-            </div>
-          </div>
+
         </motion.div>
 
 
@@ -243,6 +243,7 @@ const StoresPage: React.FC = () => {
             <button
               onClick={() => {
                 setSearchQuery('');
+                navigate('/stores');
                 setSelectedCategory('All');
                 setSelectedLocation('All');
                 setSortBy('featured');
@@ -371,21 +372,25 @@ const StoresPage: React.FC = () => {
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.8 }}
-          className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-blue-600 to-purple-600 p-12 text-center text-white"
+          className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-orange-500 to-red-600 p-12 text-center text-white"
         >
           <div className="relative z-10">
             <h2 className="text-3xl md:text-4xl font-bold mb-4">
               Want to Start Your Own Store?
             </h2>
             <p className="text-lg text-white/90 mb-6 max-w-2xl mx-auto">
-              Join thousands of Filipino entrepreneurs selling on BazaarPH. It's free to start and easy to manage.
+              Join thousands of Filipino entrepreneurs selling on BazaarX. It's free to start and easy to manage.
             </p>
             <button
               onClick={() => navigate('/seller/register')}
-              className="bg-white text-blue-600 px-8 py-3 rounded-full font-semibold text-lg hover:bg-blue-50 transition-colors inline-flex items-center gap-2"
+              className="group bg-white pl-5 pr-1.5 py-1.5 rounded-full shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 flex items-center gap-2 mx-auto"
             >
-              Start Selling Today
-              <Store className="w-5 h-5" />
+              <span className="bg-gradient-to-r from-[#ff6a00] to-red-600 bg-clip-text text-transparent font-semibold text-base pl-2">
+                Start Selling Today
+              </span>
+              <div className="w-8 h-8 bg-[#ff6a00] rounded-full flex items-center justify-center group-hover:bg-[#e65e00] transition-colors">
+                <ArrowUpRight className="w-4 h-4 text-white" />
+              </div>
             </button>
           </div>
 

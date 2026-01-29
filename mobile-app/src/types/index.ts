@@ -30,13 +30,16 @@ export interface Order {
   items: CartItem[];
   total: number;
   shippingFee: number;
-  status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'canceled';
+  status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
   isPaid: boolean;
   scheduledDate: string;
   deliveryDate?: string;
   shippingAddress: ShippingAddress;
   paymentMethod: string;
   createdAt: string;
+  isGift?: boolean;
+  isAnonymous?: boolean;
+  recipientId?: string;
 }
 
 export interface ShippingAddress {

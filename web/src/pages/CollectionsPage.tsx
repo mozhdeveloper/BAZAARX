@@ -8,7 +8,13 @@ import { collections } from '../data/collections';
 
 const CollectionsPage: React.FC = () => {
   const navigate = useNavigate();
+  const [activeFilter, setActiveFilter] = useState('All');
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+
+  const filteredCollections = collections.filter(collection => {
+    if (activeFilter === 'All') return true;
+    return collection.badge === activeFilter.toLowerCase();
+  });
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-orange-50/30 to-white">
@@ -44,7 +50,7 @@ const CollectionsPage: React.FC = () => {
             animate={{ opacity: 1, y: 0 }}
             className="text-center"
           >
-            <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6">
+            <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-2">
               Discover Handpicked
               <br />
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-red-500">
@@ -53,7 +59,7 @@ const CollectionsPage: React.FC = () => {
             </h1>
 
             <p className="text-medium text-gray-700 max-w-2xl mx-auto">
-              Explore carefully curated collections featuring the best products from Filipino sellers
+              Explore carefully curated collections featuring the best products from trusted sellers.
             </p>
           </motion.div>
         </div>
@@ -66,30 +72,38 @@ const CollectionsPage: React.FC = () => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.3 }}
-          className="mb-12"
+          className="mb-4"
         >
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-gray-900">Featured Collections</h2>
-            <div className="flex gap-2">
-              {['All', 'Trending', 'New', 'Popular'].map((filter) => (
-                <button
-                  key={filter}
-                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${filter === 'All'
-                    ? 'bg-orange-500 text-white'
-                    : 'bg-white border border-gray-200 text-gray-600 hover:border-orange-500 hover:text-orange-500'
-                    }`}
-                >
-                  {filter}
-                </button>
-              ))}
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex flex-wrap gap-1">
+              {['All', 'Trending', 'New', 'Popular'].map((filter) => {
+                const isActive = activeFilter === filter;
+                return (
+                  <button
+                    key={filter}
+                    onClick={() => setActiveFilter(filter)}
+                    className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-300 whitespace-nowrap border
+                      ${isActive
+                        ? "bg-[var(--brand-primary)] border-[var(--brand-primary)] text-white shadow-sm scale-105"
+                        : "bg-white border-gray-100 text-gray-500 hover:border-orange-200 hover:text-orange-500"
+                      }`}
+                  >
+                    {filter}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="text-xs text-gray-500 font-medium">
+              Showing {filteredCollections.length} collections
             </div>
           </div>
         </motion.div>
 
         {/* Collections Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-16">
-          {collections.map((collection, index) => (
+          {filteredCollections.map((collection, index) => (
             <motion.div
+              layout
               key={collection.id}
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
@@ -117,24 +131,15 @@ const CollectionsPage: React.FC = () => {
 
                   {/* Badge */}
                   {collection.badge && (
-                    <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-sm font-medium flex items-center gap-1">
+                    <div className="absolute top-4 right-4 bg-white/50 backdrop-blur-medium p-2 rounded-full text-sm font-medium flex items-center shadow-sm">
                       {collection.badge === 'trending' && (
-                        <>
-                          <TrendingUp className="w-4 h-4 text-orange-500" />
-                          <span className="text-orange-500">Trending</span>
-                        </>
+                        <TrendingUp className="w-4 h-4 text-green-600" />
                       )}
                       {collection.badge === 'new' && (
-                        <>
-                          <Sparkles className="w-4 h-4 text-blue-500" />
-                          <span className="text-blue-500">New</span>
-                        </>
+                        <Sparkles className="w-4 h-4 text-blue-500" />
                       )}
                       {collection.badge === 'popular' && (
-                        <>
-                          <Heart className="w-4 h-4 text-red-500" />
-                          <span className="text-red-500">Popular</span>
-                        </>
+                        <Heart className="w-4 h-4 text-red-500" />
                       )}
                     </div>
                   )}
@@ -160,11 +165,11 @@ const CollectionsPage: React.FC = () => {
 
                     {/* CTA Button */}
                     <motion.button
-                      className="flex items-center gap-2 bg-white text-gray-900 px-4 py-2 rounded-full font-medium text-sm group-hover:bg-orange-500 group-hover:text-white transition-colors"
+                      className="flex items-center gap-2 bg-white/90 backdrop-blur-sm text-gray-900 px-3.5 py-2.5 rounded-full font-medium text-xs group-hover:bg-orange-500 group-hover:text-white hover:text-white"
                       whileHover={{ x: 5 }}
                     >
                       Explore Collection
-                      <ArrowRight className="w-4 h-4" />
+                      <ArrowRight className="w-3.5 h-3.5" />
                     </motion.button>
                   </div>
                 </div>
@@ -189,10 +194,14 @@ const CollectionsPage: React.FC = () => {
             </p>
             <button
               onClick={() => navigate('/shop')}
-              className="bg-white text-orange-500 px-8 py-3 rounded-full font-semibold text-lg hover:bg-orange-50 transition-colors inline-flex items-center gap-2"
+              className="group bg-white pl-5 pr-1.5 py-1.5 rounded-full shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 flex items-center gap-2 mx-auto"
             >
-              Browse All Products
-              <ArrowRight className="w-5 h-5" />
+              <span className="bg-gradient-to-r from-[#ff6a00] to-red-600 bg-clip-text text-transparent font-semibold text-base pl-2">
+                Browse All Products
+              </span>
+              <div className="w-8 h-8 bg-[#ff6a00] rounded-full flex items-center justify-center group-hover:bg-[#e65e00] transition-colors">
+                <ArrowRight className="w-4 h-4 text-white" />
+              </div>
             </button>
           </div>
 

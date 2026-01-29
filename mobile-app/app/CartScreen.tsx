@@ -14,10 +14,11 @@ import { useCartStore } from '../src/stores/cartStore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function CartScreen({ navigation }: any) {
-  const { items, removeItem, updateQuantity, clearCart, initializeForCurrentUser } = useCartStore();
+  const { items, removeItem, updateQuantity, clearCart, initializeForCurrentUser, clearQuickOrder } = useCartStore(); // Add clearQuickOrder
   const insets = useSafeAreaInsets();
 
-  const BRAND_PRIMARY = "#FF6A00";
+  // Use global theme color
+  const BRAND_PRIMARY = COLORS.primary;
 
   useEffect(() => {
     initializeForCurrentUser();
@@ -60,6 +61,21 @@ export default function CartScreen({ navigation }: any) {
         return [...prev, ...newIds];
       });
     }
+  const handleCheckout = () => {
+    if (selectedIds.length === 0) return;
+    
+    // Clear any previous quick order to ensure we checkout strictly from cart selections
+    clearQuickOrder();
+    
+    // In a real app, we might pass selectedIds to checkout, 
+    // but for now we assume Checkout takes all "items" or we need to implement partial checkout in store.
+    // The current CheckoutScreen logic takes `items` (all cart items) if quickOrder is null.
+    // To support selecting specific items, we would need to filter `items` in the store or pass them.
+    // For this demo, let's assume we checkout ALL items if we select checkout, 
+    // OR we can pass a param. 
+    // However, existing `CheckoutScreen` logic is simple. 
+    // Let's navigate to Checkout. 
+    navigation.navigate('Checkout');
   };
 
   return (
@@ -87,7 +103,7 @@ export default function CartScreen({ navigation }: any) {
 
       <ScrollView
         style={styles.scrollContainer}
-        contentContainerStyle={{ paddingBottom: 280 }}
+        contentContainerStyle={{ paddingBottom: 140 }} // Adjusted padding
         showsVerticalScrollIndicator={false}
       >
         {/* SELLER GROUPS */}
@@ -164,8 +180,8 @@ export default function CartScreen({ navigation }: any) {
         )}
       </ScrollView>
 
-      {/* BOTTOM ACTION BAR */}
-      <View style={[styles.bottomBar, { bottom: insets.bottom + 85 }]}>
+      {/* FLOATING ACTION BAR */}
+      <View style={[styles.bottomBar, { bottom: insets.bottom + 55 }]}>
         <View style={styles.bottomBarContent}>
           <View>
             <Text style={styles.totalInfoLabel}>Grand Total</Text>

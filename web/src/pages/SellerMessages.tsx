@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '@/stores/sellerStore';
 import { Sidebar, SidebarBody, SidebarLink } from '@/components/ui/sidebar';
 import { sellerLinks } from '@/config/sellerLinks';
@@ -16,13 +16,18 @@ import {
   Video,
   Image as ImageIcon,
   Paperclip,
-  LogOut
+  LogOut,
+  ChevronLeft,
+  MessageCircle,
+  Clock,
+  User
 } from 'lucide-react';
 
 interface Message {
   id: string;
   senderId: string;
   text: string;
+  images?: string[];
   timestamp: Date;
   isRead: boolean;
 }
@@ -37,19 +42,11 @@ interface Conversation {
   messages: Message[];
 }
 
-// Logo components defined outside of render
+// Logo components
 const Logo = () => (
   <Link to="/seller" className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20">
-    <img 
-      src="/Logo.png" 
-      alt="BazaarPH Logo" 
-      className="h-5 w-6 flex-shrink-0"
-    />
-    <motion.span
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="font-medium text-black whitespace-pre"
-    >
+    <img src="/Logo.png" alt="BazaarPH Logo" className="h-5 w-6 flex-shrink-0" />
+    <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="font-medium text-black whitespace-pre">
       BazaarPH Seller
     </motion.span>
   </Link>
@@ -57,11 +54,7 @@ const Logo = () => (
 
 const LogoIcon = () => (
   <Link to="/seller" className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20">
-    <img 
-      src="/Logo.png" 
-      alt="BazaarPH Logo" 
-      className="h-8 w-8 object-contain flex-shrink-0"
-    />
+    <img src="/Logo.png" alt="BazaarPH Logo" className="h-8 w-8 object-contain flex-shrink-0" />
   </Link>
 );
 
@@ -70,7 +63,10 @@ export default function SellerMessages() {
   const [open, setOpen] = useState(false);
   const [selectedConversation, setSelectedConversation] = useState<string | null>('1');
   const [newMessage, setNewMessage] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
   const navigate = useNavigate();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleLogout = () => {
     logout();
@@ -83,7 +79,7 @@ export default function SellerMessages() {
       id: '1',
       buyerName: 'Juan Dela Cruz',
       lastMessage: 'Is this item still available?',
-      lastMessageTime: new Date('2025-12-23T11:55:00'), // 5 mins ago
+      lastMessageTime: new Date('2025-12-23T11:55:00'),
       unreadCount: 1,
       messages: [
         {
@@ -106,7 +102,7 @@ export default function SellerMessages() {
       id: '2',
       buyerName: 'Maria Santos',
       lastMessage: 'Thank you for the fast delivery!',
-      lastMessageTime: new Date('2025-12-22T12:00:00'), // 1 day ago
+      lastMessageTime: new Date('2025-12-22T12:00:00'),
       unreadCount: 0,
       messages: [
         {
@@ -129,22 +125,24 @@ export default function SellerMessages() {
 
   const activeConversation = conversations.find(c => c.id === selectedConversation);
 
-  const handleSendMessage = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newMessage.trim() || !selectedConversation) return;
+  const handleSendMessage = (e?: React.FormEvent, textOverride?: string, imageUrls?: string[]) => {
+    e?.preventDefault();
+    const messageText = textOverride || newMessage;
+    if (!messageText.trim() && (!imageUrls || imageUrls.length === 0) || !selectedConversation) return;
 
     const updatedConversations = conversations.map(c => {
       if (c.id === selectedConversation) {
         return {
           ...c,
-          lastMessage: newMessage,
+          lastMessage: messageText ? `You: ${messageText}` : (imageUrls && imageUrls.length > 0 ? `You sent ${imageUrls.length > 1 ? `${imageUrls.length} images` : 'an image'}` : messageText),
           lastMessageTime: new Date(),
           messages: [
             ...c.messages,
             {
               id: `m${Date.now()}`,
               senderId: 'seller',
-              text: newMessage,
+              text: messageText,
+              images: imageUrls,
               timestamp: new Date(),
               isRead: true
             }
@@ -155,8 +153,38 @@ export default function SellerMessages() {
     });
 
     setConversations(updatedConversations);
-    setNewMessage('');
+    if (!textOverride && !imageUrls) setNewMessage('');
   };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length > 0) {
+      const uploadPromises = files.map(file => {
+        return new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = (event) => resolve(event.target?.result as string);
+          reader.readAsDataURL(file);
+        });
+      });
+
+      const urls = await Promise.all(uploadPromises);
+      handleSendMessage(undefined, '', urls);
+
+      // Clear input
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const filteredConversations = conversations
+    .filter(conv =>
+      conv.buyerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      conv.lastMessage.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+    .sort((a, b) => {
+      const timeA = a.lastMessageTime ? a.lastMessageTime.getTime() : 0;
+      const timeB = b.lastMessageTime ? b.lastMessageTime.getTime() : 0;
+      return timeB - timeA;
+    });
 
   return (
     <div className="h-screen w-full flex flex-col md:flex-row bg-gray-50 overflow-hidden">
@@ -176,18 +204,13 @@ export default function SellerMessages() {
                 label: seller?.storeName || "Store",
                 href: "/seller/store-profile",
                 icon: (
-                  <div className="h-7 w-7 flex-shrink-0 rounded-full bg-orange-500 flex items-center justify-center">
-                    <span className="text-white text-xs font-medium">
-                      {seller?.storeName?.charAt(0) || 'S'}
-                    </span>
+                  <div className="h-7 w-7 flex-shrink-0 rounded-full bg-orange-500 flex items-center justify-center text-white text-xs font-medium">
+                    {seller?.storeName?.charAt(0) || 'S'}
                   </div>
                 ),
               }}
             />
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-2 w-full px-2 py-2 text-sm text-gray-700 hover:text-orange-500 hover:bg-orange-50 rounded-md transition-colors"
-            >
+            <button onClick={handleLogout} className="flex items-center gap-2 w-full px-2 py-2 text-sm text-gray-700 hover:text-orange-500 hover:bg-orange-50 rounded-md transition-colors">
               <LogOut className="h-5 w-5 flex-shrink-0" />
               {open && <span>Logout</span>}
             </button>
@@ -196,40 +219,53 @@ export default function SellerMessages() {
       </Sidebar>
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="flex-1 flex h-full">
-          {/* Conversations List */}
-          <div className="w-80 border-r bg-white flex flex-col">
-            <div className="p-4 border-b">
-              <h2 className="text-xl font-bold mb-4">Messages</h2>
+        <div className="flex-1 flex h-full overflow-hidden max-w-[1600px] mx-auto w-full p-0 md:p-6 gap-0 md:gap-6">
+          {/* Conversations List Sidebar */}
+          <div className="w-full md:w-80 border-r bg-white flex flex-col md:rounded-2xl md:shadow-sm md:border border-gray-100 overflow-hidden hidden md:flex">
+            <div className="p-4 border-b border-gray-50 bg-white">
+              <h2 className="text-xl font-bold text-gray-900 mb-4">Messages</h2>
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                <Input placeholder="Search messages..." className="pl-9" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
+                <Input
+                  placeholder="Search buyers..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9 bg-gray-50 border-none focus-visible:ring-1 focus-visible:ring-orange-500 rounded-xl py-5 shadow-none"
+                />
               </div>
             </div>
             <div className="flex-1 overflow-y-auto">
-              {conversations.map((conv) => (
+              {filteredConversations.map((conv) => (
                 <div
                   key={conv.id}
                   onClick={() => setSelectedConversation(conv.id)}
-                  className={`p-4 border-b cursor-pointer hover:bg-gray-50 transition-colors ${
-                    selectedConversation === conv.id ? 'bg-orange-50 border-l-4 border-l-orange-500' : ''
-                  }`}
+                  className={`p-4 cursor-pointer hover:bg-gray-50 transition-all border-l-4 ${selectedConversation === conv.id
+                    ? 'bg-orange-50 border-l-orange-500'
+                    : 'border-l-transparent'
+                    }`}
                 >
-                  <div className="flex items-start gap-3">
-                    <Avatar>
-                      <AvatarFallback>{conv.buyerName.charAt(0)}</AvatarFallback>
-                    </Avatar>
+                  <div className="flex gap-3">
+                    <div className="relative">
+                      <Avatar className="h-12 w-12 border-2 border-white shadow-sm">
+                        <AvatarFallback className="bg-orange-100 text-orange-600 font-bold">
+                          {conv.buyerName.charAt(0)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 border-2 border-white rounded-full" />
+                    </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex justify-between items-baseline mb-1">
-                        <h3 className="font-medium truncate">{conv.buyerName}</h3>
-                        <span className="text-xs text-gray-500">
+                      <div className="flex justify-between items-baseline mb-0.5">
+                        <h4 className="font-bold text-gray-900 truncate">{conv.buyerName}</h4>
+                        <span className="text-[10px] font-semibold text-gray-400 uppercase">
                           {conv.lastMessageTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>
-                      <p className="text-sm text-gray-600 truncate">{conv.lastMessage}</p>
+                      <p className={`text-sm truncate ${conv.unreadCount > 0 ? 'text-gray-900 font-semibold' : 'text-gray-500'}`}>
+                        {conv.lastMessage}
+                      </p>
                     </div>
                     {conv.unreadCount > 0 && (
-                      <Badge className="bg-orange-500 hover:bg-orange-600 rounded-full h-5 w-5 flex items-center justify-center p-0">
+                      <Badge className="bg-orange-500 hover:bg-orange-600 rounded-full h-5 min-w-[20px] flex items-center justify-center p-0.5 text-[10px]">
                         {conv.unreadCount}
                       </Badge>
                     )}
@@ -240,90 +276,173 @@ export default function SellerMessages() {
           </div>
 
           {/* Chat Area */}
-          <div className="flex-1 flex flex-col bg-gray-50">
+          <div className="flex-1 flex flex-col bg-white md:rounded-2xl md:shadow-sm md:border border-gray-100 overflow-hidden relative">
             {activeConversation ? (
               <>
-                {/* Chat Header */}
-                <div className="p-4 bg-white border-b flex justify-between items-center">
-                  <div className="flex items-center gap-3">
-                    <Avatar>
-                      <AvatarFallback>{activeConversation.buyerName.charAt(0)}</AvatarFallback>
+                {/* Chat Header - Mobile Style Orange */}
+                <div className="bg-[#ff6a00] p-4 flex items-center gap-4 text-white shadow-lg relative z-10 transition-all">
+                  <Button variant="ghost" size="icon" className="text-white hover:bg-white/10 md:hidden" onClick={() => setSelectedConversation(null)}>
+                    <ChevronLeft className="h-6 w-6" />
+                  </Button>
+
+                  <div className="relative">
+                    <Avatar className="h-10 w-10 border-2 border-white/20">
+                      <AvatarFallback className="bg-white/20 text-white font-bold">
+                        {activeConversation.buyerName.charAt(0)}
+                      </AvatarFallback>
                     </Avatar>
-                    <div>
-                      <h3 className="font-bold">{activeConversation.buyerName}</h3>
-                      <span className="text-xs text-green-500 flex items-center gap-1">
-                        <div className="w-2 h-2 bg-green-500 rounded-full" />
-                        Online
-                      </span>
+                    <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-400 border-2 border-[#ff6a00] rounded-full" />
+                  </div>
+
+                  <div className="flex-1">
+                    <h3 className="font-bold leading-tight">{activeConversation.buyerName}</h3>
+                    <div className="flex items-center gap-1 text-[11px] font-medium opacity-90">
+                      <span className="w-1.5 h-1.5 bg-green-400 rounded-full" />
+                      Online
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Button variant="ghost" size="icon">
-                      <Phone className="w-5 h-5 text-gray-500" />
+
+                  <div className="flex items-center gap-1">
+                    <Button variant="ghost" size="icon" className="text-white hover:bg-white/10">
+                      <Phone className="h-5 w-5" />
                     </Button>
-                    <Button variant="ghost" size="icon">
-                      <Video className="w-5 h-5 text-gray-500" />
+                    <Button variant="ghost" size="icon" className="text-white hover:bg-white/10">
+                      <Video className="h-5 w-5" />
                     </Button>
-                    <Button variant="ghost" size="icon">
-                      <MoreVertical className="w-5 h-5 text-gray-500" />
+                    <Button variant="ghost" size="icon" className="text-white hover:bg-white/10">
+                      <MoreVertical className="h-5 w-5" />
                     </Button>
                   </div>
                 </div>
 
-                {/* Messages */}
-                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                {/* Messages Body */}
+                <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-gray-50/50 scrollbar-hide">
                   {activeConversation.messages.map((msg) => (
-                    <div
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
                       key={msg.id}
                       className={`flex ${msg.senderId === 'seller' ? 'justify-end' : 'justify-start'}`}
                     >
-                      <div
-                        className={`max-w-[70%] rounded-2xl p-3 ${
-                          msg.senderId === 'seller'
-                            ? 'bg-orange-500 text-white rounded-tr-none'
-                            : 'bg-white border rounded-tl-none'
-                        }`}
-                      >
-                        <p className="text-sm">{msg.text}</p>
-                        <span className={`text-[10px] mt-1 block ${
-                          msg.senderId === 'seller' ? 'text-orange-100' : 'text-gray-400'
-                        }`}>
+                      <div className={`max-w-[80%] flex flex-col ${msg.senderId === 'seller' ? 'items-end' : 'items-start'}`}>
+                        <div
+                          className={`px-4 py-3 rounded-2xl shadow-sm ${msg.senderId === 'seller'
+                            ? 'bg-[#ff6a00] text-white rounded-tr-none shadow-orange-500/10'
+                            : 'bg-white text-gray-800 border border-gray-100 rounded-tl-none shadow-gray-200/50'
+                            }`}
+                        >
+                          {msg.images && msg.images.length > 0 && (
+                            <div className={`grid gap-1 mb-2 ${msg.images.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                              {msg.images.map((img, idx) => (
+                                <div
+                                  key={idx}
+                                  className={`${msg.images && msg.images.length > 1 ? 'w-24 h-24' : 'w-40 h-40'} overflow-hidden rounded-lg cursor-pointer hover:opacity-90 transition-opacity`}
+                                  onClick={() => setPreviewImage(img)}
+                                >
+                                  <img
+                                    src={img}
+                                    alt="Sent"
+                                    className="w-full h-full object-cover"
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {msg.text && <p className="text-[15px] leading-relaxed">{msg.text}</p>}
+                        </div>
+                        <span className="text-[10px] font-bold text-gray-400 mt-1.5 px-1 uppercase tracking-wider">
                           {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>
-                    </div>
+                    </motion.div>
                   ))}
                 </div>
 
                 {/* Input Area */}
-                <div className="p-4 bg-white border-t">
-                  <form onSubmit={handleSendMessage} className="flex items-center gap-2">
-                    <Button type="button" variant="ghost" size="icon">
-                      <ImageIcon className="w-5 h-5 text-gray-500" />
+                <div className="p-4 bg-white border-t border-gray-100">
+                  <form onSubmit={handleSendMessage} className="flex items-center gap-2 p-1 bg-gray-50 rounded-2xl border border-gray-100 focus-within:border-orange-300 transition-all">
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleImageUpload}
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="text-gray-400 hover:text-orange-500 rounded-full"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <ImageIcon className="w-5 h-5" />
                     </Button>
-                    <Button type="button" variant="ghost" size="icon">
-                      <Paperclip className="w-5 h-5 text-gray-500" />
-                    </Button>
+
                     <Input
                       value={newMessage}
                       onChange={(e) => setNewMessage(e.target.value)}
-                      placeholder="Type a message..."
-                      className="flex-1"
+                      placeholder="Reply to customer..."
+                      className="flex-1 bg-transparent border-none focus-visible:ring-0 text-gray-700 shadow-none h-10"
                     />
-                    <Button type="submit" className="bg-orange-500 hover:bg-orange-600">
-                      <Send className="w-4 h-4" />
-                    </Button>
+
+                    <div className="flex items-center gap-1 pr-1">
+                      <Button
+                        type="submit"
+                        className="bg-[#ff6a00] hover:bg-[#e65e00] text-white rounded-xl h-10 w-10 p-0 shadow-lg shadow-orange-500/20"
+                        disabled={!newMessage.trim()}
+                      >
+                        <Send className="w-4 h-4 ml-0.5" />
+                      </Button>
+                    </div>
                   </form>
                 </div>
               </>
             ) : (
-              <div className="flex-1 flex items-center justify-center text-gray-400">
-                Select a conversation to start messaging
+              <div className="flex-1 flex flex-col items-center justify-center text-center p-12 space-y-4">
+                <div className="w-20 h-20 bg-orange-50 rounded-full flex items-center justify-center text-orange-500 mb-2">
+                  <MessageCircle className="h-10 w-10" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900">Customer Chats</h3>
+                  <p className="text-gray-500 max-w-xs mx-auto">
+                    Select a conversation from the left to start replying to your customers.
+                  </p>
+                </div>
               </div>
             )}
           </div>
         </div>
       </div>
+
+      {/* Full Screen Image Preview Modal */}
+      <AnimatePresence>
+        {previewImage && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
+            onClick={() => setPreviewImage(null)}
+          >
+            <motion.button
+              className="absolute top-6 right-6 text-white p-2 hover:bg-white/10 rounded-full"
+              onClick={() => setPreviewImage(null)}
+            >
+              <ChevronLeft className="w-8 h-8 rotate-180" />
+            </motion.button>
+            <motion.img
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              src={previewImage}
+              alt="Full preview"
+              className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

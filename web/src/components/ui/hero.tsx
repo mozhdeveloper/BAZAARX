@@ -10,6 +10,8 @@ interface Action {
   label: string;
   href?: string;
   onClick?: () => void;
+  className?: string;
+  icon?: React.ReactNode;
   variant?:
   | "default"
   | "destructive"
@@ -111,16 +113,22 @@ const Hero = React.forwardRef<HTMLElement, HeroProps>(
                       key={index}
                       variant={action.variant || "default"}
                       onClick={action.onClick}
+                      className={action.className}
                     >
                       {action.label}
+                      {action.icon}
                     </Button>
                   ) : (
                     <Button
                       key={index}
                       variant={action.variant || "default"}
                       asChild
+                      className={action.className}
                     >
-                      <Link to={action.href!}>{action.label}</Link>
+                      <Link to={action.href!}>
+                        {action.label}
+                        {action.icon}
+                      </Link>
                     </Button>
                   )
                 )}

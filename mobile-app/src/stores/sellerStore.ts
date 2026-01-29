@@ -408,6 +408,7 @@ export const useSellerStore = create<SellerStore>()(
           if (!product.category || product.category.trim() === '') {
             throw new Error('Product category is required');
           }
+
       
           set((state) => ({
             products: [...state.products, product],
@@ -447,6 +448,7 @@ export const useSellerStore = create<SellerStore>()(
             o.orderId === orderId ? { ...o, status } : o
           ),
         }));
+
     
         // SYNC TO BUYER: Also update the buyer's order store
         try {

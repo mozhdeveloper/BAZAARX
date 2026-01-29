@@ -9,6 +9,7 @@ import { Mail, Lock, Store, Phone, Eye, EyeOff, ArrowRight, Check, XCircle, Chev
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../../src/lib/supabase';
 import { useSellerStore } from '../../src/stores/sellerStore';
+import { useAuthStore } from '../../src/stores/authStore';
 
 const { width } = Dimensions.get('window');
 
@@ -162,6 +163,10 @@ export default function SellerSignupScreen() {
                     email: formData.email,
                     approval_status: 'pending'
                 });
+
+                // Sync roles to AuthStore
+                useAuthStore.getState().addRole('seller');
+                useAuthStore.getState().switchRole('seller');
 
                 Alert.alert(
                     'Success',

@@ -30,7 +30,7 @@ import {
   CardTitle,
 } from "../components/ui/card";
 import { supabase } from "@/lib/supabase";
-import { submitOrderReview } from "../services/orderService";
+import { orderService } from "../services/orderService";
 import Header from "../components/Header";
 import { BazaarFooter } from "../components/ui/bazaar-footer";
 import { cn } from "@/lib/utils";
@@ -357,7 +357,7 @@ export default function OrderDetailPage() {
 
     setIsSubmittingReview(true);
     try {
-      const success = await submitOrderReview(
+      const success = await orderService.submitOrderReview(
         order.id,
         dbOrder?.buyer_id || "",
         reviewRating,

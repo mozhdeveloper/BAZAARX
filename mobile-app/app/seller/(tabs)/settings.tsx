@@ -31,6 +31,7 @@ import {
 } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSellerStore } from '../../../src/stores/sellerStore';
+import { useAuthStore } from '../../../src/stores/authStore';
 import SellerDrawer from '../../../src/components/SellerDrawer';
 
 type SettingTab = 'profile' | 'store' | 'documents' | 'notifications' | 'security' | 'payments';
@@ -119,6 +120,7 @@ export default function SellerSettingsScreen() {
   };
 
   const handleSwitchToBuyer = () => {
+    useAuthStore.getState().switchRole('buyer');
     navigation.navigate('MainTabs' as never);
   };
 
@@ -624,7 +626,10 @@ export default function SellerSettingsScreen() {
             </Pressable>
             <View style={{ flex: 1 }}>
               <Text style={styles.headerTitle}>Store Settings</Text>
-              <Text style={styles.headerSubtitle}>Manage your store</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', opacity: 0.9 }}>
+                <Store size={12} color="#FFF" style={{ marginRight: 6 }} />
+                <Text style={styles.headerSubtitle}>Seller Mode • Manage your store</Text>
+              </View>
             </View>
           </View>
         </View>

@@ -470,7 +470,7 @@ export default function ShopPage() {
                       <Filter className="w-4 h-4 text-gray-400 mr-1" />
 
                       <Select value={selectedSort} onValueChange={setSelectedSort}>
-                        <SelectTrigger className="w-[130px] md:w-[150px] h-8 border-gray-200 rounded-xl bg-white transition-all hover:border-[#ff6a00] hover:shadow-sm text-[11px] text-gray-700">
+                        <SelectTrigger className="w-[130px] md:w-[150px] h-8 border-gray-200 rounded-xl bg-white transition-all hover:border-[#ff6a00] hover:shadow-sm text-[12px] text-gray-800">
                           <SelectValue placeholder="Sort by" />
                         </SelectTrigger>
                         <SelectContent className="rounded-xl border-gray-100">
@@ -484,7 +484,7 @@ export default function ShopPage() {
 
                       {/* Price Range Filter */}
                       <div className="hidden md:flex items-center gap-2 py-1 px-3 bg-white border border-gray-200 rounded-xl h-8">
-                        <span className="text-[9px] text-gray-500 uppercase tracking-wider">Price</span>
+                        <span className="text-[12px] text-gray-700 tracking-wider">Price</span>
                         <div className="w-16 lg:w-24 pt-1">
                           <Slider
                             min={0}

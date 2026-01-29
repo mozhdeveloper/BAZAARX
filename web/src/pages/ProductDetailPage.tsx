@@ -31,30 +31,13 @@ import { Button } from "../components/ui/button";
 import Header from "../components/Header";
 import { BazaarFooter } from "../components/ui/bazaar-footer";
 import { cn } from "../lib/utils";
-import { getProductById } from "../services/productService";
+import { productService } from "../services/productService";
 import { ProductWithSeller } from "../types/database.types";
+import { ProductReviews } from "@/components/reviews/ProductReviews";
 
 interface ProductDetailPageProps { }
 
-interface Reply {
-  id: number;
-  text: string;
-  author: string;
-  date: string;
-  avatar: string;
-  isSeller?: boolean;
-}
 
-interface EnhancedReview {
-  id: number;
-  user: string;
-  rating: number;
-  date: string;
-  comment: string;
-  helpful: number;
-  isLiked?: boolean;
-  replies: Reply[];
-}
 
 // Enhanced product data with more details
 const enhancedProductData: Record<string, any> = {
@@ -833,7 +816,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
 
       setIsLoading(true);
       try {
-        const product = await getProductById(id);
+        const product = await productService.getProductById(id);
         if (product) {
           setDbProduct(product);
         }
@@ -988,53 +971,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
   const [replyText, setReplyText] = useState("");
   const [reviewFilter, setReviewFilter] = useState("all");
 
-  const handleToggleLike = (reviewId: number) => {
-    setReviews((prev) =>
-      prev.map((review) => {
-        if (review.id === reviewId) {
-          return {
-            ...review,
-            isLiked: !review.isLiked,
-            helpful: review.isLiked ? review.helpful - 1 : review.helpful + 1,
-          };
-        }
-        return review;
-      }),
-    );
-  };
 
-  const handlePostReply = (reviewId: number) => {
-    if (!replyText.trim()) return;
-
-    setReviews((prev) =>
-      prev.map((review) => {
-        if (review.id === reviewId) {
-          return {
-            ...review,
-            replies: [
-              ...review.replies,
-              {
-                id: Date.now(),
-                text: replyText,
-                author: profile
-                  ? `${profile.firstName} ${profile.lastName}`
-                  : "You",
-                date: "Just now",
-                avatar:
-                  profile?.avatar ||
-                  "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=40&h=40&fit=crop&crop=face",
-                isSeller: false,
-              },
-            ],
-          };
-        }
-        return review;
-      }),
-    );
-
-    setReplyText("");
-    setReplyingTo(null);
-  };
 
   if (!normalizedProduct) {
     return (
@@ -1574,241 +1511,11 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
             )}
 
             {activeTab === "reviews" && (
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
-                {/* Sticky Rating Summary (Left Sidebar) */}
-                <div className="md:col-span-5 lg:col-span-4 sticky top-40 z-40">
-                  <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-                    <div className="text-center mb-6">
-                      <div className="text-5xl font-bold text-gray-900 leading-none mb-2">
-                        {productData.rating}
-                      </div>
-                      <div className="flex items-center justify-center gap-1 mb-2">
-                        {[...Array(5)].map((_, i) => (
-                          <Star
-                            key={i}
-                            className={cn(
-                              "h-4 w-4",
-                              i < Math.floor(productData.rating)
-                                ? "fill-current text-yellow-400"
-                                : "text-gray-300",
-                            )}
-                          />
-                        ))}
-                      </div>
-                      <div className="text-sm text-gray-500 font-medium">
-                        {productData.reviewCount} reviews
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      {[5, 4, 3, 2, 1].map((star) => (
-                        <div key={star} className="flex items-center gap-3">
-                          <div className="flex items-center justify-end gap-1.5 w-12 shrink-0">
-                            <span className="text-sm font-medium text-gray-700">
-                              {star}
-                            </span>
-                            <Star className="h-3 w-3 fill-current text-yellow-400" />
-                          </div>
-                          <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-yellow-400 rounded-full"
-                              style={{
-                                width: `${star === 5 ? 70 : star === 4 ? 20 : star === 3 ? 6 : star === 2 ? 3 : 1}%`,
-                              }}
-                            />
-                          </div>
-                          <span className="text-xs text-gray-400 w-8 text-right tabular-nums">
-                            {star === 5
-                              ? "70%"
-                              : star === 4
-                                ? "20%"
-                                : star === 3
-                                  ? "6%"
-                                  : star === 2
-                                    ? "3%"
-                                    : "1%"}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Reviews List & Filters (Right Content) */}
-                <div className="md:col-span-7 lg:col-span-8 space-y-4">
-                  {/* Review Filters */}
-                  <div className="sticky top-40 z-40 flex flex-wrap items-center gap-2 mb-4 bg-white p-2 rounded-xl border border-gray-100 shadow-sm">
-                    {["all", "5", "4", "3", "2", "1", "media"].map((filter) => (
-                      <button
-                        key={filter}
-                        onClick={() => setReviewFilter(filter)}
-                        className={cn(
-                          "px-4 py-1.5 rounded-full text-xs font-medium transition-all duration-200 border",
-                          reviewFilter === filter
-                            ? "bg-orange-50 text-orange-600 border-orange-200"
-                            : "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50",
-                        )}
-                      >
-                        {filter === "all"
-                          ? "All"
-                          : filter === "media"
-                            ? "With Media"
-                            : `${filter} Star${filter === "1" ? "" : "s"}`}
-                      </button>
-                    ))}
-                  </div>
-
-                  {reviews
-                    .filter((review) => {
-                      if (reviewFilter === "all") return true;
-                      if (reviewFilter === "media") return false; // No media in current mock data
-                      return (
-                        Math.floor(review.rating).toString() === reviewFilter
-                      );
-                    })
-                    .map((review) => (
-                      <div
-                        key={review.id}
-                        className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm"
-                      >
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center font-bold text-lg text-gray-500 overflow-hidden">
-                              {review.user ? (
-                                <span className="uppercase">
-                                  {review.user.charAt(0)}
-                                </span>
-                              ) : (
-                                <User className="h-5 w-5" />
-                              )}
-                            </div>
-                            <div>
-                              <h4 className="font-bold text-gray-900 text-sm">
-                                {review.user}
-                              </h4>
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs text-gray-400">
-                                  {review.date}
-                                </span>
-                                <div className="flex gap-0.5">
-                                  {[...Array(5)].map((_, i) => (
-                                    <Star
-                                      key={i}
-                                      className={cn(
-                                        "w-3 h-3",
-                                        i < review.rating
-                                          ? "fill-yellow-400 text-yellow-400"
-                                          : "fill-gray-200 text-gray-200",
-                                      )}
-                                    />
-                                  ))}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                        <p className="text-gray-600 leading-snug mb-3 text-sm">
-                          {review.comment}
-                        </p>
-
-                        {/* Replies */}
-                        {review.replies.length > 0 && (
-                          <div className="mb-4 pl-4 border-l-2 border-gray-100 space-y-3">
-                            {review.replies.map((reply) => (
-                              <div
-                                key={reply.id}
-                                className="bg-gray-50 p-3 rounded-lg border border-gray-200/50"
-                              >
-                                <div className="flex items-center gap-2 mb-1">
-                                  <span className="font-semibold text-xs text-gray-900">
-                                    {reply.author}
-                                  </span>
-                                  <span className="text-[10px] text-gray-400">
-                                    {reply.date}
-                                  </span>
-                                </div>
-                                <p className="text-xs text-gray-600 leading-relaxed">
-                                  {reply.text}
-                                </p>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-
-                        <div className="flex items-center gap-4 text-sm font-medium text-gray-500">
-                          <button
-                            onClick={() => handleToggleLike(review.id)}
-                            className={cn(
-                              "transition-colors flex items-center gap-1.5 group",
-                              review.isLiked
-                                ? "text-orange-600"
-                                : "hover:text-black",
-                            )}
-                          >
-                            <ThumbsUp
-                              className={cn(
-                                "h-3.5 w-3.5 transition-colors",
-                                review.isLiked
-                                  ? "fill-current text-orange-600"
-                                  : "group-hover:text-orange-600",
-                              )}
-                            />
-                            <span
-                              className={cn(
-                                "text-xs px-2 py-0.5 rounded-full border ml-1",
-                                review.isLiked
-                                  ? "bg-orange-50 border-orange-200"
-                                  : "bg-white border-gray-200",
-                              )}
-                            >
-                              {review.helpful}
-                            </span>
-                          </button>
-                          <button
-                            onClick={() =>
-                              setReplyingTo(
-                                replyingTo === review.id ? null : review.id,
-                              )
-                            }
-                            className="text-xs hover:text-orange-600 transition-colors"
-                          >
-                            Reply
-                          </button>
-                        </div>
-
-                        {replyingTo === review.id && (
-                          <div className="mt-4">
-                            <div className="relative">
-                              <Textarea
-                                value={replyText}
-                                onChange={(e) => setReplyText(e.target.value)}
-                                placeholder="Write a reply..."
-                                className="min-h-[80px] bg-gray-50 border-gray-200 focus:border-[#ff6a00] focus:ring-[#ff6a00] mb-2 text-sm resize-none pr-20"
-                              />
-                              <div className="flex justify-end gap-2 absolute bottom-4 right-2">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => setReplyingTo(null)}
-                                  className="h-6 text-xs hover:bg-gray-200 text-gray-500 px-2"
-                                >
-                                  Cancel
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  onClick={() => handlePostReply(review.id)}
-                                  className="h-6 text-xs bg-[#ff6a00] hover:bg-[#e65f00] text-white px-3"
-                                >
-                                  Post
-                                </Button>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                </div>
-              </div>
+              <ProductReviews
+                productId={normalizedProduct.id}
+                rating={productData.rating}
+                reviewCount={productData.reviewCount}
+              />
             )}
 
             {activeTab === "support" && (
