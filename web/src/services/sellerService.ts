@@ -43,7 +43,11 @@ export type SellerUpdate = Partial<Omit<SellerData, 'id' | 'created_at' | 'join_
 export class SellerService {
     private static instance: SellerService;
 
-    private constructor() { }
+    private constructor() {
+        if (SellerService.instance) {
+            throw new Error('Use SellerService.getInstance() instead of new SellerService()');
+        }
+    }
 
     public static getInstance(): SellerService {
         if (!SellerService.instance) {

@@ -13,7 +13,11 @@ type ProductUpdate = Database['public']['Tables']['products']['Update'];
 export class ProductService {
   private static instance: ProductService;
 
-  private constructor() { }
+  private constructor() {
+    if (ProductService.instance) {
+      throw new Error('Use ProductService.getInstance() instead of new ProductService()');
+    }
+  }
 
   public static getInstance(): ProductService {
     if (!ProductService.instance) {
