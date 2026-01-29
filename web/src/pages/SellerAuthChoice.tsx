@@ -1,7 +1,9 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, LogIn, UserPlus } from 'lucide-react';
 
 export function SellerAuthChoice() {
+  const navigate = useNavigate();
+  
   return (
     <div className="min-h-screen flex">
       {/* Left Side */}
@@ -9,18 +11,18 @@ export function SellerAuthChoice() {
         <div className='max-w-xl space-y-8'>
           <div className='flex items-center space-x-2'>
             <img
-              src='/Logo.png'
-              alt='BazaarPH Logo'
-              className='w-12 h-12 rounded-xl object-obtain'
+              src='/BazaarX.png'
+              alt='BazaarX Logo'
+              className='w-12 h-12 rounded-xl object-contain'
             />
-            <span className='text-xl font-semibold text-gray-900'>BazaarPH</span>
+            <span className='text-xl font-semibold text-[var(--text-primary)] font-heading'>BazaarX</span>
           </div>
 
           <blockquote className="space-y-6">
-            <p className="text-4xl lg:text-5xl font-serif italic text-gray-900 leading-tight">
-              "BazaarPH has transformed how I manage my online store. My customers love the easy checkout system!"
+            <p className="text-4xl lg:text-5xl font-serif italic text-[var(--text-primary)] leading-tight">
+              "BazaarX has transformed how I manage my online store. My customers love the easy checkout system!"
             </p>
-            <footer className="text-gray-600 text-lg">
+            <footer className="text-[var(--text-secondary)] text-lg">
               - Juan Dela Cruz, Online Seller
             </footer>
           </blockquote>
@@ -28,54 +30,44 @@ export function SellerAuthChoice() {
       </div>
 
       <div className='w-1/2 bg-white flex items-center justify-center p-12 relative'>
-        <button className='absolute top-8 right-8 flex items-center text-gray-600 hover:text-gray-900 transition-colors'>
-          
+        <Link to='/' className='absolute top-8 right-8 flex items-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors'>
           <ArrowLeft className='w-4 h-4 mr-1'/>
-          <Link to='/'>Home</Link>
-        </button>
+          <span>Home</span>
+        </Link>
 
-        <div className='max-w-md w-full space-y-8'>
+        <div className='max-w-sm w-full space-y-8'>
           <div className='text-center space-y-3'>
-            <h1 className='text-3xl font-bold text-gray-900'>Welcome to BazaarPH</h1>
-            <p className='text-gray-600'>Choose how you'd like to continue</p>
+            <h1 className='text-3xl font-bold text-[var(--text-primary)] font-heading'>Welcome to BazaarX</h1>
+            <p className='text-[var(--text-secondary)] font-sans'>Choose how you'd like to continue</p>
           </div>
 
           <div className='space-y-4'>
 
             {/* Create Seller Account */}
-            <button className='w-full bg-orange-500 hover:bg-orange-600 text-white rounded-xl p-6 transition-all shadow-md hover:shadow-lg group'>
-              <div className='flex items-center justify-center space-x-3 mb-2'>
-                <div className='bg-white bg-opacity-20 p-2 rounded-lg'>
-                  <UserPlus className='w-6 h-6'/>
+            <button 
+              onClick={() => navigate('/seller/register')}
+              className='w-full bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white rounded-[var(--radius-xl)] p-6 transition-all duration-200 shadow-[var(--shadow-medium)] hover:shadow-[var(--shadow-large)] active:scale-95 group'>
+                <div className='flex items-center justify-center space-x-3 mb-2'>
+                  <div className='bg-white bg-opacity-20 p-2 rounded-lg'>
+                    <UserPlus className='w-6 h-6'/>
+                  </div>
+                  <span className='text-xl font-semibold font-heading'>Create Seller Account</span>
                 </div>
-                <Link to='/seller/register'>
-                  <span className='text-xl font-semibold'>Create Seller Account</span>
-                </Link>
-                
-              </div>
-              <p className='text-orange-50 text-sm'>Start selling and grow your business online</p>
+              <p className='text-white/90 text-sm font-sans'>Start selling and grow your business online</p>
             </button>
 
-            {/* Sign */}
-            <button className='w-full bg-white hover:bg-gray-50 text-gray-900 border-2 border-gray-200 rounded-xl p-6 transition-all shadow-sm hover:shadow-md group'>
-              <div className='flex items-center justify-center space-x-3 mb-2'>
-                <div className='bg-orange-100 p-2 rounded-lg'>
-                  <LogIn className='w-6 h-6 text-orange-600'/>
+            {/* Sign In */}
+            <button 
+              onClick={() => navigate('/seller/login')}
+              className='w-full bg-white hover:bg-gray-50 text-[var(--text-primary)] border-2 border-[var(--border)] hover:bg-gray-50 rounded-[var(--radius-xl)] p-6 transition-all duration-200 shadow-[var(--shadow-small)] hover:shadow-[var(--shadow-medium)] active:scale-95 group'>
+                <div className='flex items-center justify-center space-x-3 mb-2'>
+                  <div className='bg-[var(--primary)]/10 p-2 rounded-lg'>
+                    <LogIn className='w-6 h-6 text-[var(--brand-primary)]'/>
+                  </div>
+                    <span className='text-xl font-semibold font-heading'>Sign in to your account</span>
                 </div>
-                <Link to='/seller/login'>
-                  <span className='text-xl font-semibold'>Sign in to your account</span>
-                </Link>
-                
-              </div>
-              <p className='text-gray-600 text-sm'>Access your store and manage your listing</p>
+              <p className='text-[var(--text-secondary)] text-sm font-sans'>Access your store and manage your listings</p>
             </button>
-          </div>
-
-          <div className='text-center pt-4 border-t border-gray-200'>
-            <p className='text-gray-600'>
-              Already have an Account?{' '}
-              <Link to='/seller/login' className='text-orange-500 hover:text-orange-600 font-semibold transition-colors'>Sign in</Link>
-            </p>
           </div>
         </div>
       </div>

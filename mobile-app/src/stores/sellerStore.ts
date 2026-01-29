@@ -1,6 +1,9 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { productService } from '@/services/productService';
+import { isSupabaseConfigured, supabase } from '@/lib/supabase';
+import type { Product as DbProduct } from '@/types/database.types';
 
 export interface SellerProduct {
   id: string;
@@ -9,14 +12,24 @@ export interface SellerProduct {
   price: number;
   originalPrice?: number;
   stock: number;
-  image: string;
-  images?: string[];
   category: string;
-  isActive: boolean;
-  sold: number;
-  // Optional product attributes
+  images: string[];
   sizes?: string[];
   colors?: string[];
+  isActive: boolean;
+  sellerId: string;
+  createdAt: string;
+  updatedAt: string;
+  sales: number;
+  rating: number;
+  reviews: number;
+  approvalStatus?: 'pending' | 'approved' | 'rejected' | 'reclassified';
+  rejectionReason?: string;
+  vendorSubmittedCategory?: string;
+  adminReclassifiedCategory?: string;
+  sellerName?: string;
+  sellerRating?: number;
+  sellerLocation?: string;
 }
 
 export interface SellerOrder {
@@ -116,9 +129,12 @@ interface SellerStore {
 
   // Products
   products: SellerProduct[];
-  addProduct: (product: SellerProduct) => void;
-  updateProduct: (id: string, updates: Partial<SellerProduct>) => void;
-  deleteProduct: (id: string) => void;
+  loading: boolean;
+  error: string | null;
+  fetchProducts: (sellerId?: string) => Promise<void>;
+  addProduct: (product: SellerProduct) => Promise<void>;
+  updateProduct: (id: string, updates: Partial<SellerProduct>) => Promise<void>;
+  deleteProduct: (id: string) => Promise<void>;
   toggleProductStatus: (id: string) => void;
 
   // Orders
@@ -143,10 +159,16 @@ const dummyProducts: SellerProduct[] = [
     description: 'Latest iPhone with A17 Pro chip and titanium design',
     price: 75999,
     stock: 24,
-    image: 'https://images.unsplash.com/photo-1696446702877-c040ff34b6d4?w=300',
+    images: ['https://images.unsplash.com/photo-1696446702877-c040ff34b6d4?w=300'],
     category: 'Electronics',
     isActive: true,
-    sold: 156,
+    sales: 156,
+    rating: 4.5,
+    reviews: 12,
+    approvalStatus: 'approved',
+    sellerId: '1',
+    createdAt: '2024-01-01T00:00:00.000Z',
+    updatedAt: '2024-01-01T00:00:00.000Z',
   },
   {
     id: '2',
@@ -154,10 +176,16 @@ const dummyProducts: SellerProduct[] = [
     description: 'Flagship Android phone with S Pen and 200MP camera',
     price: 69999,
     stock: 18,
-    image: 'https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?w=300',
+    images: ['https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?w=300'],
     category: 'Electronics',
     isActive: true,
-    sold: 142,
+    sales: 142,
+    rating: 4.5,
+    reviews: 12,
+    approvalStatus: 'approved',
+    sellerId: '1',
+    createdAt: '2024-01-01T00:00:00.000Z',
+    updatedAt: '2024-01-01T00:00:00.000Z',
   },
   {
     id: '3',
@@ -165,10 +193,16 @@ const dummyProducts: SellerProduct[] = [
     description: 'Powerful laptop with M3 chip and Liquid Retina XDR display',
     price: 129999,
     stock: 12,
-    image: 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=300',
+    images: ['https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=300'],
     category: 'Electronics',
     isActive: true,
-    sold: 89,
+    sales: 89,
+    rating: 4.5,
+    reviews: 12,
+    approvalStatus: 'approved',
+    sellerId: '1',
+    createdAt: '2024-01-01T00:00:00.000Z',
+    updatedAt: '2024-01-01T00:00:00.000Z',
   },
   {
     id: '4',
@@ -176,10 +210,16 @@ const dummyProducts: SellerProduct[] = [
     description: 'Premium wireless earbuds with active noise cancellation',
     price: 14999,
     stock: 45,
-    image: 'https://images.unsplash.com/photo-1606841837239-c5a1a4a07af7?w=300',
+    images: ['https://images.unsplash.com/photo-1606841837239-c5a1a4a07af7?w=300'],
     category: 'Accessories',
     isActive: true,
-    sold: 234,
+    sales: 234,
+    rating: 4.5,
+    reviews: 12,
+    approvalStatus: 'approved',
+    sellerId: '1',
+    createdAt: '2024-01-01T00:00:00.000Z',
+    updatedAt: '2024-01-01T00:00:00.000Z',
   },
   {
     id: '5',
@@ -187,10 +227,16 @@ const dummyProducts: SellerProduct[] = [
     description: 'Versatile tablet with M2 chip and Apple Pencil support',
     price: 42999,
     stock: 8,
-    image: 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=300',
+    images: ['https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=300'],
     category: 'Electronics',
     isActive: false,
-    sold: 67,
+    sales: 67,
+    rating: 4.5,
+    reviews: 12,
+    approvalStatus: 'approved',
+    sellerId: '1',
+    createdAt: '2024-01-01T00:00:00.000Z',
+    updatedAt: '2024-01-01T00:00:00.000Z',
   },
   {
     id: '6',
@@ -198,10 +244,16 @@ const dummyProducts: SellerProduct[] = [
     description: 'Industry-leading noise cancelling headphones',
     price: 19999,
     stock: 32,
-    image: 'https://images.unsplash.com/photo-1618366712010-f4ae9c647dcf?w=300',
+    images: ['https://images.unsplash.com/photo-1618366712010-f4ae9c647dcf?w=300'],
     category: 'Accessories',
     isActive: true,
-    sold: 178,
+    sales: 178,
+    rating: 4.5,
+    reviews: 12,
+    approvalStatus: 'approved',
+    sellerId: '1',
+    createdAt: '2024-01-01T00:00:00.000Z',
+    updatedAt: '2024-01-01T00:00:00.000Z',
   },
 ];
 
@@ -392,8 +444,81 @@ export const useSellerStore = create<SellerStore>()(
 
       // Products
       products: dummyProducts,
+      loading: false,
+      error: null,
 
-      addProduct: (product) => {
+      fetchProducts: async (sellerId?: string) => {
+        console.log('[sellerStore] fetchProducts called with provided sellerId:', sellerId);
+        
+        if (!isSupabaseConfigured()) {
+          console.log('[sellerStore] Supabase not configured - using dummy products');
+          // Keep dummy products if not configured
+          return;
+        }
+
+        console.log('[sellerStore] Setting loading state...');
+        set({ loading: true, error: null });
+        try {
+          // Get the authenticated user's ID from Supabase session
+          let actualSellerId = sellerId;
+          
+          // If sellerId looks like a dummy ID (not a UUID), get the real one from session
+          const isValidUUID = sellerId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sellerId);
+          
+          if (!isValidUUID) {
+            console.log('[sellerStore] SellerId is not a valid UUID, getting from Supabase session...');
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session?.user?.id) {
+              actualSellerId = session.user.id;
+              console.log('[sellerStore] Got seller ID from session:', actualSellerId);
+            } else {
+              console.log('[sellerStore] No authenticated session, fetching all products');
+              actualSellerId = undefined; // Don't filter by seller, get all products
+            }
+          }
+          
+          console.log('[sellerStore] Calling productService.getProducts with sellerId:', actualSellerId);
+          const data = await productService.getProducts({ sellerId: actualSellerId });
+          console.log('[sellerStore] Got products from service:', data?.length || 0, 'items');
+          
+          const mappedProducts: SellerProduct[] = data.map((p) => ({
+            id: p.id || '',
+            name: p.name || '',
+            description: p.description || '',
+            price: p.price ?? 0,
+            originalPrice: p.original_price ?? undefined,
+            stock: p.stock ?? 0,
+            category: p.category || '',
+            images: p.images || [],
+            sizes: p.sizes || [],
+            colors: p.colors || [],
+            isActive: p.is_active ?? true,
+            sellerId: p.seller_id || '',
+            createdAt: p.created_at || '',
+            updatedAt: p.updated_at || '',
+            sales: p.sales_count ?? 0,
+            rating: p.rating ?? 0,
+            reviews: p.review_count ?? 0,
+            approvalStatus: (p.approval_status as SellerProduct['approvalStatus']) || 'pending',
+            rejectionReason: p.rejection_reason || undefined,
+            vendorSubmittedCategory: p.vendor_submitted_category || undefined,
+            adminReclassifiedCategory: p.admin_reclassified_category || undefined,
+            sellerName: p.seller?.store_name || p.seller?.business_name,
+            sellerRating: p.seller?.rating,
+            sellerLocation: p.seller?.business_address,
+          }));
+          console.log('[sellerStore] Mapped', mappedProducts.length, 'products');
+          set({ products: mappedProducts, loading: false });
+        } catch (error) {
+          console.error('[sellerStore] Error fetching products:', error);
+          set({
+            error: error instanceof Error ? error.message : 'Failed to fetch products',
+            loading: false,
+          });
+        }
+      },
+
+      addProduct: async (product) => {
         try {
           // Validation
           if (!product.name || product.name.trim() === '') {
@@ -408,27 +533,102 @@ export const useSellerStore = create<SellerStore>()(
           if (!product.category || product.category.trim() === '') {
             throw new Error('Product category is required');
           }
-      
-          set((state) => ({
-            products: [...state.products, product],
-          }));
+
+          if (isSupabaseConfigured()) {
+            // Get the authenticated user's ID from Supabase session
+            let actualSellerId = product.sellerId;
+            const isValidUUID = actualSellerId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(actualSellerId);
+            
+            if (!isValidUUID) {
+              console.log('[sellerStore] addProduct: SellerId is not a valid UUID, getting from Supabase session...');
+              const { data: { session } } = await supabase.auth.getSession();
+              if (session?.user?.id) {
+                actualSellerId = session.user.id;
+                console.log('[sellerStore] addProduct: Got seller ID from session:', actualSellerId);
+              } else {
+                throw new Error('Not authenticated. Please log in to add products.');
+              }
+            }
+            
+            // Use Supabase
+            const dbProduct = await productService.createProduct({
+              name: product.name,
+              description: product.description,
+              price: product.price,
+              original_price: product.originalPrice,
+              stock: product.stock,
+              category: product.category,
+              images: product.images,
+              sizes: product.sizes,
+              colors: product.colors,
+              is_active: product.isActive,
+              seller_id: actualSellerId,
+              approval_status: 'pending',
+              vendor_submitted_category: product.category,
+            });
+            // Add returned product to local state
+            const newProduct: SellerProduct = {
+              ...product,
+              id: dbProduct.id || product.id,
+              createdAt: dbProduct.created_at || new Date().toISOString(),
+              updatedAt: dbProduct.updated_at || new Date().toISOString(),
+            };
+            set((state) => ({ products: [...state.products, newProduct] }));
+          } else {
+            // Fallback: local state only
+            set((state) => ({ products: [...state.products, product] }));
+          }
         } catch (error) {
           console.error('Error adding product:', error);
           throw error;
         }
       },
 
-      updateProduct: (id, updates) =>
-        set((state) => ({
-          products: state.products.map((p) =>
-            p.id === id ? { ...p, ...updates } : p
-          ),
-        })),
+      updateProduct: async (id, updates) => {
+        try {
+          if (isSupabaseConfigured()) {
+            // Map to DB fields
+            const dbUpdates: Record<string, unknown> = {};
+            if (updates.name !== undefined) dbUpdates.name = updates.name;
+            if (updates.description !== undefined) dbUpdates.description = updates.description;
+            if (updates.price !== undefined) dbUpdates.price = updates.price;
+            if (updates.originalPrice !== undefined) dbUpdates.original_price = updates.originalPrice;
+            if (updates.stock !== undefined) dbUpdates.stock = updates.stock;
+            if (updates.category !== undefined) dbUpdates.category = updates.category;
+            if (updates.images !== undefined) dbUpdates.images = updates.images;
+            if (updates.sizes !== undefined) dbUpdates.sizes = updates.sizes;
+            if (updates.colors !== undefined) dbUpdates.colors = updates.colors;
+            if (updates.isActive !== undefined) dbUpdates.is_active = updates.isActive;
 
-      deleteProduct: (id) =>
-        set((state) => ({
-          products: state.products.filter((p) => p.id !== id),
-        })),
+            await productService.updateProduct(id, dbUpdates);
+          }
+
+          // Always update local state
+          set((state) => ({
+            products: state.products.map((p) =>
+              p.id === id ? { ...p, ...updates } : p
+            ),
+          }));
+        } catch (error) {
+          console.error('Error updating product:', error);
+          throw error;
+        }
+      },
+
+      deleteProduct: async (id) => {
+        try {
+          if (isSupabaseConfigured()) {
+            await productService.deleteProduct(id);
+          }
+          // Always update local state
+          set((state) => ({
+            products: state.products.filter((p) => p.id !== id),
+          }));
+        } catch (error) {
+          console.error('Error deleting product:', error);
+          throw error;
+        }
+      },
 
       toggleProductStatus: (id) =>
         set((state) => ({
@@ -447,6 +647,7 @@ export const useSellerStore = create<SellerStore>()(
             o.orderId === orderId ? { ...o, status } : o
           ),
         }));
+
     
         // SYNC TO BUYER: Also update the buyer's order store
         try {
@@ -525,7 +726,7 @@ export const useSellerStore = create<SellerStore>()(
                 return {
                   ...product,
                   stock: product.stock - cartItem.quantity,
-                  sold: product.sold + cartItem.quantity,
+                  sales: product.sales + cartItem.quantity,
                 };
               }
               return product;

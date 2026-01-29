@@ -11,6 +11,7 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
+    "@ptomasroos/react-native-multi-slider": "^2.2.2",
     "@react-native-async-storage/async-storage": "^2.2.0",
     "@react-navigation/bottom-tabs": "^7.9.0",
     "@react-navigation/native": "^7.1.26",
@@ -19,6 +20,7 @@
     "@supabase/supabase-js": "^2.90.1",
     "@tamagui/config": "^1.141.4",
     "@tamagui/core": "^1.141.4",
+    "base64-arraybuffer": "^1.0.2",
     "expo": "~54.0.31",
     "expo-blur": "~15.0.8",
     "expo-camera": "~17.0.10",
@@ -29,20 +31,24 @@
     "expo-image-picker": "~17.0.10",
     "expo-linear-gradient": "~15.0.8",
     "expo-linking": "~8.0.11",
+    "expo-location": "~19.0.8",
     "expo-router": "~6.0.21",
     "expo-sharing": "~14.0.8",
     "expo-status-bar": "~3.0.9",
     "lucide-react-native": "^0.562.0",
     "nativewind": "^2.0.11",
+    "prop-types": "^15.8.1",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-native": "0.81.5",
     "react-native-gesture-handler": "~2.28.0",
     "react-native-gifted-charts": "^1.4.70",
+    "react-native-maps": "1.20.1",
     "react-native-safe-area-context": "^5.6.2",
     "react-native-screens": "~4.16.0",
     "react-native-svg": "15.12.1",
     "react-native-web": "^0.21.2",
+    "select-philippines-address": "^1.0.6",
     "tailwindcss": "^3.3.2",
     "tamagui": "^1.141.4",
     "zustand": "^5.0.9"
@@ -51,6 +57,7 @@
     "@babel/core": "^7.25.0",
     "@types/react": "~19.1.10",
     "babel-plugin-transform-inline-environment-variables": "^0.4.4",
+    "eslint": "^9.39.2",
     "typescript": "~5.9.2"
   },
   "private": true

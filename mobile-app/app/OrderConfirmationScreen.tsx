@@ -91,7 +91,7 @@ export default function OrderConfirmationScreen({ route, navigation }: Props) {
                   <Text style={styles.productQty}>Qty: {item.quantity}</Text>
                 </View>
                 <Text style={styles.productPrice}>
-                  ₱{(item.price * item.quantity).toFixed(2)}
+                  ₱{((item.price ?? 0) * item.quantity).toFixed(2)}
                 </Text>
               </View>
             ))}

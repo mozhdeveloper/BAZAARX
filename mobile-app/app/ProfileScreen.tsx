@@ -2,12 +2,13 @@ import React from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet, Alert, StatusBar, Modal, TextInput, ActivityIndicator, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
-import { User, MapPin, CreditCard, Bell, HelpCircle, Shield, ChevronRight, Store, Star, Package, Heart, Settings, Edit2, Power, X, Camera, RotateCcw, Clock } from 'lucide-react-native';
+import { User, MapPin, CreditCard, Bell, HelpCircle, Shield, ChevronRight, Store, Star, Package, Heart, Settings, Edit2, Power, X, Camera, RotateCcw, Clock, Gift } from 'lucide-react-native';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList, TabParamList } from '../App';
 import { useAuthStore } from '../src/stores/authStore';
+import { useSellerStore } from '../src/stores/sellerStore';
 import { useWishlistStore } from '../src/stores/wishlistStore';
 import { supabase } from '../src/lib/supabase';
 import { COLORS } from '../src/constants/theme';
@@ -20,9 +21,12 @@ type Props = CompositeScreenProps<
 
 export default function ProfileScreen({ navigation }: Props) {
   const { user, logout, updateProfile, isGuest } = useAuthStore();
+  const seller = useSellerStore(state => state.seller);
   const wishlistItems = useWishlistStore(state => state.items);
   const insets = useSafeAreaInsets();
   const BRAND_COLOR = COLORS.primary;
+
+  const isSeller = user?.roles?.includes('seller') || (seller && !!seller.storeName);
 
   // Guest Modal State
   const [showGuestModal, setShowGuestModal] = React.useState(false);
@@ -36,7 +40,44 @@ export default function ProfileScreen({ navigation }: Props) {
   const [editAvatar, setEditAvatar] = React.useState('');
   const [isSaving, setIsSaving] = React.useState(false);
 
+  // Bazcoins State
+  const [bazcoins, setBazcoins] = React.useState(0);
+  const [totalOrders, setTotalOrders] = React.useState(0);
 
+  // Fetch Bazcoins and orders from Supabase
+  React.useEffect(() => {
+  if (!user?.id || isGuest) return;
+
+  const fetchProfileData = async () => {
+    try {
+      // 1. Fetch Bazcoins
+      const { data: buyerData } = await supabase
+        .from('buyers')
+        .select('bazcoins')
+        .eq('id', user.id)
+        .single();
+
+      if (buyerData) setBazcoins(buyerData.bazcoins || 0);
+
+      // 2. Fetch Total Order Count
+      // We use { count: 'exact', head: true } to get the number of rows without downloading the data
+      const { count, error: orderError } = await supabase
+        .from('orders')
+        .select('*', { count: 'exact', head: true })
+        .eq('buyer_id', user.id); // Use 'seller_id' if you want orders sold by this user
+
+      if (!orderError && count !== null) {
+        setTotalOrders(count);
+      }
+    } catch (error) {
+      console.error('Error fetching profile data:', error);
+    }
+  };
+
+  fetchProfileData();
+
+  // ... keep your existing realtime subscription for bazcoins ...
+}, [user?.id, isGuest]);
 
   const openEditModal = () => {
     setEditFirstName(user?.name.split(' ')[0] || '');
@@ -148,8 +189,8 @@ export default function ProfileScreen({ navigation }: Props) {
     email: user?.email || 'jonathan.doe@example.com',
     phone: user?.phone || '+63 912 345 6789',
     memberSince: 'January 2024',
-    totalOrders: 12,
-    loyaltyPoints: 1250,
+    totalOrders: totalOrders,
+    loyaltyPoints: bazcoins, 
     wishlistCount: wishlistItems.length,
   };
 
@@ -172,9 +213,9 @@ export default function ProfileScreen({ navigation }: Props) {
   };
 
   const accountMenuItems = [
-    { icon: Package, label: 'My Orders', onPress: () => navigation.navigate('Orders', {}) },
+    { icon: Package, label: 'My Orders', onPress: () => navigation.navigate('MainTabs', { screen: 'Orders', params: {} }) },
     { icon: Clock, label: 'History', onPress: () => navigation.navigate('History') },
-    { icon: Heart, label: 'Wishlist', onPress: () => navigation.navigate('Wishlist') },
+    { icon: Gift, label: 'Wishlist', onPress: () => navigation.navigate('Wishlist') },
     { icon: MapPin, label: 'My Addresses', onPress: () => navigation.navigate('Addresses') },
     { icon: Store, label: 'Following Shops', onPress: () => navigation.navigate('FollowingShops') },
   ];
@@ -269,8 +310,10 @@ export default function ProfileScreen({ navigation }: Props) {
           </View>
           <View style={styles.headerInfo}>
             <Text style={styles.userName}>{profile.firstName} {profile.lastName}</Text>
-            <Text style={styles.userSub}>{profile.email}</Text>
-            <Text style={styles.userSub}>{profile.phone}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2, opacity: 0.9 }}>
+               <User size={12} color="#FFF" style={{ marginRight: 6 }} />
+               <Text style={{ color: '#FFF', fontSize: 13, fontWeight: '600', letterSpacing: 0.5 }}>Buyer Account</Text>
+            </View>
           </View>
         </View>
 
@@ -278,7 +321,7 @@ export default function ProfileScreen({ navigation }: Props) {
         <View style={styles.statsCard}>
           <Pressable
             style={({ pressed }) => [styles.statBox, pressed && { opacity: 0.7 }]}
-            onPress={() => navigation.navigate('Orders', { initialTab: 'toPay' })}
+            onPress={() => navigation.navigate('MainTabs', { screen: 'Orders', params: { initialTab: 'toPay' } })}
           >
             <Text style={[styles.statVal, { color: BRAND_COLOR }]}>{profile.totalOrders}</Text>
             <Text style={styles.statLab}>Orders</Text>
@@ -320,18 +363,7 @@ export default function ProfileScreen({ navigation }: Props) {
           </View>
         </View>
 
-        <View style={styles.menuGroup}>
-          <Text style={styles.groupTitle}>Selling</Text>
-          <View style={styles.card}>
-            <Pressable style={styles.menuItem} onPress={() => navigation.navigate('SellerAuthChoice')}>
-              <View style={[styles.iconContainer, { backgroundColor: '#FFF5F0' }]}>
-                <Store size={20} color={BRAND_COLOR} strokeWidth={2} />
-              </View>
-              <Text style={styles.menuLabel}>Start Selling</Text>
-              <ChevronRight size={18} color="#D1D5DB" />
-            </Pressable>
-          </View>
-        </View>
+
 
         <View style={styles.menuGroup}>
           <Text style={styles.groupTitle}>Settings</Text>
@@ -360,8 +392,41 @@ export default function ProfileScreen({ navigation }: Props) {
                 <ChevronRight size={18} color="#D1D5DB" />
               </Pressable>
             ))}
-          </View>
         </View>
+
+        </View>
+
+        {/* 3.5 SELLING SWITCH (Moved to Footer) */}
+        {isSeller ? (
+          <Pressable 
+            style={[styles.logoutBtn, { marginBottom: 15, borderColor: '#FED7AA', backgroundColor: '#FFF7ED' }]}
+            onPress={() => {
+              useAuthStore.getState().switchRole('seller');
+              navigation.navigate('SellerStack');
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <View style={[styles.iconContainer, { width: 32, height: 32, backgroundColor: '#FFEDD5', margin: 0, marginRight: 0 }]}>
+                <Store size={18} color={BRAND_COLOR} strokeWidth={2.5} />
+              </View>
+              <View>
+                 <Text style={[styles.logoutText, { color: BRAND_COLOR, fontSize: 16 }]}>Switch to Seller Mode</Text>
+              </View>
+            </View>
+          </Pressable>
+        ) : (
+          <Pressable 
+             style={[styles.logoutBtn, { marginBottom: 15, borderColor: '#FED7AA', backgroundColor: '#FFF7ED' }]}
+             onPress={() => navigation.navigate('SellerAuthChoice')}
+          >
+             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+               <View style={[styles.iconContainer, { width: 32, height: 32, backgroundColor: '#FFEDD5', margin: 0, marginRight: 0 }]}>
+                 <Store size={18} color={BRAND_COLOR} strokeWidth={2.5} />
+               </View>
+               <Text style={[styles.logoutText, { color: BRAND_COLOR, fontSize: 16 }]}>Start Selling</Text>
+             </View>
+          </Pressable>
+        )}
 
         {/* 4. LOGOUT BUTTON */}
         <Pressable style={styles.logoutBtn} onPress={handleLogout}>

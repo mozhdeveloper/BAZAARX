@@ -9,12 +9,14 @@ import {
   ChevronDown,
   ShoppingBag,
   Camera,
+  MessageCircle,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { NotificationsDropdown } from "./NotificationsDropdown";
 import { useBuyerStore } from "../stores/buyerStore";
 import VisualSearchModal from "./VisualSearchModal";
 import ProductRequestModal from "./ProductRequestModal";
+import SupportModal from "./SupportModal";
 import {
   trendingProducts,
   bestSellerProducts,
@@ -23,15 +25,17 @@ import {
 
 interface HeaderProps {
   transparentOnTop?: boolean;
+  hideSearch?: boolean;
 }
 
-const Header: React.FC<HeaderProps> = ({ transparentOnTop = false }) => {
+const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = false }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { profile, logout, getTotalCartItems, initializeCart, subscribeToProfile, unsubscribeFromProfile } = useBuyerStore();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [showVisualSearchModal, setShowVisualSearchModal] = useState(false);
+  const [showSupportModal, setShowSupportModal] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement>(null);
 
@@ -86,14 +90,14 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false }) => {
                 alt="BazaarX Logo"
                 className="h-12 w-auto object-contain"
               />
-              <span 
+              <span
                 className="font-['Tenor Sans'] text-2xl font-bold tracking-tight hidden md:block text-[var(--brand-primary)]">
                 BazaarX
               </span>
             </div>
           </div>
 
-          {!isSearchPage && (
+          {(!isSearchPage || location.pathname === "/stores") && !hideSearch && (
             <div className={`hidden md:flex flex-1 items-center justify-center lg:absolute lg:left-1/2 lg:-translate-x-1/2 lg:w-full lg:max-w-2xl px-4 lg:px-8 transition-opacity duration-300 ${transparentOnTop && !isScrolled ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
               <div className="relative w-full max-w-xl lg:max-w-full group">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -102,7 +106,7 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false }) => {
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
-                  > 
+                  >
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -113,35 +117,42 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false }) => {
                 </div>
                 <input
                   type="text"
-                  placeholder="Search for products, brands, categories"
+                  placeholder={location.pathname === "/stores" ? "Search for stores..." : "Search for products, brands, categories"}
                   className="w-full pl-10 pr-12 py-2.5 bg-white border-2 border-transparent focus:border-[#ff6a00] rounded-full text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-4 focus:ring-orange-100 transition-all text-sm shadow-sm"
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       const query = (e.target as HTMLInputElement).value;
-                      navigate(
-                        `/search${query ? "?q=" + encodeURIComponent(query) : ""
-                        }`
-                      );
+                      if (location.pathname === "/stores") {
+                        navigate(`/stores${query ? "?q=" + encodeURIComponent(query) : ""}`);
+                        // Force a re-render or state update if needed, though navigate should trigger location change in StoresPage
+                      } else {
+                        navigate(
+                          `/search${query ? "?q=" + encodeURIComponent(query) : ""
+                          }`
+                        );
+                      }
                     }
                   }}
+                  defaultValue={new URLSearchParams(location.search).get("q") || ""}
                 />
 
-                {/* Camera Button */}
-                <button
-                  onClick={() => setShowVisualSearchModal(true)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 text-gray-400 hover:text-[#ff6a00] transition-colors rounded-full hover:bg-gray-100"
-                  title="Search by image"
-                >
-                  <Camera className="w-5 h-5" />
-                </button>
+                {location.pathname !== "/stores" && (
+                  <button
+                    onClick={() => setShowVisualSearchModal(true)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-[#ff6a00] transition-colors rounded-full hover:bg-gray-100 p-1"
+                    title="Search by image"
+                  >
+                    <Camera className="w-5 h-5" />
+                  </button>
+                )}
               </div>
             </div>
           )}
 
           {/* Right Navigation */}
-          <div 
+          <div
             className="flex items-center justify-end text-gray-700 shrink-0 gap-[var(--spacing-md)]">
-            {!isSearchPage && (
+            {!isSearchPage && !hideSearch && (
               <button
                 onClick={() => navigate("/search")}
                 className="md:hidden p-2 hover:bg-gray-100 rounded-full transition-colors"
@@ -207,6 +218,15 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false }) => {
                   d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"
                 />
               </svg>
+            </button>
+
+            {/* Messages */}
+            <button
+              onClick={() => navigate("/messages")}
+              className="relative p-2 hover:text-[#ff6a00] hover:bg-gray-50 rounded-full transition-colors"
+              title="Messages"
+            >
+              <MessageCircle className="h-6 w-6" />
             </button>
 
             {/* Notifications */}
@@ -377,6 +397,11 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false }) => {
       <ProductRequestModal
         isOpen={showRequestModal}
         onClose={() => setShowRequestModal(false)}
+      />
+
+      <SupportModal
+        isOpen={showSupportModal}
+        onClose={() => setShowSupportModal(false)}
       />
     </header>
   );

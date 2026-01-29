@@ -32,7 +32,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { uploadSellerDocument } from "@/utils/storage";
+import { uploadSellerDocument, validateDocumentFile } from "@/utils/storage";
 import { supabase } from "@/lib/supabase";
 
 // Logo components defined outside of render
@@ -372,15 +372,10 @@ export function SellerStoreProfile() {
   ) => {
     if (!seller?.id) return;
 
-    // Validate file type
-    if (file.type !== "application/pdf") {
-      alert("Please upload a PDF file only");
-      return;
-    }
-
-    // Validate file size (max 10MB)
-    if (file.size > 10 * 1024 * 1024) {
-      alert("File size must be less than 10MB");
+    // Validate file type and size
+    const validation = validateDocumentFile(file);
+    if (!validation.valid) {
+      alert(validation.error);
       return;
     }
 
@@ -449,10 +444,17 @@ export function SellerStoreProfile() {
       alert("Document uploaded successfully!");
     } catch (error) {
       console.error("Error uploading document:", error);
-      alert("Failed to upload document. Please try again.");
+      const errorMessage = error instanceof Error ? error.message : "Failed to upload document. Please try again.";
+      alert(errorMessage);
     } finally {
       setUploadingDoc(null);
     }
+  };
+
+  // Helper: Check if URL is an image file
+  const isImageFile = (url?: string) => {
+    if (!url) return false;
+    return /\.(jpg|jpeg|png|webp)$/i.test(url);
   };
 
   const handleSaveBasic = async () => {
@@ -1191,17 +1193,17 @@ export function SellerStoreProfile() {
                         isEmptyField(seller?.city) ||
                         isEmptyField(seller?.province) ||
                         isEmptyField(seller?.postalCode)) && (
-                        <AlertCircle
-                          className="h-4 w-4 text-amber-500"
-                          aria-label="Required field"
-                        />
-                      )}
+                          <AlertCircle
+                            className="h-4 w-4 text-amber-500"
+                            aria-label="Required field"
+                          />
+                        )}
                     </p>
                     <p className="text-gray-900">
                       {seller?.businessAddress &&
-                      seller?.city &&
-                      seller?.province &&
-                      seller?.postalCode
+                        seller?.city &&
+                        seller?.province &&
+                        seller?.postalCode
                         ? `${seller.businessAddress}, ${seller.city}, ${seller.province} ${seller.postalCode}`
                         : "Not provided"}
                     </p>
@@ -1436,23 +1438,20 @@ export function SellerStoreProfile() {
                   return (
                     <div
                       key={doc.key}
-                      className={`p-4 border rounded-lg transition-colors ${
-                        hasDocument
+                      className={`p-4 border rounded-lg transition-colors ${hasDocument
                           ? "border-green-200 bg-green-50/50 hover:border-green-300"
                           : "border-gray-200 hover:border-orange-300"
-                      }`}
+                        }`}
                     >
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-3">
                           <div
-                            className={`h-10 w-10 rounded-lg flex items-center justify-center ${
-                              hasDocument ? "bg-green-100" : "bg-gray-100"
-                            }`}
+                            className={`h-10 w-10 rounded-lg flex items-center justify-center ${hasDocument ? "bg-green-100" : "bg-gray-100"
+                              }`}
                           >
                             <Icon
-                              className={`h-5 w-5 ${
-                                hasDocument ? "text-green-600" : "text-gray-500"
-                              }`}
+                              className={`h-5 w-5 ${hasDocument ? "text-green-600" : "text-gray-500"
+                                }`}
                             />
                           </div>
                           <div>
@@ -1461,6 +1460,9 @@ export function SellerStoreProfile() {
                             </p>
                             <p className="text-sm text-gray-500">
                               {doc.description}
+                              <span className="block mt-1 text-xs text-gray-400">
+                                Accepted: PDF, JPG, PNG • Max 10MB
+                              </span>
                             </p>
                           </div>
                         </div>
@@ -1548,7 +1550,7 @@ export function SellerStoreProfile() {
                               onClick={() => {
                                 const input = document.createElement("input");
                                 input.type = "file";
-                                input.accept = "application/pdf";
+                                input.accept = ".pdf,.jpg,.jpeg,.png";
                                 input.onchange = async (e) => {
                                   const file = (e.target as HTMLInputElement)
                                     .files?.[0];
@@ -1575,7 +1577,7 @@ export function SellerStoreProfile() {
                             onClick={() => {
                               const input = document.createElement("input");
                               input.type = "file";
-                              input.accept = "application/pdf";
+                              input.accept = ".pdf,.jpg,.jpeg,.png";
                               input.onchange = async (e) => {
                                 const file = (e.target as HTMLInputElement)
                                   .files?.[0];
@@ -1602,6 +1604,18 @@ export function SellerStoreProfile() {
                               </>
                             )}
                           </Button>
+                        )}
+
+                        {/* Image preview for uploaded images */}
+                        {hasDocument && isImageFile(documents[doc.key as keyof typeof documents]) && (
+                          <div className="mt-3 border rounded-lg overflow-hidden bg-gray-50">
+                            <img
+                              src={documents[doc.key as keyof typeof documents]}
+                              alt={`${doc.label} preview`}
+                              className="w-full max-w-md object-contain"
+                              loading="lazy"
+                            />
+                          </div>
                         )}
                       </div>
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -26,8 +26,17 @@ import * as Sharing from 'expo-sharing';
 import SellerDrawer from '../../../src/components/SellerDrawer';
 
 export default function SellerProductsScreen() {
-  const { products, toggleProductStatus, deleteProduct, seller, updateProduct } = useSellerStore();
+  const { products, loading, error, fetchProducts, toggleProductStatus, deleteProduct, seller, updateProduct } = useSellerStore();
   const { addProductToQA } = useProductQAStore();
+
+  // Fetch products on mount
+  useEffect(() => {
+    if (seller?.id) {
+      fetchProducts(seller.id);
+    } else {
+      fetchProducts();
+    }
+  }, [seller?.id, fetchProducts]);
   const insets = useSafeAreaInsets();
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -213,6 +222,7 @@ export default function SellerProductsScreen() {
       const firstImage = validImages[0] || 'https://placehold.co/400x400?text=' + encodeURIComponent(formData.name);
 
       const newProduct: SellerProduct = {
+        sellerId: seller?.id,  
         id: `PROD-${Date.now()}`,
         name: formData.name.trim(),
         description: formData.description.trim(),
@@ -220,12 +230,19 @@ export default function SellerProductsScreen() {
         originalPrice: formData.originalPrice ? parseFloat(formData.originalPrice) : undefined,
         stock: parseInt(formData.stock),
         category: formData.category,
-        image: firstImage,
         images: validImages,
         colors: validColors.length > 0 ? validColors : undefined,
         sizes: validSizes.length > 0 ? validSizes : undefined,
         isActive: true,
-        sold: 0,
+        sales: 0,
+        rating: 0,
+        reviews: 0,
+        approvalStatus: 'pending',
+        rejectionReason: undefined,
+        vendorSubmittedCategory: undefined,
+        adminReclassifiedCategory: undefined,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       };
 
       // Add to seller store first
@@ -281,7 +298,7 @@ export default function SellerProductsScreen() {
       originalPrice: product.originalPrice?.toString() || '',
       stock: product.stock.toString(),
       category: product.category,
-      images: product.images || [product.image],
+      images: product.images,
       colors: product.colors && product.colors.length > 0 ? product.colors : [''],
       sizes: product.sizes && product.sizes.length > 0 ? product.sizes : [''],
     });
@@ -295,7 +312,7 @@ export default function SellerProductsScreen() {
       const validImages = formData.images.filter(img => img.trim() !== '');
       const validColors = formData.colors.filter(color => color.trim() !== '');
       const validSizes = formData.sizes.filter(size => size.trim() !== '');
-      const firstImage = validImages[0] || editingProduct.image;
+      const firstImage = validImages[0] || editingProduct.images[0];
 
       const updatedProduct: SellerProduct = {
         ...editingProduct,
@@ -305,7 +322,6 @@ export default function SellerProductsScreen() {
         originalPrice: formData.originalPrice ? parseFloat(formData.originalPrice) : undefined,
         stock: parseInt(formData.stock),
         category: formData.category,
-        image: firstImage,
         images: validImages,
         colors: validColors.length > 0 ? validColors : undefined,
         sizes: validSizes.length > 0 ? validSizes : undefined,
@@ -351,7 +367,7 @@ export default function SellerProductsScreen() {
         const price = parseFloat(columns[2]);
         const stock = parseInt(columns[4]);
 
-        return {
+        const sellerProduct: SellerProduct = {
           id: `PREVIEW-${Date.now()}-${index}`,
           name: columns[0]?.replace(/"/g, '').trim() || 'Untitled Product',
           description: columns[1]?.replace(/"/g, '').trim() || '',
@@ -359,10 +375,22 @@ export default function SellerProductsScreen() {
           originalPrice: columns[3] ? parseFloat(columns[3]) : undefined,
           stock: isNaN(stock) ? 0 : stock,
           category: columns[5]?.trim() || 'Others',
-          image: columns[6]?.trim() || 'https://placehold.co/400x400',
           isActive: true,
-          sold: 0,
+          sales: 0,
+          rating: 0,
+          reviews: 0,
+          approvalStatus: 'pending',
+          rejectionReason: undefined,
+          vendorSubmittedCategory: undefined,
+          adminReclassifiedCategory: undefined,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          sellerId: seller?.id,
+          colors: [],
+          sizes: [],
+          images: columns[6]?.trim() ? [columns[6].trim()] : [`https://placehold.co/400x400?text=${encodeURIComponent(columns[0]?.replace(/"/g, '').trim() || 'Product')}`],
         };
+        return sellerProduct;
       });
 
       setBulkPreviewProducts(parsedProducts);
@@ -382,6 +410,7 @@ export default function SellerProductsScreen() {
       addProduct(finalProduct); //
       addProductToQA({
         ...finalProduct,
+        image: finalProduct.images[0],
         vendor: seller?.storeName || 'Tech Shop PH',
       }); //
     });
@@ -463,7 +492,7 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
 
   const renderProductCard = ({ item }: { item: SellerProduct }) => (
     <View style={styles.productCard}>
-      <Image source={{ uri: item.image }} style={styles.productImage} />
+      <Image source={{ uri: item.images?.[0] || 'https://placehold.co/100x100?text=No+Image' }} style={styles.productImage} />
       
       <View style={styles.productInfo}>
         <View style={styles.productHeader}>
@@ -483,7 +512,7 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
             <Text style={styles.productPrice}>₱{item.price.toLocaleString()}</Text>
             <Text style={styles.productStock}>Stock: {item.stock}</Text>
           </View>
-          <Text style={styles.productSold}>{item.sold} sold</Text>
+          <Text style={styles.productSold}>{item.sales} sold</Text>
         </View>
 
         <View style={styles.productActions}>
@@ -517,7 +546,7 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
 
   const renderPreviewCard = (item: SellerProduct) => (
     <View style={styles.productCard}>
-      <Image source={{ uri: item.image }} style={styles.productImage} />
+      <Image source={{ uri: item.images?.[0] || 'https://placehold.co/100x100?text=No+Image' }} style={styles.productImage} />
       
       <View style={styles.productInfo}>
         <View style={styles.productHeader}>
@@ -593,20 +622,39 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
       </View>
 
       {/* Products List with Bottom Padding */}
-      <FlatList
-        data={filteredProducts}
-        renderItem={renderProductCard}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.productsList}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <PackageIcon size={64} color="#D1D5DB" strokeWidth={1.5} />
-            <Text style={styles.emptyTitle}>No products yet</Text>
-            <Text style={styles.emptySubtitle}>Tap 'Add' in the header to create your first product</Text>
-          </View>
-        }
-      />
+      {loading ? (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyTitle}>Loading products...</Text>
+        </View>
+      ) : error ? (
+        <View style={styles.emptyState}>
+          <PackageIcon size={64} color="#EF4444" strokeWidth={1.5} />
+          <Text style={[styles.emptyTitle, { color: '#EF4444' }]}>Failed to load products</Text>
+          <Text style={styles.emptySubtitle}>{error}</Text>
+          <TouchableOpacity
+            style={[styles.addButton, { marginTop: 16, paddingHorizontal: 24 }]}
+            onPress={() => fetchProducts(seller?.id)}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.addButtonText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <FlatList
+          data={filteredProducts}
+          renderItem={renderProductCard}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.productsList}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
+            <View style={styles.emptyState}>
+              <PackageIcon size={64} color="#D1D5DB" strokeWidth={1.5} />
+              <Text style={styles.emptyTitle}>No products yet</Text>
+              <Text style={styles.emptySubtitle}>Tap 'Add' in the header to create your first product</Text>
+            </View>
+          }
+        />
+      )}
 
       {/* Bottom Sheet Modal - Add Product */}
       <Modal

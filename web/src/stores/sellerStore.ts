@@ -2,17 +2,9 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { useProductQAStore } from './productQAStore';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import { signIn, signUp, getSellerProfile, getEmailFromProfile } from '@/services/authService';
-import {
-  addStock as addStockDb,
-  createProduct as createProductDb,
-  createProducts as createProductsDb,
-  deleteProduct as deleteProductDb,
-  deductStock as deductStockDb,
-  getProducts as fetchProductsDb,
-  updateProduct as updateProductDb,
-} from '@/services/productService';
-import { getSellerOrders } from '@/services/orderService';
+import { authService } from '@/services/authService';
+import { productService } from '@/services/productService';
+import { orderService } from '@/services/orderService';
 import type { Seller as DBSeller, Database, Order, OrderItem } from '@/types/database.types';
 
 // Types
@@ -91,6 +83,8 @@ export interface SellerProduct {
 
 interface SellerOrder {
   id: string;
+  seller_id?: string; // UUID of the seller for database updates
+  buyer_id?: string; // UUID of the buyer for notifications
   buyerName: string;
   buyerEmail: string;
   items: {
@@ -216,11 +210,12 @@ interface ProductStore {
 
 interface OrderStore {
   orders: SellerOrder[];
+  sellerId: string | null;
   loading: boolean;
   error: string | null;
   fetchOrders: (sellerId: string) => Promise<void>;
   addOrder: (order: Omit<SellerOrder, 'id'>) => string;
-  updateOrderStatus: (id: string, status: SellerOrder['status']) => void;
+  updateOrderStatus: (id: string, status: SellerOrder['status']) => Promise<void>;
   updatePaymentStatus: (id: string, status: SellerOrder['paymentStatus']) => void;
   getOrdersByStatus: (status: SellerOrder['status']) => SellerOrder[];
   getOrderById: (id: string) => SellerOrder | undefined;
@@ -387,7 +382,7 @@ const dummyOrders: SellerOrder[] = [];
 const mapOrderToSellerOrder = (order: any): SellerOrder => {
   // Handle order_items - it might be nested or need to be fetched separately
   const orderItems = Array.isArray(order.order_items) ? order.order_items : [];
-  
+
   const items = orderItems.map((item: any) => ({
     productId: item.product_id || '',
     productName: item.product_name || 'Unknown Product',
@@ -420,6 +415,8 @@ const mapOrderToSellerOrder = (order: any): SellerOrder => {
 
   return {
     id: order.id,
+    seller_id: order.seller_id,
+    buyer_id: order.buyer_id,
     buyerName: order.buyer_name || 'Unknown',
     buyerEmail: order.buyer_email || 'unknown@example.com',
     items,
@@ -459,20 +456,22 @@ export const useAuthStore = create<AuthStore>()(
         }
 
         try {
-          const { user, error } = await signIn(email, password);
-          if (error || !user) {
-            console.error('Supabase login failed:', error);
+          const result = await authService.signIn(email, password);
+          if (!result || !result.user) {
+            console.error('Supabase login failed: No user returned');
             return false;
           }
 
-          const sellerProfile = await getSellerProfile(user.id);
+          const { user } = result;
+
+          const sellerProfile = await authService.getSellerProfile(user.id);
           if (!sellerProfile) {
             console.error('No seller profile found for user');
             return false;
           }
 
           // Fetch email from profiles table and merge with seller profile
-          const userEmail = await getEmailFromProfile(user.id);
+          const userEmail = await authService.getEmailFromProfile(user.id);
           const mappedSeller = mapDbSellerToSeller(sellerProfile);
 
           // Ensure email is set from profiles table
@@ -524,57 +523,63 @@ export const useAuthStore = create<AuthStore>()(
 
         try {
           // 1) Supabase Auth sign-up
-          const { user, error } = await signUp(sellerData.email!, sellerData.password!, {
+          const result = await authService.signUp(sellerData.email!, sellerData.password!, {
             full_name: sellerData.ownerName || sellerData.storeName || sellerData.email?.split('@')[0],
             phone: sellerData.phone,
             user_type: 'seller',
+            email: sellerData.email!,
+            password: sellerData.password!,
           });
 
-          if (error || !user) {
-            console.error('Signup failed:', error);
-            // Check if it's a duplicate email error
-            if (error?.message?.includes('already registered') || error?.code === '23505') {
-              console.error('Email already exists. Please use a different email or try logging in.');
-            }
+          if (!result || !result.user) {
+            console.error('Signup failed: No user returned');
             return false;
           }
 
+          const { user } = result;
+
           // 2) Create seller record (use upsert to handle conflicts)
-          const sellerRow = {
+          const { sellerService } = await import('@/services/sellerService');
+
+          const sellerInsertData = {
             id: user.id,
             business_name: sellerData.businessName || sellerData.storeName || 'My Store',
             store_name: sellerData.storeName || 'My Store',
-            store_description: sellerData.storeDescription || null,
+            store_description: sellerData.storeDescription || '',
             store_category: sellerData.storeCategory || ['General'],
             business_type: sellerData.businessType || 'sole_proprietor',
-            business_registration_number: sellerData.businessRegistrationNumber || null,
-            tax_id_number: sellerData.taxIdNumber || null,
+            business_registration_number: sellerData.businessRegistrationNumber || '',
+            tax_id_number: sellerData.taxIdNumber || '',
             business_address: sellerData.businessAddress || sellerData.storeAddress || '',
-            city: sellerData.city || null,
-            province: sellerData.province || null,
-            postal_code: sellerData.postalCode || null,
-            bank_name: sellerData.bankName || null,
-            account_name: sellerData.accountName || null,
-            account_number: sellerData.accountNumber || null,
+            city: sellerData.city || '',
+            province: sellerData.province || '',
+            postal_code: sellerData.postalCode || '',
+            bank_name: sellerData.bankName || '',
+            account_name: sellerData.accountName || '',
+            account_number: sellerData.accountNumber || '',
+            business_permit_url: null,
+            valid_id_url: null,
+            proof_of_address_url: null,
+            dti_registration_url: null,
+            tax_id_url: null,
             is_verified: false,
             approval_status: 'pending' as const,
             rating: 0,
             total_sales: 0,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            join_date: new Date().toISOString().split('T')[0],
           };
 
+          const savedSeller = await sellerService.upsertSeller(sellerInsertData);
 
-          const { error: sellerError } = await supabase.from('sellers').upsert(sellerRow, {
-            onConflict: 'id',
-            ignoreDuplicates: false
-          });
-
-          if (sellerError) {
-            console.error('Seller insert failed:', sellerError);
+          if (!savedSeller) {
+            console.error('Seller insert failed');
             return false;
           }
 
           // 3) Set local auth state as pending (awaiting approval)
-          set({ seller: mapDbSellerToSeller(sellerRow as DBSeller), isAuthenticated: false });
+          set({ seller: mapDbSellerToSeller(savedSeller), isAuthenticated: false });
           return true;
         } catch (err) {
           console.error('Registration error:', err);
@@ -628,7 +633,7 @@ export const useProductStore = create<ProductStore>()(
 
         set({ loading: true, error: null });
         try {
-          const data = await fetchProductsDb(filters);
+          const data = await productService.getProducts(filters);
           console.log('🔍 Raw product data from DB:', data);
           console.log('🔍 First product seller info:', data?.[0]?.seller);
           const mappedProducts = (data || []).map(mapDbProductToSellerProduct);
@@ -714,7 +719,7 @@ export const useProductStore = create<ProductStore>()(
           // Use Supabase if configured
           if (isSupabaseConfigured()) {
             const insertData = buildProductInsert(product, resolvedSellerId);
-            const created = await createProductDb(insertData);
+            const created = await productService.createProduct(insertData);
             if (!created) {
               throw new Error('Failed to create product in database');
             }
@@ -765,10 +770,11 @@ export const useProductStore = create<ProductStore>()(
           // Also add to QA flow store
           try {
             const qaStore = useProductQAStore.getState();
-            qaStore.addProductToQA({
+            await qaStore.addProductToQA({
               id: newProduct.id,
               name: newProduct.name,
               vendor: authStoreState.seller?.name || 'Unknown Vendor',
+              sellerId: resolvedSellerId, // Pass seller ID for proper filtering
               price: newProduct.price,
               category: newProduct.category,
               image: newProduct.images[0] || 'https://placehold.co/100?text=Product',
@@ -812,7 +818,7 @@ export const useProductStore = create<ProductStore>()(
               vendorSubmittedCategory: p.category
             } as any, resolvedSellerId));
 
-            const dbProducts = await createProductsDb(productsToInsert);
+            const dbProducts = await productService.createProducts(productsToInsert);
             if (!dbProducts) throw new Error('Failed to create products in database');
             addedProducts = dbProducts.map(mapDbProductToSellerProduct);
           } else {
@@ -867,6 +873,7 @@ export const useProductStore = create<ProductStore>()(
                 name: p.name,
                 description: p.description,
                 vendor: authStore.seller?.name || 'Unknown Vendor',
+                sellerId: resolvedSellerId, // Pass seller ID for proper filtering
                 price: p.price,
                 originalPrice: p.originalPrice,
                 category: p.category,
@@ -904,7 +911,7 @@ export const useProductStore = create<ProductStore>()(
           // Use Supabase if configured
           if (isSupabaseConfigured()) {
             const updateData = mapSellerUpdatesToDb(updates);
-            const updated = await updateProductDb(id, updateData);
+            const updated = await productService.updateProduct(id, updateData);
             if (!updated) {
               throw new Error('Failed to update product in database');
             }
@@ -935,10 +942,7 @@ export const useProductStore = create<ProductStore>()(
 
           // Use Supabase if configured
           if (isSupabaseConfigured()) {
-            const success = await deleteProductDb(id);
-            if (!success) {
-              throw new Error('Failed to delete product from database');
-            }
+            await productService.deleteProduct(id);
           }
 
           set((state) => ({
@@ -972,16 +976,13 @@ export const useProductStore = create<ProductStore>()(
 
           // Use Supabase if configured
           if (isSupabaseConfigured()) {
-            const success = await deductStockDb(
+            await productService.deductStock(
               productId,
               quantity,
               reason,
               referenceId,
               authStoreForStock.seller?.id
             );
-            if (!success) {
-              throw new Error('Failed to deduct stock in database');
-            }
             // Refresh from DB to get updated stock
             await get().fetchProducts({ sellerId: authStoreForStock.seller?.id });
           } else {
@@ -1042,15 +1043,12 @@ export const useProductStore = create<ProductStore>()(
 
           // Use Supabase if configured
           if (isSupabaseConfigured()) {
-            const success = await addStockDb(
+            await productService.addStock(
               productId,
               quantity,
               reason || 'STOCK_REPLENISHMENT',
               authStoreForAdd.seller?.id
             );
-            if (!success) {
-              throw new Error('Failed to add stock in database');
-            }
             // Refresh from DB to get updated stock
             await get().fetchProducts({ sellerId: authStoreForAdd.seller?.id });
           } else {
@@ -1330,6 +1328,7 @@ export const useOrderStore = create<OrderStore>()(
   persist(
     (set, get) => ({
       orders: dummyOrders,
+      sellerId: null,
       loading: false,
       error: null,
 
@@ -1339,24 +1338,24 @@ export const useOrderStore = create<OrderStore>()(
           return;
         }
 
-        set({ loading: true, error: null });
-        
+        set({ loading: true, error: null, sellerId });
+
         try {
-          const dbOrders = await getSellerOrders(sellerId);
+          const dbOrders = await orderService.getSellerOrders(sellerId);
           const sellerOrders = dbOrders.map(mapOrderToSellerOrder);
-          
-          set({ 
+
+          set({
             orders: sellerOrders,
             loading: false,
             error: null
           });
-          
+
           console.log(`✅ Fetched ${sellerOrders.length} orders for seller ${sellerId}`);
         } catch (error) {
           console.error('Failed to fetch orders:', error);
-          set({ 
-            loading: false, 
-            error: error instanceof Error ? error.message : 'Failed to fetch orders' 
+          set({
+            loading: false,
+            error: error instanceof Error ? error.message : 'Failed to fetch orders'
           });
         }
       },
@@ -1396,7 +1395,7 @@ export const useOrderStore = create<OrderStore>()(
         }
       },
 
-      updateOrderStatus: (id, status) => {
+      updateOrderStatus: async (id, status) => {
         try {
           const order = get().orders.find(o => o.id === id);
           if (!order) {
@@ -1417,11 +1416,95 @@ export const useOrderStore = create<OrderStore>()(
             console.warn(`Invalid status transition: ${order.status} -> ${status}`);
           }
 
+          // Map seller status to database status
+          const statusToDbMap: Record<SellerOrder['status'], string> = {
+            'pending': 'pending_payment',
+            'confirmed': 'processing',
+            'shipped': 'shipped',
+            'delivered': 'delivered',
+            'cancelled': 'cancelled'
+          };
+
+          const dbStatus = statusToDbMap[status] || status;
+          console.log(`📝 Mapping seller status '${status}' to database status '${dbStatus}'`);
+
+          // Get seller ID from OrderStore (stored in fetchOrders)
+          let sellerId = get().sellerId;
+
+          console.log(`👤 Current seller ID from OrderStore:`, sellerId);
+          console.log(`📦 Order object:`, order);
+
+          // Fallback: Extract seller ID from order object if store doesn't have it
+          if (!sellerId && (order as any).seller_id) {
+            sellerId = (order as any).seller_id;
+            console.log(`✅ Fallback: Using seller_id from order object: ${sellerId}`);
+          }
+
+          if (!sellerId) {
+            console.error('❌ No seller ID found! Cannot update database.');
+            console.error('Seller from store:', useAuthStore.getState().seller);
+            console.error('Order object:', order);
+            throw new Error('Seller ID is required to update order status');
+          }
+
+          console.log(`🔄 Updating order ${id} in database with seller ${sellerId}...`);
+          const success = await orderService.updateOrderStatus(
+            id,
+            dbStatus,
+            `Status updated to ${status}`,
+            sellerId,
+            'seller'
+          );
+
+          console.log(`📊 Database update result: ${success ? '✅ SUCCESS' : '❌ FAILED'}`);
+
+          if (!success) {
+            console.error('❌ Failed to update order status in database');
+            throw new Error('Database update failed');
+          }
+
+          console.log(`✅ Database updated successfully with status: ${dbStatus}`);
+
+          // Create notification for buyer if order has buyer_id
+          console.log(`📦 Order object:`, order);
+          console.log(`🆔 Order buyer_id:`, order.buyer_id);
+
+          if (order.buyer_id) {
+            const statusMessages: Record<string, string> = {
+              'confirmed': `Your order #${id.slice(-8)} has been confirmed and is being prepared.`,
+              'shipped': `Your order #${id.slice(-8)} has been shipped and is on its way!`,
+              'delivered': `Your order #${id.slice(-8)} has been delivered. Enjoy your purchase!`,
+              'cancelled': `Your order #${id.slice(-8)} has been cancelled.`
+            };
+
+            const message = statusMessages[status] || `Order #${id.slice(-8)} status updated to ${status}`;
+
+            console.log(`🚀 Creating buyer notification for order ${id}`);
+
+            // Import notification service dynamically to avoid circular dependency
+            import('../services/notificationService').then(({ notificationService }) => {
+              notificationService.notifyBuyerOrderStatus({
+                buyerId: order.buyer_id!,
+                orderId: id,
+                orderNumber: id.slice(-8),
+                status,
+                message
+              }).catch(err => {
+                console.error('❌ Failed to create buyer notification:', err);
+              });
+            });
+          } else {
+            console.warn(`⚠️ No buyer_id found for order ${id}, skipping buyer notification`);
+          }
+
+          // Update local state
           set((state) => ({
             orders: state.orders.map(order =>
               order.id === id ? { ...order, status } : order
             )
           }));
+
+          console.log(`✅ Order ${id} status updated to ${status}`);
         } catch (error) {
           console.error('Failed to update order status:', error);
           throw error;

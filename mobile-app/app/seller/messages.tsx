@@ -20,10 +20,10 @@ import {
   Send,
   Image as ImageIcon,
   Paperclip,
-  Phone,
-  Video,
+  Ticket,
   X
 } from 'lucide-react-native';
+import { Alert } from 'react-native';
 
 interface Message {
   id: string;
@@ -102,6 +102,34 @@ export default function MessagesScreen() {
 
   const activeConversation = conversations.find((c) => c.id === selectedConversation);
 
+  const handleEscalate = () => {
+    if (!activeConversation) return;
+
+    Alert.alert(
+        'Escalate to Support',
+        'Do you want to report this buyer or create a support ticket from this conversation?',
+        [
+            { text: 'Cancel', style: 'cancel' },
+            { 
+                text: 'Escalate', 
+                style: 'destructive',
+                onPress: () => {
+                    // Format transcript
+                    const transcript = activeConversation.messages
+                        .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
+                        .map(m => `[${m.timestamp.toLocaleString()}] ${m.senderId === 'seller' ? 'Me' : activeConversation.buyerName}: ${m.text}`)
+                        .join('\n');
+
+                    (navigation as any).navigate('CreateTicket', {
+                        initialSubject: `Report Buyer: ${activeConversation.buyerName}`,
+                        initialDescription: `I would like to report an issue with this buyer.\n\nConversation Transcript:\n${transcript}`
+                    });
+                }
+            }
+        ]
+    );
+  };
+  
   const handleSendMessage = () => {
     if (!newMessage.trim() || !selectedConversation) return;
 
@@ -244,11 +272,14 @@ export default function MessagesScreen() {
             </View>
           </View>
           <View style={styles.chatHeaderActions}>
-            <Pressable style={styles.iconButton}>
-              <Phone size={20} color="#FFFFFF" strokeWidth={2.5} />
-            </Pressable>
-            <Pressable style={styles.iconButton}>
-              <Video size={20} color="#FFFFFF" strokeWidth={2.5} />
+            <Pressable 
+              style={styles.iconButton}
+              onPress={() => (navigation as any).navigate('CreateTicket', {
+                initialSubject: `Issue with Order from ${activeConversation?.buyerName}`,
+                initialDescription: `Regarding conversation with ${activeConversation?.buyerName}...`
+              })}
+            >
+              <Ticket size={20} color="#FFFFFF" strokeWidth={2.5} />
             </Pressable>
           </View>
         </View>

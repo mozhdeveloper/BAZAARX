@@ -39,7 +39,7 @@ export default function SellerAnalyticsScreen() {
   }));
 
   const topProducts = products
-    .sort((a, b) => b.sold - a.sold)
+    .sort((a, b) => (b.sales ?? 0) - (a.sales ?? 0))
     .slice(0, 5);
 
   return (
@@ -200,11 +200,11 @@ export default function SellerAnalyticsScreen() {
                   </Text>
                 </View>
                 <Text style={[styles.tableCell, { flex: 1, textAlign: 'center' }]}>
-                  {product.sold}
+                  {product.sales ?? 0}
                 </Text>
                 <View style={{ flex: 1.5 }}>
                   <Text style={styles.tableCellRevenue} numberOfLines={1} ellipsizeMode="tail">
-                    ₱{(product.price * product.sold).toLocaleString()}
+                    ₱{(product.price * (product.sales ?? 0)).toLocaleString()}
                   </Text>
                 </View>
               </View>

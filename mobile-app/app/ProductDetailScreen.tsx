@@ -33,6 +33,10 @@ import {
   Truck,
   ShieldCheck,
   ChevronRight,
+  Bookmark, // For Wishlist categories
+  FolderHeart,
+  PlusCircle,
+  Gift,
 } from 'lucide-react-native';
 import { ProductCard } from '../src/components/ProductCard';
 import CameraSearchModal from '../src/components/CameraSearchModal';
@@ -104,6 +108,11 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   const [searchQuery, setSearchQuery] = useState('');
   const [showGuestModal, setShowGuestModal] = useState(false);
   const [guestModalMessage, setGuestModalMessage] = useState('');
+  
+  // Wishlist State
+  const [showWishlistDropdown, setShowWishlistDropdown] = useState(false);
+  const [newListName, setNewListName] = useState('');
+  const [isCreatingList, setIsCreatingList] = useState(false);
 
   // Use product images if available, otherwise mock an array with the main image
   const productImages = product.images || [product.image, product.image, product.image, product.image, product.image];
@@ -111,11 +120,11 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   // Stores
   const addItem = useCartStore((state) => state.addItem);
   const setQuickOrder = useCartStore((state) => state.setQuickOrder);
-  const { addItem: addToWishlist, removeItem: removeFromWishlist, isInWishlist } = useWishlistStore();
+  const { addItem: addToWishlist, removeItem: removeFromWishlist, isInWishlist, categories, createCategory } = useWishlistStore();
   const isFavorite = isInWishlist(product.id);
 
   // Constants
-  const originalPrice = Math.round(product.price * 1.5); // Mock original price
+  const originalPrice = Math.round((product.price ?? 0) * 1.5); // Mock original price
   const cartItemCount = useCartStore((state) => state.items.length);
 
   const relatedProducts = trendingProducts.filter((p) => p.id !== product.id).slice(0, 4);
@@ -161,7 +170,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   const handleVisitStore = () => {
     navigation.push('StoreDetail', { 
       store: { 
-        id: product.sellerId || 'store_1', 
+        id: product.seller_id || 'store_1', 
         name: product.seller || 'TechHub Manila Official',
         image: 'https://images.unsplash.com/photo-1472851294608-41551b33fcc3?w=150', // Mock Store Image
         rating: product.sellerRating || 4.9,
@@ -171,6 +180,41 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     });
   };
 
+  const handleWishlistAction = (categoryId?: string) => {
+    const { isGuest } = useAuthStore.getState();
+    if (isGuest) {
+      setGuestModalMessage("Sign up to create wishlists.");
+      setShowGuestModal(true);
+      setShowWishlistDropdown(false);
+      return;
+    }
+
+    if (categoryId) {
+       // Add to specific category
+       addToWishlist(product, 'medium', 1, categoryId);
+       const categoryName = categories.find(c => c.id === categoryId)?.name;
+       Alert.alert('Saved!', `Added to ${categoryName}`);
+       setShowWishlistDropdown(false);
+    } else {
+       // Initial click - toggle dropdown
+       if (isFavorite) {
+         removeFromWishlist(product.id);
+       } else {
+         setShowWishlistDropdown(!showWishlistDropdown);
+       }
+    }
+  };
+
+  const handleCreateList = () => {
+    if (!newListName.trim()) return;
+    const newId = createCategory(newListName, 'private');
+    addToWishlist(product, 'medium', 1, newId);
+    setNewListName('');
+    setIsCreatingList(false);
+    setShowWishlistDropdown(false);
+    Alert.alert('Success', `List created and item added!`);
+  };
+
 
 
   return (
@@ -178,7 +222,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       <StatusBar barStyle="light-content" backgroundColor={BRAND_COLOR} />
 
       {/* --- HEADER (Matches Screenshot) --- */}
-      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
          <Pressable onPress={() => navigation.goBack()} style={styles.iconButton}>
            <ArrowLeft size={24} color="#FFF" />
          </Pressable>
@@ -225,7 +269,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
             }}
             scrollEventThrottle={16}
           >
-            {productImages.map((img: string, index: number) => (
+            {productImages.filter((img): img is string => img !== undefined).map((img: string, index: number) => (
               <Image key={index} source={{ uri: img }} style={styles.productImage} />
             ))}
           </ScrollView>
@@ -243,21 +287,60 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
               <Share2 size={20} color={BRAND_COLOR} />
           </Pressable>
 
-          {/* Wishlist Heart */}
-          <Pressable 
+          {/* Wishlist / Bookmark FAB */}
+           <Pressable 
               style={styles.heartFab} 
-              onPress={() => {
-                const { isGuest } = useAuthStore.getState();
-                if (isGuest) {
-                    setGuestModalMessage("Sign up to save items.");
-                    setShowGuestModal(true);
-                    return;
-                }
-                isFavorite ? removeFromWishlist(product.id) : addToWishlist(product);
-              }}
+              onPress={() => handleWishlistAction()}
           >
-            <Heart size={20} color={isFavorite ? '#EF4444' : BRAND_COLOR} fill={isFavorite ? '#EF4444' : 'none'} />
+             {isFavorite ? (
+                <Gift size={20} color="#EF4444" fill="#EF4444" />
+             ) : (
+                <Gift size={20} color={BRAND_COLOR} strokeWidth={2.5} />
+             )}
           </Pressable>
+
+          {/* Inline Wishlist Dropdown */}
+          {showWishlistDropdown && !isFavorite && (
+              <View style={styles.wishlistDropdown}>
+                  <Text style={styles.dropdownHeader}>Save to List</Text>
+                  
+                  {categories.map((cat) => (
+                      <Pressable 
+                        key={cat.id} 
+                        style={styles.dropdownItem}
+                        onPress={() => handleWishlistAction(cat.id)}
+                      >
+                         <FolderHeart size={16} color="#4B5563" />
+                         <Text style={styles.dropdownItemText}>{cat.name}</Text>
+                      </Pressable>
+                  ))}
+
+                  <View style={styles.dropdownDivider} />
+
+                  {isCreatingList ? (
+                    <View style={styles.createListRow}>
+                        <TextInput 
+                           style={styles.createListInput}
+                           placeholder="List Name"
+                           value={newListName}
+                           onChangeText={setNewListName}
+                           autoFocus
+                        />
+                        <Pressable onPress={handleCreateList}>
+                           <PlusCircle size={20} color={BRAND_COLOR} />
+                        </Pressable>
+                    </View>
+                  ) : (
+                    <Pressable 
+                        style={styles.dropdownItem} 
+                        onPress={() => setIsCreatingList(true)}
+                    >
+                        <PlusCircle size={16} color={BRAND_COLOR} />
+                        <Text style={[styles.dropdownItemText, { color: BRAND_COLOR, fontWeight: '700' }]}>Create New List</Text>
+                    </Pressable>
+                  )}
+              </View>
+          )}
         </View>
 
         {/* --- PRODUCT INFO CARD --- */}
@@ -278,7 +361,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
           {/* Price */}
           <View style={styles.priceRow}>
-            <Text style={styles.currentPrice}>₱{product.price.toLocaleString()}</Text>
+            <Text style={styles.currentPrice}>₱{(product.price ?? 0).toLocaleString()}</Text>
             <Text style={styles.originalPrice}>₱{originalPrice.toLocaleString()}</Text>
           </View>
 
@@ -290,7 +373,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
               {Array.from({ length: 5 }).map((_, i) => (
                 <Star key={i} size={14} color={i < 4 ? '#F59E0B' : '#E5E7EB'} fill={i < 4 ? '#F59E0B' : '#E5E7EB'} />
               ))}
-              <Text style={styles.ratingValue}>4.8 ({product.sold.toLocaleString()})</Text>
+              <Text style={styles.ratingValue}>4.8 ({(product.sold ?? 0).toLocaleString()})</Text>
               <Text style={styles.questionsLink}>14 Questions</Text>
            </View>
         </View>
@@ -443,8 +526,10 @@ const styles = StyleSheet.create({
   // Header
   header: { 
     backgroundColor: BRAND_COLOR,
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingBottom: 16,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
@@ -607,5 +692,32 @@ const styles = StyleSheet.create({
      borderRadius: 24, backgroundColor: BRAND_COLOR,
   },
   buyNowText: { color: '#FFF', fontWeight: '700', fontSize: 16 },
+
+  // Wishlist Dropdown
+  wishlistDropdown: {
+      position: 'absolute',
+      bottom: 90,
+      right: 16,
+      width: 200,
+      backgroundColor: '#FFF',
+      borderRadius: 16,
+      padding: 12,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.15,
+      shadowRadius: 10,
+      elevation: 5,
+      zIndex: 20,
+      borderWidth: 1,
+      borderColor: '#F3F4F6'
+  },
+  dropdownHeader: { fontSize: 12, fontWeight: '700', color: '#9CA3AF', marginBottom: 8, textTransform: 'uppercase' },
+  dropdownItem: {
+      flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10,
+  },
+  dropdownItemText: { fontSize: 14, color: '#374151', fontWeight: '500' },
+  dropdownDivider: { height: 1, backgroundColor: '#F3F4F6', marginVertical: 4 },
+  createListRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
+  createListInput: { flex: 1, fontSize: 13, borderBottomWidth: 1, borderBottomColor: COLORS.primary, paddingVertical: 4, color: '#1F2937' },
 });
 

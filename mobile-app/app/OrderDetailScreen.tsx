@@ -19,6 +19,7 @@ import { COLORS } from '../src/constants/theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import { useOrderStore } from '../src/stores/orderStore';
+import { supabase } from '../src/lib/supabase';
 import { useReturnStore } from '../src/stores/returnStore';
 import ReviewModal from '../src/components/ReviewModal';
 
@@ -98,6 +99,45 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
         navigation.goBack();
       }},
     ]);
+  };
+
+  const handleCancelOrder = () => {
+    Alert.alert(
+      'Cancel Order',
+      'Are you sure you want to cancel? Don\'t worry, you have not been charged for this order. You can easily buy these items again later.',
+      [
+        { text: 'Keep Order', style: 'cancel' },
+        {
+          text: 'Yes, Cancel Order',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // 1. Update Supabase
+              const { error } = await supabase
+                .from('orders')
+                .update({ status: 'cancelled' })
+                .eq('id', order.id);
+
+              if (error) throw error;
+
+              // 2. Update Local Store
+              updateOrderStatus(order.id, 'cancelled');
+              
+              Alert.alert('Order Cancelled', 'Your order has been moved to the Cancelled list.', [
+                { text: 'OK', onPress: () => navigation.goBack() }
+              ]);
+            } catch (e) {
+              console.log('Error canceling order:', e);
+              // Fallback
+              updateOrderStatus(order.id, 'cancelled');
+              Alert.alert('Order Cancelled', 'Your order has been moved to the Cancelled list (Offline Mode).', [
+                { text: 'OK', onPress: () => navigation.goBack() }
+              ]);
+            }
+          }
+        }
+      ]
+    );
   };
 
   const getStatusColor = () => {
@@ -201,10 +241,10 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
                 <View style={styles.itemInfo}>
                   <Text style={styles.itemName}>{item.name}</Text>
                   <Text style={styles.itemVariant}>
-                    {item.quantity} × ₱{item.price.toLocaleString()}
+                    {item.quantity} × ₱{(item.price ?? 0).toLocaleString()}
                   </Text>
                 </View>
-                <Text style={styles.itemPrice}>₱{(item.price * item.quantity).toLocaleString()}</Text>
+                <Text style={styles.itemPrice}>₱{((item.price ?? 0) * item.quantity).toLocaleString()}</Text>
               </View>
             </React.Fragment>
           ))}
@@ -273,15 +313,16 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
       </ScrollView>
 
       {/* Bottom Action Bar */}
-      {(order.status === 'shipped' || order.status === 'delivered') && (
+      {(order.status === 'shipped' || order.status === 'delivered' || order.status === 'pending') && (
         <View style={styles.bottomBar}>
-          {order.status === 'shipped' ? (
+          {order.status === 'shipped' && (
             <Pressable onPress={handleMarkAsReceived} style={styles.receivedButton}>
               <CheckCircle size={20} color="#FFFFFF" />
               <Text style={styles.receivedButtonText}>Mark as Received</Text>
             </Pressable>
-          ) : (
-            (() => {
+          )}
+
+          {order.status === 'delivered' && (() => {
               // Safely parse date for "MM/DD/YYYY" format which can be flaky on Android
               const getDeliveryDate = (dateStr: string | undefined): Date => {
                   if (!dateStr) return new Date();
@@ -327,6 +368,13 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
                 </Pressable>
               );
             })()
+          }
+
+          {order.status === 'pending' && (
+            <Pressable onPress={handleCancelOrder} style={[styles.receivedButton, { backgroundColor: '#FEE2E2', shadowColor: '#EF4444' }]}>
+              <X size={20} color="#DC2626" />
+              <Text style={[styles.receivedButtonText, { color: '#DC2626' }]}>Cancel Order</Text>
+            </Pressable>
           )}
         </View>
       )}
@@ -364,7 +412,11 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
               </Pressable>
               <View>
                 <Text style={styles.chatTitle}>Seller Chat</Text>
-                <Text style={styles.chatSubtitle}>Order #{order.transactionId}</Text>
+                <Text style={styles.chatSubtitle}>
+                  {order.transactionId.length > 20 
+                    ? `Order #TRK-${order.transactionId.slice(0, 8).toUpperCase()}` 
+                    : `Order #${order.transactionId}`}
+                </Text>
               </View>
               <View style={{ width: 24 }} />
             </View>
@@ -552,9 +604,9 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   cardTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#1F2937',
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#111827',
     letterSpacing: 0.2,
   },
   cardContent: {
@@ -581,11 +633,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   itemName: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#1F2937',
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
     marginBottom: 6,
-    lineHeight: 20,
+    lineHeight: 22,
   },
   itemVariant: {
     fontSize: 13,
@@ -593,15 +645,15 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   itemPrice: {
-    fontSize: 17,
-    fontWeight: '700',
+    fontSize: 18,
+    fontWeight: '800',
     color: COLORS.primary,
   },
   // ===== SHIPPING ADDRESS =====
   addressName: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1F2937',
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#111827',
     marginBottom: 6,
   },
   addressPhone: {
@@ -630,8 +682,8 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   summaryLabel: {
-    fontSize: 15,
-    color: '#6B7280',
+    fontSize: 16,
+    color: '#4B5563',
     fontWeight: '500',
   },
   summaryValue: {
@@ -655,13 +707,13 @@ const styles = StyleSheet.create({
     paddingTop: 4,
   },
   totalLabel: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#1F2937',
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#111827',
   },
   totalValue: {
-    fontSize: 24,
-    fontWeight: '700',
+    fontSize: 28,
+    fontWeight: '900',
     color: '#FF5722',
     letterSpacing: 0.3,
   },

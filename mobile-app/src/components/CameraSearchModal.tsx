@@ -224,7 +224,7 @@ export default function CameraSearchModal({ visible, onClose, onProductSelect }:
                   <Image source={{ uri: product.image }} style={styles.resultImage} />
                   <View style={styles.resultInfo}>
                     <Text style={styles.resultName} numberOfLines={2}>{product.name}</Text>
-                    <Text style={[styles.resultPrice, { color: BRAND_COLOR }]}>₱{product.price.toLocaleString()}</Text>
+                    <Text style={[styles.resultPrice, { color: BRAND_COLOR }]}>₱{(product.price ?? 0).toLocaleString()}</Text>
                   </View>
                 </Pressable>
               ))}

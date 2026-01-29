@@ -115,7 +115,7 @@ export default function ReturnRequestScreen({ route, navigation }: Props) {
 
     const amount = itemsToReturn.reduce((total, item) => {
       const orderItem = order.items.find((i) => i.id === item.itemId);
-      return total + (orderItem ? orderItem.price * item.quantity : 0);
+      return total + (orderItem ? (orderItem.price ?? 0) * item.quantity : 0);
     }, 0);
 
     try {
@@ -196,7 +196,7 @@ export default function ReturnRequestScreen({ route, navigation }: Props) {
               <Image source={{ uri: item.image }} style={styles.itemImage} />
               <View style={styles.itemInfo}>
                 <Text style={styles.itemName} numberOfLines={2}>{item.name}</Text>
-                <Text style={styles.itemPrice}>₱{item.price.toLocaleString()}</Text>
+                <Text style={styles.itemPrice}>₱{(item.price ?? 0).toLocaleString()}</Text>
                 
                 {selectedItems[item.id] && (
                   <View style={styles.quantityContainer}>
@@ -302,7 +302,7 @@ export default function ReturnRequestScreen({ route, navigation }: Props) {
                 .filter(id => selectedItems[id])
                 .reduce((total, id) => {
                     const item = order.items.find(i => i.id === id);
-                    return total + (item ? item.price * quantities[id] : 0);
+                    return total + (item ? (item.price ?? 0) * quantities[id] : 0);
                 }, 0).toLocaleString()}
              </Text>
         </View>
