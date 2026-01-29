@@ -13,7 +13,7 @@ import { CartItemRow } from '../src/components/CartItemRow';
 import { useCartStore } from '../src/stores/cartStore';
 import { COLORS } from '../src/constants/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { COLORS } from '../src/constants/theme';
+
 
 export default function CartScreen({ navigation }: any) {
   const { items, removeItem, updateQuantity, clearCart, initializeForCurrentUser, clearQuickOrder } = useCartStore(); // Add clearQuickOrder
@@ -39,7 +39,7 @@ export default function CartScreen({ navigation }: any) {
   }, [items]);
 
   const selectedItems = items.filter(item => selectedIds.includes(item.id));
-  const subtotal = selectedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const subtotal = selectedItems.reduce((sum, item) => sum + ((item.price || 0) * item.quantity), 0);
   const shippingFee = (subtotal > 500 || subtotal === 0) ? 0 : 50;
   const total = subtotal + shippingFee;
 

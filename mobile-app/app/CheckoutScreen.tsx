@@ -93,18 +93,26 @@ export default function CheckoutScreen({ navigation, route }: Props) {
         setTempSelectedAddress(registryAddress);
         
         // Also update the form state for good measure, though less critical if selectedAddress is used
-        setAddress(registryAddress);
+        setAddress({
+            name: `${registryAddress.first_name} ${registryAddress.last_name}`,
+            email: user?.email || '',
+            phone: registryAddress.phone,
+            address: registryAddress.street,
+            city: registryAddress.city,
+            region: registryAddress.region,
+            postalCode: registryAddress.postal_code
+        });
     }
   }, [isGift, recipientName, registryLocation, user?.id]);
 
   const DEFAULT_ADDRESS: ShippingAddress = {
-    name: 'Juan Dela Cruz',
-    email: 'juan@example.com',
-    phone: '+63 912 345 6789',
-    address: '123 Rizal Street, Brgy. San Jose',
-    city: 'Quezon City',
-    region: 'Metro Manila',
-    postalCode: '1100',
+    name: user?.name || 'Guest User',
+    email: user?.email || '',
+    phone: user?.phone || '',
+    address: 'Default Address',
+    city: 'City',
+    region: 'Region',
+    postalCode: '0000',
   };
 
   const [useDefaultAddress, setUseDefaultAddress] = useState(true);
@@ -135,7 +143,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
 
   const checkoutSubtotal = quickOrder
     ? getQuickOrderTotal()
-    : checkoutItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    : checkoutItems.reduce((sum, item) => sum + ((item.price || 0) * item.quantity), 0);
 
   const isQuickCheckout = quickOrder !== null;
 
@@ -143,16 +151,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
   const [currentStep, setCurrentStep] = useState<CheckoutStep>('shipping');
 
   // Web Port Compatibility State
-  const [useDefaultAddress, setUseDefaultAddress] = useState(true);
-  const DEFAULT_ADDRESS = {
-    name: user?.name || 'Guest User',
-    phone: user?.phone || '',
-    address: 'Default Address',
-    city: 'City',
-    region: 'Region',
-    postalCode: '0000'
-  };
-  const [address, setAddress] = useState<any>(DEFAULT_ADDRESS);
+
 
   const createOrder = (items: CartItem[], addr: any, payment: string, options: any) => {
     return {
@@ -420,11 +419,6 @@ export default function CheckoutScreen({ navigation, route }: Props) {
       if (isQuickCheckout) {
         clearQuickOrder();
       }
-      const order = createOrder(checkoutItems, address, paymentMethod, {
-        isGift,
-        isAnonymous,
-        recipientId: isGift ? recipientId : undefined
-      });
       
       // Check if online payment (GCash, PayMongo, PayMaya, Card)
 
@@ -595,7 +589,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                     <Text style={styles.compactQuantity}>x{item.quantity}</Text>
                   </View>
                 </View>
-                <Text style={styles.compactPrice}>₱{(item.price * item.quantity).toLocaleString()}</Text>
+                <Text style={styles.compactPrice}>₱{((item.price || 0) * item.quantity).toLocaleString()}</Text>
               </View>
             ))}
           </View>
@@ -648,7 +642,9 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                     value={isAnonymous}
                   />
                 </View>
-
+             </View>
+          ) : (
+            <>
                 {useDefaultAddress ? (
                     isLoadingAddresses ? (
                       <View style={{ padding: 20, alignItems: 'center' }}>
