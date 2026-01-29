@@ -30,6 +30,7 @@
     "expo-image-picker": "~17.0.10",
     "expo-linear-gradient": "~15.0.8",
     "expo-linking": "~8.0.11",
+    "expo-location": "~19.0.8",
     "expo-router": "~6.0.21",
     "expo-sharing": "~14.0.8",
     "expo-status-bar": "~3.0.9",
@@ -40,10 +41,12 @@
     "react-native": "0.81.5",
     "react-native-gesture-handler": "~2.28.0",
     "react-native-gifted-charts": "^1.4.70",
+    "react-native-maps": "1.20.1",
     "react-native-safe-area-context": "^5.6.2",
     "react-native-screens": "~4.16.0",
     "react-native-svg": "15.12.1",
     "react-native-web": "^0.21.2",
+    "select-philippines-address": "^1.0.6",
     "tailwindcss": "^3.3.2",
     "tamagui": "^1.141.4",
     "zustand": "^5.0.9"
@@ -52,6 +55,7 @@
     "@babel/core": "^7.25.0",
     "@types/react": "~19.1.10",
     "babel-plugin-transform-inline-environment-variables": "^0.4.4",
+    "eslint": "^9.39.2",
     "typescript": "~5.9.2"
   },
   "private": true

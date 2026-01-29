@@ -28,6 +28,7 @@ import { supabase } from '../src/lib/supabase';
 import { useAuthStore } from '../src/stores/authStore';
 import { useSellerStore } from '../src/stores/sellerStore';
 import { GuestLoginModal } from '../src/components/GuestLoginModal';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS } from '../src/constants/theme';
 
 type Props = CompositeScreenProps<
@@ -58,8 +59,12 @@ export default function HomeScreen({ navigation }: Props) {
   const [showProductRequest, setShowProductRequest] = useState(false);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [deliveryAddress, setDeliveryAddress] = useState('123 Main St, Manila');
+
+  // LOCATION STATE
+  const [deliveryAddress, setDeliveryAddress] = useState('Select Location');
+  const [deliveryCoordinates, setDeliveryCoordinates] = useState<{ latitude: number, longitude: number } | null>(null);
   const [showLocationModal, setShowLocationModal] = useState(false);
+
   const [recentSearches] = useState(['wireless earbuds', 'leather bag']);
   const [dbProducts, setDbProducts] = useState<Product[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
@@ -207,6 +212,60 @@ export default function HomeScreen({ navigation }: Props) {
     loadProducts();
   }, []);
 
+  // --- NEW: FETCH DEFAULT ADDRESS ---
+  useEffect(() => {
+    if (!user) return;
+    const fetchDefaultAddress = async () => {
+      const { data, error } = await supabase
+        .from('addresses')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('is_default', true)
+        .single();
+
+      if (data && !error) {
+        // Format: "123 Street, City"
+        const formatted = `${data.street}, ${data.city}`;
+        setDeliveryAddress(formatted);
+
+        // Store coordinates if available
+        if (data.coordinates) {
+          setDeliveryCoordinates(data.coordinates);
+        }
+      }
+    };
+
+    // Subscribe to address changes to update realtime
+    const subscription = supabase
+      .channel('addresses_channel')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'addresses', filter: `user_id=eq.${user.id}` }, () => {
+        fetchDefaultAddress();
+      })
+      .subscribe();
+
+    fetchDefaultAddress();
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [user]);
+
+  // Handle address selection from modal
+  const handleSelectLocation = async (address: string, coords?: { latitude: number; longitude: number }) => {
+    setDeliveryAddress(address);
+    if (coords) setDeliveryCoordinates(coords);
+
+    // Store in AsyncStorage so CartScreen and Checkout can access it
+    try {
+      await AsyncStorage.setItem('currentDeliveryAddress', address);
+      if (coords) {
+        await AsyncStorage.setItem('currentDeliveryCoordinates', JSON.stringify(coords));
+      }
+      console.log('[HomeScreen] Saved delivery address to AsyncStorage:', address);
+    } catch (error) {
+      console.error('[HomeScreen] Error saving delivery address:', error);
+    }
+  };
   // Auto-scroll logic
   useEffect(() => {
     const interval = setInterval(() => {
@@ -304,11 +363,14 @@ export default function HomeScreen({ navigation }: Props) {
         )}
       </View>
 
+      {/* DELIVERY BAR - Displays fetched address */}
       {!isSearchFocused && activeTab === 'Home' && (
         <Pressable style={styles.deliveryBarVisible} onPress={() => setShowLocationModal(true)}>
           <View style={styles.deliveryContent}>
             <MapPin size={16} color={BRAND_COLOR} />
-            <Text style={styles.deliveryText} numberOfLines={1}>Deliver to: <Text style={styles.deliveryAddressBold}>{deliveryAddress}</Text></Text>
+            <Text style={styles.deliveryText} numberOfLines={1}>
+              Deliver to: <Text style={styles.deliveryAddressBold}>{deliveryAddress}</Text>
+            </Text>
             <ChevronDown size={16} color="#9CA3AF" />
           </View>
         </Pressable>
@@ -470,7 +532,13 @@ export default function HomeScreen({ navigation }: Props) {
       <ProductRequestModal visible={showProductRequest} onClose={() => setShowProductRequest(false)} />
       <AIChatModal visible={showAIChat} onClose={() => setShowAIChat(false)} />
       <CameraSearchModal visible={showCameraSearch} onClose={() => setShowCameraSearch(false)} />
-      <LocationModal visible={showLocationModal} onClose={() => setShowLocationModal(false)} onSelectLocation={setDeliveryAddress} currentAddress={deliveryAddress} />
+      <LocationModal
+        visible={showLocationModal}
+        onClose={() => setShowLocationModal(false)}
+        onSelectLocation={handleSelectLocation}
+        currentAddress={deliveryAddress}
+        initialCoordinates={deliveryCoordinates}
+      />
 
       {showGuestModal && (
         <GuestLoginModal

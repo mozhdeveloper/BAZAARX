@@ -392,7 +392,7 @@ export const useOrderStore = create<OrderStore>()(
           // Dynamically import seller store to avoid circular dependency
           import('./sellerStore').then(({ useSellerStore }) => {
             const sellerStore = useSellerStore.getState();
-            
+
             // Convert buyer order to seller order format
             const sellerOrder: import('./sellerStore').SellerOrder = {
               id: newOrder.id,
@@ -437,17 +437,17 @@ export const useOrderStore = create<OrderStore>()(
           orders: get().orders.map((order) =>
             order.id === orderId
               ? {
-                  ...order,
-                  status,
-                  deliveryDate:
-                    status === 'delivered'
-                      ? new Date().toLocaleDateString('en-US', {
-                          month: '2-digit',
-                          day: '2-digit',
-                          year: 'numeric',
-                        })
-                      : order.deliveryDate,
-                }
+                ...order,
+                status,
+                deliveryDate:
+                  status === 'delivered'
+                    ? new Date().toLocaleDateString('en-US', {
+                      month: '2-digit',
+                      day: '2-digit',
+                      year: 'numeric',
+                    })
+                    : order.deliveryDate,
+              }
               : order
           ),
         });
