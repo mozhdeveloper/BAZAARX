@@ -254,11 +254,6 @@ export const useProductQAStore = create<ProductQAStore>()(
           throw error;
         }
       },
-        } catch (error) {
-          console.error('Error passing quality check:', error);
-          throw error;
-        }
-      },
 
       rejectProduct: async (productId: string, reason: string, stage: 'digital' | 'physical') => {
         try {
