@@ -160,7 +160,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
               : parseFloat(order.total_amount || '0') || items.reduce((sum: number, i: any) => sum + (i.price * i.quantity), 0) + shippingFee;
           return {
             id: order.id,
-            transactionId: order.transaction_id || order.id,
+            transactionId: order.order_number || order.id, // Use custom order_number instead of UUID
             items,
             total: totalNum,
             shippingFee,
@@ -280,8 +280,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
       case 'delivered':
       case 'approved':
       case 'refunded': return { bg: '#F0FDF4', text: '#166534' }; // Green
-      case 'refunded': return { bg: '#F0FDF4', text: '#166534' }; // Green
-      case 'cancelled': 
+      case 'canceled':
       case 'rejected': return { bg: '#FEE2E2', text: '#DC2626' }; // Red
       case 'pending_review': return { bg: '#FEF3C7', text: '#D97706' }; // Yellow
       default: return { bg: '#F3F4F6', text: '#374151' }; // Gray
