@@ -24,7 +24,7 @@ import { useAuthStore } from '../src/stores/authStore';
 import { useOrderStore } from '../src/stores/orderStore';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
-import type { CartItem, ShippingAddress } from '../src/types';
+import type { CartItem, ShippingAddress, Order } from '../src/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Checkout'>;
 
@@ -59,7 +59,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
   const { items, getTotal, clearCart, quickOrder, clearQuickOrder, getQuickOrderTotal, initializeForCurrentUser } = useCartStore();
   const { user } = useAuthStore();
   const insets = useSafeAreaInsets();
-  
+
   // Extract params safely
   const params = (route.params || {}) as any;
   const isGift = params?.isGift || false;
@@ -70,31 +70,56 @@ export default function CheckoutScreen({ navigation, route }: Props) {
   // Override address state if it's a gift
   React.useEffect(() => {
     if (isGift) {
-        setUseDefaultAddress(false);
-        // Set a partial address for the order record, but UI will show masked version
-        setAddress({
-            ...DEFAULT_ADDRESS,
-            name: recipientName,
-            address: 'Confidential Registry Address',
-            city: registryLocation,
-            region: '',
-            postalCode: '0000', 
-            // We use 'Confidential...' as placeholder so order system accepts it, 
-            // but backend/fulfillment would use the actual hidden registry ID/Address logic in a real app.
-        });
+      setUseDefaultAddress(false);
+      // Set a partial address for the order record, but UI will show masked version
+      setAddress({
+        ...DEFAULT_ADDRESS,
+        name: recipientName,
+        address: 'Confidential Registry Address',
+        city: registryLocation,
+        region: '',
+        postalCode: '0000',
+        // We use 'Confidential...' as placeholder so order system accepts it, 
+        // but backend/fulfillment would use the actual hidden registry ID/Address logic in a real app.
+      });
     }
   }, [isGift, recipientName, registryLocation]);
 
+  const DEFAULT_ADDRESS: ShippingAddress = {
+    name: 'Juan Dela Cruz',
+    email: 'juan@example.com',
+    phone: '+63 912 345 6789',
+    address: '123 Rizal Street, Brgy. San Jose',
+    city: 'Quezon City',
+    region: 'Metro Manila',
+    postalCode: '1100',
+  };
+
+  const [useDefaultAddress, setUseDefaultAddress] = useState(true);
+
+  const [address, setAddress] = useState<ShippingAddress>(DEFAULT_ADDRESS);
+
+  // Update address when toggle changes
+  React.useEffect(() => {
+    if (useDefaultAddress) {
+      setAddress(DEFAULT_ADDRESS);
+    }
+  }, [useDefaultAddress]);
+
   // Get selected items from navigation params (from CartScreen)
-  const params = route.params as any;
   const selectedItemsFromCart: CartItem[] = params?.selectedItems || [];
-  
-  // Determine which items to checkout: quick order takes precedence, then selected items, then all items
+
+  console.log('[Checkout] Params selectedItems:', params?.selectedItems?.length);
+  console.log('[Checkout] selectedItemsFromCart:', selectedItemsFromCart.length);
+  console.log('[Checkout] quickOrder:', quickOrder ? 'Present' : 'Null');
+
+  // Determine which items to checkout: quick order takes precedence, then selected items.
+  // We do NOT default to 'items' (all cart items) to avoid accidental checkout of unselected items.
   const checkoutItems = quickOrder
     ? [quickOrder]
-    : selectedItemsFromCart.length > 0
-      ? selectedItemsFromCart
-      : items;
+    : selectedItemsFromCart;
+
+  console.log('[Checkout] Final checkoutItems:', checkoutItems.length);
 
   const checkoutSubtotal = quickOrder
     ? getQuickOrderTotal()
@@ -123,7 +148,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
   const [availableBazcoins, setAvailableBazcoins] = useState(0);
   const maxRedeemableBazcoins = Math.min(availableBazcoins, checkoutSubtotal);
   const bazcoinDiscount = useBazcoins ? maxRedeemableBazcoins : 0;
-  
+
   const [isProcessing, setIsProcessing] = useState(false);
 
   const subtotal = checkoutSubtotal;
@@ -342,14 +367,42 @@ export default function CheckoutScreen({ navigation, route }: Props) {
       // Clear quick order if applicable
       if (isQuickCheckout) {
         clearQuickOrder();
-      const order = createOrder(checkoutItems, address, paymentMethod, {
-        isGift,
-        isAnonymous,
-        recipientId: isGift ? recipientId : undefined
-      });
-      
-      // Check if online payment (GCash, PayMongo, PayMaya, Card)
+      }
+
       const isOnlinePayment = paymentMethod.toLowerCase() !== 'cod' && paymentMethod.toLowerCase() !== 'cash on delivery';
+
+      const shippingAddressForOrder: ShippingAddress = isGift
+        ? address
+        : {
+            name: `${selectedAddress?.first_name || ''} ${selectedAddress?.last_name || ''}`.trim(),
+            email: user.email,
+            phone: selectedAddress?.phone || '',
+            address: `${selectedAddress?.street || ''}${selectedAddress?.barangay ? `, ${selectedAddress.barangay}` : ''}`,
+            city: selectedAddress?.city || '',
+            region: selectedAddress?.province || selectedAddress?.region || '',
+            postalCode: selectedAddress?.postal_code || '',
+          };
+
+      const order: Order = {
+        id: 'ORD-' + Date.now(),
+        transactionId: 'TXN' + Math.random().toString(36).slice(2, 10).toUpperCase(),
+        items: checkoutItems,
+        total,
+        shippingFee,
+        status: 'pending',
+        isPaid: false,
+        scheduledDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US'),
+        shippingAddress: shippingAddressForOrder,
+        paymentMethod,
+        createdAt: new Date().toISOString(),
+        ...{
+          isGift,
+          isAnonymous,
+          recipientId: isGift ? recipientId : undefined
+        }
+      };
+
+      // Check if online payment (GCash, PayMongo, PayMaya, Card)
 
       if (isOnlinePayment) {
         // Navigate to payment gateway simulation
@@ -488,8 +541,6 @@ export default function CheckoutScreen({ navigation, route }: Props) {
             ))}
           </View>
 
-
-
           {/* Shipping Address Card */}
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeaderWithBadge}>
@@ -503,204 +554,115 @@ export default function CheckoutScreen({ navigation, route }: Props) {
             </View>
 
             {/* Delivery Address Display */}
-            {isLoadingAddresses ? (
-              <View style={{ padding: 20, alignItems: 'center' }}>
-                <ActivityIndicator size="small" color={COLORS.primary} />
-                <Text style={{ marginTop: 8, color: '#6B7280' }}>Loading addresses...</Text>
-              </View>
-            ) : selectedAddress ? (
-              <Pressable
-                style={{
-                  backgroundColor: '#FFF4ED',
-                  borderRadius: 12,
-                  padding: 16,
-                  borderWidth: 1,
-                  borderColor: '#FFE4E6'
-                }}
-                onPress={() => {
-                  console.log('[Checkout] Opening address modal, addresses count:', addresses.length);
-                  setShowAddressModal(true);
-                }}
-              >
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <View style={{ flex: 1 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-                      <Text style={{ fontSize: 16, fontWeight: '700', color: '#111827' }}>
-                        {selectedAddress.first_name} {selectedAddress.last_name}
-                      </Text>
-                      {selectedAddress.is_default && (
-                        <View style={{ backgroundColor: COLORS.primary, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4, marginLeft: 8 }}>
-                          <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>Default</Text>
-                        </View>
-                      )}
-                    </View>
-                    <Text style={{ fontSize: 14, color: '#4B5563', marginBottom: 2 }}>{selectedAddress.phone}</Text>
-                    <Text style={{ fontSize: 14, color: '#4B5563', marginBottom: 2 }}>
-                      {selectedAddress.street}, {selectedAddress.barangay}
-                    </Text>
-                    <Text style={{ fontSize: 14, color: '#4B5563' }}>
-                      {selectedAddress.city}, {selectedAddress.province}, {selectedAddress.postal_code}
-                    </Text>
-                  </View>
-                  <ChevronRight size={20} color={COLORS.primary} />
-                </View>
-              </Pressable>
-            ) : (
-              <Pressable
-                style={{
-                  backgroundColor: '#F9FAFB',
-                  borderRadius: 12,
-                  padding: 20,
-                  borderWidth: 2,
-                  borderColor: '#E5E7EB',
-                  borderStyle: 'dashed',
-                  alignItems: 'center'
-                }}
-                onPress={() => navigation.navigate('Addresses')}
-              >
-                <Plus size={24} color={COLORS.primary} />
-                <Text style={{ marginTop: 8, fontSize: 14, fontWeight: '600', color: '#111827' }}>
-                  Add Delivery Address
-                </Text>
-                <Text style={{ fontSize: 12, color: '#6B7280' }}>
-                  Tap to add your shipping address
-                </Text>
-              </Pressable>
-            )}
-          {isGift ? (
-             /* REGISTRY PRIVACY MODE */
-             <View style={{ backgroundColor: '#F0FDF4', borderRadius: 12, padding: 16, borderWidth: 1, borderColor: '#BBF7D0' }}>
+
+            {isGift ? (
+              /* REGISTRY PRIVACY MODE */
+              <View style={{ backgroundColor: '#F0FDF4', borderRadius: 12, padding: 16, borderWidth: 1, borderColor: '#BBF7D0' }}>
                 <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
-                   <View style={{ backgroundColor: '#DCFCE7', padding: 8, borderRadius: 20 }}>
-                       <ShieldCheck size={24} color="#166534" />
-                   </View>
-                   <View style={{ flex: 1 }}>
-                       <Text style={{ fontSize: 16, fontWeight: '700', color: '#14532D', marginBottom: 4 }}>Registry Gift Address</Text>
-                       <Text style={{ fontSize: 14, fontWeight: '600', color: '#166534', marginBottom: 2 }}>Recipient: {recipientName}</Text>
-                       <Text style={{ fontSize: 14, color: '#166534' }}>Location: {registryLocation}</Text>
-                       
-                       <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 12, gap: 6 }}>
-                           <Shield size={12} color="#15803D" />
-                           <Text style={{ fontSize: 11, color: '#15803D', fontStyle: 'italic' }}>
-                               Full address is hidden for privacy.
-                           </Text>
-                       </View>
-                   </View>
+                  <View style={{ backgroundColor: '#DCFCE7', padding: 8, borderRadius: 20 }}>
+                    <ShieldCheck size={24} color="#166534" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 16, fontWeight: '700', color: '#14532D', marginBottom: 4 }}>Registry Gift Address</Text>
+                    <Text style={{ fontSize: 14, fontWeight: '600', color: '#166534', marginBottom: 2 }}>Recipient: {recipientName}</Text>
+                    <Text style={{ fontSize: 14, color: '#166534' }}>Location: {registryLocation}</Text>
+
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 12, gap: 6 }}>
+                      <Shield size={12} color="#15803D" />
+                      <Text style={{ fontSize: 11, color: '#15803D', fontStyle: 'italic' }}>
+                        Full address is hidden for privacy.
+                      </Text>
+                    </View>
+                  </View>
                 </View>
 
-                 {/* Anonymous Toggle */}
-                 <View style={{ marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderColor: '#BBF7D0', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <View>
-                        <Text style={{ fontSize: 14, fontWeight: '700', color: '#14532D' }}>Keep me anonymous</Text>
-                        <Text style={{ fontSize: 12, color: '#15803D' }}>Do not disclose my name to recipient</Text>
-                    </View>
-                    <Switch
-                        trackColor={{ false: '#D1D5DB', true: '#166534' }}
-                        thumbColor={isAnonymous ? '#FFFFFF' : '#f4f3f4'}
-                        onValueChange={setIsAnonymous}
-                        value={isAnonymous}
-                    />
+                {/* Anonymous Toggle */}
+                <View style={{ marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderColor: '#BBF7D0', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <View>
+                    <Text style={{ fontSize: 14, fontWeight: '700', color: '#14532D' }}>Keep me anonymous</Text>
+                    <Text style={{ fontSize: 12, color: '#15803D' }}>Do not disclose my name to recipient</Text>
+                  </View>
+                  <Switch
+                    trackColor={{ false: '#D1D5DB', true: '#166534' }}
+                    thumbColor={isAnonymous ? '#FFFFFF' : '#f4f3f4'}
+                    onValueChange={setIsAnonymous}
+                    value={isAnonymous}
+                  />
                 </View>
-             </View>
-          ) : (
-             /* STANDARD ADDRESS MODE */
-             <>
-                {/* Toggle Default Address */}
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, backgroundColor: '#F9FAFB', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB' }}>
-                    <Text style={{ fontSize: 14, fontWeight: '600', color: '#111827' }}>Use Default / Home Address</Text>
-                    <Switch
-                    trackColor={{ false: '#D1D5DB', true: COLORS.primary }}
-                    thumbColor={useDefaultAddress ? '#FFFFFF' : '#f4f3f4'}
-                    ios_backgroundColor="#3e3e3e"
-                    onValueChange={() => setUseDefaultAddress(prev => !prev)}
-                    value={useDefaultAddress}
-                    />
-                </View>
-
-                {useDefaultAddress ? (
-                    <View style={{ backgroundColor: '#FFF4ED', borderRadius: 12, padding: 16, borderWidth: 1, borderColor: '#FFE4E6' }}>
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <View style={{ flex: 1 }}>
-                            <Text style={{ fontSize: 16, fontWeight: '700', color: '#111827', marginBottom: 4 }}>{DEFAULT_ADDRESS.name}</Text>
-                            <Text style={{ fontSize: 14, color: '#4B5563', marginBottom: 2 }}>{DEFAULT_ADDRESS.phone}</Text>
-                            <Text style={{ fontSize: 14, color: '#4B5563', marginBottom: 2 }}>{DEFAULT_ADDRESS.address}</Text>
-                            <Text style={{ fontSize: 14, color: '#4B5563' }}>{DEFAULT_ADDRESS.city}, {DEFAULT_ADDRESS.region}, {DEFAULT_ADDRESS.postalCode}</Text>
+              </View>
+            ) : (
+              /* STANDARD ADDRESS MODE */
+              <>
+                {isLoadingAddresses ? (
+                  <View style={{ padding: 20, alignItems: 'center' }}>
+                    <ActivityIndicator size="small" color={COLORS.primary} />
+                    <Text style={{ marginTop: 8, color: '#6B7280' }}>Loading addresses...</Text>
+                  </View>
+                ) : selectedAddress ? (
+                  <Pressable
+                    style={{
+                      backgroundColor: '#FFF4ED',
+                      borderRadius: 12,
+                      padding: 16,
+                      borderWidth: 1,
+                      borderColor: '#FFE4E6'
+                    }}
+                    onPress={() => {
+                      console.log('[Checkout] Opening address modal, addresses count:', addresses.length);
+                      setShowAddressModal(true);
+                    }}
+                  >
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <View style={{ flex: 1 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                          <Text style={{ fontSize: 16, fontWeight: '700', color: '#111827' }}>
+                            {selectedAddress.first_name} {selectedAddress.last_name}
+                          </Text>
+                          {selectedAddress.is_default && (
+                            <View style={{ backgroundColor: COLORS.primary, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4, marginLeft: 8 }}>
+                              <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>Default</Text>
+                            </View>
+                          )}
                         </View>
-                        <View style={{ backgroundColor: COLORS.primary, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4 }}>
-                            <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>Default</Text>
-                        </View>
-                        </View>
+                        <Text style={{ fontSize: 14, color: '#4B5563', marginBottom: 2 }}>{selectedAddress.phone}</Text>
+                        <Text style={{ fontSize: 14, color: '#4B5563', marginBottom: 2 }}>
+                          {selectedAddress.street}, {selectedAddress.barangay}
+                        </Text>
+                        <Text style={{ fontSize: 14, color: '#4B5563' }}>
+                          {selectedAddress.city}, {selectedAddress.province}, {selectedAddress.postal_code}
+                        </Text>
+                      </View>
+                      <ChevronRight size={20} color={COLORS.primary} />
                     </View>
+                  </Pressable>
                 ) : (
-                    <View>
-                        <TextInput
-                            style={styles.input}
-                            placeholder="Full Name *"
-                            placeholderTextColor="#9CA3AF"
-                            value={address.name}
-                            onChangeText={(text) => setAddress({ ...address, name: text })}
-                        />
-                        <TextInput
-                            style={styles.input}
-                            placeholder="Email"
-                            placeholderTextColor="#9CA3AF"
-                            value={address.email}
-                            onChangeText={(text) => setAddress({ ...address, email: text })}
-                            keyboardType="email-address"
-                        />
-                        <TextInput
-                            style={styles.input}
-                            placeholder="Phone Number *"
-                            placeholderTextColor="#9CA3AF"
-                            value={address.phone}
-                            onChangeText={(text) => setAddress({ ...address, phone: text })}
-                            keyboardType="phone-pad"
-                        />
-                        <TextInput
-                            style={[styles.input, styles.textArea]}
-                            placeholder="Complete Address *"
-                            placeholderTextColor="#9CA3AF"
-                            value={address.address}
-                            onChangeText={(text) => setAddress({ ...address, address: text })}
-                            multiline
-                            numberOfLines={3}
-                        />
-                        <View style={styles.row}>
-                            <TextInput
-                            style={[styles.input, styles.halfInput]}
-                            placeholder="City *"
-                            placeholderTextColor="#9CA3AF"
-                            value={address.city}
-                            onChangeText={(text) => setAddress({ ...address, city: text })}
-                            />
-                            <TextInput
-                            style={[styles.input, styles.halfInput]}
-                            placeholder="Region"
-                            placeholderTextColor="#9CA3AF"
-                            value={address.region}
-                            onChangeText={(text) => setAddress({ ...address, region: text })}
-                            />
-                        </View>
-                        <TextInput
-                            style={styles.input}
-                            placeholder="Postal Code"
-                            placeholderTextColor="#9CA3AF"
-                            value={address.postalCode}
-                            onChangeText={(text) => setAddress({ ...address, postalCode: text })}
-                            keyboardType="number-pad"
-                        />
-                    </View>
+                  <Pressable
+                    style={{
+                      backgroundColor: '#F9FAFB',
+                      borderRadius: 12,
+                      padding: 20,
+                      borderWidth: 2,
+                      borderColor: '#E5E7EB',
+                      borderStyle: 'dashed',
+                      alignItems: 'center'
+                    }}
+                    onPress={() => navigation.navigate('Addresses')}
+                  >
+                    <Plus size={24} color={COLORS.primary} />
+                    <Text style={{ marginTop: 8, fontSize: 14, fontWeight: '600', color: '#111827' }}>
+                      Add Delivery Address
+                    </Text>
+                    <Text style={{ fontSize: 12, color: '#6B7280' }}>
+                      Tap to add your shipping address
+                    </Text>
+                  </Pressable>
                 )}
-             </>
-          )}
-        </View>
-
-        {/* Payment Method Card */}
-        <View style={styles.sectionCard}>
-          <View style={styles.sectionHeader}>
-            <CreditCard size={20} color={COLORS.primary} />
-            <Text style={[styles.sectionTitle, { marginLeft: 8 }]}>Payment Method</Text>
+              </>
+            )}
           </View>
+
+          {/* Payment Method Card */}
+          {/* Payment Method Card */}
 
           {/* Payment Method Card */}
           <View style={styles.sectionCard}>
@@ -1618,4 +1580,3 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
   },
 });
-
