@@ -14,7 +14,8 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Search, SlidersHorizontal, X, Check, Camera, ShoppingCart, Star, CheckCircle2 } from 'lucide-react-native';
+import { Search, SlidersHorizontal, X, Check, Camera, ShoppingCart, Star, CheckCircle2, Sliders } from 'lucide-react-native';
+import MultiSlider from '@ptomasroos/react-native-multi-slider';
 import CameraSearchModal from '../src/components/CameraSearchModal';
 import { ProductCard } from '../src/components/ProductCard';
 import { supabase } from '../src/lib/supabase';
@@ -48,6 +49,8 @@ const categories = [
 
 const sortOptions = [
   { value: 'relevance', label: 'Best Match' },
+  { value: 'newest', label: 'Newest Arrivals' },
+  { value: 'popularity', label: 'Popularity' },
   { value: 'price-low', label: 'Price: Low to High' },
   { value: 'price-high', label: 'Price: High to Low' },
 ];
@@ -66,6 +69,36 @@ export default function ShopScreen({ navigation, route }: Props) {
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery || '');
   const [selectedCategory, setSelectedCategory] = useState(initialCategory || 'all');
   const [selectedSort, setSelectedSort] = useState('relevance');
+  const [minPrice, setMinPrice] = useState('0');
+  const [maxPrice, setMaxPrice] = useState('100000');
+  const [multiSliderValue, setMultiSliderValue] = useState([0, 100000]);
+  const [minInput, setMinInput] = useState('0');
+  const [maxInput, setMaxInput] = useState('100000');
+
+  // Triggered when slider moves
+  const handleSliderChange = (values: number[]) => {
+    setMultiSliderValue(values);
+    setMinInput(values[0].toString());
+    setMaxInput(values[1].toString());
+  };
+
+  // Triggered when min input changes
+  const handleMinInputChange = (text: string) => {
+    setMinInput(text);
+    const val = parseInt(text.replace(/[^0-9]/g, '')) || 0;
+    if (val <= multiSliderValue[1]) {
+      setMultiSliderValue([val, multiSliderValue[1]]);
+    }
+  };
+
+  // Triggered when max input changes
+  const handleMaxInputChange = (text: string) => {
+    setMaxInput(text);
+    const val = parseInt(text.replace(/[^0-9]/g, '')) || 0;
+    if (val >= multiSliderValue[0]) {
+      setMultiSliderValue([multiSliderValue[0], Math.min(val, 100000)]);
+    }
+  };
   const [showFiltersModal, setShowFiltersModal] = useState(false);
   const [showCameraSearch, setShowCameraSearch] = useState(false);
 
@@ -149,7 +182,7 @@ export default function ShopScreen({ navigation, route }: Props) {
               rating: ratingNum,
               sold: row.sales_count || 0,
               seller: sellerName,
-              sellerId: row.seller?.id || undefined,
+              seller_id: row.seller?.id || undefined,
               sellerRating,
               sellerVerified,
               isFreeShipping: !!row.is_free_shipping,
@@ -215,21 +248,36 @@ export default function ShopScreen({ navigation, route }: Props) {
       const category = product.category || '';
       const matchesSearch = name.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesCategory = selectedCategory === 'all' || category.toLowerCase().replace(/\s+/g, '-') === selectedCategory;
-      return matchesSearch && matchesCategory;
+      
+      const price = product.price || 0;
+      const min = minPrice ? parseFloat(minPrice) : 0;
+      const max = maxPrice ? parseFloat(maxPrice) : Infinity;
+      const matchesPrice = price >= min && price <= max;
+
+      return matchesSearch && matchesCategory && matchesPrice;
     });
+
     if (selectedSort === 'price-low') filtered.sort((a, b) => (a.price || 0) - (b.price || 0));
-    if (selectedSort === 'price-high') filtered.sort((a, b) => (b.price || 0) - (a.price || 0));
+    else if (selectedSort === 'price-high') filtered.sort((a, b) => (b.price || 0) - (a.price || 0));
+    else if (selectedSort === 'newest') filtered.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+    else if (selectedSort === 'popularity') filtered.sort((a, b) => (b.sold || 0) - (a.sold || 0));
+    
     return filtered;
-  }, [dbProducts, searchQuery, selectedCategory, selectedSort, customResults]);
+  }, [dbProducts, searchQuery, selectedCategory, selectedSort, customResults, minPrice, maxPrice]);
 
   const verifiedStores = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
+    // Filter sellers by category if selected
+    const filteredSellersByCat = selectedCategory === 'all' 
+      ? sellers 
+      : sellers.filter(s => dbProducts.some(p => p.seller_id === s.id && (p.category || '').toLowerCase().replace(/\s+/g, '-') === selectedCategory));
+
     const filteredSellers = query
-      ? (sellers || []).filter(s => 
+      ? (filteredSellersByCat || []).filter(s => 
           (s.store_name || '').toLowerCase().includes(query) ||
           (s.business_name || '').toLowerCase().includes(query)
         )
-      : (sellers || []);
+      : (filteredSellersByCat || []);
 
     const stores = filteredSellers.map((s) => {
       const previews = dbProducts
@@ -246,7 +294,7 @@ export default function ShopScreen({ navigation, route }: Props) {
       };
     });
     return stores;
-  }, [sellers, dbProducts, searchQuery]);
+  }, [sellers, dbProducts, searchQuery, selectedCategory]);
 
   return (
     <View style={styles.container}>
@@ -285,6 +333,19 @@ export default function ShopScreen({ navigation, route }: Props) {
       </View>
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryScroll}>
+          {(categories || []).map((cat) => (
+            <Pressable
+              key={cat.id}
+              style={[styles.chip, selectedCategory === cat.id && { backgroundColor: BRAND_COLOR, borderColor: BRAND_COLOR }]}
+              onPress={() => setSelectedCategory(cat.id)}
+            >
+              <Text style={[styles.chipText, selectedCategory === cat.id && { color: '#FFF' }]}>{cat.name}</Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+
+
         {isLoading && (
           <View style={[styles.debugBox, { borderColor: BRAND_COLOR }]}>
             <ActivityIndicator color={BRAND_COLOR} />
@@ -355,18 +416,6 @@ export default function ShopScreen({ navigation, route }: Props) {
           </View>
         )}
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryScroll}>
-          {(categories || []).map((cat) => (
-            <Pressable
-              key={cat.id}
-              style={[styles.chip, selectedCategory === cat.id && { backgroundColor: BRAND_COLOR, borderColor: BRAND_COLOR }]}
-              onPress={() => setSelectedCategory(cat.id)}
-            >
-              <Text style={[styles.chipText, selectedCategory === cat.id && { color: '#FFF' }]}>{cat.name}</Text>
-            </Pressable>
-          ))}
-        </ScrollView>
-
         <View style={styles.productsGrid}>
           {(filteredProducts || []).map((product) => (
             <View key={product.id} style={styles.cardWrapper}>
@@ -394,12 +443,73 @@ export default function ShopScreen({ navigation, route }: Props) {
               <Pressable onPress={() => setShowFiltersModal(false)}><X size={24} color="#1F2937" /></Pressable>
             </View>
             <View style={styles.modalBody}>
+              <Text style={[styles.filterSectionTitle, { marginBottom: 15 }]}>Price Range</Text>
+              
+              <View style={styles.priceInputsRow}>
+                <View style={styles.priceInputContainer}>
+                  <Text style={styles.priceInputLabel}>Min (₱)</Text>
+                  <TextInput
+                    style={styles.priceTextInput}
+                    value={minInput}
+                    onChangeText={handleMinInputChange}
+                    keyboardType="numeric"
+                  />
+                </View>
+                <View style={styles.priceConnector} />
+                <View style={styles.priceInputContainer}>
+                  <Text style={styles.priceInputLabel}>Max (₱)</Text>
+                  <TextInput
+                    style={styles.priceTextInput}
+                    value={maxInput}
+                    onChangeText={handleMaxInputChange}
+                    keyboardType="numeric"
+                  />
+                </View>
+              </View>
+
+              <View style={styles.sliderWrapperModal}>
+                <MultiSlider
+                  values={[multiSliderValue[0], multiSliderValue[1]]}
+                  sliderLength={width - 80}
+                  onValuesChange={handleSliderChange}
+                  min={0}
+                  max={100000}
+                  step={500}
+                  allowOverlap={false}
+                  snapped
+                  selectedStyle={{ backgroundColor: BRAND_COLOR }}
+                  unselectedStyle={{ backgroundColor: '#E5E7EB' }}
+                  trackStyle={{ height: 6, borderRadius: 3 }}
+                  markerStyle={{
+                    height: 24,
+                    width: 24,
+                    borderRadius: 12,
+                    backgroundColor: '#FFFFFF',
+                    borderWidth: 2,
+                    borderColor: BRAND_COLOR,
+                    elevation: 4,
+                  }}
+                />
+              </View>
+
+              <Text style={[styles.filterSectionTitle, { marginTop: 20, marginBottom: 15 }]}>Sort By</Text>
               {(sortOptions || []).map((opt) => (
-                <Pressable key={opt.value} style={styles.filterOption} onPress={() => { setSelectedSort(opt.value); setShowFiltersModal(false); }}>
+                <Pressable key={opt.value} style={styles.filterOption} onPress={() => { setSelectedSort(opt.value); }}>
                   <Text style={[styles.filterText, selectedSort === opt.value && { color: BRAND_COLOR }]}>{opt.label}</Text>
                   {selectedSort === opt.value && <Check size={20} color={BRAND_COLOR} />}
                 </Pressable>
               ))}
+
+              <Pressable 
+                style={[styles.applyButton, { backgroundColor: BRAND_COLOR, marginTop: 20 }]}
+                onPress={() => {
+                  setMinPrice(multiSliderValue[0].toString());
+                  setMaxPrice(multiSliderValue[1] >= 100000 ? '9999999' : multiSliderValue[1].toString());
+                  setShowFiltersModal(false);
+                }}
+              >
+                <Text style={styles.applyButtonText}>Apply Filters</Text>
+              </Pressable>
             </View>
           </View>
         </View>
@@ -476,20 +586,58 @@ const styles = StyleSheet.create({
   visitBtnText: { fontSize: 12, fontWeight: '700' },
   storeProducts: { flexDirection: 'row', gap: 8 },
   storeProductThumb: { flex: 1, height: 70, borderRadius: 12, backgroundColor: '#F3F4F6' },
-  categoryScroll: { paddingHorizontal: 20, paddingVertical: 20, gap: 10 },
+  categoryScroll: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 10, gap: 10 },
   chip: { paddingHorizontal: 18, paddingVertical: 9, borderRadius: 25, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB' },
   chipText: { fontSize: 13, fontWeight: '600', color: '#9CA3AF' },
-  productsGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: PADDING, justifyContent: 'space-between' },
+  inlineHeaderFilterText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.primary,
+    marginLeft: 4,
+  },
+  priceInputsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  priceInputContainer: {
+    flex: 1,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+    padding: 6,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  priceInputLabel: {
+    fontSize: 10,
+    color: '#6B7280',
+    marginBottom: 2,
+    fontWeight: '600',
+  },
+  priceTextInput: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#111827',
+    padding: 0,
+  },
+  priceConnector: {
+    width: 12,
+    height: 1,
+    backgroundColor: '#E5E7EB',
+    marginHorizontal: 8,
+  },
+  sliderWrapperModal: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 10,
+    marginBottom: 5,
+  },
+  productsGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 16, paddingTop: 10, justifyContent: 'space-between' },
   cardWrapper: {
-    width: ITEM_WIDTH,
-    marginBottom: 20,
-    backgroundColor: '#FFF',
-    borderRadius: 18,
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
+    width: (width - 44) / 2, // Adjusted for cleaner spacing
+    marginBottom: 16,
+    // Removed specific card styles here, let ProductCard handle it
   },
   debugBox: { marginTop: 12, marginHorizontal: 20, borderWidth: 1, borderRadius: 12, padding: 10, backgroundColor: '#FFF', flexDirection: 'row', gap: 10, alignItems: 'center' },
   debugText: { fontSize: 12, color: '#4B5563' },
@@ -501,6 +649,9 @@ const styles = StyleSheet.create({
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', padding: 24, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
   modalTitle: { fontSize: 18, fontWeight: '800' },
   modalBody: { padding: 24 },
+  filterSectionTitle: { fontSize: 16, fontWeight: '800', color: '#1F2937', marginBottom: 15 },
   filterOption: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#F9FAFB' },
-  filterText: { fontSize: 15, fontWeight: '600', color: '#4B5563' }
+  filterText: { fontSize: 15, fontWeight: '600', color: '#4B5563' },
+  applyButton: { marginTop: 30, height: 50, borderRadius: 25, alignItems: 'center', justifyContent: 'center' },
+  applyButtonText: { color: '#FFF', fontSize: 16, fontWeight: '700' }
 });

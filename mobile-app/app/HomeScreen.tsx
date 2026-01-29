@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -300,7 +300,16 @@ export default function HomeScreen({ navigation }: Props) {
     .sort((a, b) => (((b.originalPrice || 0) - (b.price || 0)) - ((a.originalPrice || 0) - (a.price || 0))))
     .slice(0, 10);
 
-  const popularProducts = [...dbProducts].sort((a, b) => (b.sold || 0) - (a.sold || 0)).slice(0, 6);
+  const popularProducts = useMemo(() => {
+    // Prioritize discounted items even in "Popular Items"
+    return [...dbProducts].sort((a, b) => {
+      const aIsFlash = (a.originalPrice || 0) > (a.price || 0);
+      const bIsFlash = (b.originalPrice || 0) > (b.price || 0);
+      if (aIsFlash && !bIsFlash) return -1;
+      if (!aIsFlash && bIsFlash) return 1;
+      return (b.sold || 0) - (a.sold || 0);
+    }).slice(0, 8);
+  }, [dbProducts]);
 
   const handleProductPress = (product: Product) => {
     navigation.navigate('ProductDetail', { product });
@@ -450,6 +459,31 @@ export default function HomeScreen({ navigation }: Props) {
           </View>
         ) : activeTab === 'Home' ? (
           <>
+            <View style={styles.flashSaleSection}>
+              <View style={styles.flashHeader}>
+                <View style={styles.row}>
+                  <Text style={[styles.gridTitleText, { color: BRAND_COLOR }]}>FLASH SALE</Text>
+                  <View style={[styles.timerBox, { backgroundColor: '#333' }]}>
+                    <Timer size={14} color="#FFF" /><Text style={styles.timerText}>02:15:45</Text>
+                  </View>
+                </View>
+              </View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingLeft: 20, paddingBottom: 10 }}>
+                {flashSaleProducts.map(p => (
+                  <View key={p.id} style={styles.itemBoxContainerHorizontal}>
+                    <ProductCard product={p} onPress={() => handleProductPress(p)} />
+                    <View style={[styles.discountTag, { backgroundColor: BRAND_COLOR }]}>
+                      <Text style={styles.discountTagText}>
+                        {p.originalPrice && typeof p.price === 'number' && p.originalPrice > p.price
+                          ? `-${Math.round(((p.originalPrice - p.price) / p.originalPrice) * 100)}%`
+                          : ''}
+                      </Text>
+                    </View>
+                  </View>
+                ))}
+              </ScrollView>
+            </View>
+
             {/* SPECIAL OFFER CAROUSEL */}
             <View style={styles.carouselContainer}>
               <ScrollView 
@@ -493,31 +527,6 @@ export default function HomeScreen({ navigation }: Props) {
                   />
                 ))}
               </View>
-            </View>
-
-            <View style={styles.flashSaleSection}>
-              <View style={styles.flashHeader}>
-                <View style={styles.row}>
-                  <Text style={[styles.gridTitleText, { color: BRAND_COLOR }]}>FLASH SALE</Text>
-                  <View style={[styles.timerBox, { backgroundColor: '#333' }]}>
-                    <Timer size={14} color="#FFF" /><Text style={styles.timerText}>02:15:45</Text>
-                  </View>
-                </View>
-              </View>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingLeft: 20, paddingBottom: 10 }}>
-                {flashSaleProducts.map(p => (
-                  <View key={p.id} style={styles.itemBoxContainerHorizontal}>
-                    <ProductCard product={p} onPress={() => handleProductPress(p)} />
-                    <View style={[styles.discountTag, { backgroundColor: BRAND_COLOR }]}>
-                      <Text style={styles.discountTagText}>
-                        {p.originalPrice && typeof p.price === 'number' && p.originalPrice > p.price
-                          ? `-${Math.round(((p.originalPrice - p.price) / p.originalPrice) * 100)}%`
-                          : ''}
-                      </Text>
-                    </View>
-                  </View>
-                ))}
-              </ScrollView>
             </View>
 
             <View style={styles.section}>

@@ -28,7 +28,9 @@ export const CartItemRow: React.FC<CartItemRowProps> = ({
         <Text style={styles.seller} numberOfLines={1}>
           {item.seller}
         </Text>
-        <Text style={styles.price}>₱{(item.price ?? 0).toLocaleString()}</Text>
+        <Text style={[styles.price, (!!item.originalPrice && item.originalPrice > (item.price || 0)) ? { color: '#EF4444' } : null]}>
+          ₱{(item.price ?? 0).toLocaleString()}
+        </Text>
 
         <View style={styles.actionsContainer}>
           <QuantityStepper

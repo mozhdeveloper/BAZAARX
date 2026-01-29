@@ -183,6 +183,19 @@ export default function CheckoutScreen({ navigation, route }: Props) {
   const [appliedVoucher, setAppliedVoucher] = useState<keyof typeof VOUCHERS | null>(null);
   const [isAnonymous, setIsAnonymous] = useState(false);
 
+  // Custom Address Form State
+  const [showCustomAddressForm, setShowCustomAddressForm] = useState(false);
+  const [customAddress, setCustomAddress] = useState({
+    firstName: '',
+    lastName: '',
+    phone: '',
+    street: '',
+    barangay: '',
+    city: '',
+    province: '',
+    postalCode: ''
+  });
+
 
 
   // Bazcoins Logic
@@ -653,42 +666,55 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                         <Text style={{ marginTop: 8, color: '#6B7280' }}>Loading addresses...</Text>
                       </View>
                     ) : selectedAddress ? (
-                      <Pressable
-                        style={{
-                          backgroundColor: '#FFF4ED',
-                          borderRadius: 12,
-                          padding: 16,
-                          borderWidth: 1,
-                          borderColor: '#FFE4E6'
-                        }}
-                        onPress={() => {
-                          console.log('[Checkout] Opening address modal');
-                          setShowAddressModal(true);
-                        }}
-                      >
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                          <View style={{ flex: 1 }}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-                              <Text style={{ fontSize: 16, fontWeight: '700', color: '#111827' }}>
-                                {selectedAddress.first_name} {selectedAddress.last_name}
+                      <View>
+                        <Pressable
+                          style={{
+                            backgroundColor: '#FFF4ED',
+                            borderRadius: 12,
+                            padding: 16,
+                            borderWidth: 1,
+                            borderColor: '#FFE4E6'
+                          }}
+                          onPress={() => {
+                            console.log('[Checkout] Opening address modal');
+                            setShowAddressModal(true);
+                          }}
+                        >
+                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <View style={{ flex: 1 }}>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                                <Text style={{ fontSize: 16, fontWeight: '700', color: '#111827' }}>
+                                  {selectedAddress.first_name} {selectedAddress.last_name}
+                                </Text>
+                                {selectedAddress.is_default && (
+                                  <View style={{ backgroundColor: COLORS.primary, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4, marginLeft: 8 }}>
+                                    <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>Default</Text>
+                                  </View>
+                                )}
+                              </View>
+                              <Text style={{ fontSize: 14, color: '#4B5563', marginBottom: 2 }}>{selectedAddress.phone}</Text>
+                              <Text style={{ fontSize: 14, color: '#4B5563', marginBottom: 2 }}>
+                                {selectedAddress.street}, {selectedAddress.barangay}
                               </Text>
-                              {selectedAddress.is_default && (
-                                <View style={{ backgroundColor: COLORS.primary, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4, marginLeft: 8 }}>
-                                  <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>Default</Text>
-                                </View>
-                              )}
+                              <Text style={{ fontSize: 14, color: '#4B5563' }}>
+                                {selectedAddress.city}, {selectedAddress.province}, {selectedAddress.postal_code}
+                              </Text>
                             </View>
-                            <Text style={{ fontSize: 14, color: '#4B5563', marginBottom: 2 }}>{selectedAddress.phone}</Text>
-                            <Text style={{ fontSize: 14, color: '#4B5563', marginBottom: 2 }}>
-                              {selectedAddress.street}, {selectedAddress.barangay}
-                            </Text>
-                            <Text style={{ fontSize: 14, color: '#4B5563' }}>
-                              {selectedAddress.city}, {selectedAddress.province}, {selectedAddress.postal_code}
-                            </Text>
+                            <ChevronRight size={20} color={COLORS.primary} />
                           </View>
-                          <ChevronRight size={20} color={COLORS.primary} />
-                        </View>
-                      </Pressable>
+                        </Pressable>
+                        <Pressable 
+                          onPress={() => {
+                            setUseDefaultAddress(false);
+                            setShowCustomAddressForm(true);
+                          }}
+                          style={{ marginTop: 12, alignSelf: 'flex-start' }}
+                        >
+                          <Text style={{ color: COLORS.primary, fontWeight: '700', fontSize: 13 }}>
+                            Deliver to a different address?
+                          </Text>
+                        </Pressable>
+                      </View>
                     ) : (
                       <Pressable
                         style={{
@@ -712,38 +738,175 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                       </Pressable>
                     ) 
                 ) : (
-                  <Pressable
-                    style={{
-                      backgroundColor: '#F9FAFB',
-                      borderRadius: 12,
-                      padding: 20,
-                      borderWidth: 2,
-                      borderColor: '#E5E7EB',
-                      borderStyle: 'dashed',
-                      alignItems: 'center'
-                    }}
-                    onPress={() => navigation.navigate('Addresses')}
+                  showCustomAddressForm ? (
+                    <View style={styles.inlineFormContainer}>
+                      <View style={styles.inlineFormHeader}>
+                        <View>
+                          <Text style={styles.inlineFormTitle}>Custom Shipping Address</Text>
+                          <Pressable onPress={() => setUseDefaultAddress(true)}>
+                            <Text style={{ color: COLORS.primary, fontSize: 12, fontWeight: '600', marginTop: 2 }}>Use saved addresses</Text>
+                          </Pressable>
+                        </View>
+                        <Pressable onPress={() => setShowCustomAddressForm(false)}><X size={20} color="#6B7280" /></Pressable>
+                      </View>
+                      
+                      <View style={styles.rowInputs}>
+                        <View style={[styles.inputGroup, styles.halfInput]}>
+                          <Text style={styles.inputLabel}>First Name</Text>
+                          <TextInput
+                            style={styles.formInput}
+                            placeholder="Juan"
+                            value={customAddress.firstName}
+                            onChangeText={(val) => setCustomAddress({...customAddress, firstName: val})}
+                          />
+                        </View>
+                        <View style={[styles.inputGroup, styles.halfInput]}>
+                          <Text style={styles.inputLabel}>Last Name</Text>
+                          <TextInput
+                            style={styles.formInput}
+                            placeholder="Dela Cruz"
+                            value={customAddress.lastName}
+                            onChangeText={(val) => setCustomAddress({...customAddress, lastName: val})}
+                          />
+                        </View>
+                      </View>
+
+                      <View style={styles.inputGroup}>
+                        <Text style={styles.inputLabel}>Phone Number</Text>
+                        <TextInput
+                          style={styles.formInput}
+                          placeholder="0917XXXXXXX"
+                          keyboardType="phone-pad"
+                          value={customAddress.phone}
+                          onChangeText={(val) => setCustomAddress({...customAddress, phone: val})}
+                        />
+                      </View>
+
+                      <View style={styles.inputGroup}>
+                        <Text style={styles.inputLabel}>Street / Unit / Bldg</Text>
+                        <TextInput
+                          style={styles.formInput}
+                          placeholder="123 Example St."
+                          value={customAddress.street}
+                          onChangeText={(val) => setCustomAddress({...customAddress, street: val})}
+                        />
+                      </View>
+
+                      <View style={styles.rowInputs}>
+                        <View style={[styles.inputGroup, styles.halfInput]}>
+                          <Text style={styles.inputLabel}>Barangay</Text>
+                          <TextInput
+                            style={styles.formInput}
+                            placeholder="Brgy. 1"
+                            value={customAddress.barangay}
+                            onChangeText={(val) => setCustomAddress({...customAddress, barangay: val})}
+                          />
+                        </View>
+                        <View style={[styles.inputGroup, styles.halfInput]}>
+                          <Text style={styles.inputLabel}>City</Text>
+                          <TextInput
+                            style={styles.formInput}
+                            placeholder="Manila"
+                            value={customAddress.city}
+                            onChangeText={(val) => setCustomAddress({...customAddress, city: val})}
+                          />
+                        </View>
+                      </View>
+
+                      <View style={styles.rowInputs}>
+                        <View style={[styles.inputGroup, styles.halfInput]}>
+                          <Text style={styles.inputLabel}>Province</Text>
+                          <TextInput
+                            style={styles.formInput}
+                            placeholder="Metro Manila"
+                            value={customAddress.province}
+                            onChangeText={(val) => setCustomAddress({...customAddress, province: val})}
+                          />
+                        </View>
+                        <View style={[styles.inputGroup, styles.halfInput]}>
+                          <Text style={styles.inputLabel}>Postal Code</Text>
+                          <TextInput
+                            style={styles.formInput}
+                            placeholder="1000"
+                            keyboardType="numeric"
+                            value={customAddress.postalCode}
+                            onChangeText={(val) => setCustomAddress({...customAddress, postalCode: val})}
+                          />
+                        </View>
+                      </View>
+
+                      <View style={styles.formActions}>
+                        <Pressable style={styles.cancelBtn} onPress={() => setShowCustomAddressForm(false)}>
+                          <Text style={[styles.btnText, { color: '#6B7280' }]}>Cancel</Text>
+                        </Pressable>
+                        <Pressable 
+                          style={styles.saveBtn} 
+                          onPress={() => {
+                            if (!customAddress.firstName || !customAddress.street || !customAddress.city) {
+                              Alert.alert('Incomplete Form', 'Please fill in required fields.');
+                              return;
+                            }
+                            const addr: Address = {
+                              id: 'custom-' + Date.now(),
+                              user_id: user?.id || 'guest',
+                              label: 'Custom Address',
+                              first_name: customAddress.firstName,
+                              last_name: customAddress.lastName,
+                              phone: customAddress.phone,
+                              street: customAddress.street,
+                              barangay: customAddress.barangay,
+                              city: customAddress.city,
+                              province: customAddress.province,
+                              region: '',
+                              postal_code: customAddress.postalCode,
+                              is_default: false
+                            };
+                            setSelectedAddress(addr);
+                            setTempSelectedAddress(addr);
+                            setShowCustomAddressForm(false);
+                          }}
+                        >
+                          <Text style={[styles.btnText, { color: '#FFFFFF' }]}>Apply Address</Text>
+                        </Pressable>
+                      </View>
+                    </View>
+                  ) : (
+                    <Pressable
+                      style={{
+                        backgroundColor: '#F9FAFB',
+                        borderRadius: 12,
+                        padding: 20,
+                        borderWidth: 2,
+                        borderColor: '#E5E7EB',
+                        borderStyle: 'dashed',
+                        alignItems: 'center'
+                      }}
+                      onPress={() => setShowCustomAddressForm(true)}
+                    >
+                      <Plus size={24} color={COLORS.primary} />
+                      <Text style={{ marginTop: 8, fontSize: 14, fontWeight: '600', color: '#111827' }}>
+                        Add Custom Address
+                      </Text>
+                      <Text style={{ fontSize: 12, color: '#6B7280' }}>
+                        Input a one-time shipping address
+                      </Text>
+                    </Pressable>
+                  )
+                )}
+                {selectedAddress && selectedAddress.id.toString().startsWith('custom-') && !showCustomAddressForm && (
+                  <Pressable 
+                    onPress={() => setShowCustomAddressForm(true)}
+                    style={{ marginTop: 12, alignItems: 'center' }}
                   >
-                    <Plus size={24} color={COLORS.primary} />
-                    <Text style={{ marginTop: 8, fontSize: 14, fontWeight: '600', color: '#111827' }}>
-                      Add Delivery Address
-                    </Text>
-                    <Text style={{ fontSize: 12, color: '#6B7280' }}>
-                      Tap to add your shipping address
+                    <Text style={{ color: COLORS.primary, fontWeight: '700', fontSize: 14 }}>
+                      Use different custom address
                     </Text>
                   </Pressable>
                 )}
-             </>
+              </>
           )}
         </View>
 
-        {/* Payment Method Card */}
-
-
-          {/* Payment Method Card */}
-          {/* Payment Method Card */}
-
-          {/* Payment Method Card */}
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
               <CreditCard size={20} color={COLORS.primary} />
@@ -999,6 +1162,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
             )}
           </Pressable>
         </View>
+
 
         {/* Address Selection Modal */}
         <Modal
@@ -1394,6 +1558,89 @@ const styles = StyleSheet.create({
     color: '#065F46',
     flex: 1,
   },
+  // Custom Address Form Styles
+  inlineFormContainer: {
+    padding: 20,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+    marginTop: 8,
+  },
+  inlineFormHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingBottom: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4FB',
+  },
+  inlineFormTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  formContainer: {
+    gap: 16,
+  },
+  inputGroup: {
+    marginBottom: 16,
+  },
+  inputLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#374151',
+    marginBottom: 6,
+    marginLeft: 2,
+  },
+  formInput: {
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    height: 48,
+    fontSize: 15,
+    color: '#111827',
+  },
+  rowInputs: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 16,
+  },
+  formActions: {
+    marginTop: 8,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4FB',
+    flexDirection: 'row',
+    gap: 12,
+  },
+  cancelBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  saveBtn: {
+    flex: 2,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    backgroundColor: COLORS.primary,
+  },
+  btnText: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
   voucherInputContainer: {
     flexDirection: 'row',
     gap: 8,
@@ -1601,6 +1848,12 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '800',
     color: COLORS.primary,
+  },
+  customAddressModal: {
+    backgroundColor: 'white',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    height: '90%',
   },
   modalOverlay: {
     flex: 1,
