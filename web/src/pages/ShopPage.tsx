@@ -279,10 +279,16 @@ export default function ShopPage() {
           >
             Stores
           </Link>
+          <Link
+            to="/registry"
+            className="text-sm text-gray-500 hover:text-[var(--brand-primary)] transition-all duration-300"
+          >
+            Registry & Gifting
+          </Link>
         </div>
 
         {/* Shop Header */}
-        <div className="py-4 bg-gradient-to-br from-orange-100/20 via-orange-200/50 to-orange-200/50 backdrop-blur-md border border-orange-200/30 rounded-3xl">
+        <div className="py-24 bg-gradient-to-br from-orange-100/20 via-orange-200/50 to-orange-200/50 backdrop-blur-md border border-orange-200/30 rounded-3xl">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}

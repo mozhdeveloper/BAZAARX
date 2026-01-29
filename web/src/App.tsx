@@ -14,6 +14,7 @@ import OrderConfirmationPage from "./pages/OrderConfirmationPage";
 import OrdersPage from "./pages/OrdersPage";
 import OrderDetailPage from "./pages/OrderDetailPage";
 import DeliveryTrackingPage from "./pages/DeliveryTrackingPage";
+import RegistryAndGiftingPage from "./pages/RegistryAndGiftingPage";
 
 // Enhanced Buyer Pages
 import EnhancedCartPage from "./pages/EnhancedCartPage";
@@ -82,6 +83,7 @@ function App() {
           <Route path="/collections" element={<CollectionsPage />} />
           <Route path="/stores" element={<StoresPage />} />
           <Route path="/product/:id" element={<ProductDetailPage />} />
+          <Route path="/registry" element={<RegistryAndGiftingPage />} />
           <Route path="/enhanced-cart"
             element={
               <ProtectedBuyerRoute>
