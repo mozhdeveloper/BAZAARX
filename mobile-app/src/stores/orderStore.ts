@@ -8,7 +8,8 @@ interface OrderStore {
   createOrder: (
     items: CartItem[],
     shippingAddress: ShippingAddress,
-    paymentMethod: string
+    paymentMethod: string,
+    options?: { isGift?: boolean; isAnonymous?: boolean; recipientId?: string }
   ) => Order;
   getOrderById: (orderId: string) => Order | undefined;
   updateOrderStatus: (orderId: string, status: Order['status']) => void;
@@ -335,7 +336,7 @@ export const useOrderStore = create<OrderStore>()(
     (set, get) => ({
       orders: dummyOrders,
 
-      createOrder: (items, shippingAddress, paymentMethod) => {
+      createOrder: (items, shippingAddress, paymentMethod, options) => {
         // Ensure items array is not empty
         if (!items || items.length === 0) {
           throw new Error('Cannot create order with empty cart');
@@ -367,17 +368,31 @@ export const useOrderStore = create<OrderStore>()(
           shippingAddress,
           paymentMethod,
           createdAt: new Date().toISOString(),
+          isGift: options?.isGift,
+          isAnonymous: options?.isAnonymous,
+          recipientId: options?.recipientId,
         };
 
         // Add to buyer's order list
         set({ orders: [...get().orders, newOrder] });
+
+        // NOTIFICATION LOGIC (Simulation)
+        if (options?.isGift && options.recipientId) {
+             // Simulate sending a notification to the recipient
+             console.log(`[Notification System] 🔔 Notify User ${options.recipientId}: "You have a new gift order on the way! Tracker: ${transactionId}"`);
+             if (options.isAnonymous) {
+                 console.log(`[Notification System] 🤫 The sender chose to stay anonymous.`);
+             } else {
+                 console.log(`[Notification System] 🎁 From: ${shippingAddress.name} (Sender)`);
+             }
+        }
 
         // SYNC TO SELLER: Also add to seller's order store
         try {
           // Dynamically import seller store to avoid circular dependency
           import('./sellerStore').then(({ useSellerStore }) => {
             const sellerStore = useSellerStore.getState();
-            
+
             // Convert buyer order to seller order format
             const sellerOrder: import('./sellerStore').SellerOrder = {
               id: newOrder.id,
@@ -422,17 +437,17 @@ export const useOrderStore = create<OrderStore>()(
           orders: get().orders.map((order) =>
             order.id === orderId
               ? {
-                  ...order,
-                  status,
-                  deliveryDate:
-                    status === 'delivered'
-                      ? new Date().toLocaleDateString('en-US', {
-                          month: '2-digit',
-                          day: '2-digit',
-                          year: 'numeric',
-                        })
-                      : order.deliveryDate,
-                }
+                ...order,
+                status,
+                deliveryDate:
+                  status === 'delivered'
+                    ? new Date().toLocaleDateString('en-US', {
+                      month: '2-digit',
+                      day: '2-digit',
+                      year: 'numeric',
+                    })
+                    : order.deliveryDate,
+              }
               : order
           ),
         });

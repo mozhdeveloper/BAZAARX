@@ -48,7 +48,8 @@ const MOCK_SHARED_USER = {
             priority: "low",
             desiredQty: 1,
             purchasedQty: 1,
-            status: 'purchased'
+            status: 'purchased',
+            isPrivate: true // Hidden from shared view
         }
     ]
 };
@@ -125,7 +126,7 @@ export default function SharedWishlistScreen() {
                     </View>
                 </View>
                 <View style={styles.grid}>
-                    {wishlistOwner.items.map((item) => {
+                    {wishlistOwner.items.filter((item: any) => !item.isPrivate).map((item) => {
                         const isFullyPurchased = item.purchasedQty >= item.desiredQty;
                         
                         return (
@@ -185,8 +186,6 @@ const styles = StyleSheet.create({
     headerContainer: {
         paddingHorizontal: 20,
         paddingBottom: 24,
-        borderBottomLeftRadius: 30, // Matches Home Screen rounded style (Home uses 20, but 30 looks more "premium" for this deep header, I will use 30 to match original or 24? Let's stick to Home's 20 if asked "same", but previously it was 30. Home uses 20. I will use 24 as a middle ground or 20 to be "same".) 
-        // User asked "same with home page". Home uses 20.
         borderBottomLeftRadius: 24, 
         borderBottomRightRadius: 24,
         zIndex: 10,

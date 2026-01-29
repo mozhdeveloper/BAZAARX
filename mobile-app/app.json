@@ -36,6 +36,12 @@
         {
           "cameraPermission": "Allow BazaarX to access your camera to search products by image."
         }
+      ], 
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow $(PRODUCT_NAME) to use your location."
+        }
       ]
     ]
   }

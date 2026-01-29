@@ -11,7 +11,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { useBuyerStore } from "../stores/buyerStore";
-import { signIn, signInWithProvider } from "../services/authService";
+import { authService } from "../services/authService";
 import { supabase } from "../lib/supabase";
 
 export default function BuyerLoginPage() {
@@ -45,20 +45,15 @@ export default function BuyerLoginPage() {
     setIsLoading(true);
 
     try {
-      const { user, error: signInError } = await signIn(email, password);
+      const result = await authService.signIn(email, password);
 
-      if (signInError) {
-        console.error("Login error:", signInError);
-        setError("Invalid email or password.");
-        setIsLoading(false);
-        return;
-      }
-
-      if (!user) {
+      if (!result || !result.user) {
         setError("Login failed. Please try again.");
         setIsLoading(false);
         return;
       }
+
+      const { user } = result;
 
       // Verify buyer role
       const { data: buyerData, error: buyerError } = await supabase
@@ -131,7 +126,7 @@ export default function BuyerLoginPage() {
   const handleGoogleSignIn = async () => {
     setError("");
     setIsLoading(true);
-    await signInWithProvider("google");
+    await authService.signInWithProvider("google");
     // Since this redirects, we don't need to unset loading unless it fails immediately, but for UX safety:
     setTimeout(() => setIsLoading(false), 3000);
   };
@@ -145,7 +140,7 @@ export default function BuyerLoginPage() {
   const handleFacebookSignIn = async () => {
     setError("");
     setIsLoading(true);
-    await signInWithProvider("facebook");
+    await authService.signInWithProvider("facebook");
     setTimeout(() => setIsLoading(false), 3000);
   };
 

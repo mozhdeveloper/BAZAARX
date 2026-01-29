@@ -1,6 +1,7 @@
 /**
- * Seller Service  
+ * Seller Service
  * Handles all seller-related database operations
+ * Adheres to the Class-based Service Layer Architecture
  */
 
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
@@ -31,15 +32,27 @@ export interface SellerData {
     updated_at: string;
 }
 
-type SellerInsert = Omit<SellerData, 'created_at' | 'updated_at' | 'join_date'>;
-type SellerUpdate = Partial<Omit<SellerData, 'id' | 'created_at' | 'join_date'>>;
+export type SellerInsert = Omit<SellerData, 'created_at' | 'updated_at' | 'join_date'>;
+export type SellerUpdate = Partial<Omit<SellerData, 'id' | 'created_at' | 'join_date'>>;
 
 export class SellerService {
+    private static instance: SellerService;
+
+    private constructor() { }
+
+    public static getInstance(): SellerService {
+        if (!SellerService.instance) {
+            SellerService.instance = new SellerService();
+        }
+        return SellerService.instance;
+    }
+
     /**
      * Get seller by ID
      */
     async getSellerById(sellerId: string): Promise<SellerData | null> {
         if (!isSupabaseConfigured()) {
+            console.warn('Supabase not configured - cannot fetch seller');
             return null;
         }
 
@@ -54,16 +67,16 @@ export class SellerService {
             return data;
         } catch (error) {
             console.error('Error fetching seller:', error);
-            return null;
+            throw new Error('Failed to fetch seller information.');
         }
     }
 
     /**
      * Create or update seller profile
      */
-    async upsertSeller(seller: SellerInsert): Promise<SellerData | null> {
+    async upsertSeller(seller: SellerInsert): Promise<SellerData> {
         if (!isSupabaseConfigured()) {
-            return null;
+            throw new Error('Supabase not configured - cannot upsert seller');
         }
 
         try {
@@ -77,19 +90,21 @@ export class SellerService {
                 .single();
 
             if (error) throw error;
+            if (!data) throw new Error('No data returned upon seller upsert');
+
             return data;
         } catch (error) {
             console.error('Error upserting seller:', error);
-            return null;
+            throw new Error('Failed to save seller profile.');
         }
     }
 
     /**
      * Update seller profile
      */
-    async updateSeller(sellerId: string, updates: SellerUpdate): Promise<SellerData | null> {
+    async updateSeller(sellerId: string, updates: SellerUpdate): Promise<SellerData> {
         if (!isSupabaseConfigured()) {
-            return null;
+            throw new Error('Supabase not configured - cannot update seller');
         }
 
         try {
@@ -101,10 +116,12 @@ export class SellerService {
                 .single();
 
             if (error) throw error;
+            if (!data) throw new Error('No data returned upon seller update');
+
             return data;
         } catch (error) {
             console.error('Error updating seller:', error);
-            return null;
+            throw new Error('Failed to update seller profile.');
         }
     }
 
@@ -113,6 +130,7 @@ export class SellerService {
      */
     async getAllSellers(): Promise<SellerData[]> {
         if (!isSupabaseConfigured()) {
+            console.warn('Supabase not configured - cannot fetch sellers');
             return [];
         }
 
@@ -126,16 +144,16 @@ export class SellerService {
             return data || [];
         } catch (error) {
             console.error('Error fetching sellers:', error);
-            return [];
+            throw new Error('Failed to fetch all sellers.');
         }
     }
 
     /**
      * Approve seller
      */
-    async approveSeller(sellerId: string): Promise<boolean> {
+    async approveSeller(sellerId: string): Promise<void> {
         if (!isSupabaseConfigured()) {
-            return false;
+            throw new Error('Supabase not configured');
         }
 
         try {
@@ -150,19 +168,18 @@ export class SellerService {
                 .eq('id', sellerId);
 
             if (error) throw error;
-            return true;
         } catch (error) {
             console.error('Error approving seller:', error);
-            return false;
+            throw new Error('Failed to approve seller.');
         }
     }
 
     /**
      * Reject seller with reason
      */
-    async rejectSeller(sellerId: string, reason: string): Promise<boolean> {
+    async rejectSeller(sellerId: string, reason: string): Promise<void> {
         if (!isSupabaseConfigured()) {
-            return false;
+            throw new Error('Supabase not configured');
         }
 
         try {
@@ -176,10 +193,9 @@ export class SellerService {
                 .eq('id', sellerId);
 
             if (error) throw error;
-            return true;
         } catch (error) {
             console.error('Error rejecting seller:', error);
-            return false;
+            throw new Error('Failed to reject seller.');
         }
     }
 
@@ -200,30 +216,32 @@ export class SellerService {
             return data;
         } catch (error) {
             console.error('Error fetching seller stats:', error);
-            return null;
+            throw new Error('Failed to fetch seller statistics.');
         }
     }
 
     /**
      * Update seller rating (called after review)
      */
-    async updateSellerRating(sellerId: string): Promise<boolean> {
+    async updateSellerRating(sellerId: string): Promise<void> {
         if (!isSupabaseConfigured()) {
-            return false;
+            return;
         }
 
         try {
             // This is handled by trigger in database, but can be called explicitly
-            const { data: reviews } = await supabase
+            const { data: reviews, error: reviewsError } = await supabase
                 .from('reviews')
                 .select('rating')
                 .eq('seller_id', sellerId)
                 .eq('is_hidden', false);
 
+            if (reviewsError) throw reviewsError;
+
             if (reviews && reviews.length > 0) {
                 const avgRating = reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length;
 
-                const { error } = await supabase
+                const { error: updateError } = await supabase
                     .from('sellers')
                     .update({
                         rating: Number(avgRating.toFixed(1)),
@@ -231,16 +249,13 @@ export class SellerService {
                     })
                     .eq('id', sellerId);
 
-                if (error) throw error;
+                if (updateError) throw updateError;
             }
-
-            return true;
         } catch (error) {
             console.error('Error updating seller rating:', error);
-            return false;
+            throw new Error('Failed to update seller rating.');
         }
     }
 }
 
-// Export singleton instance
-export const sellerService = new SellerService();
+export const sellerService = SellerService.getInstance();

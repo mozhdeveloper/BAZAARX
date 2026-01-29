@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import * as cartService from '@/services/cartService';
+import { cartService } from '@/services/cartService';
 import { getCurrentUser, supabase } from '@/lib/supabase';
 import { ReactNode } from 'react';
 
