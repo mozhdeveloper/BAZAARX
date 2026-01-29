@@ -20,7 +20,10 @@
     "vitest:run": "vitest run",
     "vitest:pos": "vitest run pos-order-flow",
     "vitest:buyer": "vitest run buyer-seller-flow",
-    "vitest:all": "vitest run src/tests/"
+    "vitest:all": "vitest run src/tests/",
+    "test:qa": "vitest run qa-system-integration",
+    "test:qa-integration": "tsx scripts/test-qa-system.ts",
+    "test:qa-full": "npm run test:qa && npm run test:qa-integration"
   },
   "dependencies": {
     "@lottiefiles/react-lottie-player": "^3.6.0",
