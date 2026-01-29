@@ -158,7 +158,7 @@ export default function ShopPage() {
 
   const allProducts = useMemo<ShopProduct[]>(() => {
     const dbProducts = sellerProducts
-      .filter((p) => (p.approvalStatus === "approved" || p.approvalStatus === "pending") && p.isActive)
+      .filter((p) => p.approvalStatus === "approved" && p.isActive)
       .map((p) => ({
         id: p.id,
         name: p.name,
@@ -170,7 +170,7 @@ export default function ShopPage() {
         category: p.category,
         seller: p.sellerName || "Verified Seller",
         sellerId: p.sellerId,
-        isVerified: p.approvalStatus === "pending",
+        isVerified: p.approvalStatus === "approved",
         location: p.sellerLocation || "Metro Manila",
         description: p.description,
         sellerRating: p.sellerRating || 0,

@@ -147,7 +147,14 @@ const SellerProductStatus = () => {
   };
 
   const { filteredQA: filteredQAProducts, filteredSeller: filteredSellerProducts } = getFilteredProducts();
-  const allFilteredProducts = [...filteredQAProducts, ...filteredSellerProducts];
+  
+  // Get product IDs that are already in QA system to avoid duplicates
+  const qaProductIds = new Set(qaProducts.map(p => p.productId));
+  
+  // Only include seller products that are NOT in the QA system yet
+  const nonQASellerProducts = filteredSellerProducts.filter(p => !qaProductIds.has(p.id));
+  
+  const allFilteredProducts = [...filteredQAProducts, ...nonQASellerProducts];
 
   const handleSubmitSample = () => {
     if (!selectedProduct || !logisticsMethod) {
