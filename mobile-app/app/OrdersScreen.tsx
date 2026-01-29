@@ -237,7 +237,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
       const query = searchQuery.toLowerCase();
       baseOrders = baseOrders.filter(order =>
         order.transactionId.toLowerCase().includes(query) ||
-        order.items.some(item => item.name.toLowerCase().includes(query))
+        order.items.some(item => item.name?.toLowerCase().includes(query))
       );
     }
 

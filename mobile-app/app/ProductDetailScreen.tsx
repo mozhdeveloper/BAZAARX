@@ -124,7 +124,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   const isFavorite = isInWishlist(product.id);
 
   // Constants
-  const originalPrice = Math.round(product.price * 1.5); // Mock original price
+  const originalPrice = Math.round((product.price ?? 0) * 1.5); // Mock original price
   const cartItemCount = useCartStore((state) => state.items.length);
 
   const relatedProducts = trendingProducts.filter((p) => p.id !== product.id).slice(0, 4);
@@ -170,7 +170,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   const handleVisitStore = () => {
     navigation.push('StoreDetail', { 
       store: { 
-        id: product.sellerId || 'store_1', 
+        id: product.seller_id || 'store_1', 
         name: product.seller || 'TechHub Manila Official',
         image: 'https://images.unsplash.com/photo-1472851294608-41551b33fcc3?w=150', // Mock Store Image
         rating: product.sellerRating || 4.9,
@@ -269,7 +269,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
             }}
             scrollEventThrottle={16}
           >
-            {productImages.map((img: string, index: number) => (
+            {productImages.filter((img): img is string => img !== undefined).map((img: string, index: number) => (
               <Image key={index} source={{ uri: img }} style={styles.productImage} />
             ))}
           </ScrollView>
@@ -361,7 +361,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
           {/* Price */}
           <View style={styles.priceRow}>
-            <Text style={styles.currentPrice}>₱{product.price.toLocaleString()}</Text>
+            <Text style={styles.currentPrice}>₱{(product.price ?? 0).toLocaleString()}</Text>
             <Text style={styles.originalPrice}>₱{originalPrice.toLocaleString()}</Text>
           </View>
 
@@ -373,7 +373,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
               {Array.from({ length: 5 }).map((_, i) => (
                 <Star key={i} size={14} color={i < 4 ? '#F59E0B' : '#E5E7EB'} fill={i < 4 ? '#F59E0B' : '#E5E7EB'} />
               ))}
-              <Text style={styles.ratingValue}>4.8 ({product.sold.toLocaleString()})</Text>
+              <Text style={styles.ratingValue}>4.8 ({(product.sold ?? 0).toLocaleString()})</Text>
               <Text style={styles.questionsLink}>14 Questions</Text>
            </View>
         </View>

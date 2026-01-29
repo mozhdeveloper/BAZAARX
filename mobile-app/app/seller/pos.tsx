@@ -74,7 +74,7 @@ export default function POSScreen() {
     if (filterTab === 'low-stock') {
       filtered = filtered.filter((product) => product.stock > 0 && product.stock < 10);
     } else if (filterTab === 'best-sellers') {
-      filtered = filtered.filter((product) => product.stock > 0 && product.sold > 50);
+      filtered = filtered.filter((product) => product.stock > 0 && (product.sales ?? 0) > 50);
     }
 
     return filtered.filter((product) => product.isActive);
@@ -110,7 +110,7 @@ export default function POSScreen() {
           productName: product.name,
           quantity: 1,
           price: product.price,
-          image: product.image,
+          image: product.images[0] || '',
           maxStock: product.stock,
         },
       ]);
@@ -276,7 +276,7 @@ export default function POSScreen() {
                 >
                   {/* Product Image */}
                   <View style={styles.productImageContainer}>
-                    <Image source={{ uri: product.image }} style={styles.productImage} />
+                    <Image source={{ uri: product.images[0] }} style={styles.productImage} />
 
                     {/* Stock Badge */}
                     <View

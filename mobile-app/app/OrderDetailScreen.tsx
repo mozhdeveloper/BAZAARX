@@ -241,10 +241,10 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
                 <View style={styles.itemInfo}>
                   <Text style={styles.itemName}>{item.name}</Text>
                   <Text style={styles.itemVariant}>
-                    {item.quantity} × ₱{item.price.toLocaleString()}
+                    {item.quantity} × ₱{(item.price ?? 0).toLocaleString()}
                   </Text>
                 </View>
-                <Text style={styles.itemPrice}>₱{(item.price * item.quantity).toLocaleString()}</Text>
+                <Text style={styles.itemPrice}>₱{((item.price ?? 0) * item.quantity).toLocaleString()}</Text>
               </View>
             </React.Fragment>
           ))}

@@ -139,7 +139,7 @@ export default function ReturnDetailScreen({ route, navigation }: Props) {
                 <View style={styles.itemInfo}>
                   <Text style={styles.itemName} numberOfLines={2}>{orderItem.name}</Text>
                   <Text style={styles.itemMeta}>Qty: {returnItem.quantity}</Text>
-                  <Text style={styles.itemPrice}>₱{orderItem.price.toLocaleString()}</Text>
+                  <Text style={styles.itemPrice}>₱{(orderItem.price ?? 0).toLocaleString()}</Text>
                 </View>
               </View>
             );

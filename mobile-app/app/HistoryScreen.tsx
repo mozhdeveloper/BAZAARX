@@ -101,7 +101,7 @@ export default function HistoryScreen({ navigation }: Props) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(order => 
         order.transactionId.toLowerCase().includes(query) || 
-        order.items.some(item => item.name.toLowerCase().includes(query))
+        order.items.some(item => item.name?.toLowerCase().includes(query))
       );
     }
 

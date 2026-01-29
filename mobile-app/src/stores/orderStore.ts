@@ -342,7 +342,7 @@ export const useOrderStore = create<OrderStore>()(
           throw new Error('Cannot create order with empty cart');
         }
 
-        const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+        const total = items.reduce((sum, item) => sum + (item.price ?? 0) * item.quantity, 0);
         const shippingFee = total >= 1000 ? 0 : 50;
         const transactionId = `TXN${Date.now().toString().slice(-8)}`;
         const scheduledDate = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)
@@ -401,10 +401,10 @@ export const useOrderStore = create<OrderStore>()(
               customerEmail: shippingAddress.email,
               items: validatedItems.map(item => ({
                 productId: item.id,
-                productName: item.name,
+                productName: item.name || 'Unknown Product',
                 image: item.image,
                 quantity: item.quantity,
-                price: item.price,
+                price: item.price ?? 0,
               })),
               total: newOrder.total,
               status: isPaidOrder ? 'to-ship' : 'pending',

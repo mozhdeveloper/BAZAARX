@@ -40,7 +40,7 @@ export default function StoreDetailScreen() {
 
     // Filter products for this store (simulated)
     const storeProducts = trendingProducts.filter(p =>
-        p.name.toLowerCase().includes(searchQuery.toLowerCase())
+        p.name?.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
     if (Platform.OS === 'android') {

@@ -770,10 +770,11 @@ export const useProductStore = create<ProductStore>()(
           // Also add to QA flow store
           try {
             const qaStore = useProductQAStore.getState();
-            qaStore.addProductToQA({
+            await qaStore.addProductToQA({
               id: newProduct.id,
               name: newProduct.name,
               vendor: authStoreState.seller?.name || 'Unknown Vendor',
+              sellerId: resolvedSellerId, // Pass seller ID for proper filtering
               price: newProduct.price,
               category: newProduct.category,
               image: newProduct.images[0] || 'https://placehold.co/100?text=Product',
@@ -872,6 +873,7 @@ export const useProductStore = create<ProductStore>()(
                 name: p.name,
                 description: p.description,
                 vendor: authStore.seller?.name || 'Unknown Vendor',
+                sellerId: resolvedSellerId, // Pass seller ID for proper filtering
                 price: p.price,
                 originalPrice: p.originalPrice,
                 category: p.category,

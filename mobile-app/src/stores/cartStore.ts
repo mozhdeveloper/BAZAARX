@@ -246,12 +246,12 @@ export const useCartStore = create<CartStore>()(
         run();
       },
 
-      getTotal: () => get().items.reduce((total, item) => total + item.price * item.quantity, 0),
+      getTotal: () => get().items.reduce((total, item) => total + (item.price ?? 0) * item.quantity, 0),
       getItemCount: () => get().items.reduce((count, item) => count + item.quantity, 0),
 
       setQuickOrder: (product, quantity = 1) => set({ quickOrder: { ...product, quantity } as CartItem }),
       clearQuickOrder: () => set({ quickOrder: null }),
-      getQuickOrderTotal: () => get().quickOrder ? (get().quickOrder!.price * get().quickOrder!.quantity) : 0,
+      getQuickOrderTotal: () => get().quickOrder ? ((get().quickOrder!.price ?? 0) * get().quickOrder!.quantity) : 0,
     }),
     {
       name: 'cart-storage',
