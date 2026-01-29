@@ -10,9 +10,9 @@ interface ProductCardProps {
 }
 
 export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress }) => {
-  const hasDiscount = product.originalPrice && product.originalPrice > product.price;
+  const hasDiscount = !!(product.originalPrice && typeof product.price === 'number' && product.originalPrice > product.price);
   const discountPercent = hasDiscount
-    ? Math.round(((product.originalPrice! - product.price) / product.originalPrice!) * 100)
+    ? Math.round(((product.originalPrice! - product.price!) / product.originalPrice!) * 100)
     : 0;
 
   return (
@@ -60,14 +60,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress }) =>
 
         {/* Price */}
         <View style={styles.priceContainer}>
-          <Text style={styles.price}>₱{product.price.toLocaleString()}</Text>
-          {hasDiscount && (
-            <Text style={styles.originalPrice}>₱{product.originalPrice!.toLocaleString()}</Text>
+          <Text style={styles.price}>₱{(product.price || 0).toLocaleString()}</Text>
+          {hasDiscount && product.originalPrice && (
+            <Text style={styles.originalPrice}>₱{product.originalPrice.toLocaleString()}</Text>
           )}
         </View>
 
         {/* Sold Count */}
-        <Text style={styles.soldText}>{product.sold.toLocaleString()} sold</Text>
+        <Text style={styles.soldText}>{(product.sold || 0).toLocaleString()} sold</Text>
 
         {/* Seller Info */}
         <View style={styles.sellerContainer}>
