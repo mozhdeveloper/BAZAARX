@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import type { CartItem } from '../types';
+import { cartService } from './cartService';
 
 // Define the payload for the checkout process
 export interface CheckoutPayload {
@@ -86,18 +87,32 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
             }
         }
 
-        // 2. Group items by seller
+        // 2. Group items by seller (robust to legacy fields and quick orders)
         const itemsBySeller: Record<string, typeof items> = {};
-        items.forEach(item => {
-            const sellerId = item.seller_id;
+        for (const item of items) {
+            let sellerId: string | undefined = (item as any).seller_id || (item as any).sellerId;
+
+            if (!sellerId && item.id) {
+                // Fallback: fetch seller_id from products table
+                const { data: prod, error: prodErr } = await supabase
+                    .from('products')
+                    .select('seller_id')
+                    .eq('id', item.id)
+                    .maybeSingle();
+                if (!prodErr && prod?.seller_id) {
+                    sellerId = prod.seller_id as string;
+                }
+            }
+
             if (!sellerId) {
                 throw new Error(`Missing seller information for product: ${item.name}`);
             }
+
             if (!itemsBySeller[sellerId]) {
                 itemsBySeller[sellerId] = [];
             }
             itemsBySeller[sellerId].push(item);
-        });
+        }
 
         const createdOrderIds: string[] = [];
         const sharedBaseNumber = generateOrderNumber();
@@ -239,11 +254,8 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                     .eq('cart_id', cart.id)
                     .in('product_id', itemIdsToRemove);
 
-                // Update cart total
-                await supabase
-                    .from('carts')
-                    .update({ total_amount: 0 })
-                    .eq('id', cart.id);
+                // Recalculate cart total using CartService
+                await cartService.syncCartTotal(cart.id);
             }
         }
 
