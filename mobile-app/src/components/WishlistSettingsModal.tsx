@@ -19,17 +19,17 @@ interface Props {
 
 export default function WishlistSettingsModal({ visible, onClose }: Props) {
     const insets = useSafeAreaInsets();
-    const { settings, updateSettings } = useWishlistStore();
-    
-    const [privacy, setPrivacy] = useState(settings.privacy);
-    const [addressId, setAddressId] = useState(settings.shippingAddressId);
-    const [defaultPriority, setDefaultPriority] = useState(settings.defaultPriority);
+    const { categories } = useWishlistStore();
+
+    const defaultCategory = categories.find(c => c.id === 'default') || categories[0];
+    const [privacy, setPrivacy] = useState<'private' | 'shared'>(defaultCategory?.privacy || 'private');
+    const [addressId, setAddressId] = useState<string>(MOCK_ADDRESSES[0].id);
+    const [defaultPriority, setDefaultPriority] = useState<'low' | 'medium' | 'high'>('medium');
 
     const handleSave = () => {
-        updateSettings({
-            privacy,
-            shippingAddressId: addressId,
-            defaultPriority
+        const baseId = defaultCategory?.id || 'default';
+        useWishlistStore.setState({
+            categories: categories.map(c => c.id === baseId ? { ...c, privacy } : c)
         });
         onClose();
     };
@@ -54,18 +54,18 @@ export default function WishlistSettingsModal({ visible, onClose }: Props) {
                         {/* Privacy Settings */}
                         <View style={styles.section}>
                             <Text style={styles.sectionTitle}>Privacy</Text>
-                            <Pressable 
-                                style={[styles.option, privacy === 'public' && styles.selectedOption]}
-                                onPress={() => setPrivacy('public')}
+                            <Pressable
+                                style={[styles.option, privacy === 'shared' && styles.selectedOption]}
+                                onPress={() => setPrivacy('shared')}
                             >
-                                <Globe size={20} color={privacy === 'public' ? COLORS.primary : '#6B7280'} />
+                                <Globe size={20} color={privacy === 'shared' ? COLORS.primary : '#6B7280'} />
                                 <View style={styles.optionTextContainer}>
-                                    <Text style={[styles.optionTitle, privacy === 'public' && styles.selectedText]}>Public</Text>
+                                    <Text style={[styles.optionTitle, privacy === 'shared' && styles.selectedText]}>Public</Text>
                                     <Text style={styles.optionDesc}>Anyone can search for and view this list.</Text>
                                 </View>
                             </Pressable>
-                            
-                            <Pressable 
+
+                            <Pressable
                                 style={[styles.option, privacy === 'shared' && styles.selectedOption]}
                                 onPress={() => setPrivacy('shared')}
                             >
@@ -76,7 +76,7 @@ export default function WishlistSettingsModal({ visible, onClose }: Props) {
                                 </View>
                             </Pressable>
 
-                            <Pressable 
+                            <Pressable
                                 style={[styles.option, privacy === 'private' && styles.selectedOption]}
                                 onPress={() => setPrivacy('private')}
                             >
@@ -94,7 +94,7 @@ export default function WishlistSettingsModal({ visible, onClose }: Props) {
                             <Text style={styles.sectionHelp}>
                                 Friends can send gifts to this address. We'll hide your full address details from them to protect your privacy.
                             </Text>
-                            
+
                             {MOCK_ADDRESSES.map((addr) => (
                                 <Pressable
                                     key={addr.id}
@@ -126,7 +126,7 @@ export default function WishlistSettingsModal({ visible, onClose }: Props) {
                                     >
                                         <Text style={[
                                             styles.priorityText,
-                                            defaultPriority === p && { 
+                                            defaultPriority === p && {
                                                 color: p === 'high' ? '#DC2626' : p === 'medium' ? '#D97706' : '#0284C7',
                                                 fontWeight: '700'
                                             }

@@ -12,6 +12,7 @@ import { ArrowLeft, CheckCircle, Circle, Store } from 'lucide-react-native';
 import { CartItemRow } from '../src/components/CartItemRow';
 import { useCartStore } from '../src/stores/cartStore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { COLORS } from '../src/constants/theme';
 
 export default function CartScreen({ navigation }: any) {
   const { items, removeItem, updateQuantity, clearCart, initializeForCurrentUser, clearQuickOrder } = useCartStore(); // Add clearQuickOrder
@@ -61,22 +62,9 @@ export default function CartScreen({ navigation }: any) {
         return [...prev, ...newIds];
       });
     }
-  const handleCheckout = () => {
-    if (selectedIds.length === 0) return;
-    
-    // Clear any previous quick order to ensure we checkout strictly from cart selections
-    clearQuickOrder();
-    
-    // In a real app, we might pass selectedIds to checkout, 
-    // but for now we assume Checkout takes all "items" or we need to implement partial checkout in store.
-    // The current CheckoutScreen logic takes `items` (all cart items) if quickOrder is null.
-    // To support selecting specific items, we would need to filter `items` in the store or pass them.
-    // For this demo, let's assume we checkout ALL items if we select checkout, 
-    // OR we can pass a param. 
-    // However, existing `CheckoutScreen` logic is simple. 
-    // Let's navigate to Checkout. 
-    navigation.navigate('Checkout');
   };
+
+
 
   return (
     <View style={styles.container}>
@@ -190,6 +178,9 @@ export default function CartScreen({ navigation }: any) {
           <Pressable
             disabled={selectedIds.length === 0}
             onPress={async () => {
+              // Clear any previous quick order to prioritize cart selection
+              clearQuickOrder();
+
               // Get delivery address from AsyncStorage
               try {
                 const deliveryAddress = await AsyncStorage.getItem('currentDeliveryAddress');
