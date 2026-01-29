@@ -471,22 +471,7 @@ export default function WishlistScreen() {
                                             </View>
                                         </View>
                                         
-                                        {/* Registry Details */}
-                                        <View style={styles.registryDetails}>
-                                            <View style={[styles.priorityBadge, { 
-                                                backgroundColor: item.priority === 'high' ? '#FEE2E2' : item.priority === 'medium' ? '#FEF3C7' : '#E0F2FE'
-                                            }]}>
-                                                <Text style={[styles.priorityText, {
-                                                    color: item.priority === 'high' ? '#DC2626' : item.priority === 'medium' ? '#D97706' : '#0284C7'
-                                                }]}>
-                                                    {item.priority?.toUpperCase()}
-                                                </Text>
-                                            </View>
-                                            <Text style={styles.qtyText}>
-                                                Needs: <Text style={{fontWeight:'700'}}>{item.desiredQty}</Text> • 
-                                                Has: <Text style={{fontWeight:'700', color: COLORS.primary}}>{item.purchasedQty || 0}</Text>
-                                            </Text>
-                                        </View>
+
                                     </View>
                                 ))}
                             </View>
