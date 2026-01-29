@@ -6,30 +6,11 @@ import MapView, { Marker, Region, PROVIDER_GOOGLE, PROVIDER_DEFAULT } from 'reac
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import { COLORS } from '../src/constants/theme';
-import { supabase } from '../src/lib/supabase';
+import { addressService, type Address } from '../src/services/addressService';
 import { useAuthStore } from '../src/stores/authStore';
 import { regions, provinces, cities, barangays } from 'select-philippines-address';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Addresses'>;
-
-interface Address {
-  id: string;
-  label: string;
-  firstName: string;
-  lastName: string;
-  phone: string;
-  street: string;
-  barangay: string;
-  city: string;
-  province: string;
-  region: string;
-  zipCode: string;
-  landmark: string | null;
-  deliveryInstructions: string | null;
-  addressType: 'residential' | 'commercial';
-  isDefault: boolean;
-  coordinates: { latitude: number; longitude: number } | null;
-}
 
 const DEFAULT_REGION = {
   latitude: 14.5995,
@@ -100,32 +81,11 @@ export default function AddressesScreen({ navigation }: Props) {
   useEffect(() => {
     const fetchAddresses = async () => {
       if (!user) return;
-      const { data, error } = await supabase
-        .from('addresses')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('is_default', { ascending: false });
-
-      if (!error && data) {
-        const mapped = data.map((a: any) => ({
-          id: a.id,
-          label: a.label,
-          firstName: a.first_name,
-          lastName: a.last_name,
-          phone: a.phone,
-          street: a.street,
-          barangay: a.barangay || '',
-          city: a.city,
-          province: a.province,
-          region: a.region,
-          zipCode: a.zip_code,
-          landmark: a.landmark,
-          deliveryInstructions: a.delivery_instructions,
-          addressType: a.address_type,
-          isDefault: a.is_default,
-          coordinates: a.coordinates,
-        })) as Address[];
-        setAddresses(mapped);
+      try {
+        const data = await addressService.getAddresses(user.id);
+        setAddresses(data);
+      } catch (error) {
+        console.error('Error loading addresses:', error);
       }
     };
     fetchAddresses();
@@ -271,58 +231,42 @@ export default function AddressesScreen({ navigation }: Props) {
   const handleSaveAddress = async () => {
     if (!user) return;
     setIsSaving(true);
-    
-    const payload = {
-      user_id: user.id,
-      label: newAddress.label,
-      first_name: newAddress.firstName,
-      last_name: newAddress.lastName,
-      phone: newAddress.phone,
-      street: newAddress.street,
-      barangay: newAddress.barangay,
-      city: newAddress.city,
-      province: newAddress.province,
-      region: newAddress.region,
-      zip_code: newAddress.zipCode,
-      landmark: newAddress.landmark,
-      delivery_instructions: newAddress.deliveryInstructions,
-      address_type: newAddress.addressType,
-      is_default: newAddress.isDefault,
-      coordinates: newAddress.coordinates,
-    };
 
-    if (newAddress.isDefault) {
-      await supabase.from('addresses').update({ is_default: false }).eq('user_id', user.id);
-    }
-
-    if (editingId) {
-      const { error } = await supabase.from('addresses').update(payload).eq('id', editingId);
-      if (!error) {
-        setAddresses(prev => prev.map(a => (a.id === editingId ? { ...newAddress, id: editingId } : a)));
-      }
-    } else {
-      const { data, error } = await supabase.from('addresses').insert([payload]).select().single();
-      if (!error && data) {
-        const created: Address = { ...newAddress, id: data.id } as Address;
+    try {
+      if (editingId) {
+        const updated = await addressService.updateAddress(user.id, editingId, newAddress);
+        setAddresses(prev => prev.map(a => (a.id === editingId ? updated : a)));
+      } else {
+        const created = await addressService.createAddress(user.id, newAddress);
         setAddresses(prev => [created, ...prev]);
       }
+    } catch (error) {
+      console.error('Error saving address:', error);
     }
+    
     setIsSaving(false);
     setIsAddressModalOpen(false);
   };
 
   const handleSetDefault = async (id: string) => {
     if (!user) return;
-    await supabase.from('addresses').update({ is_default: false }).eq('user_id', user.id);
-    await supabase.from('addresses').update({ is_default: true }).eq('id', id);
-    setAddresses(prev => prev.map(addr => ({ ...addr, isDefault: addr.id === id })));
+    try {
+      await addressService.setDefaultAddress(user.id, id);
+      setAddresses(prev => prev.map(addr => ({ ...addr, isDefault: addr.id === id })));
+    } catch (error) {
+      console.error('Error setting default address:', error);
+    }
   };
 
   const handleDeleteConfirm = () => {
     if (selectedAddressId) {
       const deleteNow = async () => {
-        await supabase.from('addresses').delete().eq('id', selectedAddressId);
-        setAddresses(prev => prev.filter(addr => addr.id !== selectedAddressId));
+        try {
+          await addressService.deleteAddress(selectedAddressId);
+          setAddresses(prev => prev.filter(addr => addr.id !== selectedAddressId));
+        } catch (error) {
+          console.error('Error deleting address:', error);
+        }
         setShowDeleteModal(false);
         setSelectedAddressId(null);
       };

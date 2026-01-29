@@ -24,7 +24,9 @@ import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList, TabParamList } from '../App';
 import type { Product } from '../src/types';
-import { supabase } from '../src/lib/supabase';
+import { productService } from '../src/services/productService';
+import { sellerService } from '../src/services/sellerService';
+import { addressService } from '../src/services/addressService';
 import { useAuthStore } from '../src/stores/authStore';
 import { useSellerStore } from '../src/stores/sellerStore';
 import { GuestLoginModal } from '../src/components/GuestLoginModal';
@@ -151,27 +153,11 @@ export default function HomeScreen({ navigation }: Props) {
       setFetchError(null);
       try {
         // BUYER VIEW: Only show approved products that passed QA
-        const { data, error } = await supabase
-          .from('products')
-          .select(`
-            *,
-            seller:sellers!products_seller_id_fkey (
-              business_name,
-              store_name,
-              rating,
-              business_address,
-              id,
-              is_verified
-            )
-          `)
-          .eq('is_active', true)
-          .eq('approval_status', 'approved')
-          .order('created_at', { ascending: false });
-        if (error) {
-          setFetchError(error.message);
-          setDbProducts([]);
-          return;
-        }
+        const data = await productService.getProducts({
+          isActive: true,
+          approvalStatus: 'approved'
+        });
+
         const mapped: Product[] = (data || []).map((row: any) => {
           const imageUrl =
             row.primary_image ||
@@ -223,7 +209,7 @@ export default function HomeScreen({ navigation }: Props) {
 
   useEffect(() => {
     const fetchSellers = async () => {
-      const { data } = await supabase.from('sellers').select('*');
+      const data = await sellerService.getSellers();
       if (data) setSellers(data);
     };
     fetchSellers();
@@ -233,14 +219,9 @@ export default function HomeScreen({ navigation }: Props) {
   useEffect(() => {
     if (!user) return;
     const fetchDefaultAddress = async () => {
-      const { data, error } = await supabase
-        .from('addresses')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('is_default', true)
-        .single();
+      const data = await addressService.getDefaultAddress(user.id);
 
-      if (data && !error) {
+      if (data) {
         // Format: "123 Street, City"
         const formatted = `${data.street}, ${data.city}`;
         setDeliveryAddress(formatted);
@@ -253,12 +234,9 @@ export default function HomeScreen({ navigation }: Props) {
     };
 
     // Subscribe to address changes to update realtime
-    const subscription = supabase
-      .channel('addresses_channel')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'addresses', filter: `user_id=eq.${user.id}` }, () => {
-        fetchDefaultAddress();
-      })
-      .subscribe();
+    const subscription = addressService.subscribeToAddressChanges(user.id, () => {
+      fetchDefaultAddress();
+    });
 
     fetchDefaultAddress();
 
@@ -473,13 +451,6 @@ export default function HomeScreen({ navigation }: Props) {
                 {flashSaleProducts.map(p => (
                   <View key={p.id} style={styles.itemBoxContainerHorizontal}>
                     <ProductCard product={p} onPress={() => handleProductPress(p)} />
-                    <View style={[styles.discountTag, { backgroundColor: BRAND_COLOR }]}>
-                      <Text style={styles.discountTagText}>
-                        {p.originalPrice && typeof p.price === 'number' && p.originalPrice > p.price
-                          ? `-${Math.round(((p.originalPrice - p.price) / p.originalPrice) * 100)}%`
-                          : ''}
-                      </Text>
-                    </View>
                   </View>
                 ))}
               </ScrollView>
@@ -703,7 +674,6 @@ const styles = StyleSheet.create({
   productRequestTitle: { fontSize: 16, fontWeight: '800', color: '#1F2937' },
   productRequestSubtitle: { fontSize: 12, color: '#6B7280', marginTop: 2 },
   discountTag: { position: 'absolute', top: 10, right: 10, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, zIndex: 1 },
-  discountTagText: { color: '#FFF', fontSize: 10, fontWeight: '900' },
   gridContainer: { paddingHorizontal: 20, marginBottom: 20 },
   gridHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   gridTitleText: { fontSize: 18, fontWeight: '900', color: '#1F2937' },

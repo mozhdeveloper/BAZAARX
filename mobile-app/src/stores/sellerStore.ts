@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { productService } from '@/services/productService';
-import { isSupabaseConfigured, supabase } from '@/lib/supabase';
+import { authService } from '@/services/authService';
 import type { Product as DbProduct } from '@/types/database.types';
 
 export interface SellerProduct {
@@ -449,38 +449,29 @@ export const useSellerStore = create<SellerStore>()(
 
       fetchProducts: async (sellerId?: string) => {
         console.log('[sellerStore] fetchProducts called with provided sellerId:', sellerId);
-        
-        if (!isSupabaseConfigured()) {
-          console.log('[sellerStore] Supabase not configured - using dummy products');
-          // Keep dummy products if not configured
-          return;
-        }
-
-        console.log('[sellerStore] Setting loading state...');
         set({ loading: true, error: null });
         try {
-          // Get the authenticated user's ID from Supabase session
           let actualSellerId = sellerId;
-          
-          // If sellerId looks like a dummy ID (not a UUID), get the real one from session
-          const isValidUUID = sellerId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sellerId);
-          
+          const isValidUUID =
+            sellerId &&
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sellerId);
+
           if (!isValidUUID) {
-            console.log('[sellerStore] SellerId is not a valid UUID, getting from Supabase session...');
-            const { data: { session } } = await supabase.auth.getSession();
+            console.log('[sellerStore] SellerId is not a valid UUID, getting from session via authService...');
+            const session = await authService.getSession();
             if (session?.user?.id) {
               actualSellerId = session.user.id;
               console.log('[sellerStore] Got seller ID from session:', actualSellerId);
             } else {
               console.log('[sellerStore] No authenticated session, fetching all products');
-              actualSellerId = undefined; // Don't filter by seller, get all products
+              actualSellerId = undefined;
             }
           }
-          
+
           console.log('[sellerStore] Calling productService.getProducts with sellerId:', actualSellerId);
           const data = await productService.getProducts({ sellerId: actualSellerId });
           console.log('[sellerStore] Got products from service:', data?.length || 0, 'items');
-          
+
           const mappedProducts: SellerProduct[] = data.map((p) => ({
             id: p.id || '',
             name: p.name || '',
@@ -520,7 +511,6 @@ export const useSellerStore = create<SellerStore>()(
 
       addProduct: async (product) => {
         try {
-          // Validation
           if (!product.name || product.name.trim() === '') {
             throw new Error('Product name is required');
           }
@@ -534,23 +524,23 @@ export const useSellerStore = create<SellerStore>()(
             throw new Error('Product category is required');
           }
 
-          if (isSupabaseConfigured()) {
-            // Get the authenticated user's ID from Supabase session
-            let actualSellerId = product.sellerId;
-            const isValidUUID = actualSellerId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(actualSellerId);
-            
-            if (!isValidUUID) {
-              console.log('[sellerStore] addProduct: SellerId is not a valid UUID, getting from Supabase session...');
-              const { data: { session } } = await supabase.auth.getSession();
-              if (session?.user?.id) {
-                actualSellerId = session.user.id;
-                console.log('[sellerStore] addProduct: Got seller ID from session:', actualSellerId);
-              } else {
-                throw new Error('Not authenticated. Please log in to add products.');
-              }
+          let actualSellerId = product.sellerId;
+          const isValidUUID =
+            actualSellerId &&
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(actualSellerId);
+
+          if (!isValidUUID) {
+            console.log('[sellerStore] addProduct: SellerId is not a valid UUID, getting from session via authService...');
+            const session = await authService.getSession();
+            if (session?.user?.id) {
+              actualSellerId = session.user.id;
+              console.log('[sellerStore] addProduct: Got seller ID from session:', actualSellerId);
+            } else {
+              throw new Error('Not authenticated. Please log in to add products.');
             }
-            
-            // Use Supabase
+          }
+
+          try {
             const dbProduct = await productService.createProduct({
               name: product.name,
               description: product.description,
@@ -566,7 +556,6 @@ export const useSellerStore = create<SellerStore>()(
               approval_status: 'pending',
               vendor_submitted_category: product.category,
             });
-            // Add returned product to local state
             const newProduct: SellerProduct = {
               ...product,
               id: dbProduct.id || product.id,
@@ -574,11 +563,11 @@ export const useSellerStore = create<SellerStore>()(
               updatedAt: dbProduct.updated_at || new Date().toISOString(),
             };
             set((state) => ({ products: [...state.products, newProduct] }));
-            return dbProduct.id || product.id; // Return the database ID
-          } else {
-            // Fallback: local state only
+            return dbProduct.id || product.id;
+          } catch (dbErr) {
+            console.warn('[sellerStore] addProduct: DB unavailable, saving locally only');
             set((state) => ({ products: [...state.products, product] }));
-            return product.id; // Return the local ID
+            return product.id;
           }
         } catch (error) {
           console.error('Error adding product:', error);
@@ -588,28 +577,26 @@ export const useSellerStore = create<SellerStore>()(
 
       updateProduct: async (id, updates) => {
         try {
-          if (isSupabaseConfigured()) {
-            // Map to DB fields
-            const dbUpdates: Record<string, unknown> = {};
-            if (updates.name !== undefined) dbUpdates.name = updates.name;
-            if (updates.description !== undefined) dbUpdates.description = updates.description;
-            if (updates.price !== undefined) dbUpdates.price = updates.price;
-            if (updates.originalPrice !== undefined) dbUpdates.original_price = updates.originalPrice;
-            if (updates.stock !== undefined) dbUpdates.stock = updates.stock;
-            if (updates.category !== undefined) dbUpdates.category = updates.category;
-            if (updates.images !== undefined) dbUpdates.images = updates.images;
-            if (updates.sizes !== undefined) dbUpdates.sizes = updates.sizes;
-            if (updates.colors !== undefined) dbUpdates.colors = updates.colors;
-            if (updates.isActive !== undefined) dbUpdates.is_active = updates.isActive;
+          const dbUpdates: Record<string, unknown> = {};
+          if (updates.name !== undefined) dbUpdates.name = updates.name;
+          if (updates.description !== undefined) dbUpdates.description = updates.description;
+          if (updates.price !== undefined) dbUpdates.price = updates.price;
+          if (updates.originalPrice !== undefined) dbUpdates.original_price = updates.originalPrice;
+          if (updates.stock !== undefined) dbUpdates.stock = updates.stock;
+          if (updates.category !== undefined) dbUpdates.category = updates.category;
+          if (updates.images !== undefined) dbUpdates.images = updates.images;
+          if (updates.sizes !== undefined) dbUpdates.sizes = updates.sizes;
+          if (updates.colors !== undefined) dbUpdates.colors = updates.colors;
+          if (updates.isActive !== undefined) dbUpdates.is_active = updates.isActive;
 
+          try {
             await productService.updateProduct(id, dbUpdates);
+          } catch (dbErr) {
+            console.warn('[sellerStore] updateProduct: DB unavailable, updating local state only');
           }
 
-          // Always update local state
           set((state) => ({
-            products: state.products.map((p) =>
-              p.id === id ? { ...p, ...updates } : p
-            ),
+            products: state.products.map((p) => (p.id === id ? { ...p, ...updates } : p)),
           }));
         } catch (error) {
           console.error('Error updating product:', error);
@@ -619,10 +606,11 @@ export const useSellerStore = create<SellerStore>()(
 
       deleteProduct: async (id) => {
         try {
-          if (isSupabaseConfigured()) {
+          try {
             await productService.deleteProduct(id);
+          } catch (dbErr) {
+            console.warn('[sellerStore] deleteProduct: DB unavailable, removing from local state only');
           }
-          // Always update local state
           set((state) => ({
             products: state.products.filter((p) => p.id !== id),
           }));

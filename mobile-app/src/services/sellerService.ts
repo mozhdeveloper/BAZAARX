@@ -48,6 +48,25 @@ export class SellerService {
   }
 
   /**
+   * Get all sellers (for directory/search)
+   */
+  async getSellers(): Promise<any[]> {
+    if (!isSupabaseConfigured()) return [];
+
+    try {
+      const { data, error } = await supabase
+        .from('sellers')
+        .select('*');
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching sellers:', error);
+      throw new Error('Failed to load sellers.');
+    }
+  }
+
+  /**
    * Get seller by ID
    */
   async getSellerById(sellerId: string): Promise<SellerData | null> {
