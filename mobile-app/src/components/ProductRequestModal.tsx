@@ -103,12 +103,7 @@ export default function ProductRequestModal({ visible, onClose }: ProductRequest
               <Text style={styles.label}>
                 Category <Text style={styles.required}>*</Text>
               </Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.categoryScroll}
-                contentContainerStyle={styles.categoryContent}
-              >
+              <View style={styles.categoryGrid}>
                 {categories.map((cat) => (
                   <Pressable
                     key={cat}
@@ -129,7 +124,7 @@ export default function ProductRequestModal({ visible, onClose }: ProductRequest
                     </Text>
                   </Pressable>
                 ))}
-              </ScrollView>
+              </View>
             </View>
 
             {/* Description */}
@@ -293,13 +288,10 @@ const styles = StyleSheet.create({
     color: '#111827',
     backgroundColor: '#F9FAFB',
   },
-  categoryScroll: {
-    marginHorizontal: -20,
-    paddingHorizontal: 20,
-  },
-  categoryContent: {
+  categoryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
-    paddingRight: 20,
   },
   categoryChip: {
     paddingHorizontal: 16,
