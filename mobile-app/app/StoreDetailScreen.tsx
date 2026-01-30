@@ -9,6 +9,7 @@ import StoreChatModal from '../src/components/StoreChatModal';
 import { COLORS } from '../src/constants/theme';
 
 import { useAuthStore } from '../src/stores/authStore';
+import { useShopStore } from '../src/stores/shopStore';
 import { GuestLoginModal } from '../src/components/GuestLoginModal';
 
 const { width } = Dimensions.get('window');
@@ -21,7 +22,8 @@ export default function StoreDetailScreen() {
     const BRAND_COLOR = COLORS.primary;
 
     // State
-    const [isFollowing, setIsFollowing] = useState(false);
+    const { isShopFollowed, followShop, unfollowShop } = useShopStore();
+    const isFollowing = isShopFollowed(store.id);
     const [activeTab, setActiveTab] = useState('Shop');
     const [searchVisible, setSearchVisible] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
@@ -56,7 +58,11 @@ export default function StoreDetailScreen() {
             return;
         }
         LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-        setIsFollowing(!isFollowing);
+        if (isFollowing) {
+            unfollowShop(store.id);
+        } else {
+            followShop(store);
+        }
     };
 
     const handleChat = () => {
