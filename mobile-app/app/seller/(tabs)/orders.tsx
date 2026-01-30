@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,10 +8,12 @@ import {
   Image,
   TextInput,
   Modal,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { Package, ShoppingCart, Bell, X, Search, ChevronDown, Menu } from 'lucide-react-native';
+import { Package, ShoppingCart, Bell, X, Search, ChevronDown, Menu, RefreshCw } from 'lucide-react-native';
 import { useSellerStore } from '../../../src/stores/sellerStore';
 import { useReturnStore } from '../../../src/stores/returnStore';
 import SellerDrawer from '../../../src/components/SellerDrawer';
@@ -19,7 +21,7 @@ import SellerDrawer from '../../../src/components/SellerDrawer';
 type OrderStatus = 'all' | 'pending' | 'to-ship' | 'completed' | 'returns' | 'refunds';
 
 export default function SellerOrdersScreen() {
-  const { orders, updateOrderStatus, seller } = useSellerStore();
+  const { orders, updateOrderStatus, seller, fetchOrders, ordersLoading } = useSellerStore();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const [drawerVisible, setDrawerVisible] = useState(false);
@@ -27,6 +29,24 @@ export default function SellerOrdersScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [walkFilter, setWalkFilter] = useState<'all' | 'walkin' | 'online'>('all');
   const [isWalkFilterOpen, setIsWalkFilterOpen] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Fetch orders from database on mount
+  useEffect(() => {
+    if (seller?.id) {
+      fetchOrders(seller.id);
+    }
+  }, [seller?.id]);
+
+  // Pull-to-refresh handler
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await fetchOrders(seller?.id);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const getReturnRequestsBySeller = useReturnStore((state) => state.getReturnRequestsBySeller);
   const returnRequests = getReturnRequestsBySeller(seller.storeName);
@@ -273,8 +293,21 @@ export default function SellerOrdersScreen() {
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollViewContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing || ordersLoading}
+            onRefresh={onRefresh}
+            colors={['#FF5722']}
+            tintColor="#FF5722"
+          />
+        }
       >
-        {isReturnTab ? (
+        {ordersLoading && orders.length === 0 ? (
+          <View style={styles.emptyState}>
+            <ActivityIndicator size="large" color="#FF5722" />
+            <Text style={styles.emptyStateTitle}>Loading orders...</Text>
+          </View>
+        ) : isReturnTab ? (
           currentReturnRequests.length === 0 ? (
             <View style={styles.emptyState}>
               <Package size={64} color="#D1D5DB" strokeWidth={1.5} />

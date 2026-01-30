@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '@/stores/sellerStore';
@@ -20,8 +20,10 @@ import {
   ChevronLeft,
   MessageCircle,
   Clock,
-  User
+  User,
+  Loader2
 } from 'lucide-react';
+import { chatService, Conversation as DBConversation, Message as DBMessage } from '../services/chatService';
 
 interface Message {
   id: string;
@@ -123,13 +125,107 @@ export default function SellerMessages() {
     }
   ]);
 
-  const activeConversation = conversations.find(c => c.id === selectedConversation);
+  // Real data state
+  const [dbConversations, setDbConversations] = useState<DBConversation[]>([]);
+  const [dbMessages, setDbMessages] = useState<DBMessage[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  
+  // Check if using real data
+  const useRealData = dbConversations.length > 0;
 
-  const handleSendMessage = (e?: React.FormEvent, textOverride?: string, imageUrls?: string[]) => {
+  // Load real conversations from Supabase
+  const loadConversations = useCallback(async () => {
+    if (!seller?.id) {
+      setLoading(false);
+      return;
+    }
+    
+    try {
+      const convs = await chatService.getSellerConversations(seller.id);
+      setDbConversations(convs);
+    } catch (error) {
+      console.error('[SellerMessages] Error loading conversations:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [seller?.id]);
+  
+  useEffect(() => {
+    loadConversations();
+  }, [loadConversations]);
+  
+  // Load messages when conversation is selected
+  useEffect(() => {
+    if (!selectedConversation || !useRealData) return;
+    
+    const loadMessages = async () => {
+      const msgs = await chatService.getMessages(selectedConversation);
+      setDbMessages(msgs);
+      
+      // Mark as read
+      if (seller?.id) {
+        chatService.markAsRead(selectedConversation, seller.id, 'seller');
+      }
+    };
+    
+    loadMessages();
+  }, [selectedConversation, useRealData, seller?.id]);
+  
+  // Subscribe to new messages
+  useEffect(() => {
+    if (!selectedConversation || !useRealData) return;
+    
+    const unsubscribe = chatService.subscribeToMessages(
+      selectedConversation,
+      (newMsg) => {
+        // Prevent duplicates
+        setDbMessages(prev => {
+          const exists = prev.some(msg => msg.id === newMsg.id);
+          if (exists) return prev;
+          return [...prev, newMsg];
+        });
+        
+        if (newMsg.sender_type === 'buyer' && seller?.id) {
+          chatService.markAsRead(selectedConversation, seller.id, 'seller');
+        }
+      }
+    );
+    
+    return unsubscribe;
+  }, [selectedConversation, useRealData, seller?.id]);
+
+  const activeConversation = useRealData
+    ? dbConversations.find(c => c.id === selectedConversation)
+    : conversations.find(c => c.id === selectedConversation);
+
+  const handleSendMessage = async (e?: React.FormEvent, textOverride?: string, imageUrls?: string[]) => {
     e?.preventDefault();
     const messageText = textOverride || newMessage;
     if (!messageText.trim() && (!imageUrls || imageUrls.length === 0) || !selectedConversation) return;
 
+    // Real data mode
+    if (useRealData && seller?.id) {
+      setSending(true);
+      try {
+        const result = await chatService.sendMessage(
+          selectedConversation,
+          seller.id,
+          'seller',
+          messageText.trim()
+        );
+        if (result) {
+          setNewMessage('');
+        }
+      } catch (error) {
+        console.error('Error sending message:', error);
+      } finally {
+        setSending(false);
+      }
+      return;
+    }
+
+    // Mock data mode
     const updatedConversations = conversations.map(c => {
       if (c.id === selectedConversation) {
         return {
@@ -175,11 +271,17 @@ export default function SellerMessages() {
     }
   };
 
-  const filteredConversations = conversations
-    .filter(conv =>
-      conv.buyerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      conv.lastMessage.toLowerCase().includes(searchQuery.toLowerCase())
-    )
+  // Filtered conversations (supports both mock and real data)
+  const filteredConversations = useRealData
+    ? dbConversations.filter(conv =>
+        (conv.buyer_name || conv.buyer_email || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        conv.last_message.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : conversations
+        .filter(conv =>
+          conv.buyerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          conv.lastMessage.toLowerCase().includes(searchQuery.toLowerCase())
+        )
     .sort((a, b) => {
       const timeA = a.lastMessageTime ? a.lastMessageTime.getTime() : 0;
       const timeB = b.lastMessageTime ? b.lastMessageTime.getTime() : 0;

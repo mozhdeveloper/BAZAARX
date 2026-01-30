@@ -192,6 +192,117 @@ export class OrderService {
             recipientId: order.recipient_id,
         };
     }
+
+    /**
+     * Get orders for a specific seller (orders containing their products)
+     */
+    async getSellerOrders(sellerId: string): Promise<any[]> {
+        if (!isSupabaseConfigured()) return [];
+
+        try {
+            const { data, error } = await supabase
+                .from('orders')
+                .select(`
+                    *,
+                    items:order_items (
+                        *,
+                        product:products (
+                            *,
+                            seller:sellers!products_seller_id_fkey (
+                                business_name,
+                                store_name,
+                                business_address,
+                                rating,
+                                is_verified,
+                                id
+                            )
+                        )
+                    )
+                `)
+                .eq('seller_id', sellerId)
+                .order('created_at', { ascending: false });
+
+            if (error) throw error;
+
+            // Map to SellerOrder format used by sellerStore
+            return (data || []).map((order: any) => {
+                const items = (order.items || []).map((item: any) => {
+                    const p = item.product || {};
+                    const image = p.primary_image || (Array.isArray(p.images) && p.images.length > 0 ? p.images[0] : '');
+                    return {
+                        productId: p.id || item.product_id,
+                        productName: p.name || item.product_name || 'Product',
+                        image,
+                        quantity: item.quantity || 1,
+                        price: item.price || p.price || 0,
+                    };
+                });
+
+                // Map status from DB format to UI format
+                const statusMap: Record<string, string> = {
+                    pending_payment: 'pending',
+                    pending: 'pending',
+                    paid: 'pending',
+                    processing: 'to-ship',
+                    ready_to_ship: 'to-ship',
+                    shipped: 'to-ship',
+                    out_for_delivery: 'to-ship',
+                    delivered: 'completed',
+                    completed: 'completed',
+                    cancelled: 'cancelled',
+                    canceled: 'cancelled',
+                };
+
+                return {
+                    id: order.id,
+                    orderId: order.order_number || order.id,
+                    customerName: order.buyer_name || 'Customer',
+                    customerEmail: order.buyer_email || '',
+                    items,
+                    total: order.total_amount || 0,
+                    status: statusMap[order.status] || 'pending',
+                    createdAt: order.created_at,
+                    type: 'ONLINE', // All orders from buyers are online
+                };
+            });
+        } catch (error) {
+            console.error('Error fetching seller orders:', error);
+            throw new Error('Failed to load seller orders.');
+        }
+    }
+
+    /**
+     * Subscribe to real-time order updates for a seller
+     */
+    subscribeToSellerOrders(sellerId: string, callback: (orders: any[]) => void) {
+        if (!isSupabaseConfigured()) {
+            return { unsubscribe: () => {} };
+        }
+
+        const channel = supabase
+            .channel(`seller_orders_${sellerId}`)
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'orders',
+                filter: `seller_id=eq.${sellerId}`,
+            }, async () => {
+                // Fetch updated orders when any change happens
+                try {
+                    const orders = await this.getSellerOrders(sellerId);
+                    callback(orders);
+                } catch (e) {
+                    console.error('[OrderService] Error in subscription callback:', e);
+                }
+            })
+            .subscribe();
+
+        return {
+            unsubscribe: () => {
+                supabase.removeChannel(channel);
+            }
+        };
+    }
 }
 
 export const orderService = OrderService.getInstance();

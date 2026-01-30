@@ -10,9 +10,10 @@ import {
   Alert,
   ActivityIndicator,
   Dimensions,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Mail, Lock, Eye, EyeOff, ArrowRight, Zap, CheckCircle2 } from 'lucide-react-native';
+import { Mail, Lock, Eye, EyeOff, ArrowRight, Zap, CheckCircle2, ChevronDown, X } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../../src/lib/supabase';
 import { useSellerStore } from '../../src/stores/sellerStore';
@@ -21,15 +22,31 @@ import { LinearGradient } from 'expo-linear-gradient';
 
 const { width } = Dimensions.get('window');
 
+// Test seller accounts - All have password: Seller123!
+const TEST_SELLER_ACCOUNTS = [
+  { email: 'maria.santos@bazaarph.com', password: 'Seller123!', name: 'Bazaar Seller Store' },
+  { email: 'juan.tech@bazaarph.com', password: 'Seller123!', name: 'Seller123 Store' },
+  { email: 'wellness.haven@bazaarph.com', password: 'Seller123!', name: 'Soap Station' },
+  { email: 'home.essentials@bazaarph.com', password: 'Seller123!', name: 'Apple Store' },
+  { email: 'active.sports@bazaarph.com', password: 'Seller123!', name: "Maker's Trail" },
+];
+
 export default function SellerLoginScreen() {
   const navigation = useNavigation<any>();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showTestAccounts, setShowTestAccounts] = useState(false);
 
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
+
+  const selectTestAccount = (account: typeof TEST_SELLER_ACCOUNTS[0]) => {
+    setEmail(account.email);
+    setPassword(account.password);
+    setShowTestAccounts(false);
+  };
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -128,15 +145,18 @@ export default function SellerLoginScreen() {
         </View>
 
         {/* Demo Access Card */}
-        <Pressable style={styles.demoCard} onPress={fillDemoCredentials}>
+        <Pressable 
+          style={styles.demoCard} 
+          onPress={() => setShowTestAccounts(true)}
+        >
           <View style={styles.demoInfo}>
             <View style={styles.demoTag}>
-              <Text style={styles.demoTagText}>QUICK ACCESS</Text>
+              <Text style={styles.demoTagText}>🧪 TEST ACCOUNTS</Text>
             </View>
-            <Text style={styles.demoLabel}>Demo Seller Account</Text>
+            <Text style={styles.demoLabel}>Tap to select a seller account</Text>
           </View>
           <View style={styles.demoButton}>
-            <Text style={styles.demoButtonText}>Auto-Fill</Text>
+            <ChevronDown size={20} color="#FF6A00" />
           </View>
         </Pressable>
 
@@ -223,6 +243,42 @@ export default function SellerLoginScreen() {
           </Pressable>
         </View>
       </ScrollView>
+
+      {/* Test Accounts Modal */}
+      <Modal
+        visible={showTestAccounts}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowTestAccounts(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Test Seller</Text>
+              <Pressable onPress={() => setShowTestAccounts(false)}>
+                <X size={24} color="#6B7280" />
+              </Pressable>
+            </View>
+            
+            <ScrollView style={styles.accountsList}>
+              {TEST_SELLER_ACCOUNTS.map((account, index) => (
+                <Pressable
+                  key={index}
+                  style={styles.accountItem}
+                  onPress={() => selectTestAccount(account)}
+                >
+                  <View style={styles.accountInfo}>
+                    <Text style={styles.accountName}>{account.name}</Text>
+                    <Text style={styles.accountEmail}>{account.email}</Text>
+                    <Text style={styles.accountDetails}>Password: {account.password}</Text>
+                  </View>
+                  <ArrowRight size={20} color="#FF6A00" />
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -440,5 +496,66 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#9CA3AF',
     fontWeight: '700',
+  },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 20,
+    maxHeight: '70%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  accountsList: {
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+  },
+  accountItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    backgroundColor: '#FFF7ED',
+    borderRadius: 12,
+    marginVertical: 6,
+    borderWidth: 1,
+    borderColor: '#FFEDD5',
+  },
+  accountInfo: {
+    flex: 1,
+  },
+  accountName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  accountEmail: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 4,
+  },
+  accountDetails: {
+    fontSize: 12,
+    color: '#9CA3AF',
   },
 });

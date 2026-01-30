@@ -113,6 +113,7 @@ export class CartService {
                     category: p.category || 'general',
                     stock: typeof p.stock === 'number' ? p.stock : 0,
                     quantity: row.quantity || 1,
+                    selectedVariant: row.selected_variant || null,
                 };
             });
         } catch (error) {
@@ -123,32 +124,63 @@ export class CartService {
 
     /**
      * Add item to cart or increment quantity
+     * @param cartId - Cart ID
+     * @param productId - Product ID
+     * @param unitPrice - Unit price
+     * @param quantity - Quantity to add (default 1)
+     * @param selectedVariant - Selected variant (color, size)
      */
-    async addItem(cartId: string, productId: string, unitPrice: number): Promise<void> {
+    async addItem(
+        cartId: string, 
+        productId: string, 
+        unitPrice: number, 
+        quantity: number = 1,
+        selectedVariant?: { color?: string; size?: string } | null
+    ): Promise<void> {
         if (!isSupabaseConfigured()) return;
 
         try {
-            const { data: existing } = await supabase
+            // Build query to find existing item with same variant
+            let query = supabase
                 .from('cart_items')
                 .select('*')
                 .eq('cart_id', cartId)
-                .eq('product_id', productId)
-                .maybeSingle();
+                .eq('product_id', productId);
+            
+            // For items with same variant, we increment quantity
+            // For items with different variant, we add a new row
+            const { data: existingItems } = await query;
 
-            if (existing) {
-                const newQty = (existing as any).quantity + 1;
+            const matchingItem = (existingItems || []).find((item: any) => {
+                const itemVariant = item.selected_variant || null;
+                const newVariant = selectedVariant || null;
+                
+                // Both null = match
+                if (!itemVariant && !newVariant) return true;
+                
+                // One null = no match
+                if (!itemVariant || !newVariant) return false;
+                
+                // Compare variants
+                return itemVariant.color === newVariant.color && 
+                       itemVariant.size === newVariant.size;
+            });
+
+            if (matchingItem) {
+                const newQty = (matchingItem as any).quantity + quantity;
                 await supabase
                     .from('cart_items')
                     .update({ quantity: newQty, subtotal: newQty * unitPrice })
-                    .eq('id', (existing as any).id);
+                    .eq('id', (matchingItem as any).id);
             } else {
                 await supabase
                     .from('cart_items')
                     .insert({
                         cart_id: cartId,
                         product_id: productId,
-                        quantity: 1,
-                        subtotal: unitPrice,
+                        quantity: quantity,
+                        subtotal: quantity * unitPrice,
+                        selected_variant: selectedVariant || null,
                     });
             }
 

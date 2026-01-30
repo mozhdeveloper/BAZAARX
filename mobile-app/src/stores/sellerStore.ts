@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { productService } from '@/services/productService';
 import { authService } from '@/services/authService';
+import { orderService } from '@/services/orderService';
 import type { Product as DbProduct } from '@/types/database.types';
 
 export interface SellerProduct {
@@ -139,6 +140,8 @@ interface SellerStore {
 
   // Orders
   orders: SellerOrder[];
+  ordersLoading: boolean;
+  fetchOrders: (sellerId?: string) => Promise<void>;
   updateOrderStatus: (orderId: string, status: SellerOrder['status']) => void;
   addOfflineOrder: (cartItems: { productId: string; productName: string; quantity: number; price: number; image: string }[], total: number, note?: string) => string;
 
@@ -628,17 +631,57 @@ export const useSellerStore = create<SellerStore>()(
         })),
 
       // Orders
-      orders: dummyOrders,
+      orders: [],
+      ordersLoading: false,
 
-      updateOrderStatus: (orderId, status) => {
-        // Update seller's order list
+      fetchOrders: async (sellerId?: string) => {
+        const targetSellerId = sellerId || get().seller.id;
+        if (!targetSellerId) {
+          console.warn('[SellerStore] No seller ID available for fetchOrders');
+          return;
+        }
+
+        set({ ordersLoading: true });
+        try {
+          const orders = await orderService.getSellerOrders(targetSellerId);
+          set({ orders: orders as SellerOrder[], ordersLoading: false });
+          console.log(`[SellerStore] Fetched ${orders.length} orders from database`);
+        } catch (error) {
+          console.error('[SellerStore] Error fetching orders:', error);
+          set({ ordersLoading: false });
+        }
+      },
+
+      updateOrderStatus: async (orderId, status) => {
+        // Map UI status to database status
+        const dbStatusMap: Record<string, string> = {
+          pending: 'pending',
+          'to-ship': 'processing',
+          completed: 'delivered',
+        };
+        const dbStatus = dbStatusMap[status] || status;
+
+        // Optimistically update local state
         set((state) => ({
           orders: state.orders.map((o) =>
-            o.orderId === orderId ? { ...o, status } : o
+            o.orderId === orderId || o.id === orderId ? { ...o, status } : o
           ),
         }));
 
-    
+        // Find the actual order ID (database UUID)
+        const order = get().orders.find(o => o.orderId === orderId || o.id === orderId);
+        const actualOrderId = order?.id || orderId;
+
+        // Update in database
+        try {
+          await orderService.updateOrderStatus(actualOrderId, dbStatus);
+          console.log(`[SellerStore] ✅ Order status updated in DB: ${orderId} → ${dbStatus}`);
+        } catch (error) {
+          console.error('[SellerStore] Failed to update order status in DB:', error);
+          // Revert on failure
+          await get().fetchOrders();
+        }
+
         // SYNC TO BUYER: Also update the buyer's order store
         try {
           import('./orderStore').then(({ useOrderStore }) => {

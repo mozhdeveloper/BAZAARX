@@ -49,7 +49,7 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
   const [isSimulating, setIsSimulating] = useState(false);
   const [isDelivered, setIsDelivered] = useState(false);
   const [showRedirectPopup, setShowRedirectPopup] = useState(false);
-  const simulationInterval = useRef<NodeJS.Timeout | null>(null);
+  const simulationInterval = useRef<ReturnType<typeof setInterval> | null>(null);
   
   const progressAnim = useRef(new Animated.Value(0)).current; // Start at 0%
   const pulseAnim = useRef(new Animated.Value(1)).current;

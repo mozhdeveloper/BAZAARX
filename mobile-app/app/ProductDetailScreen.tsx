@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,7 @@ import {
   Modal,
   TouchableWithoutFeedback,
   FlatList,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -28,7 +29,7 @@ import {
   Heart,
   Plus,
   Minus,
-
+  X,
   MessageCircle,
   Truck,
   ShieldCheck,
@@ -37,6 +38,7 @@ import {
   FolderHeart,
   PlusCircle,
   Gift,
+  Edit3,
 } from 'lucide-react-native';
 import { ProductCard } from '../src/components/ProductCard';
 import CameraSearchModal from '../src/components/CameraSearchModal';
@@ -47,6 +49,7 @@ import { trendingProducts } from '../src/data/products';
 import { COLORS } from '../src/constants/theme';
 import { useAuthStore } from '../src/stores/authStore';
 import { GuestLoginModal } from '../src/components/GuestLoginModal';
+import { reviewService, Review } from '../src/services/reviewService';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 
@@ -55,51 +58,73 @@ type Props = NativeStackScreenProps<RootStackParamList, 'ProductDetail'>;
 const { width } = Dimensions.get('window');
 const BRAND_COLOR = COLORS.primary;
 
-// Standardized Mock Data
-const mockVariants = {
-  colors: [
-    { name: 'Graphite Black', value: '#374151' },
-    { name: 'Pearl White', value: '#F9FAFB' },
-    { name: 'Deep Navy', value: '#1E3A8A' },
-  ],
-  options: ['Single', 'Bundle Pack', 'Pro Edition'],
+// Color name to hex mapping for display
+const colorNameToHex: Record<string, string> = {
+  'black': '#374151',
+  'graphite black': '#374151',
+  'white': '#F9FAFB',
+  'pearl white': '#F9FAFB',
+  'navy': '#1E3A8A',
+  'deep navy': '#1E3A8A',
+  'blue': '#3B82F6',
+  'red': '#EF4444',
+  'green': '#10B981',
+  'yellow': '#F59E0B',
+  'pink': '#EC4899',
+  'purple': '#8B5CF6',
+  'gray': '#6B7280',
+  'grey': '#6B7280',
+  'silver': '#C0C0C0',
+  'gold': '#D4AF37',
+  'rose gold': '#B76E79',
+  'bronze': '#CD7F32',
+  'orange': '#F97316',
+  'brown': '#92400E',
+  'beige': '#F5F5DC',
+  'cream': '#FFFDD0',
 };
 
-const demoReviews = [
-  {
-    id: '1',
-    buyerName: 'Maria Santos',
-    avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b5e5?w=150',
-    rating: 5,
-    comment: 'Amazing product! Fast delivery.',
-    date: '2 days ago',
-  },
-  {
-    id: '2',
-    buyerName: 'Juan Dela Cruz',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
-    rating: 4,
-    comment: 'Great quality for the price.',
-    date: '1 week ago',
-  },
-   {
-    id: '3',
-    buyerName: 'Anna Reyes',
-    avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150',
-    rating: 5,
-    comment: 'Highly recommended! Will order again.',
-    date: '2 weeks ago',
-  },
-];
+// Helper to get color hex from name
+const getColorHex = (colorName: string): string => {
+  const normalized = colorName.toLowerCase().trim();
+  return colorNameToHex[normalized] || '#6B7280'; // Default gray if not found
+};
+
+// Helper to format review date
+const formatReviewDate = (dateString: string): string => {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7) return `${diffDays} days ago`;
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)} week${Math.floor(diffDays / 7) > 1 ? 's' : ''} ago`;
+  return `${Math.floor(diffDays / 30)} month${Math.floor(diffDays / 30) > 1 ? 's' : ''} ago`;
+};
 
 export default function ProductDetailScreen({ route, navigation }: Props) {
   const insets = useSafeAreaInsets();
   const { product } = route.params;
+  const { user, isGuest } = useAuthStore();
 
   // State
   const [activeTab, setActiveTab] = useState<'details' | 'support' | 'ratings'>('details');
-  const [selectedColor, setSelectedColor] = useState(mockVariants.colors[0]);
-  const [selectedOption, setSelectedOption] = useState(mockVariants.options[0]);
+  
+  // Dynamic variants from product database
+  const productColors = product.colors || (product as any).colors || [];
+  const productSizes = product.sizes || (product as any).sizes || [];
+  const hasColors = Array.isArray(productColors) && productColors.length > 0 && productColors.some((c: string) => c && c.trim() !== '');
+  const hasSizes = Array.isArray(productSizes) && productSizes.length > 0 && productSizes.some((s: string) => s && s.trim() !== '');
+  const hasVariants = hasColors || hasSizes;
+
+  // Debug log for variants
+  console.log('[ProductDetail] Product:', product.name, '| colors:', productColors, '| sizes:', productSizes, '| hasVariants:', hasVariants);
+  
+  // Variant selections
+  const [selectedColor, setSelectedColor] = useState(hasColors ? productColors[0] : null);
+  const [selectedSize, setSelectedSize] = useState(hasSizes ? productSizes[0] : null);
   const [quantity, setQuantity] = useState(1);
   const [showCameraSearch, setShowCameraSearch] = useState(false);
   const [showChat, setShowChat] = useState(false);
@@ -108,6 +133,19 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   const [searchQuery, setSearchQuery] = useState('');
   const [showGuestModal, setShowGuestModal] = useState(false);
   const [guestModalMessage, setGuestModalMessage] = useState('');
+  
+  // Variant Modal State
+  const [showVariantModal, setShowVariantModal] = useState(false);
+  const [variantModalAction, setVariantModalAction] = useState<'cart' | 'buy'>('cart');
+  const [modalSelectedColor, setModalSelectedColor] = useState(hasColors ? productColors[0] : null);
+  const [modalSelectedSize, setModalSelectedSize] = useState(hasSizes ? productSizes[0] : null);
+  const [modalQuantity, setModalQuantity] = useState(1);
+  
+  // Reviews State
+  const [reviews, setReviews] = useState<(Review & { buyer?: { full_name: string | null; avatar_url: string | null } })[]>([]);
+  const [reviewsTotal, setReviewsTotal] = useState(0);
+  const [isLoadingReviews, setIsLoadingReviews] = useState(false);
+  const [averageRating, setAverageRating] = useState(0);
   
   // Wishlist State
   const [showWishlistDropdown, setShowWishlistDropdown] = useState(false);
@@ -129,27 +167,140 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
   const relatedProducts = trendingProducts.filter((p) => p.id !== product.id).slice(0, 4);
 
+  // Fetch reviews from database
+  useEffect(() => {
+    const fetchReviews = async () => {
+      if (!product.id) return;
+      
+      setIsLoadingReviews(true);
+      try {
+        const { reviews: fetchedReviews, total } = await reviewService.getProductReviews(product.id);
+        setReviews(fetchedReviews);
+        setReviewsTotal(total);
+        
+        // Calculate average rating
+        if (fetchedReviews.length > 0) {
+          const avg = fetchedReviews.reduce((sum, r) => sum + r.rating, 0) / fetchedReviews.length;
+          setAverageRating(Math.round(avg * 10) / 10);
+        }
+        console.log('[ProductDetail] Fetched', fetchedReviews.length, 'reviews for product', product.id);
+      } catch (error) {
+        console.error('[ProductDetail] Error fetching reviews:', error);
+      } finally {
+        setIsLoadingReviews(false);
+      }
+    };
+    
+    fetchReviews();
+  }, [product.id]);
+
+  // Build selected variant object
+  const buildSelectedVariant = (color?: string | null, size?: string | null) => {
+    const variant: { color?: string; size?: string } = {};
+    if (hasColors && color) {
+      variant.color = color;
+    }
+    if (hasSizes && size) {
+      variant.size = size;
+    }
+    return Object.keys(variant).length > 0 ? variant : null;
+  };
+
+  // Open variant modal
+  const openVariantModal = (action: 'cart' | 'buy') => {
+    if (isGuest) {
+      setGuestModalMessage(action === 'cart' ? "Sign up to add items to your cart." : "Sign up to buy items.");
+      setShowGuestModal(true);
+      return;
+    }
+    
+    // Reset modal selections to current selections
+    setModalSelectedColor(selectedColor);
+    setModalSelectedSize(selectedSize);
+    setModalQuantity(quantity);
+    setVariantModalAction(action);
+    setShowVariantModal(true);
+  };
+
+  // Handle variant modal confirm
+  const handleVariantModalConfirm = () => {
+    const selectedVariant = buildSelectedVariant(modalSelectedColor, modalSelectedSize);
+    
+    if (variantModalAction === 'cart') {
+      addItem({ 
+        ...product, 
+        price: product.price,
+        selectedVariant,
+        quantity: modalQuantity 
+      });
+      
+      const variantText = selectedVariant 
+        ? ` (${[selectedVariant.color, selectedVariant.size].filter(Boolean).join(', ')})`
+        : '';
+      Alert.alert('Added to Cart', `${product.name}${variantText} has been added to your cart.`);
+    } else {
+      setQuickOrder({ ...product, selectedVariant }, modalQuantity);
+      navigation.navigate('Checkout');
+    }
+    
+    // Update main selections
+    setSelectedColor(modalSelectedColor);
+    setSelectedSize(modalSelectedSize);
+    setQuantity(modalQuantity);
+    setShowVariantModal(false);
+  };
+
   // Handlers
   const handleAddToCart = () => {
+    // Always show variant modal if variants exist
+    if (hasVariants) {
+      openVariantModal('cart');
+      return;
+    }
+    
     const { isGuest } = useAuthStore.getState();
     if (isGuest) {
       setGuestModalMessage("Sign up to add items to your cart.");
       setShowGuestModal(true);
       return;
     }
-    // Basic fix for adding with variants
-    addItem({ ...product, price: product.price }); 
-    Alert.alert('Added to Cart', 'Item has been added to your cart.');
+    
+    // Build variant info
+    const selectedVariant = buildSelectedVariant();
+    
+    // Add to cart with variant information
+    addItem({ 
+      ...product, 
+      price: product.price,
+      selectedVariant,
+      quantity 
+    }); 
+    
+    const variantText = selectedVariant 
+      ? ` (${[selectedVariant.color, selectedVariant.size].filter(Boolean).join(', ')})`
+      : '';
+    Alert.alert('Added to Cart', `${product.name}${variantText} has been added to your cart.`);
   };
 
   const handleBuyNow = () => {
+    // Always show variant modal if variants exist
+    if (hasVariants) {
+      openVariantModal('buy');
+      return;
+    }
+    
     const { isGuest } = useAuthStore.getState();
     if (isGuest) {
       setGuestModalMessage("Sign up to buy items.");
       setShowGuestModal(true);
       return;
     }
-    setQuickOrder(product, quantity);
+    
+    // Build variant info
+    const selectedVariant = buildSelectedVariant(selectedColor, selectedSize);
+    
+    // Set quick order with variant info
+    setQuickOrder({ ...product, selectedVariant }, quantity);
     navigation.navigate('Checkout');
   };
 
@@ -376,6 +527,56 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
               <Text style={styles.ratingValue}>4.8 ({(product.sold ?? 0).toLocaleString()})</Text>
               <Text style={styles.questionsLink}>14 Questions</Text>
            </View>
+           
+           {/* --- COLOR SELECTION --- */}
+           {hasColors && (
+             <View style={styles.variantSection}>
+               <Text style={styles.variantLabel}>Color: <Text style={styles.variantSelected}>{selectedColor}</Text></Text>
+               <View style={styles.colorOptions}>
+                 {productColors.filter((c: string) => c.trim() !== '').map((color: string, index: number) => (
+                   <Pressable
+                     key={`${color}-${index}`}
+                     style={[
+                       styles.colorOption,
+                       { backgroundColor: getColorHex(color) },
+                       selectedColor === color && styles.colorOptionSelected,
+                     ]}
+                     onPress={() => setSelectedColor(color)}
+                   >
+                     {selectedColor === color && (
+                       <View style={styles.colorCheckmark}>
+                         <Text style={{ color: '#FFF', fontSize: 10, fontWeight: 'bold' }}>✓</Text>
+                       </View>
+                     )}
+                   </Pressable>
+                 ))}
+               </View>
+             </View>
+           )}
+           
+           {/* --- SIZE SELECTION --- */}
+           {hasSizes && (
+             <View style={styles.variantSection}>
+               <Text style={styles.variantLabel}>Size: <Text style={styles.variantSelected}>{selectedSize}</Text></Text>
+               <View style={styles.sizeOptions}>
+                 {productSizes.filter((s: string) => s.trim() !== '').map((size: string, index: number) => (
+                   <Pressable
+                     key={`${size}-${index}`}
+                     style={[
+                       styles.sizeOption,
+                       selectedSize === size && styles.sizeOptionSelected,
+                     ]}
+                     onPress={() => setSelectedSize(size)}
+                   >
+                     <Text style={[
+                       styles.sizeOptionText,
+                       selectedSize === size && styles.sizeOptionTextSelected,
+                     ]}>{size}</Text>
+                   </Pressable>
+                 ))}
+               </View>
+             </View>
+           )}
         </View>
         <View style={styles.section}>
           <View style={styles.quantityRow}>
@@ -435,7 +636,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                   style={[styles.tabBtn, activeTab === tab && styles.activeTabBtn]}
                 >
                   <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>
-                    {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                    {tab === 'ratings' ? `Ratings (${reviewsTotal})` : tab.charAt(0).toUpperCase() + tab.slice(1)}
                   </Text>
                 </Pressable>
               ))}
@@ -444,27 +645,54 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
            <View style={styles.tabContent}>
               {activeTab === 'ratings' && (
                  <View>
-                    <Text style={styles.reviewSummary}>4.8 out of 5 stars based on {product.sold} reviews.</Text>
-                    {demoReviews.map((review) => (
-                      <View key={review.id} style={styles.reviewCard}>
-                        <Image source={{ uri: review.avatar }} style={styles.reviewerAvatar} />
-                        <View style={styles.reviewContent}>
-                          <Text style={styles.reviewerName}>{review.buyerName}</Text>
-                          <View style={styles.reviewRatingRow}>
-                            {Array.from({ length: 5 }).map((_, i) => (
-                              <Star key={i} size={12} color={i < review.rating ? '#FBBF24' : '#E5E7EB'} fill={i < review.rating ? '#FBBF24' : '#E5E7EB'} />
-                            ))}
-                            <Text style={styles.reviewDate}>{review.date}</Text>
-                          </View>
-                          <Text style={styles.reviewText}>{review.comment}</Text>
-                        </View>
+                    {isLoadingReviews ? (
+                      <View style={styles.loadingContainer}>
+                        <ActivityIndicator size="small" color={BRAND_COLOR} />
+                        <Text style={styles.loadingText}>Loading reviews...</Text>
                       </View>
-                    ))}
+                    ) : reviews.length > 0 ? (
+                      <>
+                        <Text style={styles.reviewSummary}>
+                          {averageRating || product.rating || 4.8} out of 5 stars based on {reviewsTotal} {reviewsTotal === 1 ? 'review' : 'reviews'}.
+                        </Text>
+                        {reviews.map((review) => (
+                          <View key={review.id} style={styles.reviewCard}>
+                            <Image 
+                              source={{ uri: review.buyer?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150' }} 
+                              style={styles.reviewerAvatar} 
+                            />
+                            <View style={styles.reviewContent}>
+                              <Text style={styles.reviewerName}>{review.buyer?.full_name || 'Anonymous Buyer'}</Text>
+                              <View style={styles.reviewRatingRow}>
+                                {Array.from({ length: 5 }).map((_, i) => (
+                                  <Star key={i} size={12} color={i < review.rating ? '#FBBF24' : '#E5E7EB'} fill={i < review.rating ? '#FBBF24' : '#E5E7EB'} />
+                                ))}
+                                <Text style={styles.reviewDate}>{formatReviewDate(review.created_at)}</Text>
+                              </View>
+                              <Text style={styles.reviewText}>{review.comment || 'No comment provided.'}</Text>
+                              {review.images && review.images.length > 0 && (
+                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.reviewImagesContainer}>
+                                  {review.images.map((img, idx) => (
+                                    <Image key={idx} source={{ uri: img }} style={styles.reviewImage} />
+                                  ))}
+                                </ScrollView>
+                              )}
+                            </View>
+                          </View>
+                        ))}
+                      </>
+                    ) : (
+                      <View style={styles.noReviewsContainer}>
+                        <Star size={40} color="#E5E7EB" />
+                        <Text style={styles.noReviewsText}>No reviews yet</Text>
+                        <Text style={styles.noReviewsSubtext}>Be the first to review this product!</Text>
+                      </View>
+                    )}
                  </View>
               )}
               {activeTab === 'details' && (
                  <Text style={styles.textContent}>
-                   High-fidelity sound with detailed staging. Ergonomic design for long-listening comfort.
+                   {product.description || 'High-fidelity sound with detailed staging. Ergonomic design for long-listening comfort.'}
                    {'\n\n'}
                    Features:
                    {'\n'}• Active Noise Cancellation
@@ -479,6 +707,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
               )}
            </View>
         </View>
+
 
         {/* --- RECOMMENDATIONS --- */}
         <View style={styles.recommendations}>
@@ -506,7 +735,135 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
          </Pressable>
       </View>
       
+      {/* --- VARIANT SELECTION MODAL --- */}
+      <Modal
+        visible={showVariantModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowVariantModal(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setShowVariantModal(false)}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback onPress={() => {}}>
+              <View style={[styles.variantModal, { paddingBottom: insets.bottom + 20 }]}>
+                {/* Modal Header */}
+                <View style={styles.variantModalHeader}>
+                  <Image 
+                    source={{ uri: productImages[0] }} 
+                    style={styles.variantModalImage} 
+                  />
+                  <View style={styles.variantModalInfo}>
+                    <Text style={styles.variantModalPrice}>₱{(product.price ?? 0).toLocaleString()}</Text>
+                    <Text style={styles.variantModalStock}>Stock: {(product as any).stock || 12}</Text>
+                    <Text style={styles.variantModalSelected}>
+                      {[modalSelectedColor, modalSelectedSize].filter(Boolean).join(', ') || 'Select options'}
+                    </Text>
+                  </View>
+                  <Pressable style={styles.variantModalClose} onPress={() => setShowVariantModal(false)}>
+                    <X size={22} color="#6B7280" />
+                  </Pressable>
+                </View>
+
+                <ScrollView style={styles.variantModalContent} showsVerticalScrollIndicator={false}>
+                  {/* Color Selection */}
+                  {hasColors && (
+                    <View style={styles.variantModalSection}>
+                      <Text style={styles.variantModalLabel}>Color</Text>
+                      <View style={styles.variantModalOptions}>
+                        {productColors.filter((c: string) => c.trim() !== '').map((color: string, index: number) => (
+                          <Pressable
+                            key={`modal-color-${color}-${index}`}
+                            style={[
+                              styles.variantModalColorOption,
+                              { backgroundColor: getColorHex(color) },
+                              modalSelectedColor === color && styles.variantModalColorSelected,
+                            ]}
+                            onPress={() => setModalSelectedColor(color)}
+                          >
+                            {modalSelectedColor === color && (
+                              <Text style={{ color: '#FFF', fontSize: 12, fontWeight: 'bold' }}>✓</Text>
+                            )}
+                          </Pressable>
+                        ))}
+                      </View>
+                      <Text style={styles.variantModalSelectedText}>{modalSelectedColor}</Text>
+                    </View>
+                  )}
+
+                  {/* Size Selection */}
+                  {hasSizes && (
+                    <View style={styles.variantModalSection}>
+                      <Text style={styles.variantModalLabel}>Size</Text>
+                      <View style={styles.variantModalSizeOptions}>
+                        {productSizes.filter((s: string) => s.trim() !== '').map((size: string, index: number) => (
+                          <Pressable
+                            key={`modal-size-${size}-${index}`}
+                            style={[
+                              styles.variantModalSizeOption,
+                              modalSelectedSize === size && styles.variantModalSizeSelected,
+                            ]}
+                            onPress={() => setModalSelectedSize(size)}
+                          >
+                            <Text style={[
+                              styles.variantModalSizeText,
+                              modalSelectedSize === size && styles.variantModalSizeTextSelected,
+                            ]}>{size}</Text>
+                          </Pressable>
+                        ))}
+                      </View>
+                    </View>
+                  )}
+
+                  {/* Quantity Selection */}
+                  <View style={styles.variantModalSection}>
+                    <Text style={styles.variantModalLabel}>Quantity</Text>
+                    <View style={styles.variantModalQuantityRow}>
+                      <Pressable 
+                        style={styles.variantModalQtyBtn}
+                        onPress={() => setModalQuantity(Math.max(1, modalQuantity - 1))}
+                      >
+                        <Minus size={18} color={BRAND_COLOR} />
+                      </Pressable>
+                      <Text style={styles.variantModalQtyValue}>{modalQuantity}</Text>
+                      <Pressable 
+                        style={styles.variantModalQtyBtn}
+                        onPress={() => setModalQuantity(modalQuantity + 1)}
+                      >
+                        <Plus size={18} color={BRAND_COLOR} />
+                      </Pressable>
+                    </View>
+                  </View>
+                </ScrollView>
+
+                {/* Confirm Button */}
+                <Pressable 
+                  style={[
+                    styles.variantModalConfirmBtn,
+                    variantModalAction === 'buy' && styles.variantModalBuyBtn
+                  ]} 
+                  onPress={handleVariantModalConfirm}
+                >
+                  <Text style={[
+                    styles.variantModalConfirmText,
+                    variantModalAction === 'buy' && { color: '#FFF' }
+                  ]}>
+                    {variantModalAction === 'cart' ? 'Add to Cart' : 'Buy Now'}
+                  </Text>
+                </Pressable>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+      
       <CameraSearchModal visible={showCameraSearch} onClose={() => setShowCameraSearch(false)} />
+      
+      <StoreChatModal
+        visible={showChat}
+        onClose={() => setShowChat(false)}
+        storeName={product.seller || 'Store'}
+        sellerId={product.seller_id}
+      />
       
       {showGuestModal && (
         <GuestLoginModal 
@@ -719,5 +1076,254 @@ const styles = StyleSheet.create({
   dropdownDivider: { height: 1, backgroundColor: '#F3F4F6', marginVertical: 4 },
   createListRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
   createListInput: { flex: 1, fontSize: 13, borderBottomWidth: 1, borderBottomColor: COLORS.primary, paddingVertical: 4, color: '#1F2937' },
+
+  // Variant Selection
+  variantSection: { marginTop: 16 },
+  variantLabel: { fontSize: 14, fontWeight: '600', color: '#374151', marginBottom: 10 },
+  variantSelected: { fontWeight: '700', color: '#111827' },
+  colorOptions: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  colorOption: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  colorOptionSelected: {
+    borderColor: BRAND_COLOR,
+    borderWidth: 3,
+  },
+  colorCheckmark: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: BRAND_COLOR,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sizeOptions: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  sizeOption: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#F9FAFB',
+    minWidth: 50,
+    alignItems: 'center',
+  },
+  sizeOptionSelected: {
+    borderColor: BRAND_COLOR,
+    backgroundColor: '#FFF7ED',
+    borderWidth: 2,
+  },
+  sizeOptionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  sizeOptionTextSelected: {
+    color: BRAND_COLOR,
+    fontWeight: '700',
+  },
+
+  // Variant Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  variantModal: {
+    backgroundColor: '#FFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 20,
+    paddingHorizontal: 20,
+    maxHeight: '80%',
+  },
+  variantModalHeader: {
+    flexDirection: 'row',
+    marginBottom: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  variantModalImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 12,
+    marginRight: 16,
+  },
+  variantModalInfo: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  variantModalPrice: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: BRAND_COLOR,
+  },
+  variantModalStock: {
+    fontSize: 13,
+    color: '#10B981',
+    fontWeight: '600',
+    marginTop: 4,
+  },
+  variantModalSelected: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginTop: 4,
+  },
+  variantModalClose: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  variantModalContent: {
+    maxHeight: 300,
+  },
+  variantModalSection: {
+    marginBottom: 24,
+  },
+  variantModalLabel: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 12,
+  },
+  variantModalOptions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  variantModalColorOption: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  variantModalColorSelected: {
+    borderColor: BRAND_COLOR,
+    borderWidth: 3,
+  },
+  variantModalSelectedText: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginTop: 8,
+    textTransform: 'capitalize',
+  },
+  variantModalSizeOptions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  variantModalSizeOption: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#F9FAFB',
+    minWidth: 60,
+    alignItems: 'center',
+  },
+  variantModalSizeSelected: {
+    borderColor: BRAND_COLOR,
+    backgroundColor: '#FFF7ED',
+    borderWidth: 2,
+  },
+  variantModalSizeText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  variantModalSizeTextSelected: {
+    color: BRAND_COLOR,
+    fontWeight: '700',
+  },
+  variantModalQuantityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  variantModalQtyBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  variantModalQtyValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+    minWidth: 40,
+    textAlign: 'center',
+  },
+  variantModalConfirmBtn: {
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#FFF',
+    borderWidth: 2,
+    borderColor: BRAND_COLOR,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  variantModalBuyBtn: {
+    backgroundColor: BRAND_COLOR,
+    borderColor: BRAND_COLOR,
+  },
+  variantModalConfirmText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: BRAND_COLOR,
+  },
+
+  // Loading & Empty States for Reviews
+  loadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  noReviewsContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+  },
+  noReviewsText: {
+    marginTop: 12,
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  noReviewsSubtext: {
+    marginTop: 4,
+    fontSize: 14,
+    color: '#9CA3AF',
+  },
+  reviewImagesContainer: {
+    marginTop: 8,
+  },
+  reviewImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 8,
+    marginRight: 8,
+  },
 });
 

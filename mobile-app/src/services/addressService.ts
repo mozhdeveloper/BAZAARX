@@ -270,6 +270,118 @@ export class AddressService {
             }
         };
     }
+
+    /**
+     * Save or update the current delivery location to the database.
+     * This is used when user selects a location from HomeScreen's location modal.
+     * It creates a "Current Location" address or updates the existing one.
+     */
+    async saveCurrentDeliveryLocation(
+        userId: string, 
+        address: string, 
+        coords: { latitude: number; longitude: number } | null
+    ): Promise<Address | null> {
+        if (!isSupabaseConfigured()) {
+            console.warn('Supabase not configured, skipping DB save');
+            return null;
+        }
+
+        try {
+            // Parse address string into components
+            const parts = address.split(',').map(p => p.trim());
+            const street = parts[0] || address;
+            const city = parts[1] || '';
+            const province = parts[2] || '';
+
+            // Check if user already has a "Current Location" address
+            const { data: existing, error: fetchError } = await supabase
+                .from('addresses')
+                .select('*')
+                .eq('user_id', userId)
+                .eq('label', 'Current Location')
+                .single();
+
+            if (fetchError && fetchError.code !== 'PGRST116') {
+                // PGRST116 = no rows found (expected if first time)
+                throw fetchError;
+            }
+
+            const addressData = {
+                user_id: userId,
+                label: 'Current Location',
+                first_name: '',
+                last_name: '',
+                phone: '',
+                street: street,
+                barangay: '',
+                city: city,
+                province: province,
+                region: '',
+                zip_code: '',
+                landmark: null,
+                delivery_instructions: null,
+                address_type: 'residential' as const,
+                is_default: false,
+                coordinates: coords,
+            };
+
+            if (existing) {
+                // Update existing "Current Location" address
+                const { data, error } = await supabase
+                    .from('addresses')
+                    .update(addressData)
+                    .eq('id', existing.id)
+                    .select()
+                    .single();
+
+                if (error) throw error;
+                console.log('[AddressService] Updated current delivery location in DB');
+                return this.mapFromDB(data);
+            } else {
+                // Create new "Current Location" address
+                const { data, error } = await supabase
+                    .from('addresses')
+                    .insert([addressData])
+                    .select()
+                    .single();
+
+                if (error) throw error;
+                console.log('[AddressService] Created current delivery location in DB');
+                return this.mapFromDB(data);
+            }
+        } catch (error) {
+            console.error('Error saving current delivery location:', error);
+            throw new Error('Failed to save current delivery location.');
+        }
+    }
+
+    /**
+     * Get the current delivery location from the database.
+     * Falls back to default address if no "Current Location" exists.
+     */
+    async getCurrentDeliveryLocation(userId: string): Promise<Address | null> {
+        if (!isSupabaseConfigured()) return null;
+
+        try {
+            // First try to get "Current Location" 
+            const { data: currentLoc, error: currentError } = await supabase
+                .from('addresses')
+                .select('*')
+                .eq('user_id', userId)
+                .eq('label', 'Current Location')
+                .single();
+
+            if (currentLoc && !currentError) {
+                return this.mapFromDB(currentLoc);
+            }
+
+            // Fall back to default address
+            return this.getDefaultAddress(userId);
+        } catch (error) {
+            console.error('Error fetching current delivery location:', error);
+            return null;
+        }
+    }
 }
 
 export const addressService = AddressService.getInstance();

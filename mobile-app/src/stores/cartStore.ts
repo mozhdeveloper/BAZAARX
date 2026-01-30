@@ -77,9 +77,11 @@ export const useCartStore = create<CartStore>()(
           if (!cartId) return;
 
           const unitPrice = typeof product.price === 'number' ? product.price : parseFloat(String(product.price) || '0');
+          const quantity = (product as any).quantity || 1;
+          const selectedVariant = (product as any).selectedVariant || null;
 
           try {
-            await cartService.addItem(cartId, product.id, unitPrice);
+            await cartService.addItem(cartId, product.id, unitPrice, quantity, selectedVariant);
             await get().initializeForCurrentUser();
           } catch (e) {
             console.error('[CartStore] Failed to add item:', e);
@@ -142,7 +144,16 @@ export const useCartStore = create<CartStore>()(
       getTotal: () => get().items.reduce((total, item) => total + (item.price ?? 0) * item.quantity, 0),
       getItemCount: () => get().items.reduce((count, item) => count + item.quantity, 0),
 
-      setQuickOrder: (product, quantity = 1) => set({ quickOrder: { ...product, quantity } as CartItem }),
+      setQuickOrder: (product, quantity = 1) => {
+        const selectedVariant = (product as any).selectedVariant || null;
+        set({ 
+          quickOrder: { 
+            ...product, 
+            quantity,
+            selectedVariant 
+          } as CartItem 
+        });
+      },
       clearQuickOrder: () => set({ quickOrder: null }),
       getQuickOrderTotal: () => get().quickOrder ? ((get().quickOrder!.price ?? 0) * get().quickOrder!.quantity) : 0,
     }),

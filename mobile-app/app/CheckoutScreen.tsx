@@ -18,6 +18,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { ArrowLeft, MapPin, CreditCard, Shield, Tag, X, ChevronDown, Check, Plus, ShieldCheck, ChevronRight, Home, Briefcase, MapPinned, Building2, Move, Search, ChevronUp } from 'lucide-react-native';
 import MapView, { Marker, Region, PROVIDER_GOOGLE, PROVIDER_DEFAULT } from 'react-native-maps';
 import { regions, provinces, cities, barangays } from 'select-philippines-address';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS } from '../src/constants/theme';
 import { processCheckout } from '@/services/checkoutService';
 import { addressService } from '@/services/addressService';
@@ -464,23 +465,50 @@ export default function CheckoutScreen({ navigation, route }: Props) {
           }
 
           // Priority: 1) Address from HomeScreen location modal (via route params)
-          //           2) Default saved address
-          //           3) First saved address
-          const homeScreenAddress = params?.deliveryAddress;
-          const homeScreenCoords = params?.deliveryCoordinates;
+          //           2) "Current Location" from database (saved by HomeScreen)
+          //           3) AsyncStorage fallback (if route params not available)
+          //           4) Default saved address
+          //           5) First saved address
+          let homeScreenAddress = params?.deliveryAddress;
+          let homeScreenCoords = params?.deliveryCoordinates;
+
+          // If no route params, try to get from AsyncStorage or database
+          if (!homeScreenAddress || homeScreenAddress === 'Select Location') {
+            try {
+              // First try database for "Current Location"
+              const dbCurrentLoc = await addressService.getCurrentDeliveryLocation(user.id);
+              if (dbCurrentLoc && dbCurrentLoc.label === 'Current Location') {
+                console.log('[Checkout] Found Current Location in database');
+                homeScreenAddress = `${dbCurrentLoc.street}, ${dbCurrentLoc.city}`;
+                homeScreenCoords = dbCurrentLoc.coordinates;
+              } else {
+                // Fall back to AsyncStorage
+                const storedAddress = await AsyncStorage.getItem('currentDeliveryAddress');
+                const storedCoords = await AsyncStorage.getItem('currentDeliveryCoordinates');
+                if (storedAddress && storedAddress !== 'Select Location') {
+                  console.log('[Checkout] Found address in AsyncStorage:', storedAddress);
+                  homeScreenAddress = storedAddress;
+                  homeScreenCoords = storedCoords ? JSON.parse(storedCoords) : null;
+                }
+              }
+            } catch (storageError) {
+              console.log('[Checkout] Error reading stored address:', storageError);
+            }
+          }
 
           if (homeScreenAddress && homeScreenAddress !== 'Select Location') {
             console.log('[Checkout] Using address from HomeScreen:', homeScreenAddress);
 
-            // Check if this matches a saved address
-          const matchingAddress = addressData.find(addr =>
+            // Check if this matches a saved address (including "Current Location" from DB)
+            const matchingAddress = addressData.find(addr =>
+              addr.label === 'Current Location' ||
               `${addr.street}, ${addr.city}` === homeScreenAddress ||
               homeScreenAddress.includes(addr.street)
             );
 
             if (matchingAddress) {
               // Use the matching saved address
-              console.log('[Checkout] Found matching saved address');
+              console.log('[Checkout] Found matching saved address:', matchingAddress.label);
               setSelectedAddress(matchingAddress);
               setTempSelectedAddress(matchingAddress);
             } else {
@@ -762,14 +790,21 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                 <View style={styles.compactOrderInfo}>
                   <Text style={styles.compactProductName} numberOfLines={1}>{item.name}</Text>
                   <View style={styles.compactDetailsRow}>
-                    <View style={styles.compactSelector}>
-                      <Text style={styles.compactSelectorText}>Color</Text>
-                      <ChevronDown size={12} color="#6B7280" />
-                    </View>
-                    <View style={styles.compactSelector}>
-                      <Text style={styles.compactSelectorText}>Size</Text>
-                      <ChevronDown size={12} color="#6B7280" />
-                    </View>
+                    {/* Show selected variant (color/size) if available */}
+                    {item.selectedVariant?.color && (
+                      <View style={styles.compactVariantTag}>
+                        <Text style={styles.compactVariantText}>{item.selectedVariant.color}</Text>
+                      </View>
+                    )}
+                    {item.selectedVariant?.size && (
+                      <View style={styles.compactVariantTag}>
+                        <Text style={styles.compactVariantText}>{item.selectedVariant.size}</Text>
+                      </View>
+                    )}
+                    {/* Fallback if no variant selected */}
+                    {!item.selectedVariant?.color && !item.selectedVariant?.size && (
+                      <Text style={styles.compactVariantText}>Standard</Text>
+                    )}
                     <Text style={styles.compactQuantity}>x{item.quantity}</Text>
                   </View>
                 </View>
@@ -1901,6 +1936,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    flexWrap: 'wrap',
+  },
+  compactVariantTag: {
+    backgroundColor: '#FFF4ED',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FFCBB0',
+  },
+  compactVariantText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#EA580C',
   },
   compactSelector: {
     flexDirection: 'row',

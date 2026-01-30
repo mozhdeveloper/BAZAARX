@@ -21,6 +21,8 @@ import type { RootStackParamList } from '../App';
 import { useOrderStore } from '../src/stores/orderStore';
 import { supabase } from '../src/lib/supabase';
 import { useReturnStore } from '../src/stores/returnStore';
+import { reviewService } from '../src/services/reviewService';
+import { useAuthStore } from '../src/stores/authStore';
 import ReviewModal from '../src/components/ReviewModal';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'OrderDetail'>;
@@ -89,16 +91,58 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
     );
   };
 
-  const handleSubmitReview = (rating: number, review: string) => {
-    // In a real app, this would save to a reviews API
-    console.log('Review submitted:', { rating, review, orderId: order.id });
+  const handleSubmitReview = async (rating: number, review: string) => {
+    const { user } = useAuthStore.getState();
+    if (!user?.id) {
+      Alert.alert('Error', 'You must be logged in to submit a review');
+      return;
+    }
+
+    try {
+      // Submit review for each item in the order
+      for (const item of order.items) {
+        const sellerId = item.sellerId || (item as any).seller_id;
+        
+        if (!sellerId) {
+          console.warn(`[OrderDetail] No seller ID for item ${item.id}, skipping review`);
+          continue;
+        }
+
+        // Check if already reviewed
+        const hasReview = await reviewService.hasReviewForProduct(order.id, item.id);
+        if (hasReview) {
+          console.log(`[OrderDetail] Item ${item.id} already reviewed, skipping`);
+          continue;
+        }
+
+        // Create review
+        await reviewService.createReview({
+          product_id: item.id,
+          buyer_id: user.id,
+          seller_id: sellerId,
+          order_id: order.id,
+          rating,
+          comment: review || null,
+          images: null,
+        });
+
+        // Mark order item as reviewed
+        await reviewService.markItemAsReviewed(order.id, item.id);
+      }
+
+      // Check if all items reviewed and update order
+      await reviewService.checkAndUpdateOrderReviewed(order.id);
     
-    Alert.alert('Thank You!', 'Your review has been submitted successfully.', [
-      { text: 'OK', onPress: () => {
-        setShowReviewModal(false);
-        navigation.goBack();
-      }},
-    ]);
+      Alert.alert('Thank You!', 'Your review has been submitted successfully.', [
+        { text: 'OK', onPress: () => {
+          setShowReviewModal(false);
+          navigation.goBack();
+        }},
+      ]);
+    } catch (error: any) {
+      console.error('[OrderDetail] Error submitting review:', error);
+      Alert.alert('Error', error.message || 'Failed to submit review. Please try again.');
+    }
   };
 
   const handleCancelOrder = () => {

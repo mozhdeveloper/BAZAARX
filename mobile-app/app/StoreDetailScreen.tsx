@@ -305,7 +305,12 @@ export default function StoreDetailScreen() {
             </ScrollView>
 
             {/* Store Chat Modal */}
-            <StoreChatModal visible={chatVisible} onClose={() => setChatVisible(false)} storeName={store.name} />
+            <StoreChatModal 
+                visible={chatVisible} 
+                onClose={() => setChatVisible(false)} 
+                storeName={store.name}
+                sellerId={store.id || store.seller_id}
+            />
 
             {/* Menu Modal */}
             <Modal visible={menuVisible} transparent animationType="fade" onRequestClose={() => setMenuVisible(false)}>

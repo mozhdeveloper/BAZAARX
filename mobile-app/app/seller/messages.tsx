@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,8 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -21,84 +23,102 @@ import {
   Image as ImageIcon,
   Paperclip,
   Ticket,
-  X
+  X,
+  MessageSquare,
 } from 'lucide-react-native';
 import { Alert } from 'react-native';
-
-interface Message {
-  id: string;
-  senderId: string;
-  text: string;
-  timestamp: Date;
-  isRead: boolean;
-}
-
-interface Conversation {
-  id: string;
-  buyerName: string;
-  buyerImage?: string;
-  lastMessage: string;
-  lastMessageTime: Date;
-  unreadCount: number;
-  messages: Message[];
-}
+import { chatService, Conversation as ChatConversation, Message as ChatMessage } from '../../src/services/chatService';
+import { useAuthStore } from '../../src/stores/authStore';
+import { useSellerStore } from '../../src/stores/sellerStore';
 
 export default function MessagesScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<SellerStackParamList>>();
   const insets = useSafeAreaInsets();
+  const { user } = useAuthStore();
+  const seller = useSellerStore((state) => state.seller);
+  
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [sending, setSending] = useState(false);
 
-  // Mock Data matching web
-  const [conversations, setConversations] = useState<Conversation[]>([
-    {
-      id: '1',
-      buyerName: 'Juan Dela Cruz',
-      lastMessage: 'Is this item still available?',
-      lastMessageTime: new Date(Date.now() - 5 * 60 * 1000), // 5 mins ago
-      unreadCount: 1,
-      messages: [
-        {
-          id: 'm1',
-          senderId: 'buyer',
-          text: 'Hi, I saw your listing for the Wireless Earbuds.',
-          timestamp: new Date(Date.now() - 60 * 60 * 1000),
-          isRead: true,
-        },
-        {
-          id: 'm2',
-          senderId: 'buyer',
-          text: 'Is this item still available?',
-          timestamp: new Date(Date.now() - 5 * 60 * 1000),
-          isRead: false,
-        },
-      ],
-    },
-    {
-      id: '2',
-      buyerName: 'Maria Santos',
-      lastMessage: 'Thank you for the fast delivery!',
-      lastMessageTime: new Date(Date.now() - 24 * 60 * 60 * 1000), // 1 day ago
-      unreadCount: 0,
-      messages: [
-        {
-          id: 'm3',
-          senderId: 'seller',
-          text: 'Your order has been shipped!',
-          timestamp: new Date(Date.now() - 25 * 60 * 60 * 1000),
-          isRead: true,
-        },
-        {
-          id: 'm4',
-          senderId: 'buyer',
-          text: 'Thank you for the fast delivery!',
-          timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000),
-          isRead: true,
-        },
-      ],
-    },
-  ]);
+  // Real conversations and messages from database
+  const [conversations, setConversations] = useState<ChatConversation[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+
+  // Load real conversations from database
+  const loadConversations = useCallback(async () => {
+    // Use seller.id from sellerStore (the seller's UUID), not user.id from authStore
+    const sellerId = seller?.id;
+    if (!sellerId) {
+      console.log('[SellerMessages] No seller ID available');
+      setLoading(false);
+      return;
+    }
+
+    console.log('[SellerMessages] Loading conversations for seller:', sellerId);
+    try {
+      const convs = await chatService.getSellerConversations(sellerId);
+      console.log('[SellerMessages] Loaded conversations:', convs.length);
+      setConversations(convs);
+    } catch (error) {
+      console.error('[SellerMessages] Error loading conversations:', error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [seller?.id]);
+
+  useEffect(() => {
+    loadConversations();
+  }, [loadConversations]);
+
+  // Load messages when conversation is selected
+  useEffect(() => {
+    if (!selectedConversation) return;
+
+    const loadMessages = async () => {
+      const msgs = await chatService.getMessages(selectedConversation);
+      setMessages(msgs);
+      
+      // Mark as read
+      if (seller?.id) {
+        await chatService.markAsRead(selectedConversation, seller.id, 'seller');
+      }
+    };
+
+    loadMessages();
+  }, [selectedConversation, seller?.id]);
+
+  // Subscribe to new messages
+  useEffect(() => {
+    if (!selectedConversation) return;
+
+    const unsubscribe = chatService.subscribeToMessages(
+      selectedConversation,
+      (newMsg) => {
+        // Prevent duplicates
+        setMessages(prev => {
+          const exists = prev.some(msg => msg.id === newMsg.id);
+          if (exists) return prev;
+          return [...prev, newMsg];
+        });
+        
+        if (newMsg.sender_type === 'buyer' && seller?.id) {
+          chatService.markAsRead(selectedConversation, seller.id, 'seller');
+        }
+      }
+    );
+
+    return unsubscribe;
+  }, [selectedConversation, seller?.id]);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadConversations();
+  };
 
   const activeConversation = conversations.find((c) => c.id === selectedConversation);
 
@@ -114,14 +134,14 @@ export default function MessagesScreen() {
                 text: 'Escalate', 
                 style: 'destructive',
                 onPress: () => {
-                    // Format transcript
-                    const transcript = activeConversation.messages
-                        .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
-                        .map(m => `[${m.timestamp.toLocaleString()}] ${m.senderId === 'seller' ? 'Me' : activeConversation.buyerName}: ${m.text}`)
-                        .join('\n');
+                    const buyerName = activeConversation.buyer_name || 'Buyer';
+                    const transcript = messages
+                      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+                      .map(m => `[${new Date(m.created_at).toLocaleString()}] ${m.sender_type === 'seller' ? 'Me' : buyerName}: ${m.content}`)
+                      .join('\n');
 
                     (navigation as any).navigate('CreateTicket', {
-                        initialSubject: `Report Buyer: ${activeConversation.buyerName}`,
+                        initialSubject: `Report Buyer: ${buyerName}`,
                         initialDescription: `I would like to report an issue with this buyer.\n\nConversation Transcript:\n${transcript}`
                     });
                 }
@@ -130,35 +150,31 @@ export default function MessagesScreen() {
     );
   };
   
-  const handleSendMessage = () => {
-    if (!newMessage.trim() || !selectedConversation) return;
+  const handleSendMessage = async () => {
+    if (!newMessage.trim() || !selectedConversation || !seller?.id) return;
 
-    const updatedConversations = conversations.map((c) => {
-      if (c.id === selectedConversation) {
-        return {
-          ...c,
-          lastMessage: newMessage,
-          lastMessageTime: new Date(),
-          messages: [
-            ...c.messages,
-            {
-              id: `m${Date.now()}`,
-              senderId: 'seller',
-              text: newMessage,
-              timestamp: new Date(),
-              isRead: true,
-            },
-          ],
-        };
+    setSending(true);
+    try {
+      const result = await chatService.sendMessage(
+        selectedConversation,
+        seller.id,  // Use seller ID from sellerStore, not user.id from authStore
+        'seller',
+        newMessage.trim()
+      );
+      if (result) {
+        setNewMessage('');
+        // Message will be added via realtime subscription
       }
-      return c;
-    });
-
-    setConversations(updatedConversations);
-    setNewMessage('');
+    } catch (error) {
+      console.error('[SellerMessages] Error sending message:', error);
+      Alert.alert('Error', 'Failed to send message');
+    } finally {
+      setSending(false);
+    }
   };
 
-  const formatTime = (date: Date) => {
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString);
     const now = new Date();
     const diff = now.getTime() - date.getTime();
     const minutes = Math.floor(diff / 60000);
@@ -208,40 +224,69 @@ export default function MessagesScreen() {
           </View>
         </View>
 
-        <ScrollView style={styles.conversationsList} showsVerticalScrollIndicator={false}>
-          {conversations.map((conv) => (
-            <Pressable
-              key={conv.id}
-              style={styles.conversationItem}
-              onPress={() => setSelectedConversation(conv.id)}
-            >
-              <View style={styles.avatar}>
-                <Text style={styles.avatarText}>{getInitials(conv.buyerName)}</Text>
-              </View>
-              <View style={styles.conversationContent}>
-                <View style={styles.conversationHeader}>
-                  <Text style={styles.buyerName}>{conv.buyerName}</Text>
-                  <Text style={styles.conversationTime}>{formatTime(conv.lastMessageTime)}</Text>
-                </View>
-                <View style={styles.conversationFooter}>
-                  <Text style={styles.lastMessage} numberOfLines={1}>
-                    {conv.lastMessage}
+        <ScrollView 
+          style={styles.conversationsList} 
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#2563EB']} />
+          }
+        >
+          {loading && !refreshing ? (
+            <View style={{ padding: 40, alignItems: 'center' }}>
+              <ActivityIndicator size="large" color="#2563EB" />
+              <Text style={{ marginTop: 12, color: '#6B7280' }}>Loading conversations...</Text>
+            </View>
+          ) : conversations.length === 0 ? (
+            <View style={{ padding: 40, alignItems: 'center' }}>
+              <MessageSquare size={48} color="#D1D5DB" />
+              <Text style={{ marginTop: 12, color: '#6B7280', fontSize: 16 }}>No messages yet</Text>
+              <Text style={{ marginTop: 4, color: '#9CA3AF', textAlign: 'center' }}>
+                Messages from buyers will appear here
+              </Text>
+            </View>
+          ) : (
+            conversations.map((conv: any) => (
+              <Pressable
+                key={conv.id}
+                style={styles.conversationItem}
+                onPress={() => setSelectedConversation(conv.id)}
+              >
+                <View style={styles.avatar}>
+                  <Text style={styles.avatarText}>
+                    {getInitials(conv.buyer?.full_name || conv.buyer_name || 'B')}
                   </Text>
-                  {conv.unreadCount > 0 && (
-                    <View style={styles.unreadBadge}>
-                      <Text style={styles.unreadText}>{conv.unreadCount}</Text>
-                    </View>
-                  )}
                 </View>
-              </View>
-            </Pressable>
-          ))}
+                <View style={styles.conversationContent}>
+                  <View style={styles.conversationHeader}>
+                    <Text style={styles.buyerName}>
+                      {conv.buyer?.full_name || conv.buyer_name || 'Buyer'}
+                    </Text>
+                    <Text style={styles.conversationTime}>
+                      {formatTime(conv.last_message_at)}
+                    </Text>
+                  </View>
+                  <View style={styles.conversationFooter}>
+                    <Text style={styles.lastMessage} numberOfLines={1}>
+                      {conv.last_message || 'No messages yet'}
+                    </Text>
+                    {conv.seller_unread_count > 0 && (
+                      <View style={styles.unreadBadge}>
+                        <Text style={styles.unreadText}>{conv.seller_unread_count}</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              </Pressable>
+            ))
+          )}
         </ScrollView>
       </View>
     );
   }
 
   // Chat View
+  const activeBuyerName = activeConversation?.buyer_name || 'Buyer';
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -260,11 +305,11 @@ export default function MessagesScreen() {
             </Pressable>
             <View style={styles.chatAvatar}>
               <Text style={styles.chatAvatarText}>
-                {getInitials(activeConversation?.buyerName || '')}
+                {getInitials(activeBuyerName)}
               </Text>
             </View>
             <View>
-              <Text style={styles.chatBuyerName}>{activeConversation?.buyerName}</Text>
+              <Text style={styles.chatBuyerName}>{activeBuyerName}</Text>
               <View style={styles.onlineStatus}>
                 <View style={styles.onlineDot} />
                 <Text style={styles.onlineText}>Online</Text>
@@ -274,10 +319,7 @@ export default function MessagesScreen() {
           <View style={styles.chatHeaderActions}>
             <Pressable 
               style={styles.iconButton}
-              onPress={() => (navigation as any).navigate('CreateTicket', {
-                initialSubject: `Issue with Order from ${activeConversation?.buyerName}`,
-                initialDescription: `Regarding conversation with ${activeConversation?.buyerName}...`
-              })}
+              onPress={handleEscalate}
             >
               <Ticket size={20} color="#FFFFFF" strokeWidth={2.5} />
             </Pressable>
@@ -291,32 +333,38 @@ export default function MessagesScreen() {
         contentContainerStyle={styles.messagesContent}
         showsVerticalScrollIndicator={false}
       >
-        {activeConversation?.messages.map((msg) => (
-          <View
-            key={msg.id}
-            style={[
-              styles.messageBubble,
-              msg.senderId === 'seller' ? styles.messageSeller : styles.messageBuyer,
-            ]}
-          >
-            <Text
-              style={[
-                styles.messageText,
-                msg.senderId === 'seller' ? styles.messageTextSeller : styles.messageTextBuyer,
-              ]}
-            >
-              {msg.text}
-            </Text>
-            <Text
-              style={[
-                styles.messageTime,
-                msg.senderId === 'seller' ? styles.messageTimeSeller : styles.messageTimeBuyer,
-              ]}
-            >
-              {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </Text>
+        {messages.length === 0 ? (
+          <View style={{ padding: 40, alignItems: 'center' }}>
+            <Text style={{ color: '#9CA3AF' }}>No messages in this conversation</Text>
           </View>
-        ))}
+        ) : (
+          messages.map((msg) => (
+            <View
+              key={msg.id}
+              style={[
+                styles.messageBubble,
+                msg.sender_type === 'seller' ? styles.messageSeller : styles.messageBuyer,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.messageText,
+                  msg.sender_type === 'seller' ? styles.messageTextSeller : styles.messageTextBuyer,
+                ]}
+              >
+                {msg.content}
+              </Text>
+              <Text
+                style={[
+                  styles.messageTime,
+                  msg.sender_type === 'seller' ? styles.messageTimeSeller : styles.messageTimeBuyer,
+                ]}
+              >
+                {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </Text>
+            </View>
+          ))
+        )}
       </ScrollView>
 
       {/* Input Area */}
@@ -334,13 +382,18 @@ export default function MessagesScreen() {
           value={newMessage}
           onChangeText={setNewMessage}
           multiline
+          editable={!sending}
         />
         <Pressable
-          style={styles.sendButton}
+          style={[styles.sendButton, sending && { opacity: 0.6 }]}
           onPress={handleSendMessage}
-          disabled={!newMessage.trim()}
+          disabled={!newMessage.trim() || sending}
         >
-          <Send size={18} color="#FFFFFF" strokeWidth={2.5} />
+          {sending ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <Send size={18} color="#FFFFFF" strokeWidth={2.5} />
+          )}
         </Pressable>
       </View>
     </KeyboardAvoidingView>

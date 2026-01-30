@@ -30,6 +30,7 @@ const colors = {
   blue: '\x1b[34m',
   cyan: '\x1b[36m',
   gray: '\x1b[90m',
+  white: '\x1b[37m',
 };
 
 class BuyerViewTest {

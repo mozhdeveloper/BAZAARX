@@ -192,6 +192,9 @@ export default function HomeScreen({ navigation }: Props) {
             description: row.description || '',
             category: row.category || '',
             stock: row.stock,
+            // Include variant data for ProductDetailScreen
+            colors: Array.isArray(row.colors) ? row.colors : [],
+            sizes: Array.isArray(row.sizes) ? row.sizes : [],
           } as Product;
         });
         // Deduplicate
@@ -215,34 +218,69 @@ export default function HomeScreen({ navigation }: Props) {
     fetchSellers();
   }, []);
 
-  // --- NEW: FETCH DEFAULT ADDRESS ---
+  // --- LOAD SAVED DELIVERY LOCATION ---
+  // Priority: 1) "Current Location" from DB, 2) Default address, 3) AsyncStorage fallback
   useEffect(() => {
-    if (!user) return;
-    const fetchDefaultAddress = async () => {
-      const data = await addressService.getDefaultAddress(user.id);
+    const loadSavedLocation = async () => {
+      // First try AsyncStorage (works for guests too)
+      try {
+        const savedAddress = await AsyncStorage.getItem('currentDeliveryAddress');
+        const savedCoords = await AsyncStorage.getItem('currentDeliveryCoordinates');
+        
+        if (savedAddress) {
+          setDeliveryAddress(savedAddress);
+          console.log('[HomeScreen] Loaded address from AsyncStorage:', savedAddress);
+        }
+        if (savedCoords) {
+          setDeliveryCoordinates(JSON.parse(savedCoords));
+        }
+      } catch (e) {
+        console.error('[HomeScreen] Error loading from AsyncStorage:', e);
+      }
 
-      if (data) {
-        // Format: "123 Street, City"
-        const formatted = `${data.street}, ${data.city}`;
-        setDeliveryAddress(formatted);
+      // If user is logged in, prioritize database location
+      if (user?.id) {
+        try {
+          const savedLocation = await addressService.getCurrentDeliveryLocation(user.id);
+          
+          if (savedLocation) {
+            // Format: "Street, City" or full address
+            const formatted = savedLocation.city 
+              ? `${savedLocation.street}, ${savedLocation.city}`
+              : savedLocation.street;
+            
+            setDeliveryAddress(formatted);
+            console.log('[HomeScreen] Loaded location from database:', formatted);
 
-        // Store coordinates if available
-        if (data.coordinates) {
-          setDeliveryCoordinates(data.coordinates);
+            // Store coordinates if available
+            if (savedLocation.coordinates) {
+              setDeliveryCoordinates(savedLocation.coordinates);
+            }
+
+            // Also sync to AsyncStorage for faster loading next time
+            await AsyncStorage.setItem('currentDeliveryAddress', formatted);
+            if (savedLocation.coordinates) {
+              await AsyncStorage.setItem('currentDeliveryCoordinates', JSON.stringify(savedLocation.coordinates));
+            }
+          }
+        } catch (dbError) {
+          console.error('[HomeScreen] Error loading from database:', dbError);
         }
       }
     };
 
-    // Subscribe to address changes to update realtime
-    const subscription = addressService.subscribeToAddressChanges(user.id, () => {
-      fetchDefaultAddress();
-    });
+    loadSavedLocation();
 
-    fetchDefaultAddress();
+    // Subscribe to address changes to update realtime (only for logged in users)
+    if (user?.id) {
+      const subscription = addressService.subscribeToAddressChanges(user.id, () => {
+        loadSavedLocation();
+      });
 
-    return () => {
-      subscription.unsubscribe();
-    };
+      return () => {
+        subscription.unsubscribe();
+      };
+    }
   }, [user]);
 
   // Handle address selection from modal
@@ -257,6 +295,16 @@ export default function HomeScreen({ navigation }: Props) {
         await AsyncStorage.setItem('currentDeliveryCoordinates', JSON.stringify(coords));
       }
       console.log('[HomeScreen] Saved delivery address to AsyncStorage:', address);
+
+      // Also save to database if user is logged in
+      if (user?.id) {
+        try {
+          await addressService.saveCurrentDeliveryLocation(user.id, address, coords || null);
+          console.log('[HomeScreen] Saved delivery location to database');
+        } catch (dbError) {
+          console.error('[HomeScreen] Error saving to database (non-critical):', dbError);
+        }
+      }
     } catch (error) {
       console.error('[HomeScreen] Error saving delivery address:', error);
     }
