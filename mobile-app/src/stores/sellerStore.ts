@@ -44,6 +44,8 @@ export interface SellerOrder {
     image: string;
     quantity: number;
     price: number;
+    selectedColor?: string;
+    selectedSize?: string;
   }[];
   total: number;
   status: 'pending' | 'to-ship' | 'completed' | 'cancelled';
@@ -143,7 +145,7 @@ interface SellerStore {
   ordersLoading: boolean;
   fetchOrders: (sellerId?: string) => Promise<void>;
   updateOrderStatus: (orderId: string, status: SellerOrder['status']) => void;
-  addOfflineOrder: (cartItems: { productId: string; productName: string; quantity: number; price: number; image: string }[], total: number, note?: string) => string;
+  addOfflineOrder: (cartItems: { productId: string; productName: string; quantity: number; price: number; image: string; selectedColor?: string; selectedSize?: string }[], total: number, note?: string) => string;
 
   // Analytics
   revenueData: RevenueData[];

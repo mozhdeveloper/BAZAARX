@@ -67,6 +67,7 @@ export default function SellerAnalyticsScreen() {
         {/* Notification Button: Positioned absolutely to match Settings.tsx */}
         <Pressable
           style={[styles.notificationButton, { position: 'absolute', right: 20, top: insets.top + 20 }]}
+          onPress={() => navigation.getParent()?.navigate('Notifications')}
         >
           <Bell size={22} color="#FFFFFF" strokeWidth={2.5} />
           <View style={styles.notificationBadge} />

@@ -19,6 +19,7 @@ import { useReturnStore } from '../../../src/stores/returnStore';
 import SellerDrawer from '../../../src/components/SellerDrawer';
 
 type OrderStatus = 'all' | 'pending' | 'to-ship' | 'completed' | 'returns' | 'refunds';
+type ChannelFilter = 'all' | 'online' | 'pos';
 
 export default function SellerOrdersScreen() {
   const { orders, updateOrderStatus, seller, fetchOrders, ordersLoading } = useSellerStore();
@@ -27,8 +28,7 @@ export default function SellerOrdersScreen() {
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [selectedTab, setSelectedTab] = useState<OrderStatus>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [walkFilter, setWalkFilter] = useState<'all' | 'walkin' | 'online'>('all');
-  const [isWalkFilterOpen, setIsWalkFilterOpen] = useState(false);
+  const [channelFilter, setChannelFilter] = useState<ChannelFilter>('all');
   const [refreshing, setRefreshing] = useState(false);
 
   // Fetch orders from database on mount
@@ -69,6 +69,13 @@ export default function SellerOrdersScreen() {
       ? refundRequests
       : [];
 
+  // Channel counts for tabs
+  const channelCounts = {
+    all: orders.length,
+    online: orders.filter(o => o.type === 'ONLINE' || !o.type).length,
+    pos: orders.filter(o => o.type === 'OFFLINE').length,
+  };
+
   const orderCounts = {
     all: orders.length,
     pending: orders.filter(o => o.status === 'pending').length,
@@ -85,7 +92,13 @@ export default function SellerOrdersScreen() {
         : selectedTab === 'pending' || selectedTab === 'to-ship' || selectedTab === 'completed'
         ? order.status === selectedTab
         : true;
-    const matchesWalk = walkFilter === 'all' ? true : (walkFilter === 'walkin' ? order.type === 'OFFLINE' : order.type === 'ONLINE');
+    
+    // Channel filter
+    const matchesChannel = 
+      channelFilter === 'all' ? true : 
+      channelFilter === 'pos' ? order.type === 'OFFLINE' : 
+      (order.type === 'ONLINE' || !order.type);
+    
     const q = searchQuery.trim().toLowerCase();
     const matchesSearch = !q ? true : (
       (order.orderId && order.orderId.toLowerCase().includes(q)) ||
@@ -93,7 +106,7 @@ export default function SellerOrdersScreen() {
       (order.customerEmail && order.customerEmail.toLowerCase().includes(q))
     );
 
-    return matchesTab && matchesWalk && matchesSearch;
+    return matchesTab && matchesChannel && matchesSearch;
   });
 
   const getStatusColor = (status: string) => {
@@ -247,46 +260,49 @@ export default function SellerOrdersScreen() {
             ))}
           </ScrollView>
         </View>
+      </View>
 
-        <View style={styles.segmentDivider} />
-
-        <View style={styles.filterWrapper}>
-          <Pressable
-            style={styles.filterDropdownButton}
-            onPress={() => setIsWalkFilterOpen((p) => !p)}
-          >
-            <Text style={styles.filterDropdownButtonText}>
-              {walkFilter === 'all' ? 'All' : walkFilter === 'walkin' ? 'Walk-in' : 'Online'}
+      {/* Channel Filter Tabs - Like Web Version */}
+      <View style={styles.channelFilterRow}>
+        <Pressable
+          style={[styles.channelTab, channelFilter === 'all' && styles.channelTabActive]}
+          onPress={() => setChannelFilter('all')}
+        >
+          <Text style={[styles.channelTabText, channelFilter === 'all' && styles.channelTabTextActive]}>
+            All Channels
+          </Text>
+          <View style={[styles.channelBadge, channelFilter === 'all' && styles.channelBadgeActive]}>
+            <Text style={[styles.channelBadgeText, channelFilter === 'all' && styles.channelBadgeTextActive]}>
+              {channelCounts.all}
             </Text>
-            <ChevronDown size={16} color="#FFFFFF" />
-          </Pressable>
-
-          {isWalkFilterOpen && (
-            <>
-              <Pressable style={styles.dropdownOverlay} onPress={() => setIsWalkFilterOpen(false)} />
-              <View style={styles.filterDropdownMenu}>
-                <Pressable
-                  style={styles.filterDropdownItem}
-                  onPress={() => { setWalkFilter('all'); setIsWalkFilterOpen(false); }}
-                >
-                  <Text style={[styles.filterDropdownItemText, walkFilter === 'all' && styles.filterDropdownItemTextSelected]}>All</Text>
-                </Pressable>
-                <Pressable
-                  style={styles.filterDropdownItem}
-                  onPress={() => { setWalkFilter('walkin'); setIsWalkFilterOpen(false); }}
-                >
-                  <Text style={[styles.filterDropdownItemText, walkFilter === 'walkin' && styles.filterDropdownItemTextSelected]}>Walk-in</Text>
-                </Pressable>
-                <Pressable
-                  style={styles.filterDropdownItem}
-                  onPress={() => { setWalkFilter('online'); setIsWalkFilterOpen(false); }}
-                >
-                  <Text style={[styles.filterDropdownItemText, walkFilter === 'online' && styles.filterDropdownItemTextSelected]}>Online</Text>
-                </Pressable>
-              </View>
-            </>
-          )}
-        </View>
+          </View>
+        </Pressable>
+        <Pressable
+          style={[styles.channelTab, channelFilter === 'online' && styles.channelTabActive]}
+          onPress={() => setChannelFilter('online')}
+        >
+          <Text style={[styles.channelTabText, channelFilter === 'online' && styles.channelTabTextActive]}>
+            Online App
+          </Text>
+          <View style={[styles.channelBadge, channelFilter === 'online' && styles.channelBadgeActive]}>
+            <Text style={[styles.channelBadgeText, channelFilter === 'online' && styles.channelBadgeTextActive]}>
+              {channelCounts.online}
+            </Text>
+          </View>
+        </Pressable>
+        <Pressable
+          style={[styles.channelTab, channelFilter === 'pos' && styles.channelTabActive]}
+          onPress={() => setChannelFilter('pos')}
+        >
+          <Text style={[styles.channelTabText, channelFilter === 'pos' && styles.channelTabTextActive]}>
+            POS / Offline
+          </Text>
+          <View style={[styles.channelBadge, channelFilter === 'pos' && styles.channelBadgeActive]}>
+            <Text style={[styles.channelBadgeText, channelFilter === 'pos' && styles.channelBadgeTextActive]}>
+              {channelCounts.pos}
+            </Text>
+          </View>
+        </Pressable>
       </View>
 
       <ScrollView
@@ -863,5 +879,52 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     textAlign: 'center',
     paddingHorizontal: 40,
+  },
+  // Channel filter tabs
+  channelFilterRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    gap: 8,
+  },
+  channelTab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 100,
+    backgroundColor: '#F3F4F6',
+    gap: 6,
+  },
+  channelTabActive: {
+    backgroundColor: '#FF5722',
+  },
+  channelTabText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  channelTabTextActive: {
+    color: '#FFFFFF',
+  },
+  channelBadge: {
+    backgroundColor: '#E5E7EB',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    minWidth: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  channelBadgeActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  channelBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#374151',
+  },
+  channelBadgeTextActive: {
+    color: '#FFFFFF',
   },
 });

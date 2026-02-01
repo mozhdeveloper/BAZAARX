@@ -7,6 +7,7 @@
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import type { CartItem } from '@/types/database.types';
 import { notificationService } from './notificationService';
+import { orderNotificationService } from './orderNotificationService';
 
 // Define the payload for the checkout process
 export interface CheckoutPayload {
@@ -147,7 +148,7 @@ export class CheckoutService {
                         buyer_name: shippingAddress.fullName,
                         buyer_email: email,
                         shipping_address: shippingAddress,
-                        payment_method: { type: paymentMethod, details: {} },
+                        payment_method: { type: paymentMethod },
                         status: 'pending_payment',
                         payment_status: 'pending',
                         subtotal: orderSubtotal,
@@ -179,6 +180,27 @@ export class CheckoutService {
                     total: orderSubtotal
                 }).catch(err => {
                     console.error('❌ Failed to create seller notification:', err);
+                });
+
+                // � Create buyer notification for order placed
+                notificationService.notifyBuyerOrderStatus({
+                    buyerId: orderData.buyer_id,
+                    orderId: orderData.id,
+                    orderNumber: orderData.order_number,
+                    status: 'placed',
+                    message: `Your order #${orderData.order_number} has been placed successfully! The seller will confirm it shortly.`
+                }).catch(err => {
+                    console.error('❌ Failed to create buyer notification:', err);
+                });
+
+                // �💬 Send order confirmation chat message to buyer
+                orderNotificationService.sendStatusUpdateNotification(
+                    orderData.id,
+                    'pending',
+                    sellerId,
+                    orderData.buyer_id
+                ).catch(err => {
+                    console.error('❌ Failed to send order confirmation chat:', err);
                 });
 
                 // Create Order Items

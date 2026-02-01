@@ -1053,6 +1053,8 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
       ? {
         id: `var-${normalizedProduct.id}-${selectedSize || "default"}-${colorName}`,
         name: variantName,
+        size: selectedSize || undefined,
+        color: colorName !== "Default" ? colorName : undefined,
         price: productData.price,
         stock: normalizedProduct.stock || 100,
         image: productData.colors[selectedColor]?.image || productImage,
@@ -1181,6 +1183,8 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
     const selectedVariant = {
       id: `var-${normalizedProduct.id}-${selectedSize}-${colorName}`,
       name: variantName,
+      size: selectedSize || undefined,
+      color: colorName !== "Default" ? colorName : undefined,
       price: productData.price,
       stock: normalizedProduct.stock || 100,
       image: productData.colors[selectedColor]?.image || productImage,

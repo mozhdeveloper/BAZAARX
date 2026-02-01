@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '@/stores/sellerStore';
@@ -63,7 +63,7 @@ const LogoIcon = () => (
 export default function SellerMessages() {
   const { seller, logout } = useAuthStore();
   const [open, setOpen] = useState(false);
-  const [selectedConversation, setSelectedConversation] = useState<string | null>('1');
+  const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [previewImage, setPreviewImage] = useState<string | null>(null);
@@ -154,6 +154,13 @@ export default function SellerMessages() {
   useEffect(() => {
     loadConversations();
   }, [loadConversations]);
+
+  // Auto-select first conversation when conversations load
+  useEffect(() => {
+    if (dbConversations.length > 0 && !selectedConversation) {
+      setSelectedConversation(dbConversations[0].id);
+    }
+  }, [dbConversations, selectedConversation]);
   
   // Load messages when conversation is selected
   useEffect(() => {
@@ -195,8 +202,30 @@ export default function SellerMessages() {
     return unsubscribe;
   }, [selectedConversation, useRealData, seller?.id]);
 
+  // Normalize db conversations to match expected format
+  const normalizedDbConversations = useMemo(() => {
+    return dbConversations.map(conv => ({
+      id: conv.id,
+      buyerName: conv.buyer_name || conv.buyer?.full_name || conv.buyer_email || 'Unknown Customer',
+      buyerImage: conv.buyer_avatar || conv.buyer?.avatar_url,
+      lastMessage: conv.last_message || '',
+      lastMessageTime: conv.last_message_at ? new Date(conv.last_message_at) : new Date(),
+      unreadCount: conv.seller_unread_count || 0,
+      messages: dbMessages
+        .filter(msg => msg.conversation_id === conv.id)
+        .map(msg => ({
+          id: msg.id,
+          senderId: msg.sender_type,
+          text: msg.content,
+          images: msg.image_url ? [msg.image_url] : undefined,
+          timestamp: new Date(msg.created_at),
+          isRead: msg.is_read
+        }))
+    }));
+  }, [dbConversations, dbMessages]);
+
   const activeConversation = useRealData
-    ? dbConversations.find(c => c.id === selectedConversation)
+    ? normalizedDbConversations.find(c => c.id === selectedConversation)
     : conversations.find(c => c.id === selectedConversation);
 
   const handleSendMessage = async (e?: React.FormEvent, textOverride?: string, imageUrls?: string[]) => {
@@ -273,9 +302,9 @@ export default function SellerMessages() {
 
   // Filtered conversations (supports both mock and real data)
   const filteredConversations = useRealData
-    ? dbConversations.filter(conv =>
-        (conv.buyer_name || conv.buyer_email || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-        conv.last_message.toLowerCase().includes(searchQuery.toLowerCase())
+    ? normalizedDbConversations.filter(conv =>
+        conv.buyerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        conv.lastMessage.toLowerCase().includes(searchQuery.toLowerCase())
       )
     : conversations
         .filter(conv =>
@@ -337,7 +366,19 @@ export default function SellerMessages() {
               </div>
             </div>
             <div className="flex-1 overflow-y-auto">
-              {filteredConversations.map((conv) => (
+              {loading ? (
+                <div className="flex flex-col items-center justify-center h-64 text-gray-400">
+                  <Loader2 className="h-8 w-8 animate-spin mb-2" />
+                  <p className="text-sm">Loading conversations...</p>
+                </div>
+              ) : filteredConversations.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-64 text-gray-400">
+                  <MessageCircle className="h-12 w-12 mb-2" />
+                  <p className="text-sm">No conversations yet</p>
+                  <p className="text-xs text-gray-400 mt-1">Your customer chats will appear here</p>
+                </div>
+              ) : (
+                filteredConversations.map((conv) => (
                 <div
                   key={conv.id}
                   onClick={() => setSelectedConversation(conv.id)}
@@ -373,7 +414,8 @@ export default function SellerMessages() {
                     )}
                   </div>
                 </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
 

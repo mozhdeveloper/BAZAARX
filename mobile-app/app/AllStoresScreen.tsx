@@ -1,15 +1,55 @@
-import React from 'react';
-import { View, Text, StyleSheet, FlatList, Image, Pressable, StatusBar } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, FlatList, Image, Pressable, StatusBar, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Store, MapPin, Star, Users } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { officialStores } from '../src/data/stores';
 import { COLORS } from '../src/constants/theme';
+import { sellerService } from '../src/services/sellerService';
 
 export default function AllStoresScreen() {
     const insets = useSafeAreaInsets();
     const navigation = useNavigation<any>();
     const BRAND_COLOR = COLORS.primary;
+
+    // Real stores state
+    const [realStores, setRealStores] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    // Fetch real stores on mount
+    useEffect(() => {
+        const fetchStores = async () => {
+            setLoading(true);
+            try {
+                const stores = await sellerService.getPublicStores({ sortBy: 'rating' });
+                if (stores && stores.length > 0) {
+                    // Map database stores to display format
+                    const mappedStores = stores.map(s => ({
+                        id: s.id,
+                        name: s.business_name || s.store_name || 'Store',
+                        logo: '🏪',
+                        banner: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=800&h=300&fit=crop',
+                        rating: s.rating || 5.0,
+                        location: s.city || s.province || 'Philippines',
+                        followers: 0,
+                        products: Array(s.products_count || 0).fill({}),
+                        categories: s.store_category || [],
+                        isVerified: s.is_verified
+                    }));
+                    setRealStores(mappedStores);
+                }
+            } catch (error) {
+                console.error('Error fetching stores:', error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchStores();
+    }, []);
+
+    // Use real stores if available, fallback to official stores
+    const displayStores = realStores.length > 0 ? realStores : officialStores;
 
     const renderStoreItem = ({ item }: { item: any }) => (
         <Pressable 
@@ -73,13 +113,25 @@ export default function AllStoresScreen() {
                 <View style={{ width: 40 }} />
             </View>
 
-            <FlatList
-                data={officialStores}
-                renderItem={renderStoreItem}
-                keyExtractor={item => item.id}
-                contentContainerStyle={styles.listContent}
-                showsVerticalScrollIndicator={false}
-            />
+            {loading ? (
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color={BRAND_COLOR} />
+                    <Text style={styles.loadingText}>Loading stores...</Text>
+                </View>
+            ) : displayStores.length === 0 ? (
+                <View style={styles.emptyContainer}>
+                    <Store size={48} color="#9CA3AF" />
+                    <Text style={styles.emptyText}>No stores available yet</Text>
+                </View>
+            ) : (
+                <FlatList
+                    data={displayStores}
+                    renderItem={renderStoreItem}
+                    keyExtractor={item => item.id}
+                    contentContainerStyle={styles.listContent}
+                    showsVerticalScrollIndicator={false}
+                />
+            )}
         </View>
     );
 }
@@ -213,5 +265,25 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: '700',
         color: '#FFFFFF',
+    },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    loadingText: {
+        marginTop: 12,
+        fontSize: 14,
+        color: '#6B7280',
+    },
+    emptyContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    emptyText: {
+        marginTop: 12,
+        fontSize: 14,
+        color: '#9CA3AF',
     },
 });

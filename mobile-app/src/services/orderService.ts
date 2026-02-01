@@ -1,5 +1,7 @@
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { Order } from '@/types';
+import { orderNotificationService } from './orderNotificationService';
+import { notificationService } from './notificationService';
 
 export class OrderService {
     private static instance: OrderService;
@@ -93,16 +95,60 @@ export class OrderService {
         }
     }
 
-    async updateOrderStatus(orderId: string, status: string): Promise<void> {
+    async updateOrderStatus(orderId: string, status: string, trackingNumber?: string): Promise<void> {
         if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
 
         try {
+            // First fetch order to get buyer_id and seller_id for notification
+            const { data: orderData, error: fetchError } = await supabase
+                .from('orders')
+                .select('id, order_number, buyer_id, seller_id, status')
+                .eq('id', orderId)
+                .single();
+
+            if (fetchError) throw fetchError;
+
             const { error } = await supabase
                 .from('orders')
                 .update({ status, updated_at: new Date().toISOString() })
                 .eq('id', orderId);
 
             if (error) throw error;
+
+            // Send notifications to buyer about status change
+            if (orderData) {
+                // 💬 Send chat message notification
+                orderNotificationService.sendStatusUpdateNotification(
+                    orderId,
+                    status,
+                    orderData.seller_id,
+                    orderData.buyer_id,
+                    trackingNumber
+                ).catch(err => {
+                    console.error('[OrderService] ❌ Failed to send status notification:', err);
+                });
+
+                // 🔔 Send bell notification based on status
+                const statusMessages: Record<string, string> = {
+                    confirmed: `Your order #${orderData.order_number} has been confirmed by the seller.`,
+                    processing: `Your order #${orderData.order_number} is now being prepared.`,
+                    shipped: `Your order #${orderData.order_number} has been shipped!${trackingNumber ? ` Tracking: ${trackingNumber}` : ''}`,
+                    delivered: `Your order #${orderData.order_number} has been delivered! Enjoy your purchase!`,
+                    cancelled: `Your order #${orderData.order_number} has been cancelled.`
+                };
+
+                if (statusMessages[status]) {
+                    notificationService.notifyBuyerOrderStatus({
+                        buyerId: orderData.buyer_id,
+                        orderId: orderData.id,
+                        orderNumber: orderData.order_number,
+                        status: status,
+                        message: statusMessages[status]
+                    }).catch(err => {
+                        console.error('[OrderService] ❌ Failed to send bell notification:', err);
+                    });
+                }
+            }
         } catch (error) {
             console.error('Error updating order status:', error);
             throw new Error('Failed to update order status.');
@@ -126,6 +172,154 @@ export class OrderService {
         if (error) throw error;
     }
 
+    /**
+     * Create a POS (Point of Sale) offline order
+     * This saves directly to Supabase and is used for walk-in customers
+     * 
+     * IMPORTANT: Run this SQL in Supabase to allow POS orders:
+     * ALTER TABLE orders ALTER COLUMN buyer_id DROP NOT NULL;
+     */
+    async createPOSOrder(
+        sellerId: string,
+        sellerName: string,
+        items: {
+            productId: string;
+            productName: string;
+            quantity: number;
+            price: number;
+            image: string;
+            selectedColor?: string;
+            selectedSize?: string;
+        }[],
+        total: number,
+        note?: string
+    ): Promise<{ orderId: string; orderNumber: string } | null> {
+        // Generate order number
+        const orderNumber = `POS-${Date.now().toString().slice(-8)}`;
+        const orderId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+            const r = Math.random() * 16 | 0;
+            const v = c === 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
+
+        // Create order data for Supabase
+        // buyer_id is NULL for walk-in customers (requires DB to allow NULL)
+        const orderData = {
+            id: orderId,
+            order_number: orderNumber,
+            buyer_id: null, // Walk-in customers - NULL for POS orders
+            seller_id: sellerId,
+            buyer_name: 'Walk-in Customer',
+            buyer_email: 'pos@walkin.local',
+            buyer_phone: null,
+            order_type: 'OFFLINE' as const,
+            pos_note: note || 'POS Sale',
+            subtotal: total,
+            discount_amount: 0,
+            shipping_cost: 0,
+            tax_amount: 0,
+            total_amount: total,
+            currency: 'PHP',
+            status: 'delivered',
+            payment_status: 'paid',
+            shipping_address: {
+                fullName: 'Walk-in Customer',
+                street: 'In-Store Purchase',
+                city: sellerName,
+                province: 'POS',
+                postalCode: '0000',
+                phone: 'N/A'
+            },
+            shipping_method: null,
+            tracking_number: null,
+            estimated_delivery_date: null,
+            actual_delivery_date: new Date().toISOString(),
+            delivery_instructions: null,
+            payment_method: { type: 'cash', details: 'POS Cash Payment' },
+            payment_reference: `CASH-${Date.now()}`,
+            payment_date: new Date().toISOString(),
+            promo_code: null,
+            voucher_id: null,
+            notes: note || null,
+        };
+
+        // Create order items
+        const orderItems = items.map((item) => ({
+            id: 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+                const r = Math.random() * 16 | 0;
+                const v = c === 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            }),
+            order_id: orderId,
+            product_id: item.productId,
+            product_name: item.productName,
+            product_images: [item.image],
+            price: item.price,
+            quantity: item.quantity,
+            subtotal: item.price * item.quantity,
+            selected_variant: item.selectedColor || item.selectedSize ? {
+                color: item.selectedColor,
+                size: item.selectedSize
+            } : null,
+        }));
+
+        if (!isSupabaseConfigured()) {
+            console.log('📝 Mock POS order created:', orderNumber);
+            return { orderId, orderNumber };
+        }
+
+        try {
+            // Insert order (buyer_id is NULL for walk-in customers)
+            const { error: orderError } = await supabase
+                .from('orders')
+                .insert(orderData);
+
+            if (orderError) {
+                console.error('Error creating POS order:', orderError);
+                
+                // If error is about buyer_id constraint, provide helpful message
+                if (orderError.message?.includes('buyer_id') || orderError.code === '23503') {
+                    throw new Error(
+                        'Database requires buyer_id. Please run this SQL in Supabase:\n' +
+                        'ALTER TABLE orders ALTER COLUMN buyer_id DROP NOT NULL;'
+                    );
+                }
+                throw orderError;
+            }
+
+            // Insert order items
+            const { error: itemsError } = await supabase
+                .from('order_items')
+                .insert(orderItems);
+
+            if (itemsError) {
+                console.error('Error creating order items:', itemsError);
+                // Rollback: delete the order
+                await supabase.from('orders').delete().eq('id', orderId);
+                throw itemsError;
+            }
+
+            // Deduct stock for each item
+            for (const item of items) {
+                const { error: stockError } = await supabase.rpc('decrement_product_stock', {
+                    p_product_id: item.productId,
+                    p_quantity: item.quantity
+                });
+
+                if (stockError) {
+                    console.warn('Stock deduction failed for product:', item.productId, stockError);
+                    // Don't throw - order is already created, just log the warning
+                }
+            }
+
+            console.log('✅ POS order created:', orderNumber);
+            return { orderId, orderNumber };
+        } catch (error) {
+            console.error('Failed to create POS order:', error);
+            return null;
+        }
+    }
+
     private mapFromDB(order: any): Order {
         const statusMap: Record<string, Order['status']> = {
             pending_payment: 'pending',
@@ -147,13 +341,19 @@ export class OrderService {
             const image = p.primary_image || (Array.isArray(p.images) && p.images.length > 0 ? p.images[0] : '');
             const sellerObj = p.seller || {};
 
+            // Extract variant info from selected_variant
+            const variant = it.selected_variant ? {
+                size: it.selected_variant.size,
+                color: it.selected_variant.color,
+            } : undefined;
+
             return {
                 id: p.id || it.product_id,
-                name: p.name || 'Product',
-                price: it.unit_price || p.price || 0,
+                name: it.product_name || p.name || 'Product',
+                price: it.price || it.unit_price || p.price || 0,
                 originalPrice: p.original_price,
-                image: image || '',
-                images: Array.isArray(p.images) ? p.images : [],
+                image: it.product_images?.[0] || image || '',
+                images: it.product_images || (Array.isArray(p.images) ? p.images : []),
                 rating: p.rating || 0,
                 sold: p.sold || 0,
                 seller: sellerObj.store_name || sellerObj.business_name || 'Official Store',
@@ -168,6 +368,8 @@ export class OrderService {
                 stock: p.stock,
                 reviews: p.reviews || [],
                 quantity: it.quantity || 1,
+                variant: variant,
+                selectedVariant: variant, // Also set selectedVariant for compatibility
             };
         });
 
@@ -256,13 +458,14 @@ export class OrderService {
                 return {
                     id: order.id,
                     orderId: order.order_number || order.id,
-                    customerName: order.buyer_name || 'Customer',
+                    customerName: order.buyer_name || order.shipping_address?.name || 'Walk-in Customer',
                     customerEmail: order.buyer_email || '',
                     items,
                     total: order.total_amount || 0,
                     status: statusMap[order.status] || 'pending',
                     createdAt: order.created_at,
-                    type: 'ONLINE', // All orders from buyers are online
+                    type: order.order_type || 'ONLINE', // Use order_type from database (OFFLINE for POS, ONLINE for app)
+                    posNote: order.order_type === 'OFFLINE' ? order.notes : undefined,
                 };
             });
         } catch (error) {

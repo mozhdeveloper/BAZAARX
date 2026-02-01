@@ -93,6 +93,8 @@ interface SellerOrder {
     quantity: number;
     price: number;
     image: string;
+    selectedColor?: string;
+    selectedSize?: string;
   }[];
   total: number;
   status: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
@@ -223,7 +225,7 @@ interface OrderStore {
   deleteOrder: (id: string) => void;
   addOrderRating: (id: string, rating: number, comment?: string, images?: string[]) => void;
   // POS-Lite functionality
-  addOfflineOrder: (cartItems: { productId: string; productName: string; quantity: number; price: number; image: string }[], total: number, note?: string) => string;
+  addOfflineOrder: (cartItems: { productId: string; productName: string; quantity: number; price: number; image: string; selectedColor?: string; selectedSize?: string }[], total: number, note?: string) => string;
 }
 
 // Validation helpers for database readiness

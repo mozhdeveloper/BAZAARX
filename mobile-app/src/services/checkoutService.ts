@@ -1,6 +1,8 @@
 import { supabase } from '../lib/supabase';
 import type { CartItem } from '../types';
 import { cartService } from './cartService';
+import { orderNotificationService } from './orderNotificationService';
+import { notificationService } from './notificationService';
 
 // Define the payload for the checkout process
 export interface CheckoutPayload {
@@ -138,7 +140,7 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                     buyer_name: shippingAddress.fullName,
                     buyer_email: email,
                     shipping_address: shippingAddress,
-                    payment_method: { type: paymentMethod, details: {} },
+                    payment_method: { type: paymentMethod },
                     status: 'pending_payment',
                     payment_status: 'pending',
                     subtotal: orderSubtotal,
@@ -161,6 +163,38 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
 
             console.log(`[Checkout] ✅ Order created: ${orderData.order_number} for seller ${sellerId}`);
 
+            // 💬 Send order confirmation chat message to buyer
+            orderNotificationService.sendStatusUpdateNotification(
+                orderData.id,
+                'pending',
+                sellerId,
+                orderData.buyer_id
+            ).catch(err => {
+                console.error('[Checkout] ❌ Failed to send order confirmation chat:', err);
+            });
+
+            // 🔔 Send bell notification to buyer about order placed
+            notificationService.notifyBuyerOrderStatus({
+                buyerId: orderData.buyer_id,
+                orderId: orderData.id,
+                orderNumber: orderData.order_number,
+                status: 'placed',
+                message: `Your order #${orderData.order_number} has been placed successfully!`
+            }).catch(err => {
+                console.error('[Checkout] ❌ Failed to send order placed notification:', err);
+            });
+
+            // 🔔 Send bell notification to seller about new order
+            notificationService.notifySellerNewOrder({
+                sellerId: sellerId,
+                orderId: orderData.id,
+                orderNumber: orderData.order_number,
+                buyerName: shippingAddress.fullName,
+                total: orderSubtotal
+            }).catch(err => {
+                console.error('[Checkout] ❌ Failed to send seller notification:', err);
+            });
+
             // Create order items
             const orderItemsData = sellerItems.map(item => ({
                 order_id: orderData.id,
@@ -170,7 +204,14 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                 quantity: item.quantity,
                 price: item.price || 0,
                 subtotal: item.quantity * (item.price || 0),
-                selected_variant: null, // Can be extended for variant support
+                selected_variant: item.selectedVariant ? {
+                    size: item.selectedVariant.size,
+                    color: item.selectedVariant.color,
+                    name: [
+                        item.selectedVariant.size ? `Size: ${item.selectedVariant.size}` : null,
+                        item.selectedVariant.color ? `Color: ${item.selectedVariant.color}` : null
+                    ].filter(Boolean).join(', ') || undefined
+                } : null,
                 status: 'pending',
                 is_reviewed: false,
                 created_at: new Date().toISOString(),

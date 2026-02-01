@@ -261,25 +261,161 @@ export class NotificationService {
     if (!params.buyerId) throw new Error('buyerId is missing');
 
     const iconMap: Record<string, { icon: string; bg: string }> = {
+      placed: { icon: 'ShoppingBag', bg: 'bg-green-500' },
       confirmed: { icon: 'CheckCircle', bg: 'bg-blue-500' },
+      processing: { icon: 'Package', bg: 'bg-purple-500' },
       shipped: { icon: 'Truck', bg: 'bg-orange-500' },
       delivered: { icon: 'Package', bg: 'bg-green-500' },
       cancelled: { icon: 'XCircle', bg: 'bg-red-500' }
     };
 
+    const titleMap: Record<string, string> = {
+      placed: 'Order Placed',
+      confirmed: 'Order Confirmed',
+      processing: 'Order Processing',
+      shipped: 'Order Shipped',
+      delivered: 'Order Delivered',
+      cancelled: 'Order Cancelled'
+    };
+
     const iconInfo = iconMap[params.status] || { icon: 'Bell', bg: 'bg-gray-500' };
+    const title = titleMap[params.status] || `Order ${params.status.charAt(0).toUpperCase() + params.status.slice(1)}`;
 
     return this.createNotification({
       userId: params.buyerId,
       userType: 'buyer',
       type: `order_${params.status}`,
-      title: `Order ${params.status.charAt(0).toUpperCase() + params.status.slice(1)}`,
+      title: title,
       message: params.message,
       icon: iconInfo.icon,
       iconBg: iconInfo.bg,
-      actionUrl: `/orders/${params.orderId}`,
-      actionData: { orderId: params.orderId },
+      actionUrl: `/order/${params.orderNumber}`,
+      actionData: { orderId: params.orderId, orderNumber: params.orderNumber },
+      priority: params.status === 'delivered' ? 'high' : 'normal'
+    });
+  }
+
+  /**
+   * Notify seller of a new chat message
+   */
+  async notifySellerNewMessage(params: {
+    sellerId: string;
+    buyerName: string;
+    conversationId: string;
+    messagePreview: string;
+  }): Promise<Notification> {
+    if (!params.sellerId) throw new Error('sellerId is missing');
+
+    return this.createNotification({
+      userId: params.sellerId,
+      userType: 'seller',
+      type: 'seller_new_message',
+      title: 'New Message',
+      message: `${params.buyerName}: ${params.messagePreview.substring(0, 100)}${params.messagePreview.length > 100 ? '...' : ''}`,
+      icon: 'MessageSquare',
+      iconBg: 'bg-blue-500',
+      actionUrl: '/seller/messages',
+      actionData: { conversationId: params.conversationId },
       priority: 'normal'
+    });
+  }
+
+  /**
+   * Notify seller when QA approves their product for sample submission
+   */
+  async notifySellerSampleRequest(params: {
+    sellerId: string;
+    productId: string;
+    productName: string;
+  }): Promise<Notification> {
+    if (!params.sellerId) throw new Error('sellerId is missing');
+
+    return this.createNotification({
+      userId: params.sellerId,
+      userType: 'seller',
+      type: 'product_sample_request',
+      title: 'Sample Requested',
+      message: `Your product "${params.productName}" has been digitally approved. Please submit a physical sample for quality review.`,
+      icon: 'Package',
+      iconBg: 'bg-purple-500',
+      actionUrl: '/seller/product-status-qa',
+      actionData: { productId: params.productId },
+      priority: 'high'
+    });
+  }
+
+  /**
+   * Notify seller when their product passes QA and is approved
+   */
+  async notifySellerProductApproved(params: {
+    sellerId: string;
+    productId: string;
+    productName: string;
+  }): Promise<Notification> {
+    if (!params.sellerId) throw new Error('sellerId is missing');
+
+    return this.createNotification({
+      userId: params.sellerId,
+      userType: 'seller',
+      type: 'product_approved',
+      title: 'Product Approved! 🎉',
+      message: `Great news! Your product "${params.productName}" has passed quality review and is now live on the marketplace.`,
+      icon: 'CheckCircle',
+      iconBg: 'bg-green-500',
+      actionUrl: '/seller/products',
+      actionData: { productId: params.productId },
+      priority: 'high'
+    });
+  }
+
+  /**
+   * Notify seller when their product is rejected
+   */
+  async notifySellerProductRejected(params: {
+    sellerId: string;
+    productId: string;
+    productName: string;
+    reason: string;
+    stage: 'digital' | 'physical';
+  }): Promise<Notification> {
+    if (!params.sellerId) throw new Error('sellerId is missing');
+
+    return this.createNotification({
+      userId: params.sellerId,
+      userType: 'seller',
+      type: 'product_rejected',
+      title: 'Product Rejected',
+      message: `Your product "${params.productName}" was rejected during ${params.stage} review. Reason: ${params.reason}`,
+      icon: 'XCircle',
+      iconBg: 'bg-red-500',
+      actionUrl: '/seller/product-status-qa',
+      actionData: { productId: params.productId },
+      priority: 'high'
+    });
+  }
+
+  /**
+   * Notify seller when revision is requested for their product
+   */
+  async notifySellerRevisionRequested(params: {
+    sellerId: string;
+    productId: string;
+    productName: string;
+    reason: string;
+  }): Promise<Notification> {
+    if (!params.sellerId) throw new Error('sellerId is missing');
+
+    return this.createNotification({
+      userId: params.sellerId,
+      userType: 'seller',
+      type: 'product_revision_requested',
+      title: 'Revision Requested',
+      message: `Please update your product "${params.productName}". Feedback: ${params.reason}`,
+      icon: 'AlertCircle',
+      iconBg: 'bg-yellow-500',
+      actionUrl: '/seller/products',
+      actionData: { productId: params.productId },
+      priority: 'high'
     });
   }
 }

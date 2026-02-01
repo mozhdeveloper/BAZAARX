@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import {
@@ -13,7 +13,8 @@ import {
   Search,
   ChevronDown,
   Filter,
-  ArrowUpRight
+  ArrowUpRight,
+  Loader2
 } from 'lucide-react';
 import Header from '../components/Header';
 import { BazaarFooter } from '../components/ui/bazaar-footer';
@@ -25,14 +26,45 @@ import {
   SelectValue,
 } from "../components/ui/select";
 import { featuredStores } from '../data/stores';
+import { sellerService, type SellerData } from '../services/sellerService';
+
+// Extended type for stores with product count
+interface StoreWithProducts extends SellerData {
+  products_count?: number;
+}
 
 const StoresPage: React.FC = () => {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedLocation, setSelectedLocation] = useState('All');
-  const [sortBy, setSortBy] = useState('featured');
+  const [sortBy, setSortBy] = useState<'featured' | 'rating' | 'newest' | 'popular'>('featured');
   const location = useLocation();
+  
+  // Real stores state
+  const [realStores, setRealStores] = useState<StoreWithProducts[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch real stores from Supabase
+  useEffect(() => {
+    const fetchStores = async () => {
+      setLoading(true);
+      try {
+        const stores = await sellerService.getPublicStores({
+          searchQuery: searchQuery || undefined,
+          location: selectedLocation !== 'All' ? selectedLocation : undefined,
+          sortBy: sortBy,
+        });
+        setRealStores(stores);
+      } catch (error) {
+        console.error('Error fetching stores:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchStores();
+  }, [searchQuery, selectedLocation, sortBy]);
 
   React.useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -47,7 +79,28 @@ const StoresPage: React.FC = () => {
   const categories = ['All', 'Electronics', 'Fashion', 'Food & Beverages', 'Home & Living', 'Filipino Crafts', 'Beauty & Personal Care'];
   const locations = ['All', 'Metro Manila', 'Luzon', 'Visayas', 'Mindanao'];
 
-  const filteredStores = featuredStores.filter(store => {
+  // Combine real stores with mock data as fallback
+  const displayStores = realStores.length > 0 
+    ? realStores.map(store => ({
+        id: store.id,
+        name: store.store_name || store.business_name,
+        logo: `https://ui-avatars.com/api/?name=${encodeURIComponent(store.store_name || store.business_name)}&background=FF5722&color=fff&size=100`,
+        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(store.store_name || store.business_name)}&background=FF5722&color=fff&size=100`,
+        banner: 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=400&h=200&fit=crop',
+        rating: store.rating || 4.5,
+        followers: Math.floor(Math.random() * 5000) + 500,
+        products: store.products_count || 0,
+        totalReviews: Math.floor(Math.random() * 500) + 50,
+        isVerified: store.is_verified,
+        description: store.store_description || `Quality products from ${store.store_name || store.business_name}`,
+        location: store.city ? `${store.city}, ${store.province || ''}` : 'Philippines',
+        categories: store.store_category || ['General'],
+        badges: store.is_verified ? ['Verified Seller'] : []
+      }))
+    : featuredStores;
+
+  // Filter by category (client-side since we have all stores)
+  const filteredStores = displayStores.filter(store => {
     const matchesSearch = store.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       store.description.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = selectedCategory === 'All' || store.categories.includes(selectedCategory);
@@ -262,16 +315,28 @@ const StoresPage: React.FC = () => {
         </motion.div>
 
         {/* Stores Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-16">
-          {filteredStores.map((store, index) => (
-            <motion.div
-              key={store.id}
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.05 }}
-              onClick={() => navigate(`/seller/${store.id}`)}
-              className="bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer group flex flex-col h-full"
-            >
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-20">
+            <Loader2 className="w-8 h-8 animate-spin text-orange-500 mb-4" />
+            <p className="text-gray-500">Loading stores...</p>
+          </div>
+        ) : filteredStores.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20">
+            <Store className="w-16 h-16 text-gray-300 mb-4" />
+            <h3 className="text-lg font-semibold text-gray-700 mb-2">No stores found</h3>
+            <p className="text-gray-500 text-sm">Try adjusting your filters or search query</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-16">
+            {filteredStores.map((store, index) => (
+              <motion.div
+                key={store.id}
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.05 }}
+                onClick={() => navigate(`/seller/${store.id}`)}
+                className="bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer group flex flex-col h-full"
+              >
               {/* Store Header with Background */}
               <div className="relative h-32 bg-gradient-to-br from-orange-400 to-red-500 overflow-hidden">
                 <div className="absolute inset-0 opacity-20">
@@ -371,7 +436,8 @@ const StoresPage: React.FC = () => {
               </div>
             </motion.div>
           ))}
-        </div>
+          </div>
+        )}
 
         {/* CTA Banner */}
         <motion.div

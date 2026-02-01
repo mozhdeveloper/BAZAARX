@@ -39,6 +39,7 @@ import { SellerStoreProfile } from "./pages/SellerStoreProfile";
 import { SellerEarnings } from "./pages/SellerEarnings";
 import { SellerProducts, AddProduct } from "./pages/SellerProducts";
 import { SellerOrders } from "./pages/SellerOrders";
+import SellerNotifications from "./pages/SellerNotifications";
 import { SellerReturns } from "./pages/SellerReturns";
 import { SellerReviews } from "./pages/SellerReviews";
 import { SellerAnalytics } from "./pages/SellerAnalytics";
@@ -236,6 +237,14 @@ function App() {
             element={
               <ProtectedSellerRoute>
                 <SellerOrders />
+              </ProtectedSellerRoute>
+            }
+          />
+          <Route
+            path="/seller/notifications"
+            element={
+              <ProtectedSellerRoute>
+                <SellerNotifications />
               </ProtectedSellerRoute>
             }
           />

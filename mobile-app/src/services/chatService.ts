@@ -5,6 +5,7 @@
 
 import { supabase } from '../lib/supabase';
 import { RealtimeChannel } from '@supabase/supabase-js';
+import { notificationService } from './notificationService';
 
 export interface Message {
   id: string;
@@ -269,16 +270,14 @@ class ChatService {
 
     console.log('[ChatService] Message sent successfully:', message.id);
 
-    // Update conversation with last message
-    const unreadField = senderType === 'buyer' ? 'seller_unread_count' : 'buyer_unread_count';
-    
-    // First get current count
+    // Get full conversation details for notifications
     const { data: conv } = await supabase
       .from('conversations')
-      .select('buyer_unread_count, seller_unread_count')
+      .select('*, buyer_id, seller_id, buyer_unread_count, seller_unread_count')
       .eq('id', conversationId)
       .single();
     
+    const unreadField = senderType === 'buyer' ? 'seller_unread_count' : 'buyer_unread_count';
     const currentCount = (conv as any)?.[unreadField] || 0;
 
     await supabase
@@ -289,6 +288,28 @@ class ChatService {
         [unreadField]: currentCount + 1,
       })
       .eq('id', conversationId);
+
+    // Send notification to the recipient
+    try {
+      if (senderType === 'buyer' && conv?.seller_id) {
+        // Buyer sent message → notify seller
+        const { data: buyer } = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('id', senderId)
+          .single();
+
+        await notificationService.notifySellerNewMessage({
+          sellerId: conv.seller_id,
+          buyerName: buyer?.full_name || 'A customer',
+          conversationId,
+          messagePreview: content,
+        });
+      }
+    } catch (notifError) {
+      console.error('[ChatService] Error sending notification:', notifError);
+      // Don't fail the message send if notification fails
+    }
 
     return message;
   }

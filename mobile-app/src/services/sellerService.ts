@@ -200,6 +200,78 @@ export class SellerService {
       throw new Error('Failed to update seller rating.');
     }
   }
+
+  /**
+   * Get public stores for buyer browsing
+   * Only returns approved and verified sellers with their product counts
+   */
+  async getPublicStores(filters?: {
+    category?: string;
+    location?: string;
+    searchQuery?: string;
+    sortBy?: 'featured' | 'rating' | 'newest' | 'popular';
+    limit?: number;
+  }): Promise<(SellerData & { products_count?: number })[]> {
+    if (!isSupabaseConfigured()) {
+      console.warn('Supabase not configured - cannot fetch public stores');
+      return [];
+    }
+
+    try {
+      // Build base query for approved and verified sellers
+      let query = supabase
+        .from('sellers')
+        .select(`
+          *,
+          products:products(count)
+        `)
+        .eq('approval_status', 'approved')
+        .eq('is_verified', true);
+
+      // Apply filters
+      if (filters?.searchQuery) {
+        query = query.or(`business_name.ilike.%${filters.searchQuery}%,store_name.ilike.%${filters.searchQuery}%`);
+      }
+
+      if (filters?.location) {
+        query = query.or(`city.ilike.%${filters.location}%,province.ilike.%${filters.location}%`);
+      }
+
+      // Apply sorting
+      switch (filters?.sortBy) {
+        case 'rating':
+          query = query.order('rating', { ascending: false });
+          break;
+        case 'newest':
+          query = query.order('created_at', { ascending: false });
+          break;
+        case 'popular':
+          query = query.order('total_sales', { ascending: false });
+          break;
+        default:
+          query = query.order('rating', { ascending: false });
+      }
+
+      if (filters?.limit) {
+        query = query.limit(filters.limit);
+      }
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+
+      // Transform data to include products_count
+      const stores = (data || []).map(seller => ({
+        ...seller,
+        products_count: seller.products?.[0]?.count || 0
+      }));
+
+      return stores;
+    } catch (error) {
+      console.error('Error fetching public stores:', error);
+      return [];
+    }
+  }
 }
 
 // Export singleton instance

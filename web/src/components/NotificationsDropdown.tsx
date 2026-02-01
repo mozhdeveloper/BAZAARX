@@ -60,8 +60,12 @@ function getDbNotificationIcon(n: DbNotification) {
     return <ShoppingBag className="w-4 h-4 text-green-600" />;
   if (n.type.startsWith("order_")) {
     const status = n.type.replace("order_", "");
+    if (status === "placed")
+      return <ShoppingBag className="w-4 h-4 text-green-600" />;
     if (status === "confirmed")
       return <CheckCircle className="w-4 h-4 text-green-600" />;
+    if (status === "processing")
+      return <Package className="w-4 h-4 text-purple-600" />;
     if (status === "shipped")
       return <Truck className="w-4 h-4 text-blue-600" />;
     if (status === "delivered")

@@ -55,12 +55,19 @@ export const isSupabaseConfigured = (): boolean => {
  * Helper function to get current user
  */
 export const getCurrentUser = async () => {
-  const { data: { user }, error } = await supabase.auth.getUser();
-  if (error) {
-    console.error('Error getting current user:', error);
+  try {
+    const { data: { user }, error } = await supabase.auth.getUser();
+    if (error) {
+      // Only log non-session errors (session missing is expected when not logged in)
+      if (!error.message.includes('Auth session missing')) {
+        console.error('Error getting current user:', error);
+      }
+      return null;
+    }
+    return user;
+  } catch (e) {
     return null;
   }
-  return user;
 };
 
 /**

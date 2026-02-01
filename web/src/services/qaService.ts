@@ -4,6 +4,7 @@
  */
 
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { notificationService } from './notificationService';
 
 export type ProductQAStatus = 
   | 'PENDING_DIGITAL_REVIEW'
@@ -163,6 +164,13 @@ export class QAService {
     }
 
     try {
+      // First get product details for notification
+      const { data: product } = await supabase
+        .from('products')
+        .select('id, name, seller_id')
+        .eq('id', productId)
+        .single();
+
       // Update product_qa table
       const qaUpdate: any = {
         status,
@@ -220,6 +228,43 @@ export class QAService {
       if (productError) throw productError;
 
       console.log(`✅ QA Status updated: ${productId} → ${status}`);
+
+      // Send notifications to seller based on status change
+      if (product?.seller_id) {
+        try {
+          if (status === 'WAITING_FOR_SAMPLE') {
+            await notificationService.notifySellerSampleRequest({
+              sellerId: product.seller_id,
+              productId: productId,
+              productName: product.name || 'Your product',
+            });
+          } else if (status === 'ACTIVE_VERIFIED') {
+            await notificationService.notifySellerProductApproved({
+              sellerId: product.seller_id,
+              productId: productId,
+              productName: product.name || 'Your product',
+            });
+          } else if (status === 'REJECTED') {
+            await notificationService.notifySellerProductRejected({
+              sellerId: product.seller_id,
+              productId: productId,
+              productName: product.name || 'Your product',
+              reason: metadata?.rejectionReason || 'No reason provided',
+              stage: metadata?.rejectionStage || 'digital',
+            });
+          } else if (status === 'FOR_REVISION') {
+            await notificationService.notifySellerRevisionRequested({
+              sellerId: product.seller_id,
+              productId: productId,
+              productName: product.name || 'Your product',
+              reason: metadata?.rejectionReason || 'Please review and update your product',
+            });
+          }
+        } catch (notifError) {
+          console.error('[QAService] Error sending notification:', notifError);
+          // Don't fail the QA update if notification fails
+        }
+      }
     } catch (error) {
       console.error('Error updating QA status:', error);
       throw new Error('Failed to update QA status');

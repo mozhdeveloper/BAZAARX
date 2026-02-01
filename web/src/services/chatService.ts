@@ -5,6 +5,7 @@
 
 import { supabase } from '../lib/supabase';
 import { RealtimeChannel } from '@supabase/supabase-js';
+import { notificationService } from './notificationService';
 
 export interface Message {
   id: string;
@@ -242,10 +243,10 @@ class ChatService {
     // Update conversation's last message and unread count
     const unreadField = senderType === 'buyer' ? 'seller_unread_count' : 'buyer_unread_count';
     
-    // First get current count
+    // First get current conversation details
     const { data: conv } = await supabase
       .from('conversations')
-      .select(unreadField)
+      .select('*, buyer_id, seller_id')
       .eq('id', conversationId)
       .single();
 
@@ -261,6 +262,29 @@ class ChatService {
         updated_at: new Date().toISOString(),
       })
       .eq('id', conversationId);
+
+    // Send notification to the recipient
+    try {
+      if (senderType === 'buyer' && conv?.seller_id) {
+        // Buyer sent message → notify seller
+        const { data: buyer } = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('id', senderId)
+          .single();
+
+        await notificationService.notifySellerNewMessage({
+          sellerId: conv.seller_id,
+          buyerName: buyer?.full_name || 'A customer',
+          conversationId,
+          messagePreview: content,
+        });
+      }
+      // Note: For seller → buyer notifications, add similar logic if needed
+    } catch (notifError) {
+      console.error('[ChatService] Error sending notification:', notifError);
+      // Don't fail the message send if notification fails
+    }
 
     return message;
   }
@@ -286,6 +310,13 @@ class ChatService {
       .from('conversations')
       .update({ [unreadField]: 0 })
       .eq('id', conversationId);
+  }
+
+  /**
+   * Mark conversation as read (alias for markAsRead)
+   */
+  async markConversationAsRead(conversationId: string, userType: 'buyer' | 'seller'): Promise<void> {
+    return this.markAsRead(conversationId, '', userType);
   }
 
   /**
@@ -319,6 +350,17 @@ class ChatService {
     this.subscriptions.set(channelName, channel);
 
     return () => this.unsubscribe(channelName);
+  }
+
+  /**
+   * Subscribe to a single conversation (alias for subscribeToMessages that returns unsubscribe object)
+   */
+  subscribeToConversation(
+    conversationId: string,
+    onMessage: (message: Message) => void
+  ): { unsubscribe: () => void } | null {
+    const unsubscribeFn = this.subscribeToMessages(conversationId, onMessage);
+    return { unsubscribe: unsubscribeFn };
   }
 
   /**

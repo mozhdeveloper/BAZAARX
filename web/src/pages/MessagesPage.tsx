@@ -29,12 +29,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useBuyerStore, demoSellers, Message, Conversation } from '../stores/buyerStore';
 import { chatService, Conversation as DBConversation, Message as DBMessage } from '../services/chatService';
-import { useAuthStore } from '../stores/authStore';
 
 export default function MessagesPage() {
     const navigate = useNavigate();
     const location = useLocation();
-    const { user } = useAuthStore();
     const { profile, viewedSellers, conversations, addConversation, addChatMessage, deleteConversation } = useBuyerStore();
     const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
     const [newMessage, setNewMessage] = useState('');
@@ -53,20 +51,20 @@ export default function MessagesPage() {
 
     // Load real conversations from Supabase
     const loadConversations = useCallback(async () => {
-        if (!user?.id) {
+        if (!profile?.id) {
             setLoading(false);
             return;
         }
         
         try {
-            const convs = await chatService.getBuyerConversations(user.id);
+            const convs = await chatService.getBuyerConversations(profile.id);
             setDbConversations(convs);
         } catch (error) {
             console.error('[MessagesPage] Error loading conversations:', error);
         } finally {
             setLoading(false);
         }
-    }, [user?.id]);
+    }, [profile?.id]);
     
     useEffect(() => {
         loadConversations();
@@ -81,13 +79,13 @@ export default function MessagesPage() {
             setDbMessages(msgs);
             
             // Mark as read
-            if (user?.id) {
-                chatService.markAsRead(selectedConversation, user.id, 'buyer');
+            if (profile?.id) {
+                chatService.markAsRead(selectedConversation, profile.id, 'buyer');
             }
         };
         
         loadMessages();
-    }, [selectedConversation, useRealData, user?.id]);
+    }, [selectedConversation, useRealData, profile?.id]);
     
     // Subscribe to new messages
     useEffect(() => {
@@ -103,14 +101,14 @@ export default function MessagesPage() {
                     return [...prev, newMsg];
                 });
                 
-                if (newMsg.sender_type === 'seller' && user?.id) {
-                    chatService.markAsRead(selectedConversation, user.id, 'buyer');
+                if (newMsg.sender_type === 'seller' && profile?.id) {
+                    chatService.markAsRead(selectedConversation, profile.id, 'buyer');
                 }
             }
         );
         
         return unsubscribe;
-    }, [selectedConversation, useRealData, user?.id]);
+    }, [selectedConversation, useRealData, profile?.id]);
 
     // Extract sellerId from URL if present
     const queryParams = new URLSearchParams(location.search);
@@ -118,7 +116,33 @@ export default function MessagesPage() {
 
     // Handle sellerId from URL only when it changes or on mount
     useEffect(() => {
-        if (initialSellerId) {
+        if (!initialSellerId) return;
+        
+        const initConversation = async () => {
+            // If user is logged in, try to use real database
+            if (profile?.id) {
+                try {
+                    // Check if conversation already exists in dbConversations
+                    const existingDbConv = dbConversations.find(c => c.seller_id === initialSellerId);
+                    if (existingDbConv) {
+                        setSelectedConversation(existingDbConv.id);
+                        return;
+                    }
+                    
+                    // Create or get conversation from database
+                    const conv = await chatService.getOrCreateConversation(profile.id, initialSellerId);
+                    if (conv) {
+                        setSelectedConversation(conv.id);
+                        // Reload conversations to include the new one
+                        loadConversations();
+                        return;
+                    }
+                } catch (error) {
+                    console.error('[MessagesPage] Error creating conversation:', error);
+                }
+            }
+            
+            // Fallback to local store for demo/guest mode
             const existingConv = conversations.find(c => c.sellerId === initialSellerId);
             if (existingConv) {
                 setSelectedConversation(existingConv.id);
@@ -149,8 +173,10 @@ export default function MessagesPage() {
                 addConversation(newConv);
                 setSelectedConversation(newConv.id);
             }
-        }
-    }, [initialSellerId, conversations, demoSellers, viewedSellers, addConversation]);
+        };
+        
+        initConversation();
+    }, [initialSellerId, profile?.id, dbConversations, conversations, demoSellers, viewedSellers, addConversation, loadConversations]);
 
     // Handle default selection of first conversation if none selected
     useEffect(() => {
@@ -175,12 +201,12 @@ export default function MessagesPage() {
         if (!messageText.trim() && (!imageUrls || imageUrls.length === 0) || !selectedConversation) return;
 
         // Real data mode
-        if (useRealData && user?.id) {
+        if (useRealData && profile?.id) {
             setSending(true);
             try {
                 const result = await chatService.sendMessage(
                     selectedConversation,
-                    user.id,
+                    profile.id,
                     'buyer',
                     messageText.trim()
                 );
@@ -526,7 +552,8 @@ export default function MessagesPage() {
                                             </div>
                                         </motion.div>
                                     );
-                                })}
+                                    })
+                                )}
                             </div>
 
                             {/* Input Area Section */}

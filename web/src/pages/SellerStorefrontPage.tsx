@@ -24,7 +24,8 @@ import {
   Filter,
   Grid,
   List,
-  ThumbsUp
+  ThumbsUp,
+  Loader2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -37,6 +38,9 @@ import {
 import { Textarea } from "../components/ui/textarea";
 
 import { useProductStore } from '../stores/sellerStore';
+import { sellerService, type SellerData } from '../services/sellerService';
+import { ProductService } from '../services/productService';
+import type { ProductWithSeller } from '@/types/database.types';
 
 interface Reply {
   id: number;
@@ -78,6 +82,11 @@ export default function SellerStorefrontPage() {
   const [reviewFilter, setReviewFilter] = useState('all');
   const [replyingTo, setReplyingTo] = useState<number | null>(null);
   const [replyText, setReplyText] = useState("");
+
+  // Real data state
+  const [realSeller, setRealSeller] = useState<SellerData | null>(null);
+  const [realProducts, setRealProducts] = useState<ProductWithSeller[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const [reviews, setReviews] = useState<Review[]>(
     Array.from({ length: 5 }).map((_, i) => ({
@@ -130,16 +139,63 @@ export default function SellerStorefrontPage() {
     setReplyingTo(null);
   };
 
-  // Get seller data
+  // Fetch real seller and products from database
+  useEffect(() => {
+    const fetchSellerData = async () => {
+      if (!sellerId) return;
+      
+      setLoading(true);
+      try {
+        // Fetch seller data
+        const sellerData = await sellerService.getStoreById(sellerId);
+        if (sellerData) {
+          setRealSeller(sellerData);
+        }
+
+        // Fetch products for this seller
+        const productsResponse = await ProductService.getInstance().getProducts({
+          sellerId: sellerId,
+          approvalStatus: 'ACTIVE_VERIFIED'
+        });
+        if (productsResponse.success && productsResponse.data) {
+          setRealProducts(productsResponse.data);
+        }
+      } catch (error) {
+        console.error('Error fetching seller data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSellerData();
+  }, [sellerId]);
+
+  // Get seller data - prioritize real data
   const demoSeller = demoSellers.find(s => s.id === sellerId);
 
   // Try to find seller from products if not in demo
   const dbSellerProduct = !demoSeller ? allProducts.find(p => p.sellerId === sellerId) : null;
 
-  const seller = demoSeller || (dbSellerProduct ? {
+  // Build seller object from real data or fallback to demo
+  const seller = realSeller ? {
+    id: realSeller.id,
+    name: realSeller.business_name || 'Verified Seller',
+    avatar: realSeller.profile_picture || 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=150&h=150&fit=crop',
+    rating: (realSeller as any).rating || 5.0,
+    totalReviews: (realSeller as any).products_count || 0,
+    followers: 0,
+    isVerified: realSeller.is_verified || false,
+    description: realSeller.business_description || 'Welcome to our store!',
+    location: realSeller.city || realSeller.region || 'Philippines',
+    established: realSeller.created_at ? new Date(realSeller.created_at).getFullYear().toString() : '2024',
+    badges: realSeller.is_verified ? ['Verified Seller'] : [],
+    responseTime: '< 24 hours',
+    categories: realSeller.product_categories || ['General'],
+    products: []
+  } : demoSeller || (dbSellerProduct ? {
     id: dbSellerProduct.sellerId,
     name: dbSellerProduct.sellerName || "Verified Seller",
-    avatar: 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=150&h=150&fit=crop', // Default avatar
+    avatar: 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=150&h=150&fit=crop',
     rating: dbSellerProduct.sellerRating || 5.0,
     totalReviews: 10,
     followers: 5,
@@ -159,7 +215,7 @@ export default function SellerStorefrontPage() {
     }
   }, [seller, addViewedSeller]);
 
-  // Demo products for the seller
+  // Demo products for the seller (fallback only)
   const demoProducts = [
     {
       id: 'prod-1',
@@ -196,9 +252,24 @@ export default function SellerStorefrontPage() {
     }
   ];
 
+  // Map real products to display format
+  const displayProducts = realProducts.length > 0 
+    ? realProducts.map(p => ({
+        id: p.id,
+        name: p.name,
+        price: p.price,
+        originalPrice: p.original_price || p.price,
+        image: p.primary_image || p.images?.[0] || 'https://images.unsplash.com/photo-1560393464-5c69a73c5770?w=400&h=400&fit=crop',
+        rating: p.rating || 5.0,
+        sold: p.sold_count || 0,
+        category: p.category || 'General',
+        isFreeShipping: p.free_shipping || false
+      }))
+    : demoProducts;
+
   const filteredProducts = selectedCategory === 'all'
-    ? demoProducts
-    : demoProducts.filter(p => p.category === selectedCategory);
+    ? displayProducts
+    : displayProducts.filter(p => p.category === selectedCategory);
 
   const handleAddToCart = (product: any) => {
     const cartProduct = {
@@ -214,6 +285,21 @@ export default function SellerStorefrontPage() {
     };
     addToCart(cartProduct, 1);
   };
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Header hideSearch />
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="flex flex-col items-center gap-4">
+            <Loader2 className="w-8 h-8 animate-spin text-[#FF6A00]" />
+            <p className="text-gray-500">Loading store...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">

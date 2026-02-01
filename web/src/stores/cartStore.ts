@@ -23,6 +23,13 @@ export interface Product {
 // Cart item with quantity
 export interface CartItem extends Product {
   quantity: number;
+  variant?: {
+    id?: string;
+    name?: string;
+    size?: string;
+    color?: string;
+    sku?: string;
+  };
 }
 
 // Unified order interface

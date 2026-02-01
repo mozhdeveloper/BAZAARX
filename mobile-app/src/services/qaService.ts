@@ -4,6 +4,7 @@
  */
 
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { notificationService } from './notificationService';
 
 export type ProductQAStatus = 
   | 'PENDING_DIGITAL_REVIEW'
@@ -195,6 +196,13 @@ class QAService {
     }
 
     try {
+      // First get product details for notification
+      const { data: product } = await supabase
+        .from('products')
+        .select('id, name, seller_id')
+        .eq('id', productId)
+        .single();
+
       const updateData: any = {
         status: newStatus,
         updated_at: new Date().toISOString(),
@@ -241,6 +249,43 @@ class QAService {
             rejection_reason: additionalData?.rejection_reason || null,
           })
           .eq('id', productId);
+      }
+
+      // Send notifications to seller based on status change
+      if (product?.seller_id) {
+        try {
+          if (newStatus === 'WAITING_FOR_SAMPLE') {
+            await notificationService.notifySellerSampleRequest({
+              sellerId: product.seller_id,
+              productId: productId,
+              productName: product.name || 'Your product',
+            });
+          } else if (newStatus === 'ACTIVE_VERIFIED') {
+            await notificationService.notifySellerProductApproved({
+              sellerId: product.seller_id,
+              productId: productId,
+              productName: product.name || 'Your product',
+            });
+          } else if (newStatus === 'REJECTED') {
+            await notificationService.notifySellerProductRejected({
+              sellerId: product.seller_id,
+              productId: productId,
+              productName: product.name || 'Your product',
+              reason: additionalData?.rejection_reason || 'No reason provided',
+              stage: additionalData?.rejection_stage || 'digital',
+            });
+          } else if (newStatus === 'FOR_REVISION') {
+            await notificationService.notifySellerRevisionRequested({
+              sellerId: product.seller_id,
+              productId: productId,
+              productName: product.name || 'Your product',
+              reason: additionalData?.rejection_reason || 'Please review and update your product',
+            });
+          }
+        } catch (notifError) {
+          console.error('[QAService] Error sending notification:', notifError);
+          // Don't fail the QA update if notification fails
+        }
       }
 
       return true;

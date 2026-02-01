@@ -224,14 +224,14 @@ export default function BuyerLoginPage() {
             <div className="space-y-1 text-xs text-orange-700">
               <p className="font-semibold">Password for all: <span className="font-mono bg-orange-100 px-2 py-0.5 rounded">Buyer123!</span></p>
               <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-2 text-[11px]">
-                <p>• anna.cruz@gmail.com</p>
-                <p>• miguel.santos@gmail.com</p>
-                <p>• sofia.reyes@gmail.com</p>
-                <p>• carlos.garcia@gmail.com</p>
-                <p>• isabella.fernandez@gmail.com</p>
-                <p>• rafael.mendoza@gmail.com</p>
-                <p>• gabriela.torres@gmail.com</p>
-                <p>• daniel.villanueva@gmail.com</p>
+                <button type="button" onClick={() => { setEmail('anna.cruz@gmail.com'); setPassword('Buyer123!'); }} className="text-left hover:text-orange-900 hover:underline transition-colors">• anna.cruz@gmail.com</button>
+                <button type="button" onClick={() => { setEmail('miguel.santos@gmail.com'); setPassword('Buyer123!'); }} className="text-left hover:text-orange-900 hover:underline transition-colors">• miguel.santos@gmail.com</button>
+                <button type="button" onClick={() => { setEmail('sofia.reyes@gmail.com'); setPassword('Buyer123!'); }} className="text-left hover:text-orange-900 hover:underline transition-colors">• sofia.reyes@gmail.com</button>
+                <button type="button" onClick={() => { setEmail('carlos.garcia@gmail.com'); setPassword('Buyer123!'); }} className="text-left hover:text-orange-900 hover:underline transition-colors">• carlos.garcia@gmail.com</button>
+                <button type="button" onClick={() => { setEmail('isabella.fernandez@gmail.com'); setPassword('Buyer123!'); }} className="text-left hover:text-orange-900 hover:underline transition-colors">• isabella.fernandez@gmail.com</button>
+                <button type="button" onClick={() => { setEmail('rafael.mendoza@gmail.com'); setPassword('Buyer123!'); }} className="text-left hover:text-orange-900 hover:underline transition-colors">• rafael.mendoza@gmail.com</button>
+                <button type="button" onClick={() => { setEmail('gabriela.torres@gmail.com'); setPassword('Buyer123!'); }} className="text-left hover:text-orange-900 hover:underline transition-colors">• gabriela.torres@gmail.com</button>
+                <button type="button" onClick={() => { setEmail('daniel.villanueva@gmail.com'); setPassword('Buyer123!'); }} className="text-left hover:text-orange-900 hover:underline transition-colors">• daniel.villanueva@gmail.com</button>
               </div>
             </div>
           </div>

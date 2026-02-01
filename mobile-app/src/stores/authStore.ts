@@ -180,9 +180,25 @@ export const useAuthStore = create<AuthState>()(
               isAuthenticated: true,
               activeRole: profile?.user_type === 'seller' ? 'seller' : 'buyer',
             });
+          } else {
+            // No valid session, clear auth state
+            set({
+              user: null,
+              profile: null,
+              isAuthenticated: false,
+              isGuest: false,
+            });
           }
         } catch (error) {
           console.error('Error checking session:', error);
+          // Clear auth state on session error (e.g., invalid refresh token)
+          set({
+            user: null,
+            profile: null,
+            isAuthenticated: false,
+            isGuest: false,
+            error: 'Session expired. Please sign in again.',
+          });
         }
       },
 

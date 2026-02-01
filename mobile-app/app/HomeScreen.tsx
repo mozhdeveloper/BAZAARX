@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,7 @@ import {
   Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Search, Bell, Camera, Bot, X, Package, Timer, MapPin, ChevronDown, ArrowLeft, Clock, MessageSquare, MessageCircle, CheckCircle2 } from 'lucide-react-native';
+import { Search, Bell, Camera, Bot, X, Package, Timer, MapPin, ChevronDown, ArrowLeft, Clock, MessageSquare, MessageCircle, CheckCircle2, ShoppingBag, Truck, XCircle } from 'lucide-react-native';
 import { ProductCard } from '../src/components/ProductCard';
 import CameraSearchModal from '../src/components/CameraSearchModal';
 import AIChatModal from '../src/components/AIChatModal';
@@ -27,6 +27,7 @@ import type { Product } from '../src/types';
 import { productService } from '../src/services/productService';
 import { sellerService } from '../src/services/sellerService';
 import { addressService } from '../src/services/addressService';
+import { notificationService, Notification } from '../src/services/notificationService';
 import { useAuthStore } from '../src/stores/authStore';
 import { useSellerStore } from '../src/stores/sellerStore';
 import { GuestLoginModal } from '../src/components/GuestLoginModal';
@@ -62,6 +63,8 @@ export default function HomeScreen({ navigation }: Props) {
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [sellers, setSellers] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   // LOCATION STATE
   const [deliveryAddress, setDeliveryAddress] = useState('Select Location');
@@ -132,9 +135,38 @@ export default function HomeScreen({ navigation }: Props) {
   // Display name logic
   const username = user?.name ? user.name.split(' ')[0] : 'Guest';
 
-  const notifications = [
-    { id: '1', title: 'Order Shipped! 📦', message: 'Your order #A238567K has been shipped!', time: '2h ago', read: false, icon: Package, color: '#3B82F6' },
-  ];
+  // Helper to get icon component for notification type
+  const getNotificationIcon = (type: string) => {
+    if (type.includes('shipped')) return Truck;
+    if (type.includes('delivered') || type.includes('confirmed')) return CheckCircle2;
+    if (type.includes('placed')) return ShoppingBag;
+    if (type.includes('cancelled')) return XCircle;
+    return Package;
+  };
+
+  // Helper to get notification color
+  const getNotificationColor = (type: string) => {
+    if (type.includes('shipped')) return '#F97316';
+    if (type.includes('delivered')) return '#22C55E';
+    if (type.includes('confirmed')) return '#3B82F6';
+    if (type.includes('placed')) return '#22C55E';
+    if (type.includes('cancelled')) return '#EF4444';
+    return '#6B7280';
+  };
+
+  // Format notification time
+  const formatNotificationTime = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    const diffHrs = Math.floor(diffMins / 60);
+    if (diffHrs < 24) return `${diffHrs}h ago`;
+    const diffDays = Math.floor(diffHrs / 24);
+    return `${diffDays}d ago`;
+  };
 
   const filteredProducts = searchQuery.trim()
     ? dbProducts.filter(p => (p.name || '').toLowerCase().includes(searchQuery.toLowerCase()))
@@ -217,6 +249,22 @@ export default function HomeScreen({ navigation }: Props) {
     };
     fetchSellers();
   }, []);
+
+  // --- FETCH NOTIFICATIONS ---
+  const loadNotifications = useCallback(async () => {
+    if (!user?.id || isGuest) return;
+    try {
+      const data = await notificationService.getNotifications(user.id, 'buyer', 20);
+      setNotifications(data);
+      setUnreadCount(data.filter(n => !n.is_read).length);
+    } catch (error) {
+      console.error('[HomeScreen] Error loading notifications:', error);
+    }
+  }, [user?.id, isGuest]);
+
+  useEffect(() => {
+    loadNotifications();
+  }, [loadNotifications]);
 
   // --- LOAD SAVED DELIVERY LOCATION ---
   // Priority: 1) "Current Location" from DB, 2) Default address, 3) AsyncStorage fallback
@@ -371,12 +419,13 @@ export default function HomeScreen({ navigation }: Props) {
                   setShowGuestModal(true);
                 } else {
                   setShowNotifications(true);
+                  loadNotifications(); // Refresh when opening
                 }
               }}
               style={styles.headerIconButton}
             >
               <Bell size={24} color="#FFF" />
-              {!isGuest && notifications.some(n => !n.read) && <View style={[styles.notifBadge, { backgroundColor: '#FFF' }]} />}
+              {!isGuest && unreadCount > 0 && <View style={[styles.notifBadge, { backgroundColor: '#FFF' }]} />}
             </Pressable>
           </View>
         </View>
@@ -628,15 +677,62 @@ export default function HomeScreen({ navigation }: Props) {
           <View style={styles.notificationModalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Notifications</Text>
-              <Pressable onPress={() => setShowNotifications(false)}><X size={24} color="#1F2937" /></Pressable>
+              <View style={{ flexDirection: 'row', gap: 12 }}>
+                {notifications.length > 0 && (
+                  <Pressable onPress={async () => {
+                    if (user?.id) {
+                      await notificationService.markAllAsRead(user.id, 'buyer');
+                      loadNotifications();
+                    }
+                  }}>
+                    <Text style={{ color: COLORS.primary, fontSize: 14, fontWeight: '600' }}>Mark All Read</Text>
+                  </Pressable>
+                )}
+                <Pressable onPress={() => setShowNotifications(false)}><X size={24} color="#1F2937" /></Pressable>
+              </View>
             </View>
             <ScrollView style={{ padding: 20 }}>
-              {notifications.map((n) => (
-                <View key={n.id} style={styles.notificationItem}>
-                  <View style={[styles.notificationIcon, { backgroundColor: `${n.color}15` }]}><n.icon size={24} color={n.color} /></View>
-                  <View style={{ flex: 1 }}><Text style={styles.notifItemTitle}>{n.title}</Text><Text style={styles.notifItemMsg}>{n.message}</Text></View>
+              {notifications.length === 0 ? (
+                <View style={{ alignItems: 'center', paddingVertical: 40 }}>
+                  <Bell size={48} color="#D1D5DB" />
+                  <Text style={{ color: '#6B7280', marginTop: 12, fontSize: 14 }}>No notifications yet</Text>
                 </View>
-              ))}
+              ) : (
+                notifications.map((n) => {
+                  const IconComponent = getNotificationIcon(n.type);
+                  const color = getNotificationColor(n.type);
+                  return (
+                    <Pressable
+                      key={n.id}
+                      style={[styles.notificationItem, !n.is_read && { backgroundColor: '#FFF7ED' }]}
+                      onPress={async () => {
+                        if (!n.is_read) {
+                          await notificationService.markAsRead(n.id);
+                          loadNotifications();
+                        }
+                        // Navigate to orders tab if it's an order notification
+                        if (n.action_data?.orderNumber || n.type.includes('order')) {
+                          setShowNotifications(false);
+                          // Navigate to Orders tab in MainTabs
+                          navigation.navigate('MainTabs', { screen: 'Orders' } as any);
+                        }
+                      }}
+                    >
+                      <View style={[styles.notificationIcon, { backgroundColor: `${color}15` }]}>
+                        <IconComponent size={24} color={color} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <Text style={[styles.notifItemTitle, !n.is_read && { fontWeight: '700' }]}>{n.title}</Text>
+                          <Text style={{ fontSize: 11, color: '#9CA3AF' }}>{formatNotificationTime(n.created_at)}</Text>
+                        </View>
+                        <Text style={styles.notifItemMsg}>{n.message}</Text>
+                      </View>
+                      {!n.is_read && <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: COLORS.primary, marginLeft: 8 }} />}
+                    </Pressable>
+                  );
+                })
+              )}
             </ScrollView>
           </View>
         </View>

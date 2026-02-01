@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Search, 
@@ -14,7 +14,10 @@ import {
   AlertCircle,
   Package,
   Star,
-  Hash
+  Hash,
+  Printer,
+  Receipt,
+  X
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -34,6 +37,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { orderService } from '@/services/orderService';
 
 interface CartItem {
   productId: string;
@@ -42,13 +46,29 @@ interface CartItem {
   price: number;
   image: string;
   maxStock: number;
+  selectedColor?: string;
+  selectedSize?: string;
+  variantKey?: string; // Unique key for color+size combo
+}
+
+interface ReceiptData {
+  orderId: string;
+  orderNumber: string;
+  items: CartItem[];
+  subtotal: number;
+  tax: number;
+  total: number;
+  note: string;
+  date: Date;
+  sellerName: string;
+  cashier: string;
 }
 
 export function SellerPOS() {
   const navigate = useNavigate();
   const { seller, logout } = useAuthStore();
   const { products } = useProductStore();
-  const { addOfflineOrder } = useOrderStore();
+  const { addOfflineOrder, fetchOrders } = useOrderStore();
   
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -61,6 +81,11 @@ export function SellerPOS() {
   const [flashingProduct, setFlashingProduct] = useState<string | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<typeof products[0] | null>(null);
   const [showProductDetails, setShowProductDetails] = useState(false);
+  const [selectedColor, setSelectedColor] = useState<string>('');
+  const [selectedSize, setSelectedSize] = useState<string>('');
+  const [showReceipt, setShowReceipt] = useState(false);
+  const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
+  const receiptRef = useRef<HTMLDivElement>(null);
 
   const handleLogout = () => {
     logout();
@@ -100,11 +125,13 @@ export function SellerPOS() {
   // Show product details
   const showDetails = (product: typeof products[0]) => {
     setSelectedProduct(product);
+    setSelectedColor(product.colors?.[0] || '');
+    setSelectedSize(product.sizes?.[0] || '');
     setShowProductDetails(true);
   };
 
   // Add product to cart with visual feedback
-  const addToCart = (product: typeof products[0], fromModal = false) => {
+  const addToCart = (product: typeof products[0], fromModal = false, color?: string, size?: string) => {
     if (product.stock <= 0) return;
 
     // Flash orange border effect
@@ -113,7 +140,9 @@ export function SellerPOS() {
       setTimeout(() => setFlashingProduct(null), 300);
     }
 
-    const existingItem = cart.find(item => item.productId === product.id);
+    // Create variant key for unique cart item identification
+    const variantKey = `${product.id}-${color || 'default'}-${size || 'default'}`;
+    const existingItem = cart.find(item => item.variantKey === variantKey);
     
     if (existingItem) {
       // Check if we can add more
@@ -122,18 +151,22 @@ export function SellerPOS() {
       }
       
       setCart(cart.map(item =>
-        item.productId === product.id
+        item.variantKey === variantKey
           ? { ...item, quantity: item.quantity + 1 }
           : item
       ));
     } else {
+      const variantLabel = [color, size].filter(Boolean).join(' / ');
       setCart([...cart, {
         productId: product.id,
-        productName: product.name,
+        productName: variantLabel ? `${product.name} (${variantLabel})` : product.name,
         quantity: 1,
         price: product.price,
         image: product.images[0],
-        maxStock: product.stock
+        maxStock: product.stock,
+        selectedColor: color,
+        selectedSize: size,
+        variantKey
       }]);
     }
 
@@ -143,9 +176,9 @@ export function SellerPOS() {
   };
 
   // Update quantity in cart
-  const updateQuantity = (productId: string, delta: number) => {
+  const updateQuantity = (variantKey: string, delta: number) => {
     setCart(cart.map(item => {
-      if (item.productId === productId) {
+      if (item.variantKey === variantKey) {
         const newQuantity = item.quantity + delta;
         if (newQuantity <= 0) return item; // Will be removed below
         if (newQuantity > item.maxStock) return item; // Don't exceed stock
@@ -156,8 +189,8 @@ export function SellerPOS() {
   };
 
   // Remove from cart
-  const removeFromCart = (productId: string) => {
-    setCart(cart.filter(item => item.productId !== productId));
+  const removeFromCart = (variantKey: string) => {
+    setCart(cart.filter(item => item.variantKey !== variantKey));
   };
 
   // Clear cart
@@ -169,16 +202,68 @@ export function SellerPOS() {
   // Complete sale
   const completeSale = async () => {
     if (cart.length === 0) return;
+    if (!seller) {
+      alert('Please log in to complete a sale');
+      return;
+    }
     
     setIsProcessing(true);
     
     try {
-      // Call the store action to create offline order and deduct stock
-      const orderId = addOfflineOrder(cart, cartTotal, note);
+      // Store cart data for receipt before clearing
+      const receiptItems = [...cart];
+      const subtotal = cartTotal;
+      const tax = 0; // No tax for now
+      const total = subtotal + tax;
+      const receiptNote = note;
+      
+      // Save to Supabase using orderService
+      const result = await orderService.createPOSOrder(
+        seller.id,
+        seller.store_name || seller.business_name || 'Store',
+        cart.map(item => ({
+          productId: item.productId,
+          productName: item.productName,
+          quantity: item.quantity,
+          price: item.price,
+          image: item.image,
+          selectedColor: item.selectedColor,
+          selectedSize: item.selectedSize
+        })),
+        total,
+        receiptNote
+      );
+
+      if (!result) {
+        throw new Error('Failed to create order');
+      }
+
+      // Also update local store for immediate UI update
+      addOfflineOrder(cart, total, receiptNote);
+      
+      // Set receipt data with professional format
+      setReceiptData({
+        orderId: result.orderId,
+        orderNumber: result.orderNumber,
+        items: receiptItems,
+        subtotal,
+        tax,
+        total,
+        note: receiptNote,
+        date: new Date(),
+        sellerName: seller.store_name || seller.business_name || 'BazaarPH Store',
+        cashier: seller.owner_name || 'Staff'
+      });
       
       // Show success
-      setSuccessOrderId(orderId);
+      setSuccessOrderId(result.orderNumber);
       setShowSuccess(true);
+      setShowReceipt(true);
+
+      // Refresh orders to show new POS order
+      if (seller.id) {
+        fetchOrders(seller.id);
+      }
       
       // Clear cart after 2 seconds
       setTimeout(() => {
@@ -190,6 +275,223 @@ export function SellerPOS() {
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  // Print receipt
+  const printReceipt = () => {
+    if (!receiptData) return;
+    
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+    
+    const formatDate = (date: Date) => {
+      return date.toLocaleDateString('en-PH', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    };
+
+    const itemsHtml = receiptData.items.map(item => `
+      <tr>
+        <td style="padding: 8px 0; border-bottom: 1px solid #eee;">
+          <div style="font-weight: 500;">${item.productName}</div>
+          ${item.selectedColor || item.selectedSize ? `
+            <div style="font-size: 11px; color: #666;">
+              ${item.selectedColor ? `Color: ${item.selectedColor}` : ''}
+              ${item.selectedColor && item.selectedSize ? ' | ' : ''}
+              ${item.selectedSize ? `Size: ${item.selectedSize}` : ''}
+            </div>
+          ` : ''}
+        </td>
+        <td style="padding: 8px 0; border-bottom: 1px solid #eee; text-align: center;">${item.quantity}</td>
+        <td style="padding: 8px 0; border-bottom: 1px solid #eee; text-align: right;">₱${item.price.toLocaleString()}</td>
+        <td style="padding: 8px 0; border-bottom: 1px solid #eee; text-align: right; font-weight: 500;">₱${(item.price * item.quantity).toLocaleString()}</td>
+      </tr>
+    `).join('');
+    
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Receipt - ${receiptData.orderNumber}</title>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { 
+              font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+              padding: 20px; 
+              max-width: 400px; 
+              margin: 0 auto;
+              color: #333;
+            }
+            .receipt { 
+              background: #fff; 
+              border: 1px solid #ddd;
+              border-radius: 8px;
+              overflow: hidden;
+            }
+            .header { 
+              background: linear-gradient(135deg, #FF5722, #FF7043);
+              color: white;
+              padding: 24px 20px; 
+              text-align: center; 
+            }
+            .logo { font-size: 28px; font-weight: bold; margin-bottom: 4px; }
+            .tagline { font-size: 12px; opacity: 0.9; }
+            .store-name { font-size: 16px; margin-top: 12px; font-weight: 500; }
+            .body { padding: 20px; }
+            .info-row { 
+              display: flex; 
+              justify-content: space-between; 
+              padding: 6px 0;
+              font-size: 13px;
+              color: #666;
+            }
+            .info-row strong { color: #333; }
+            .divider { 
+              border-top: 2px dashed #ddd; 
+              margin: 16px 0; 
+            }
+            table { width: 100%; border-collapse: collapse; font-size: 13px; }
+            th { 
+              padding: 10px 0; 
+              border-bottom: 2px solid #333; 
+              text-align: left;
+              font-weight: 600;
+              font-size: 12px;
+              text-transform: uppercase;
+              color: #666;
+            }
+            th:nth-child(2), th:nth-child(3), th:nth-child(4) { text-align: right; }
+            th:nth-child(2) { text-align: center; }
+            .totals { margin-top: 16px; }
+            .total-row {
+              display: flex;
+              justify-content: space-between;
+              padding: 8px 0;
+              font-size: 14px;
+            }
+            .total-row.grand {
+              border-top: 2px solid #333;
+              margin-top: 8px;
+              padding-top: 12px;
+              font-size: 18px;
+              font-weight: bold;
+              color: #FF5722;
+            }
+            .note {
+              background: #FFF3E0;
+              border-left: 4px solid #FF5722;
+              padding: 12px;
+              margin-top: 16px;
+              font-size: 13px;
+              border-radius: 0 4px 4px 0;
+            }
+            .footer { 
+              text-align: center; 
+              padding: 20px;
+              background: #f9f9f9;
+              border-top: 1px solid #eee;
+            }
+            .footer-text { font-size: 14px; color: #666; margin-bottom: 8px; }
+            .footer-small { font-size: 11px; color: #999; }
+            .badge {
+              display: inline-block;
+              background: #4CAF50;
+              color: white;
+              padding: 4px 12px;
+              border-radius: 12px;
+              font-size: 12px;
+              font-weight: 500;
+              margin-top: 8px;
+            }
+            @media print { 
+              body { padding: 0; } 
+              .receipt { border: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="receipt">
+            <div class="header">
+              <div class="logo">🛒 BazaarPH</div>
+              <div class="tagline">Point of Sale Receipt</div>
+              <div class="store-name">${receiptData.sellerName}</div>
+            </div>
+            
+            <div class="body">
+              <div class="info-row">
+                <span>Receipt No:</span>
+                <strong>${receiptData.orderNumber}</strong>
+              </div>
+              <div class="info-row">
+                <span>Date:</span>
+                <strong>${formatDate(receiptData.date)}</strong>
+              </div>
+              <div class="info-row">
+                <span>Cashier:</span>
+                <strong>${receiptData.cashier}</strong>
+              </div>
+              <div class="info-row">
+                <span>Customer:</span>
+                <strong>Walk-in</strong>
+              </div>
+              
+              <div class="divider"></div>
+              
+              <table>
+                <thead>
+                  <tr>
+                    <th>Item</th>
+                    <th>Qty</th>
+                    <th>Price</th>
+                    <th>Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${itemsHtml}
+                </tbody>
+              </table>
+              
+              <div class="totals">
+                <div class="total-row">
+                  <span>Subtotal</span>
+                  <span>₱${receiptData.subtotal.toLocaleString()}</span>
+                </div>
+                <div class="total-row">
+                  <span>Tax</span>
+                  <span>₱${receiptData.tax.toLocaleString()}</span>
+                </div>
+                <div class="total-row grand">
+                  <span>TOTAL</span>
+                  <span>₱${receiptData.total.toLocaleString()}</span>
+                </div>
+              </div>
+              
+              ${receiptData.note ? `
+                <div class="note">
+                  <strong>Note:</strong> ${receiptData.note}
+                </div>
+              ` : ''}
+              
+              <div style="text-align: center; margin-top: 16px;">
+                <span class="badge">✓ PAID - CASH</span>
+              </div>
+            </div>
+            
+            <div class="footer">
+              <div class="footer-text">Thank you for shopping with us! 🧡</div>
+              <div class="footer-small">This serves as your official receipt</div>
+              <div class="footer-small" style="margin-top: 8px;">Powered by BazaarPH POS</div>
+            </div>
+          </div>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.print();
   };
 
   // Get stock badge
@@ -499,7 +801,7 @@ export function SellerPOS() {
                 <div className="space-y-2 pb-3">
                   {cart.map((item) => (
                     <motion.div
-                      key={item.productId}
+                      key={item.variantKey}
                       initial={{ opacity: 0, x: 20 }}
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: -20 }}
@@ -531,7 +833,7 @@ export function SellerPOS() {
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  updateQuantity(item.productId, -1);
+                                  updateQuantity(item.variantKey!, -1);
                                 }}
                                 className="h-6 w-6 flex items-center justify-center hover:bg-gray-100 transition-colors"
                               >
@@ -545,7 +847,7 @@ export function SellerPOS() {
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  updateQuantity(item.productId, 1);
+                                  updateQuantity(item.variantKey!, 1);
                                 }}
                                 disabled={item.quantity >= item.maxStock}
                                 className="h-6 w-6 flex items-center justify-center hover:bg-gray-100 transition-colors disabled:opacity-50"
@@ -557,7 +859,7 @@ export function SellerPOS() {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                removeFromCart(item.productId);
+                                removeFromCart(item.variantKey!);
                               }}
                               className="h-6 w-6 flex items-center justify-center text-red-500 hover:bg-red-50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity ml-auto"
                             >
@@ -748,6 +1050,52 @@ export function SellerPOS() {
                     </div>
                   </div>
 
+                  {/* Variant Selection - Colors */}
+                  {selectedProduct.colors && selectedProduct.colors.length > 0 && (
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-700">Color</label>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedProduct.colors.map((color) => (
+                          <button
+                            key={color}
+                            onClick={() => setSelectedColor(color)}
+                            className={cn(
+                              "px-4 py-2 rounded-lg border text-sm font-medium transition-all",
+                              selectedColor === color
+                                ? "border-[#FF5722] bg-orange-50 text-[#FF5722]"
+                                : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
+                            )}
+                          >
+                            {color}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Variant Selection - Sizes */}
+                  {selectedProduct.sizes && selectedProduct.sizes.length > 0 && (
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-700">Size</label>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedProduct.sizes.map((size) => (
+                          <button
+                            key={size}
+                            onClick={() => setSelectedSize(size)}
+                            className={cn(
+                              "px-4 py-2 rounded-lg border text-sm font-medium transition-all",
+                              selectedSize === size
+                                ? "border-[#FF5722] bg-orange-50 text-[#FF5722]"
+                                : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
+                            )}
+                          >
+                            {size}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Product Details */}
                   <div className="space-y-3 text-sm">
                     <div className="flex justify-between py-2 border-b border-gray-200">
@@ -780,7 +1128,7 @@ export function SellerPOS() {
                   {/* Add to Cart Button */}
                   <div className="pt-4">
                     <Button
-                      onClick={() => addToCart(selectedProduct, true)}
+                      onClick={() => addToCart(selectedProduct, true, selectedColor || undefined, selectedSize || undefined)}
                       disabled={selectedProduct.stock === 0}
                       className="w-full h-12 text-base font-bold bg-[#FF5722] hover:bg-[#E64A19] text-white"
                     >
@@ -789,7 +1137,7 @@ export function SellerPOS() {
                       ) : (
                         <>
                           <ShoppingCart className="h-5 w-5 mr-2" />
-                          Add to Cart
+                          Add to Cart {selectedColor || selectedSize ? `(${[selectedColor, selectedSize].filter(Boolean).join(' / ')})` : ''}
                         </>
                       )}
                     </Button>
@@ -801,7 +1149,7 @@ export function SellerPOS() {
         </DialogContent>
       </Dialog>
 
-      {/* Success Dialog */}
+      {/* Success Dialog with Receipt */}
       <Dialog open={showSuccess} onOpenChange={setShowSuccess}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -809,44 +1157,116 @@ export function SellerPOS() {
               <CheckCircle className="h-6 w-6" />
               Sale Completed!
             </DialogTitle>
-            <DialogDescription className="space-y-3 pt-4">
-              <p className="text-base">
-                Inventory has been updated successfully.
-              </p>
-              <div className="bg-gray-50 rounded-lg p-4 space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Order ID:</span>
-                  <span className="font-mono font-medium">{successOrderId}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Total Amount:</span>
-                  <span className="font-bold text-orange-600">₱{cartTotal.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Status:</span>
-                  <Badge className="bg-green-500">Paid & Completed</Badge>
-                </div>
-              </div>
-              <p className="text-sm text-gray-600">
-                This transaction is now visible in your Orders page.
-              </p>
+            <DialogDescription>
+              Order saved to database and inventory updated
             </DialogDescription>
           </DialogHeader>
+          
+          {/* Receipt Preview */}
+          <div ref={receiptRef} className="bg-gradient-to-b from-orange-50 to-white border border-orange-200 rounded-lg overflow-hidden mt-2">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-[#FF5722] to-[#FF7043] text-white px-4 py-3 text-center">
+              <div className="text-lg font-bold">🛒 BazaarPH</div>
+              <div className="text-xs opacity-90">{receiptData?.sellerName || 'Store'}</div>
+            </div>
+            
+            {/* Order Info */}
+            <div className="p-4">
+              <div className="flex justify-between text-xs text-gray-600 mb-3">
+                <div>
+                  <div className="font-medium text-gray-800">Receipt #{receiptData?.orderNumber}</div>
+                  <div>{receiptData?.date.toLocaleDateString('en-PH', { 
+                    month: 'short', day: 'numeric', year: 'numeric',
+                    hour: '2-digit', minute: '2-digit'
+                  })}</div>
+                </div>
+                <div className="text-right">
+                  <div>Cashier: {receiptData?.cashier || 'Staff'}</div>
+                  <div>Customer: Walk-in</div>
+                </div>
+              </div>
+              
+              {/* Items */}
+              <div className="border-t border-b border-dashed border-gray-300 py-2 my-2">
+                {receiptData?.items.map((item, idx) => (
+                  <div key={idx} className="flex justify-between text-sm py-1.5">
+                    <div className="flex-1">
+                      <div className="font-medium text-gray-800">{item.productName}</div>
+                      {(item.selectedColor || item.selectedSize) && (
+                        <div className="text-xs text-gray-500">
+                          {[item.selectedColor, item.selectedSize].filter(Boolean).join(' / ')}
+                        </div>
+                      )}
+                      <div className="text-xs text-gray-500">
+                        {item.quantity} × ₱{item.price.toLocaleString()}
+                      </div>
+                    </div>
+                    <div className="font-medium text-gray-800">
+                      ₱{(item.price * item.quantity).toLocaleString()}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              {/* Totals */}
+              <div className="space-y-1 text-sm">
+                <div className="flex justify-between text-gray-600">
+                  <span>Subtotal</span>
+                  <span>₱{receiptData?.subtotal.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-gray-600">
+                  <span>Tax</span>
+                  <span>₱{(receiptData?.tax || 0).toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-lg font-bold text-[#FF5722] pt-2 border-t border-gray-200">
+                  <span>TOTAL</span>
+                  <span>₱{receiptData?.total.toLocaleString()}</span>
+                </div>
+              </div>
+              
+              {receiptData?.note && (
+                <div className="text-xs text-gray-600 mt-3 p-2 bg-orange-50 rounded border-l-2 border-orange-400">
+                  <span className="font-medium">Note:</span> {receiptData.note}
+                </div>
+              )}
+              
+              {/* Payment Badge */}
+              <div className="text-center mt-3">
+                <Badge className="bg-green-500 text-white">✓ PAID - CASH</Badge>
+              </div>
+            </div>
+            
+            {/* Footer */}
+            <div className="bg-gray-50 px-4 py-3 text-center border-t">
+              <div className="text-xs text-gray-600">Thank you for shopping! 🧡</div>
+              <div className="text-[10px] text-gray-400 mt-1">Powered by BazaarPH POS</div>
+            </div>
+          </div>
+          
           <div className="flex gap-2 mt-4">
             <Button
-              onClick={() => navigate('/seller/orders')}
-              className="flex-1 bg-orange-600 hover:bg-orange-700"
+              onClick={printReceipt}
+              variant="outline"
+              className="flex-1 border-orange-200 hover:bg-orange-50"
             >
-              View Orders
+              <Printer className="h-4 w-4 mr-2" />
+              Print Receipt
             </Button>
             <Button
-              onClick={() => setShowSuccess(false)}
-              variant="outline"
-              className="flex-1"
+              onClick={() => navigate('/seller/orders')}
+              className="flex-1 bg-[#FF5722] hover:bg-[#E64A19]"
             >
-              Close
+              <Receipt className="h-4 w-4 mr-2" />
+              View Orders
             </Button>
           </div>
+          <Button
+            onClick={() => setShowSuccess(false)}
+            variant="ghost"
+            className="w-full mt-2 text-gray-500"
+          >
+            Close & New Sale
+          </Button>
         </DialogContent>
       </Dialog>
     </div>
