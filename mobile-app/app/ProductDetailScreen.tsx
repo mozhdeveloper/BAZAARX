@@ -194,6 +194,11 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     fetchReviews();
   }, [product.id]);
 
+  // Debug effect for variant modal state
+  useEffect(() => {
+    console.log('[ProductDetail] showVariantModal changed to:', showVariantModal);
+  }, [showVariantModal]);
+
   // Build selected variant object
   const buildSelectedVariant = (color?: string | null, size?: string | null) => {
     const variant: { color?: string; size?: string } = {};
@@ -208,11 +213,16 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
   // Open variant modal
   const openVariantModal = (action: 'cart' | 'buy') => {
+    console.log('[ProductDetail] openVariantModal called | action:', action, '| hasVariants:', hasVariants, '| hasColors:', hasColors, '| hasSizes:', hasSizes);
+    
     if (isGuest) {
+      console.log('[ProductDetail] User is guest, showing login modal');
       setGuestModalMessage(action === 'cart' ? "Sign up to add items to your cart." : "Sign up to buy items.");
       setShowGuestModal(true);
       return;
     }
+    
+    console.log('[ProductDetail] Opening variant modal | selectedColor:', selectedColor, '| selectedSize:', selectedSize);
     
     // Reset modal selections to current selections
     setModalSelectedColor(selectedColor);
@@ -220,11 +230,26 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     setModalQuantity(quantity);
     setVariantModalAction(action);
     setShowVariantModal(true);
+    
+    console.log('[ProductDetail] Variant modal state set to true');
   };
 
   // Handle variant modal confirm
   const handleVariantModalConfirm = () => {
+    // Validate that required variants are selected
+    if (hasColors && !modalSelectedColor) {
+      Alert.alert('Select Color', 'Please select a color before continuing');
+      return;
+    }
+    
+    if (hasSizes && !modalSelectedSize) {
+      Alert.alert('Select Size', 'Please select a size before continuing');
+      return;
+    }
+    
     const selectedVariant = buildSelectedVariant(modalSelectedColor, modalSelectedSize);
+    
+    console.log('[ProductDetail] Adding to cart with variant:', selectedVariant);
     
     if (variantModalAction === 'cart') {
       addItem({ 
@@ -240,7 +265,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       Alert.alert('Added to Cart', `${product.name}${variantText} has been added to your cart.`);
     } else {
       setQuickOrder({ ...product, selectedVariant }, modalQuantity);
-      navigation.navigate('Checkout');
+      navigation.navigate('Checkout', {});
     }
     
     // Update main selections
@@ -252,11 +277,16 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
   // Handlers
   const handleAddToCart = () => {
+    console.log('[ProductDetail] handleAddToCart clicked | hasVariants:', hasVariants);
+    
     // Always show variant modal if variants exist
     if (hasVariants) {
+      console.log('[ProductDetail] Product has variants, opening variant modal');
       openVariantModal('cart');
       return;
     }
+    
+    console.log('[ProductDetail] No variants, adding directly to cart');
     
     const { isGuest } = useAuthStore.getState();
     if (isGuest) {
@@ -283,11 +313,16 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   };
 
   const handleBuyNow = () => {
+    console.log('[ProductDetail] handleBuyNow clicked | hasVariants:', hasVariants);
+    
     // Always show variant modal if variants exist
     if (hasVariants) {
+      console.log('[ProductDetail] Product has variants, opening variant modal');
       openVariantModal('buy');
       return;
     }
+    
+    console.log('[ProductDetail] No variants, proceeding to checkout');
     
     const { isGuest } = useAuthStore.getState();
     if (isGuest) {
@@ -301,7 +336,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     
     // Set quick order with variant info
     setQuickOrder({ ...product, selectedVariant }, quantity);
-    navigation.navigate('Checkout');
+    navigation.navigate('Checkout', {});
   };
 
   const handleShare = async () => {
@@ -740,11 +775,19 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
         visible={showVariantModal}
         animationType="slide"
         transparent={true}
-        onRequestClose={() => setShowVariantModal(false)}
+        onRequestClose={() => {
+          console.log('[ProductDetail] Variant modal close requested');
+          setShowVariantModal(false);
+        }}
       >
-        <TouchableWithoutFeedback onPress={() => setShowVariantModal(false)}>
+        <TouchableWithoutFeedback onPress={() => {
+          console.log('[ProductDetail] Modal overlay pressed, closing modal');
+          setShowVariantModal(false);
+        }}>
           <View style={styles.modalOverlay}>
-            <TouchableWithoutFeedback onPress={() => {}}>
+            <TouchableWithoutFeedback onPress={() => {
+              console.log('[ProductDetail] Modal content pressed, preventing close');
+            }}>
               <View style={[styles.variantModal, { paddingBottom: insets.bottom + 20 }]}>
                 {/* Modal Header */}
                 <View style={styles.variantModalHeader}>
@@ -839,13 +882,17 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                 <Pressable 
                   style={[
                     styles.variantModalConfirmBtn,
-                    variantModalAction === 'buy' && styles.variantModalBuyBtn
+                    variantModalAction === 'buy' && styles.variantModalBuyBtn,
+                    // Disable button if required variants not selected
+                    ((hasColors && !modalSelectedColor) || (hasSizes && !modalSelectedSize)) && styles.variantModalConfirmBtnDisabled
                   ]} 
                   onPress={handleVariantModalConfirm}
+                  disabled={(hasColors && !modalSelectedColor) || (hasSizes && !modalSelectedSize)}
                 >
                   <Text style={[
                     styles.variantModalConfirmText,
-                    variantModalAction === 'buy' && { color: '#FFF' }
+                    variantModalAction === 'buy' && { color: '#FFF' },
+                    ((hasColors && !modalSelectedColor) || (hasSizes && !modalSelectedSize)) && styles.variantModalConfirmTextDisabled
                   ]}>
                     {variantModalAction === 'cart' ? 'Add to Cart' : 'Buy Now'}
                   </Text>
@@ -1279,6 +1326,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 16,
   },
+  variantModalConfirmBtnDisabled: {
+    backgroundColor: '#F3F4F6',
+    borderColor: '#D1D5DB',
+  },
   variantModalBuyBtn: {
     backgroundColor: BRAND_COLOR,
     borderColor: BRAND_COLOR,
@@ -1287,6 +1338,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: BRAND_COLOR,
+  },
+  variantModalConfirmTextDisabled: {
+    color: '#9CA3AF',
   },
 
   // Loading & Empty States for Reviews

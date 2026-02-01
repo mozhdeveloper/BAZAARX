@@ -254,7 +254,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
         addItem(item as any);
       });
       // Direct the buyer to checkout
-      navigation.navigate('Checkout');
+      navigation.navigate('Checkout', {});
     }
   };
 

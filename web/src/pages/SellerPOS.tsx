@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Search, 
@@ -67,8 +67,16 @@ interface ReceiptData {
 export function SellerPOS() {
   const navigate = useNavigate();
   const { seller, logout } = useAuthStore();
-  const { products } = useProductStore();
+  const { products, fetchProducts, loading } = useProductStore();
   const { addOfflineOrder, fetchOrders } = useOrderStore();
+  
+  // Fetch seller's products when component mounts
+  useEffect(() => {
+    if (seller?.id) {
+      console.log('[SellerPOS] Fetching products for seller:', seller.id);
+      fetchProducts({ sellerId: seller.id });
+    }
+  }, [seller?.id, fetchProducts]);
   
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');

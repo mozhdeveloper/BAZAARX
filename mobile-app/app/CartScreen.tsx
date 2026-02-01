@@ -95,8 +95,9 @@ export default function CartScreen({ navigation }: any) {
       console.error('[CartScreen] Error reading delivery address:', error);
     }
     
-    // Navigate to Checkout with delivery address
+    // Navigate to Checkout with selected items and delivery address
     navigation.navigate('Checkout', {
+      selectedItems: selectedItems, // Pass the selected cart items
       deliveryAddress,
       deliveryCoordinates,
     });

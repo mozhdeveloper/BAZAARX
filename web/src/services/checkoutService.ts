@@ -272,20 +272,20 @@ export class CheckoutService {
                 }
             }
 
-            // 3. Handle Bazcoins (Profile Update)
+            // 3. Handle Bazcoins (Buyer Update)
             let newBalance: number | undefined;
             if (usedBazcoins > 0 || earnedBazcoins > 0) {
-                const { data: profile } = await supabase
-                    .from('profiles')
+                const { data: buyer } = await supabase
+                    .from('buyers')
                     .select('bazcoins')
                     .eq('id', userId)
                     .single();
 
-                const currentCoins = profile?.bazcoins || 0;
+                const currentCoins = buyer?.bazcoins || 0;
                 newBalance = currentCoins - usedBazcoins + earnedBazcoins;
 
                 await supabase
-                    .from('profiles')
+                    .from('buyers')
                     .update({ bazcoins: newBalance })
                     .eq('id', userId);
             }

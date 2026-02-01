@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -69,8 +69,16 @@ interface ReceiptData {
 export default function POSScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<SellerStackParamList>>();
   const insets = useSafeAreaInsets();
-  const { seller, products, addOfflineOrder, fetchOrders } = useSellerStore();
+  const { seller, products, addOfflineOrder, fetchOrders, fetchProducts, loading } = useSellerStore();
   const [drawerVisible, setDrawerVisible] = useState(false);
+
+  // Fetch seller's products when screen loads
+  useEffect(() => {
+    if (seller?.id) {
+      console.log('[POS] Fetching products for seller:', seller.id);
+      fetchProducts(seller.id);
+    }
+  }, [seller?.id]);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterTab, setFilterTab] = useState<'all' | 'low-stock' | 'best-sellers'>('all');
@@ -614,7 +622,21 @@ export default function POSScreen() {
 
           {/* Products Grid */}
           <View style={styles.productsGridContainer}>
-            {filteredProducts.map((product) => {
+            {loading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#FF5722" />
+                <Text style={styles.loadingText}>Loading products...</Text>
+              </View>
+            ) : filteredProducts.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <Package size={48} color="#D1D5DB" />
+                <Text style={styles.emptyTitle}>No products found</Text>
+                <Text style={styles.emptyText}>
+                  {searchQuery ? 'Try a different search term' : 'Add products to your store first'}
+                </Text>
+              </View>
+            ) : (
+              filteredProducts.map((product) => {
               const isOutOfStock = product.stock === 0;
               const cartItem = cart.find((item) => item.productId === product.id);
               const remainingStock = product.stock - (cartItem?.quantity || 0);
@@ -698,13 +720,7 @@ export default function POSScreen() {
                   </View>
                 </TouchableOpacity>
               );
-            })}
-            {filteredProducts.length === 0 && (
-              <View style={styles.emptyState}>
-                <Search size={48} color="#D1D5DB" />
-                <Text style={styles.emptyStateTitle}>No products found</Text>
-                <Text style={styles.emptyStateText}>Try a different search or filter</Text>
-              </View>
+            })
             )}
           </View>
         </View>
@@ -1300,6 +1316,35 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 12,
+  },
+  loadingContainer: {
+    width: '100%',
+    padding: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  emptyContainer: {
+    width: '100%',
+    padding: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyTitle: {
+    marginTop: 16,
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  emptyText: {
+    marginTop: 4,
+    fontSize: 14,
+    color: '#9CA3AF',
+    textAlign: 'center',
   },
   productCard: {
     width: '47%',
