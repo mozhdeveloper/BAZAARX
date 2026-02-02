@@ -57,6 +57,24 @@ export function SellerDashboard() {
               }}
             />
             <button
+              onClick={async () => {
+                // First, check if the seller has a buyer account
+                // If not, create one
+                const hasBuyerAccount = await useAuthStore.getState().createBuyerAccount();
+                if (hasBuyerAccount) {
+                  // Navigate to buyer profile
+                  navigate('/profile');
+                } else {
+                  console.error('Failed to create buyer account');
+                  // You might want to show an error message to the user
+                }
+              }}
+              className="flex items-center gap-2 w-full px-2 py-2 text-sm text-gray-700 hover:text-orange-500 hover:bg-orange-50 rounded-md transition-colors"
+            >
+              <Users className="h-5 w-5 flex-shrink-0" />
+              {open && <span>Switch to Buyer Mode</span>}
+            </button>
+            <button
               onClick={handleLogout}
               className="flex items-center gap-2 w-full px-2 py-2 text-sm text-gray-700 hover:text-orange-500 hover:bg-orange-50 rounded-md transition-colors"
             >

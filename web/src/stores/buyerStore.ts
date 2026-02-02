@@ -1010,6 +1010,100 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       }
     },
 
+    // Initialize buyer profile ensuring the buyer record exists in the database
+    initializeBuyerProfile: async (userId: string, profileData: any) => {
+      try {
+        // First, check if buyer record exists
+        const { data: existingBuyer, error: fetchError } = await supabase
+          .from('buyers')
+          .select('*')
+          .eq('id', userId)
+          .single();
+
+        if (fetchError && fetchError.code !== 'PGRST116') {
+          // PGRST116 is the error code for "Row not found"
+          console.error('Error checking buyer profile:', fetchError);
+        }
+
+        if (!existingBuyer) {
+          // Buyer record doesn't exist, create one
+          const { error: insertError } = await supabase
+            .from('buyers')
+            .insert([{
+              id: userId,
+              shipping_addresses: [],
+              payment_methods: [],
+              preferences: {
+                language: 'en',
+                currency: 'PHP',
+                notifications: {
+                  email: true,
+                  sms: false,
+                  push: true,
+                },
+                privacy: {
+                  showProfile: true,
+                  showPurchases: false,
+                  showFollowing: true,
+                },
+              },
+              followed_shops: [],
+              total_spent: 0,
+              bazcoins: 0,
+              total_orders: 0,
+            }]);
+
+          if (insertError) {
+            console.error('Error creating buyer profile:', insertError);
+            throw insertError;
+          }
+        }
+
+        // Now fetch the complete profile data
+        const { data: buyerData, error: buyerError } = await supabase
+          .from('buyers')
+          .select(`
+            *,
+            profile:profiles!id (
+              id, email, full_name, phone, avatar_url, user_type, created_at
+            )
+          `)
+          .eq('id', userId)
+          .single();
+
+        if (buyerError) {
+          console.error('Error fetching buyer profile:', buyerError);
+          throw buyerError;
+        }
+
+        // Extract profile info from the joined data
+        const profileInfo = buyerData.profile;
+        const buyerInfo = {
+          ...buyerData,
+          firstName: profileInfo.full_name?.split(' ')[0] || '',
+          lastName: profileInfo.full_name?.split(' ').slice(1).join(' ') || '',
+          email: profileInfo.email,
+          phone: profileInfo.phone || '',
+          avatar: profileInfo.avatar_url || '/placeholder-avatar.jpg',
+          memberSince: new Date(profileInfo.created_at),
+          totalSpent: buyerData.total_spent || 0,
+          bazcoins: buyerData.bazcoins || 0,
+          totalOrders: buyerData.total_orders || 0,
+        };
+
+        // Set the profile in the store
+        set({ profile: buyerInfo as BuyerProfile });
+
+        // Initialize addresses
+        set({ addresses: buyerData.shipping_addresses || [] });
+
+        return buyerInfo;
+      } catch (error) {
+        console.error('Error initializing buyer profile:', error);
+        throw error;
+      }
+    },
+
     subscribeToProfile: (userId) => {
       if (profileSubscription) return; // Already subscribed
 

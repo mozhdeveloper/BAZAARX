@@ -53,7 +53,7 @@ export default function BuyerProfilePage() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const { profile, updateProfile, addresses, followedShops, setAddresses, addAddress, updateAddress, addCard, deleteCard, setDefaultPaymentMethod } = useBuyerStore();
+  const { profile, updateProfile, addresses, followedShops, setAddresses, addAddress, updateAddress, addCard, deleteCard, setDefaultPaymentMethod, initializeBuyerProfile } = useBuyerStore();
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isAddressOpen, setIsAddressOpen] = useState(false);
@@ -77,6 +77,22 @@ export default function BuyerProfilePage() {
   const [cityList, setCityList] = useState<any[]>([]);
   const [barangayList, setBarangayList] = useState<any[]>([]);
 
+  // Initialize buyer profile if not already loaded
+  useEffect(() => {
+    const initializeProfile = async () => {
+      if (!profile) {
+        // Get current user from Supabase auth
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          // Initialize the buyer profile, creating the record if it doesn't exist
+          await initializeBuyerProfile(user.id, {});
+        }
+      }
+    };
+
+    initializeProfile();
+  }, [profile, initializeBuyerProfile]);
+
   // 1. Load regions on mount
   useEffect(() => {
     regions().then((res) => setRegionList(res));
@@ -86,14 +102,25 @@ export default function BuyerProfilePage() {
   useEffect(() => {
     const checkSellerStatus = async () => {
       if (profile?.email) {
-        const { data } = await supabase
-          .from('sellers')
-          .select('id')
+        // Check if the user exists in the profiles table with user_type = 'seller'
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('id, user_type')
           .eq('email', profile.email)
           .single();
 
-        if (data) {
+        if (error) {
+          // If error is due to no rows found, that's fine - user is not registered
+          if (error.code === 'PGRST116') { // Row not found
+            setIsSeller(false);
+          } else {
+            console.error('Error checking seller status:', error);
+            setIsSeller(false);
+          }
+        } else if (data && data.user_type === 'seller') {
           setIsSeller(true);
+        } else {
+          setIsSeller(false);
         }
       }
     };
@@ -587,12 +614,12 @@ export default function BuyerProfilePage() {
                 {/* Profile Stats - Styled like Seller Storefront */}
                 <div className="flex items-center justify-center md:justify-start gap-6 mt-4">
                   <div className="flex items-center gap-2">
-                    <span className="text-white text-base font-bold">{profile.totalOrders}</span>
+                    <span className="text-white text-base font-bold">{profile.totalOrders || 0}</span>
                     <span className="text-white/50 text-[10px] font-bold uppercase tracking-widest">Orders</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-white text-base font-bold">{profile.bazcoins}</span>
+                      <span className="text-white text-base font-bold">{profile.bazcoins || 0}</span>
                       <span className="text-white/50 text-[10px] font-bold uppercase tracking-widest">Bazcoins</span>
                     </div>
                   </div>
@@ -698,7 +725,7 @@ export default function BuyerProfilePage() {
                     </div>
                     <div>
                       <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">Member Since</div>
-                      <div className="text-gray-900 font-medium">{new Date(profile.memberSince).toLocaleDateString()}</div>
+                      <div className="text-gray-900 font-medium">{profile.memberSince ? new Date(profile.memberSince).toLocaleDateString() : 'N/A'}</div>
                     </div>
                   </div>
                 </CardContent>
@@ -716,7 +743,7 @@ export default function BuyerProfilePage() {
                     <div className="flex justify-between items-end pb-4 border-b border-gray-100">
                       <div>
                         <div className="text-sm text-gray-500 mb-1">Lifetime Spend</div>
-                        <div className="text-2xl font-bold text-gray-900">₱{profile.totalSpent.toLocaleString()}</div>
+                        <div className="text-2xl font-bold text-gray-900">₱{(profile.totalSpent || 0).toLocaleString()}</div>
                       </div>
                       <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center text-green-600">
                         <ShoppingBag className="w-5 h-5" />
@@ -726,7 +753,7 @@ export default function BuyerProfilePage() {
                     <div className="flex justify-between items-end pb-4 border-b border-gray-100">
                       <div>
                         <div className="text-sm text-gray-500 mb-1">Bazcoins Balance</div>
-                        <div className="text-2xl font-bold text-yellow-600">{profile.bazcoins}</div>
+                        <div className="text-2xl font-bold text-yellow-600">{profile.bazcoins || 0}</div>
                       </div>
                       <div className="w-10 h-10 rounded-full bg-yellow-100 flex items-center justify-center text-yellow-600">
                         <Gift className="w-5 h-5" />
