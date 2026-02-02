@@ -5,19 +5,23 @@ import {
   StyleSheet,
   ScrollView,
   Pressable,
-  Image,
   TextInput,
-  Modal,
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { Package, ShoppingCart, Bell, X, Search, ChevronDown, ChevronUp, Menu, RefreshCw, CreditCard, Calendar, Truck, CheckCircle, Clock } from 'lucide-react-native';
+import { Package, Bell, X, Search, Menu } from 'lucide-react-native';
 import { useSellerStore } from '../../../src/stores/sellerStore';
 import { useOrderStore } from '../../../src/stores/orderStore';
 import { useReturnStore } from '../../../src/stores/returnStore';
 import SellerDrawer from '../../../src/components/SellerDrawer';
+import {
+  OrderCard,
+  OrderDetailsModal,
+  OrderStatsBar,
+  OrderFilters,
+} from '../../../src/components/seller/orders';
 
 type OrderStatus = 'all' | 'pending' | 'to-ship' | 'completed' | 'returns' | 'refunds';
 type ChannelFilter = 'all' | 'online' | 'pos';
@@ -33,7 +37,6 @@ export default function SellerOrdersScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [channelFilter, setChannelFilter] = useState<ChannelFilter>('all');
   const [refreshing, setRefreshing] = useState(false);
-  const [statsExpanded, setStatsExpanded] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
 
   // Fetch orders from database on mount
@@ -125,163 +128,7 @@ export default function SellerOrdersScreen() {
     return matchesTab && matchesChannel && matchesSearch;
   });
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return '#10B981';
-      case 'to-ship':
-        return '#FF5722';
-      case 'pending':
-        return '#FBBF24';
-      default:
-        return '#6B7280';
-    }
-  };
 
-  const getStatusBgColor = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return '#D1FAE5';
-      case 'to-ship':
-        return '#FFF5F0';
-      case 'pending':
-        return '#FEF3C7';
-      default:
-        return '#F3F4F6';
-    }
-  };
-
-  const getActionButton = (order: any) => {
-    switch (order.status) {
-      case 'pending':
-        return (
-          <Pressable
-            style={[styles.actionButton, { backgroundColor: '#FF5722' }]}
-            onPress={() => updateOrderStatus(order.orderId, 'to-ship')}
-          >
-            <Text style={styles.actionButtonText}>Arrange Shipment</Text>
-          </Pressable>
-        );
-      case 'to-ship':
-        return (
-          <Pressable
-            style={[styles.actionButton, { backgroundColor: '#10B981' }]}
-            onPress={() => updateOrderStatus(order.orderId, 'completed')}
-          >
-            <Text style={styles.actionButtonText}>Mark Shipped</Text>
-          </Pressable>
-        );
-      case 'completed':
-        return (
-          <View style={[styles.actionButton, { backgroundColor: '#E5E7EB' }]}>
-            <Text style={[styles.actionButtonText, { color: '#6B7280' }]}>
-              Completed
-            </Text>
-          </View>
-        );
-      default:
-        return null;
-    }
-  };
-
-  // Helper to render the modal
-  const renderOrderDetailsModal = () => {
-    if (!selectedOrder) return null;
-
-    return (
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={!!selectedOrder}
-        onRequestClose={() => setSelectedOrder(null)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
-              <View>
-                <Text style={styles.modalTitle}>Order Details</Text>
-                <Text style={styles.modalSubtitle}>ID: {selectedOrder.orderId}</Text>
-              </View>
-              <Pressable onPress={() => setSelectedOrder(null)} style={styles.closeButton}>
-                <X size={24} color="#1F2937" />
-              </Pressable>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalContent}>
-              {/* Status Section */}
-              <View style={styles.modalSection}>
-                <View style={[styles.statusBadge, { alignSelf: 'flex-start', backgroundColor: getStatusBgColor(selectedOrder.status), marginBottom: 16 }]}>
-                  <Text style={[styles.statusText, { color: getStatusColor(selectedOrder.status) }]}>
-                    {selectedOrder.status.toUpperCase()}
-                  </Text>
-                </View>
-
-                {/* Customer Info */}
-                <Text style={styles.sectionTitle}>Customer Information</Text>
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Name:</Text>
-                  <Text style={styles.infoValue}>{selectedOrder.customerName}</Text>
-                </View>
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Email:</Text>
-                  <Text style={styles.infoValue}>{selectedOrder.customerEmail || 'N/A'}</Text>
-                </View>
-                {selectedOrder.posNote && (
-                  <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Note:</Text>
-                    <Text style={styles.infoValue}>{selectedOrder.posNote}</Text>
-                  </View>
-                )}
-              </View>
-
-              {/* Items Section */}
-              <View style={styles.modalSection}>
-                 <Text style={styles.sectionTitle}>Items ({Array.isArray(selectedOrder.items) ? selectedOrder.items.length : 0})</Text>
-                 {Array.isArray(selectedOrder.items) && selectedOrder.items.map((item: any, index: number) => (
-                   <View key={index} style={styles.modalItemRow}>
-                      <Image source={{ uri: item.image }} style={styles.modalItemImage} />
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.modalItemName} numberOfLines={2}>{item.name}</Text>
-                        <Text style={styles.modalItemVariant}>{item.variant || 'Standard'}</Text>
-                        <View style={styles.modalItemPriceRow}>
-                           <Text style={styles.modalItemQuantity}>x{item.quantity}</Text>
-                           <Text style={styles.modalItemPrice}>₱{(item.price || 0).toLocaleString()}</Text>
-                        </View>
-                      </View>
-                   </View>
-                 ))}
-              </View>
-
-              {/* Payment Section */}
-              <View style={styles.modalSection}>
-                <Text style={styles.sectionTitle}>Payment Details</Text>
-                <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>Subtotal</Text>
-                  <Text style={styles.summaryValue}>₱{(selectedOrder.total || 0).toLocaleString()}</Text>
-                </View>
-                 {/* Assuming shipping is included or 0 for now as it's not explicitly in the type showing in snippet, 
-                     but logically it should be there. Using total as subtotal for now if no breakdown exists. */}
-                <View style={[styles.summaryRow, styles.totalRow]}>
-                  <Text style={styles.modalTotalLabel}>Total Amount</Text>
-                  <Text style={styles.totalAmountText}>₱{(selectedOrder.total || 0).toLocaleString()}</Text>
-                </View>
-              </View>
-            </ScrollView>
-
-            <View style={styles.modalFooter}>
-               {getActionButton(selectedOrder)}
-               <Pressable 
-                  style={[styles.closeModalButton]} 
-                  onPress={() => setSelectedOrder(null)}
-                >
-                  <Text style={styles.closeModalButtonText}>Close</Text>
-               </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
-    );
-  };
 
   return (
     <View style={styles.container}>
@@ -319,8 +166,6 @@ export default function SellerOrdersScreen() {
           )}
         </View>
 
-        {/* Stats Dashboard Removed - Moved to Bottom */}
-
         {/* Notification (aligned to search end) */}
         <Pressable
           style={[styles.notificationButton, { position: 'absolute', right: 20, top: insets.top + 20 }]}
@@ -331,96 +176,15 @@ export default function SellerOrdersScreen() {
         </Pressable>
       </View>
 
-      {/* Segmented Control + Filter */}
-      <View style={styles.segmentedControlRow}>
-        <View style={{ flex: 1 }}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.segmentedScrollContent}
-          >
-            {(
-              ['all', 'pending', 'to-ship', 'completed', 'returns', 'refunds'] as OrderStatus[]
-            ).map((tab) => (
-              <Pressable
-                key={tab}
-                style={[
-                  styles.segmentButton,
-                  selectedTab === tab && styles.segmentButtonActive,
-                ]}
-                onPress={() => setSelectedTab(tab)}
-              >
-                <Text
-                  style={[
-                    styles.segmentButtonText,
-                    selectedTab === tab && styles.segmentButtonTextActive,
-                  ]}
-                >
-                  {tab.charAt(0).toUpperCase() + tab.slice(1).replace('-', ' ')}
-                </Text>
-                <View
-                  style={[
-                    styles.countBadge,
-                    selectedTab === tab && styles.countBadgeActive,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.countBadgeText,
-                      selectedTab === tab && styles.countBadgeTextActive,
-                    ]}
-                  >
-                    {orderCounts[tab]}
-                  </Text>
-                </View>
-              </Pressable>
-            ))}
-          </ScrollView>
-        </View>
-      </View>
-
-      {/* Channel Filter Tabs - Like Web Version */}
-      <View style={styles.channelFilterRow}>
-        <Pressable
-          style={[styles.channelTab, channelFilter === 'all' && styles.channelTabActive]}
-          onPress={() => setChannelFilter('all')}
-        >
-          <Text style={[styles.channelTabText, channelFilter === 'all' && styles.channelTabTextActive]}>
-            All Channels
-          </Text>
-          <View style={[styles.channelBadge, channelFilter === 'all' && styles.channelBadgeActive]}>
-            <Text style={[styles.channelBadgeText, channelFilter === 'all' && styles.channelBadgeTextActive]}>
-              {channelCounts.all}
-            </Text>
-          </View>
-        </Pressable>
-        <Pressable
-          style={[styles.channelTab, channelFilter === 'online' && styles.channelTabActive]}
-          onPress={() => setChannelFilter('online')}
-        >
-          <Text style={[styles.channelTabText, channelFilter === 'online' && styles.channelTabTextActive]}>
-            Online App
-          </Text>
-          <View style={[styles.channelBadge, channelFilter === 'online' && styles.channelBadgeActive]}>
-            <Text style={[styles.channelBadgeText, channelFilter === 'online' && styles.channelBadgeTextActive]}>
-              {channelCounts.online}
-            </Text>
-          </View>
-        </Pressable>
-        <Pressable
-          style={[styles.channelTab, channelFilter === 'pos' && styles.channelTabActive]}
-          onPress={() => setChannelFilter('pos')}
-        >
-          <Text style={[styles.channelTabText, channelFilter === 'pos' && styles.channelTabTextActive]}>
-            POS / Offline
-          </Text>
-          <View style={[styles.channelBadge, channelFilter === 'pos' && styles.channelBadgeActive]}>
-            <Text style={[styles.channelBadgeText, channelFilter === 'pos' && styles.channelBadgeTextActive]}>
-              {channelCounts.pos}
-            </Text>
-          </View>
-        </Pressable>
-      </View>
+      {/* Filters */}
+      <OrderFilters
+        selectedTab={selectedTab}
+        onTabChange={setSelectedTab}
+        channelFilter={channelFilter}
+        onChannelChange={setChannelFilter}
+        orderCounts={orderCounts}
+        channelCounts={channelCounts}
+      />
 
       <ScrollView
         style={styles.scrollView}
@@ -532,118 +296,12 @@ export default function SellerOrdersScreen() {
         ) : (
           <View style={styles.ordersList}>
             {filteredOrders.map((order) => (
-              <Pressable key={order.id} style={styles.orderCard} onPress={() => setSelectedOrder(order)}>
-                <View style={styles.orderHeader}>
-                  <View style={{ flex: 1, marginRight: 10 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <View style={{ flexShrink: 1 }}>
-                        <Text
-                          style={styles.orderId}
-                          numberOfLines={1}
-                          ellipsizeMode="tail"
-                        >
-                          {order.orderId}
-                        </Text>
-                      </View>
-                      <View style={{ marginLeft: 8 }}>
-                        {order.type === 'OFFLINE' ? (
-                          <View style={styles.walkInBadge}>
-                            <Text style={styles.walkInBadgeText}>POS</Text>
-                          </View>
-                        ) : (
-                          <View style={styles.onlineBadge}>
-                            <Text style={styles.onlineBadgeText}>Online</Text>
-                          </View>
-                        )}
-                      </View>
-                    </View>
-                    
-                    {/* Date & Customer */}
-                    <Text style={styles.orderDate}>
-                      {new Date(order.createdAt).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric'
-                      })}
-                    </Text>
-                    <Text style={styles.customerName}>{order.customerName}</Text>
-                    {order.posNote ? (
-                      <Text style={styles.posNote} numberOfLines={1}>
-                        Note: {order.posNote}
-                      </Text>
-                    ) : (
-                      <Text style={styles.customerEmail} numberOfLines={1}>
-                        {order.customerEmail}
-                      </Text>
-                    )}
-                  </View>
-                  <View style={{ flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-                    <View
-                      style={[
-                        styles.statusBadge,
-                        { backgroundColor: getStatusBgColor(order.status) },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.statusText,
-                          { color: getStatusColor(order.status) },
-                        ]}
-                      >
-                        {order.status.replace('-', ' ').toUpperCase()}
-                      </Text>
-                    </View>
-
-                    {/* Payment Status Badge */}
-                    {/* <View
-                      style={[
-                        styles.statusBadge,
-                        { 
-                          backgroundColor: 
-                            order.paymentStatus === 'paid' ? '#DCFCE7' : 
-                            order.paymentStatus === 'refunded' ? '#FEE2E2' : '#FEF9C3' 
-                        },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.statusText,
-                          { 
-                            color: 
-                              order.paymentStatus === 'paid' ? '#16A34A' : 
-                              order.paymentStatus === 'refunded' ? '#DC2626' : '#CA8A04' 
-                          },
-                        ]}
-                      >
-                        {order.paymentStatus?.toUpperCase() || 'PENDING'}
-                      </Text>
-                    </View> */}
-                  </View>
-                </View>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  style={styles.thumbnailsScroll}
-                >
-                  {order.items.map((item, index) => (
-                    <View key={index} style={styles.thumbnailContainer}>
-                      <Image source={{ uri: item.image }} style={styles.thumbnail} />
-                      <View style={styles.quantityBadge}>
-                        <Text style={styles.quantityText}>x{item.quantity}</Text>
-                      </View>
-                    </View>
-                  ))}
-                </ScrollView>
-                <View style={styles.orderFooter}>
-                  <View>
-                    <Text style={styles.totalLabel}>Total Amount</Text>
-                    <Text style={styles.totalAmount}>
-                      ₱{order.total.toLocaleString()}
-                    </Text>
-                  </View>
-                  {getActionButton(order)}
-                </View>
-              </Pressable>
+              <OrderCard
+                key={order.id}
+                order={order}
+                onPress={setSelectedOrder}
+                onUpdateStatus={updateOrderStatus}
+              />
             ))}
           </View>
         )}
@@ -651,74 +309,16 @@ export default function SellerOrdersScreen() {
         <View style={{ height: 100 }} />
       </ScrollView>
 
-      {/* Bottom Collapsible Stats */}
-      <Pressable 
-        style={[styles.bottomStatsContainer, { paddingBottom: 12 }]} 
-        onPress={() => setStatsExpanded(!statsExpanded)}
-      >
-        <View style={styles.bottomStatsHeader}>
-          <View style={styles.bottomStatsSummary}>
-            <Text style={styles.bottomStatsTitle}>Orders Summary</Text>
-            <View style={styles.bottomStatsRow}>
-              <Text style={styles.bottomStatsText}>
-                Total: <Text style={styles.bottomStatsValue}>{dashboardStats.total}</Text>
-              </Text>
-              <View style={styles.bottomStatsDot} />
-              <Text style={styles.bottomStatsText}>
-                Pending: <Text style={[styles.bottomStatsValue, { color: '#D97706' }]}>{dashboardStats.pending}</Text>
-              </Text>
-            </View>
-          </View>
-          <View style={styles.chevronContainer}>
-            {statsExpanded ? (
-              <ChevronDown size={20} color="#6B7280" />
-            ) : (
-              <ChevronUp size={20} color="#6B7280" />
-            )}
-          </View>
-        </View>
-
-        {statsExpanded && (
-          <View style={styles.expandedStats}>
-            {/* Row 1: Total */}
-            <View style={styles.statRow}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                 <ShoppingCart size={16} color="#6B7280" />
-                 <Text style={styles.statRowLabel}>Total Orders</Text>
-              </View>
-              <Text style={styles.statRowValue}>{dashboardStats.total}</Text>
-            </View>
-
-            {/* Row 2: Pending */}
-            <View style={styles.statRow}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                 <Clock size={16} color="#CA8A04" />
-                 <Text style={styles.statRowLabel}>Pending</Text>
-              </View>
-              <Text style={[styles.statRowValue, { color: '#CA8A04' }]}>{dashboardStats.pending}</Text>
-            </View>
-
-            {/* Row 3: Delivered */}
-            <View style={styles.statRow}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                 <CheckCircle size={16} color="#16A34A" />
-                 <Text style={styles.statRowLabel}>Delivered</Text>
-              </View>
-              <Text style={[styles.statRowValue, { color: '#16A34A' }]}>{dashboardStats.delivered}</Text>
-            </View>
-
-            {/* Row 4: POS */}
-            <View style={[styles.statRow, { borderBottomWidth: 0 }]}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                 <CreditCard size={16} color="#9333EA" />
-                 <Text style={styles.statRowLabel}>POS Today</Text>
-              </View>
-              <Text style={[styles.statRowValue, { color: '#9333EA' }]}>{dashboardStats.posToday}</Text>
-            </View>
-          </View>
-        )}
-      </Pressable>
-      {renderOrderDetailsModal()}
+      {/* Bottom Stats */}
+      <OrderStatsBar stats={dashboardStats} />
+      
+      {/* Order Details Modal */}
+      <OrderDetailsModal
+        visible={!!selectedOrder}
+        order={selectedOrder}
+        onClose={() => setSelectedOrder(null)}
+        onUpdateStatus={updateOrderStatus}
+      />
     </View>
   );
 }
