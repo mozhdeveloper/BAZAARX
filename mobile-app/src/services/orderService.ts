@@ -455,14 +455,37 @@ export class OrderService {
                     canceled: 'cancelled',
                 };
 
+                // Format shipping address as a single string
+                const formatShippingAddress = (addr: any): string | undefined => {
+                    if (!addr) return undefined;
+                    if (typeof addr === 'string') {
+                        try {
+                            addr = JSON.parse(addr);
+                        } catch {
+                            return addr;
+                        }
+                    }
+                    const parts = [
+                        addr.street || addr.address,
+                        addr.city,
+                        addr.province || addr.region,
+                        addr.postalCode
+                    ].filter(Boolean);
+                    return parts.length > 0 ? parts.join(', ') : undefined;
+                };
+
                 return {
                     id: order.id,
                     orderId: order.order_number || order.id,
                     customerName: order.buyer_name || order.shipping_address?.name || 'Walk-in Customer',
                     customerEmail: order.buyer_email || '',
+                    customerPhone: order.buyer_phone || order.shipping_address?.phone,
+                    shippingAddress: formatShippingAddress(order.shipping_address),
                     items,
                     total: order.total_amount || 0,
                     status: statusMap[order.status] || 'pending',
+                    paymentStatus: order.payment_status || 'pending',
+                    trackingNumber: order.tracking_number,
                     createdAt: order.created_at,
                     type: order.order_type || 'ONLINE', // Use order_type from database (OFFLINE for POS, ONLINE for app)
                     posNote: order.order_type === 'OFFLINE' ? order.notes : undefined,

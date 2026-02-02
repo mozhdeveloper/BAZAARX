@@ -37,6 +37,7 @@ import {
   Receipt,
 } from 'lucide-react-native';
 import { useSellerStore } from '../../src/stores/sellerStore';
+import { useOrderStore } from '../../src/stores/orderStore';
 import { OrderService } from '../../src/services/orderService';
 import SellerDrawer from '../../src/components/SellerDrawer';
 
@@ -69,7 +70,8 @@ interface ReceiptData {
 export default function POSScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<SellerStackParamList>>();
   const insets = useSafeAreaInsets();
-  const { seller, products, addOfflineOrder, fetchOrders, fetchProducts, loading } = useSellerStore();
+  const { seller, products, fetchProducts, loading } = useSellerStore();
+  const { addOfflineOrder, fetchSellerOrders } = useOrderStore();
   const [drawerVisible, setDrawerVisible] = useState(false);
 
   // Fetch seller's products when screen loads
@@ -78,7 +80,15 @@ export default function POSScreen() {
       console.log('[POS] Fetching products for seller:', seller.id);
       fetchProducts(seller.id);
     }
-  }, [seller?.id]);
+  }, [seller?.id, fetchProducts]);
+
+  // Fetch seller's orders when screen loads
+  useEffect(() => {
+    if (seller?.id) {
+      console.log('[POS] Fetching orders for seller:', seller.id);
+      fetchSellerOrders(seller.id);
+    }
+  }, [seller?.id, fetchSellerOrders]);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterTab, setFilterTab] = useState<'all' | 'low-stock' | 'best-sellers'>('all');
@@ -261,7 +271,7 @@ export default function POSScreen() {
       }
 
       // Also update local store for immediate UI update
-      addOfflineOrder(cart, total, receiptNote);
+      await addOfflineOrder(cart, total, receiptNote);
 
       // Set receipt data
       setReceiptData({
@@ -283,7 +293,7 @@ export default function POSScreen() {
 
       // Refresh orders to show new POS order
       if (seller.id) {
-        fetchOrders(seller.id);
+        fetchSellerOrders(seller.id);
       }
 
       // Clear cart after 2 seconds

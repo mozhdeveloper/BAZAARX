@@ -15,6 +15,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SellerStackParamList } from '../SellerStack';
 import { useSellerStore } from '../../../src/stores/sellerStore';
+import { useOrderStore } from '../../../src/stores/orderStore';
 import { useReturnStore } from '../../../src/stores/returnStore';
 import { chatService } from '../../../src/services/chatService';
 import SellerDrawer from '../../../src/components/SellerDrawer';
@@ -22,7 +23,8 @@ import SellerDrawer from '../../../src/components/SellerDrawer';
 const { width } = Dimensions.get('window');
 
 export default function SellerDashboardScreen() {
-  const { stats, revenueData, orders, seller } = useSellerStore();
+  const { stats, revenueData, seller } = useSellerStore();
+  const { sellerOrders: orders } = useOrderStore();
   const getReturnRequestsBySeller = useReturnStore((state) => state.getReturnRequestsBySeller);
   // Assuming seller has an ID or name matching the return requests. 
   // For now using a hardcoded value or seller.storeName as per previous context
