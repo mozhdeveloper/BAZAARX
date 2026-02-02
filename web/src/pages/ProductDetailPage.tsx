@@ -31,11 +31,22 @@ import { Button } from "../components/ui/button";
 import Header from "../components/Header";
 import { BazaarFooter } from "../components/ui/bazaar-footer";
 import { cn } from "../lib/utils";
-import { getProductById } from "../services/productService";
+import { productService } from "../services/productService";
 import { ProductWithSeller } from "../types/database.types";
 import { ProductReviews } from "@/components/reviews/ProductReviews";
 
 interface ProductDetailPageProps { }
+
+interface EnhancedReview {
+  id: number;
+  user: string;
+  rating: number;
+  date: string;
+  comment: string;
+  helpful: number;
+  isLiked: boolean;
+  replies: any[];
+}
 
 
 
@@ -816,7 +827,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
 
       setIsLoading(true);
       try {
-        const product = await getProductById(id);
+        const product = await productService.getProductById(id);
         if (product) {
           setDbProduct(product);
         }
@@ -971,7 +982,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
   const [replyText, setReplyText] = useState("");
   const [reviewFilter, setReviewFilter] = useState("all");
 
-  
+
 
   if (!normalizedProduct) {
     return (
@@ -1042,6 +1053,8 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
       ? {
         id: `var-${normalizedProduct.id}-${selectedSize || "default"}-${colorName}`,
         name: variantName,
+        size: selectedSize || undefined,
+        color: colorName !== "Default" ? colorName : undefined,
         price: productData.price,
         stock: normalizedProduct.stock || 100,
         image: productData.colors[selectedColor]?.image || productImage,
@@ -1170,6 +1183,8 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
     const selectedVariant = {
       id: `var-${normalizedProduct.id}-${selectedSize}-${colorName}`,
       name: variantName,
+      size: selectedSize || undefined,
+      color: colorName !== "Default" ? colorName : undefined,
       price: productData.price,
       stock: normalizedProduct.stock || 100,
       image: productData.colors[selectedColor]?.image || productImage,
@@ -1510,7 +1525,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
               </div>
             )}
 
-                        {activeTab === "reviews" && (
+            {activeTab === "reviews" && (
               <ProductReviews
                 productId={normalizedProduct.id}
                 rating={productData.rating}

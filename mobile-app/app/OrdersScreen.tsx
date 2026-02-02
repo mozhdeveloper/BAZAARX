@@ -44,7 +44,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [showFilterModal, setShowFilterModal] = useState(false);
-  
+
   // Return Store
   const getReturnRequestsByUser = useReturnStore((state) => state.getReturnRequestsByUser);
   const returnRequests = user ? getReturnRequestsByUser(user.id) : [];
@@ -53,13 +53,13 @@ export default function OrdersScreen({ navigation, route }: Props) {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [rating, setRating] = useState(0);
   const [reviewText, setReviewText] = useState('');
-  
+
   const [selectedStatus, setSelectedStatus] = useState<Order['status'] | 'all'>('all');
   const [sortOrder, setSortOrder] = useState<'latest' | 'oldest'>('latest');
-  
+
   const [dbOrders, setDbOrders] = useState<Order[]>([]);
   const updateOrderStatus = useOrderStore((state) => state.updateOrderStatus);
-  const addItem = useCartStore((state) => state.addItem); 
+  const addItem = useCartStore((state) => state.addItem);
   const insets = useSafeAreaInsets();
   const BRAND_COLOR = COLORS.primary;
 
@@ -115,8 +115,8 @@ export default function OrdersScreen({ navigation, route }: Props) {
               typeof it.unit_price === 'number'
                 ? it.unit_price
                 : typeof p.price === 'number'
-                ? p.price
-                : parseFloat(p.price || '0');
+                  ? p.price
+                  : parseFloat(p.price || '0');
             const sellerObj = p.seller || {};
             return {
               id: p.id || it.product_id,
@@ -160,7 +160,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
               : parseFloat(order.total_amount || '0') || items.reduce((sum: number, i: any) => sum + (i.price * i.quantity), 0) + shippingFee;
           return {
             id: order.id,
-            transactionId: order.transaction_id || order.id,
+            transactionId: order.order_number || order.id, // Use custom order_number instead of UUID
             items,
             total: totalNum,
             shippingFee,
@@ -169,15 +169,25 @@ export default function OrdersScreen({ navigation, route }: Props) {
             scheduledDate: new Date(order.created_at).toLocaleDateString(),
             deliveryDate: order.estimated_delivery_date || undefined,
             shippingAddress: {
-              name: order.shipping_name || user.name || 'BazaarX User',
-              email: user.email || '',
-              phone: user.phone || '',
-              address: (order.shipping_address as any)?.address || '',
+              name: (order.shipping_address as any)?.fullName || order.buyer_name || user.name || 'BazaarX User',
+              email: order.buyer_email || user.email || '',
+              phone: (order.shipping_address as any)?.phone || user.phone || '',
+              address: (order.shipping_address as any)?.street || (order.shipping_address as any)?.address || '',
               city: (order.shipping_address as any)?.city || '',
-              region: (order.shipping_address as any)?.region || '',
-              postalCode: (order.shipping_address as any)?.postalCode || '',
+              region: (order.shipping_address as any)?.province || (order.shipping_address as any)?.region || '',
+              postalCode: (order.shipping_address as any)?.postalCode || (order.shipping_address as any)?.zip_code || '',
             },
-            paymentMethod: typeof order.payment_method === 'string' ? order.payment_method : 'Pay on Delivery',
+            paymentMethod: typeof order.payment_method === 'string'
+              ? order.payment_method
+              : ((order.payment_method as any)?.type === 'cod'
+                  ? 'Cash on Delivery'
+                  : (order.payment_method as any)?.type === 'gcash'
+                    ? 'GCash'
+                    : (order.payment_method as any)?.type === 'card'
+                      ? 'Card'
+                      : (order.payment_method as any)?.type === 'paymongo'
+                        ? 'PayMongo'
+                        : (order.payment_method as any)?.type || 'Pay on Delivery'),
             createdAt: order.created_at,
           } as Order;
         });
@@ -194,14 +204,14 @@ export default function OrdersScreen({ navigation, route }: Props) {
     if (activeTab === 'returns') return [];
 
     let baseOrders: Order[] = [];
-    
-    switch(activeTab) {
+
+    switch (activeTab) {
       case 'toPay':
         // Assuming 'pending' means unpaid (e.g. awaiting payment or COD confirmation)
         baseOrders = dbOrders.filter(o => o.status === 'pending');
         break;
       case 'toShip':
-         // 'processing' means paid/confirmed and waiting shipment
+        // 'processing' means paid/confirmed and waiting shipment
         baseOrders = dbOrders.filter(o => o.status === 'processing');
         break;
       case 'toReceive':
@@ -209,8 +219,8 @@ export default function OrdersScreen({ navigation, route }: Props) {
         break;
       case 'completed':
         // Show delivered orders, BUT exclude those that have return requests (they go to Returns tab)
-        baseOrders = dbOrders.filter(o => 
-          o.status === 'delivered' && 
+        baseOrders = dbOrders.filter(o =>
+          o.status === 'delivered' &&
           !returnRequests.some(req => req.orderId === o.id)
         );
         break;
@@ -220,17 +230,17 @@ export default function OrdersScreen({ navigation, route }: Props) {
       default:
         baseOrders = [];
     }
-    
+
     if (selectedStatus !== 'all') baseOrders = baseOrders.filter(order => order.status === selectedStatus);
-    
+
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      baseOrders = baseOrders.filter(order => 
-        order.transactionId.toLowerCase().includes(query) || 
-        order.items.some(item => item.name.toLowerCase().includes(query))
+      baseOrders = baseOrders.filter(order =>
+        order.transactionId.toLowerCase().includes(query) ||
+        order.items.some(item => item.name?.toLowerCase().includes(query))
       );
     }
-    
+
     return [...baseOrders].sort((a, b) => {
       const dateA = new Date(a.createdAt).getTime();
       const dateB = new Date(b.createdAt).getTime();
@@ -241,10 +251,10 @@ export default function OrdersScreen({ navigation, route }: Props) {
   const handleBuyAgain = (order: Order) => {
     if (order.items.length > 0) {
       order.items.forEach(item => {
-        addItem(item as any); 
+        addItem(item as any);
       });
       // Direct the buyer to checkout
-      navigation.navigate('Checkout');
+      navigation.navigate('Checkout', {});
     }
   };
 
@@ -267,11 +277,10 @@ export default function OrdersScreen({ navigation, route }: Props) {
   const getStatusBadgeStyle = (status: Order['status'] | string) => {
     switch (status) {
       case 'pending': return { bg: '#FFF4ED', text: BRAND_COLOR }; // Orange
-      case 'delivered': 
+      case 'delivered':
       case 'approved':
       case 'refunded': return { bg: '#F0FDF4', text: '#166534' }; // Green
-      case 'refunded': return { bg: '#F0FDF4', text: '#166534' }; // Green
-      case 'cancelled': 
+      case 'canceled':
       case 'rejected': return { bg: '#FEE2E2', text: '#DC2626' }; // Red
       case 'pending_review': return { bg: '#FEF3C7', text: '#D97706' }; // Yellow
       default: return { bg: '#F3F4F6', text: '#374151' }; // Gray
@@ -385,9 +394,9 @@ export default function OrdersScreen({ navigation, route }: Props) {
     const statusStyle = getStatusBadgeStyle(returnReq.status);
 
     return (
-      <Pressable 
-        key={returnReq.id} 
-        style={styles.orderCard} 
+      <Pressable
+        key={returnReq.id}
+        style={styles.orderCard}
         onPress={() => navigation.navigate('ReturnDetail', { returnId: returnReq.id })}
       >
         <View style={styles.cardHeader}>
@@ -398,7 +407,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
           </View>
           <Text style={styles.orderIdText}>ID: #{returnReq.id.slice(-8)}</Text>
         </View>
-        
+
         <View style={styles.cardBody}>
           <Image source={{ uri: productInfo.image }} style={styles.productThumb} />
           <View style={styles.productInfo}>
@@ -411,12 +420,12 @@ export default function OrdersScreen({ navigation, route }: Props) {
           </View>
         </View>
         <View style={styles.cardFooter}>
-           <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%'}}>
-              <Text style={{fontSize: 12, color: '#6B7280'}}>Reason: {returnReq.reason}</Text>
-              <Pressable style={[styles.outlineButton, { paddingVertical: 8, paddingHorizontal: 16 }]} onPress={() => navigation.navigate('ReturnDetail', { returnId: returnReq.id })}>
-                 <Text style={styles.outlineButtonText}>Details</Text>
-              </Pressable>
-           </View>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+            <Text style={{ fontSize: 12, color: '#6B7280' }}>Reason: {returnReq.reason}</Text>
+            <Pressable style={[styles.outlineButton, { paddingVertical: 8, paddingHorizontal: 16 }]} onPress={() => navigation.navigate('ReturnDetail', { returnId: returnReq.id })}>
+              <Text style={styles.outlineButtonText}>Details</Text>
+            </Pressable>
+          </View>
         </View>
       </Pressable>
     );
@@ -424,31 +433,31 @@ export default function OrdersScreen({ navigation, route }: Props) {
 
   if (isGuest) {
     return (
-        <View style={styles.container}>
-            <View style={[styles.headerContainer, { paddingTop: 60, backgroundColor: COLORS.primary }]}>
-                <View style={styles.headerTop}>
-                    <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-                        <ArrowLeft size={24} color="#FFF" strokeWidth={2.5} />
-                    </Pressable>
-                    <Text style={styles.headerTitle}>My Orders</Text>
-                    <View style={{ width: 40 }} />
-                </View>
-            </View>
-            <GuestLoginModal
-                visible={true}
-                onClose={() => navigation.navigate('MainTabs', { screen: 'Home' })} // Explicit navigation
-                message="Sign up to track your orders."
-                hideCloseButton={true}
-                cancelText="Go back to Home"
-            />
+      <View style={styles.container}>
+        <View style={[styles.headerContainer, { paddingTop: 60, backgroundColor: COLORS.primary }]}>
+          <View style={styles.headerTop}>
+            <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
+              <ArrowLeft size={24} color="#FFF" strokeWidth={2.5} />
+            </Pressable>
+            <Text style={styles.headerTitle}>My Orders</Text>
+            <View style={{ width: 40 }} />
+          </View>
         </View>
+        <GuestLoginModal
+          visible={true}
+          onClose={() => navigation.navigate('MainTabs', { screen: 'Home' })} // Explicit navigation
+          message="Sign up to track your orders."
+          hideCloseButton={true}
+          cancelText="Go back to Home"
+        />
+      </View>
     );
   }
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
-      
+
       {/* Header with Title only */}
       <View style={[styles.headerContainer, { paddingTop: insets.top + 10, paddingBottom: 15, backgroundColor: BRAND_COLOR }]}>
         <View style={styles.headerTop}>
@@ -469,25 +478,25 @@ export default function OrdersScreen({ navigation, route }: Props) {
 
       {/* White Tab Bar - Sticky look */}
       <View style={styles.tabsWrapper}>
-        <ScrollView 
-          horizontal 
+        <ScrollView
+          horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.tabsContentContainer}
         >
           {(['toPay', 'toShip', 'toReceive', 'completed', 'returns', 'cancelled'] as const).map((tab) => {
-             const labelMap: Record<string, string> = {
+            const labelMap: Record<string, string> = {
               toPay: 'To Pay',
               toShip: 'To Ship',
               toReceive: 'To Receive',
               completed: 'Completed',
               returns: 'Return/Refund',
               cancelled: 'Cancelled'
-             };
+            };
             return (
-              <Pressable 
-                  key={tab} 
-                  onPress={() => setActiveTab(tab)} 
-                  style={[styles.newTab, activeTab === tab && styles.newTabActive, { borderColor: BRAND_COLOR }]}
+              <Pressable
+                key={tab}
+                onPress={() => setActiveTab(tab)}
+                style={[styles.newTab, activeTab === tab && styles.newTabActive, { borderColor: BRAND_COLOR }]}
               >
                 <Text style={[styles.newTabText, activeTab === tab ? { color: BRAND_COLOR, fontWeight: '600' } : { color: '#6B7280' }]}>
                   {labelMap[tab]}
@@ -500,16 +509,16 @@ export default function OrdersScreen({ navigation, route }: Props) {
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16, paddingBottom: 100 }}>
         {activeTab === 'returns' ? (
-           // RETURNS VIEW
-           returnRequests.length === 0 ? (
+          // RETURNS VIEW
+          returnRequests.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Package size={64} color="#D1D5DB" />
               <Text style={styles.emptyTitle}>No Return Requests</Text>
               <Text style={styles.emptyText}>Any return or refund requests will appear here</Text>
             </View>
-           ) : (
+          ) : (
             returnRequests.map(renderReturnItem)
-           )
+          )
         ) : (
           // ORDERS VIEW
           filteredOrders.length === 0 ? (
@@ -533,7 +542,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
                       : order.transactionId.startsWith('TXN') ? order.transactionId : `#${order.transactionId}`}
                   </Text>
                 </View>
-                
+
                 <View style={styles.cardBody}>
                   <Pressable onPress={() => navigation.navigate('ProductDetail', { product: order.items[0] })}>
                     <Image source={{ uri: order.items[0]?.image }} style={styles.productThumb} />
@@ -548,7 +557,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
                   </View>
                 </View>
                 <View style={styles.cardFooter}>
-                   {renderActionButtons(order)}
+                  {renderActionButtons(order)}
                 </View>
               </Pressable>
             ))
@@ -562,10 +571,10 @@ export default function OrdersScreen({ navigation, route }: Props) {
           <View style={[styles.searchModalContent, { paddingTop: insets.top + 10 }]}>
             <View style={styles.searchBarContainer}>
               <Pressable onPress={() => setShowSearchModal(false)}><ArrowLeft size={24} color="#1F2937" /></Pressable>
-              <TextInput 
-                style={styles.modalSearchInput} 
-                placeholder="Search by ID or product..." 
-                autoFocus 
+              <TextInput
+                style={styles.modalSearchInput}
+                placeholder="Search by ID or product..."
+                autoFocus
                 value={searchQuery}
                 onChangeText={setSearchQuery}
               />
@@ -606,40 +615,40 @@ export default function OrdersScreen({ navigation, route }: Props) {
       <Modal visible={showRatingModal} animationType="slide" transparent={true}>
         <View style={styles.ratingOverlay}>
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.ratingContent}>
-             <View style={styles.ratingHeader}>
-                <Text style={styles.ratingTitle}>Rate Product</Text>
-                <Pressable onPress={() => setShowRatingModal(false)}>
-                  <X size={24} color="#9CA3AF" />
-                </Pressable>
-             </View>
-             
-             {selectedOrder && (
-               <View style={styles.ratingProductInfo}>
-                  <Image source={{ uri: selectedOrder.items[0]?.image }} style={{ width: 40, height: 40, borderRadius: 4, marginRight: 10 }} />
-                  <Text style={{ flex: 1, fontSize: 14 }} numberOfLines={1}>{selectedOrder.items[0]?.name}</Text>
-               </View>
-             )}
+            <View style={styles.ratingHeader}>
+              <Text style={styles.ratingTitle}>Rate Product</Text>
+              <Pressable onPress={() => setShowRatingModal(false)}>
+                <X size={24} color="#9CA3AF" />
+              </Pressable>
+            </View>
 
-             <View style={styles.starsContainer}>
-                {[1, 2, 3, 4, 5].map((star) => (
-                   <Pressable key={star} onPress={() => setRating(star)}>
-                      <Ionicons name={rating >= star ? "star" : "star-outline"} size={32} color={rating >= star ? "#F59E0B" : "#D1D5DB"} />
-                   </Pressable>
-                ))}
-             </View>
-             
-             <TextInput 
-                style={styles.reviewInput} 
-                placeholder="Write your review here..." 
-                multiline 
-                numberOfLines={4}
-                value={reviewText}
-                onChangeText={setReviewText}
-             />
-             
-             <Pressable style={[styles.submitReviewBtn, { backgroundColor: rating > 0 ? BRAND_COLOR : '#D1D5DB' }]} disabled={rating === 0} onPress={handleSubmitRating}>
-                <Text style={styles.submitReviewText}>Submit Review</Text>
-             </Pressable>
+            {selectedOrder && (
+              <View style={styles.ratingProductInfo}>
+                <Image source={{ uri: selectedOrder.items[0]?.image }} style={{ width: 40, height: 40, borderRadius: 4, marginRight: 10 }} />
+                <Text style={{ flex: 1, fontSize: 14 }} numberOfLines={1}>{selectedOrder.items[0]?.name}</Text>
+              </View>
+            )}
+
+            <View style={styles.starsContainer}>
+              {[1, 2, 3, 4, 5].map((star) => (
+                <Pressable key={star} onPress={() => setRating(star)}>
+                  <Ionicons name={rating >= star ? "star" : "star-outline"} size={32} color={rating >= star ? "#F59E0B" : "#D1D5DB"} />
+                </Pressable>
+              ))}
+            </View>
+
+            <TextInput
+              style={styles.reviewInput}
+              placeholder="Write your review here..."
+              multiline
+              numberOfLines={4}
+              value={reviewText}
+              onChangeText={setReviewText}
+            />
+
+            <Pressable style={[styles.submitReviewBtn, { backgroundColor: rating > 0 ? BRAND_COLOR : '#D1D5DB' }]} disabled={rating === 0} onPress={handleSubmitRating}>
+              <Text style={styles.submitReviewText}>Submit Review</Text>
+            </Pressable>
           </KeyboardAvoidingView>
         </View>
       </Modal>
@@ -703,7 +712,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
   },
-  
+
   // Previous Styles (kept for cards/modals)
   emptyContainer: {
     alignItems: 'center',
@@ -845,7 +854,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
   },
-  
+
   // Modals Styles
   modalOverlay: {
     flex: 1,
@@ -853,7 +862,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   searchModalContent: {
-    flex: 1, 
+    flex: 1,
     backgroundColor: '#FFF',
   },
   searchBarContainer: {
@@ -923,7 +932,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  
+
   // Rating Modal
   ratingOverlay: {
     flex: 1,
@@ -947,12 +956,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   ratingProductInfo: {
-     flexDirection: 'row',
-     alignItems: 'center',
-     marginBottom: 20,
-     padding: 10,
-     backgroundColor: '#F9FAFB',
-     borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+    padding: 10,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
   },
   starsContainer: {
     flexDirection: 'row',
@@ -970,20 +979,20 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   submitReviewBtn: {
-     paddingVertical: 14,
-     borderRadius: 12,
-     alignItems: 'center',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
   },
   submitReviewText: {
-     color: '#FFF',
-     fontWeight: '600',
-     fontSize: 16,
+    color: '#FFF',
+    fontWeight: '600',
+    fontSize: 16,
   },
   // Removed old styles
   tabsContainer: {
     // Legacy style removed/replaced
   },
-  tab: { 
+  tab: {
     // Legacy style removed/replaced 
   },
   tabText: {

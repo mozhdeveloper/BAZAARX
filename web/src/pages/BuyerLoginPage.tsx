@@ -11,7 +11,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { useBuyerStore } from "../stores/buyerStore";
-import { signIn, signInWithProvider } from "../services/authService";
+import { authService } from "../services/authService";
 import { supabase } from "../lib/supabase";
 
 export default function BuyerLoginPage() {
@@ -45,20 +45,15 @@ export default function BuyerLoginPage() {
     setIsLoading(true);
 
     try {
-      const { user, error: signInError } = await signIn(email, password);
+      const result = await authService.signIn(email, password);
 
-      if (signInError) {
-        console.error("Login error:", signInError);
-        setError("Invalid email or password.");
-        setIsLoading(false);
-        return;
-      }
-
-      if (!user) {
+      if (!result || !result.user) {
         setError("Login failed. Please try again.");
         setIsLoading(false);
         return;
       }
+
+      const { user } = result;
 
       // Verify buyer role
       const { data: buyerData, error: buyerError } = await supabase
@@ -131,21 +126,21 @@ export default function BuyerLoginPage() {
   const handleGoogleSignIn = async () => {
     setError("");
     setIsLoading(true);
-    await signInWithProvider("google");
+    await authService.signInWithProvider("google");
     // Since this redirects, we don't need to unset loading unless it fails immediately, but for UX safety:
     setTimeout(() => setIsLoading(false), 3000);
   };
 
   const handleDemoLogin = () => {
-    setEmail("buyer@bazaarx.ph");
-    setPassword("password");
+    setEmail("anna.cruz@gmail.com");
+    setPassword("Buyer123!");
     setError("");
   };
 
   const handleFacebookSignIn = async () => {
     setError("");
     setIsLoading(true);
-    await signInWithProvider("facebook");
+    await authService.signInWithProvider("facebook");
     setTimeout(() => setIsLoading(false), 3000);
   };
 
@@ -212,18 +207,33 @@ export default function BuyerLoginPage() {
           </div>
 
           {/* Demo Account Banner */}
-          <div className="bg-gradient-to-r from-orange-500/10 via-orange-400/5 to-transparent border border-orange-100 rounded-[20px] p-4 flex justify-between items-center mb-8 shadow-sm">
-            <div>
-              <p className="text-[10px] font-black text-orange-600 uppercase tracking-[0.1em] mb-0.5">Try Demo Account</p>
-              <p className="text-sm text-[var(--text-primary)] font-bold">buyer@bazaarx.ph</p>
+          <div className="bg-gradient-to-r from-orange-500/10 via-orange-400/5 to-transparent border border-orange-100 rounded-[20px] p-4 mb-8 shadow-sm">
+            <div className="flex justify-between items-start mb-3">
+              <div>
+                <p className="text-[10px] font-black text-orange-600 uppercase tracking-[0.1em] mb-0.5">🧪 Test Buyer Accounts</p>
+                <p className="text-xs text-[var(--text-secondary)]">All have conversations & messages</p>
+              </div>
+              <button
+                type="button"
+                onClick={handleDemoLogin}
+                className="text-[10px] font-bold text-orange-600 border border-orange-200 px-3 py-1.5 rounded-xl bg-white hover:bg-orange-50 transition-all active:scale-95 shadow-sm"
+              >
+                Auto-Fill Anna
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={handleDemoLogin}
-              className="text-[10px] font-bold text-orange-600 border border-orange-200 px-4 py-2 rounded-xl bg-white hover:bg-orange-50 transition-all active:scale-95 shadow-sm"
-            >
-              Auto-Fill
-            </button>
+            <div className="space-y-1 text-xs text-orange-700">
+              <p className="font-semibold">Password for all: <span className="font-mono bg-orange-100 px-2 py-0.5 rounded">Buyer123!</span></p>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-2 text-[11px]">
+                <button type="button" onClick={() => { setEmail('anna.cruz@gmail.com'); setPassword('Buyer123!'); }} className="text-left hover:text-orange-900 hover:underline transition-colors">• anna.cruz@gmail.com</button>
+                <button type="button" onClick={() => { setEmail('miguel.santos@gmail.com'); setPassword('Buyer123!'); }} className="text-left hover:text-orange-900 hover:underline transition-colors">• miguel.santos@gmail.com</button>
+                <button type="button" onClick={() => { setEmail('sofia.reyes@gmail.com'); setPassword('Buyer123!'); }} className="text-left hover:text-orange-900 hover:underline transition-colors">• sofia.reyes@gmail.com</button>
+                <button type="button" onClick={() => { setEmail('carlos.garcia@gmail.com'); setPassword('Buyer123!'); }} className="text-left hover:text-orange-900 hover:underline transition-colors">• carlos.garcia@gmail.com</button>
+                <button type="button" onClick={() => { setEmail('isabella.fernandez@gmail.com'); setPassword('Buyer123!'); }} className="text-left hover:text-orange-900 hover:underline transition-colors">• isabella.fernandez@gmail.com</button>
+                <button type="button" onClick={() => { setEmail('rafael.mendoza@gmail.com'); setPassword('Buyer123!'); }} className="text-left hover:text-orange-900 hover:underline transition-colors">• rafael.mendoza@gmail.com</button>
+                <button type="button" onClick={() => { setEmail('gabriela.torres@gmail.com'); setPassword('Buyer123!'); }} className="text-left hover:text-orange-900 hover:underline transition-colors">• gabriela.torres@gmail.com</button>
+                <button type="button" onClick={() => { setEmail('daniel.villanueva@gmail.com'); setPassword('Buyer123!'); }} className="text-left hover:text-orange-900 hover:underline transition-colors">• daniel.villanueva@gmail.com</button>
+              </div>
+            </div>
           </div>
 
           {error && (

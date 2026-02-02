@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Package,
@@ -68,14 +68,21 @@ const SellerProductStatus = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'waiting' | 'qa' | 'revision' | 'verified' | 'rejected'>('all');
   
-  const { products: qaProducts, submitSample } = useProductQAStore();
+  const { products: qaProducts, submitSample, loadProducts, isLoading } = useProductQAStore();
   const { toast } = useToast();
   const { seller } = useAuthStore();
   const { products: sellerProducts } = useProductStore();
 
-  // Filter QA products for this seller
+  // Load QA products for this seller on mount
+  useEffect(() => {
+    if (seller?.id) {
+      loadProducts(seller.id);
+    }
+  }, [seller?.id, loadProducts]);
+
+  // Filter QA products for this seller using seller ID
   const sellerQAProducts = qaProducts.filter(
-    (p) => p.vendor === (seller?.name || 'Unknown Vendor')
+    (p) => p.sellerId === seller?.id
   );
 
   // Get all seller products (including those not in QA yet)
@@ -140,7 +147,14 @@ const SellerProductStatus = () => {
   };
 
   const { filteredQA: filteredQAProducts, filteredSeller: filteredSellerProducts } = getFilteredProducts();
-  const allFilteredProducts = [...filteredQAProducts, ...filteredSellerProducts];
+  
+  // Get product IDs that are already in QA system to avoid duplicates
+  const qaProductIds = new Set(qaProducts.map(p => p.productId));
+  
+  // Only include seller products that are NOT in the QA system yet
+  const nonQASellerProducts = filteredSellerProducts.filter(p => !qaProductIds.has(p.id));
+  
+  const allFilteredProducts = [...filteredQAProducts, ...nonQASellerProducts];
 
   const handleSubmitSample = () => {
     if (!selectedProduct || !logisticsMethod) {
@@ -347,7 +361,12 @@ const SellerProductStatus = () => {
           {/* Products List */}
           <Card>
             <div className="divide-y">
-              {allFilteredProducts.length === 0 ? (
+              {isLoading ? (
+                <div className="py-16 text-center">
+                  <RefreshCw className="w-12 h-12 text-gray-300 mx-auto mb-3 animate-spin" />
+                  <p className="text-gray-500 font-medium">Loading products...</p>
+                </div>
+              ) : allFilteredProducts.length === 0 ? (
                 <div className="py-16 text-center">
                   <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                   <p className="text-gray-500 font-medium">No products found</p>

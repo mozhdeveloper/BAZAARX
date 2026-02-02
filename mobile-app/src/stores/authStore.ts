@@ -1,15 +1,22 @@
+/**
+ * Auth Store (Mobile)
+ * Manages authentication state with Supabase integration
+ * Updated to use authService following Service Layer Architecture
+ */
+
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { authService, type AuthResult } from '@/services/authService';
+import type { Profile } from '@/types/database.types';
 
 export interface SavedCard {
   id: string;
   last4: string;
-  brand: string; // 'Visa', 'MasterCard', etc.
-  expiry: string; // 'MM/YY'
+  brand: string;
+  expiry: string;
 }
 
-// Real user interface based on Supabase profile
 interface User {
   id: string;
   name: string;
@@ -17,20 +24,29 @@ interface User {
   phone: string;
   avatar?: string;
   savedCards?: SavedCard[];
-  roles?: string[]; // 'buyer', 'seller', 'admin'
+  roles?: string[];
 }
 
 interface AuthState {
   user: User | null;
+  profile: Profile | null;
   isAuthenticated: boolean;
   hasCompletedOnboarding: boolean;
   isGuest: boolean;
   activeRole: 'buyer' | 'seller';
+  loading: boolean;
+  error: string | null;
+
+  // Auth Actions (using authService)
+  signIn: (email: string, password: string) => Promise<boolean>;
+  signUp: (email: string, password: string, userData: { full_name?: string; phone?: string; user_type: 'buyer' | 'seller' }) => Promise<boolean>;
+  signOut: () => Promise<void>;
   
-  setUser: (user: User) => void; // Used after successful Supabase login
+  // State setters
+  setUser: (user: User) => void;
   logout: () => void;
   completeOnboarding: () => void;
-  resetOnboarding: () => void; // For testing/debugging
+  resetOnboarding: () => void;
   loginAsGuest: () => void;
   updateProfile: (updates: Partial<User>) => void;
   
@@ -38,50 +54,182 @@ interface AuthState {
   switchRole: (role: 'buyer' | 'seller') => void;
   addRole: (role: string) => void;
 
-  // Kept for backward compatibility if any, but logic is now external
-  login: (email: string, password: string) => Promise<boolean>; 
+  // Session
+  checkSession: () => Promise<void>;
+
+  // Deprecated
+  login: (email: string, password: string) => Promise<boolean>;
 }
 
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
       user: null,
+      profile: null,
       isAuthenticated: false,
       hasCompletedOnboarding: false,
       isGuest: false,
-      activeRole: 'buyer', // Default to buyer
+      activeRole: 'buyer',
+      loading: false,
+      error: null,
+
+      signIn: async (email: string, password: string) => {
+        set({ loading: true, error: null });
+        try {
+          const result = await authService.signIn(email, password);
+          if (result?.user) {
+            const profile = await authService.getUserProfile(result.user.id);
+            const user: User = {
+              id: result.user.id,
+              email: result.user.email || email,
+              name: profile?.full_name || result.user.email?.split('@')[0] || 'User',
+              phone: profile?.phone || '',
+              avatar: profile?.avatar_url || undefined,
+              roles: profile?.user_type ? [profile.user_type] : ['buyer'],
+              savedCards: [],
+            };
+            set({
+              user,
+              profile,
+              isAuthenticated: true,
+              isGuest: false,
+              activeRole: profile?.user_type === 'seller' ? 'seller' : 'buyer',
+              loading: false,
+            });
+            return true;
+          }
+          set({ loading: false });
+          return false;
+        } catch (error) {
+          set({
+            error: error instanceof Error ? error.message : 'Sign in failed',
+            loading: false,
+          });
+          return false;
+        }
+      },
+
+      signUp: async (email, password, userData) => {
+        set({ loading: true, error: null });
+        try {
+          const result = await authService.signUp(email, password, userData);
+          if (result?.user) {
+            const user: User = {
+              id: result.user.id,
+              email: email,
+              name: userData.full_name || email.split('@')[0],
+              phone: userData.phone || '',
+              roles: [userData.user_type],
+            };
+            set({
+              user,
+              isAuthenticated: true,
+              isGuest: false,
+              activeRole: userData.user_type === 'seller' ? 'seller' : 'buyer',
+              loading: false,
+            });
+            return true;
+          }
+          set({ loading: false });
+          return false;
+        } catch (error) {
+          set({
+            error: error instanceof Error ? error.message : 'Sign up failed',
+            loading: false,
+          });
+          return false;
+        }
+      },
+
+      signOut: async () => {
+        set({ loading: true });
+        try {
+          await authService.signOut();
+          set({
+            user: null,
+            profile: null,
+            isAuthenticated: false,
+            isGuest: false,
+            activeRole: 'buyer',
+            loading: false,
+          });
+        } catch (error) {
+          set({
+            error: error instanceof Error ? error.message : 'Sign out failed',
+            loading: false,
+          });
+        }
+      },
+
+      checkSession: async () => {
+        try {
+          const session = await authService.getSession();
+          if (session?.user) {
+            const profile = await authService.getUserProfile(session.user.id);
+            const user: User = {
+              id: session.user.id,
+              email: session.user.email || '',
+              name: profile?.full_name || session.user.email?.split('@')[0] || 'User',
+              phone: profile?.phone || '',
+              avatar: profile?.avatar_url || undefined,
+              roles: profile?.user_type ? [profile.user_type] : ['buyer'],
+            };
+            set({
+              user,
+              profile,
+              isAuthenticated: true,
+              activeRole: profile?.user_type === 'seller' ? 'seller' : 'buyer',
+            });
+          } else {
+            // No valid session, clear auth state
+            set({
+              user: null,
+              profile: null,
+              isAuthenticated: false,
+              isGuest: false,
+            });
+          }
+        } catch (error) {
+          console.error('Error checking session:', error);
+          // Clear auth state on session error (e.g., invalid refresh token)
+          set({
+            user: null,
+            profile: null,
+            isAuthenticated: false,
+            isGuest: false,
+            error: 'Session expired. Please sign in again.',
+          });
+        }
+      },
 
       setUser: (user: User) => {
-        // Mock saved cards if none exist (for demo)
         if (!user.savedCards) {
-            user.savedCards = [
-                { id: 'card_1', last4: '4242', brand: 'Visa', expiry: '12/28' },
-                { id: 'card_2', last4: '8888', brand: 'MasterCard', expiry: '10/26' },
-            ];
+          user.savedCards = [
+            { id: 'card_1', last4: '4242', brand: 'Visa', expiry: '12/28' },
+            { id: 'card_2', last4: '8888', brand: 'MasterCard', expiry: '10/26' },
+          ];
         }
-        
-        // Ensure roles exist
         if (!user.roles) {
           user.roles = ['buyer'];
         }
-
-        set({ 
-          user, 
-          isAuthenticated: true, 
+        set({
+          user,
+          isAuthenticated: true,
           isGuest: false,
-          activeRole: 'buyer' // Always start as buyer on login
+          activeRole: 'buyer',
         });
       },
 
-      // Deprecated: Login logic moved to LoginScreen to handle Supabase directly
+      // Deprecated: use signIn instead
       login: async () => {
-        console.warn('authStore.login is deprecated. Use LoginScreen logic.');
+        console.warn('authStore.login is deprecated. Use signIn instead.');
         return false;
       },
 
       logout: () => {
         set({
           user: null,
+          profile: null,
           isAuthenticated: false,
           isGuest: false,
           activeRole: 'buyer',
@@ -108,7 +256,7 @@ export const useAuthStore = create<AuthState>()(
             phone: '',
             avatar: '',
             roles: ['buyer'],
-          }
+          },
         });
       },
 
@@ -130,8 +278,8 @@ export const useAuthStore = create<AuthState>()(
             return {
               user: {
                 ...state.user,
-                roles: [...roles, role]
-              }
+                roles: [...roles, role],
+              },
             };
           }
           return state;
@@ -144,4 +292,3 @@ export const useAuthStore = create<AuthState>()(
     }
   )
 );
-

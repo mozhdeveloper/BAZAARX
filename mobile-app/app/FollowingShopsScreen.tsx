@@ -5,6 +5,7 @@ import { ArrowLeft, Store, MapPin, Star, Users } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import { useAuthStore } from '../src/stores/authStore';
+import { useShopStore } from '../src/stores/shopStore';
 import { GuestLoginModal } from '../src/components/GuestLoginModal';
 import { officialStores } from '../src/data/stores';
 import { COLORS } from '../src/constants/theme';
@@ -22,12 +23,17 @@ export default function FollowingShopsScreen({ navigation }: Props) {
         }
     }, [isGuest]);
 
-    // Simulate following random official stores for demo purposes
-    const followingShops = officialStores;
+    const { followedShops, unfollowShop } = useShopStore();
+    
+    // console.log('Followed Shops:', followedShops);
+    // console.log('Official Stores count:', officialStores.length);
+    
+    const followingShops = followedShops;
+    // console.log('Following Shops count:', followingShops.length);
 
     const handleUnfollow = (shopId: string) => {
         console.log('Unfollow shop:', shopId);
-        // In a real app, this would update state/backend
+        unfollowShop(shopId);
     };
 
     const handleVisitShop = (shop: any) => {
@@ -198,10 +204,10 @@ const styles = StyleSheet.create({
         marginBottom: 16,
         overflow: 'hidden',
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 8,
-        elevation: 2,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 12,
+        elevation: 5,
     },
     shopImage: {
         width: '100%',

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, StatusBar, Dimensions, Share, Alert, Pressable, Modal, TextInput, Image, Switch, KeyboardAvoidingView, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, Heart, ShoppingBag, Share2, MoreVertical, Edit2, Search, FolderHeart, Plus, Lock, Globe, User, X, Store, ChevronRight } from 'lucide-react-native';
+import { ArrowLeft, Heart, ShoppingBag, Share2, MoreVertical, Edit2, Search, FolderHeart, Plus, Lock, Globe, User, X, Store, ChevronRight, Trash2 } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { ProductCard } from '../src/components/ProductCard';
 import { useWishlistStore, WishlistItem } from '../src/stores/wishlistStore';
@@ -76,13 +76,12 @@ const CreateListModal = ({ visible, onClose, onCreate }: any) => {
 
 // Item Edit Modal Component (Kept for Item View)
 const ItemEditModal = ({ visible, onClose, item, onSave }: any) => {
-    const [priority, setPriority] = useState(item?.priority || 'medium');
     const [qty, setQty] = useState(item?.desiredQty?.toString() || '1');
     const [isPrivate, setIsPrivate] = useState(item?.isPrivate || false);
 
     useEffect(() => {
         if (item) {
-            setPriority(item.priority || 'medium');
+
             setQty(item.desiredQty?.toString() || '1');
             setIsPrivate(item.isPrivate || false);
         }
@@ -94,20 +93,7 @@ const ItemEditModal = ({ visible, onClose, item, onSave }: any) => {
                 <View style={styles.modalContent}>
                     <Text style={styles.modalTitle}>Edit Item</Text>
                     
-                    <Text style={styles.inputLabel}>Priority</Text>
-                    <View style={styles.priorityRow}>
-                        {(['low', 'medium', 'high'] as const).map((p) => (
-                            <Pressable 
-                                key={p} 
-                                style={[styles.priorityOption, priority === p && styles.selectedPriority]}
-                                onPress={() => setPriority(p)}
-                            >
-                                <Text style={[styles.priorityOptionText, priority === p && { color: '#FFF' }]}>
-                                    {p.charAt(0).toUpperCase() + p.slice(1)}
-                                </Text>
-                            </Pressable>
-                        ))}
-                    </View>
+
 
                     <Text style={styles.inputLabel}>Desired Quantity</Text>
                     <View style={styles.qtyContainer}>
@@ -133,14 +119,125 @@ const ItemEditModal = ({ visible, onClose, item, onSave }: any) => {
                         <Pressable 
                             style={[styles.modalBtn, styles.primaryBtn]} 
                             onPress={() => {
-                                onSave(item.id, { priority, desiredQty: parseInt(qty), isPrivate });
+                                onSave(item.id, { desiredQty: parseInt(qty), isPrivate });
                                 onClose();
                             }}
                         >
                             <Text style={styles.primaryBtnText}>Save</Text>
                         </Pressable>
                     </View>
+                    
+                    <Pressable 
+                        style={{ position: 'absolute', top: 20, right: 16, padding: 4 }}
+                        onPress={() => {
+                            Alert.alert(
+                                'Remove Item',
+                                'Are you sure you want to remove this item?',
+                                [
+                                    { text: 'Cancel', style: 'cancel' },
+                                    { text: 'Remove', style: 'destructive', onPress: () => {
+                                        onSave(item.id, null, true);
+                                        onClose();
+                                    }}
+                                ]
+                            );
+                        }}
+                    >
+                        <Trash2 size={20} color="#EF4444" />
+                    </Pressable>
+                    </View>
                 </View>
+        </Modal>
+    );
+};
+
+// Edit Category Modal
+const EditCategoryModal = ({ visible, onClose, category, onSave, onDelete }: any) => {
+    const [name, setName] = useState(category?.name || '');
+    const [isPrivate, setIsPrivate] = useState(category?.privacy === 'private');
+    const insets = useSafeAreaInsets();
+
+    useEffect(() => {
+        if (category) {
+            setName(category.name);
+            setIsPrivate(category.privacy === 'private');
+        }
+    }, [category]);
+
+    const handleSave = () => {
+        if (!name.trim()) return;
+        onSave(category.id, { name, privacy: isPrivate ? 'private' : 'shared' });
+        onClose();
+    };
+
+    const handleDelete = () => {
+        if (category.id === 'default') {
+            Alert.alert('Cannot Delete', 'The default list cannot be deleted.');
+            return;
+        }
+        Alert.alert(
+            'Delete List',
+            'Are you sure? Items will be moved to your default list.',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Delete', style: 'destructive', onPress: () => {
+                    onDelete(category.id);
+                    onClose();
+                }}
+            ]
+        );
+    };
+
+    return (
+        <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+            <View style={styles.bottomSheetOverlay}>
+                <Pressable style={styles.backdrop} onPress={onClose} />
+                <KeyboardAvoidingView 
+                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                    style={{ width: '100%' }}
+                >
+                    <View style={[styles.bottomSheetContent, { paddingBottom: insets.bottom + 20 }]}>
+                        <View style={styles.bsHeader}>
+                            <Text style={styles.bsTitle}>Edit List</Text>
+                            <Pressable onPress={onClose} style={styles.closeBtn}>
+                                <X size={24} color="#374151" />
+                            </Pressable>
+                        </View>
+                        
+                        <Text style={styles.inputLabel}>List Name</Text>
+                        <TextInput 
+                            style={styles.bsInput} 
+                            value={name} 
+                            onChangeText={setName} 
+                            placeholder="List Name"
+                        />
+
+                        <View style={styles.bsSwitchRow}>
+                            <View style={{flex: 1}}>
+                                <Text style={styles.switchLabel}>Keep private</Text>
+                                <Text style={styles.switchSub}>Only you can see this list.</Text>
+                            </View>
+                            <Switch 
+                                value={isPrivate} 
+                                onValueChange={setIsPrivate}
+                                trackColor={{ false: '#E5E7EB', true: COLORS.primary }}
+                                thumbColor="#FFF"
+                            />
+                        </View>
+
+                        <View style={{ gap: 12 }}>
+                            <Pressable onPress={handleSave} style={[styles.createBtn, !name.trim() && styles.disabledBtn]}>
+                                <Text style={styles.createBtnText}>Save Changes</Text>
+                            </Pressable>
+                            
+                            {category?.id !== 'default' && (
+                                <Pressable onPress={handleDelete} style={[styles.createBtn, { backgroundColor: '#FEE2E2' }]}>
+                                    <Text style={[styles.createBtnText, { color: '#DC2626' }]}>Delete List</Text>
+                                </Pressable>
+                            )}
+                        </View>
+                    </View>
+                </KeyboardAvoidingView>
             </View>
         </Modal>
     );
@@ -150,13 +247,15 @@ export default function WishlistScreen() {
     const insets = useSafeAreaInsets();
     const navigation = useNavigation<any>();
 
-    const { items, categories, createCategory, updateItem, shareWishlist } = useWishlistStore();
+    const { items, categories, createCategory, updateItem, removeItem, shareWishlist, updateCategory, deleteCategory } = useWishlistStore();
     const { isGuest } = useAuthStore();
     
     // UI State
     const [showGuestModal, setShowGuestModal] = useState(false);
     const [showCreateModal, setShowCreateModal] = useState(false);
+
     const [editingItem, setEditingItem] = useState<WishlistItem | null>(null);
+    const [editingCategory, setEditingCategory] = useState<any>(null);
     
     // Navigation State
     const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
@@ -233,6 +332,15 @@ export default function WishlistScreen() {
                         {!selectedCategoryId && (
                              <Pressable onPress={() => setShowCreateModal(true)} style={[styles.createHeaderBtn]}>
                                 <Plus size={20} color={COLORS.primary} strokeWidth={3} />
+                             </Pressable>
+                        )}
+
+                        {selectedCategoryId && (
+                             <Pressable onPress={() => {
+                                 const cat = categories.find(c => c.id === selectedCategoryId);
+                                 setEditingCategory(cat);
+                             }} style={styles.headerIconButton}>
+                                <MoreVertical size={24} color="#FFF" />
                              </Pressable>
                         )}
                     </View>
@@ -349,22 +457,7 @@ export default function WishlistScreen() {
                                             </View>
                                         </View>
                                         
-                                        {/* Registry Details */}
-                                        <View style={styles.registryDetails}>
-                                            <View style={[styles.priorityBadge, { 
-                                                backgroundColor: item.priority === 'high' ? '#FEE2E2' : item.priority === 'medium' ? '#FEF3C7' : '#E0F2FE'
-                                            }]}>
-                                                <Text style={[styles.priorityText, {
-                                                    color: item.priority === 'high' ? '#DC2626' : item.priority === 'medium' ? '#D97706' : '#0284C7'
-                                                }]}>
-                                                    {item.priority?.toUpperCase()}
-                                                </Text>
-                                            </View>
-                                            <Text style={styles.qtyText}>
-                                                Needs: <Text style={{fontWeight:'700'}}>{item.desiredQty}</Text> • 
-                                                Has: <Text style={{fontWeight:'700', color: COLORS.primary}}>{item.purchasedQty || 0}</Text>
-                                            </Text>
-                                        </View>
+
                                     </View>
                                 ))}
                             </View>
@@ -394,7 +487,24 @@ export default function WishlistScreen() {
                 visible={!!editingItem}
                 item={editingItem}
                 onClose={() => setEditingItem(null)}
-                onSave={updateItem}
+                onSave={(itemId: string, updates: any, shouldDelete: boolean) => {
+                    if (shouldDelete) {
+                        removeItem(itemId);
+                    } else {
+                        updateItem(itemId, updates);
+                    }
+                }}
+            />
+
+            <EditCategoryModal
+                visible={!!editingCategory}
+                category={editingCategory}
+                onClose={() => setEditingCategory(null)}
+                onSave={updateCategory}
+                onDelete={(id: string) => {
+                    deleteCategory(id);
+                    setSelectedCategoryId(null); // Go back home
+                }}
             />
         </View>
     );
@@ -424,8 +534,8 @@ const styles = StyleSheet.create({
         backgroundColor: '#FFF',
         borderRadius: 16,
         overflow: 'hidden',
-        elevation: 3,
-        shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 4,
+        elevation: 6,
+        shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 12,
         marginBottom: 4,
     },
     cardBanner: {

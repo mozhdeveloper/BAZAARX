@@ -30,6 +30,7 @@ import {
   CreditCard,
   User,
   LogOut,
+  Bell,
   LifeBuoy,
 } from 'lucide-react-native';
 import { useSellerStore } from '../stores/sellerStore';
@@ -153,6 +154,7 @@ export default function SellerDrawer({ visible, onClose }: SellerDrawerProps) {
     {
       label: 'Communication',
       items: [
+        { icon: Bell, label: 'Notifications', route: 'Notifications' },
         { icon: MessageSquare, label: 'Messages', route: 'Messages' },
         { icon: Star, label: 'Reviews', route: 'Reviews' },
       ],

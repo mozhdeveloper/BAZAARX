@@ -1,19 +1,17 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { qaService, type ProductQAStatus } from '@/services/qaService';
+import { isSupabaseConfigured } from '@/lib/supabase';
+import { useProductStore } from './sellerStore';
 
-export type ProductQAStatus = 
-  | 'PENDING_DIGITAL_REVIEW'    // Step 1: Needs Admin Digital Approval
-  | 'WAITING_FOR_SAMPLE'         // Step 2: Needs Seller to Send Sample
-  | 'IN_QUALITY_REVIEW'          // Step 3: Sample with Admin (Physical QA)
-  | 'ACTIVE_VERIFIED'            // Step 4: Live & Verified
-  | 'FOR_REVISION'               // Needs seller to revise/update
-  | 'REJECTED';                  // Rejected by admin
+export type { ProductQAStatus };
 
 export interface QAProduct {
   id: string;
   name: string;
   description?: string;
   vendor: string;
+  sellerId?: string; // Added seller ID for proper filtering
   price: number;
   originalPrice?: number;
   category: string;
@@ -32,17 +30,20 @@ export interface QAProduct {
 
 interface ProductQAStore {
   products: QAProduct[];
+  isLoading: boolean;
   
   // Actions
-  approveForSampleSubmission: (productId: string) => void;
-  submitSample: (productId: string, logisticsMethod: string) => void;
-  passQualityCheck: (productId: string) => void;
-  rejectProduct: (productId: string, reason: string, stage: 'digital' | 'physical') => void;
-  requestRevision: (productId: string, reason: string, stage: 'digital' | 'physical') => void;
+  loadProducts: (sellerId?: string) => Promise<void>;
+  approveForSampleSubmission: (productId: string) => Promise<void>;
+  submitSample: (productId: string, logisticsMethod: string) => Promise<void>;
+  passQualityCheck: (productId: string) => Promise<void>;
+  rejectProduct: (productId: string, reason: string, stage: 'digital' | 'physical') => Promise<void>;
+  requestRevision: (productId: string, reason: string, stage: 'digital' | 'physical') => Promise<void>;
   getProductById: (productId: string) => QAProduct | undefined;
   getProductsByStatus: (status: ProductQAStatus) => QAProduct[];
+  getProductsBySeller: (sellerId: string) => QAProduct[];
   resetToInitialState: () => void;
-  addProductToQA: (productData: Omit<QAProduct, 'status' | 'logistics' | 'submittedAt'>) => void;
+  addProductToQA: (productData: Omit<QAProduct, 'status' | 'logistics' | 'submittedAt'>) => Promise<void>;
 }
 
 const initialProducts: QAProduct[] = [
@@ -100,208 +101,238 @@ export const useProductQAStore = create<ProductQAStore>()(
   persist(
     (set, get) => ({
       products: initialProducts,
+      isLoading: false,
 
-      approveForSampleSubmission: (productId: string) => {
+      // Load products from database (for admin) or by seller (for seller)
+      loadProducts: async (sellerId?: string) => {
+        if (!isSupabaseConfigured()) {
+          console.log('Using mock QA data (Supabase not configured)');
+          return;
+        }
+
+        set({ isLoading: true });
+        try {
+          const qaEntries = sellerId 
+            ? await qaService.getQAEntriesBySeller(sellerId)
+            : await qaService.getAllQAEntries();
+
+          const qaProducts: QAProduct[] = qaEntries.map((entry: any) => ({
+            id: entry.product_id,
+            name: entry.product?.name || 'Unknown Product',
+            vendor: entry.vendor,
+            sellerId: entry.product?.seller_id,
+            price: entry.product?.price || 0,
+            category: entry.product?.category || 'Uncategorized',
+            status: entry.status,
+            logistics: entry.logistics,
+            image: entry.product?.images?.[0] || 'https://placehold.co/100?text=Product',
+            images: entry.product?.images || [],
+            rejectionReason: entry.rejection_reason,
+            rejectionStage: entry.rejection_stage,
+            submittedAt: entry.submitted_at,
+            approvedAt: entry.approved_at,
+            verifiedAt: entry.verified_at,
+            rejectedAt: entry.rejected_at,
+            revisionRequestedAt: entry.revision_requested_at,
+          }));
+
+          set({ products: qaProducts, isLoading: false });
+        } catch (error) {
+          console.error('Error loading QA products:', error);
+          set({ isLoading: false });
+        }
+      },
+
+      approveForSampleSubmission: async (productId: string) => {
         try {
           const product = get().products.find(p => p.id === productId);
           if (!product) {
-            console.error(`Product not found: ${productId}`);
             throw new Error('Product not found');
           }
           if (product.status !== 'PENDING_DIGITAL_REVIEW') {
-            console.error(`Invalid status transition: ${product.status} -> WAITING_FOR_SAMPLE`);
             throw new Error('Product must be in PENDING_DIGITAL_REVIEW status');
           }
-          set((state) => ({
-            products: state.products.map((product) =>
-              product.id === productId
-                ? { 
-                    ...product, 
-                    status: 'WAITING_FOR_SAMPLE' as ProductQAStatus,
-                    approvedAt: new Date().toISOString()
-                  }
-                : product
-            ),
-          }));
+
+          // Update database if configured
+          if (isSupabaseConfigured()) {
+            await qaService.approveForSampleSubmission(productId);
+            // Reload to get fresh data
+            await get().loadProducts();
+          } else {
+            // Fallback to local state
+            set((state) => ({
+              products: state.products.map((product) =>
+                product.id === productId
+                  ? { 
+                      ...product, 
+                      status: 'WAITING_FOR_SAMPLE' as ProductQAStatus,
+                      approvedAt: new Date().toISOString()
+                    }
+                  : product
+              ),
+            }));
+          }
+
+          // Sync with seller store
+          syncToSellerStore(productId, 'pending');
         } catch (error) {
           console.error('Error approving product for sample submission:', error);
           throw error;
         }
       },
 
-      submitSample: (productId: string, logisticsMethod: string) => {
+      submitSample: async (productId: string, logisticsMethod: string) => {
         try {
           if (!logisticsMethod || logisticsMethod.trim() === '') {
             throw new Error('Logistics method is required');
           }
           const product = get().products.find(p => p.id === productId);
           if (!product) {
-            console.error(`Product not found: ${productId}`);
             throw new Error('Product not found');
           }
           if (product.status !== 'WAITING_FOR_SAMPLE') {
-            console.error(`Invalid status transition: ${product.status} -> IN_QUALITY_REVIEW`);
             throw new Error('Product must be in WAITING_FOR_SAMPLE status');
           }
-          set((state) => ({
-            products: state.products.map((product) =>
-              product.id === productId
-                ? { 
-                    ...product, 
-                    status: 'IN_QUALITY_REVIEW' as ProductQAStatus,
-                    logistics: logisticsMethod
-                  }
-                : product
-            ),
-          }));
+
+          // Update database if configured
+          if (isSupabaseConfigured()) {
+            await qaService.submitSample(productId, logisticsMethod);
+            await get().loadProducts();
+          } else {
+            // Fallback to local state
+            set((state) => ({
+              products: state.products.map((product) =>
+                product.id === productId
+                  ? { 
+                      ...product, 
+                      status: 'IN_QUALITY_REVIEW' as ProductQAStatus,
+                      logistics: logisticsMethod
+                    }
+                  : product
+              ),
+            }));
+          }
         } catch (error) {
           console.error('Error submitting sample:', error);
           throw error;
         }
       },
 
-      passQualityCheck: (productId: string) => {
+      passQualityCheck: async (productId: string) => {
         try {
           const product = get().products.find(p => p.id === productId);
           if (!product) {
-            console.error(`Product not found: ${productId}`);
             throw new Error('Product not found');
           }
           if (product.status !== 'IN_QUALITY_REVIEW') {
-            console.error(`Invalid status transition: ${product.status} -> ACTIVE_VERIFIED`);
             throw new Error('Product must be in IN_QUALITY_REVIEW status');
           }
-          set((state) => ({
-            products: state.products.map((product) =>
-              product.id === productId
-                ? { 
-                    ...product, 
-                    status: 'ACTIVE_VERIFIED' as ProductQAStatus,
-                    verifiedAt: new Date().toISOString()
-                  }
-                : product
-            ),
-          }));
-          
-          // Sync with seller store - update approval status
-          if (typeof window !== 'undefined') {
-            import('./sellerStore')
-              .then(({ useProductStore }) => {
-                try {
-                  const sellerStore = useProductStore.getState();
-                  sellerStore.updateProduct(productId, { approvalStatus: 'approved' });
-                } catch (error) {
-                  console.error('Error syncing to seller store:', error);
-                }
-              })
-              .catch((error) => {
-                console.error('Error loading seller store:', error);
-              });
+
+          // Update database if configured
+          if (isSupabaseConfigured()) {
+            await qaService.passQualityCheck(productId);
+            await get().loadProducts();
+          } else {
+            // Fallback to local state
+            set((state) => ({
+              products: state.products.map((product) =>
+                product.id === productId
+                  ? { 
+                      ...product, 
+                      status: 'ACTIVE_VERIFIED' as ProductQAStatus,
+                      verifiedAt: new Date().toISOString()
+                    }
+                  : product
+              ),
+            }));
           }
+          
+          // Sync with seller store
+          syncToSellerStore(productId, 'approved');
         } catch (error) {
           console.error('Error passing quality check:', error);
           throw error;
         }
       },
 
-      rejectProduct: (productId: string, reason: string, stage: 'digital' | 'physical') => {
+      rejectProduct: async (productId: string, reason: string, stage: 'digital' | 'physical') => {
         try {
           if (!reason || reason.trim() === '') {
             throw new Error('Rejection reason is required');
           }
           const product = get().products.find(p => p.id === productId);
           if (!product) {
-            console.error(`Product not found: ${productId}`);
             throw new Error('Product not found');
           }
           if (product.status === 'ACTIVE_VERIFIED' || product.status === 'REJECTED') {
-            console.error(`Cannot reject product in ${product.status} status`);
             throw new Error('Product cannot be rejected from current status');
           }
-          set((state) => ({
-            products: state.products.map((product) =>
-              product.id === productId
-                ? { 
-                    ...product, 
-                    status: 'REJECTED' as ProductQAStatus,
-                    rejectionReason: reason,
-                    rejectionStage: stage,
-                    rejectedAt: new Date().toISOString()
-                  }
-                : product
-            ),
-          }));
-          
-          // Sync with seller store - update approval status
-          if (typeof window !== 'undefined') {
-            import('./sellerStore')
-              .then(({ useProductStore }) => {
-                try {
-                  const sellerStore = useProductStore.getState();
-                  sellerStore.updateProduct(productId, { 
-                    approvalStatus: 'rejected',
-                    rejectionReason: reason 
-                  });
-                } catch (error) {
-                  console.error('Error syncing to seller store:', error);
-                }
-              })
-              .catch((error) => {
-                console.error('Error loading seller store:', error);
-              });
+
+          // Update database if configured
+          if (isSupabaseConfigured()) {
+            await qaService.rejectProduct(productId, reason, stage);
+            await get().loadProducts();
+          } else {
+            // Fallback to local state
+            set((state) => ({
+              products: state.products.map((product) =>
+                product.id === productId
+                  ? { 
+                      ...product, 
+                      status: 'REJECTED' as ProductQAStatus,
+                      rejectionReason: reason,
+                      rejectionStage: stage,
+                      rejectedAt: new Date().toISOString()
+                    }
+                  : product
+              ),
+            }));
           }
+          
+          // Sync with seller store
+          syncToSellerStore(productId, 'rejected', reason);
         } catch (error) {
           console.error('Error rejecting product:', error);
           throw error;
         }
       },
 
-      requestRevision: (productId: string, reason: string, stage: 'digital' | 'physical') => {
+      requestRevision: async (productId: string, reason: string, stage: 'digital' | 'physical') => {
         try {
           if (!reason || reason.trim() === '') {
             throw new Error('Revision reason is required');
           }
           const product = get().products.find(p => p.id === productId);
           if (!product) {
-            console.error(`Product not found: ${productId}`);
             throw new Error('Product not found');
           }
           if (product.status === 'ACTIVE_VERIFIED' || product.status === 'REJECTED' || product.status === 'FOR_REVISION') {
-            console.error(`Cannot request revision for product in ${product.status} status`);
             throw new Error('Product cannot request revision from current status');
           }
-          set((state) => ({
-            products: state.products.map((product) =>
-              product.id === productId
-                ? { 
-                    ...product, 
-                    status: 'FOR_REVISION' as ProductQAStatus,
-                    rejectionReason: reason,
-                    rejectionStage: stage,
-                    revisionRequestedAt: new Date().toISOString()
-                  }
-                : product
-            ),
-          }));
-          
-          // Sync with seller store
-          if (typeof window !== 'undefined') {
-            import('./sellerStore')
-              .then(({ useProductStore }) => {
-                try {
-                  const sellerStore = useProductStore.getState();
-                  sellerStore.updateProduct(productId, { 
-                    approvalStatus: 'reclassified',
-                    rejectionReason: reason 
-                  });
-                } catch (error) {
-                  console.error('Error syncing to seller store:', error);
-                }
-              })
-              .catch((error) => {
-                console.error('Error loading seller store:', error);
-              });
+
+          // Update database if configured
+          if (isSupabaseConfigured()) {
+            await qaService.requestRevision(productId, reason, stage);
+            await get().loadProducts();
+          } else {
+            // Fallback to local state
+            set((state) => ({
+              products: state.products.map((product) =>
+                product.id === productId
+                  ? { 
+                      ...product, 
+                      status: 'FOR_REVISION' as ProductQAStatus,
+                      rejectionReason: reason,
+                      rejectionStage: stage,
+                      revisionRequestedAt: new Date().toISOString()
+                    }
+                  : product
+              ),
+            }));
           }
+          
+          // Sync with seller store (use pending, not reclassified)
+          syncToSellerStore(productId, 'pending', reason);
         } catch (error) {
           console.error('Error requesting revision:', error);
           throw error;
@@ -316,11 +347,15 @@ export const useProductQAStore = create<ProductQAStore>()(
         return get().products.filter((p) => p.status === status);
       },
 
+      getProductsBySeller: (sellerId: string) => {
+        return get().products.filter((p) => p.sellerId === sellerId);
+      },
+
       resetToInitialState: () => {
         set({ products: initialProducts });
       },
 
-      addProductToQA: (productData) => {
+      addProductToQA: async (productData) => {
         try {
           // Validation
           if (!productData.id || !productData.name || !productData.vendor) {
@@ -339,16 +374,28 @@ export const useProductQAStore = create<ProductQAStore>()(
             console.warn(`Product ${productData.id} already exists in QA flow`);
             return;
           }
-          
-          const newQAProduct: QAProduct = {
-            ...productData,
-            status: 'PENDING_DIGITAL_REVIEW',
-            logistics: null,
-            submittedAt: new Date().toISOString(),
-          };
-          set((state) => ({
-            products: [...state.products, newQAProduct],
-          }));
+
+          // Create in database if configured
+          if (isSupabaseConfigured() && productData.sellerId) {
+            await qaService.createQAEntry(
+              productData.id,
+              productData.vendor,
+              productData.sellerId
+            );
+            // Reload products to get fresh data
+            await get().loadProducts();
+          } else {
+            // Fallback to local state
+            const newQAProduct: QAProduct = {
+              ...productData,
+              status: 'PENDING_DIGITAL_REVIEW',
+              logistics: null,
+              submittedAt: new Date().toISOString(),
+            };
+            set((state) => ({
+              products: [...state.products, newQAProduct],
+            }));
+          }
         } catch (error) {
           console.error('Error adding product to QA:', error);
           throw error;
@@ -360,3 +407,21 @@ export const useProductQAStore = create<ProductQAStore>()(
     }
   )
 );
+
+// Helper function to sync with seller store
+function syncToSellerStore(
+  productId: string, 
+  approvalStatus: 'pending' | 'approved' | 'rejected',
+  rejectionReason?: string
+) {
+  try {
+    const sellerStore = useProductStore.getState();
+    const updates: any = { approvalStatus };
+    if (rejectionReason) {
+      updates.rejectionReason = rejectionReason;
+    }
+    sellerStore.updateProduct(productId, updates);
+  } catch (error) {
+    console.error('Error syncing to seller store:', error);
+  }
+}

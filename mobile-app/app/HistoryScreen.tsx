@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,10 +9,13 @@ import {
   Modal,
   TextInput,
   StatusBar,
-  Dimensions
+  Dimensions,
+  ActivityIndicator
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Search, Filter, X, Clock, ShoppingCart } from 'lucide-react-native';
+import { supabase } from '../src/lib/supabase';
+import { useAuthStore } from '../src/stores/authStore';
 import { useOrderStore } from '../src/stores/orderStore';
 import { useCartStore } from '../src/stores/cartStore';
 import { COLORS } from '../src/constants/theme';
@@ -24,9 +27,12 @@ type Props = NativeStackScreenProps<RootStackParamList, 'History'>;
 
 export default function HistoryScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
+  const { user } = useAuthStore();
   const BRAND_COLOR = COLORS.primary;
   
   // State
+  const [dbOrders, setDbOrders] = useState<Order[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [showFilterModal, setShowFilterModal] = useState(false);
@@ -36,15 +42,66 @@ export default function HistoryScreen({ navigation }: Props) {
   const orders = useOrderStore((state) => state.orders);
   const addItem = useCartStore((state) => state.addItem);
 
+  // Fetche delivered orders from supabase
+  useEffect(() => {
+    const loadHistory = async () => {
+      if (!user?.id) return;
+      setIsLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('orders')
+          .select(`
+            *,
+            items:order_items (
+              *,
+              product:products (*)
+            )
+          `)
+          .eq('buyer_id', user.id)
+          .eq('status', 'delivered') // Strictly history
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        const mapped: Order[] = (data || []).map((order: any) => ({
+          id: order.id,
+          transactionId: order.order_number || order.id,
+          items: (order.items || []).map((it: any) => ({
+            id: it.product?.id,
+            name: it.product?.name || 'Product',
+            price: it.unit_price,
+            image: it.product?.primary_image || '',
+            quantity: it.quantity,
+          })),
+          total: order.total_amount,
+          shippingFee: order.shipping_cost || 0,
+          status: 'delivered',
+          isPaid: true,
+          scheduledDate: new Date(order.created_at).toLocaleDateString(),
+          createdAt: order.created_at,
+          paymentMethod: order.payment_method?.type || 'Paid',
+        })) as Order[];
+
+        setDbOrders(mapped);
+      } catch (e) {
+        console.error('History fetch error:', e);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadHistory();
+  }, [user?.id]);
+
   // Filter Logic
-  const historyOrders = useMemo(() => {
-    let filtered = orders.filter(o => o.status === 'delivered');
+  const filteredHistory = useMemo(() => {
+    let filtered = [...dbOrders];
 
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(order => 
         order.transactionId.toLowerCase().includes(query) || 
-        order.items.some(item => item.name.toLowerCase().includes(query))
+        order.items.some(item => item.name?.toLowerCase().includes(query))
       );
     }
 
@@ -53,7 +110,7 @@ export default function HistoryScreen({ navigation }: Props) {
       const dateB = new Date(b.createdAt).getTime();
       return sortOrder === 'latest' ? dateB - dateA : dateA - dateB;
     });
-  }, [orders, searchQuery, sortOrder]);
+  }, [dbOrders, searchQuery, sortOrder]);
 
   const handleBuyAgain = (order: Order) => {
      if (order.items.length > 0) {
@@ -69,7 +126,6 @@ export default function HistoryScreen({ navigation }: Props) {
         default: return { bg: '#F3F4F6', text: '#374151' }; // Gray
       }
   };
-
 
   return (
     <View style={styles.container}>
@@ -94,31 +150,29 @@ export default function HistoryScreen({ navigation }: Props) {
       </View>
 
       {/* 2. Content */}
-      <ScrollView 
-        contentContainerStyle={styles.scrollContent} 
-        showsVerticalScrollIndicator={false}
-      >
-        {historyOrders.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Clock size={64} color="#D1D5DB" />
-            <Text style={styles.emptyTitle}>No purchase history</Text>
-            <Text style={styles.emptyText}>Your completed orders will appear here.</Text>
-          </View>
-        ) : (
-          historyOrders.map((order) => (
-            <Pressable key={order.id} style={styles.orderCard} onPress={() => navigation.navigate('OrderDetail', { order })}>
-               {/* Card Header */}
-               <View style={styles.cardHeader}>
-                  <View style={[styles.statusBadge, { backgroundColor: getStatusBadgeStyle(order.status).bg }]}>
-                    <Text style={[styles.statusText, { color: getStatusBadgeStyle(order.status).text }]}>
-                      {order.status.toUpperCase()}
-                    </Text>
+      {isLoading ? (
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color={BRAND_COLOR} />
+        </View>
+      ) : (
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          {filteredHistory.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Clock size={64} color="#D1D5DB" />
+              <Text style={styles.emptyTitle}>No purchase history</Text>
+              <Text style={styles.emptyText}>Completed orders will appear here.</Text>
+            </View>
+          ) : (
+            filteredHistory.map((order) => (
+              <Pressable key={order.id} style={styles.orderCard} onPress={() => navigation.navigate('OrderDetail', { order })}>
+                <View style={styles.cardHeader}>
+                  <View style={styles.statusBadge}>
+                    <Text style={styles.statusText}>DELIVERED</Text>
                   </View>
                   <Text style={styles.orderIdText}>#{order.transactionId}</Text>
-               </View>
+                </View>
 
-               {/* Card Body */}
-               <View style={styles.cardBody}>
+                <View style={styles.cardBody}>
                   <Image source={{ uri: order.items[0]?.image }} style={styles.productThumb} />
                   <View style={styles.productInfo}>
                     <Text style={styles.productName} numberOfLines={1}>{order.items[0]?.name}</Text>
@@ -128,10 +182,9 @@ export default function HistoryScreen({ navigation }: Props) {
                     </View>
                     <Text style={[styles.totalAmount, { color: BRAND_COLOR }]}>₱{order.total.toLocaleString()}</Text>
                   </View>
-               </View>
+                </View>
 
-               {/* Card Footer */}
-               <View style={styles.cardFooter}>
+                <View style={styles.cardFooter}>
                   <View style={styles.buttonRow}>
                      <Pressable style={[styles.outlineButton, { flex: 1 }]} onPress={() => navigation.navigate('OrderDetail', { order })}>
                        <Text style={styles.outlineButtonText}>Details</Text>
@@ -141,11 +194,12 @@ export default function HistoryScreen({ navigation }: Props) {
                        <Text style={[styles.buyAgainText, { color: BRAND_COLOR }]}>Buy Again</Text>
                      </Pressable>
                   </View>
-               </View>
-            </Pressable>
-          ))
-        )}
-      </ScrollView>
+                </View>
+              </Pressable>
+            ))
+          )}
+        </ScrollView>
+      )}
 
       {/* SEARCH MODAL */}
       <Modal visible={showSearchModal} animationType="fade" transparent={true} onRequestClose={() => setShowSearchModal(false)}>
@@ -217,7 +271,7 @@ const styles = StyleSheet.create({
   headerActions: { flexDirection: 'row', gap: 8 },
   
   scrollContent: { padding: 16, paddingBottom: 50 },
-  
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   // Card Styles
   orderCard: {
     backgroundColor: '#FFF',

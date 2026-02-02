@@ -636,6 +636,7 @@ export default function SellerSettingsScreen() {
         {/* Notification positioned absolutely to prevent cutoff */}
         <Pressable
           style={[styles.notificationButton, { position: 'absolute', right: 20, top: insets.top + 20 }]}
+          onPress={() => navigation.getParent()?.navigate('Notifications')}
         >
           <Bell size={22} color="#FFFFFF" strokeWidth={2.5} />
           <View style={styles.notificationBadge} />

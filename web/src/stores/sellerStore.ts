@@ -2,18 +2,9 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { useProductQAStore } from './productQAStore';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import { signIn, signUp, getSellerProfile, getEmailFromProfile } from '@/services/authService';
-import {
-  addStock as addStockDb,
-  createProduct as createProductDb,
-  createProducts as createProductsDb,
-  deleteProduct as deleteProductDb,
-  deductStock as deductStockDb,
-  getProducts as fetchProductsDb,
-  updateProduct as updateProductDb,
-} from '@/services/productService';
-import { getSellerOrders, updateOrderStatus as updateOrderStatusDb } from '@/services/orderService';
-import * as orderService from '@/services/orderService';
+import { authService } from '@/services/authService';
+import { productService } from '@/services/productService';
+import { orderService } from '@/services/orderService';
 import type { Seller as DBSeller, Database, Order, OrderItem } from '@/types/database.types';
 
 // Types
@@ -102,6 +93,8 @@ interface SellerOrder {
     quantity: number;
     price: number;
     image: string;
+    selectedColor?: string;
+    selectedSize?: string;
   }[];
   total: number;
   status: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
@@ -232,7 +225,7 @@ interface OrderStore {
   deleteOrder: (id: string) => void;
   addOrderRating: (id: string, rating: number, comment?: string, images?: string[]) => void;
   // POS-Lite functionality
-  addOfflineOrder: (cartItems: { productId: string; productName: string; quantity: number; price: number; image: string }[], total: number, note?: string) => string;
+  addOfflineOrder: (cartItems: { productId: string; productName: string; quantity: number; price: number; image: string; selectedColor?: string; selectedSize?: string }[], total: number, note?: string) => string;
 }
 
 // Validation helpers for database readiness
@@ -465,20 +458,22 @@ export const useAuthStore = create<AuthStore>()(
         }
 
         try {
-          const { user, error } = await signIn(email, password);
-          if (error || !user) {
-            console.error('Supabase login failed:', error);
+          const result = await authService.signIn(email, password);
+          if (!result || !result.user) {
+            console.error('Supabase login failed: No user returned');
             return false;
           }
 
-          const sellerProfile = await getSellerProfile(user.id);
+          const { user } = result;
+
+          const sellerProfile = await authService.getSellerProfile(user.id);
           if (!sellerProfile) {
             console.error('No seller profile found for user');
             return false;
           }
 
           // Fetch email from profiles table and merge with seller profile
-          const userEmail = await getEmailFromProfile(user.id);
+          const userEmail = await authService.getEmailFromProfile(user.id);
           const mappedSeller = mapDbSellerToSeller(sellerProfile);
 
           // Ensure email is set from profiles table
@@ -530,25 +525,25 @@ export const useAuthStore = create<AuthStore>()(
 
         try {
           // 1) Supabase Auth sign-up
-          const { user, error } = await signUp(sellerData.email!, sellerData.password!, {
+          const result = await authService.signUp(sellerData.email!, sellerData.password!, {
             full_name: sellerData.ownerName || sellerData.storeName || sellerData.email?.split('@')[0],
             phone: sellerData.phone,
             user_type: 'seller',
+            email: sellerData.email!,
+            password: sellerData.password!,
           });
 
-          if (error || !user) {
-            console.error('Signup failed:', error);
-            // Check if it's a duplicate email error
-            if (error?.message?.includes('already registered') || error?.code === '23505') {
-              console.error('Email already exists. Please use a different email or try logging in.');
-            }
+          if (!result || !result.user) {
+            console.error('Signup failed: No user returned');
             return false;
           }
+
+          const { user } = result;
 
           // 2) Create seller record (use upsert to handle conflicts)
           const { sellerService } = await import('@/services/sellerService');
 
-          const sellerData = {
+          const sellerInsertData = {
             id: user.id,
             business_name: sellerData.businessName || sellerData.storeName || 'My Store',
             store_name: sellerData.storeName || 'My Store',
@@ -564,6 +559,11 @@ export const useAuthStore = create<AuthStore>()(
             bank_name: sellerData.bankName || '',
             account_name: sellerData.accountName || '',
             account_number: sellerData.accountNumber || '',
+            business_permit_url: null,
+            valid_id_url: null,
+            proof_of_address_url: null,
+            dti_registration_url: null,
+            tax_id_url: null,
             is_verified: false,
             approval_status: 'pending' as const,
             rating: 0,
@@ -573,7 +573,7 @@ export const useAuthStore = create<AuthStore>()(
             join_date: new Date().toISOString().split('T')[0],
           };
 
-          const savedSeller = await sellerService.upsertSeller(sellerData);
+          const savedSeller = await sellerService.upsertSeller(sellerInsertData);
 
           if (!savedSeller) {
             console.error('Seller insert failed');
@@ -635,7 +635,7 @@ export const useProductStore = create<ProductStore>()(
 
         set({ loading: true, error: null });
         try {
-          const data = await fetchProductsDb(filters);
+          const data = await productService.getProducts(filters);
           console.log('🔍 Raw product data from DB:', data);
           console.log('🔍 First product seller info:', data?.[0]?.seller);
           const mappedProducts = (data || []).map(mapDbProductToSellerProduct);
@@ -721,7 +721,7 @@ export const useProductStore = create<ProductStore>()(
           // Use Supabase if configured
           if (isSupabaseConfigured()) {
             const insertData = buildProductInsert(product, resolvedSellerId);
-            const created = await createProductDb(insertData);
+            const created = await productService.createProduct(insertData);
             if (!created) {
               throw new Error('Failed to create product in database');
             }
@@ -772,10 +772,11 @@ export const useProductStore = create<ProductStore>()(
           // Also add to QA flow store
           try {
             const qaStore = useProductQAStore.getState();
-            qaStore.addProductToQA({
+            await qaStore.addProductToQA({
               id: newProduct.id,
               name: newProduct.name,
               vendor: authStoreState.seller?.name || 'Unknown Vendor',
+              sellerId: resolvedSellerId, // Pass seller ID for proper filtering
               price: newProduct.price,
               category: newProduct.category,
               image: newProduct.images[0] || 'https://placehold.co/100?text=Product',
@@ -819,7 +820,7 @@ export const useProductStore = create<ProductStore>()(
               vendorSubmittedCategory: p.category
             } as any, resolvedSellerId));
 
-            const dbProducts = await createProductsDb(productsToInsert);
+            const dbProducts = await productService.createProducts(productsToInsert);
             if (!dbProducts) throw new Error('Failed to create products in database');
             addedProducts = dbProducts.map(mapDbProductToSellerProduct);
           } else {
@@ -874,6 +875,7 @@ export const useProductStore = create<ProductStore>()(
                 name: p.name,
                 description: p.description,
                 vendor: authStore.seller?.name || 'Unknown Vendor',
+                sellerId: resolvedSellerId, // Pass seller ID for proper filtering
                 price: p.price,
                 originalPrice: p.originalPrice,
                 category: p.category,
@@ -911,7 +913,7 @@ export const useProductStore = create<ProductStore>()(
           // Use Supabase if configured
           if (isSupabaseConfigured()) {
             const updateData = mapSellerUpdatesToDb(updates);
-            const updated = await updateProductDb(id, updateData);
+            const updated = await productService.updateProduct(id, updateData);
             if (!updated) {
               throw new Error('Failed to update product in database');
             }
@@ -942,10 +944,7 @@ export const useProductStore = create<ProductStore>()(
 
           // Use Supabase if configured
           if (isSupabaseConfigured()) {
-            const success = await deleteProductDb(id);
-            if (!success) {
-              throw new Error('Failed to delete product from database');
-            }
+            await productService.deleteProduct(id);
           }
 
           set((state) => ({
@@ -979,16 +978,13 @@ export const useProductStore = create<ProductStore>()(
 
           // Use Supabase if configured
           if (isSupabaseConfigured()) {
-            const success = await deductStockDb(
+            await productService.deductStock(
               productId,
               quantity,
               reason,
               referenceId,
               authStoreForStock.seller?.id
             );
-            if (!success) {
-              throw new Error('Failed to deduct stock in database');
-            }
             // Refresh from DB to get updated stock
             await get().fetchProducts({ sellerId: authStoreForStock.seller?.id });
           } else {
@@ -1049,15 +1045,12 @@ export const useProductStore = create<ProductStore>()(
 
           // Use Supabase if configured
           if (isSupabaseConfigured()) {
-            const success = await addStockDb(
+            await productService.addStock(
               productId,
               quantity,
               reason || 'STOCK_REPLENISHMENT',
               authStoreForAdd.seller?.id
             );
-            if (!success) {
-              throw new Error('Failed to add stock in database');
-            }
             // Refresh from DB to get updated stock
             await get().fetchProducts({ sellerId: authStoreForAdd.seller?.id });
           } else {
@@ -1350,7 +1343,7 @@ export const useOrderStore = create<OrderStore>()(
         set({ loading: true, error: null, sellerId });
 
         try {
-          const dbOrders = await getSellerOrders(sellerId);
+          const dbOrders = await orderService.getSellerOrders(sellerId);
           const sellerOrders = dbOrders.map(mapOrderToSellerOrder);
 
           set({
@@ -1451,7 +1444,7 @@ export const useOrderStore = create<OrderStore>()(
 
           if (!sellerId) {
             console.error('❌ No seller ID found! Cannot update database.');
-            console.error('Seller from store:', get().seller);
+            console.error('Seller from store:', useAuthStore.getState().seller);
             console.error('Order object:', order);
             throw new Error('Seller ID is required to update order status');
           }
@@ -1491,8 +1484,8 @@ export const useOrderStore = create<OrderStore>()(
             console.log(`🚀 Creating buyer notification for order ${id}`);
 
             // Import notification service dynamically to avoid circular dependency
-            import('../services/notificationService').then(({ notifyBuyerOrderStatus }) => {
-              notifyBuyerOrderStatus({
+            import('../services/notificationService').then(({ notificationService }) => {
+              notificationService.notifyBuyerOrderStatus({
                 buyerId: order.buyer_id!,
                 orderId: id,
                 orderNumber: id.slice(-8),

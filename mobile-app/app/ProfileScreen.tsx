@@ -40,7 +40,44 @@ export default function ProfileScreen({ navigation }: Props) {
   const [editAvatar, setEditAvatar] = React.useState('');
   const [isSaving, setIsSaving] = React.useState(false);
 
+  // Bazcoins State
+  const [bazcoins, setBazcoins] = React.useState(0);
+  const [totalOrders, setTotalOrders] = React.useState(0);
 
+  // Fetch Bazcoins and orders from Supabase
+  React.useEffect(() => {
+  if (!user?.id || isGuest) return;
+
+  const fetchProfileData = async () => {
+    try {
+      // 1. Fetch Bazcoins
+      const { data: buyerData } = await supabase
+        .from('buyers')
+        .select('bazcoins')
+        .eq('id', user.id)
+        .single();
+
+      if (buyerData) setBazcoins(buyerData.bazcoins || 0);
+
+      // 2. Fetch Total Order Count
+      // We use { count: 'exact', head: true } to get the number of rows without downloading the data
+      const { count, error: orderError } = await supabase
+        .from('orders')
+        .select('*', { count: 'exact', head: true })
+        .eq('buyer_id', user.id); // Use 'seller_id' if you want orders sold by this user
+
+      if (!orderError && count !== null) {
+        setTotalOrders(count);
+      }
+    } catch (error) {
+      console.error('Error fetching profile data:', error);
+    }
+  };
+
+  fetchProfileData();
+
+  // ... keep your existing realtime subscription for bazcoins ...
+}, [user?.id, isGuest]);
 
   const openEditModal = () => {
     setEditFirstName(user?.name.split(' ')[0] || '');
@@ -152,8 +189,8 @@ export default function ProfileScreen({ navigation }: Props) {
     email: user?.email || 'jonathan.doe@example.com',
     phone: user?.phone || '+63 912 345 6789',
     memberSince: 'January 2024',
-    totalOrders: 12,
-    loyaltyPoints: 1250,
+    totalOrders: totalOrders,
+    loyaltyPoints: bazcoins, 
     wishlistCount: wishlistItems.length,
   };
 
@@ -176,7 +213,7 @@ export default function ProfileScreen({ navigation }: Props) {
   };
 
   const accountMenuItems = [
-    { icon: Package, label: 'My Orders', onPress: () => navigation.navigate('Orders', {}) },
+    { icon: Package, label: 'My Orders', onPress: () => navigation.navigate('MainTabs', { screen: 'Orders', params: {} }) },
     { icon: Clock, label: 'History', onPress: () => navigation.navigate('History') },
     { icon: Gift, label: 'Wishlist', onPress: () => navigation.navigate('Wishlist') },
     { icon: MapPin, label: 'My Addresses', onPress: () => navigation.navigate('Addresses') },
@@ -284,7 +321,7 @@ export default function ProfileScreen({ navigation }: Props) {
         <View style={styles.statsCard}>
           <Pressable
             style={({ pressed }) => [styles.statBox, pressed && { opacity: 0.7 }]}
-            onPress={() => navigation.navigate('Orders', { initialTab: 'toPay' })}
+            onPress={() => navigation.navigate('MainTabs', { screen: 'Orders', params: { initialTab: 'toPay' } })}
           >
             <Text style={[styles.statVal, { color: BRAND_COLOR }]}>{profile.totalOrders}</Text>
             <Text style={styles.statLab}>Orders</Text>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
 import { 
   ClipboardCheck, 
@@ -41,7 +41,16 @@ import { useToast } from '../hooks/use-toast';
 const AdminProductApprovals = () => {
   const { isAuthenticated } = useAdminAuth();
   const { toast } = useToast();
-  const { products, approveForSampleSubmission, passQualityCheck, rejectProduct, requestRevision, resetToInitialState } = useProductQAStore();
+  const { 
+    products, 
+    approveForSampleSubmission, 
+    passQualityCheck, 
+    rejectProduct, 
+    requestRevision, 
+    resetToInitialState,
+    loadProducts,
+    isLoading
+  } = useProductQAStore();
   const [open, setOpen] = useState(false);
   const [showRejectDialog, setShowRejectDialog] = useState(false);
   const [showRevisionDialog, setShowRevisionDialog] = useState(false);
@@ -53,6 +62,11 @@ const AdminProductApprovals = () => {
   const [selectedRevisionTemplate, setSelectedRevisionTemplate] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'digital' | 'waiting' | 'qa' | 'revision' | 'verified' | 'rejected'>('all');
+
+  // Load all QA products on mount (admin sees all)
+  useEffect(() => {
+    loadProducts(); // No seller ID = load all
+  }, [loadProducts]);
 
   // Predefined rejection/revision templates
   const rejectionTemplates = [
@@ -127,9 +141,9 @@ const AdminProductApprovals = () => {
 
   const filteredProducts = getFilteredProducts();
 
-  const handleApproveDigital = (productId: string) => {
+  const handleApproveDigital = async (productId: string) => {
     try {
-      approveForSampleSubmission(productId);
+      await approveForSampleSubmission(productId);
       const product = products.find((p) => p.id === productId);
       toast({
         title: 'Digital Approval Complete',
@@ -146,9 +160,9 @@ const AdminProductApprovals = () => {
     }
   };
 
-  const handlePassQA = (productId: string) => {
+  const handlePassQA = async (productId: string) => {
     try {
-      passQualityCheck(productId);
+      await passQualityCheck(productId);
       const product = products.find((p) => p.id === productId);
       toast({
         title: 'QA Passed',
@@ -165,14 +179,14 @@ const AdminProductApprovals = () => {
     }
   };
 
-  const handleReject = () => {
+  const handleReject = async () => {
     if (!rejectingProductId || !rejectReason.trim()) return;
 
     try {
       const product = products.find((p) => p.id === rejectingProductId);
       const stage = product?.status === 'PENDING_DIGITAL_REVIEW' ? 'digital' : 'physical';
       
-      rejectProduct(rejectingProductId, rejectReason, stage);
+      await rejectProduct(rejectingProductId, rejectReason, stage);
       toast({
         title: 'Product Rejected',
         description: `${product?.name} has been rejected.`,
@@ -192,14 +206,14 @@ const AdminProductApprovals = () => {
     }
   };
 
-  const handleRevision = () => {
+  const handleRevision = async () => {
     if (!revisionProductId || !revisionReason.trim()) return;
 
     try {
       const product = products.find((p) => p.id === revisionProductId);
       const stage = product?.status === 'PENDING_DIGITAL_REVIEW' ? 'digital' : 'physical';
       
-      requestRevision(revisionProductId, revisionReason, stage);
+      await requestRevision(revisionProductId, revisionReason, stage);
       toast({
         title: 'Revision Requested',
         description: `${product?.name} has been sent back for revision.`,
@@ -386,7 +400,12 @@ const AdminProductApprovals = () => {
           {/* Products List */}
           <Card>
             <div className="divide-y">
-              {filteredProducts.length === 0 ? (
+              {isLoading ? (
+                <div className="py-16 text-center">
+                  <RefreshCw className="w-12 h-12 text-gray-300 mx-auto mb-3 animate-spin" />
+                  <p className="text-gray-500 font-medium">Loading products...</p>
+                </div>
+              ) : filteredProducts.length === 0 ? (
                 <div className="py-16 text-center">
                   <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                   <p className="text-gray-500 font-medium">No products found</p>

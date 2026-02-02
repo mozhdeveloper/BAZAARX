@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { notifySellerNewOrder, notifyBuyerOrderStatus } from '@/services/notificationService';
+import { notificationService } from '@/services/notificationService';
 
 // Unified Product interface for cart system
 export interface Product {
@@ -23,6 +23,13 @@ export interface Product {
 // Cart item with quantity
 export interface CartItem extends Product {
   quantity: number;
+  variant?: {
+    id?: string;
+    name?: string;
+    size?: string;
+    color?: string;
+    sku?: string;
+  };
 }
 
 // Unified order interface
@@ -69,17 +76,17 @@ export interface Order {
 export interface OrderNotification {
   id: string;
   orderId: string;
-  type: 
-    | 'seller_confirmed' 
-    | 'shipped' 
-    | 'delivered' 
-    | 'cancelled'
-    // Seller notifications
-    | 'seller_new_order'
-    | 'seller_cancellation_request'
-    | 'seller_return_request'
-    | 'seller_return_approved'
-    | 'seller_return_rejected';
+  type:
+  | 'seller_confirmed'
+  | 'shipped'
+  | 'delivered'
+  | 'cancelled'
+  // Seller notifications
+  | 'seller_new_order'
+  | 'seller_cancellation_request'
+  | 'seller_return_request'
+  | 'seller_return_approved'
+  | 'seller_return_rejected';
   message: string;
   timestamp: Date;
   read: boolean;
@@ -450,7 +457,7 @@ export const useCartStore = create<CartStore>()(
                 console.log('🔍 First item sellerId:', firstItem?.sellerId);
                 if (firstItem?.sellerId) {
                   console.log('✅ Saving seller notification to database for seller:', firstItem.sellerId);
-                  notifySellerNewOrder({
+                  notificationService.notifySellerNewOrder({
                     sellerId: firstItem.sellerId,
                     orderId,
                     orderNumber: orderId.slice(-8),
@@ -499,7 +506,7 @@ export const useCartStore = create<CartStore>()(
         const order = get().orders.find(o => o.id === orderId);
         if (order) {
           const sellerName = order.items[0]?.seller || 'Seller';
-          
+
           // Map status changes to seller notification types
           let notificationType: OrderNotification['type'] | null = null;
           let notificationMessage = '';

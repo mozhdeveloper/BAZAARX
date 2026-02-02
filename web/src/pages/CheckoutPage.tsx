@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { processCheckout } from "@/services/checkoutService"; // Import checkout service
+import { checkoutService } from "@/services/checkoutService"; // Import checkout service
 import {
   ArrowLeft,
   MapPin,
@@ -14,6 +14,10 @@ import {
   X,
   Plus,
   ChevronRight,
+  LocateFixed,
+  Map,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import {
   Dialog,
@@ -53,6 +57,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { regions, provinces, cities, barangays } from "select-philippines-address";
+import { AddressPicker } from "@/components/ui/address-picker";
 
 interface CheckoutFormData {
   fullName: string;
@@ -72,28 +77,32 @@ interface CheckoutFormData {
 
 const paymentMethods = [
   {
+    id: "cod" as const,
+    name: "Cash on Delivery",
+    icon: Banknote,
+    description: "Pay when you receive your order",
+    comingSoon: false,
+  },
+  {
     id: "card" as const,
     name: "Credit/Debit Card",
     icon: CreditCard,
     description: "Visa, MasterCard, American Express",
+    comingSoon: true,
   },
   {
     id: "gcash" as const,
     name: "GCash",
     icon: Smartphone,
     description: "Pay with your GCash wallet",
+    comingSoon: true,
   },
   {
     id: "paymaya" as const,
     name: "PayMaya",
     icon: Smartphone,
     description: "Pay with your PayMaya account",
-  },
-  {
-    id: "cod" as const,
-    name: "Cash on Delivery",
-    icon: Banknote,
-    description: "Pay when you receive your order",
+    comingSoon: true,
   },
 ];
 
@@ -112,10 +121,14 @@ export default function CheckoutPage() {
     removeSelectedItems,
     addresses,
     addAddress,
+    updateAddress,
+    deleteAddress,
   } = useBuyerStore();
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
-  const [addressView, setAddressView] = useState<'list' | 'add'>('list');
+  const [addressView, setAddressView] = useState<'list' | 'add' | 'edit'>('list');
   const [view, setView] = useState<'list' | 'add'>('list');
+  const [editingAddress, setEditingAddress] = useState<Address | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   // Selection tracking
   const [tempSelected, setTempSelected] = useState<Address | null>(
@@ -146,8 +159,14 @@ export default function CheckoutPage() {
     province: '',
     region: '', // Added region
     postalCode: '',
-    isDefault: false
+    isDefault: false,
+    coordinates: null as { lat: number; lng: number } | null,
+    landmark: '',
+    deliveryInstructions: '',
   });
+
+  // Map picker state
+  const [showMapPicker, setShowMapPicker] = useState(false);
 
   useEffect(() => {
     regions().then(res => setRegionList(res));
@@ -207,7 +226,7 @@ export default function CheckoutPage() {
     province: "",
     postalCode: "",
     phone: profile?.phone || "",
-    paymentMethod: "card",
+    paymentMethod: "cod",
   });
 
   useEffect(() => {
@@ -369,12 +388,45 @@ export default function CheckoutPage() {
     }
   };
 
-  // Check if cart is empty on initial load only
+  // Track if store has been rehydrated
+  const [isStoreReady, setIsStoreReady] = useState(false);
+
   useEffect(() => {
-    if (checkoutItems.length === 0) {
+    // Give zustand persist middleware time to rehydrate
+    // This checks if the store has been initialized from localStorage
+    const checkRehydration = () => {
+      // If profile exists or we've waited long enough, mark as ready
+      if (profile) {
+        setIsStoreReady(true);
+      } else {
+        // Wait a bit for rehydration, then check again
+        const timer = setTimeout(() => {
+          setIsStoreReady(true);
+        }, 500);
+        return () => clearTimeout(timer);
+      }
+    };
+    checkRehydration();
+  }, [profile]);
+
+  // Redirect to login if not authenticated (only after store is ready)
+  useEffect(() => {
+    if (isStoreReady && !profile) {
+      toast({
+        title: "Login Required",
+        description: "Please sign in to complete your purchase.",
+        variant: "destructive",
+      });
+      navigate("/login", { replace: true });
+    }
+  }, [isStoreReady, profile, navigate, toast]);
+
+  // Check if cart is empty on initial load only (after store is ready)
+  useEffect(() => {
+    if (isStoreReady && checkoutItems.length === 0 && profile) {
       navigate("/enhanced-cart", { replace: true });
     }
-  }, [checkoutItems]);
+  }, [isStoreReady, checkoutItems, profile]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -445,7 +497,7 @@ export default function CheckoutPage() {
         email: profile.email
       };
 
-      const result = await processCheckout(payload);
+      const result = await checkoutService.processCheckout(payload);
 
       if (!result.success) {
         throw new Error(result.error);
@@ -477,17 +529,34 @@ export default function CheckoutPage() {
         removeSelectedItems();
       }
 
-      // Navigate to orders (using the first order ID if multiple)
-      const mainOrderId = result.orderIds && result.orderIds.length > 0 ? result.orderIds[0] : 'new';
+      // Navigate to the order detail page for the new order
+      const mainOrderId = result.orderIds && result.orderIds.length > 0 ? result.orderIds[0] : null;
 
-      navigate("/orders", {
-        state: {
-          newOrderId: mainOrderId,
-          fromCheckout: true,
-          earnedBazcoins: earnedBazcoins,
-        },
-        replace: true,
+      // Show success toast
+      toast({
+        title: "Order Placed Successfully! 🎉",
+        description: `You earned ${earnedBazcoins} Bazcoins with this order!`,
       });
+
+      if (mainOrderId) {
+        // Go to specific order detail page
+        navigate(`/order/${mainOrderId}`, {
+          state: {
+            fromCheckout: true,
+            earnedBazcoins: earnedBazcoins,
+          },
+          replace: true,
+        });
+      } else {
+        // Fallback to orders list
+        navigate("/orders", {
+          state: {
+            fromCheckout: true,
+            earnedBazcoins: earnedBazcoins,
+          },
+          replace: true,
+        });
+      }
 
     } catch (error: any) {
       console.error("Order creation failed:", error);
@@ -497,7 +566,19 @@ export default function CheckoutPage() {
     }
   };
 
-  if (cartItems.length === 0) {
+  // Show loading while store is rehydrating
+  if (!isStoreReady) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
+          <p className="text-gray-500">Loading checkout...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (checkoutItems.length === 0) {
     return null;
   }
 
@@ -614,28 +695,44 @@ export default function CheckoutPage() {
                   {paymentMethods.map((method) => (
                     <div
                       key={method.id}
-                      className={`border-2 rounded-xl p-4 cursor-pointer transition-colors ${formData.paymentMethod === method.id
-                        ? "border-[var(--brand-primary)] bg-orange-50"
-                        : "border-gray-200 hover:border-gray-300"
-                        }`}
-                      onClick={() =>
-                        handleInputChange("paymentMethod", method.id)
-                      }
+                      className={`border-2 rounded-xl p-4 transition-colors relative ${
+                        method.comingSoon 
+                          ? "border-gray-200 bg-gray-50 cursor-not-allowed opacity-60" 
+                          : formData.paymentMethod === method.id
+                            ? "border-[var(--brand-primary)] bg-orange-50 cursor-pointer"
+                            : "border-gray-200 hover:border-gray-300 cursor-pointer"
+                      }`}
+                      onClick={() => {
+                        if (!method.comingSoon) {
+                          handleInputChange("paymentMethod", method.id);
+                        }
+                      }}
                     >
+                      {/* Coming Soon Badge */}
+                      {method.comingSoon && (
+                        <div className="absolute top-2 right-2">
+                          <Badge className="bg-gray-500 text-white text-[10px] px-2 py-0.5">
+                            Coming Soon
+                          </Badge>
+                        </div>
+                      )}
                       <div className="flex items-center gap-3">
                         <div
-                          className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${formData.paymentMethod === method.id
-                            ? "border-[var(--brand-primary)] bg-[var(--brand-primary)]"
-                            : "border-gray-300"
-                            }`}
+                          className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                            method.comingSoon
+                              ? "border-gray-300 bg-gray-200"
+                              : formData.paymentMethod === method.id
+                                ? "border-[var(--brand-primary)] bg-[var(--brand-primary)]"
+                                : "border-gray-300"
+                          }`}
                         >
-                          {formData.paymentMethod === method.id && (
+                          {!method.comingSoon && formData.paymentMethod === method.id && (
                             <Check className="w-3 h-3 text-white" />
                           )}
                         </div>
-                        <method.icon className="w-5 h-5 text-gray-600" />
+                        <method.icon className={`w-5 h-5 ${method.comingSoon ? "text-gray-400" : "text-gray-600"}`} />
                         <div>
-                          <p className="font-medium text-gray-900">
+                          <p className={`font-medium ${method.comingSoon ? "text-gray-400" : "text-gray-900"}`}>
                             {method.name}
                           </p>
                           <p className="text-xs text-gray-500">
@@ -1082,24 +1179,115 @@ export default function CheckoutPage() {
                     key={addr.id}
                     onClick={() => setTempSelected(addr)}
                     className={cn(
-                      "p-4 border-2 rounded-xl cursor-pointer transition-all flex items-start gap-3",
+                      "p-4 border-2 rounded-xl cursor-pointer transition-all",
                       tempSelected?.id === addr.id ? "border-[var(--brand-primary)] bg-orange-50/50" : "border-gray-100"
                     )}
                   >
-                    <div className={cn(
-                      "mt-1 w-5 h-5 rounded-full border-2 flex items-center justify-center",
-                      tempSelected?.id === addr.id ? "border-[var(--brand-primary)] bg-[var(--brand-primary)]" : "border-gray-300"
-                    )}>
-                      {tempSelected?.id === addr.id && <Check className="w-3 h-3 text-white stroke-[3px]" />}
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-bold text-gray-900">{addr.firstName} {addr.lastName}</span>
-                        <Badge variant="outline" className="text-[10px] h-4 px-1.5 uppercase font-bold border-gray-300">{addr.label}</Badge>
+                    {/* Delete Confirmation */}
+                    {deleteConfirmId === addr.id ? (
+                      <div className="flex flex-col gap-3">
+                        <p className="text-sm text-gray-700">Delete this address?</p>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="flex-1"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              try {
+                                const { addressService } = await import('../services/addressService');
+                                await addressService.deleteAddress(addr.id);
+                                deleteAddress(addr.id);
+                                setDeleteConfirmId(null);
+                                if (selectedAddress?.id === addr.id) {
+                                  setSelectedAddress(addresses.find(a => a.id !== addr.id) || null);
+                                }
+                                if (tempSelected?.id === addr.id) {
+                                  setTempSelected(addresses.find(a => a.id !== addr.id) || null);
+                                }
+                                toast({ title: "Address deleted", description: "The address has been removed." });
+                              } catch (error: any) {
+                                console.error("Error deleting address:", error);
+                                toast({ title: "Error", description: "Failed to delete address", variant: "destructive" });
+                              }
+                            }}
+                          >
+                            <Trash2 className="w-3 h-3 mr-1" /> Delete
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="flex-1"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeleteConfirmId(null);
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
                       </div>
-                      <p className="text-xs text-gray-500 font-medium">{addr.phone}</p>
-                      <p className="text-xs text-gray-600 mt-1 line-clamp-1">{addr.street}, {addr.barangay}, {addr.city}</p>
-                    </div>
+                    ) : (
+                      <div className="flex items-start gap-3">
+                        <div className={cn(
+                          "mt-1 w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0",
+                          tempSelected?.id === addr.id ? "border-[var(--brand-primary)] bg-[var(--brand-primary)]" : "border-gray-300"
+                        )}>
+                          {tempSelected?.id === addr.id && <Check className="w-3 h-3 text-white stroke-[3px]" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-bold text-gray-900">{addr.firstName} {addr.lastName}</span>
+                            <Badge variant="outline" className="text-[10px] h-4 px-1.5 uppercase font-bold border-gray-300">{addr.label}</Badge>
+                            {addr.isDefault && (
+                              <Badge className="text-[10px] h-4 px-1.5 bg-green-100 text-green-700 border-0">Default</Badge>
+                            )}
+                          </div>
+                          <p className="text-xs text-gray-500 font-medium">{addr.phone}</p>
+                          <p className="text-xs text-gray-600 mt-1 line-clamp-1">{addr.street}, {addr.barangay}, {addr.city}</p>
+                        </div>
+                        {/* Edit & Delete Buttons */}
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingAddress(addr);
+                              setNewAddr({
+                                label: addr.label || 'Home',
+                                firstName: addr.firstName || '',
+                                lastName: addr.lastName || '',
+                                phone: addr.phone || '',
+                                street: addr.street || '',
+                                barangay: addr.barangay || '',
+                                city: addr.city || '',
+                                province: addr.province || '',
+                                region: addr.region || '',
+                                postalCode: addr.postalCode || '',
+                                isDefault: addr.isDefault || false,
+                                coordinates: addr.coordinates || null,
+                                landmark: addr.landmark || '',
+                                deliveryInstructions: addr.deliveryInstructions || '',
+                              });
+                              setAddressView('edit');
+                            }}
+                            className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+                            title="Edit address"
+                          >
+                            <Pencil className="w-4 h-4 text-gray-500" />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeleteConfirmId(addr.id);
+                            }}
+                            className="p-1.5 rounded-lg hover:bg-red-50 transition-colors"
+                            title="Delete address"
+                          >
+                            <Trash2 className="w-4 h-4 text-gray-400 hover:text-red-500" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
 
@@ -1130,15 +1318,92 @@ export default function CheckoutPage() {
             <>
               <DialogHeader className="p-6 pb-2">
                 <div className="flex items-center gap-2">
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setAddressView('list')}>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { 
+                    setAddressView('list'); 
+                    setShowMapPicker(false);
+                    setEditingAddress(null);
+                    // Reset form
+                    setNewAddr({
+                      label: 'Home',
+                      firstName: profile?.firstName || '',
+                      lastName: profile?.lastName || '',
+                      phone: profile?.phone || '',
+                      street: '',
+                      barangay: '',
+                      city: '',
+                      province: '',
+                      region: '',
+                      postalCode: '',
+                      isDefault: false,
+                      coordinates: null,
+                      landmark: '',
+                      deliveryInstructions: '',
+                    });
+                  }}>
                     <ArrowLeft className="h-4 w-4" />
                   </Button>
-                  <DialogTitle className="text-xl font-bold">New Shipping Address</DialogTitle>
+                  <DialogTitle className="text-xl font-bold">
+                    {addressView === 'edit' ? 'Edit Address' : 'New Shipping Address'}
+                  </DialogTitle>
                 </div>
               </DialogHeader>
 
-              {/* Replace the existing New Shipping Address form body with this: */}
+              {/* Map Picker View */}
+              {showMapPicker ? (
+                <div className="flex-1 overflow-hidden" style={{ height: '500px' }}>
+                  <AddressPicker
+                    initialCoordinates={newAddr.coordinates || undefined}
+                    onLocationSelect={(location) => {
+                      setNewAddr({
+                        ...newAddr,
+                        street: location.street || newAddr.street,
+                        barangay: location.barangay || newAddr.barangay,
+                        city: location.city || newAddr.city,
+                        province: location.province || newAddr.province,
+                        region: location.region || newAddr.region,
+                        postalCode: location.postalCode || newAddr.postalCode,
+                        coordinates: location.coordinates,
+                      });
+                      setShowMapPicker(false);
+                    }}
+                    onClose={() => setShowMapPicker(false)}
+                  />
+                </div>
+              ) : (
+              /* Address Form View */
               <div className="flex-1 overflow-y-auto p-6 pt-2 space-y-4">
+                {/* Quick Location Picker Button */}
+                <div className="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-xl p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="bg-orange-500 rounded-full p-2">
+                        <Map className="w-4 h-4 text-white" />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-gray-900 text-sm">Pick from Map</p>
+                        <p className="text-xs text-gray-500">Use GPS or search for your location</p>
+                      </div>
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => setShowMapPicker(true)}
+                      className="border-orange-300 text-orange-600 hover:bg-orange-50"
+                    >
+                      <LocateFixed className="w-4 h-4 mr-1" />
+                      Open Map
+                    </Button>
+                  </div>
+                  {newAddr.coordinates && (
+                    <div className="mt-3 pt-3 border-t border-orange-200">
+                      <p className="text-xs text-green-600 flex items-center gap-1">
+                        <Check className="w-3 h-3" />
+                        Location selected: {newAddr.coordinates.lat.toFixed(4)}, {newAddr.coordinates.lng.toFixed(4)}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <Label className="text-xs">First Name</Label>
@@ -1228,6 +1493,11 @@ export default function CheckoutPage() {
                   <Input placeholder="House No., Street Name" value={newAddr.street} onChange={e => setNewAddr({ ...newAddr, street: e.target.value })} />
                 </div>
 
+                <div className="space-y-1">
+                  <Label className="text-xs">Landmark (Optional)</Label>
+                  <Input placeholder="Near SM Mall, In front of church, etc." value={newAddr.landmark} onChange={e => setNewAddr({ ...newAddr, landmark: e.target.value })} />
+                </div>
+
                 <div className="grid grid-cols-2 gap-3 items-center">
                   <div className="space-y-1">
                     <Label className="text-xs">Postal Code</Label>
@@ -1238,10 +1508,41 @@ export default function CheckoutPage() {
                     <Label className="text-sm cursor-pointer">Set as default</Label>
                   </div>
                 </div>
-              </div>
 
+                <div className="space-y-1">
+                  <Label className="text-xs">Delivery Instructions (Optional)</Label>
+                  <Input 
+                    placeholder="Gate code, leave at door, call upon arrival, etc." 
+                    value={newAddr.deliveryInstructions} 
+                    onChange={e => setNewAddr({ ...newAddr, deliveryInstructions: e.target.value })} 
+                  />
+                </div>
+              </div>
+              )}
+
+              {!showMapPicker && (
               <div className="p-4 bg-gray-50 border-t flex gap-3">
-                <Button variant="ghost" className="flex-1" onClick={() => setAddressView('list')}>Back</Button>
+                <Button variant="ghost" className="flex-1" onClick={() => {
+                  setAddressView('list');
+                  setEditingAddress(null);
+                  // Reset form
+                  setNewAddr({
+                    label: 'Home',
+                    firstName: profile?.firstName || '',
+                    lastName: profile?.lastName || '',
+                    phone: profile?.phone || '',
+                    street: '',
+                    barangay: '',
+                    city: '',
+                    province: '',
+                    region: '',
+                    postalCode: '',
+                    isDefault: false,
+                    coordinates: null,
+                    landmark: '',
+                    deliveryInstructions: '',
+                  });
+                }}>Back</Button>
                 <Button
                   className="flex-1 bg-[var(--brand-primary)] hover:bg-orange-600 font-bold text-white"
                   disabled={isSaving || !newAddr.firstName || !newAddr.phone}
@@ -1251,7 +1552,7 @@ export default function CheckoutPage() {
                     try {
                       const { addressService } = await import('../services/addressService');
 
-                      const addressPayload = {
+                      const addressPayload: any = {
                         user_id: profile.id,
                         label: newAddr.label,
                         first_name: newAddr.firstName,
@@ -1264,14 +1565,53 @@ export default function CheckoutPage() {
                         region: newAddr.region,
                         zip_code: newAddr.postalCode,
                         is_default: newAddr.isDefault,
+                        landmark: newAddr.landmark || null,
+                        delivery_instructions: newAddr.deliveryInstructions || null,
                       };
 
-                      const savedAddress = await addressService.createAddress(addressPayload);
+                      // Include coordinates if available
+                      if (newAddr.coordinates) {
+                        addressPayload.coordinates = newAddr.coordinates;
+                      }
 
-                      addAddress(savedAddress);
+                      let savedAddress;
+                      
+                      if (addressView === 'edit' && editingAddress) {
+                        // UPDATE existing address
+                        savedAddress = await addressService.updateAddress(editingAddress.id, addressPayload);
+                        updateAddress(editingAddress.id, savedAddress);
+                        toast({ title: "Address updated", description: "Your address has been updated successfully." });
+                      } else {
+                        // CREATE new address
+                        savedAddress = await addressService.createAddress(addressPayload);
+                        addAddress(savedAddress);
+                        toast({ title: "Address saved", description: "Your new address has been added." });
+                      }
+
                       setSelectedAddress(savedAddress);
+                      setTempSelected(savedAddress);
+                      setConfirmedAddress(savedAddress);
                       setIsAddressModalOpen(false);
-                      toast({ title: "Address saved successfully" });
+                      setAddressView('list');
+                      setShowMapPicker(false);
+                      setEditingAddress(null);
+                      // Reset form
+                      setNewAddr({
+                        label: 'Home',
+                        firstName: profile?.firstName || '',
+                        lastName: profile?.lastName || '',
+                        phone: profile?.phone || '',
+                        street: '',
+                        barangay: '',
+                        city: '',
+                        province: '',
+                        region: '',
+                        postalCode: '',
+                        isDefault: false,
+                        coordinates: null,
+                        landmark: '',
+                        deliveryInstructions: '',
+                      });
                     } catch (error: any) {
                       console.error("Error saving address:", error);
                       toast({ title: "Error", description: error.message || "Failed to save address", variant: "destructive" });
@@ -1280,9 +1620,10 @@ export default function CheckoutPage() {
                     }
                   }}
                 >
-                  {isSaving ? "Saving..." : "Save and Use"}
+                  {isSaving ? "Saving..." : (addressView === 'edit' ? "Update Address" : "Save and Use")}
                 </Button>
               </div>
+              )}
             </>
           )}
         </DialogContent>

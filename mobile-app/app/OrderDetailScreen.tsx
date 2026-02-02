@@ -21,6 +21,8 @@ import type { RootStackParamList } from '../App';
 import { useOrderStore } from '../src/stores/orderStore';
 import { supabase } from '../src/lib/supabase';
 import { useReturnStore } from '../src/stores/returnStore';
+import { reviewService } from '../src/services/reviewService';
+import { useAuthStore } from '../src/stores/authStore';
 import ReviewModal from '../src/components/ReviewModal';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'OrderDetail'>;
@@ -89,16 +91,58 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
     );
   };
 
-  const handleSubmitReview = (rating: number, review: string) => {
-    // In a real app, this would save to a reviews API
-    console.log('Review submitted:', { rating, review, orderId: order.id });
+  const handleSubmitReview = async (rating: number, review: string) => {
+    const { user } = useAuthStore.getState();
+    if (!user?.id) {
+      Alert.alert('Error', 'You must be logged in to submit a review');
+      return;
+    }
+
+    try {
+      // Submit review for each item in the order
+      for (const item of order.items) {
+        const sellerId = item.sellerId || (item as any).seller_id;
+        
+        if (!sellerId) {
+          console.warn(`[OrderDetail] No seller ID for item ${item.id}, skipping review`);
+          continue;
+        }
+
+        // Check if already reviewed
+        const hasReview = await reviewService.hasReviewForProduct(order.id, item.id);
+        if (hasReview) {
+          console.log(`[OrderDetail] Item ${item.id} already reviewed, skipping`);
+          continue;
+        }
+
+        // Create review
+        await reviewService.createReview({
+          product_id: item.id,
+          buyer_id: user.id,
+          seller_id: sellerId,
+          order_id: order.id,
+          rating,
+          comment: review || null,
+          images: null,
+        });
+
+        // Mark order item as reviewed
+        await reviewService.markItemAsReviewed(order.id, item.id);
+      }
+
+      // Check if all items reviewed and update order
+      await reviewService.checkAndUpdateOrderReviewed(order.id);
     
-    Alert.alert('Thank You!', 'Your review has been submitted successfully.', [
-      { text: 'OK', onPress: () => {
-        setShowReviewModal(false);
-        navigation.goBack();
-      }},
-    ]);
+      Alert.alert('Thank You!', 'Your review has been submitted successfully.', [
+        { text: 'OK', onPress: () => {
+          setShowReviewModal(false);
+          navigation.goBack();
+        }},
+      ]);
+    } catch (error: any) {
+      console.error('[OrderDetail] Error submitting review:', error);
+      Alert.alert('Error', error.message || 'Failed to submit review. Please try again.');
+    }
   };
 
   const handleCancelOrder = () => {
@@ -240,11 +284,25 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
                 </Pressable>
                 <View style={styles.itemInfo}>
                   <Text style={styles.itemName}>{item.name}</Text>
+                  {item.selectedVariant && (item.selectedVariant.size || item.selectedVariant.color) && (
+                    <View style={{ flexDirection: 'row', gap: 8, marginTop: 2 }}>
+                      {item.selectedVariant.size && (
+                        <Text style={{ fontSize: 11, color: '#6b7280', backgroundColor: '#f3f4f6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                          Size: {item.selectedVariant.size}
+                        </Text>
+                      )}
+                      {item.selectedVariant.color && (
+                        <Text style={{ fontSize: 11, color: '#6b7280', backgroundColor: '#f3f4f6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                          Color: {item.selectedVariant.color}
+                        </Text>
+                      )}
+                    </View>
+                  )}
                   <Text style={styles.itemVariant}>
-                    {item.quantity} × ₱{item.price.toLocaleString()}
+                    {item.quantity} × ₱{(item.price ?? 0).toLocaleString()}
                   </Text>
                 </View>
-                <Text style={styles.itemPrice}>₱{(item.price * item.quantity).toLocaleString()}</Text>
+                <Text style={styles.itemPrice}>₱{((item.price ?? 0) * item.quantity).toLocaleString()}</Text>
               </View>
             </React.Fragment>
           ))}
@@ -604,9 +662,9 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   cardTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#1F2937',
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#111827',
     letterSpacing: 0.2,
   },
   cardContent: {
@@ -633,11 +691,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   itemName: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#1F2937',
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
     marginBottom: 6,
-    lineHeight: 20,
+    lineHeight: 22,
   },
   itemVariant: {
     fontSize: 13,
@@ -645,15 +703,15 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   itemPrice: {
-    fontSize: 17,
-    fontWeight: '700',
+    fontSize: 18,
+    fontWeight: '800',
     color: COLORS.primary,
   },
   // ===== SHIPPING ADDRESS =====
   addressName: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1F2937',
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#111827',
     marginBottom: 6,
   },
   addressPhone: {
@@ -682,8 +740,8 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   summaryLabel: {
-    fontSize: 15,
-    color: '#6B7280',
+    fontSize: 16,
+    color: '#4B5563',
     fontWeight: '500',
   },
   summaryValue: {
@@ -707,13 +765,13 @@ const styles = StyleSheet.create({
     paddingTop: 4,
   },
   totalLabel: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#1F2937',
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#111827',
   },
   totalValue: {
-    fontSize: 24,
-    fontWeight: '700',
+    fontSize: 28,
+    fontWeight: '900',
     color: '#FF5722',
     letterSpacing: 0.3,
   },

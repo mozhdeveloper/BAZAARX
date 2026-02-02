@@ -1,6 +1,9 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { productService } from '@/services/productService';
+import { authService } from '@/services/authService';
+import type { Product as DbProduct } from '@/types/database.types';
 
 export interface SellerProduct {
   id: string;
@@ -9,14 +12,24 @@ export interface SellerProduct {
   price: number;
   originalPrice?: number;
   stock: number;
-  image: string;
-  images?: string[];
   category: string;
-  isActive: boolean;
-  sold: number;
-  // Optional product attributes
+  images: string[];
   sizes?: string[];
   colors?: string[];
+  isActive: boolean;
+  sellerId: string;
+  createdAt: string;
+  updatedAt: string;
+  sales: number;
+  rating: number;
+  reviews: number;
+  approvalStatus?: 'pending' | 'approved' | 'rejected' | 'reclassified';
+  rejectionReason?: string;
+  vendorSubmittedCategory?: string;
+  adminReclassifiedCategory?: string;
+  sellerName?: string;
+  sellerRating?: number;
+  sellerLocation?: string;
 }
 
 export interface SellerOrder {
@@ -30,6 +43,8 @@ export interface SellerOrder {
     image: string;
     quantity: number;
     price: number;
+    selectedColor?: string;
+    selectedSize?: string;
   }[];
   total: number;
   status: 'pending' | 'to-ship' | 'completed' | 'cancelled';
@@ -116,15 +131,13 @@ interface SellerStore {
 
   // Products
   products: SellerProduct[];
-  addProduct: (product: SellerProduct) => void;
-  updateProduct: (id: string, updates: Partial<SellerProduct>) => void;
-  deleteProduct: (id: string) => void;
+  loading: boolean;
+  error: string | null;
+  fetchProducts: (sellerId?: string) => Promise<void>;
+  addProduct: (product: SellerProduct) => Promise<string>; // Returns the database product ID
+  updateProduct: (id: string, updates: Partial<SellerProduct>) => Promise<void>;
+  deleteProduct: (id: string) => Promise<void>;
   toggleProductStatus: (id: string) => void;
-
-  // Orders
-  orders: SellerOrder[];
-  updateOrderStatus: (orderId: string, status: SellerOrder['status']) => void;
-  addOfflineOrder: (cartItems: { productId: string; productName: string; quantity: number; price: number; image: string }[], total: number, note?: string) => string;
 
   // Analytics
   revenueData: RevenueData[];
@@ -143,10 +156,16 @@ const dummyProducts: SellerProduct[] = [
     description: 'Latest iPhone with A17 Pro chip and titanium design',
     price: 75999,
     stock: 24,
-    image: 'https://images.unsplash.com/photo-1696446702877-c040ff34b6d4?w=300',
+    images: ['https://images.unsplash.com/photo-1696446702877-c040ff34b6d4?w=300'],
     category: 'Electronics',
     isActive: true,
-    sold: 156,
+    sales: 156,
+    rating: 4.5,
+    reviews: 12,
+    approvalStatus: 'approved',
+    sellerId: '1',
+    createdAt: '2024-01-01T00:00:00.000Z',
+    updatedAt: '2024-01-01T00:00:00.000Z',
   },
   {
     id: '2',
@@ -154,10 +173,16 @@ const dummyProducts: SellerProduct[] = [
     description: 'Flagship Android phone with S Pen and 200MP camera',
     price: 69999,
     stock: 18,
-    image: 'https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?w=300',
+    images: ['https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?w=300'],
     category: 'Electronics',
     isActive: true,
-    sold: 142,
+    sales: 142,
+    rating: 4.5,
+    reviews: 12,
+    approvalStatus: 'approved',
+    sellerId: '1',
+    createdAt: '2024-01-01T00:00:00.000Z',
+    updatedAt: '2024-01-01T00:00:00.000Z',
   },
   {
     id: '3',
@@ -165,10 +190,16 @@ const dummyProducts: SellerProduct[] = [
     description: 'Powerful laptop with M3 chip and Liquid Retina XDR display',
     price: 129999,
     stock: 12,
-    image: 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=300',
+    images: ['https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=300'],
     category: 'Electronics',
     isActive: true,
-    sold: 89,
+    sales: 89,
+    rating: 4.5,
+    reviews: 12,
+    approvalStatus: 'approved',
+    sellerId: '1',
+    createdAt: '2024-01-01T00:00:00.000Z',
+    updatedAt: '2024-01-01T00:00:00.000Z',
   },
   {
     id: '4',
@@ -176,10 +207,16 @@ const dummyProducts: SellerProduct[] = [
     description: 'Premium wireless earbuds with active noise cancellation',
     price: 14999,
     stock: 45,
-    image: 'https://images.unsplash.com/photo-1606841837239-c5a1a4a07af7?w=300',
+    images: ['https://images.unsplash.com/photo-1606841837239-c5a1a4a07af7?w=300'],
     category: 'Accessories',
     isActive: true,
-    sold: 234,
+    sales: 234,
+    rating: 4.5,
+    reviews: 12,
+    approvalStatus: 'approved',
+    sellerId: '1',
+    createdAt: '2024-01-01T00:00:00.000Z',
+    updatedAt: '2024-01-01T00:00:00.000Z',
   },
   {
     id: '5',
@@ -187,10 +224,16 @@ const dummyProducts: SellerProduct[] = [
     description: 'Versatile tablet with M2 chip and Apple Pencil support',
     price: 42999,
     stock: 8,
-    image: 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=300',
+    images: ['https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=300'],
     category: 'Electronics',
     isActive: false,
-    sold: 67,
+    sales: 67,
+    rating: 4.5,
+    reviews: 12,
+    approvalStatus: 'approved',
+    sellerId: '1',
+    createdAt: '2024-01-01T00:00:00.000Z',
+    updatedAt: '2024-01-01T00:00:00.000Z',
   },
   {
     id: '6',
@@ -198,110 +241,16 @@ const dummyProducts: SellerProduct[] = [
     description: 'Industry-leading noise cancelling headphones',
     price: 19999,
     stock: 32,
-    image: 'https://images.unsplash.com/photo-1618366712010-f4ae9c647dcf?w=300',
+    images: ['https://images.unsplash.com/photo-1618366712010-f4ae9c647dcf?w=300'],
     category: 'Accessories',
     isActive: true,
-    sold: 178,
-  },
-];
-
-const dummyOrders: SellerOrder[] = [
-  {
-    id: '1',
-    orderId: 'ORD-2024-001',
-    customerName: 'Juan Dela Cruz',
-    customerEmail: 'juan@example.com',
-    items: [
-      {
-        productId: '1',
-        productName: 'iPhone 15 Pro Max',
-        image: 'https://images.unsplash.com/photo-1696446702877-c040ff34b6d4?w=100',
-        quantity: 1,
-        price: 75999,
-      },
-    ],
-    total: 75999,
-    status: 'pending',
-    createdAt: '2024-12-20T10:30:00Z',
-  },
-  {
-    id: '2',
-    orderId: 'ORD-2024-002',
-    customerName: 'Maria Santos',
-    customerEmail: 'maria@example.com',
-    items: [
-      {
-        productId: '4',
-        productName: 'AirPods Pro (2nd Gen)',
-        image: 'https://images.unsplash.com/photo-1606841837239-c5a1a4a07af7?w=100',
-        quantity: 2,
-        price: 14999,
-      },
-    ],
-    total: 29998,
-    status: 'to-ship',
-    createdAt: '2024-12-19T15:45:00Z',
-  },
-  {
-    id: '3',
-    orderId: 'ORD-2024-003',
-    customerName: 'Carlos Garcia',
-    customerEmail: 'carlos@example.com',
-    items: [
-      {
-        productId: '3',
-        productName: 'MacBook Pro M3',
-        image: 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=100',
-        quantity: 1,
-        price: 129999,
-      },
-      {
-        productId: '6',
-        productName: 'Sony WH-1000XM5',
-        image: 'https://images.unsplash.com/photo-1618366712010-f4ae9c647dcf?w=100',
-        quantity: 1,
-        price: 19999,
-      },
-    ],
-    total: 149998,
-    status: 'completed',
-    createdAt: '2024-12-18T09:20:00Z',
-  },
-  {
-    id: '4',
-    orderId: 'ORD-2024-004',
-    customerName: 'Ana Reyes',
-    customerEmail: 'ana@example.com',
-    items: [
-      {
-        productId: '2',
-        productName: 'Samsung Galaxy S24 Ultra',
-        image: 'https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?w=100',
-        quantity: 1,
-        price: 69999,
-      },
-    ],
-    total: 69999,
-    status: 'completed',
-    createdAt: '2024-12-17T14:10:00Z',
-  },
-  {
-    id: '5',
-    orderId: 'ORD-2024-005',
-    customerName: 'Pedro Lim',
-    customerEmail: 'pedro@example.com',
-    items: [
-      {
-        productId: '6',
-        productName: 'Sony WH-1000XM5',
-        image: 'https://images.unsplash.com/photo-1618366712010-f4ae9c647dcf?w=100',
-        quantity: 1,
-        price: 19999,
-      },
-    ],
-    total: 19999,
-    status: 'pending',
-    createdAt: '2024-12-20T11:00:00Z',
+    sales: 178,
+    rating: 4.5,
+    reviews: 12,
+    approvalStatus: 'approved',
+    sellerId: '1',
+    createdAt: '2024-01-01T00:00:00.000Z',
+    updatedAt: '2024-01-01T00:00:00.000Z',
   },
 ];
 
@@ -392,10 +341,73 @@ export const useSellerStore = create<SellerStore>()(
 
       // Products
       products: dummyProducts,
+      loading: false,
+      error: null,
 
-      addProduct: (product) => {
+      fetchProducts: async (sellerId?: string) => {
+        console.log('[sellerStore] fetchProducts called with provided sellerId:', sellerId);
+        set({ loading: true, error: null });
         try {
-          // Validation
+          let actualSellerId = sellerId;
+          const isValidUUID =
+            sellerId &&
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sellerId);
+
+          if (!isValidUUID) {
+            console.log('[sellerStore] SellerId is not a valid UUID, getting from session via authService...');
+            const session = await authService.getSession();
+            if (session?.user?.id) {
+              actualSellerId = session.user.id;
+              console.log('[sellerStore] Got seller ID from session:', actualSellerId);
+            } else {
+              console.log('[sellerStore] No authenticated session, fetching all products');
+              actualSellerId = undefined;
+            }
+          }
+
+          console.log('[sellerStore] Calling productService.getProducts with sellerId:', actualSellerId);
+          const data = await productService.getProducts({ sellerId: actualSellerId });
+          console.log('[sellerStore] Got products from service:', data?.length || 0, 'items');
+
+          const mappedProducts: SellerProduct[] = data.map((p) => ({
+            id: p.id || '',
+            name: p.name || '',
+            description: p.description || '',
+            price: p.price ?? 0,
+            originalPrice: p.original_price ?? undefined,
+            stock: p.stock ?? 0,
+            category: p.category || '',
+            images: p.images || [],
+            sizes: p.sizes || [],
+            colors: p.colors || [],
+            isActive: p.is_active ?? true,
+            sellerId: p.seller_id || '',
+            createdAt: p.created_at || '',
+            updatedAt: p.updated_at || '',
+            sales: p.sales_count ?? 0,
+            rating: p.rating ?? 0,
+            reviews: p.review_count ?? 0,
+            approvalStatus: (p.approval_status as SellerProduct['approvalStatus']) || 'pending',
+            rejectionReason: p.rejection_reason || undefined,
+            vendorSubmittedCategory: p.vendor_submitted_category || undefined,
+            adminReclassifiedCategory: p.admin_reclassified_category || undefined,
+            sellerName: p.seller?.store_name || p.seller?.business_name,
+            sellerRating: p.seller?.rating,
+            sellerLocation: p.seller?.business_address,
+          }));
+          console.log('[sellerStore] Mapped', mappedProducts.length, 'products');
+          set({ products: mappedProducts, loading: false });
+        } catch (error) {
+          console.error('[sellerStore] Error fetching products:', error);
+          set({
+            error: error instanceof Error ? error.message : 'Failed to fetch products',
+            loading: false,
+          });
+        }
+      },
+
+      addProduct: async (product) => {
+        try {
           if (!product.name || product.name.trim() === '') {
             throw new Error('Product name is required');
           }
@@ -409,27 +421,101 @@ export const useSellerStore = create<SellerStore>()(
             throw new Error('Product category is required');
           }
 
-      
-          set((state) => ({
-            products: [...state.products, product],
-          }));
+          let actualSellerId = product.sellerId;
+          const isValidUUID =
+            actualSellerId &&
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(actualSellerId);
+
+          if (!isValidUUID) {
+            console.log('[sellerStore] addProduct: SellerId is not a valid UUID, getting from session via authService...');
+            const session = await authService.getSession();
+            if (session?.user?.id) {
+              actualSellerId = session.user.id;
+              console.log('[sellerStore] addProduct: Got seller ID from session:', actualSellerId);
+            } else {
+              throw new Error('Not authenticated. Please log in to add products.');
+            }
+          }
+
+          try {
+            const dbProduct = await productService.createProduct({
+              name: product.name,
+              description: product.description,
+              price: product.price,
+              original_price: product.originalPrice,
+              stock: product.stock,
+              category: product.category,
+              images: product.images,
+              sizes: product.sizes,
+              colors: product.colors,
+              is_active: product.isActive,
+              seller_id: actualSellerId,
+              approval_status: 'pending',
+              vendor_submitted_category: product.category,
+            });
+            const newProduct: SellerProduct = {
+              ...product,
+              id: dbProduct.id || product.id,
+              createdAt: dbProduct.created_at || new Date().toISOString(),
+              updatedAt: dbProduct.updated_at || new Date().toISOString(),
+            };
+            set((state) => ({ products: [...state.products, newProduct] }));
+            return dbProduct.id || product.id;
+          } catch (dbErr) {
+            console.warn('[sellerStore] addProduct: DB unavailable, saving locally only');
+            set((state) => ({ products: [...state.products, product] }));
+            return product.id;
+          }
         } catch (error) {
           console.error('Error adding product:', error);
           throw error;
         }
       },
 
-      updateProduct: (id, updates) =>
-        set((state) => ({
-          products: state.products.map((p) =>
-            p.id === id ? { ...p, ...updates } : p
-          ),
-        })),
+      updateProduct: async (id, updates) => {
+        try {
+          const dbUpdates: Record<string, unknown> = {};
+          if (updates.name !== undefined) dbUpdates.name = updates.name;
+          if (updates.description !== undefined) dbUpdates.description = updates.description;
+          if (updates.price !== undefined) dbUpdates.price = updates.price;
+          if (updates.originalPrice !== undefined) dbUpdates.original_price = updates.originalPrice;
+          if (updates.stock !== undefined) dbUpdates.stock = updates.stock;
+          if (updates.category !== undefined) dbUpdates.category = updates.category;
+          if (updates.images !== undefined) dbUpdates.images = updates.images;
+          if (updates.sizes !== undefined) dbUpdates.sizes = updates.sizes;
+          if (updates.colors !== undefined) dbUpdates.colors = updates.colors;
+          if (updates.isActive !== undefined) dbUpdates.is_active = updates.isActive;
 
-      deleteProduct: (id) =>
-        set((state) => ({
-          products: state.products.filter((p) => p.id !== id),
-        })),
+          try {
+            await productService.updateProduct(id, dbUpdates);
+          } catch (dbErr) {
+            console.warn('[sellerStore] updateProduct: DB unavailable, updating local state only');
+          }
+
+          set((state) => ({
+            products: state.products.map((p) => (p.id === id ? { ...p, ...updates } : p)),
+          }));
+        } catch (error) {
+          console.error('Error updating product:', error);
+          throw error;
+        }
+      },
+
+      deleteProduct: async (id) => {
+        try {
+          try {
+            await productService.deleteProduct(id);
+          } catch (dbErr) {
+            console.warn('[sellerStore] deleteProduct: DB unavailable, removing from local state only');
+          }
+          set((state) => ({
+            products: state.products.filter((p) => p.id !== id),
+          }));
+        } catch (error) {
+          console.error('Error deleting product:', error);
+          throw error;
+        }
+      },
 
       toggleProductStatus: (id) =>
         set((state) => ({
@@ -437,115 +523,6 @@ export const useSellerStore = create<SellerStore>()(
             p.id === id ? { ...p, isActive: !p.isActive } : p
           ),
         })),
-
-      // Orders
-      orders: dummyOrders,
-
-      updateOrderStatus: (orderId, status) => {
-        // Update seller's order list
-        set((state) => ({
-          orders: state.orders.map((o) =>
-            o.orderId === orderId ? { ...o, status } : o
-          ),
-        }));
-
-    
-        // SYNC TO BUYER: Also update the buyer's order store
-        try {
-          import('./orderStore').then(({ useOrderStore }) => {
-            const orderStore = useOrderStore.getState();
-            
-            // Find the corresponding buyer order by matching transaction ID
-            const buyerOrder = orderStore.orders.find(
-              (o) => o.transactionId === orderId
-            );
-            
-            if (buyerOrder) {
-              // Map seller status to buyer status
-              const buyerStatus = 
-                status === 'pending' ? 'pending' :
-                status === 'to-ship' ? 'processing' :
-                status === 'completed' ? 'delivered' :
-                'canceled';
-              
-              orderStore.updateOrderStatus(buyerOrder.id, buyerStatus as any);
-              console.log(`✅ Order status synced to buyer: ${orderId} → ${buyerStatus}`);
-            }
-          });
-        } catch (error) {
-          console.error('Failed to sync order status to buyer:', error);
-        }
-      },
-
-      // POS: Add offline order (walk-in purchase)
-      addOfflineOrder: (cartItems, total, note) => {
-        try {
-          // Validate cart items
-          if (!cartItems || cartItems.length === 0) {
-            throw new Error('Cart is empty');
-          }
-
-          if (total <= 0) {
-            throw new Error('Invalid order total');
-          }
-
-          // Check stock availability for all items before proceeding
-          const state = get();
-          for (const item of cartItems) {
-            const product = state.products.find(p => p.id === item.productId);
-            if (!product) {
-              throw new Error(`Product ${item.productName} not found`);
-            }
-            if (product.stock < item.quantity) {
-              throw new Error(`Insufficient stock for ${product.name}. Available: ${product.stock}, Requested: ${item.quantity}`);
-            }
-          }
-
-          // Generate order ID
-          const orderId = `POS-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-
-          // Create offline order
-          const newOrder: SellerOrder = {
-            id: orderId,
-            orderId: orderId,
-            customerName: 'Walk-in Customer',
-            customerEmail: 'pos@offline.sale',
-            items: cartItems,
-            total,
-            status: 'completed', // POS orders are immediately completed
-            createdAt: new Date().toISOString(),
-            type: 'OFFLINE', // Mark as offline/walk-in order
-            posNote: note || 'In-Store Purchase',
-          };
-
-          // Add order to store and deduct stock
-          set((state) => {
-            // Update products stock
-            const updatedProducts = state.products.map(product => {
-              const cartItem = cartItems.find(item => item.productId === product.id);
-              if (cartItem) {
-                return {
-                  ...product,
-                  stock: product.stock - cartItem.quantity,
-                  sold: product.sold + cartItem.quantity,
-                };
-              }
-              return product;
-            });
-
-            return {
-              orders: [newOrder, ...state.orders],
-              products: updatedProducts,
-            };
-          });
-
-          console.log(`✅ Offline order created: ${orderId}. Stock updated.`);
-          return orderId;
-        } catch (error) {
-          console.error('Failed to create offline order:', error);
-          throw error;
-        }
-      },
 
       // Analytics
       revenueData: dummyRevenueData,

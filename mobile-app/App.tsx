@@ -6,6 +6,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Home, Store, ShoppingCart, Package, User } from 'lucide-react-native';
+import type { CartItem } from './src/types';
 
 // Import screens
 import SplashScreen from './app/SplashScreen';
@@ -72,7 +73,15 @@ export type RootStackParamList = {
   AdminStack: undefined;
   MainTabs: NavigatorScreenParams<TabParamList>;
   ProductDetail: { product: Product };
-  Checkout: undefined;
+  Checkout: { 
+    selectedItems?: CartItem[]; 
+    deliveryAddress?: string; 
+    deliveryCoordinates?: { latitude: number; longitude: number };
+    isGift?: boolean;
+    recipientName?: string;
+    registryLocation?: string;
+    recipientId?: string;
+  };
   PaymentGateway: { paymentMethod: string; order: Order; isQuickCheckout?: boolean };
   OrderConfirmation: { order: Order };
   OrderDetail: { order: Order };

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,20 +8,23 @@ import {
   Dimensions,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { TrendingUp, TrendingDown, Package, Eye, DollarSign, Menu, Bell, Receipt, AlertCircle, ChevronRight, Store, Clock, PlusSquare } from 'lucide-react-native';
+import { TrendingUp, TrendingDown, Package, Eye, DollarSign, Menu, Bell, Receipt, AlertCircle, ChevronRight, Store, Clock, PlusSquare, MessageCircle } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { LineChart } from 'react-native-gifted-charts';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SellerStackParamList } from '../SellerStack';
 import { useSellerStore } from '../../../src/stores/sellerStore';
+import { useOrderStore } from '../../../src/stores/orderStore';
 import { useReturnStore } from '../../../src/stores/returnStore';
+import { chatService } from '../../../src/services/chatService';
 import SellerDrawer from '../../../src/components/SellerDrawer';
 
 const { width } = Dimensions.get('window');
 
 export default function SellerDashboardScreen() {
-  const { stats, revenueData, orders, seller } = useSellerStore();
+  const { stats, revenueData, seller } = useSellerStore();
+  const { sellerOrders: orders } = useOrderStore();
   const getReturnRequestsBySeller = useReturnStore((state) => state.getReturnRequestsBySeller);
   // Assuming seller has an ID or name matching the return requests. 
   // For now using a hardcoded value or seller.storeName as per previous context
@@ -31,8 +34,30 @@ export default function SellerDashboardScreen() {
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
   const [drawerVisible, setDrawerVisible] = useState(false);
+  const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
 
   const recentOrders = orders.slice(0, 3);
+
+  // Fetch unread messages count
+  useEffect(() => {
+    const fetchUnreadCount = async () => {
+      if (!seller?.id) return;
+      
+      try {
+        const conversations = await chatService.getSellerConversations(seller.id);
+        const totalUnread = conversations.reduce((sum, conv) => sum + (conv.seller_unread_count || 0), 0);
+        setUnreadMessagesCount(totalUnread);
+      } catch (error) {
+        console.error('[Dashboard] Error fetching unread messages:', error);
+      }
+    };
+
+    fetchUnreadCount();
+    
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchUnreadCount, 30000);
+    return () => clearInterval(interval);
+  }, [seller?.id]);
 
   const chartData = revenueData.map((item) => ({
     value: item.value / 1000, // Convert to thousands for better display
@@ -90,6 +115,7 @@ export default function SellerDashboardScreen() {
         {/* Notification Button: Absolute positioned to match Settings */}
         <Pressable
           style={[styles.notificationButton, { position: 'absolute', right: 20, top: insets.top + 20 }]}
+          onPress={() => navigation.getParent()?.navigate('Notifications')}
         >
           <Bell size={22} color="#FFFFFF" strokeWidth={2.5} />
           <View style={styles.notificationBadge} />
@@ -336,6 +362,21 @@ export default function SellerDashboardScreen() {
           <View style={{ height: 100 }} />
         </ScrollView>
       )}
+
+      {/* Floating Messages Button */}
+      <Pressable 
+        style={styles.floatingMessageButton} 
+        onPress={() => navigation.navigate('Messages')}
+      >
+        <MessageCircle size={28} color="#FFF" />
+        {unreadMessagesCount > 0 && (
+          <View style={styles.messageBadge}>
+            <Text style={styles.messageBadgeText}>
+              {unreadMessagesCount > 99 ? '99+' : unreadMessagesCount}
+            </Text>
+          </View>
+        )}
+      </Pressable>
     </View>
   );
 }
@@ -679,5 +720,39 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     flex: 1,
+  },
+  floatingMessageButton: {
+    position: 'absolute',
+    right: 20,
+    bottom: 90,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#FF5722',
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+  },
+  messageBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    backgroundColor: '#EF4444',
+    borderRadius: 12,
+    minWidth: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    borderWidth: 2,
+    borderColor: '#FFF',
+  },
+  messageBadgeText: {
+    color: '#FFF',
+    fontSize: 11,
+    fontWeight: '700',
   },
 });

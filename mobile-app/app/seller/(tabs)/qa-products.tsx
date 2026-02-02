@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,8 +8,11 @@ import {
   Modal,
   Image,
   Alert,
+  RefreshControl,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   FileCheck,
   Clock,
@@ -35,18 +38,59 @@ export default function SellerProductQAScreen() {
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
   const [logisticsMethod, setLogisticsMethod] = useState('');
   const [selectedLogistics, setSelectedLogistics] = useState<string>('');
+  const [refreshing, setRefreshing] = useState(false);
   const insets = useSafeAreaInsets();
 
-  const { products: qaProducts, submitSample } = useProductQAStore();
+  const { products: qaProducts, submitSample, loadProducts, isLoading } = useProductQAStore();
   const { seller, products: sellerProducts } = useSellerStore();
 
-  // Filter QA products for this seller
-  const sellerQAProducts = qaProducts.filter(
-    (p) => p.vendor === (seller?.storeName || 'Tech Shop PH')
+  // Load QA products for this seller on mount and when screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      console.log('[QA Products] Focused, seller.id:', seller?.id);
+      if (seller?.id) {
+        loadProducts(seller.id).then(() => {
+          console.log('[QA Products] Loaded products for seller:', seller.id);
+        });
+      } else {
+        console.log('[QA Products] No seller.id available, loading all...');
+        // Load all QA products and filter client-side as fallback
+        loadProducts();
+      }
+    }, [seller?.id])
   );
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    if (seller?.id) {
+      await loadProducts(seller.id);
+    } else {
+      await loadProducts();
+    }
+    setRefreshing(false);
+  };
+
+  // Use QA products directly - already filtered by seller ID if seller exists
+  // Also support filtering by vendor name as fallback
+  const sellerQAProducts = qaProducts.filter((p) => {
+    if (seller?.id && p.sellerId) {
+      return p.sellerId === seller.id;
+    }
+    // Fallback: match by store name / vendor
+    if (seller?.storeName && p.vendor) {
+      return p.vendor.toLowerCase() === seller.storeName.toLowerCase();
+    }
+    return true; // Show all if no filter criteria
+  });
+
+  console.log('[QA Products] qaProducts:', qaProducts.length, 'sellerQAProducts:', sellerQAProducts.length);
 
   // Get all seller products (including those not in QA yet)
   const activeSellerProducts = sellerProducts.filter((p) => p.isActive);
+  
+  // Exclude products already in QA to avoid duplicates
+  const qaProductIds = new Set(qaProducts.map(p => p.productId));
+  const nonQASellerProducts = activeSellerProducts.filter(p => !qaProductIds.has(p.id));
 
   // Calculate stats
   const pendingCount = sellerQAProducts.filter((p) => p.status === 'PENDING_DIGITAL_REVIEW').length;
@@ -108,19 +152,23 @@ export default function SellerProductQAScreen() {
 
   const { filteredQA: filteredQAProducts } = getFilteredProducts();
 
-  const handleSubmitSample = () => {
+  const handleSubmitSample = async () => {
     if (!selectedProduct || !selectedLogistics) {
       Alert.alert('Error', 'Please select a logistics method');
       return;
     }
 
     try {
-      submitSample(selectedProduct, selectedLogistics);
+      await submitSample(selectedProduct, selectedLogistics);
       Alert.alert('Success', 'Your product sample has been submitted for physical QA review.');
       setSubmitModalOpen(false);
       setSelectedProduct(null);
       setSelectedLogistics('');
       setLogisticsMethod('');
+      // Reload products after submission
+      if (seller?.id) {
+        await loadProducts(seller.id);
+      }
     } catch (error) {
       Alert.alert('Error', error instanceof Error ? error.message : 'Failed to submit sample');
     }
@@ -350,7 +398,8 @@ export default function SellerProductQAScreen() {
                     {product.status === 'WAITING_FOR_SAMPLE' && (
                       <TouchableOpacity
                         onPress={() => {
-                          setSelectedProduct(product.id);
+                          // Use productId (from products table) not id (from product_qa table)
+                          setSelectedProduct(product.productId);
                           setSubmitModalOpen(true);
                         }}
                         style={{

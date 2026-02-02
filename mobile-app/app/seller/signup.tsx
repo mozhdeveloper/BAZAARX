@@ -157,8 +157,9 @@ export default function SellerSignupScreen() {
 
                 if (sellerError) throw sellerError;
 
-                // Sync data to store
+                // Sync data to store - IMPORTANT: Include the seller ID
                 useSellerStore.getState().updateSellerInfo({
+                    id: authData.user.id, // This is critical for QA and product queries
                     storeName: formData.storeName,
                     email: formData.email,
                     approval_status: 'pending'

@@ -10,9 +10,9 @@ interface ProductCardProps {
 }
 
 export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress }) => {
-  const hasDiscount = product.originalPrice && product.originalPrice > product.price;
+  const hasDiscount = !!(product.originalPrice && typeof product.price === 'number' && product.originalPrice > product.price);
   const discountPercent = hasDiscount
-    ? Math.round(((product.originalPrice! - product.price) / product.originalPrice!) * 100)
+    ? Math.round(((product.originalPrice! - product.price!) / product.originalPrice!) * 100)
     : 0;
 
   return (
@@ -60,14 +60,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress }) =>
 
         {/* Price */}
         <View style={styles.priceContainer}>
-          <Text style={styles.price}>₱{product.price.toLocaleString()}</Text>
-          {hasDiscount && (
-            <Text style={styles.originalPrice}>₱{product.originalPrice!.toLocaleString()}</Text>
+          <Text style={[styles.price, hasDiscount && { color: '#EF4444' }]}>₱{(product.price || 0).toLocaleString()}</Text>
+          {hasDiscount && product.originalPrice && (
+            <Text style={styles.originalPrice}>₱{product.originalPrice.toLocaleString()}</Text>
           )}
         </View>
 
         {/* Sold Count */}
-        <Text style={styles.soldText}>{product.sold.toLocaleString()} sold</Text>
+        <Text style={styles.soldText}>{(product.sold || 0).toLocaleString()} sold</Text>
 
         {/* Seller Info */}
         <View style={styles.sellerContainer}>
@@ -95,19 +95,21 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
   },
   pressed: {
-    opacity: 0.7,
-    transform: [{ scale: 0.98 }],
+    opacity: 0.9,
+    transform: [{ scale: 0.97 }],
   },
   imageContainer: {
     width: '100%',
     aspectRatio: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#F9FAFB',
     position: 'relative',
   },
   image: {
@@ -116,103 +118,100 @@ const styles = StyleSheet.create({
   },
   discountBadge: {
     position: 'absolute',
-    top: 12,
-    left: 12,
+    top: 10,
+    left: 10,
     backgroundColor: COLORS.primary,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 999,
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    zIndex: 10,
   },
   discountText: {
     color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.3,
+    fontSize: 10,
+    fontWeight: '800',
   },
   shippingBadge: {
     position: 'absolute',
-    top: 12,
-    right: 12,
-    backgroundColor: 'rgba(255, 106, 0, 0.15)', // Lightened Primary
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 999,
+    bottom: 10,
+    left: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 106, 0, 0.2)',
+    zIndex: 10,
   },
   shippingText: {
     color: COLORS.primary,
-    fontSize: 11,
+    fontSize: 9,
     fontWeight: '700',
-    letterSpacing: 0.3,
+    textTransform: 'uppercase',
   },
   infoContainer: {
-    padding: 12,
+    padding: 10,
+    flex: 1,
+    justifyContent: 'space-between',
   },
   productName: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
-    color: COLORS.gray900,
-    marginBottom: 8,
-    lineHeight: 18,
-    letterSpacing: -0.1,
+    color: '#1F2937',
+    marginBottom: 6,
+    lineHeight: 17,
+    height: 34, // Fixed height for 2 lines to maintain grid alignment
   },
   ratingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 3,
     marginBottom: 6,
   },
   ratingText: {
-    fontSize: 12,
-    color: COLORS.gray500,
+    fontSize: 11,
+    color: '#6B7280',
+    fontWeight: '600',
   },
   priceContainer: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    gap: 6,
-    marginBottom: 4,
+    gap: 4,
+    marginBottom: 2,
   },
   price: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: '800',
     color: COLORS.primary,
-    letterSpacing: -0.5,
   },
   originalPrice: {
-    fontSize: 11,
-    color: COLORS.gray400,
+    fontSize: 10,
+    color: '#9CA3AF',
     textDecorationLine: 'line-through',
   },
   soldText: {
-    fontSize: 11,
-    color: COLORS.gray400,
-    marginBottom: 10,
+    fontSize: 10,
+    color: '#9CA3AF',
+    marginBottom: 8,
   },
   sellerContainer: {
-    paddingTop: 10,
-    marginTop: 10,
-    backgroundColor: '#FAFAFA',
-    marginHorizontal: -12,
-    marginBottom: -12,
-    paddingHorizontal: 12,
-    paddingBottom: 12,
-    borderBottomLeftRadius: 16,
-    borderBottomRightRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
   },
   sellerNameContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    marginBottom: 4,
+    gap: 3,
+    flex: 1,
   },
   sellerName: {
-    fontSize: 11,
-    color: COLORS.gray500,
-    flex: 1,
+    fontSize: 10,
+    color: '#6B7280',
+    fontWeight: '500',
   },
   sellerRatingContainer: {
     flexDirection: 'row',
@@ -220,7 +219,7 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   sellerRating: {
-    fontSize: 11,
-    color: COLORS.gray500,
+    fontSize: 10,
+    color: '#9CA3AF',
   },
 });
