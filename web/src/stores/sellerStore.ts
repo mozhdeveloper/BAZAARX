@@ -524,23 +524,95 @@ export const useAuthStore = create<AuthStore>()(
         }
 
         try {
-          // 1) Supabase Auth sign-up
-          const result = await authService.signUp(sellerData.email!, sellerData.password!, {
-            full_name: sellerData.ownerName || sellerData.storeName || sellerData.email?.split('@')[0],
-            phone: sellerData.phone,
-            user_type: 'seller',
-            email: sellerData.email!,
-            password: sellerData.password!,
-          });
+          // First, try to sign in with the provided credentials
+          // This will succeed if the user already exists, fail if they don't
+          let user;
+          let isExistingUser = false;
 
-          if (!result || !result.user) {
-            console.error('Signup failed: No user returned');
-            return false;
+          try {
+            const signInResult = await authService.signIn(sellerData.email!, sellerData.password!);
+            if (signInResult && signInResult.user) {
+              // User exists, get their profile to check user type
+              user = signInResult.user;
+              isExistingUser = true;
+
+              // Check if they're already a seller
+              const { data: existingProfile } = await supabase
+                .from('profiles')
+                .select('user_type')
+                .eq('id', user.id)
+                .single();
+
+              if (existingProfile && existingProfile.user_type === 'seller') {
+                console.error('User is already registered as a seller');
+                return false;
+              }
+            }
+          } catch (signInError) {
+            // Sign in failed, meaning user doesn't exist, so we'll create a new account
+            isExistingUser = false;
           }
 
-          const { user } = result;
+          // If user doesn't exist, try to sign up
+          if (!isExistingUser) {
+            try {
+              const signUpResult = await authService.signUp(sellerData.email!, sellerData.password!, {
+                full_name: sellerData.ownerName || sellerData.storeName || sellerData.email?.split('@')[0],
+                phone: sellerData.phone,
+                user_type: 'seller',
+                email: sellerData.email!,
+                password: sellerData.password!,
+              });
 
-          // 2) Create seller record (use upsert to handle conflicts)
+              if (!signUpResult || !signUpResult.user) {
+                console.error('Signup failed: No user returned');
+                return false;
+              }
+
+              user = signUpResult.user;
+            } catch (signUpError: any) {
+              // If signup fails because user already exists, try to sign in again
+              if (signUpError?.isAlreadyRegistered ||
+                  signUpError?.message?.includes('User already registered') ||
+                  signUpError?.message?.includes('already exists') ||
+                  signUpError?.status === 422) {
+                // User exists, sign in and continue with upgrade process
+                const signInResult = await authService.signIn(sellerData.email!, sellerData.password!);
+                if (signInResult && signInResult.user) {
+                  user = signInResult.user;
+                  isExistingUser = true;
+
+                  // Check if they're already a seller
+                  const { data: existingProfile } = await supabase
+                    .from('profiles')
+                    .select('user_type')
+                    .eq('id', user.id)
+                    .single();
+
+                  if (existingProfile && existingProfile.user_type === 'seller') {
+                    console.error('User is already registered as a seller');
+                    return false;
+                  }
+                } else {
+                  console.error('Could not sign in existing user after failed signup');
+                  return false;
+                }
+              } else {
+                // Some other error occurred
+                console.error('Signup error:', signUpError);
+                throw signUpError;
+              }
+            }
+          }
+
+          // At this point, we have a user account
+          // If it's an existing user (not a new signup), upgrade their profile to seller
+          if (isExistingUser) {
+            // Use the authService to upgrade the user type
+            await authService.upgradeUserType(user.id, 'seller');
+          }
+
+          // 2) Create or update seller record (use upsert to handle conflicts)
           const { sellerService } = await import('@/services/sellerService');
 
           const sellerInsertData = {

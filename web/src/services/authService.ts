@@ -77,9 +77,53 @@ export class AuthService {
       }
 
       return { user: authData.user, session: authData.session };
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error signing up:', error);
+
+      // Check if this is a "user already registered" error
+      if (error?.message?.includes('User already registered') ||
+          error?.message?.includes('already exists') ||
+          error?.status === 422) {
+        // Return a specific error that indicates user already exists
+        const authError = new Error('User already registered');
+        (authError as any).isAlreadyRegistered = true;
+        throw authError;
+      }
+
       throw new Error('Failed to create account. Please try again.');
+    }
+  }
+
+  /**
+   * Upgrade an existing user to a different type (e.g., buyer to seller)
+   * @param userId - User ID to upgrade
+   * @param newUserType - New user type to assign
+   * @returns Promise<boolean>
+   */
+  async upgradeUserType(userId: string, newUserType: 'buyer' | 'seller' | 'admin'): Promise<boolean> {
+    if (!isSupabaseConfigured()) {
+      console.warn('Supabase not configured - cannot upgrade user type');
+      return true;
+    }
+
+    try {
+      // Update the user type in the profile
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({ user_type: newUserType })
+        .eq('id', userId);
+
+      if (profileError) throw profileError;
+
+      // Create user-type specific record if needed (but not for seller since it's handled separately)
+      if (newUserType !== 'seller') {
+        await this.createUserTypeRecord(userId, newUserType);
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error upgrading user type:', error);
+      throw new Error('Failed to upgrade user type. Please try again.');
     }
   }
 
@@ -380,6 +424,7 @@ export class AuthService {
       }
     }
     // Seller records are created separately during registration flow
+    // When upgrading to seller, the seller record is created elsewhere
   }
 }
 
