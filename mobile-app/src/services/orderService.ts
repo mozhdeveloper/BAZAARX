@@ -455,11 +455,32 @@ export class OrderService {
                     canceled: 'cancelled',
                 };
 
+                // Format shipping address as a single string
+                const formatShippingAddress = (addr: any): string | undefined => {
+                    if (!addr) return undefined;
+                    if (typeof addr === 'string') {
+                        try {
+                            addr = JSON.parse(addr);
+                        } catch {
+                            return addr;
+                        }
+                    }
+                    const parts = [
+                        addr.street || addr.address,
+                        addr.city,
+                        addr.province || addr.region,
+                        addr.postalCode
+                    ].filter(Boolean);
+                    return parts.length > 0 ? parts.join(', ') : undefined;
+                };
+
                 return {
                     id: order.id,
                     orderId: order.order_number || order.id,
                     customerName: order.buyer_name || order.shipping_address?.name || 'Walk-in Customer',
                     customerEmail: order.buyer_email || '',
+                    customerPhone: order.buyer_phone || order.shipping_address?.phone,
+                    shippingAddress: formatShippingAddress(order.shipping_address),
                     items,
                     total: order.total_amount || 0,
                     status: statusMap[order.status] || 'pending',

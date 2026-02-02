@@ -11,6 +11,8 @@ export interface SellerOrder {
   orderId: string;
   customerName: string;
   customerEmail: string;
+  customerPhone?: string;
+  shippingAddress?: string;
   items: {
     productId: string;
     productName: string;
