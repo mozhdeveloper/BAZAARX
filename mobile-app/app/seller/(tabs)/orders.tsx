@@ -15,6 +15,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useNavigation } from '@react-navigation/native';
 import { Package, ShoppingCart, Bell, X, Search, ChevronDown, Menu, RefreshCw } from 'lucide-react-native';
 import { useSellerStore } from '../../../src/stores/sellerStore';
+import { useOrderStore } from '../../../src/stores/orderStore';
 import { useReturnStore } from '../../../src/stores/returnStore';
 import SellerDrawer from '../../../src/components/SellerDrawer';
 
@@ -22,7 +23,9 @@ type OrderStatus = 'all' | 'pending' | 'to-ship' | 'completed' | 'returns' | 're
 type ChannelFilter = 'all' | 'online' | 'pos';
 
 export default function SellerOrdersScreen() {
-  const { orders, updateOrderStatus, seller, fetchOrders, ordersLoading } = useSellerStore();
+  // Use orderStore for orders, sellerStore for seller profile only
+  const { sellerOrders: orders, updateSellerOrderStatus: updateOrderStatus, fetchSellerOrders: fetchOrders, sellerOrdersLoading: ordersLoading } = useOrderStore();
+  const { seller } = useSellerStore();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const [drawerVisible, setDrawerVisible] = useState(false);
