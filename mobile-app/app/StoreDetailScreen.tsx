@@ -9,8 +9,8 @@ import StoreChatModal from '../src/components/StoreChatModal';
 import { COLORS } from '../src/constants/theme';
 
 import { useAuthStore } from '../src/stores/authStore';
-import { useShopStore } from '../src/stores/shopStore';
 import { GuestLoginModal } from '../src/components/GuestLoginModal';
+import { sellerService } from '../src/services/sellerService';
 import { productService } from '../src/services/productService';
 
 const { width } = Dimensions.get('window');
@@ -22,9 +22,13 @@ export default function StoreDetailScreen() {
     const { store } = route.params;
     const BRAND_COLOR = COLORS.primary;
 
+    const { isGuest, user } = useAuthStore();
+
     // State
-    const { isShopFollowed, followShop, unfollowShop } = useShopStore();
-    const isFollowing = isShopFollowed(store.id);
+    const [storeData, setStoreData] = useState<any>(store);
+    const [followerCount, setFollowerCount] = useState(0);
+    const [isFollowing, setIsFollowing] = useState(false);
+
     const [activeTab, setActiveTab] = useState('Shop');
     const [searchVisible, setSearchVisible] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
@@ -32,8 +36,6 @@ export default function StoreDetailScreen() {
     const [chatVisible, setChatVisible] = useState(false);
     const [showGuestModal, setShowGuestModal] = useState(false);
     const [guestModalMessage, setGuestModalMessage] = useState('');
-
-    const { isGuest } = useAuthStore();
 
     // Real products state
     const [realProducts, setRealProducts] = useState<any[]>([]);
@@ -45,19 +47,55 @@ export default function StoreDetailScreen() {
         { id: '3', amount: 'Free Shipping', min: 'Min. Spend ₱300', claimed: false },
     ]);
 
+    // Fetch real store data
+    useEffect(() => {
+        const fetchStoreData = async () => {
+            if (!store?.id) return;
+            try {
+                // Fetch fresh seller data
+                const seller = await sellerService.getSellerById(store.id);
+                if (seller) {
+                    setStoreData({
+                        ...store,
+                        ...seller,
+                        name: seller.store_name || seller.business_name || store.name,
+                        location: seller.city ? `${seller.city}, ${seller.province}` : (seller.business_address || store.location),
+                        description: seller.store_description || store.description,
+                        rating: seller.rating || store.rating || 0,
+                        logo: seller.store_name?.substring(0, 2).toUpperCase() || store.logo
+                    });
+                }
+
+                // Fetch follower count
+                const count = await sellerService.getFollowerCount(store.id);
+                setFollowerCount(count);
+
+                // Check if following
+                if (user?.id && !isGuest) {
+                    const following = await sellerService.checkIsFollowing(user.id, store.id);
+                    setIsFollowing(following);
+                }
+            } catch (error) {
+                console.error('Error fetching store data:', error);
+            }
+        };
+        fetchStoreData();
+    }, [store?.id, user?.id, isGuest]);
+
     // Fetch real products for this store
     useEffect(() => {
         const fetchProducts = async () => {
             if (!store?.id) return;
-            
+
             setProductsLoading(true);
             try {
                 // Fetch products for this seller from the database
                 const products = await productService.getProducts({
                     sellerId: store.id,
-                    approvalStatus: 'ACTIVE_VERIFIED'
+                    approvalStatus: 'approved',
+                    isActive: true
                 });
-                
+
                 if (products && products.length > 0) {
                     // Map database products to display format
                     const mappedProducts = products.map(p => ({
@@ -70,8 +108,8 @@ export default function StoreDetailScreen() {
                         sold: p.sales_count || 0,
                         category: p.category || 'General',
                         sellerId: p.seller_id,
-                        sellerName: store.name,
-                        sellerLocation: store.location
+                        sellerName: storeData.name,
+                        sellerLocation: storeData.location
                     }));
                     setRealProducts(mappedProducts);
                 }
@@ -83,13 +121,14 @@ export default function StoreDetailScreen() {
         };
 
         fetchProducts();
-    }, [store?.id]);
+    }, [store?.id, storeData.name]);
 
-    // Use real products if available, otherwise fallback to trending products
-    const availableProducts = realProducts.length > 0 ? realProducts : trendingProducts;
-    
+    // Use real products if available, otherwise fallback to trending products (only if disabled)
+    // Actually for store detail we should probably only show real products or empty
+    const availableProducts = realProducts;
+
     // Filter products by search query
-    const storeProducts = availableProducts.filter(p =>
+    const storeProducts = availableProducts.filter((p: any) =>
         p.name?.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
@@ -99,17 +138,33 @@ export default function StoreDetailScreen() {
         }
     }
 
-    const handleFollow = () => {
-        if (isGuest) {
+    const handleFollow = async () => {
+        if (isGuest || !user?.id) {
             setGuestModalMessage("Sign up to follow stores.");
             setShowGuestModal(true);
             return;
         }
+
+        // Optimistic update
+        const prevFollowing = isFollowing;
+        const prevCount = followerCount;
+
+        setIsFollowing(!prevFollowing);
+        setFollowerCount(prev => prevFollowing ? prev - 1 : prev + 1);
+
         LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-        if (isFollowing) {
-            unfollowShop(store.id);
-        } else {
-            followShop(store);
+
+        try {
+            if (prevFollowing) {
+                await sellerService.unfollowSeller(user.id, store.id);
+            } else {
+                await sellerService.followSeller(user.id, store.id);
+            }
+        } catch (error) {
+            // Revert on error
+            setIsFollowing(prevFollowing);
+            setFollowerCount(prevCount);
+            Alert.alert('Error', 'Failed to update follow status');
         }
     };
 
@@ -227,11 +282,11 @@ export default function StoreDetailScreen() {
 
                             <View style={styles.infoRow}>
                                 <MapPin size={18} color="#6B7280" />
-                                <Text style={styles.infoText}>{store.location}</Text>
+                                <Text style={styles.infoText}>{storeData.location}</Text>
                             </View>
                             <View style={styles.infoRow}>
                                 <Star size={18} color="#F59E0B" fill="#F59E0B" />
-                                <Text style={styles.infoText}>{store.rating} ({store.followers} Rating Count)</Text>
+                                <Text style={styles.infoText}>{storeData.rating} ({followerCount} Followers)</Text>
                             </View>
                             <View style={styles.infoRow}>
                                 <CheckCircle2 size={18} color={BRAND_COLOR} />
@@ -303,17 +358,17 @@ export default function StoreDetailScreen() {
                             </View>
                             <View style={styles.textInfo}>
                                 <View style={styles.nameLockup}>
-                                    <Text style={styles.storeName}>{store.name}</Text>
-                                    {store.verified && <CheckCircle2 size={16} color="#3B82F6" fill="#FFF" />}
+                                    <Text style={styles.storeName}>{storeData.name}</Text>
+                                    {storeData.verified && <CheckCircle2 size={16} color="#3B82F6" fill="#FFF" />}
                                 </View>
                                 <View style={styles.locationRow}>
                                     <MapPin size={12} color="#FFF" />
-                                    <Text style={styles.locationText}>{store.location}</Text>
+                                    <Text style={styles.locationText}>{storeData.location}</Text>
                                 </View>
                                 <View style={styles.metricsRow}>
-                                    <Text style={styles.metricText}><Text style={styles.metricBold}>{store.rating}</Text> Rating</Text>
+                                    <Text style={styles.metricText}><Text style={styles.metricBold}>{storeData.rating}</Text> Rating</Text>
                                     <View style={styles.divider} />
-                                    <Text style={styles.metricText}><Text style={styles.metricBold}>{store.followers > 1000 ? (store.followers / 1000).toFixed(1) + 'k' : store.followers}</Text> Followers</Text>
+                                    <Text style={styles.metricText}><Text style={styles.metricBold}>{followerCount > 1000 ? (followerCount / 1000).toFixed(1) + 'k' : followerCount}</Text> Followers</Text>
                                 </View>
                             </View>
                         </View>
@@ -364,9 +419,9 @@ export default function StoreDetailScreen() {
             </ScrollView>
 
             {/* Store Chat Modal */}
-            <StoreChatModal 
-                visible={chatVisible} 
-                onClose={() => setChatVisible(false)} 
+            <StoreChatModal
+                visible={chatVisible}
+                onClose={() => setChatVisible(false)}
                 storeName={store.name}
                 sellerId={store.id || store.seller_id}
             />

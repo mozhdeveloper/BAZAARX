@@ -5,38 +5,66 @@ import { ArrowLeft, Store, MapPin, Star, Users } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import { useAuthStore } from '../src/stores/authStore';
-import { useShopStore } from '../src/stores/shopStore';
 import { GuestLoginModal } from '../src/components/GuestLoginModal';
-import { officialStores } from '../src/data/stores';
 import { COLORS } from '../src/constants/theme';
+
+import { sellerService } from '../src/services/sellerService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'FollowingShops'>;
 
 export default function FollowingShopsScreen({ navigation }: Props) {
-    const { isGuest } = useAuthStore();
-    const [showGuestModal, setShowGuestModal] = useState(false);
+    const { isGuest, user } = useAuthStore();
     const insets = useSafeAreaInsets();
 
-    useEffect(() => {
-        if (isGuest) {
-            setShowGuestModal(true);
+    // State
+    const [followingShops, setFollowingShops] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    // Fetch followed shops
+    const fetchFollowedShops = async () => {
+        if (!user?.id) return;
+        setLoading(true);
+        try {
+            const shops = await sellerService.getFollowedShops(user.id);
+            setFollowingShops(shops);
+        } catch (error) {
+            console.error('Error fetching followed shops:', error);
+        } finally {
+            setLoading(false);
         }
-    }, [isGuest]);
+    };
 
-    const { followedShops, unfollowShop } = useShopStore();
-    
-    // console.log('Followed Shops:', followedShops);
-    // console.log('Official Stores count:', officialStores.length);
-    
-    const followingShops = followedShops;
-    // console.log('Following Shops count:', followingShops.length);
+    useEffect(() => {
+        if (isGuest) return;
 
-    const handleUnfollow = (shopId: string) => {
-        console.log('Unfollow shop:', shopId);
-        unfollowShop(shopId);
+        // Fetch initially
+        fetchFollowedShops();
+
+        // Add focus listener to refresh when coming back
+        const unsubscribe = navigation.addListener('focus', () => {
+            fetchFollowedShops();
+        });
+
+        return unsubscribe;
+    }, [isGuest, user?.id, navigation]);
+
+    const handleUnfollow = async (shopId: string) => {
+        if (!user?.id) return;
+
+        // Optimistic update
+        setFollowingShops(prev => prev.filter(s => s.id !== shopId));
+
+        try {
+            await sellerService.unfollowSeller(user.id, shopId);
+        } catch (error) {
+            console.error('Error unfollowing shop:', error);
+            // Re-fetch on error to restore state
+            fetchFollowedShops();
+        }
     };
 
     const handleVisitShop = (shop: any) => {
+        // Ensure we pass the minimal required store object
         navigation.navigate('StoreDetail', { store: shop });
     };
 
@@ -71,9 +99,9 @@ export default function FollowingShopsScreen({ navigation }: Props) {
     return (
         <View style={styles.container}>
             <StatusBar barStyle="light-content" />
-            
+
             {/* Header */}
-             <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: COLORS.primary }]}>
+            <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: COLORS.primary }]}>
                 <View style={styles.headerTop}>
                     <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
                         <ArrowLeft size={24} color="#FFF" strokeWidth={2.5} />
@@ -117,11 +145,11 @@ export default function FollowingShopsScreen({ navigation }: Props) {
                                 <View style={styles.statsRow}>
                                     <View style={styles.statItem}>
                                         <Users size={14} color="#6B7280" />
-                                        <Text style={styles.statText}>{shop.followers > 1000 ? (shop.followers / 1000).toFixed(1) + 'k' : shop.followers} followers</Text>
+                                        <Text style={styles.statText}>{shop.followers_count > 1000 ? (shop.followers_count / 1000).toFixed(1) + 'k' : shop.followers_count} followers</Text>
                                     </View>
                                     <View style={styles.statItem}>
                                         <Store size={14} color="#6B7280" />
-                                        <Text style={styles.statText}>{shop.products.length} products</Text>
+                                        <Text style={styles.statText}>{shop.products_count} products</Text>
                                     </View>
                                 </View>
 
