@@ -34,14 +34,16 @@ export interface SellerOrder {
 interface OrderStore {
   // Buyer Orders
   orders: Order[];
+  ordersLoading: boolean;
   createOrder: (
     items: CartItem[],
     shippingAddress: ShippingAddress,
     paymentMethod: string,
     options?: { isGift?: boolean; isAnonymous?: boolean; recipientId?: string }
-  ) => Order;
+  ) => Promise<Order>; // Changed to Promise
+  fetchOrders: (userId: string) => Promise<void>; // Added fetchOrders
   getOrderById: (orderId: string) => Order | undefined;
-  updateOrderStatus: (orderId: string, status: Order['status']) => void;
+  updateOrderStatus: (orderId: string, status: Order['status']) => Promise<void>; // Changed to Promise
   getActiveOrders: () => Order[];
   getCompletedOrders: () => Order[];
 

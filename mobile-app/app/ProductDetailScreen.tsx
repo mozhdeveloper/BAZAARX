@@ -113,10 +113,17 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   const [activeTab, setActiveTab] = useState<'details' | 'support' | 'ratings'>('details');
   
   // Dynamic variants from product database
-  const productColors = product.colors || (product as any).colors || [];
-  const productSizes = product.sizes || (product as any).sizes || [];
-  const hasColors = Array.isArray(productColors) && productColors.length > 0 && productColors.some((c: string) => c && c.trim() !== '');
-  const hasSizes = Array.isArray(productSizes) && productSizes.length > 0 && productSizes.some((s: string) => s && s.trim() !== '');
+  const rawColors = product.colors || (product as any).colors || [];
+  const rawSizes = product.sizes || (product as any).sizes || [];
+
+  const parsedColors = typeof rawColors === 'string' ? JSON.parse(rawColors) : rawColors;
+  const parsedSizes = typeof rawSizes === 'string' ? JSON.parse(rawSizes) : rawSizes;
+  
+  const productColors = Array.isArray(parsedColors) ? parsedColors.filter((c: string) => c && typeof c === 'string' && c.trim() !== '') : [];
+  const productSizes = Array.isArray(parsedSizes) ? parsedSizes.filter((s: string) => s && typeof s === 'string' && s.trim() !== '') : [];
+  
+  const hasColors = productColors.length > 0;
+  const hasSizes = productSizes.length > 0;
   const hasVariants = hasColors || hasSizes;
 
   // Debug log for variants
