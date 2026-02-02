@@ -12,7 +12,7 @@ import {
   Image,
   Dimensions,
 } from 'react-native';
-import { ArrowLeft, Send, Bot, MoreVertical, Scale, Ticket } from 'lucide-react-native';
+import { ArrowLeft, Send, Bot, MoreVertical, Scale } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../constants/theme';
 import { useNavigation } from '@react-navigation/native';
@@ -40,10 +40,7 @@ interface Message {
   isUser: boolean;
   timestamp: Date;
   comparison?: ProductComparison;
-  action?: {
-      label: string;
-      target: 'CreateTicket';
-  };
+
 }
 
 interface AIChatModalProps {
@@ -130,7 +127,7 @@ export default function AIChatModal({ visible, onClose }: AIChatModalProps) {
           <Scale size={18} color={COLORS.primary} strokeWidth={2.5} />
           <Text style={styles.comparisonTitle}>{comparison.title}</Text>
         </View>
-        
+
         <View style={styles.comparisonGrid}>
           {comparison.products.map((product) => (
             <Pressable
@@ -146,7 +143,7 @@ export default function AIChatModal({ visible, onClose }: AIChatModalProps) {
                 {product.name}
               </Text>
               <Text style={styles.productPrice}>${product.price}</Text>
-              
+
               <View style={styles.specsContainer}>
                 {product.specs.map((spec, index) => (
                   <View key={index} style={styles.specRow}>
@@ -164,21 +161,9 @@ export default function AIChatModal({ visible, onClose }: AIChatModalProps) {
 
   const getDummyResponse = (input: string): Message | null => {
     const lowerInput = input.toLowerCase();
-    
+
     // Smart Redirect Logic
-    const ticketKeywords = ['ticket', 'refund', 'return', 'complaint', 'broken', 'missing', 'damaged', 'received wrong', 'bad quality', 'support', 'technical error', 'app bug'];
-    if (ticketKeywords.some(keyword => lowerInput.includes(keyword))) {
-        return {
-            id: (Date.now() + 1).toString(),
-            text: "I can help with that! It sounds like you might need to raise an official support ticket. You can do that right here:",
-            isUser: false,
-            timestamp: new Date(),
-            action: {
-                label: 'Create a Ticket',
-                target: 'CreateTicket'
-            }
-        };
-    }
+
 
     if (lowerInput.includes('compare') && (lowerInput.includes('earbud') || lowerInput.includes('headphone'))) {
       return {
@@ -283,13 +268,6 @@ export default function AIChatModal({ visible, onClose }: AIChatModalProps) {
     }
   };
 
-  const handleAction = (target: string) => {
-    if (target === 'CreateTicket') {
-        onClose();
-        navigation.navigate('CreateTicket');
-    }
-  };
-
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView
@@ -303,14 +281,9 @@ export default function AIChatModal({ visible, onClose }: AIChatModalProps) {
             <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
           </Pressable>
           <Text style={styles.headerTitle}>AI Assistant</Text>
-          <View style={{ flexDirection: 'row' }}>
-            <Pressable onPress={() => handleAction('CreateTicket')} style={styles.menuButton}>
-                <Ticket size={24} color="#FFFFFF" />
-            </Pressable>
-            <Pressable onPress={handleClearChat} style={styles.menuButton}>
-                <Text style={styles.clearText}>Clear</Text>
-            </Pressable>
-          </View>
+          <Pressable onPress={handleClearChat} style={styles.menuButton}>
+            <Text style={styles.clearText}>Clear</Text>
+          </Pressable>
         </View>
 
         {/* Messages - Light Grey Background */}
@@ -364,22 +337,11 @@ export default function AIChatModal({ visible, onClose }: AIChatModalProps) {
                       {message.text}
                     </Text>
 
-                    {/* Action Button */}
-                    {message.action && (
-                        <Pressable 
-                            style={styles.actionButton}
-                            onPress={() => message.action && handleAction(message.action.target)}
-                        >
-                            <Text style={styles.actionButtonText}>{message.action.label}</Text>
-                            <View style={{ marginLeft: 6 }}>
-                                <ArrowLeft size={16} color="#FFF" style={{ transform: [{ rotate: '180deg' }] }} />
-                            </View>
-                        </Pressable>
-                    )}
+
                   </View>
                 </View>
               )}
-              
+
               {/* Product Comparison Widget */}
               {message.comparison && (
                 <View style={styles.comparisonWrapper}>
@@ -724,20 +686,5 @@ const styles = StyleSheet.create({
     shadowColor: '#000',
     shadowOpacity: 0.1,
   },
-  actionButton: {
-    marginTop: 12,
-    backgroundColor: '#10B981', // Success/Green
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 40,
-  },
-  actionButtonText: {
-    color: '#FFF',
-    fontWeight: '600',
-    fontSize: 13,
-  },
+
 });
