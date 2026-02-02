@@ -15,12 +15,18 @@ interface FAQ {
   category: string;
 }
 
-export default function HelpCenterScreen({ navigation }: Props) {
+export default function HelpCenterScreen({ navigation, route }: Props) {
   const [activeTab, setActiveTab] = useState<'faq' | 'tickets'>('faq');
   const [tickets, setTickets] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [expandedFaq, setExpandedFaq] = useState<string | null>(null);
   const insets = useSafeAreaInsets();
+
+  React.useEffect(() => {
+    if (route.params?.activeTab) {
+      setActiveTab(route.params.activeTab);
+    }
+  }, [route.params?.activeTab]);
 
   React.useEffect(() => {
     if (activeTab === 'tickets') {
@@ -32,46 +38,46 @@ export default function HelpCenterScreen({ navigation }: Props) {
     setLoading(true);
     // Simulate fetching
     setTimeout(() => {
-        const MOCK_TICKETS = [
-            {
-                id: 'TKT-1001',
-                category: 'Order',
-                subject: 'Missing item in delivery',
-                status: 'in_progress',
-                updatedAt: new Date(Date.now() - 3600000).toISOString(),
-            },
-            {
-                id: 'TKT-1002',
-                category: 'Account',
-                subject: 'Cannot update profile picture',
-                status: 'open',
-                updatedAt: new Date(Date.now() - 43200000).toISOString(),
-            },
-             {
-                id: 'TKT-1003',
-                category: 'Payment',
-                subject: 'Refund not received',
-                status: 'resolved',
-                updatedAt: new Date(Date.now() - 86400000 * 5).toISOString(),
-            }
-        ];
-        setTickets(MOCK_TICKETS);
-        setLoading(false);
+      const MOCK_TICKETS = [
+        {
+          id: 'TKT-1001',
+          category: 'Order',
+          subject: 'Missing item in delivery',
+          status: 'in_progress',
+          updatedAt: new Date(Date.now() - 3600000).toISOString(),
+        },
+        {
+          id: 'TKT-1002',
+          category: 'Account',
+          subject: 'Cannot update profile picture',
+          status: 'open',
+          updatedAt: new Date(Date.now() - 43200000).toISOString(),
+        },
+        {
+          id: 'TKT-1003',
+          category: 'Payment',
+          subject: 'Refund not received',
+          status: 'resolved',
+          updatedAt: new Date(Date.now() - 86400000 * 5).toISOString(),
+        }
+      ];
+      setTickets(MOCK_TICKETS);
+      setLoading(false);
     }, 500);
   };
 
   const getStatusColor = (status: string) => {
-      switch(status) {
-          case 'open': return '#3B82F6'; // Blue
-          case 'in_progress': return '#F59E0B'; // Amber
-          case 'resolved': return '#10B981'; // Green
-          case 'closed': return '#6B7280'; // Gray
-          default: return '#6B7280';
-      }
+    switch (status) {
+      case 'open': return '#3B82F6'; // Blue
+      case 'in_progress': return '#F59E0B'; // Amber
+      case 'resolved': return '#10B981'; // Green
+      case 'closed': return '#6B7280'; // Gray
+      default: return '#6B7280';
+    }
   };
 
   const getStatusLabel = (status: string) => {
-      return status.replace('_', ' ').toUpperCase();
+    return status.replace('_', ' ').toUpperCase();
   };
 
 
@@ -175,194 +181,194 @@ export default function HelpCenterScreen({ navigation }: Props) {
       {/* Header */}
       <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: COLORS.primary }]}>
         <View style={styles.headerTop}>
-            <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-                <ArrowLeft size={24} color="#FFF" strokeWidth={2.5} />
-            </Pressable>
-            <Text style={styles.headerTitle}>Help & Support</Text>
-            <View style={{ width: 40 }} />
+          <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
+            <ArrowLeft size={24} color="#FFF" strokeWidth={2.5} />
+          </Pressable>
+          <Text style={styles.headerTitle}>Help & Support</Text>
+          <View style={{ width: 40 }} />
         </View>
       </View>
 
       {/* Tabs */}
       <View style={styles.tabContainer}>
-        <Pressable 
-            style={[styles.tabButton, activeTab === 'faq' && styles.activeTabButton]} 
-            onPress={() => setActiveTab('faq')}
+        <Pressable
+          style={[styles.tabButton, activeTab === 'faq' && styles.activeTabButton]}
+          onPress={() => setActiveTab('faq')}
         >
-            <Text style={[styles.tabText, activeTab === 'faq' && styles.activeTabText]}>FAQs</Text>
+          <Text style={[styles.tabText, activeTab === 'faq' && styles.activeTabText]}>FAQs</Text>
         </Pressable>
-        <Pressable 
-            style={[styles.tabButton, activeTab === 'tickets' && styles.activeTabButton]} 
-            onPress={() => setActiveTab('tickets')}
+        <Pressable
+          style={[styles.tabButton, activeTab === 'tickets' && styles.activeTabButton]}
+          onPress={() => setActiveTab('tickets')}
         >
-            <Text style={[styles.tabText, activeTab === 'tickets' && styles.activeTabText]}>My Tickets</Text>
+          <Text style={[styles.tabText, activeTab === 'tickets' && styles.activeTabText]}>My Tickets</Text>
         </Pressable>
       </View>
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         {activeTab === 'faq' ? (
-             <>
-             {/* Hero Section */}
-             <View style={styles.heroSection}>
-               <View style={styles.heroIcon}>
-                 <Headphones size={32} color="#FF6A00" />
-               </View>
-               <Text style={styles.heroTitle}>How can we help you?</Text>
-               <Text style={styles.heroSubtitle}>
-                 We're here to assist you 24/7. Get instant help or contact our support team.
-               </Text>
-             </View>
-     
-             {/* Contact Options */}
-             <View style={styles.section}>
-               <Text style={styles.sectionTitle}>Contact Us</Text>
-               {contactOptions.map((option, index) => (
-                 <Pressable
-                   key={index}
-                   style={({ pressed }) => [
-                     styles.contactCard,
-                     pressed && styles.contactCardPressed,
-                   ]}
-                   onPress={option.onPress}
-                 >
-                   <View style={[styles.contactIcon, { backgroundColor: `${option.color}15` }]}>
-                     <option.icon size={24} color={option.color} />
-                   </View>
-                   <View style={styles.contactInfo}>
-                     <Text style={styles.contactTitle}>{option.title}</Text>
-                     <Text style={styles.contactSubtitle}>{option.subtitle}</Text>
-                   </View>
-                   <ChevronRight size={20} color="#9CA3AF" />
-                 </Pressable>
-               ))}
-             </View>
-     
-             {/* Business Hours */}
-             <View style={styles.hoursCard}>
-               <Clock size={20} color="#FF6A00" />
-               <View style={styles.hoursInfo}>
-                 <Text style={styles.hoursTitle}>Support Hours</Text>
-                 <Text style={styles.hoursText}>Monday - Saturday: 8:00 AM - 8:00 PM</Text>
-                 <Text style={styles.hoursText}>Sunday: 9:00 AM - 6:00 PM</Text>
-               </View>
-             </View>
-     
-             {/* FAQs */}
-             <View style={styles.section}>
-               <Text style={styles.sectionTitle}>Frequently Asked Questions</Text>
-               
-               {Object.entries(faqsByCategory).map(([category, categoryFaqs]) => (
-                 <View key={category}>
-                   <Text style={styles.categoryTitle}>{category}</Text>
-                   {categoryFaqs.map((faq) => (
-                     <View key={faq.id} style={styles.faqCard}>
-                       <Pressable
-                         style={styles.faqQuestion}
-                         onPress={() => toggleFaq(faq.id)}
-                       >
-                         <Text style={styles.faqQuestionText}>{faq.question}</Text>
-                         <ChevronRight
-                           size={20}
-                           color="#6B7280"
-                           style={[
-                             styles.faqChevron,
-                             expandedFaq === faq.id && styles.faqChevronExpanded,
-                           ]}
-                         />
-                       </Pressable>
-                       {expandedFaq === faq.id && (
-                         <View style={styles.faqAnswer}>
-                           <Text style={styles.faqAnswerText}>{faq.answer}</Text>
-                         </View>
-                       )}
-                     </View>
-                   ))}
-                 </View>
-               ))}
-             </View>
-     
-             {/* Additional Resources */}
-             <View style={styles.section}>
-               <Text style={styles.sectionTitle}>More Resources</Text>
-               
-               <Pressable
-                 style={({ pressed }) => [
-                   styles.resourceCard,
-                   pressed && styles.resourceCardPressed,
-                 ]}
-               >
-                 <FileText size={20} color="#FF6A00" />
-                 <View style={styles.resourceInfo}>
-                   <Text style={styles.resourceTitle}>User Guide</Text>
-                   <Text style={styles.resourceSubtitle}>Learn how to use BazaarX</Text>
-                 </View>
-                 <ChevronRight size={20} color="#9CA3AF" />
-               </Pressable>
-     
-               <Pressable
-                 style={({ pressed }) => [
-                   styles.resourceCard,
-                   pressed && styles.resourceCardPressed,
-                 ]}
-               >
-                 <FileText size={20} color="#FF6A00" />
-                 <View style={styles.resourceInfo}>
-                   <Text style={styles.resourceTitle}>Terms of Service</Text>
-                   <Text style={styles.resourceSubtitle}>Read our terms & conditions</Text>
-                 </View>
-                 <ChevronRight size={20} color="#9CA3AF" />
-               </Pressable>
-             </View>
-           </>
-        ) : (
-            <View style={styles.ticketsContainer}>
-                {loading ? (
-                    <View style={styles.loadingContainer}>
-                        <ActivityIndicator size="large" color={COLORS.primary} />
-                        <Text style={styles.loadingText}>Loading tickets...</Text>
-                    </View>
-                ) : tickets.length === 0 ? (
-                    <View style={styles.emptyState}>
-                         <MessageCircle size={48} color="#D1D5DB" />
-                         <Text style={styles.emptyStateText}>No tickets yet</Text>
-                         <Text style={styles.emptyStateSubtext}>Need help with something? Create a new ticket.</Text>
-                    </View>
-                ) : (
-                    tickets.map((ticket) => (
-                        <Pressable 
-                            key={ticket.id} 
-                            style={styles.ticketCard}
-                            onPress={() => navigation.navigate('TicketDetail', { ticketId: ticket.id })}
-                        >
-                            <View style={styles.ticketHeader}>
-                                <Text style={styles.ticketId}>{ticket.id}</Text>
-                                <View style={[styles.statusBadge, { backgroundColor: `${getStatusColor(ticket.status)}20` }]}>
-                                    <Text style={[styles.statusText, { color: getStatusColor(ticket.status) }]}>
-                                        {getStatusLabel(ticket.status)}
-                                    </Text>
-                                </View>
-                            </View>
-                            <Text style={styles.ticketSubject}>{ticket.subject}</Text>
-                            <View style={styles.ticketFooter}>
-                                <Text style={styles.ticketCategory}>{ticket.category}</Text>
-                                <Text style={styles.ticketDate}>
-                                    {new Date(ticket.updatedAt).toLocaleDateString()}
-                                </Text>
-                            </View>
-                        </Pressable>
-                    ))
-                )}
+          <>
+            {/* Hero Section */}
+            <View style={styles.heroSection}>
+              <View style={styles.heroIcon}>
+                <Headphones size={32} color="#FF6A00" />
+              </View>
+              <Text style={styles.heroTitle}>How can we help you?</Text>
+              <Text style={styles.heroSubtitle}>
+                We're here to assist you 24/7. Get instant help or contact our support team.
+              </Text>
             </View>
+
+            {/* Contact Options */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Contact Us</Text>
+              {contactOptions.map((option, index) => (
+                <Pressable
+                  key={index}
+                  style={({ pressed }) => [
+                    styles.contactCard,
+                    pressed && styles.contactCardPressed,
+                  ]}
+                  onPress={option.onPress}
+                >
+                  <View style={[styles.contactIcon, { backgroundColor: `${option.color}15` }]}>
+                    <option.icon size={24} color={option.color} />
+                  </View>
+                  <View style={styles.contactInfo}>
+                    <Text style={styles.contactTitle}>{option.title}</Text>
+                    <Text style={styles.contactSubtitle}>{option.subtitle}</Text>
+                  </View>
+                  <ChevronRight size={20} color="#9CA3AF" />
+                </Pressable>
+              ))}
+            </View>
+
+            {/* Business Hours */}
+            <View style={styles.hoursCard}>
+              <Clock size={20} color="#FF6A00" />
+              <View style={styles.hoursInfo}>
+                <Text style={styles.hoursTitle}>Support Hours</Text>
+                <Text style={styles.hoursText}>Monday - Saturday: 8:00 AM - 8:00 PM</Text>
+                <Text style={styles.hoursText}>Sunday: 9:00 AM - 6:00 PM</Text>
+              </View>
+            </View>
+
+            {/* FAQs */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Frequently Asked Questions</Text>
+
+              {Object.entries(faqsByCategory).map(([category, categoryFaqs]) => (
+                <View key={category}>
+                  <Text style={styles.categoryTitle}>{category}</Text>
+                  {categoryFaqs.map((faq) => (
+                    <View key={faq.id} style={styles.faqCard}>
+                      <Pressable
+                        style={styles.faqQuestion}
+                        onPress={() => toggleFaq(faq.id)}
+                      >
+                        <Text style={styles.faqQuestionText}>{faq.question}</Text>
+                        <ChevronRight
+                          size={20}
+                          color="#6B7280"
+                          style={[
+                            styles.faqChevron,
+                            expandedFaq === faq.id && styles.faqChevronExpanded,
+                          ]}
+                        />
+                      </Pressable>
+                      {expandedFaq === faq.id && (
+                        <View style={styles.faqAnswer}>
+                          <Text style={styles.faqAnswerText}>{faq.answer}</Text>
+                        </View>
+                      )}
+                    </View>
+                  ))}
+                </View>
+              ))}
+            </View>
+
+            {/* Additional Resources */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>More Resources</Text>
+
+              <Pressable
+                style={({ pressed }) => [
+                  styles.resourceCard,
+                  pressed && styles.resourceCardPressed,
+                ]}
+              >
+                <FileText size={20} color="#FF6A00" />
+                <View style={styles.resourceInfo}>
+                  <Text style={styles.resourceTitle}>User Guide</Text>
+                  <Text style={styles.resourceSubtitle}>Learn how to use BazaarX</Text>
+                </View>
+                <ChevronRight size={20} color="#9CA3AF" />
+              </Pressable>
+
+              <Pressable
+                style={({ pressed }) => [
+                  styles.resourceCard,
+                  pressed && styles.resourceCardPressed,
+                ]}
+              >
+                <FileText size={20} color="#FF6A00" />
+                <View style={styles.resourceInfo}>
+                  <Text style={styles.resourceTitle}>Terms of Service</Text>
+                  <Text style={styles.resourceSubtitle}>Read our terms & conditions</Text>
+                </View>
+                <ChevronRight size={20} color="#9CA3AF" />
+              </Pressable>
+            </View>
+          </>
+        ) : (
+          <View style={styles.ticketsContainer}>
+            {loading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={COLORS.primary} />
+                <Text style={styles.loadingText}>Loading tickets...</Text>
+              </View>
+            ) : tickets.length === 0 ? (
+              <View style={styles.emptyState}>
+                <MessageCircle size={48} color="#D1D5DB" />
+                <Text style={styles.emptyStateText}>No tickets yet</Text>
+                <Text style={styles.emptyStateSubtext}>Need help with something? Create a new ticket.</Text>
+              </View>
+            ) : (
+              tickets.map((ticket) => (
+                <Pressable
+                  key={ticket.id}
+                  style={styles.ticketCard}
+                  onPress={() => navigation.navigate('TicketDetail', { ticketId: ticket.id })}
+                >
+                  <View style={styles.ticketHeader}>
+                    <Text style={styles.ticketId}>{ticket.id}</Text>
+                    <View style={[styles.statusBadge, { backgroundColor: `${getStatusColor(ticket.status)}20` }]}>
+                      <Text style={[styles.statusText, { color: getStatusColor(ticket.status) }]}>
+                        {getStatusLabel(ticket.status)}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={styles.ticketSubject}>{ticket.subject}</Text>
+                  <View style={styles.ticketFooter}>
+                    <Text style={styles.ticketCategory}>{ticket.category}</Text>
+                    <Text style={styles.ticketDate}>
+                      {new Date(ticket.updatedAt).toLocaleDateString()}
+                    </Text>
+                  </View>
+                </Pressable>
+              ))
+            )}
+          </View>
         )}
       </ScrollView>
 
       {activeTab === 'tickets' && (
-          <Pressable 
-            style={({pressed}) => [styles.fab, pressed && { opacity: 0.8 }]}
-            onPress={() => navigation.navigate('CreateTicket')}
-          >
-              <Text style={styles.fabText}>+ New Ticket</Text>
-          </Pressable>
+        <Pressable
+          style={({ pressed }) => [styles.fab, pressed && { opacity: 0.8 }]}
+          onPress={() => navigation.navigate('CreateTicket')}
+        >
+          <Text style={styles.fabText}>+ New Ticket</Text>
+        </Pressable>
       )}
     </View>
   );
@@ -401,22 +407,22 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   tabButton: {
-      flex: 1,
-      paddingVertical: 12,
-      alignItems: 'center',
-      borderBottomWidth: 2,
-      borderBottomColor: 'transparent',
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
   },
   activeTabButton: {
-      borderBottomColor: COLORS.primary,
+    borderBottomColor: COLORS.primary,
   },
   tabText: {
-      fontSize: 16,
-      fontWeight: '600',
-      color: '#9CA3AF',
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#9CA3AF',
   },
   activeTabText: {
-      color: COLORS.primary,
+    color: COLORS.primary,
   },
   scrollView: {
     flex: 1,
@@ -610,104 +616,104 @@ const styles = StyleSheet.create({
     color: '#6B7280',
   },
   ticketsContainer: {
-      paddingHorizontal: 20,
-      paddingTop: 10,
+    paddingHorizontal: 20,
+    paddingTop: 10,
   },
   ticketCard: {
-      backgroundColor: '#FFF',
-      borderRadius: 12,
-      padding: 16,
-      marginBottom: 12,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.05,
-      shadowRadius: 4,
-      elevation: 2,
+    backgroundColor: '#FFF',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   ticketHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: 8,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
   },
   ticketId: {
-      fontSize: 14,
-      fontWeight: '600',
-      color: '#9CA3AF',
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#9CA3AF',
   },
   statusBadge: {
-      paddingHorizontal: 10,
-      paddingVertical: 4,
-      borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
   statusText: {
-      fontSize: 12,
-      fontWeight: '700',
+    fontSize: 12,
+    fontWeight: '700',
   },
   ticketSubject: {
-      fontSize: 16,
-      fontWeight: '700',
-      color: '#111827',
-      marginBottom: 8,
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 8,
   },
   ticketFooter: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   ticketCategory: {
-      fontSize: 14,
-      color: '#6B7280',
+    fontSize: 14,
+    color: '#6B7280',
   },
   ticketDate: {
-      fontSize: 12,
-      color: '#9CA3AF',
+    fontSize: 12,
+    color: '#9CA3AF',
   },
   fab: {
-      position: 'absolute',
-      bottom: 24,
-      right: 24,
-      backgroundColor: COLORS.primary,
-      paddingVertical: 14,
-      paddingHorizontal: 24,
-      borderRadius: 30,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.2,
-      shadowRadius: 8,
-      elevation: 6,
-      flexDirection: 'row',
-      alignItems: 'center',
+    position: 'absolute',
+    bottom: 24,
+    right: 24,
+    backgroundColor: COLORS.primary,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 30,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   fabText: {
-      color: '#FFF',
-      fontSize: 16,
-      fontWeight: '700',
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '700',
   },
   loadingContainer: {
-      padding: 40,
-      alignItems: 'center',
+    padding: 40,
+    alignItems: 'center',
   },
   loadingText: {
-      marginTop: 10,
-      color: '#6B7280',
-      fontSize: 15,
+    marginTop: 10,
+    color: '#6B7280',
+    fontSize: 15,
   },
   emptyState: {
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingVertical: 60,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
   },
   emptyStateText: {
-      fontSize: 18,
-      fontWeight: '700',
-      color: '#374151',
-      marginTop: 16,
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#374151',
+    marginTop: 16,
   },
   emptyStateSubtext: {
-      fontSize: 14,
-      color: '#6B7280',
-      marginTop: 8,
-      textAlign: 'center',
+    fontSize: 14,
+    color: '#6B7280',
+    marginTop: 8,
+    textAlign: 'center',
   }
 });

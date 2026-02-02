@@ -94,7 +94,7 @@ export type RootStackParamList = {
   Settings: undefined;
   Notifications: undefined;
   PaymentMethods: undefined;
-  HelpSupport: undefined;
+  HelpSupport: { activeTab?: 'tickets' | 'faq' } | undefined;
   PrivacyPolicy: undefined;
   AllStores: undefined;
   StoreDetail: { store: any };
@@ -184,9 +184,29 @@ function MainTabs() {
   );
 }
 
+import { supabase } from './src/lib/supabase';
+import { useAuthStore } from './src/stores/authStore';
+
+// ... (existing imports)
+
 export default function App() {
+  React.useEffect(() => {
+    // Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        useAuthStore.getState().logout();
+      }
+    });
+
+    // Optional: Suppress the specific refresh token error if it's just noise
+    // LogBox.ignoreLogs(['AuthApiError: Invalid Refresh Token']);
+
+    return () => subscription.unsubscribe();
+  }, []);
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
+
       <NavigationContainer>
         <StatusBar style="dark" />
         <Stack.Navigator
