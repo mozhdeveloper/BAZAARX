@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { Package, Bell, X, Search, Menu } from 'lucide-react-native';
+import { Package, Bell, X, Search, Menu, Filter } from 'lucide-react-native';
 import { useSellerStore } from '../../../src/stores/sellerStore';
 import { useOrderStore } from '../../../src/stores/orderStore';
 import { useReturnStore } from '../../../src/stores/returnStore';
@@ -20,7 +20,7 @@ import {
   OrderCard,
   OrderDetailsModal,
   OrderStatsBar,
-  OrderFilters,
+  OrderFilterModal,
 } from '../../../src/components/seller/orders';
 
 type OrderStatus = 'all' | 'pending' | 'to-ship' | 'completed' | 'returns' | 'refunds';
@@ -38,6 +38,7 @@ export default function SellerOrdersScreen() {
   const [channelFilter, setChannelFilter] = useState<ChannelFilter>('all');
   const [refreshing, setRefreshing] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
+  const [filterModalVisible, setFilterModalVisible] = useState(false);
 
   // Fetch orders from database on mount
   useEffect(() => {
@@ -129,7 +130,9 @@ export default function SellerOrdersScreen() {
   });
 
 
-
+  const activeFilterCount = 
+    (selectedTab !== 'all' ? 1 : 0) + 
+    (channelFilter !== 'all' ? 1 : 0);
   return (
     <View style={styles.container}>
       {/* Seller Drawer */}
@@ -149,7 +152,6 @@ export default function SellerOrdersScreen() {
           </View>
         </View>
 
-        {/* Search Bar */}
         <View style={styles.searchBar}>
           <Search size={20} color="#9CA3AF" strokeWidth={2} />
           <TextInput
@@ -164,6 +166,18 @@ export default function SellerOrdersScreen() {
               <X size={20} color="#9CA3AF" />
             </Pressable>
           )}
+          <View style={styles.filterDivider} />
+          <Pressable 
+            style={styles.filterButton} 
+            onPress={() => setFilterModalVisible(true)}
+          >
+            <Filter size={20} color="#6B7280" />
+            {activeFilterCount > 0 && (
+              <View style={styles.filterBadge}>
+                <Text style={styles.filterBadgeText}>{activeFilterCount}</Text>
+              </View>
+            )}
+          </Pressable>
         </View>
 
         {/* Notification (aligned to search end) */}
@@ -176,15 +190,22 @@ export default function SellerOrdersScreen() {
         </Pressable>
       </View>
 
-      {/* Filters */}
-      <OrderFilters
-        selectedTab={selectedTab}
-        onTabChange={setSelectedTab}
-        channelFilter={channelFilter}
-        onChannelChange={setChannelFilter}
-        orderCounts={orderCounts}
-        channelCounts={channelCounts}
-      />
+      {/* Filters (Now Modal) - Rendered at bottom but invisible until opened */}
+      
+      {/* Selected Filters Summary (Optional - show what's active if desired, else hide) */}
+      {(selectedTab !== 'all' || channelFilter !== 'all') && (
+        <View style={styles.activeFilterRow}>
+          <Text style={styles.activeFilterText}>
+            Filtering by: 
+            {selectedTab !== 'all' && <Text style={{fontWeight: '700'}}> {selectedTab.replace('-', ' ')}</Text>}
+            {selectedTab !== 'all' && channelFilter !== 'all' && ','}
+            {channelFilter !== 'all' && <Text style={{fontWeight: '700'}}> {channelFilter === 'pos' ? 'POS' : 'Online'}</Text>}
+          </Text>
+          <Pressable onPress={() => {setSelectedTab('all'); setChannelFilter('all');}}>
+             <Text style={styles.clearFilterText}>Clear All</Text>
+          </Pressable>
+        </View>
+      )}
 
       <ScrollView
         style={styles.scrollView}
@@ -319,6 +340,17 @@ export default function SellerOrdersScreen() {
         onClose={() => setSelectedOrder(null)}
         onUpdateStatus={updateOrderStatus}
       />
+      
+      <OrderFilterModal
+        visible={filterModalVisible}
+        onClose={() => setFilterModalVisible(false)}
+        selectedTab={selectedTab}
+        onTabChange={setSelectedTab}
+        channelFilter={channelFilter}
+        onChannelChange={setChannelFilter}
+        orderCounts={orderCounts}
+        channelCounts={channelCounts}
+      />
     </View>
   );
 }
@@ -416,6 +448,56 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 15,
     color: '#1F2937',
+  },
+  filterDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: '#E5E7EB',
+    marginHorizontal: 4,
+  },
+  filterButton: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  filterBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: '#FF5722',
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+  },
+  filterBadgeText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  activeFilterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    backgroundColor: '#FFF7ED',
+    borderBottomWidth: 1,
+    borderBottomColor: '#FFEDD5',
+  },
+  activeFilterText: {
+    fontSize: 13,
+    color: '#9A3412',
+  },
+  clearFilterText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FF5722',
   },
   // Stats Dashboard
   statsScrollContent: {
