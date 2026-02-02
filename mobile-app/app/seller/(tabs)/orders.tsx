@@ -34,6 +34,7 @@ export default function SellerOrdersScreen() {
   const [channelFilter, setChannelFilter] = useState<ChannelFilter>('all');
   const [refreshing, setRefreshing] = useState(false);
   const [statsExpanded, setStatsExpanded] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<any>(null);
 
   // Fetch orders from database on mount
   useEffect(() => {
@@ -181,6 +182,105 @@ export default function SellerOrdersScreen() {
       default:
         return null;
     }
+  };
+
+  // Helper to render the modal
+  const renderOrderDetailsModal = () => {
+    if (!selectedOrder) return null;
+
+    return (
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={!!selectedOrder}
+        onRequestClose={() => setSelectedOrder(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>Order Details</Text>
+                <Text style={styles.modalSubtitle}>ID: {selectedOrder.orderId}</Text>
+              </View>
+              <Pressable onPress={() => setSelectedOrder(null)} style={styles.closeButton}>
+                <X size={24} color="#1F2937" />
+              </Pressable>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalContent}>
+              {/* Status Section */}
+              <View style={styles.modalSection}>
+                <View style={[styles.statusBadge, { alignSelf: 'flex-start', backgroundColor: getStatusBgColor(selectedOrder.status), marginBottom: 16 }]}>
+                  <Text style={[styles.statusText, { color: getStatusColor(selectedOrder.status) }]}>
+                    {selectedOrder.status.toUpperCase()}
+                  </Text>
+                </View>
+
+                {/* Customer Info */}
+                <Text style={styles.sectionTitle}>Customer Information</Text>
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Name:</Text>
+                  <Text style={styles.infoValue}>{selectedOrder.customerName}</Text>
+                </View>
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Email:</Text>
+                  <Text style={styles.infoValue}>{selectedOrder.customerEmail || 'N/A'}</Text>
+                </View>
+                {selectedOrder.posNote && (
+                  <View style={styles.infoRow}>
+                    <Text style={styles.infoLabel}>Note:</Text>
+                    <Text style={styles.infoValue}>{selectedOrder.posNote}</Text>
+                  </View>
+                )}
+              </View>
+
+              {/* Items Section */}
+              <View style={styles.modalSection}>
+                 <Text style={styles.sectionTitle}>Items ({Array.isArray(selectedOrder.items) ? selectedOrder.items.length : 0})</Text>
+                 {Array.isArray(selectedOrder.items) && selectedOrder.items.map((item: any, index: number) => (
+                   <View key={index} style={styles.modalItemRow}>
+                      <Image source={{ uri: item.image }} style={styles.modalItemImage} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.modalItemName} numberOfLines={2}>{item.name}</Text>
+                        <Text style={styles.modalItemVariant}>{item.variant || 'Standard'}</Text>
+                        <View style={styles.modalItemPriceRow}>
+                           <Text style={styles.modalItemQuantity}>x{item.quantity}</Text>
+                           <Text style={styles.modalItemPrice}>₱{(item.price || 0).toLocaleString()}</Text>
+                        </View>
+                      </View>
+                   </View>
+                 ))}
+              </View>
+
+              {/* Payment Section */}
+              <View style={styles.modalSection}>
+                <Text style={styles.sectionTitle}>Payment Details</Text>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Subtotal</Text>
+                  <Text style={styles.summaryValue}>₱{(selectedOrder.total || 0).toLocaleString()}</Text>
+                </View>
+                 {/* Assuming shipping is included or 0 for now as it's not explicitly in the type showing in snippet, 
+                     but logically it should be there. Using total as subtotal for now if no breakdown exists. */}
+                <View style={[styles.summaryRow, styles.totalRow]}>
+                  <Text style={styles.modalTotalLabel}>Total Amount</Text>
+                  <Text style={styles.totalAmountText}>₱{(selectedOrder.total || 0).toLocaleString()}</Text>
+                </View>
+              </View>
+            </ScrollView>
+
+            <View style={styles.modalFooter}>
+               {getActionButton(selectedOrder)}
+               <Pressable 
+                  style={[styles.closeModalButton]} 
+                  onPress={() => setSelectedOrder(null)}
+                >
+                  <Text style={styles.closeModalButtonText}>Close</Text>
+               </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    );
   };
 
   return (
@@ -432,7 +532,7 @@ export default function SellerOrdersScreen() {
         ) : (
           <View style={styles.ordersList}>
             {filteredOrders.map((order) => (
-              <View key={order.id} style={styles.orderCard}>
+              <Pressable key={order.id} style={styles.orderCard} onPress={() => setSelectedOrder(order)}>
                 <View style={styles.orderHeader}>
                   <View style={{ flex: 1, marginRight: 10 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -495,7 +595,7 @@ export default function SellerOrdersScreen() {
                     </View>
 
                     {/* Payment Status Badge */}
-                    <View
+                    {/* <View
                       style={[
                         styles.statusBadge,
                         { 
@@ -517,7 +617,7 @@ export default function SellerOrdersScreen() {
                       >
                         {order.paymentStatus?.toUpperCase() || 'PENDING'}
                       </Text>
-                    </View>
+                    </View> */}
                   </View>
                 </View>
                 <ScrollView
@@ -543,7 +643,7 @@ export default function SellerOrdersScreen() {
                   </View>
                   {getActionButton(order)}
                 </View>
-              </View>
+              </Pressable>
             ))}
           </View>
         )}
@@ -618,6 +718,7 @@ export default function SellerOrdersScreen() {
           </View>
         )}
       </Pressable>
+      {renderOrderDetailsModal()}
     </View>
   );
 }
@@ -798,37 +899,201 @@ const styles = StyleSheet.create({
     color: '#1F2937',
   },
   bottomStatsDot: {
-    width: 3,
-    height: 3,
-    borderRadius: 1.5,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
     backgroundColor: '#D1D5DB',
     marginHorizontal: 8,
   },
-  chevronContainer: {
-    padding: 4,
-  },
   expandedStats: {
-    marginTop: 12,
-    paddingTop: 4,
+    paddingTop: 12,
+    gap: 0,
   },
   statRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#F3F4F6',
   },
   statRowLabel: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#4B5563',
     fontWeight: '500',
   },
   statRowValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  chevronContainer: {
+    padding: 4,
+  },
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContainer: {
+    width: '100%',
+    maxHeight: '80%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+    backgroundColor: '#FFFFFF',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  modalSubtitle: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  closeButton: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: '#F3F4F6',
+  },
+  modalContent: {
+    padding: 20,
+  },
+  modalSection: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    marginBottom: 8,
+    alignItems: 'flex-start',
+  },
+  infoLabel: {
+    width: 60,
+    fontSize: 13,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  infoValue: {
+    flex: 1,
+    fontSize: 13,
+    color: '#1F2937',
+    fontWeight: '500',
+  },
+  modalItemRow: {
+    flexDirection: 'row',
+    marginBottom: 16,
+    gap: 12,
+  },
+  modalItemImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 8,
+    backgroundColor: '#F3F4F6',
+  },
+  modalItemName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginBottom: 2,
+  },
+  modalItemVariant: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginBottom: 4,
+  },
+  modalItemPriceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  modalItemQuantity: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  modalItemPrice: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FF5722',
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  summaryLabel: {
+    fontSize: 13,
+    color: '#6B7280',
+  },
+  summaryValue: {
+    fontSize: 13,
+    color: '#1F2937',
+    fontWeight: '600',
+  },
+  totalRow: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  modalTotalLabel: {
     fontSize: 15,
     fontWeight: '700',
     color: '#1F2937',
   },
+  totalAmountText: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#FF5722',
+  },
+  modalFooter: {
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+    backgroundColor: '#F9FAFB',
+    gap: 12,
+  },
+  closeModalButton: {
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+  },
+  closeModalButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#4B5563',
+  },
+
   // Segmented + Filter Row
   segmentedControlRow: {
     flexDirection: 'row',
