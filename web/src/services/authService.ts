@@ -115,7 +115,8 @@ export class AuthService {
 
       if (profileError) throw profileError;
 
-      // Create user-type specific record if needed (but not for seller since it's handled separately)
+      // Create user-type specific record if needed
+      // For seller, we don't create the record here since it's handled separately
       if (newUserType !== 'seller') {
         await this.createUserTypeRecord(userId, newUserType);
       }
@@ -386,6 +387,70 @@ export class AuthService {
   }
 
   /**
+   * Create or ensure a buyer account exists for the user
+   * @param userId - User ID
+   * @returns Promise<boolean> indicating success
+   */
+  async createBuyerAccount(userId: string): Promise<boolean> {
+    if (!isSupabaseConfigured()) {
+      console.warn('Supabase not configured - cannot create buyer account');
+      return true;
+    }
+
+    try {
+      // Check if buyer record already exists
+      const { data: existingBuyer, error: fetchError } = await supabase
+        .from('buyers')
+        .select('id')
+        .eq('id', userId)
+        .single();
+
+      if (!fetchError && existingBuyer) {
+        // Buyer record already exists
+        return true;
+      }
+
+      // Create buyer record
+      const { error } = await supabase.from('buyers').upsert(
+        {
+          id: userId,
+          shipping_addresses: [],
+          payment_methods: [],
+          preferences: {
+            language: 'en',
+            currency: 'PHP',
+            notifications: {
+              email: true,
+              sms: false,
+              push: true,
+            },
+            privacy: {
+              showProfile: true,
+              showPurchases: false,
+              showFollowing: true,
+            },
+          },
+          followed_shops: [],
+          total_spent: 0,
+          bazcoins: 0,
+          total_orders: 0,
+        },
+        { onConflict: 'id' }
+      );
+
+      if (error) {
+        console.error('Error creating buyer record:', error);
+        throw error;
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error in createBuyerAccount:', error);
+      throw new Error('Failed to create buyer account. Please try again.');
+    }
+  }
+
+  /**
    * Private helper: Create user-type specific record
    */
   private async createUserTypeRecord(
@@ -400,6 +465,9 @@ export class AuthService {
           payment_methods: [],
           preferences: {},
           followed_shops: [],
+          total_spent: 0,
+          bazcoins: 0,
+          total_orders: 0,
         },
         { onConflict: 'id' }
       );

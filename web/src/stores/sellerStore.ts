@@ -168,6 +168,7 @@ interface AuthStore {
   updateProfile: (updates: Partial<Seller>) => void;
   updateSellerDetails: (details: Partial<Seller>) => void;
   authenticateSeller: () => void;
+  createBuyerAccount: () => Promise<boolean>;
 }
 
 interface ProductStore {
@@ -679,6 +680,31 @@ export const useAuthStore = create<AuthStore>()(
         const { seller } = get();
         if (seller && seller.isVerified) {
           set({ isAuthenticated: true });
+        }
+      },
+
+      createBuyerAccount: async () => {
+        if (!isSupabaseConfigured()) {
+          console.warn('Supabase not configured - cannot create buyer account');
+          return true;
+        }
+
+        try {
+          const authStoreState = useAuthStore.getState();
+          const userId = authStoreState.seller?.id;
+
+          if (!userId) {
+            console.error('No seller ID found - cannot create buyer account');
+            return false;
+          }
+
+          // Use authService to create buyer account
+          await authService.createBuyerAccount(userId);
+
+          return true;
+        } catch (error) {
+          console.error('Error creating buyer account:', error);
+          return false;
         }
       }
     }),
