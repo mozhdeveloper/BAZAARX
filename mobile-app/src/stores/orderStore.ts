@@ -22,6 +22,8 @@ export interface SellerOrder {
   }[];
   total: number;
   status: 'pending' | 'to-ship' | 'completed' | 'cancelled';
+  paymentStatus: 'pending' | 'paid' | 'refunded';
+  trackingNumber?: string;
   createdAt: string;
   type?: 'OFFLINE' | 'ONLINE';
   posNote?: string;
@@ -438,6 +440,7 @@ export const useOrderStore = create<OrderStore>()(
           })),
           total: newOrder.total,
           status: isPaidOrder ? 'to-ship' : 'pending',
+          paymentStatus: isPaidOrder ? 'paid' : 'pending',
           createdAt: newOrder.createdAt,
           type: 'ONLINE',
         };
@@ -633,6 +636,7 @@ export const useOrderStore = create<OrderStore>()(
             items: cartItems,
             total,
             status: 'completed',
+            paymentStatus: 'paid', // Offline orders are paid immediately
             createdAt: new Date().toISOString(),
             type: 'OFFLINE',
             posNote: note || 'In-Store Purchase',

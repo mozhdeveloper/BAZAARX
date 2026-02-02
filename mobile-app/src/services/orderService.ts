@@ -463,6 +463,8 @@ export class OrderService {
                     items,
                     total: order.total_amount || 0,
                     status: statusMap[order.status] || 'pending',
+                    paymentStatus: order.payment_status || 'pending',
+                    trackingNumber: order.tracking_number,
                     createdAt: order.created_at,
                     type: order.order_type || 'ONLINE', // Use order_type from database (OFFLINE for POS, ONLINE for app)
                     posNote: order.order_type === 'OFFLINE' ? order.notes : undefined,

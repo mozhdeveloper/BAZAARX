@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { Package, ShoppingCart, Bell, X, Search, ChevronDown, Menu, RefreshCw } from 'lucide-react-native';
+import { Package, ShoppingCart, Bell, X, Search, ChevronDown, ChevronUp, Menu, RefreshCw, CreditCard, Calendar, Truck, CheckCircle, Clock } from 'lucide-react-native';
 import { useSellerStore } from '../../../src/stores/sellerStore';
 import { useOrderStore } from '../../../src/stores/orderStore';
 import { useReturnStore } from '../../../src/stores/returnStore';
@@ -33,6 +33,7 @@ export default function SellerOrdersScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [channelFilter, setChannelFilter] = useState<ChannelFilter>('all');
   const [refreshing, setRefreshing] = useState(false);
+  const [statsExpanded, setStatsExpanded] = useState(false);
 
   // Fetch orders from database on mount
   useEffect(() => {
@@ -86,6 +87,17 @@ export default function SellerOrdersScreen() {
     completed: orders.filter(o => o.status === 'completed').length,
     returns: pendingReturnRequests.length,
     refunds: refundRequests.length,
+  };
+
+  // Dashboard Stats
+  const dashboardStats = {
+    total: orders.length,
+    pending: orders.filter(o => o.status === 'pending').length,
+    delivered: orders.filter(o => o.status === 'completed').length,
+    posToday: orders.filter(o => {
+      const isToday = new Date(o.createdAt).toDateString() === new Date().toDateString();
+      return o.type === 'OFFLINE' && isToday;
+    }).length,
   };
 
   const filteredOrders = orders.filter((order) => {
@@ -206,6 +218,8 @@ export default function SellerOrdersScreen() {
             </Pressable>
           )}
         </View>
+
+        {/* Stats Dashboard Removed - Moved to Bottom */}
 
         {/* Notification (aligned to search end) */}
         <Pressable
@@ -432,18 +446,26 @@ export default function SellerOrdersScreen() {
                         </Text>
                       </View>
                       <View style={{ marginLeft: 8 }}>
-                        {order.type === 'OFFLINE' && (
+                        {order.type === 'OFFLINE' ? (
                           <View style={styles.walkInBadge}>
-                            <Text style={styles.walkInBadgeText}>Walk-in</Text>
+                            <Text style={styles.walkInBadgeText}>POS</Text>
                           </View>
-                        )}
-                        {order.type === 'ONLINE' && (
+                        ) : (
                           <View style={styles.onlineBadge}>
                             <Text style={styles.onlineBadgeText}>Online</Text>
                           </View>
                         )}
                       </View>
                     </View>
+                    
+                    {/* Date & Customer */}
+                    <Text style={styles.orderDate}>
+                      {new Date(order.createdAt).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric'
+                      })}
+                    </Text>
                     <Text style={styles.customerName}>{order.customerName}</Text>
                     {order.posNote ? (
                       <Text style={styles.posNote} numberOfLines={1}>
@@ -455,20 +477,47 @@ export default function SellerOrdersScreen() {
                       </Text>
                     )}
                   </View>
-                  <View
-                    style={[
-                      styles.statusBadge,
-                      { backgroundColor: getStatusBgColor(order.status), flexShrink: 0 },
-                    ]}
-                  >
-                    <Text
+                  <View style={{ flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+                    <View
                       style={[
-                        styles.statusText,
-                        { color: getStatusColor(order.status) },
+                        styles.statusBadge,
+                        { backgroundColor: getStatusBgColor(order.status) },
                       ]}
                     >
-                      {order.status.replace('-', ' ').toUpperCase()}
-                    </Text>
+                      <Text
+                        style={[
+                          styles.statusText,
+                          { color: getStatusColor(order.status) },
+                        ]}
+                      >
+                        {order.status.replace('-', ' ').toUpperCase()}
+                      </Text>
+                    </View>
+
+                    {/* Payment Status Badge */}
+                    <View
+                      style={[
+                        styles.statusBadge,
+                        { 
+                          backgroundColor: 
+                            order.paymentStatus === 'paid' ? '#DCFCE7' : 
+                            order.paymentStatus === 'refunded' ? '#FEE2E2' : '#FEF9C3' 
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.statusText,
+                          { 
+                            color: 
+                              order.paymentStatus === 'paid' ? '#16A34A' : 
+                              order.paymentStatus === 'refunded' ? '#DC2626' : '#CA8A04' 
+                          },
+                        ]}
+                      >
+                        {order.paymentStatus?.toUpperCase() || 'PENDING'}
+                      </Text>
+                    </View>
                   </View>
                 </View>
                 <ScrollView
@@ -501,6 +550,74 @@ export default function SellerOrdersScreen() {
 
         <View style={{ height: 100 }} />
       </ScrollView>
+
+      {/* Bottom Collapsible Stats */}
+      <Pressable 
+        style={[styles.bottomStatsContainer, { paddingBottom: 12 }]} 
+        onPress={() => setStatsExpanded(!statsExpanded)}
+      >
+        <View style={styles.bottomStatsHeader}>
+          <View style={styles.bottomStatsSummary}>
+            <Text style={styles.bottomStatsTitle}>Orders Summary</Text>
+            <View style={styles.bottomStatsRow}>
+              <Text style={styles.bottomStatsText}>
+                Total: <Text style={styles.bottomStatsValue}>{dashboardStats.total}</Text>
+              </Text>
+              <View style={styles.bottomStatsDot} />
+              <Text style={styles.bottomStatsText}>
+                Pending: <Text style={[styles.bottomStatsValue, { color: '#D97706' }]}>{dashboardStats.pending}</Text>
+              </Text>
+            </View>
+          </View>
+          <View style={styles.chevronContainer}>
+            {statsExpanded ? (
+              <ChevronDown size={20} color="#6B7280" />
+            ) : (
+              <ChevronUp size={20} color="#6B7280" />
+            )}
+          </View>
+        </View>
+
+        {statsExpanded && (
+          <View style={styles.expandedStats}>
+            {/* Row 1: Total */}
+            <View style={styles.statRow}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                 <ShoppingCart size={16} color="#6B7280" />
+                 <Text style={styles.statRowLabel}>Total Orders</Text>
+              </View>
+              <Text style={styles.statRowValue}>{dashboardStats.total}</Text>
+            </View>
+
+            {/* Row 2: Pending */}
+            <View style={styles.statRow}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                 <Clock size={16} color="#CA8A04" />
+                 <Text style={styles.statRowLabel}>Pending</Text>
+              </View>
+              <Text style={[styles.statRowValue, { color: '#CA8A04' }]}>{dashboardStats.pending}</Text>
+            </View>
+
+            {/* Row 3: Delivered */}
+            <View style={styles.statRow}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                 <CheckCircle size={16} color="#16A34A" />
+                 <Text style={styles.statRowLabel}>Delivered</Text>
+              </View>
+              <Text style={[styles.statRowValue, { color: '#16A34A' }]}>{dashboardStats.delivered}</Text>
+            </View>
+
+            {/* Row 4: POS */}
+            <View style={[styles.statRow, { borderBottomWidth: 0 }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                 <CreditCard size={16} color="#9333EA" />
+                 <Text style={styles.statRowLabel}>POS Today</Text>
+              </View>
+              <Text style={[styles.statRowValue, { color: '#9333EA' }]}>{dashboardStats.posToday}</Text>
+            </View>
+          </View>
+        )}
+      </Pressable>
     </View>
   );
 }
@@ -513,14 +630,14 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#FF5722',
     paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingBottom: 24,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 4,
-    borderBottomLeftRadius: 20, 
-    borderBottomRightRadius: 20,
+    borderBottomLeftRadius: 24, 
+    borderBottomRightRadius: 24,
   },
   headerContent: {
     flexDirection: 'row',
@@ -599,6 +716,119 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#1F2937',
   },
+  // Stats Dashboard
+  statsScrollContent: {
+    paddingTop: 16,
+    gap: 12,
+    paddingRight: 20,
+  },
+  statsCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 12,
+    paddingRight: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    minWidth: 140,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  statsIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statsLabel: {
+    fontSize: 11,
+    color: '#6B7280',
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  statsValue: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#1F2937',
+  },
+  // Bottom Stats
+  bottomStatsContainer: {
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 8,
+  },
+  bottomStatsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  bottomStatsSummary: {
+    flex: 1,
+  },
+  bottomStatsTitle: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#9CA3AF',
+    marginBottom: 2,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  bottomStatsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  bottomStatsText: {
+    fontSize: 14,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  bottomStatsValue: {
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  bottomStatsDot: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: '#D1D5DB',
+    marginHorizontal: 8,
+  },
+  chevronContainer: {
+    padding: 4,
+  },
+  expandedStats: {
+    marginTop: 12,
+    paddingTop: 4,
+  },
+  statRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  statRowLabel: {
+    fontSize: 14,
+    color: '#4B5563',
+    fontWeight: '500',
+  },
+  statRowValue: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
   // Segmented + Filter Row
   segmentedControlRow: {
     flexDirection: 'row',
@@ -609,6 +839,7 @@ const styles = StyleSheet.create({
     borderBottomColor: '#E5E7EB',
     gap: 3,
     backgroundColor: '#FFFFFF',
+    marginTop: 8, // Add space from header overlap if needed, but here it's below
   },
   segmentDivider: {
     width: 1,
@@ -749,10 +980,16 @@ const styles = StyleSheet.create({
     color: '#1F2937',
     marginBottom: 4,
   },
+  orderDate: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginBottom: 2,
+    fontWeight: '500',
+  },
   customerName: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#4B5563',
+    fontWeight: '700',
+    color: '#1F2937',
     marginBottom: 2,
   },
   customerEmail: {
