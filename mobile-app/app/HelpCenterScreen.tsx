@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet, Linking, StatusBar, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, MessageCircle, Mail, Phone, Clock, ChevronRight, FileText, Headphones } from 'lucide-react-native';
+import { ArrowLeft, MessageCircle, Mail, Phone, Clock, ChevronRight, FileText, Headphones, Ticket } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import { COLORS } from '../src/constants/theme';
@@ -127,6 +127,13 @@ export default function HelpCenterScreen({ navigation }: Props) {
   ];
 
   const contactOptions = [
+    {
+      icon: Ticket,
+      title: 'Submit a Support Ticket',
+      subtitle: 'Create a ticket and track your concern',
+      color: '#FF6A00',
+      onPress: () => navigation.navigate('CreateTicket'),
+    },
     {
       icon: MessageCircle,
       title: 'Live Chat',
