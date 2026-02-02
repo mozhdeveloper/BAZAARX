@@ -5,31 +5,24 @@ import {
   StyleSheet,
   ScrollView,
   Pressable,
+  Image,
   TextInput,
+  Modal,
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { Package, Bell, X, Search, Menu, Filter } from 'lucide-react-native';
+import { Package, ShoppingCart, Bell, X, Search, ChevronDown, Menu, RefreshCw, Edit3, Eye, Truck, CheckCircle, XCircle } from 'lucide-react-native';
 import { useSellerStore } from '../../../src/stores/sellerStore';
-import { useOrderStore } from '../../../src/stores/orderStore';
 import { useReturnStore } from '../../../src/stores/returnStore';
 import SellerDrawer from '../../../src/components/SellerDrawer';
-import {
-  OrderCard,
-  OrderDetailsModal,
-  OrderStatsBar,
-  OrderFilterModal,
-} from '../../../src/components/seller/orders';
 
-type OrderStatus = 'all' | 'pending' | 'to-ship' | 'completed' | 'returns' | 'refunds';
+type OrderStatus = 'all' | 'pending' | 'to-ship' | 'completed' | 'cancelled' | 'returns' | 'refunds';
 type ChannelFilter = 'all' | 'online' | 'pos';
 
 export default function SellerOrdersScreen() {
-  // Use orderStore for orders, sellerStore for seller profile only
-  const { sellerOrders: orders, updateSellerOrderStatus: updateOrderStatus, fetchSellerOrders: fetchOrders, sellerOrdersLoading: ordersLoading } = useOrderStore();
-  const { seller } = useSellerStore();
+  const { orders, updateOrderStatus, seller, fetchOrders, ordersLoading } = useSellerStore();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const [drawerVisible, setDrawerVisible] = useState(false);
@@ -37,8 +30,111 @@ export default function SellerOrdersScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [channelFilter, setChannelFilter] = useState<ChannelFilter>('all');
   const [refreshing, setRefreshing] = useState(false);
+  
+  // Edit modal state
+  const [editModalVisible, setEditModalVisible] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
-  const [filterModalVisible, setFilterModalVisible] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedCustomerName, setEditedCustomerName] = useState('');
+  const [editedCustomerEmail, setEditedCustomerEmail] = useState('');
+  const [editedNote, setEditedNote] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Open edit modal
+  const openEditModal = (order: any) => {
+    console.log('[Orders] Opening edit modal for order:', {
+      orderId: order.orderId,
+      status: order.status,
+      customerName: order.customerName,
+    });
+    setSelectedOrder(order);
+    setEditedCustomerName(order.customerName || '');
+    setEditedCustomerEmail(order.customerEmail || '');
+    setEditedNote(order.posNote || '');
+    setIsEditing(false);
+    setEditModalVisible(true);
+  };
+
+  // Close edit modal
+  const closeEditModal = () => {
+    setEditModalVisible(false);
+    setSelectedOrder(null);
+    setIsEditing(false);
+  };
+
+  // Toggle edit mode
+  const toggleEditMode = () => {
+    if (isEditing) {
+      // Cancel editing - reset values
+      setEditedCustomerName(selectedOrder?.customerName || '');
+      setEditedCustomerEmail(selectedOrder?.customerEmail || '');
+      setEditedNote(selectedOrder?.posNote || '');
+    }
+    setIsEditing(!isEditing);
+  };
+
+  // Save edited order details to database
+  const handleSaveOrderDetails = async () => {
+    if (!selectedOrder) return;
+    
+    setIsSaving(true);
+    try {
+      // Import supabase directly for the update
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!;
+      const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
+      const supabase = createClient(supabaseUrl, supabaseKey);
+      
+      // Update order in database
+      const { error } = await supabase
+        .from('orders')
+        .update({
+          buyer_name: editedCustomerName,
+          buyer_email: editedCustomerEmail,
+          notes: editedNote,
+        })
+        .eq('id', selectedOrder.id);
+      
+      if (error) {
+        console.error('[Orders] Failed to update order:', error);
+        alert('Failed to save changes. Please try again.');
+        return;
+      }
+      
+      console.log('[Orders] ✅ Order details updated in database');
+      
+      // Update local state
+      setSelectedOrder({
+        ...selectedOrder,
+        customerName: editedCustomerName,
+        customerEmail: editedCustomerEmail,
+        posNote: editedNote,
+      });
+      
+      // Refresh orders list
+      await fetchOrders(seller?.id);
+      
+      setIsEditing(false);
+      alert('Order details saved successfully!');
+    } catch (error) {
+      console.error('[Orders] Error saving order:', error);
+      alert('Failed to save changes. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Handle status update from modal
+  const handleStatusUpdate = async (newStatus: 'pending' | 'to-ship' | 'completed' | 'cancelled') => {
+    if (selectedOrder) {
+      console.log(`[Orders] Updating order ${selectedOrder.orderId} from ${selectedOrder.status} to ${newStatus}`);
+      await updateOrderStatus(selectedOrder.orderId, newStatus);
+      // Update local selected order state
+      setSelectedOrder({ ...selectedOrder, status: newStatus });
+      // Refresh orders
+      await fetchOrders(seller?.id);
+    }
+  };
 
   // Fetch orders from database on mount
   useEffect(() => {
@@ -90,26 +186,16 @@ export default function SellerOrdersScreen() {
     pending: orders.filter(o => o.status === 'pending').length,
     'to-ship': orders.filter(o => o.status === 'to-ship').length,
     completed: orders.filter(o => o.status === 'completed').length,
+    cancelled: orders.filter(o => o.status === 'cancelled').length,
     returns: pendingReturnRequests.length,
     refunds: refundRequests.length,
-  };
-
-  // Dashboard Stats
-  const dashboardStats = {
-    total: orders.length,
-    pending: orders.filter(o => o.status === 'pending').length,
-    delivered: orders.filter(o => o.status === 'completed').length,
-    posToday: orders.filter(o => {
-      const isToday = new Date(o.createdAt).toDateString() === new Date().toDateString();
-      return o.type === 'OFFLINE' && isToday;
-    }).length,
   };
 
   const filteredOrders = orders.filter((order) => {
     const matchesTab =
       selectedTab === 'all'
         ? true
-        : selectedTab === 'pending' || selectedTab === 'to-ship' || selectedTab === 'completed'
+        : selectedTab === 'pending' || selectedTab === 'to-ship' || selectedTab === 'completed' || selectedTab === 'cancelled'
         ? order.status === selectedTab
         : true;
     
@@ -129,10 +215,36 @@ export default function SellerOrdersScreen() {
     return matchesTab && matchesChannel && matchesSearch;
   });
 
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return '#10B981';
+      case 'to-ship':
+        return '#FF5722';
+      case 'pending':
+        return '#FBBF24';
+      case 'cancelled':
+        return '#DC2626';
+      default:
+        return '#6B7280';
+    }
+  };
 
-  const activeFilterCount = 
-    (selectedTab !== 'all' ? 1 : 0) + 
-    (channelFilter !== 'all' ? 1 : 0);
+  const getStatusBgColor = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return '#D1FAE5';
+      case 'to-ship':
+        return '#FFF5F0';
+      case 'pending':
+        return '#FEF3C7';
+      case 'cancelled':
+        return '#FEE2E2';
+      default:
+        return '#F3F4F6';
+    }
+  };
+
   return (
     <View style={styles.container}>
       {/* Seller Drawer */}
@@ -152,6 +264,7 @@ export default function SellerOrdersScreen() {
           </View>
         </View>
 
+        {/* Search Bar */}
         <View style={styles.searchBar}>
           <Search size={20} color="#9CA3AF" strokeWidth={2} />
           <TextInput
@@ -166,18 +279,6 @@ export default function SellerOrdersScreen() {
               <X size={20} color="#9CA3AF" />
             </Pressable>
           )}
-          <View style={styles.filterDivider} />
-          <Pressable 
-            style={styles.filterButton} 
-            onPress={() => setFilterModalVisible(true)}
-          >
-            <Filter size={20} color="#6B7280" />
-            {activeFilterCount > 0 && (
-              <View style={styles.filterBadge}>
-                <Text style={styles.filterBadgeText}>{activeFilterCount}</Text>
-              </View>
-            )}
-          </Pressable>
         </View>
 
         {/* Notification (aligned to search end) */}
@@ -190,22 +291,96 @@ export default function SellerOrdersScreen() {
         </Pressable>
       </View>
 
-      {/* Filters (Now Modal) - Rendered at bottom but invisible until opened */}
-      
-      {/* Selected Filters Summary (Optional - show what's active if desired, else hide) */}
-      {(selectedTab !== 'all' || channelFilter !== 'all') && (
-        <View style={styles.activeFilterRow}>
-          <Text style={styles.activeFilterText}>
-            Filtering by: 
-            {selectedTab !== 'all' && <Text style={{fontWeight: '700'}}> {selectedTab.replace('-', ' ')}</Text>}
-            {selectedTab !== 'all' && channelFilter !== 'all' && ','}
-            {channelFilter !== 'all' && <Text style={{fontWeight: '700'}}> {channelFilter === 'pos' ? 'POS' : 'Online'}</Text>}
-          </Text>
-          <Pressable onPress={() => {setSelectedTab('all'); setChannelFilter('all');}}>
-             <Text style={styles.clearFilterText}>Clear All</Text>
-          </Pressable>
+      {/* Segmented Control + Filter */}
+      <View style={styles.segmentedControlRow}>
+        <View style={{ flex: 1 }}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.segmentedScrollContent}
+          >
+            {(
+              ['all', 'pending', 'to-ship', 'completed', 'cancelled', 'returns', 'refunds'] as OrderStatus[]
+            ).map((tab) => (
+              <Pressable
+                key={tab}
+                style={[
+                  styles.segmentButton,
+                  selectedTab === tab && styles.segmentButtonActive,
+                ]}
+                onPress={() => setSelectedTab(tab)}
+              >
+                <Text
+                  style={[
+                    styles.segmentButtonText,
+                    selectedTab === tab && styles.segmentButtonTextActive,
+                  ]}
+                >
+                  {tab.charAt(0).toUpperCase() + tab.slice(1).replace('-', ' ')}
+                </Text>
+                <View
+                  style={[
+                    styles.countBadge,
+                    selectedTab === tab && styles.countBadgeActive,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.countBadgeText,
+                      selectedTab === tab && styles.countBadgeTextActive,
+                    ]}
+                  >
+                    {orderCounts[tab]}
+                  </Text>
+                </View>
+              </Pressable>
+            ))}
+          </ScrollView>
         </View>
-      )}
+      </View>
+
+      {/* Channel Filter Tabs - Like Web Version */}
+      <View style={styles.channelFilterRow}>
+        <Pressable
+          style={[styles.channelTab, channelFilter === 'all' && styles.channelTabActive]}
+          onPress={() => setChannelFilter('all')}
+        >
+          <Text style={[styles.channelTabText, channelFilter === 'all' && styles.channelTabTextActive]}>
+            All Channels
+          </Text>
+          <View style={[styles.channelBadge, channelFilter === 'all' && styles.channelBadgeActive]}>
+            <Text style={[styles.channelBadgeText, channelFilter === 'all' && styles.channelBadgeTextActive]}>
+              {channelCounts.all}
+            </Text>
+          </View>
+        </Pressable>
+        <Pressable
+          style={[styles.channelTab, channelFilter === 'online' && styles.channelTabActive]}
+          onPress={() => setChannelFilter('online')}
+        >
+          <Text style={[styles.channelTabText, channelFilter === 'online' && styles.channelTabTextActive]}>
+            Online App
+          </Text>
+          <View style={[styles.channelBadge, channelFilter === 'online' && styles.channelBadgeActive]}>
+            <Text style={[styles.channelBadgeText, channelFilter === 'online' && styles.channelBadgeTextActive]}>
+              {channelCounts.online}
+            </Text>
+          </View>
+        </Pressable>
+        <Pressable
+          style={[styles.channelTab, channelFilter === 'pos' && styles.channelTabActive]}
+          onPress={() => setChannelFilter('pos')}
+        >
+          <Text style={[styles.channelTabText, channelFilter === 'pos' && styles.channelTabTextActive]}>
+            POS / Offline
+          </Text>
+          <View style={[styles.channelBadge, channelFilter === 'pos' && styles.channelBadgeActive]}>
+            <Text style={[styles.channelBadgeText, channelFilter === 'pos' && styles.channelBadgeTextActive]}>
+              {channelCounts.pos}
+            </Text>
+          </View>
+        </Pressable>
+      </View>
 
       <ScrollView
         style={styles.scrollView}
@@ -317,12 +492,90 @@ export default function SellerOrdersScreen() {
         ) : (
           <View style={styles.ordersList}>
             {filteredOrders.map((order) => (
-              <OrderCard
-                key={order.id}
-                order={order}
-                onPress={setSelectedOrder}
-                onUpdateStatus={updateOrderStatus}
-              />
+              <Pressable 
+                key={order.id} 
+                style={styles.orderCard}
+                onPress={() => openEditModal(order)}
+              >
+                <View style={styles.orderHeader}>
+                  <View style={{ flex: 1, marginRight: 10 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <View style={{ flexShrink: 1 }}>
+                        <Text
+                          style={styles.orderId}
+                          numberOfLines={1}
+                          ellipsizeMode="tail"
+                        >
+                          {order.orderId}
+                        </Text>
+                      </View>
+                      <View style={{ marginLeft: 8, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        {order.type === 'OFFLINE' && (
+                          <View style={styles.walkInBadge}>
+                            <Text style={styles.walkInBadgeText}>Walk-in</Text>
+                          </View>
+                        )}
+                        {order.type === 'ONLINE' && (
+                          <View style={styles.onlineBadge}>
+                            <Text style={styles.onlineBadgeText}>Online</Text>
+                          </View>
+                        )}
+                      </View>
+                    </View>
+                    <Text style={styles.customerName}>{order.customerName}</Text>
+                    {order.posNote ? (
+                      <Text style={styles.posNote} numberOfLines={1}>
+                        Note: {order.posNote}
+                      </Text>
+                    ) : (
+                      <Text style={styles.customerEmail} numberOfLines={1}>
+                        {order.customerEmail}
+                      </Text>
+                    )}
+                  </View>
+                  <View
+                    style={[
+                      styles.statusBadge,
+                      { backgroundColor: getStatusBgColor(order.status), flexShrink: 0 },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.statusText,
+                        { color: getStatusColor(order.status) },
+                      ]}
+                    >
+                      {order.status.replace('-', ' ').toUpperCase()}
+                    </Text>
+                  </View>
+                </View>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.thumbnailsScroll}
+                >
+                  {order.items.map((item, index) => (
+                    <View key={index} style={styles.thumbnailContainer}>
+                      <Image source={{ uri: item.image }} style={styles.thumbnail} />
+                      <View style={styles.quantityBadge}>
+                        <Text style={styles.quantityText}>x{item.quantity}</Text>
+                      </View>
+                    </View>
+                  ))}
+                </ScrollView>
+                <View style={styles.orderFooter}>
+                  <View>
+                    <Text style={styles.totalLabel}>Total Amount</Text>
+                    <Text style={styles.totalAmount}>
+                      ₱{order.total.toLocaleString()}
+                    </Text>
+                  </View>
+                  <View style={styles.viewDetailsHint}>
+                    <Text style={styles.viewDetailsText}>Tap to view details</Text>
+                    <Eye size={16} color="#9CA3AF" />
+                  </View>
+                </View>
+              </Pressable>
             ))}
           </View>
         )}
@@ -330,27 +583,273 @@ export default function SellerOrdersScreen() {
         <View style={{ height: 100 }} />
       </ScrollView>
 
-      {/* Bottom Stats */}
-      <OrderStatsBar stats={dashboardStats} />
-      
-      {/* Order Details Modal */}
-      <OrderDetailsModal
-        visible={!!selectedOrder}
-        order={selectedOrder}
-        onClose={() => setSelectedOrder(null)}
-        onUpdateStatus={updateOrderStatus}
-      />
-      
-      <OrderFilterModal
-        visible={filterModalVisible}
-        onClose={() => setFilterModalVisible(false)}
-        selectedTab={selectedTab}
-        onTabChange={setSelectedTab}
-        channelFilter={channelFilter}
-        onChannelChange={setChannelFilter}
-        orderCounts={orderCounts}
-        channelCounts={channelCounts}
-      />
+      {/* Order Edit Modal */}
+      <Modal
+        visible={editModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={closeEditModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.editModalContent}>
+            {/* Modal Header */}
+            <View style={styles.editModalHeader}>
+              <Text style={styles.editModalTitle}>
+                {isEditing ? 'Edit Order' : 'Order Details'}
+              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                {selectedOrder?.status !== 'completed' && selectedOrder?.status !== 'cancelled' && (
+                  <Pressable 
+                    onPress={toggleEditMode} 
+                    style={[
+                      styles.editToggleButton,
+                      isEditing && styles.editToggleButtonActive
+                    ]}
+                  >
+                    <Edit3 size={18} color={isEditing ? '#FFFFFF' : '#FF5722'} />
+                    <Text style={[
+                      styles.editToggleText,
+                      isEditing && styles.editToggleTextActive
+                    ]}>
+                      {isEditing ? 'Cancel' : 'Edit'}
+                    </Text>
+                  </Pressable>
+                )}
+                <Pressable onPress={closeEditModal} style={styles.closeButton}>
+                  <X size={24} color="#6B7280" />
+                </Pressable>
+              </View>
+            </View>
+
+            {selectedOrder && (
+              <ScrollView style={styles.editModalBody} showsVerticalScrollIndicator={false}>
+                {/* Order ID and Type */}
+                <View style={styles.editSection}>
+                  <Text style={styles.editSectionTitle}>Order Information</Text>
+                  <View style={styles.editInfoRow}>
+                    <Text style={styles.editLabel}>Order ID</Text>
+                    <Text style={styles.editValue}>{selectedOrder.orderId}</Text>
+                  </View>
+                  <View style={styles.editInfoRow}>
+                    <Text style={styles.editLabel}>Type</Text>
+                    <View style={[
+                      styles.typeBadge,
+                      { backgroundColor: selectedOrder.type === 'OFFLINE' ? '#FEF3C7' : '#DBEAFE' }
+                    ]}>
+                      <Text style={[
+                        styles.typeBadgeText,
+                        { color: selectedOrder.type === 'OFFLINE' ? '#D97706' : '#2563EB' }
+                      ]}>
+                        {selectedOrder.type === 'OFFLINE' ? 'Walk-in / POS' : 'Online Order'}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.editInfoRow}>
+                    <Text style={styles.editLabel}>Date</Text>
+                    <Text style={styles.editValue}>
+                      {new Date(selectedOrder.createdAt).toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Customer Info - Editable */}
+                <View style={styles.editSection}>
+                  <Text style={styles.editSectionTitle}>Customer</Text>
+                  {isEditing ? (
+                    <>
+                      <View style={styles.editInputGroup}>
+                        <Text style={styles.editInputLabel}>Customer Name</Text>
+                        <TextInput
+                          style={styles.editInput}
+                          value={editedCustomerName}
+                          onChangeText={setEditedCustomerName}
+                          placeholder="Enter customer name"
+                          placeholderTextColor="#9CA3AF"
+                        />
+                      </View>
+                      <View style={styles.editInputGroup}>
+                        <Text style={styles.editInputLabel}>Email</Text>
+                        <TextInput
+                          style={styles.editInput}
+                          value={editedCustomerEmail}
+                          onChangeText={setEditedCustomerEmail}
+                          placeholder="Enter email"
+                          placeholderTextColor="#9CA3AF"
+                          keyboardType="email-address"
+                          autoCapitalize="none"
+                        />
+                      </View>
+                      <View style={styles.editInputGroup}>
+                        <Text style={styles.editInputLabel}>Order Note</Text>
+                        <TextInput
+                          style={[styles.editInput, { height: 80, textAlignVertical: 'top' }]}
+                          value={editedNote}
+                          onChangeText={setEditedNote}
+                          placeholder="Add a note for this order"
+                          placeholderTextColor="#9CA3AF"
+                          multiline
+                          numberOfLines={3}
+                        />
+                      </View>
+                    </>
+                  ) : (
+                    <>
+                      <View style={styles.editInfoRow}>
+                        <Text style={styles.editLabel}>Name</Text>
+                        <Text style={styles.editValue}>{selectedOrder.customerName}</Text>
+                      </View>
+                      <View style={styles.editInfoRow}>
+                        <Text style={styles.editLabel}>Email</Text>
+                        <Text style={styles.editValue}>{selectedOrder.customerEmail || 'N/A'}</Text>
+                      </View>
+                      {selectedOrder.posNote && (
+                        <View style={styles.editInfoRow}>
+                          <Text style={styles.editLabel}>Note</Text>
+                          <Text style={styles.editValue}>{selectedOrder.posNote}</Text>
+                        </View>
+                      )}
+                    </>
+                  )}
+                </View>
+
+                {/* Save Button when editing */}
+                {isEditing && (
+                  <Pressable
+                    style={[styles.saveButton, isSaving && styles.saveButtonDisabled]}
+                    onPress={handleSaveOrderDetails}
+                    disabled={isSaving}
+                  >
+                    {isSaving ? (
+                      <ActivityIndicator color="#FFFFFF" size="small" />
+                    ) : (
+                      <>
+                        <CheckCircle size={20} color="#FFFFFF" />
+                        <Text style={styles.saveButtonText}>Save Changes</Text>
+                      </>
+                    )}
+                  </Pressable>
+                )}
+
+                {/* Order Items */}
+                <View style={styles.editSection}>
+                  <Text style={styles.editSectionTitle}>Items ({selectedOrder.items.length})</Text>
+                  {selectedOrder.items.map((item: any, index: number) => (
+                    <View key={index} style={styles.editItemRow}>
+                      <Image source={{ uri: item.image }} style={styles.editItemImage} />
+                      <View style={styles.editItemInfo}>
+                        <Text style={styles.editItemName} numberOfLines={2}>{item.productName}</Text>
+                        <Text style={styles.editItemDetails}>
+                          {item.selectedColor && `Color: ${item.selectedColor}`}
+                          {item.selectedColor && item.selectedSize && ' | '}
+                          {item.selectedSize && `Size: ${item.selectedSize}`}
+                        </Text>
+                        <Text style={styles.editItemPrice}>
+                          ₱{item.price.toLocaleString()} × {item.quantity}
+                        </Text>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+
+                {/* Total */}
+                <View style={styles.editSection}>
+                  <View style={styles.editTotalRow}>
+                    <Text style={styles.editTotalLabel}>Total Amount</Text>
+                    <Text style={styles.editTotalValue}>₱{selectedOrder.total.toLocaleString()}</Text>
+                  </View>
+                </View>
+
+                {/* Current Status */}
+                <View style={styles.editSection}>
+                  <Text style={styles.editSectionTitle}>Current Status</Text>
+                  <View style={[
+                    styles.currentStatusBadge,
+                    { backgroundColor: getStatusBgColor(selectedOrder.status) }
+                  ]}>
+                    <Text style={[
+                      styles.currentStatusText,
+                      { color: getStatusColor(selectedOrder.status) }
+                    ]}>
+                      {selectedOrder.status.replace('-', ' ').toUpperCase()}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Update Status Actions */}
+                {selectedOrder.status !== 'completed' && selectedOrder.status !== 'cancelled' ? (
+                  <View style={styles.editSection}>
+                    <Text style={styles.editSectionTitle}>Update Status</Text>
+                    <View style={styles.statusActionsGrid}>
+                      {selectedOrder.status === 'pending' && (
+                        <>
+                          <Pressable
+                            style={[styles.statusActionButton, { backgroundColor: '#FF5722' }]}
+                            onPress={() => handleStatusUpdate('to-ship')}
+                          >
+                            <Truck size={20} color="#FFFFFF" />
+                            <Text style={styles.statusActionText}>Mark as To Ship</Text>
+                          </Pressable>
+                          <Pressable
+                            style={[styles.statusActionButton, { backgroundColor: '#EF4444' }]}
+                            onPress={() => handleStatusUpdate('cancelled')}
+                          >
+                            <XCircle size={20} color="#FFFFFF" />
+                            <Text style={styles.statusActionText}>Cancel Order</Text>
+                          </Pressable>
+                        </>
+                      )}
+                      {selectedOrder.status === 'to-ship' && (
+                        <>
+                          <Pressable
+                            style={[styles.statusActionButton, { backgroundColor: '#10B981' }]}
+                            onPress={() => handleStatusUpdate('completed')}
+                          >
+                            <CheckCircle size={20} color="#FFFFFF" />
+                            <Text style={styles.statusActionText}>Mark as Delivered</Text>
+                          </Pressable>
+                          <Pressable
+                            style={[styles.statusActionButton, { backgroundColor: '#EF4444' }]}
+                            onPress={() => handleStatusUpdate('cancelled')}
+                          >
+                            <XCircle size={20} color="#FFFFFF" />
+                            <Text style={styles.statusActionText}>Cancel Order</Text>
+                          </Pressable>
+                        </>
+                      )}
+                    </View>
+                  </View>
+                ) : (
+                  <View style={styles.editSection}>
+                    <Text style={styles.editSectionTitle}>Order Status</Text>
+                    <View style={[styles.finalStatusBadge, { 
+                      backgroundColor: selectedOrder.status === 'completed' ? '#D1FAE5' : '#FEE2E2' 
+                    }]}>
+                      <Text style={[styles.finalStatusText, { 
+                        color: selectedOrder.status === 'completed' ? '#10B981' : '#EF4444' 
+                      }]}>
+                        {selectedOrder.status === 'completed' ? '✓ Order Completed' : '✗ Order Cancelled'}
+                      </Text>
+                      <Text style={styles.finalStatusSubtext}>
+                        {selectedOrder.status === 'completed' 
+                          ? 'This order has been successfully delivered' 
+                          : 'This order has been cancelled'}
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
+                <View style={{ height: 20 }} />
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -363,14 +862,14 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#FF5722',
     paddingHorizontal: 20,
-    paddingBottom: 24,
+    paddingBottom: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 4,
-    borderBottomLeftRadius: 24, 
-    borderBottomRightRadius: 24,
+    borderBottomLeftRadius: 20, 
+    borderBottomRightRadius: 20,
   },
   headerContent: {
     flexDirection: 'row',
@@ -449,333 +948,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#1F2937',
   },
-  filterDivider: {
-    width: 1,
-    height: 24,
-    backgroundColor: '#E5E7EB',
-    marginHorizontal: 4,
-  },
-  filterButton: {
-    width: 32,
-    height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  filterBadge: {
-    position: 'absolute',
-    top: -4,
-    right: -4,
-    backgroundColor: '#FF5722',
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: '#FFFFFF',
-  },
-  filterBadgeText: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  activeFilterRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    backgroundColor: '#FFF7ED',
-    borderBottomWidth: 1,
-    borderBottomColor: '#FFEDD5',
-  },
-  activeFilterText: {
-    fontSize: 13,
-    color: '#9A3412',
-  },
-  clearFilterText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#FF5722',
-  },
-  // Stats Dashboard
-  statsScrollContent: {
-    paddingTop: 16,
-    gap: 12,
-    paddingRight: 20,
-  },
-  statsCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 12,
-    paddingRight: 24,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    minWidth: 140,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  statsIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  statsLabel: {
-    fontSize: 11,
-    color: '#6B7280',
-    fontWeight: '600',
-    marginBottom: 2,
-  },
-  statsValue: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#1F2937',
-  },
-  // Bottom Stats
-  bottomStatsContainer: {
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 8,
-  },
-  bottomStatsHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  bottomStatsSummary: {
-    flex: 1,
-  },
-  bottomStatsTitle: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#9CA3AF',
-    marginBottom: 2,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  bottomStatsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  bottomStatsText: {
-    fontSize: 14,
-    color: '#6B7280',
-    fontWeight: '500',
-  },
-  bottomStatsValue: {
-    fontWeight: '700',
-    color: '#1F2937',
-  },
-  bottomStatsDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#D1D5DB',
-    marginHorizontal: 8,
-  },
-  expandedStats: {
-    paddingTop: 12,
-    gap: 0,
-  },
-  statRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  statRowLabel: {
-    fontSize: 13,
-    color: '#4B5563',
-    fontWeight: '500',
-  },
-  statRowValue: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#1F2937',
-  },
-  chevronContainer: {
-    padding: 4,
-  },
-  // Modal Styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  modalContainer: {
-    width: '100%',
-    maxHeight: '80%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-    backgroundColor: '#FFFFFF',
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1F2937',
-  },
-  modalSubtitle: {
-    fontSize: 12,
-    color: '#6B7280',
-    marginTop: 2,
-  },
-  closeButton: {
-    padding: 8,
-    borderRadius: 20,
-    backgroundColor: '#F3F4F6',
-  },
-  modalContent: {
-    padding: 20,
-  },
-  modalSection: {
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginBottom: 12,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    marginBottom: 8,
-    alignItems: 'flex-start',
-  },
-  infoLabel: {
-    width: 60,
-    fontSize: 13,
-    color: '#6B7280',
-    fontWeight: '500',
-  },
-  infoValue: {
-    flex: 1,
-    fontSize: 13,
-    color: '#1F2937',
-    fontWeight: '500',
-  },
-  modalItemRow: {
-    flexDirection: 'row',
-    marginBottom: 16,
-    gap: 12,
-  },
-  modalItemImage: {
-    width: 60,
-    height: 60,
-    borderRadius: 8,
-    backgroundColor: '#F3F4F6',
-  },
-  modalItemName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1F2937',
-    marginBottom: 2,
-  },
-  modalItemVariant: {
-    fontSize: 12,
-    color: '#6B7280',
-    marginBottom: 4,
-  },
-  modalItemPriceRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  modalItemQuantity: {
-    fontSize: 12,
-    color: '#6B7280',
-    fontWeight: '500',
-  },
-  modalItemPrice: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#FF5722',
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  summaryLabel: {
-    fontSize: 13,
-    color: '#6B7280',
-  },
-  summaryValue: {
-    fontSize: 13,
-    color: '#1F2937',
-    fontWeight: '600',
-  },
-  totalRow: {
-    marginTop: 8,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-  },
-  modalTotalLabel: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#1F2937',
-  },
-  totalAmountText: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#FF5722',
-  },
-  modalFooter: {
-    padding: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
-    backgroundColor: '#F9FAFB',
-    gap: 12,
-  },
-  closeModalButton: {
-    paddingVertical: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 8,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-  },
-  closeModalButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#4B5563',
-  },
-
   // Segmented + Filter Row
   segmentedControlRow: {
     flexDirection: 'row',
@@ -786,7 +958,6 @@ const styles = StyleSheet.create({
     borderBottomColor: '#E5E7EB',
     gap: 3,
     backgroundColor: '#FFFFFF',
-    marginTop: 8, // Add space from header overlap if needed, but here it's below
   },
   segmentDivider: {
     width: 1,
@@ -927,16 +1098,10 @@ const styles = StyleSheet.create({
     color: '#1F2937',
     marginBottom: 4,
   },
-  orderDate: {
-    fontSize: 12,
-    color: '#6B7280',
-    marginBottom: 2,
-    fontWeight: '500',
-  },
   customerName: {
     fontSize: 14,
-    fontWeight: '700',
-    color: '#1F2937',
+    fontWeight: '600',
+    color: '#4B5563',
     marginBottom: 2,
   },
   customerEmail: {
@@ -1112,6 +1277,256 @@ const styles = StyleSheet.create({
     color: '#374151',
   },
   channelBadgeTextActive: {
+    color: '#FFFFFF',
+  },
+  // Edit Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  editModalContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '90%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 20,
+  },
+  editModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  editModalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  closeButton: {
+    padding: 4,
+  },
+  editModalBody: {
+    padding: 20,
+  },
+  editSection: {
+    marginBottom: 20,
+  },
+  editSectionTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#374151',
+    marginBottom: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  editInfoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F9FAFB',
+  },
+  editLabel: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  editValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1F2937',
+    maxWidth: '60%',
+    textAlign: 'right',
+  },
+  typeBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  typeBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  editItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    marginBottom: 8,
+    gap: 12,
+  },
+  editItemImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 8,
+    backgroundColor: '#E5E7EB',
+  },
+  editItemInfo: {
+    flex: 1,
+  },
+  editItemName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginBottom: 4,
+  },
+  editItemDetails: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginBottom: 4,
+  },
+  editItemPrice: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#FF5722',
+  },
+  editTotalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 16,
+    backgroundColor: '#FFF7ED',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+  },
+  editTotalLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  editTotalValue: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#FF5722',
+  },
+  currentStatusBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  currentStatusText: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  statusActionsGrid: {
+    flexDirection: 'column',
+    gap: 10,
+  },
+  statusActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 14,
+    borderRadius: 12,
+    gap: 10,
+  },
+  statusActionText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  finalStatusBadge: {
+    padding: 20,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  finalStatusText: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  finalStatusSubtext: {
+    fontSize: 13,
+    color: '#6B7280',
+    textAlign: 'center',
+  },
+  viewDetailsHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+  },
+  viewDetailsText: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    fontWeight: '500',
+  },
+  // Edit toggle button
+  editToggleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: '#FFF5F0',
+    borderWidth: 1,
+    borderColor: '#FF5722',
+  },
+  editToggleButtonActive: {
+    backgroundColor: '#6B7280',
+    borderColor: '#6B7280',
+  },
+  editToggleText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FF5722',
+  },
+  editToggleTextActive: {
+    color: '#FFFFFF',
+  },
+  // Edit input styles
+  editInputGroup: {
+    marginBottom: 16,
+  },
+  editInputLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 8,
+  },
+  editInput: {
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: '#1F2937',
+    backgroundColor: '#F9FAFB',
+  },
+  // Save button
+  saveButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    backgroundColor: '#10B981',
+    paddingVertical: 14,
+    borderRadius: 12,
+    marginTop: 8,
+    marginBottom: 16,
+  },
+  saveButtonDisabled: {
+    opacity: 0.6,
+  },
+  saveButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
     color: '#FFFFFF',
   },
 });

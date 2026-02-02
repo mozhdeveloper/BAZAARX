@@ -272,6 +272,53 @@ export class OrderService {
   }
 
   /**
+   * Update order details (buyer name, email, notes)
+   */
+  async updateOrderDetails(
+    orderId: string,
+    details: {
+      buyer_name?: string;
+      buyer_email?: string;
+      notes?: string;
+    }
+  ): Promise<boolean> {
+    if (!isSupabaseConfigured()) {
+      const order = this.mockOrders.find(o => o.id === orderId);
+      if (order) {
+        if (details.buyer_name) order.buyer_name = details.buyer_name;
+        if (details.buyer_email) order.buyer_email = details.buyer_email;
+        if (details.notes !== undefined) (order as any).notes = details.notes;
+        order.updated_at = new Date().toISOString();
+        return true;
+      }
+      return false;
+    }
+
+    try {
+      const updateData: any = {
+        updated_at: new Date().toISOString(),
+      };
+
+      if (details.buyer_name !== undefined) updateData.buyer_name = details.buyer_name;
+      if (details.buyer_email !== undefined) updateData.buyer_email = details.buyer_email;
+      if (details.notes !== undefined) updateData.notes = details.notes;
+
+      const { error } = await supabase
+        .from('orders')
+        .update(updateData)
+        .eq('id', orderId);
+
+      if (error) throw error;
+      
+      console.log(`[OrderService] ✅ Order details updated: ${orderId}`);
+      return true;
+    } catch (error) {
+      console.error('Error updating order details:', error);
+      throw new Error('Failed to update order details');
+    }
+  }
+
+  /**
    * Update order status
    */
   async updateOrderStatus(

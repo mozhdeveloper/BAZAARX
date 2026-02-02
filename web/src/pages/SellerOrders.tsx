@@ -22,6 +22,10 @@ import {
   Eye,
   Printer,
   CreditCard,
+  Edit3,
+  Save,
+  X,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
@@ -98,6 +102,11 @@ export function SellerOrders() {
     "all",
   );
   const [selectedOrder, setSelectedOrder] = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedBuyerName, setEditedBuyerName] = useState("");
+  const [editedBuyerEmail, setEditedBuyerEmail] = useState("");
+  const [editedNote, setEditedNote] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
   const [trackingModal, setTrackingModal] = useState<{
     isOpen: boolean;
     orderId: string | null;
@@ -122,9 +131,61 @@ export function SellerOrders() {
     }
   }, [seller?.id, fetchOrders]);
 
+  // Initialize edit fields when order is selected
+  useEffect(() => {
+    if (selectedOrder) {
+      const order = orders.find((o) => o.id === selectedOrder);
+      if (order) {
+        setEditedBuyerName(order.buyerName || "");
+        setEditedBuyerEmail(order.buyerEmail || "");
+        setEditedNote((order as any).notes || "");
+      }
+    }
+  }, [selectedOrder, orders]);
+
   const handleLogout = () => {
     logout();
     navigate("/seller/auth");
+  };
+
+  // Toggle edit mode
+  const toggleEditMode = () => {
+    if (isEditing) {
+      // Reset fields on cancel
+      const order = orders.find((o) => o.id === selectedOrder);
+      if (order) {
+        setEditedBuyerName(order.buyerName || "");
+        setEditedBuyerEmail(order.buyerEmail || "");
+        setEditedNote((order as any).notes || "");
+      }
+    }
+    setIsEditing(!isEditing);
+  };
+
+  // Save edited order details
+  const handleSaveOrderDetails = async () => {
+    if (!selectedOrder) return;
+    
+    setIsSaving(true);
+    try {
+      await orderService.updateOrderDetails(selectedOrder, {
+        buyer_name: editedBuyerName,
+        buyer_email: editedBuyerEmail,
+        notes: editedNote,
+      });
+      
+      // Refresh orders
+      if (seller?.id) {
+        await fetchOrders(seller.id);
+      }
+      setIsEditing(false);
+      alert("Order details saved successfully!");
+    } catch (error) {
+      console.error("Failed to save order details:", error);
+      alert("Failed to save changes. Please try again.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleMarkAsShipped = async () => {
@@ -747,186 +808,391 @@ export function SellerOrders() {
             )}
           </Card>
 
-          {/* Order Details Panel */}
+          {/* Order Details Modal */}
           {selectedOrder && orders.find((o) => o.id === selectedOrder) && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mt-6"
-            >
-              <Card className="border border-gray-200 shadow-sm">
-                <CardHeader className="border-b border-gray-200 bg-gray-50">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-xl font-bold">
-                      Order Details
-                    </CardTitle>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setSelectedOrder(null)}
-                    >
-                      <XCircle className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent className="p-6">
-                  {(() => {
-                    const order = orders.find((o) => o.id === selectedOrder)!;
-                    return (
-                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        {/* Customer Info */}
-                        <div className="space-y-4">
-                          <h4 className="font-semibold text-gray-900">
-                            Customer Information
-                          </h4>
-                          <div className="space-y-3 text-sm">
-                            <div className="flex items-center gap-2">
-                              <User className="h-4 w-4 text-gray-400" />
-                              <span className="text-gray-600">Name:</span>
-                              <span className="text-gray-900 font-medium">
-                                {order.buyerName}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Mail className="h-4 w-4 text-gray-400" />
-                              <span className="text-gray-600">Email:</span>
-                              <span className="text-gray-900 font-medium">
-                                {order.buyerEmail}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Phone className="h-4 w-4 text-gray-400" />
-                              <span className="text-gray-600">Phone:</span>
-                              <span className="text-gray-900 font-medium">
-                                {order.shippingAddress.phone}
-                              </span>
-                            </div>
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col"
+              >
+                {(() => {
+                  const order = orders.find((o) => o.id === selectedOrder)!;
+                  return (
+                    <>
+                      {/* Modal Header */}
+                      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-orange-500 to-orange-600">
+                        <div className="flex items-center gap-4">
+                          <div className="bg-white/20 rounded-lg p-2">
+                            <Package className="h-6 w-6 text-white" />
                           </div>
+                          <div>
+                            <h2 className="text-xl font-bold text-white">
+                              {isEditing ? "Edit Order" : "Order Details"}
+                            </h2>
+                            <p className="text-orange-100 text-sm">
+                              #{order.orderNumber || order.id.slice(0, 8)}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {order.status !== "delivered" && order.status !== "cancelled" && !isEditing && (
+                            <Button
+                              size="sm"
+                              onClick={toggleEditMode}
+                              className="bg-white/20 hover:bg-white/30 text-white border-0"
+                            >
+                              <Edit3 className="h-4 w-4 mr-1" />
+                              Edit
+                            </Button>
+                          )}
+                          {isEditing && (
+                            <>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={toggleEditMode}
+                                className="bg-white/20 hover:bg-white/30 text-white border-white/30"
+                              >
+                                <X className="h-4 w-4 mr-1" />
+                                Cancel
+                              </Button>
+                              <Button
+                                size="sm"
+                                onClick={handleSaveOrderDetails}
+                                disabled={isSaving}
+                                className="bg-green-500 hover:bg-green-600 text-white"
+                              >
+                                {isSaving ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <>
+                                    <Save className="h-4 w-4 mr-1" />
+                                    Save
+                                  </>
+                                )}
+                              </Button>
+                            </>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedOrder(null);
+                              setIsEditing(false);
+                            }}
+                            className="text-white hover:bg-white/20"
+                          >
+                            <XCircle className="h-5 w-5" />
+                          </Button>
+                        </div>
+                      </div>
 
-                          <h4 className="font-semibold text-gray-900 pt-4">
-                            Shipping Address
-                          </h4>
-                          <div className="text-sm text-gray-600 bg-gray-50 p-4 rounded-lg">
-                            <div className="flex items-start gap-2">
-                              <MapPin className="h-4 w-4 text-gray-400 mt-0.5 flex-shrink-0" />
-                              <div>
-                                <p className="font-medium text-gray-900">
-                                  {order.shippingAddress.fullName}
-                                </p>
-                                <p>{order.shippingAddress.street}</p>
-                                <p>
-                                  {order.shippingAddress.city},{" "}
-                                  {order.shippingAddress.province}
-                                </p>
-                                <p>{order.shippingAddress.postalCode}</p>
+                      {/* Modal Body */}
+                      <div className="flex-1 overflow-y-auto p-6">
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                          {/* Left Column - Customer & Shipping */}
+                          <div className="space-y-6">
+                            {/* Order Status & Info */}
+                            <div className="bg-gray-50 rounded-xl p-4 space-y-4">
+                              <h4 className="font-semibold text-gray-900 flex items-center gap-2">
+                                <Clock className="h-4 w-4 text-gray-500" />
+                                Order Information
+                              </h4>
+                              <div className="grid grid-cols-2 gap-4 text-sm">
+                                <div>
+                                  <span className="text-gray-500">Order ID</span>
+                                  <p className="font-medium text-gray-900">#{order.orderNumber || order.id.slice(0, 8)}</p>
+                                </div>
+                                <div>
+                                  <span className="text-gray-500">Date</span>
+                                  <p className="font-medium text-gray-900">
+                                    {new Date(order.createdAt).toLocaleDateString('en-US', {
+                                      month: 'short', day: 'numeric', year: 'numeric'
+                                    })}
+                                  </p>
+                                </div>
+                                <div>
+                                  <span className="text-gray-500">Channel</span>
+                                  <Badge className={cn(
+                                    "mt-1",
+                                    order.channel === "pos" ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"
+                                  )}>
+                                    {order.channel === "pos" ? "POS / Offline" : "Online App"}
+                                  </Badge>
+                                </div>
+                                <div>
+                                  <span className="text-gray-500">Status</span>
+                                  <Badge className={cn(
+                                    "mt-1",
+                                    order.status === "pending" && "bg-yellow-100 text-yellow-700",
+                                    order.status === "confirmed" && "bg-blue-100 text-blue-700",
+                                    order.status === "shipped" && "bg-purple-100 text-purple-700",
+                                    order.status === "delivered" && "bg-green-100 text-green-700",
+                                    order.status === "cancelled" && "bg-red-100 text-red-700",
+                                  )}>
+                                    {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+                                  </Badge>
+                                </div>
                               </div>
                             </div>
-                          </div>
 
-                          {order.trackingNumber && (
-                            <>
-                              <h4 className="font-semibold text-gray-900 pt-4">
-                                Tracking Number
+                            {/* Customer Info */}
+                            <div className="bg-gray-50 rounded-xl p-4 space-y-4">
+                              <h4 className="font-semibold text-gray-900 flex items-center gap-2">
+                                <User className="h-4 w-4 text-gray-500" />
+                                Customer Information
                               </h4>
-                              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                                <code className="text-sm text-blue-900 font-mono">
+                              {isEditing ? (
+                                <div className="space-y-3">
+                                  <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                      Customer Name
+                                    </label>
+                                    <Input
+                                      value={editedBuyerName}
+                                      onChange={(e) => setEditedBuyerName(e.target.value)}
+                                      placeholder="Enter customer name"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                      Email
+                                    </label>
+                                    <Input
+                                      type="email"
+                                      value={editedBuyerEmail}
+                                      onChange={(e) => setEditedBuyerEmail(e.target.value)}
+                                      placeholder="Enter email"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                      Order Note
+                                    </label>
+                                    <textarea
+                                      value={editedNote}
+                                      onChange={(e) => setEditedNote(e.target.value)}
+                                      placeholder="Add a note for this order"
+                                      className="w-full min-h-[80px] px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                    />
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="space-y-2 text-sm">
+                                  <div className="flex items-center gap-2">
+                                    <User className="h-4 w-4 text-gray-400" />
+                                    <span className="text-gray-600">Name:</span>
+                                    <span className="font-medium text-gray-900">{order.buyerName}</span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <Mail className="h-4 w-4 text-gray-400" />
+                                    <span className="text-gray-600">Email:</span>
+                                    <span className="font-medium text-gray-900">{order.buyerEmail}</span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <Phone className="h-4 w-4 text-gray-400" />
+                                    <span className="text-gray-600">Phone:</span>
+                                    <span className="font-medium text-gray-900">{order.shippingAddress?.phone || 'N/A'}</span>
+                                  </div>
+                                  {(order as any).notes && (
+                                    <div className="mt-2 bg-yellow-50 p-3 rounded-lg">
+                                      <span className="text-gray-600">Note:</span>
+                                      <p className="text-gray-900 mt-1">{(order as any).notes}</p>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Shipping Address */}
+                            <div className="bg-gray-50 rounded-xl p-4 space-y-4">
+                              <h4 className="font-semibold text-gray-900 flex items-center gap-2">
+                                <MapPin className="h-4 w-4 text-gray-500" />
+                                Shipping Address
+                              </h4>
+                              <div className="text-sm text-gray-600">
+                                <p className="font-medium text-gray-900">{order.shippingAddress?.fullName || order.buyerName}</p>
+                                <p>{order.shippingAddress?.street || 'N/A'}</p>
+                                <p>{order.shippingAddress?.city}, {order.shippingAddress?.province}</p>
+                                <p>{order.shippingAddress?.postalCode}</p>
+                              </div>
+                            </div>
+
+                            {/* Tracking Number */}
+                            {order.trackingNumber && (
+                              <div className="bg-blue-50 rounded-xl p-4 space-y-2">
+                                <h4 className="font-semibold text-gray-900 flex items-center gap-2">
+                                  <Truck className="h-4 w-4 text-blue-500" />
+                                  Tracking Number
+                                </h4>
+                                <code className="text-sm text-blue-900 font-mono bg-blue-100 px-3 py-2 rounded-lg block">
                                   {order.trackingNumber}
                                 </code>
                               </div>
-                            </>
-                          )}
-                        </div>
-
-                        {/* Order Items */}
-                        <div className="space-y-4">
-                          <h4 className="font-semibold text-gray-900">
-                            Order Items
-                          </h4>
-                          <div className="space-y-3">
-                            {order.items.map((item, index) => (
-                              <div
-                                key={index}
-                                className="flex items-center gap-3 bg-gray-50 rounded-lg p-3"
-                              >
-                                <img
-                                  src={item.image}
-                                  alt={item.productName}
-                                  className="w-16 h-16 object-cover rounded-lg border border-gray-200"
-                                />
-                                <div className="flex-1">
-                                  <h5 className="font-medium text-gray-900 text-sm">
-                                    {item.productName}
-                                  </h5>
-                                  <p className="text-xs text-gray-600">
-                                    Qty: {item.quantity}
-                                  </p>
-                                </div>
-                                <p className="font-semibold text-gray-900">
-                                  ₱{item.price.toLocaleString()}
-                                </p>
-                              </div>
-                            ))}
+                            )}
                           </div>
 
-                          <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mt-4">
-                            <div className="flex justify-between items-center">
-                              <span className="font-semibold text-gray-900">
-                                Total Amount
-                              </span>
-                              <span className="font-bold text-2xl text-orange-600">
-                                ₱{order.total.toLocaleString()}
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Review Section */}
-                          {order.rating && (
-                            <div className="pt-4">
-                              <h4 className="font-semibold text-gray-900 mb-3">
-                                Customer Review
+                          {/* Right Column - Items & Total */}
+                          <div className="space-y-6">
+                            {/* Order Items */}
+                            <div className="bg-gray-50 rounded-xl p-4 space-y-4">
+                              <h4 className="font-semibold text-gray-900 flex items-center gap-2">
+                                <ShoppingBag className="h-4 w-4 text-gray-500" />
+                                Order Items ({order.items.length})
                               </h4>
-                              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                                <div className="flex items-center gap-2 mb-2">
+                              <div className="space-y-3 max-h-64 overflow-y-auto">
+                                {order.items.map((item, index) => (
+                                  <div key={index} className="flex items-center gap-3 bg-white rounded-lg p-3 shadow-sm">
+                                    <img
+                                      src={item.image}
+                                      alt={item.productName}
+                                      className="w-16 h-16 object-cover rounded-lg border border-gray-200"
+                                    />
+                                    <div className="flex-1">
+                                      <h5 className="font-medium text-gray-900 text-sm">{item.productName}</h5>
+                                      <p className="text-xs text-gray-500">Qty: {item.quantity}</p>
+                                    </div>
+                                    <p className="font-semibold text-gray-900">₱{item.price.toLocaleString()}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Total */}
+                            <div className="bg-gradient-to-r from-orange-500 to-orange-600 rounded-xl p-4 text-white">
+                              <div className="flex justify-between items-center">
+                                <span className="font-semibold">Total Amount</span>
+                                <span className="font-bold text-2xl">₱{order.total.toLocaleString()}</span>
+                              </div>
+                              <div className="flex justify-between items-center mt-2 text-orange-100 text-sm">
+                                <span>Payment Status</span>
+                                <Badge className={cn(
+                                  order.paymentStatus === "paid" ? "bg-green-500" : "bg-yellow-500",
+                                  "text-white"
+                                )}>
+                                  {order.paymentStatus.charAt(0).toUpperCase() + order.paymentStatus.slice(1)}
+                                </Badge>
+                              </div>
+                            </div>
+
+                            {/* Status Actions */}
+                            {order.status !== "delivered" && order.status !== "cancelled" && !isEditing && (
+                              <div className="bg-gray-50 rounded-xl p-4 space-y-3">
+                                <h4 className="font-semibold text-gray-900">Update Status</h4>
+                                <div className="grid grid-cols-2 gap-3">
+                                  {order.status === "pending" && (
+                                    <>
+                                      <Button
+                                        onClick={() => handleStatusUpdate(order.id, "confirmed")}
+                                        className="bg-blue-500 hover:bg-blue-600 text-white"
+                                      >
+                                        <CheckCircle className="h-4 w-4 mr-2" />
+                                        Confirm Order
+                                      </Button>
+                                      <Button
+                                        onClick={() => handleStatusUpdate(order.id, "cancelled")}
+                                        variant="destructive"
+                                      >
+                                        <XCircle className="h-4 w-4 mr-2" />
+                                        Cancel Order
+                                      </Button>
+                                    </>
+                                  )}
+                                  {order.status === "confirmed" && (
+                                    <>
+                                      <Button
+                                        onClick={() => {
+                                          setSelectedOrder(null);
+                                          setTrackingModal({
+                                            isOpen: true,
+                                            orderId: order.id,
+                                            trackingNumber: "",
+                                            isLoading: false,
+                                          });
+                                        }}
+                                        className="bg-purple-500 hover:bg-purple-600 text-white"
+                                      >
+                                        <Truck className="h-4 w-4 mr-2" />
+                                        Mark as Shipped
+                                      </Button>
+                                      <Button
+                                        onClick={() => handleStatusUpdate(order.id, "cancelled")}
+                                        variant="destructive"
+                                      >
+                                        <XCircle className="h-4 w-4 mr-2" />
+                                        Cancel Order
+                                      </Button>
+                                    </>
+                                  )}
+                                  {order.status === "shipped" && (
+                                    <>
+                                      <Button
+                                        onClick={() => handleMarkAsDelivered(order.id)}
+                                        className="bg-green-500 hover:bg-green-600 text-white col-span-2"
+                                      >
+                                        <CheckCircle className="h-4 w-4 mr-2" />
+                                        Mark as Delivered
+                                      </Button>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Final Status Message */}
+                            {(order.status === "delivered" || order.status === "cancelled") && (
+                              <div className={cn(
+                                "rounded-xl p-4 text-center",
+                                order.status === "delivered" ? "bg-green-50" : "bg-red-50"
+                              )}>
+                                <div className={cn(
+                                  "inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold",
+                                  order.status === "delivered" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+                                )}>
+                                  {order.status === "delivered" ? (
+                                    <><CheckCircle className="h-5 w-5" /> Order Delivered Successfully</>
+                                  ) : (
+                                    <><XCircle className="h-5 w-5" /> Order Cancelled</>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Review Section */}
+                            {order.rating && (
+                              <div className="bg-yellow-50 rounded-xl p-4 space-y-3">
+                                <h4 className="font-semibold text-gray-900 flex items-center gap-2">
+                                  <Star className="h-4 w-4 text-yellow-500" />
+                                  Customer Review
+                                </h4>
+                                <div className="flex items-center gap-2">
                                   <div className="flex gap-1">
                                     {[...Array(5)].map((_, i) => (
                                       <Star
                                         key={i}
                                         className={cn(
                                           "h-5 w-5",
-                                          i < order.rating!
-                                            ? "text-yellow-500 fill-yellow-500"
-                                            : "text-gray-300",
+                                          i < order.rating! ? "text-yellow-500 fill-yellow-500" : "text-gray-300"
                                         )}
                                       />
                                     ))}
                                   </div>
-                                  <span className="font-semibold text-gray-900">
-                                    {order.rating}.0 / 5.0
-                                  </span>
+                                  <span className="font-semibold text-gray-900">{order.rating}.0 / 5.0</span>
                                 </div>
                                 {order.reviewComment && (
-                                  <p className="text-sm text-gray-700 italic mb-2">
-                                    "{order.reviewComment}"
-                                  </p>
-                                )}
-                                {order.reviewDate && (
-                                  <p className="text-xs text-gray-500">
-                                    Reviewed on{" "}
-                                    {new Date(
-                                      order.reviewDate,
-                                    ).toLocaleDateString()}
-                                  </p>
+                                  <p className="text-sm text-gray-700 italic">"{order.reviewComment}"</p>
                                 )}
                               </div>
-                            </div>
-                          )}
+                            )}
+                          </div>
                         </div>
                       </div>
-                    );
-                  })()}
-                </CardContent>
-              </Card>
-            </motion.div>
+                    </>
+                  );
+                })()}
+              </motion.div>
+            </div>
           )}
 
           {/* Tracking Number Modal */}

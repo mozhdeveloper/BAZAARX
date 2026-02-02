@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { productService } from '@/services/productService';
 import { authService } from '@/services/authService';
+import { orderService } from '@/services/orderService';
 import type { Product as DbProduct } from '@/types/database.types';
 
 export interface SellerProduct {
@@ -139,6 +140,13 @@ interface SellerStore {
   deleteProduct: (id: string) => Promise<void>;
   toggleProductStatus: (id: string) => void;
 
+  // Orders
+  orders: SellerOrder[];
+  ordersLoading: boolean;
+  fetchOrders: (sellerId?: string) => Promise<void>;
+  updateOrderStatus: (orderId: string, status: SellerOrder['status']) => void;
+  addOfflineOrder: (cartItems: { productId: string; productName: string; quantity: number; price: number; image: string; selectedColor?: string; selectedSize?: string }[], total: number, note?: string) => string;
+
   // Analytics
   revenueData: RevenueData[];
   categorySales: CategorySales[];
@@ -251,6 +259,106 @@ const dummyProducts: SellerProduct[] = [
     sellerId: '1',
     createdAt: '2024-01-01T00:00:00.000Z',
     updatedAt: '2024-01-01T00:00:00.000Z',
+  },
+];
+
+const dummyOrders: SellerOrder[] = [
+  {
+    id: '1',
+    orderId: 'ORD-2024-001',
+    customerName: 'Juan Dela Cruz',
+    customerEmail: 'juan@example.com',
+    items: [
+      {
+        productId: '1',
+        productName: 'iPhone 15 Pro Max',
+        image: 'https://images.unsplash.com/photo-1696446702877-c040ff34b6d4?w=100',
+        quantity: 1,
+        price: 75999,
+      },
+    ],
+    total: 75999,
+    status: 'pending',
+    createdAt: '2024-12-20T10:30:00Z',
+  },
+  {
+    id: '2',
+    orderId: 'ORD-2024-002',
+    customerName: 'Maria Santos',
+    customerEmail: 'maria@example.com',
+    items: [
+      {
+        productId: '4',
+        productName: 'AirPods Pro (2nd Gen)',
+        image: 'https://images.unsplash.com/photo-1606841837239-c5a1a4a07af7?w=100',
+        quantity: 2,
+        price: 14999,
+      },
+    ],
+    total: 29998,
+    status: 'to-ship',
+    createdAt: '2024-12-19T15:45:00Z',
+  },
+  {
+    id: '3',
+    orderId: 'ORD-2024-003',
+    customerName: 'Carlos Garcia',
+    customerEmail: 'carlos@example.com',
+    items: [
+      {
+        productId: '3',
+        productName: 'MacBook Pro M3',
+        image: 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=100',
+        quantity: 1,
+        price: 129999,
+      },
+      {
+        productId: '6',
+        productName: 'Sony WH-1000XM5',
+        image: 'https://images.unsplash.com/photo-1618366712010-f4ae9c647dcf?w=100',
+        quantity: 1,
+        price: 19999,
+      },
+    ],
+    total: 149998,
+    status: 'completed',
+    createdAt: '2024-12-18T09:20:00Z',
+  },
+  {
+    id: '4',
+    orderId: 'ORD-2024-004',
+    customerName: 'Ana Reyes',
+    customerEmail: 'ana@example.com',
+    items: [
+      {
+        productId: '2',
+        productName: 'Samsung Galaxy S24 Ultra',
+        image: 'https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?w=100',
+        quantity: 1,
+        price: 69999,
+      },
+    ],
+    total: 69999,
+    status: 'completed',
+    createdAt: '2024-12-17T14:10:00Z',
+  },
+  {
+    id: '5',
+    orderId: 'ORD-2024-005',
+    customerName: 'Pedro Lim',
+    customerEmail: 'pedro@example.com',
+    items: [
+      {
+        productId: '6',
+        productName: 'Sony WH-1000XM5',
+        image: 'https://images.unsplash.com/photo-1618366712010-f4ae9c647dcf?w=100',
+        quantity: 1,
+        price: 19999,
+      },
+    ],
+    total: 19999,
+    status: 'pending',
+    createdAt: '2024-12-20T11:00:00Z',
   },
 ];
 
@@ -523,6 +631,156 @@ export const useSellerStore = create<SellerStore>()(
             p.id === id ? { ...p, isActive: !p.isActive } : p
           ),
         })),
+
+      // Orders
+      orders: [],
+      ordersLoading: false,
+
+      fetchOrders: async (sellerId?: string) => {
+        const targetSellerId = sellerId || get().seller.id;
+        if (!targetSellerId) {
+          console.warn('[SellerStore] No seller ID available for fetchOrders');
+          return;
+        }
+
+        set({ ordersLoading: true });
+        try {
+          const orders = await orderService.getSellerOrders(targetSellerId);
+          set({ orders: orders as SellerOrder[], ordersLoading: false });
+          console.log(`[SellerStore] Fetched ${orders.length} orders from database`);
+        } catch (error) {
+          console.error('[SellerStore] Error fetching orders:', error);
+          set({ ordersLoading: false });
+        }
+      },
+
+      updateOrderStatus: async (orderId, status) => {
+        // Map UI status to database status
+        const dbStatusMap: Record<string, string> = {
+          pending: 'pending',
+          'to-ship': 'processing',
+          completed: 'delivered',
+          cancelled: 'cancelled',
+        };
+        const dbStatus = dbStatusMap[status] || status;
+
+        // Optimistically update local state
+        set((state) => ({
+          orders: state.orders.map((o) =>
+            o.orderId === orderId || o.id === orderId ? { ...o, status } : o
+          ),
+        }));
+
+        // Find the actual order ID (database UUID)
+        const order = get().orders.find(o => o.orderId === orderId || o.id === orderId);
+        const actualOrderId = order?.id || orderId;
+
+        // Update in database
+        try {
+          await orderService.updateOrderStatus(actualOrderId, dbStatus);
+          console.log(`[SellerStore] ✅ Order status updated in DB: ${orderId} → ${dbStatus}`);
+        } catch (error) {
+          console.error('[SellerStore] Failed to update order status in DB:', error);
+          // Revert on failure
+          await get().fetchOrders();
+        }
+
+        // SYNC TO BUYER: Also update the buyer's order store
+        try {
+          import('./orderStore').then(({ useOrderStore }) => {
+            const orderStore = useOrderStore.getState();
+            
+            // Find the corresponding buyer order by matching transaction ID
+            const buyerOrder = orderStore.orders.find(
+              (o) => o.transactionId === orderId
+            );
+            
+            if (buyerOrder) {
+              // Map seller status to buyer status
+              const buyerStatus = 
+                status === 'pending' ? 'pending' :
+                status === 'to-ship' ? 'processing' :
+                status === 'completed' ? 'delivered' :
+                'canceled';
+              
+              orderStore.updateOrderStatus(buyerOrder.id, buyerStatus as any);
+              console.log(`✅ Order status synced to buyer: ${orderId} → ${buyerStatus}`);
+            }
+          });
+        } catch (error) {
+          console.error('Failed to sync order status to buyer:', error);
+        }
+      },
+
+      // POS: Add offline order (walk-in purchase)
+      addOfflineOrder: (cartItems, total, note) => {
+        try {
+          // Validate cart items
+          if (!cartItems || cartItems.length === 0) {
+            throw new Error('Cart is empty');
+          }
+
+          if (total <= 0) {
+            throw new Error('Invalid order total');
+          }
+
+          // Check stock availability for all items before proceeding
+          const state = get();
+          for (const item of cartItems) {
+            const product = state.products.find(p => p.id === item.productId);
+            if (!product) {
+              throw new Error(`Product ${item.productName} not found`);
+            }
+            if (product.stock < item.quantity) {
+              throw new Error(`Insufficient stock for ${product.name}. Available: ${product.stock}, Requested: ${item.quantity}`);
+            }
+          }
+
+          // Generate order ID
+          const orderId = `POS-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+          // Create offline order
+          const newOrder: SellerOrder = {
+            id: orderId,
+            orderId: orderId,
+            customerName: 'Walk-in Customer',
+            customerEmail: 'pos@offline.sale',
+            items: cartItems,
+            total,
+            status: 'completed', // POS orders are immediately completed
+            createdAt: new Date().toISOString(),
+            type: 'OFFLINE', // Mark as offline/walk-in order
+            posNote: note || 'In-Store Purchase',
+          };
+
+          // Add order to store and deduct stock
+          set((state) => {
+            // Update products stock
+            const updatedProducts = state.products.map(product => {
+              const cartItem = cartItems.find(item => item.productId === product.id);
+              if (cartItem) {
+                return {
+                  ...product,
+                  stock: product.stock - cartItem.quantity,
+                  sales: product.sales + cartItem.quantity,
+                };
+              }
+              return product;
+            });
+
+            return {
+              orders: [newOrder, ...state.orders],
+              products: updatedProducts,
+            };
+          });
+
+          console.log(`✅ Offline order created: ${orderId}. Stock updated.`);
+          return orderId;
+        } catch (error) {
+          console.error('Failed to create offline order:', error);
+          throw error;
+        }
+      },
 
       // Analytics
       revenueData: dummyRevenueData,
