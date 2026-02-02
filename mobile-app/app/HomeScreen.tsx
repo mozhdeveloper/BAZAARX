@@ -426,7 +426,7 @@ export default function HomeScreen({ navigation }: Props) {
             style={styles.headerIconButton}
           >
             <Bell size={24} color="#FFF" />
-            {!isGuest && notifications.some(n => !n.read) && <View style={[styles.notifBadge, { backgroundColor: '#FFF' }]} />}
+            {!isGuest && notifications.some(n => !n.is_read) && <View style={[styles.notifBadge, { backgroundColor: '#FFF' }]} />}
           </Pressable>
         </View>
 
@@ -583,9 +583,6 @@ export default function HomeScreen({ navigation }: Props) {
                   category: 'Electronics',
                   stock: 50
                 }} onPress={() => { }} />
-                <View style={[styles.discountTag, { backgroundColor: BRAND_COLOR }]}>
-                  <Text style={styles.discountTagText}>-48%</Text>
-                </View>
               </View>
             </ScrollView>
 
@@ -876,7 +873,6 @@ const styles = StyleSheet.create({
   notificationIcon: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginRight: 15 },
   notifItemTitle: { fontSize: 16, fontWeight: '700', color: '#1F2937' },
   notifItemMsg: { fontSize: 14, color: '#4B5563' },
-  sectionHeader: { fontSize: 16, fontWeight: '800', color: '#1F2937', marginBottom: 12 },
   storeSearchResultCard: { 
     flexDirection: 'row', 
     alignItems: 'center', 
