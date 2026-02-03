@@ -12,7 +12,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   StatusBar,
-  Dimensions
+  Dimensions,
+  RefreshControl
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Search, Package, Clock, Filter, X, ShoppingCart, Check } from 'lucide-react-native';
@@ -23,7 +24,11 @@ import { useCartStore } from '../src/stores/cartStore';
 import { COLORS } from '../src/constants/theme';
 import { useAuthStore } from '../src/stores/authStore';
 import { GuestLoginModal } from '../src/components/GuestLoginModal';
+import { OrderCard } from '../src/components/OrderCard';
+import ReviewModal from '../src/components/ReviewModal';
+import { reviewService } from '../src/services/reviewService';
 import type { CompositeScreenProps } from '@react-navigation/native';
+import { useFocusEffect } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList, TabParamList } from '../App';
@@ -51,8 +56,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
 
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-  const [rating, setRating] = useState(0);
-  const [reviewText, setReviewText] = useState('');
+  /* Removed unused state: rating, reviewText */
 
   const [selectedStatus, setSelectedStatus] = useState<Order['status'] | 'all'>('all');
   const [sortOrder, setSortOrder] = useState<'latest' | 'oldest'>('latest');
@@ -63,162 +67,186 @@ export default function OrdersScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const BRAND_COLOR = COLORS.primary;
 
-  React.useEffect(() => {
-    const loadOrders = async () => {
-      if (!user?.id) return;
-      try {
-        const { data, error } = await supabase
-          .from('orders')
-          .select(`
+  const [refreshing, setRefreshing] = useState(false);
+
+  const loadOrders = async () => {
+    if (!user?.id) return;
+    try {
+      console.log('[OrdersScreen] Loading orders for user:', user.id);
+      const { data, error } = await supabase
+        .from('orders')
+        .select(`
+          *,
+          seller:sellers!seller_id (
+            business_name,
+            store_name,
+            business_address,
+            rating,
+            is_verified,
+            id
+          ),
+          items:order_items (
             *,
-            items:order_items (
+            product:products (
               *,
-              product:products (
-                *,
-                seller:sellers!products_seller_id_fkey (
-                  business_name,
-                  store_name,
-                  business_address,
-                  rating,
-                  is_verified
-                )
+              seller:sellers!products_seller_id_fkey (
+                business_name,
+                store_name
               )
             )
-          `)
-          .eq('buyer_id', user.id)
-          .order('created_at', { ascending: false });
-        if (error) {
-          setDbOrders([]);
-          return;
-        }
-        const mapped: Order[] = (data || []).map((order: any) => {
-          const statusMap: Record<string, Order['status']> = {
-            pending_payment: 'pending',
-            paid: 'processing',
-            processing: 'processing',
-            ready_to_ship: 'processing',
-            shipped: 'shipped',
-            out_for_delivery: 'shipped',
-            delivered: 'delivered',
-            completed: 'delivered',
-            cancelled: 'cancelled',
-            canceled: 'cancelled',
-            returned: 'delivered',
-            refunded: 'delivered',
-          };
-          const items = (order.items || []).map((it: any) => {
-            const p = it.product || {};
-            const image =
-              p.primary_image ||
-              (Array.isArray(p.images) && p.images.length > 0 ? p.images[0] : '');
-            const priceNum =
-              typeof it.unit_price === 'number'
-                ? it.unit_price
-                : typeof p.price === 'number'
-                  ? p.price
-                  : parseFloat(p.price || '0');
-            const sellerObj = p.seller || {};
-            return {
-              id: p.id || it.product_id,
-              name: p.name || 'Product',
-              price: priceNum || 0,
-              originalPrice:
-                typeof p.original_price === 'number'
-                  ? p.original_price
-                  : parseFloat(p.original_price || '0') || undefined,
-              image: image || '',
-              images: Array.isArray(p.images) ? p.images : [],
-              rating: typeof p.rating === 'number' ? p.rating : 0,
-              sold: typeof p.sold === 'number' ? p.sold : 0,
-              seller: sellerObj.store_name || sellerObj.business_name || 'Official Store',
-              sellerId: p.seller_id || sellerObj.id,
-              sellerRating:
-                typeof sellerObj.rating === 'number'
-                  ? sellerObj.rating
-                  : parseFloat(sellerObj.rating || '0') || 0,
-              sellerVerified: !!sellerObj.is_verified,
-              isFreeShipping: !!p.is_free_shipping,
-              isVerified: !!p.is_verified,
-              location: sellerObj.business_address || 'Philippines',
-              description: p.description || '',
-              category: p.category || 'general',
-              stock:
-                typeof p.stock === 'number'
-                  ? p.stock
-                  : parseInt(p.stock || '0') || undefined,
-              reviews: p.reviews || [],
-              quantity: it.quantity || 1,
-            };
-          });
-          const shippingFee =
-            typeof order.shipping_cost === 'number'
-              ? order.shipping_cost
-              : parseFloat(order.shipping_cost || '0') || 0;
-          const totalNum =
-            typeof order.total_amount === 'number'
-              ? order.total_amount
-              : parseFloat(order.total_amount || '0') || items.reduce((sum: number, i: any) => sum + (i.price * i.quantity), 0) + shippingFee;
-          return {
-            id: order.id,
-            transactionId: order.order_number || order.id, // Use custom order_number instead of UUID
-            items,
-            total: totalNum,
-            shippingFee,
-            status: statusMap[order.status] || 'pending',
-            isPaid: order.status === 'paid' || order.status === 'processing' || order.status === 'shipped' || order.status === 'delivered',
-            scheduledDate: new Date(order.created_at).toLocaleDateString(),
-            deliveryDate: order.estimated_delivery_date || undefined,
-            shippingAddress: {
-              name: (order.shipping_address as any)?.fullName || order.buyer_name || user.name || 'BazaarX User',
-              email: order.buyer_email || user.email || '',
-              phone: (order.shipping_address as any)?.phone || user.phone || '',
-              address: (order.shipping_address as any)?.street || (order.shipping_address as any)?.address || '',
-              city: (order.shipping_address as any)?.city || '',
-              region: (order.shipping_address as any)?.province || (order.shipping_address as any)?.region || '',
-              postalCode: (order.shipping_address as any)?.postalCode || (order.shipping_address as any)?.zip_code || '',
-            },
-            paymentMethod: typeof order.payment_method === 'string'
-              ? order.payment_method
-              : ((order.payment_method as any)?.type === 'cod'
-                  ? 'Cash on Delivery'
-                  : (order.payment_method as any)?.type === 'gcash'
-                    ? 'GCash'
-                    : (order.payment_method as any)?.type === 'card'
-                      ? 'Card'
-                      : (order.payment_method as any)?.type === 'paymongo'
-                        ? 'PayMongo'
-                        : (order.payment_method as any)?.type || 'Pay on Delivery'),
-            createdAt: order.created_at,
-          } as Order;
-        });
-        setDbOrders(mapped);
-      } catch (e) {
+          )
+        `)
+        .eq('buyer_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('[OrdersScreen] Error loading orders:', error);
         setDbOrders([]);
+        return;
       }
-    };
+
+      console.log('[OrdersScreen] Loaded orders:', data?.length);
+
+      const mapped: Order[] = (data || []).map((order: any) => {
+        const rawStatus = (order.status || 'pending').toLowerCase();
+        const statusMap: Record<string, Order['status']> = {
+          pending: 'pending',
+          pending_payment: 'pending',
+          unpaid: 'pending',
+          paid: 'processing',
+          processing: 'processing',
+          ready_to_ship: 'processing',
+          confirmed: 'processing',
+          shipped: 'shipped',
+          out_for_delivery: 'shipped',
+          delivered: 'delivered',
+          completed: 'delivered',
+          received: 'delivered',
+          cancelled: 'cancelled',
+          canceled: 'cancelled',
+          returned: 'delivered',
+          refunded: 'delivered',
+        };
+
+        const mappedStatus = statusMap[rawStatus] || 'pending';
+
+        // Get seller from order level first (more reliable)
+        const orderSeller = order.seller || {};
+        const sellerName = orderSeller.store_name || orderSeller.business_name || 'Unknown Shop';
+        const sellerId = orderSeller.id || order.seller_id;
+
+        const items = (order.items || []).map((it: any) => {
+          const p = it.product || {};
+          const productName = p.name || it.product_name || 'Product Unavailable';
+          const image = p.primary_image || (Array.isArray(p.images) && p.images.length > 0 ? p.images[0] : '') ||
+            (Array.isArray(it.product_images) && it.product_images.length > 0 ? it.product_images[0] : null) || '';
+
+          const priceNum = typeof it.price === 'number' ? it.price :
+            (typeof it.unit_price === 'number' ? it.unit_price :
+              (typeof p.price === 'number' ? p.price : 0));
+
+          return {
+            id: p.id || it.product_id,
+            name: productName,
+            price: priceNum,
+            originalPrice: typeof p.original_price === 'number' ? p.original_price : undefined,
+            image: image,
+            images: [],
+            rating: typeof p.rating === 'number' ? p.rating : 0,
+            sold: typeof p.sold === 'number' ? p.sold : 0,
+            seller: sellerName,
+            sellerId: sellerId,
+            sellerInfo: orderSeller,
+            sellerRating: orderSeller.rating || 0,
+            sellerVerified: !!orderSeller.is_verified,
+            isFreeShipping: !!p.is_free_shipping,
+            isVerified: !!p.is_verified,
+            location: orderSeller.business_address || 'Philippines',
+            description: p.description || '',
+            category: p.category || 'general',
+            stock: typeof p.stock === 'number' ? p.stock : 0,
+            reviews: p.reviews || [],
+            quantity: it.quantity || 1,
+          };
+        });
+        const shippingFee =
+          typeof order.shipping_cost === 'number'
+            ? order.shipping_cost
+            : parseFloat(order.shipping_cost || '0') || 0;
+        const totalNum =
+          typeof order.total_amount === 'number'
+            ? order.total_amount
+            : parseFloat(order.total_amount || '0') || items.reduce((sum: number, i: any) => sum + (i.price * i.quantity), 0) + shippingFee;
+        return {
+          id: order.id,
+          transactionId: order.order_number || order.id,
+          items,
+          sellerInfo: orderSeller,
+          total: totalNum,
+          shippingFee,
+          status: mappedStatus,
+          isPaid: ['paid', 'processing', 'shipped', 'delivered', 'completed'].includes(rawStatus),
+          scheduledDate: new Date(order.created_at).toLocaleDateString(),
+          deliveryDate: order.estimated_delivery_date || undefined,
+          shippingAddress: {
+            name: (order.shipping_address as any)?.fullName || order.buyer_name || user.name || 'BazaarX User',
+            email: order.buyer_email || user.email || '',
+            phone: (order.shipping_address as any)?.phone || user.phone || '',
+            address: (order.shipping_address as any)?.street || (order.shipping_address as any)?.address || '',
+            city: (order.shipping_address as any)?.city || '',
+            region: (order.shipping_address as any)?.province || (order.shipping_address as any)?.region || '',
+            postalCode: (order.shipping_address as any)?.postalCode || (order.shipping_address as any)?.zip_code || '',
+          },
+          paymentMethod: typeof order.payment_method === 'string'
+            ? order.payment_method
+            : ((order.payment_method as any)?.type === 'cod'
+              ? 'Cash on Delivery'
+              : (order.payment_method as any)?.type === 'gcash'
+                ? 'GCash'
+                : (order.payment_method as any)?.type === 'card'
+                  ? 'Card'
+                  : (order.payment_method as any)?.type === 'paymongo'
+                    ? 'PayMongo'
+                    : (order.payment_method as any)?.type || 'Pay on Delivery'),
+          createdAt: order.created_at,
+        } as Order;
+      });
+      setDbOrders(mapped);
+    } catch (e) {
+      console.error('[OrdersScreen] Unexpected error:', e);
+      setDbOrders([]);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  useFocusEffect(
+    React.useCallback(() => {
+      loadOrders();
+    }, [user?.id])
+  );
+
+  const onRefresh = React.useCallback(() => {
+    setRefreshing(true);
     loadOrders();
   }, [user?.id]);
 
   const filteredOrders = useMemo(() => {
-    // If Returns tab, no need to filter standard orders here, handled in render
     if (activeTab === 'returns') return [];
 
     let baseOrders: Order[] = [];
 
     switch (activeTab) {
       case 'toPay':
-        // Assuming 'pending' means unpaid (e.g. awaiting payment or COD confirmation)
         baseOrders = dbOrders.filter(o => o.status === 'pending');
         break;
       case 'toShip':
-        // 'processing' means paid/confirmed and waiting shipment
         baseOrders = dbOrders.filter(o => o.status === 'processing');
         break;
       case 'toReceive':
         baseOrders = dbOrders.filter(o => o.status === 'shipped');
         break;
       case 'completed':
-        // Show delivered orders, BUT exclude those that have return requests (they go to Returns tab)
         baseOrders = dbOrders.filter(o =>
           o.status === 'delivered' &&
           !returnRequests.some(req => req.orderId === o.id)
@@ -253,25 +281,84 @@ export default function OrdersScreen({ navigation, route }: Props) {
       order.items.forEach(item => {
         addItem(item as any);
       });
-      // Direct the buyer to checkout
       navigation.navigate('Checkout', {});
     }
   };
 
   const handleOrderReceived = (order: Order) => {
-    setSelectedOrder(order);
-    setRating(0);
-    setReviewText('');
-    setTimeout(() => setShowRatingModal(true), 100);
+    Alert.alert(
+      'Order Received',
+      'Confirm you have received your order?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Confirm',
+          onPress: async () => {
+            try {
+              const { error } = await supabase
+                .from('orders')
+                .update({ status: 'delivered' })
+                .eq('id', order.id);
+
+              if (error) throw error;
+
+              updateOrderStatus(order.id, 'delivered');
+
+              setDbOrders(prev => prev.map(o =>
+                o.id === order.id ? { ...o, status: 'delivered' } : o
+              ));
+
+              Alert.alert('Success', 'Order marked as received!');
+            } catch (e) {
+              console.error('Error updating order:', e);
+              Alert.alert('Error', 'Failed to update order status');
+            }
+          },
+        }
+      ]
+    );
   };
 
-  const handleSubmitRating = () => {
-    if (!selectedOrder) return;
-    updateOrderStatus(selectedOrder.id, 'delivered');
-    setShowRatingModal(false);
-    Alert.alert('Review Submitted!', 'Thank you for your feedback', [
-      { text: 'OK', onPress: () => { setActiveTab('completed'); setSelectedOrder(null); } },
-    ]);
+  const handleReview = (order: Order) => {
+    setSelectedOrder(order);
+    setShowRatingModal(true);
+  };
+
+  /* Removed unused local state for inline modal: rating, setRating, reviewText, setReviewText */
+  /* Instead of setReviewText, we use the logic inside ReviewModal */
+
+  const handleSubmitReview = async (productId: string, rating: number, review: string) => {
+    if (!selectedOrder || !user?.id) return;
+
+    try {
+      const item = selectedOrder.items.find(i => i.id === productId);
+      if (!item) throw new Error('Product not found');
+
+      const sellerId = item.sellerId || (item as any).seller_id;
+      if (!sellerId) throw new Error('Seller information missing');
+
+      // Create review
+      await reviewService.createReview({
+        product_id: productId,
+        buyer_id: user.id,
+        seller_id: sellerId,
+        order_id: selectedOrder.id,
+        rating,
+        comment: review || null,
+        images: null,
+      });
+
+      // Mark item as reviewed
+      await reviewService.markItemAsReviewed(selectedOrder.id, productId);
+
+      // Check if all items reviewed
+      await reviewService.checkAndUpdateOrderReviewed(selectedOrder.id);
+
+      Alert.alert('Success', 'Your review has been submitted.');
+    } catch (error: any) {
+      console.error('[OrdersScreen] Error submitting review:', error);
+      Alert.alert('Error', error.message || 'Failed to submit review');
+    }
   };
 
   const getStatusBadgeStyle = (status: Order['status'] | string) => {
@@ -310,16 +397,16 @@ export default function OrdersScreen({ navigation, route }: Props) {
               updateOrderStatus(order.id, 'cancelled');
 
               // 3. Update Local State (dbOrders) to reflect change immediately
-              setDbOrders(prev => prev.map(o => 
+              setDbOrders(prev => prev.map(o =>
                 o.id === order.id ? { ...o, status: 'cancelled' } : o
               ));
-              
+
               Alert.alert('Order Cancelled', 'Your order has been moved to the Cancelled list.');
             } catch (e) {
               console.log('Error canceling order:', e);
               // Fallback for demo/offline: just update local state
               updateOrderStatus(order.id, 'cancelled');
-              setDbOrders(prev => prev.map(o => 
+              setDbOrders(prev => prev.map(o =>
                 o.id === order.id ? { ...o, status: 'cancelled' } : o
               ));
               Alert.alert('Order Cancelled', 'Your order has been moved to the Cancelled list (Offline Mode).');
@@ -355,8 +442,8 @@ export default function OrdersScreen({ navigation, route }: Props) {
       case 'pending':
         return (
           <View style={styles.buttonRow}>
-            <Pressable 
-              style={[styles.outlineButton, { flex: 1, borderColor: '#EF4444', marginRight: 8, backgroundColor: '#FEF2F2' }]} 
+            <Pressable
+              style={[styles.outlineButton, { flex: 1, borderColor: '#EF4444', marginRight: 8, backgroundColor: '#FEF2F2' }]}
               onPress={() => handleCancelOrder(order)}
             >
               <Text style={[styles.outlineButtonText, { color: '#EF4444' }]}>Cancel</Text>
@@ -405,7 +492,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
               {returnReq.status.replace('_', ' ').toUpperCase()}
             </Text>
           </View>
-          <Text style={styles.orderIdText}>ID: #{returnReq.id.slice(-8)}</Text>
+          <Text style={styles.orderIdText}>#{returnReq.id.slice(-8)}</Text>
         </View>
 
         <View style={styles.cardBody}>
@@ -507,7 +594,14 @@ export default function OrdersScreen({ navigation, route }: Props) {
         </ScrollView>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16, paddingBottom: 100 }}>
+      <ScrollView
+        style={{ flex: 1 }}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[BRAND_COLOR]} />
+        }
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
+      >
         {activeTab === 'returns' ? (
           // RETURNS VIEW
           returnRequests.length === 0 ? (
@@ -529,37 +623,31 @@ export default function OrdersScreen({ navigation, route }: Props) {
             </View>
           ) : (
             filteredOrders.map((order) => (
-              <Pressable key={order.id} style={styles.orderCard} onPress={() => navigation.navigate('OrderDetail', { order })}>
-                <View style={styles.cardHeader}>
-                  <View style={[styles.statusBadge, { backgroundColor: getStatusBadgeStyle(order.status).bg }]}>
-                    <Text style={[styles.statusText, { color: getStatusBadgeStyle(order.status).text }]}>
-                      {order.status.toUpperCase()}
-                    </Text>
-                  </View>
-                  <Text style={styles.orderIdText}>
-                    {order.transactionId.length > 20 
-                      ? `TRK-${order.transactionId.slice(0, 8).toUpperCase()}` 
-                      : order.transactionId.startsWith('TXN') ? order.transactionId : `#${order.transactionId}`}
-                  </Text>
-                </View>
+              <OrderCard
+                key={order.id}
+                order={order}
+                onPress={() => navigation.navigate('OrderDetail', { order })}
+                onCancel={() => handleCancelOrder(order)}
+                onReceive={() => handleOrderReceived(order)}
+                onReview={() => handleReview(order)}
+                onShopPress={(shopId) => {
+                  // Find the order to get the seller info
+                  const targetOrder = filteredOrders.find(o => o.items.some(i => i.sellerId === shopId)) || order;
+                  const sellerInfo = dbOrders.find(o => o.id === targetOrder.id)?.sellerInfo || {};
 
-                <View style={styles.cardBody}>
-                  <Pressable onPress={() => navigation.navigate('ProductDetail', { product: order.items[0] })}>
-                    <Image source={{ uri: order.items[0]?.image }} style={styles.productThumb} />
-                  </Pressable>
-                  <View style={styles.productInfo}>
-                    <Text style={styles.productName} numberOfLines={1}>{order.items[0]?.name}</Text>
-                    <View style={styles.dateRow}>
-                      <Clock size={12} color="#9CA3AF" />
-                      <Text style={styles.dateText}>{order.scheduledDate}</Text>
-                    </View>
-                    <Text style={[styles.totalAmount, { color: BRAND_COLOR }]}>₱{order.total.toLocaleString()}</Text>
-                  </View>
-                </View>
-                <View style={styles.cardFooter}>
-                  {renderActionButtons(order)}
-                </View>
-              </Pressable>
+                  const storeObj = {
+                    id: shopId,
+                    name: sellerInfo.store_name || sellerInfo.business_name || 'Shop',
+                    rating: sellerInfo.rating || 4.8,
+                    verified: !!sellerInfo.is_verified,
+                    image: 'https://via.placeholder.com/150', // Fallback as we might not have store logo in order query
+                    followers: 100, // Placeholder
+                    description: sellerInfo.business_address || ''
+                  };
+
+                  navigation.navigate('StoreDetail', { store: storeObj });
+                }}
+              />
             ))
           )
         )}
@@ -611,47 +699,13 @@ export default function OrdersScreen({ navigation, route }: Props) {
         </View>
       </Modal>
 
-      {/* RATING MODAL */}
-      <Modal visible={showRatingModal} animationType="slide" transparent={true}>
-        <View style={styles.ratingOverlay}>
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.ratingContent}>
-            <View style={styles.ratingHeader}>
-              <Text style={styles.ratingTitle}>Rate Product</Text>
-              <Pressable onPress={() => setShowRatingModal(false)}>
-                <X size={24} color="#9CA3AF" />
-              </Pressable>
-            </View>
-
-            {selectedOrder && (
-              <View style={styles.ratingProductInfo}>
-                <Image source={{ uri: selectedOrder.items[0]?.image }} style={{ width: 40, height: 40, borderRadius: 4, marginRight: 10 }} />
-                <Text style={{ flex: 1, fontSize: 14 }} numberOfLines={1}>{selectedOrder.items[0]?.name}</Text>
-              </View>
-            )}
-
-            <View style={styles.starsContainer}>
-              {[1, 2, 3, 4, 5].map((star) => (
-                <Pressable key={star} onPress={() => setRating(star)}>
-                  <Ionicons name={rating >= star ? "star" : "star-outline"} size={32} color={rating >= star ? "#F59E0B" : "#D1D5DB"} />
-                </Pressable>
-              ))}
-            </View>
-
-            <TextInput
-              style={styles.reviewInput}
-              placeholder="Write your review here..."
-              multiline
-              numberOfLines={4}
-              value={reviewText}
-              onChangeText={setReviewText}
-            />
-
-            <Pressable style={[styles.submitReviewBtn, { backgroundColor: rating > 0 ? BRAND_COLOR : '#D1D5DB' }]} disabled={rating === 0} onPress={handleSubmitRating}>
-              <Text style={styles.submitReviewText}>Submit Review</Text>
-            </Pressable>
-          </KeyboardAvoidingView>
-        </View>
-      </Modal>
+      {/* REVIEW MODAL (Replaces previous inline Rating Modal) */}
+      <ReviewModal
+        visible={showRatingModal}
+        order={selectedOrder}
+        onClose={() => setShowRatingModal(false)}
+        onSubmit={handleSubmitReview}
+      />
     </View>
   );
 }

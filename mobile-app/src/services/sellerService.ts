@@ -272,6 +272,149 @@ export class SellerService {
       return [];
     }
   }
+  /**
+   * Get follower count for a seller
+   */
+  async getFollowerCount(sellerId: string): Promise<number> {
+    if (!isSupabaseConfigured()) return 0;
+
+    try {
+      const { count, error } = await supabase
+        .from('shop_followers')
+        .select('*', { count: 'exact', head: true })
+        .eq('seller_id', sellerId);
+
+      if (error) throw error;
+      return count || 0;
+    } catch (error) {
+      console.error('Error fetching follower count:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * Check if buyer is following seller
+   */
+  async checkIsFollowing(buyerId: string, sellerId: string): Promise<boolean> {
+    if (!isSupabaseConfigured() || !buyerId || !sellerId) return false;
+
+    try {
+      const { data, error } = await supabase
+        .from('shop_followers')
+        .select('id')
+        .eq('buyer_id', buyerId)
+        .eq('seller_id', sellerId)
+        .maybeSingle();
+
+      if (error) throw error;
+      return !!data;
+    } catch (error) {
+      console.error('Error checking follow status:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Follow a seller
+   */
+  async followSeller(buyerId: string, sellerId: string): Promise<void> {
+    if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
+
+    try {
+      const { error } = await supabase
+        .from('shop_followers')
+        .insert({
+          buyer_id: buyerId,
+          seller_id: sellerId
+        });
+
+      if (error) {
+        // Ignore duplicate key errors (already following)
+        if (error.code === '23505') return;
+        throw error;
+      }
+    } catch (error) {
+      console.error('Error following seller:', error);
+      throw new Error('Failed to follow seller');
+    }
+  }
+
+  /**
+   * Unfollow a seller
+   */
+  async unfollowSeller(buyerId: string, sellerId: string): Promise<void> {
+    if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
+
+    try {
+      const { error } = await supabase
+        .from('shop_followers')
+        .delete()
+        .eq('buyer_id', buyerId)
+        .eq('seller_id', sellerId);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error unfollowing seller:', error);
+      throw new Error('Failed to unfollow seller');
+    }
+  }
+  /**
+   * Get shops followed by a buyer
+   */
+  async getFollowedShops(buyerId: string): Promise<any[]> {
+    if (!isSupabaseConfigured()) return [];
+
+    try {
+      const { data, error } = await supabase
+        .from('shop_followers')
+        .select(`
+          *,
+          seller:sellers(*)
+        `)
+        .eq('buyer_id', buyerId);
+
+      if (error) throw error;
+
+      // Transform data to return seller details with products count if possible, 
+      // or just the seller details.
+      // We might want to fetch product count too.
+      // For now, let's just return the seller details.
+      
+      const sellers = await Promise.all((data || []).map(async (item) => {
+          const seller = item.seller;
+           // Get verified product count for this seller
+           const { count } = await supabase
+            .from('products')
+            .select('*', { count: 'exact', head: true })
+            .eq('seller_id', item.seller_id)
+            .eq('approval_status', 'approved')
+            .eq('is_active', true);
+            
+           // Get follower count
+           const { count: followerCount } = await supabase
+            .from('shop_followers')
+            .select('*', { count: 'exact', head: true })
+            .eq('seller_id', item.seller_id);
+
+          return {
+              ...seller,
+              products_count: count || 0,
+              followers_count: followerCount || 0,
+              // Map to UI expectations if needed
+              name: seller.store_name || seller.business_name,
+              location: seller.city ? `${seller.city}, ${seller.province}` : seller.business_address,
+              logo: (seller.store_name || seller.business_name || 'S').substring(0, 2).toUpperCase(),
+              rating: seller.rating || 0,
+              banner: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=800&h=400&fit=crop' // Placeholder
+          };
+      }));
+
+      return sellers;
+    } catch (error) {
+      console.error('Error fetching followed shops:', error);
+      return [];
+    }
+  }
 }
 
 // Export singleton instance
