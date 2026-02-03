@@ -983,15 +983,27 @@ export default function CheckoutScreen({ navigation, route }: Props) {
             </View>
 
             <Pressable
-              onPress={() => setPaymentMethod('cod')}
-              style={[styles.paymentOption, paymentMethod === 'cod' && styles.paymentOptionActive]}
+              onPress={() => {
+                if (isGift) {
+                  Alert.alert('Not Available', 'Cash on Delivery is not available for wishlist/registry items.');
+                  return;
+                }
+                setPaymentMethod('cod');
+              }}
+              style={[
+                styles.paymentOption, 
+                paymentMethod === 'cod' && styles.paymentOptionActive,
+                isGift && { opacity: 0.5, backgroundColor: '#F3F4F6' }
+              ]}
             >
               <View style={styles.radio}>
                 {paymentMethod === 'cod' && <View style={styles.radioInner} />}
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.paymentText}>Cash on Delivery</Text>
-                <Text style={styles.paymentSubtext}>Pay when you receive</Text>
+                <Text style={[styles.paymentText, isGift && { color: '#9CA3AF' }]}>Cash on Delivery</Text>
+                <Text style={styles.paymentSubtext}>
+                    {isGift ? 'Not available for wishlist items' : 'Pay when you receive'}
+                </Text>
               </View>
             </Pressable>
 

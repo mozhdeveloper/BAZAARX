@@ -59,9 +59,11 @@ export default function SharedWishlistScreen() {
     const navigation = useNavigation<any>();
     const route = useRoute();
     const setQuickOrder = useCartStore((state) => state.setQuickOrder);
+    const params = route.params as any;
 
-    // In a real app, we would fetch the wishlist based on route.params.id
-    const wishlistOwner = MOCK_SHARED_USER;
+    // Use passed preview data if available, otherwise mock
+    const wishlistOwner = params?.wishlistData || MOCK_SHARED_USER;
+
 
     const handleBuyAsGift = (product: any) => {
         Alert.alert(
