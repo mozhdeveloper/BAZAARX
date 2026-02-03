@@ -632,7 +632,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
               <Text style={styles.qtyValue}>{quantity}</Text>
               
               <Pressable 
-                onPress={() => setQuantity(quantity + 1)}
+                onPress={() => quantity == product.stock ? null : setQuantity(quantity + 1)}
                 style={styles.qtyBtn}
               >
                 <Plus size={20} color={BRAND_COLOR} />
