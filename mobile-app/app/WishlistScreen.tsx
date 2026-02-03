@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, StatusBar, Dimensions, Share, Alert, Pressable, Modal, TextInput, Image, Switch, KeyboardAvoidingView, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, Heart, ShoppingBag, Share2, MoreVertical, Edit2, Search, FolderHeart, Plus, Lock, Globe, User, X, Store, ChevronRight, Trash2 } from 'lucide-react-native';
+import { ArrowLeft, Heart, ShoppingBag, Share2, MoreVertical, Edit2, Search, FolderHeart, Plus, Lock, Globe, User, X, Store, ChevronRight, Trash2, Eye } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { ProductCard } from '../src/components/ProductCard';
 import { useWishlistStore, WishlistItem } from '../src/stores/wishlistStore';
@@ -19,7 +19,7 @@ const CreateListModal = ({ visible, onClose, onCreate }: any) => {
 
     const handleCreate = () => {
         if (!name.trim()) return;
-        onCreate(name, isPrivate ? 'private' : 'shared');
+        onCreate(name, 'private');
         setName('');
         setIsPrivate(true);
         onClose();
@@ -51,21 +51,8 @@ const CreateListModal = ({ visible, onClose, onCreate }: any) => {
                             autoFocus
                         />
 
-                        <View style={styles.bsSwitchRow}>
-                            <View style={{flex: 1}}>
-                                <Text style={styles.switchLabel}>Keep private</Text>
-                                <Text style={styles.switchSub}>Only you can see this list. Shared lists can be viewed by anyone with the link.</Text>
-                            </View>
-                            <Switch 
-                                value={isPrivate} 
-                                onValueChange={setIsPrivate}
-                                trackColor={{ false: '#E5E7EB', true: COLORS.primary }}
-                                thumbColor="#FFF"
-                            />
-                        </View>
-
                         <Pressable onPress={handleCreate} style={[styles.createBtn, !name.trim() && styles.disabledBtn]}>
-                            <Text style={styles.createBtnText}>Create List</Text>
+                            <Text style={styles.createBtnText}>Create Private List</Text>
                         </Pressable>
                     </View>
                 </KeyboardAvoidingView>
@@ -77,13 +64,12 @@ const CreateListModal = ({ visible, onClose, onCreate }: any) => {
 // Item Edit Modal Component (Kept for Item View)
 const ItemEditModal = ({ visible, onClose, item, onSave }: any) => {
     const [qty, setQty] = useState(item?.desiredQty?.toString() || '1');
-    const [isPrivate, setIsPrivate] = useState(item?.isPrivate || false);
+
 
     useEffect(() => {
         if (item) {
 
             setQty(item.desiredQty?.toString() || '1');
-            setIsPrivate(item.isPrivate || false);
         }
     }, [item]);
 
@@ -102,24 +88,14 @@ const ItemEditModal = ({ visible, onClose, item, onSave }: any) => {
                         <Pressable onPress={() => setQty((parseInt(qty || '1') + 1).toString())} style={styles.qtyBtn}><Text>+</Text></Pressable>
                     </View>
 
-                     <View style={[styles.switchRow, { marginBottom: 30, paddingRight: 0 }]}>
-                        <View>
-                            <Text style={styles.switchLabel}>Keep item private</Text>
-                            <Text style={styles.switchSub}>Hide this item from shared views</Text>
-                        </View>
-                        <Switch 
-                            value={isPrivate} 
-                            onValueChange={setIsPrivate}
-                            trackColor={{ false: '#E5E7EB', true: COLORS.primary }}
-                        />
-                    </View>
+
 
                     <View style={styles.modalActions}>
                         <Pressable style={styles.modalBtn} onPress={onClose}><Text style={styles.cancelText}>Cancel</Text></Pressable>
                         <Pressable 
                             style={[styles.modalBtn, styles.primaryBtn]} 
                             onPress={() => {
-                                onSave(item.id, { desiredQty: parseInt(qty), isPrivate });
+                                onSave(item.id, { desiredQty: parseInt(qty) });
                                 onClose();
                             }}
                         >
@@ -154,19 +130,18 @@ const ItemEditModal = ({ visible, onClose, item, onSave }: any) => {
 // Edit Category Modal
 const EditCategoryModal = ({ visible, onClose, category, onSave, onDelete }: any) => {
     const [name, setName] = useState(category?.name || '');
-    const [isPrivate, setIsPrivate] = useState(category?.privacy === 'private');
+
     const insets = useSafeAreaInsets();
 
     useEffect(() => {
         if (category) {
             setName(category.name);
-            setIsPrivate(category.privacy === 'private');
         }
     }, [category]);
 
     const handleSave = () => {
         if (!name.trim()) return;
-        onSave(category.id, { name, privacy: isPrivate ? 'private' : 'shared' });
+        onSave(category.id, { name, privacy: 'private' });
         onClose();
     };
 
@@ -212,18 +187,7 @@ const EditCategoryModal = ({ visible, onClose, category, onSave, onDelete }: any
                             placeholder="List Name"
                         />
 
-                        <View style={styles.bsSwitchRow}>
-                            <View style={{flex: 1}}>
-                                <Text style={styles.switchLabel}>Keep private</Text>
-                                <Text style={styles.switchSub}>Only you can see this list.</Text>
-                            </View>
-                            <Switch 
-                                value={isPrivate} 
-                                onValueChange={setIsPrivate}
-                                trackColor={{ false: '#E5E7EB', true: COLORS.primary }}
-                                thumbColor="#FFF"
-                            />
-                        </View>
+
 
                         <View style={{ gap: 12 }}>
                             <Pressable onPress={handleSave} style={[styles.createBtn, !name.trim() && styles.disabledBtn]}>
@@ -323,6 +287,27 @@ export default function WishlistScreen() {
                     </View>
 
                     <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+
+                        
+                        {selectedCategoryId && (
+                            <Pressable onPress={() => {
+                                // Simulate sharing view
+                                const cat = categories.find(c => c.id === selectedCategoryId);
+                                const catItems = items.filter(i => i.categoryId === selectedCategoryId || (selectedCategoryId === 'default' && !i.categoryId));
+                                
+                                const previewData = {
+                                    name: "You", // Or user's real name via auth
+                                    avatar: "https://ui-avatars.com/api/?name=You&background=random",
+                                    registryAddress: { city: "Makati", province: "MM" }, // Mock or fetch from profile
+                                    items: catItems.map(i => ({ ...i, status: 'active', priority: 'medium' }))
+                                };
+
+                                navigation.navigate('SharedWishlist', { wishlistData: previewData });
+                            }} style={styles.headerIconButton}>
+                                <Eye size={24} color="#FFF" />
+                            </Pressable>
+                        )}
+
                         {selectedCategoryId && (
                             <Pressable onPress={handleShare} style={styles.headerIconButton}>
                                 <Share2 size={24} color="#FFF" />
@@ -349,17 +334,7 @@ export default function WishlistScreen() {
 
             <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
                 
-                {/* Find Registry Banner (ALWAYS VISIBLE) */}
-                <View style={styles.findRegistryContainer}>
-                    <View style={styles.findRegistryContent}>
-                        <Text style={styles.findRegistryTitle}>Looking for a friend?</Text>
-                        <Text style={styles.findRegistrySubtitle}>Find their registry to send a gift.</Text>
-                    </View>
-                    <Pressable style={styles.findRegistryBtn} onPress={() => navigation.navigate('FindRegistry')}>
-                        <Search size={16} color={COLORS.primary} style={{ marginRight: 6 }} />
-                        <Text style={styles.findRegistryBtnText}>Find Registry</Text>
-                    </Pressable>
-                </View>
+
 
                 {/* --- CATEGORIES VIEW (1 COLUMN VERTICAL) --- */}
                 {!selectedCategoryId && (
@@ -399,8 +374,8 @@ export default function WishlistScreen() {
                                                     <Text style={styles.cardTitle}>{cat.name}</Text>
                                                     <View style={styles.cardRatingRow}>
                                                         <View style={styles.privacyTag}>
-                                                            {cat.privacy === 'private' ? <Lock size={10} color="#6B7280"/> : <Globe size={10} color="#6B7280"/>}
-                                                            <Text style={styles.privacyTagText}>{cat.privacy === 'private' ? 'Private' : 'Shared'}</Text>
+                                                            <Lock size={10} color="#6B7280"/>
+                                                            <Text style={styles.privacyTagText}>Private</Text>
                                                         </View>
                                                         <Text style={styles.itemCountDetail}>{itemCount} items</Text>
                                                     </View>
@@ -442,12 +417,7 @@ export default function WishlistScreen() {
                                                 product={item}
                                                 onPress={() => handleProductPress(item)}
                                             />
-                                            {/* Item Privacy Badge */}
-                                            {item.isPrivate && (
-                                                <View style={styles.itemPrivacyBadge}>
-                                                    <Lock size={12} color="#FFF" />
-                                                </View>
-                                            )}
+
 
                                             {/* Overlay Controls */}
                                             <View style={styles.itemControls}>
