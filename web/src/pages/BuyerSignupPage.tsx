@@ -150,9 +150,8 @@ export default function BuyerSignupPage() {
       await useBuyerStore.getState().initializeCart();
       setIsLoading(false);
 
-      // Show success message and redirect
-      alert("Welcome to BazaarX! You've received 100 bonus points!");
-      navigate("/shop");
+      // Redirect to onboarding
+      navigate("/buyer-onboarding");
     } catch (err: any) {
       console.error("Signup exception:", err);
       if (err.message?.includes("User already registered") || err.message?.includes("already exists")) {
