@@ -1,9 +1,9 @@
 import React from 'react';
 import Header from "../components/Header";
-import { Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Plus, Globe, Gift, RotateCcw } from 'lucide-react';
-import { useState } from 'react';
 import { RegistryDetailModal, Product } from '../components/RegistryDetailModal';
 import { CreateRegistryModal } from '../components/CreateRegistryModal';
 
@@ -68,6 +68,15 @@ const RegistryAndGiftingPage = () => {
         setSelectedRegistry(item);
         setIsDetailModalOpen(true);
     };
+    const location = useLocation();
+
+    // Check for navigation state to open create modal
+    useEffect(() => {
+        if (location.state && (location.state as any).openCreateModal) {
+            setIsCreateModalOpen(true);
+        }
+    }, [location]);
+
     return (
         <div className="min-h-screen bg-gray-50">
             <Header />
@@ -122,9 +131,6 @@ const RegistryAndGiftingPage = () => {
                                 className="w-full sm:w-auto px-8 py-3 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-full font-medium hover:shadow-lg hover:opacity-90 transition-all shadow-md"
                             >
                                 Create a registry
-                            </button>
-                            <button className="w-full sm:w-auto px-8 py-3 bg-white border border-gray-300 rounded-full text-gray-700 font-medium hover:bg-gray-50 hover:border-gray-400 transition-all shadow-sm">
-                                Find a registry
                             </button>
                         </div>
                     </motion.div>

@@ -11,6 +11,7 @@ import {
   Clock,
   BadgeCheck,
   ShoppingCart,
+  Gift,
   Menu,
 } from "lucide-react";
 import Header from "../components/Header";
@@ -639,6 +640,7 @@ export default function ShopPage() {
 
                       {/* Always Visible Action Buttons */}
                       <div className="mt-auto pt-4 space-y-2">
+
                         <Button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -776,15 +778,17 @@ export default function ShopPage() {
       <BazaarFooter />
 
       {/* Cart Modal */}
-      {addedProduct && showCartModal && (
-        <CartModal
-          isOpen={showCartModal}
-          onClose={() => setShowCartModal(false)}
-          productName={addedProduct.name}
-          productImage={addedProduct.image}
-          cartItemCount={cartItems.length}
-        />
-      )}
+      {
+        addedProduct && showCartModal && (
+          <CartModal
+            isOpen={showCartModal}
+            onClose={() => setShowCartModal(false)}
+            productName={addedProduct.name}
+            productImage={addedProduct.image}
+            cartItemCount={cartItems.length}
+          />
+        )
+      }
 
       {/* Visual Search Modal */}
       <VisualSearchModal
@@ -805,59 +809,61 @@ export default function ShopPage() {
       />
 
       {/* Buy Now Modal */}
-      {buyNowProduct && (
-        <BuyNowModal
-          isOpen={showBuyNowModal}
-          onClose={() => {
-            setShowBuyNowModal(false);
-            setBuyNowProduct(null);
-          }}
-          product={buyNowProduct}
-          onConfirm={(quantity, variant) => {
-            const sellerLocation = buyNowProduct.location || "Metro Manila";
-            const quickOrderItem: any = {
-              id: buyNowProduct.id,
-              name: buyNowProduct.name,
-              price: variant?.price || buyNowProduct.price,
-              originalPrice: buyNowProduct.originalPrice,
-              image: variant?.image || buyNowProduct.image,
-              images: buyNowProduct.images || [buyNowProduct.image],
-              seller: {
-                id: buyNowProduct.sellerId,
-                name: buyNowProduct.seller,
-                avatar: "",
-                rating: buyNowProduct.sellerRating || 0,
+      {
+        buyNowProduct && (
+          <BuyNowModal
+            isOpen={showBuyNowModal}
+            onClose={() => {
+              setShowBuyNowModal(false);
+              setBuyNowProduct(null);
+            }}
+            product={buyNowProduct}
+            onConfirm={(quantity, variant) => {
+              const sellerLocation = buyNowProduct.location || "Metro Manila";
+              const quickOrderItem: any = {
+                id: buyNowProduct.id,
+                name: buyNowProduct.name,
+                price: variant?.price || buyNowProduct.price,
+                originalPrice: buyNowProduct.originalPrice,
+                image: variant?.image || buyNowProduct.image,
+                images: buyNowProduct.images || [buyNowProduct.image],
+                seller: {
+                  id: buyNowProduct.sellerId,
+                  name: buyNowProduct.seller,
+                  avatar: "",
+                  rating: buyNowProduct.sellerRating || 0,
+                  totalReviews: 100,
+                  followers: 1000,
+                  isVerified: buyNowProduct.sellerVerified || false,
+                  description: "",
+                  location: sellerLocation,
+                  established: "2020",
+                  products: [],
+                  badges: [],
+                  responseTime: "1 hour",
+                  categories: [buyNowProduct.category],
+                },
+                sellerId: buyNowProduct.sellerId,
+                rating: buyNowProduct.rating,
                 totalReviews: 100,
-                followers: 1000,
-                isVerified: buyNowProduct.sellerVerified || false,
-                description: "",
+                category: buyNowProduct.category,
+                sold: buyNowProduct.sold,
+                isFreeShipping: buyNowProduct.isFreeShipping ?? true,
                 location: sellerLocation,
-                established: "2020",
-                products: [],
-                badges: [],
-                responseTime: "1 hour",
-                categories: [buyNowProduct.category],
-              },
-              sellerId: buyNowProduct.sellerId,
-              rating: buyNowProduct.rating,
-              totalReviews: 100,
-              category: buyNowProduct.category,
-              sold: buyNowProduct.sold,
-              isFreeShipping: buyNowProduct.isFreeShipping ?? true,
-              location: sellerLocation,
-              description: buyNowProduct.description || "",
-              specifications: {},
-              variants: buyNowProduct.variants || [],
-              selectedVariant: variant,
-            };
+                description: buyNowProduct.description || "",
+                specifications: {},
+                variants: buyNowProduct.variants || [],
+                selectedVariant: variant,
+              };
 
-            setQuickOrder(quickOrderItem, quantity, variant);
-            setShowBuyNowModal(false);
-            setBuyNowProduct(null);
-            navigate("/checkout");
-          }}
-        />
-      )}
-    </div>
+              setQuickOrder(quickOrderItem, quantity, variant);
+              setShowBuyNowModal(false);
+              setBuyNowProduct(null);
+              navigate("/checkout");
+            }}
+          />
+        )
+      }
+    </div >
   );
 }

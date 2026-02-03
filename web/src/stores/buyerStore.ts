@@ -273,6 +273,22 @@ interface BuyerStore {
   addCard: (card: PaymentMethod) => void;
   deleteCard: (id: string) => void;
   setDefaultPaymentMethod: (id: string) => void;
+  deleteCard: (id: string) => void;
+  setDefaultPaymentMethod: (id: string) => void;
+
+  // Registry & Gifting
+  registries: RegistryItem[];
+  createRegistry: (registry: RegistryItem) => void;
+  addToRegistry: (registryId: string, product: Product) => void;
+}
+
+export interface RegistryItem {
+  id: string;
+  title: string;
+  sharedDate: string;
+  imageUrl: string;
+  category?: string;
+  products?: Product[];
 }
 
 let profileSubscription: any = null;

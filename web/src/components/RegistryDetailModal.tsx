@@ -4,6 +4,7 @@ import { X, Gift, Plus, ShoppingBag } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
+import { useNavigate } from 'react-router-dom';
 
 export interface Product {
     id: string;
@@ -31,6 +32,7 @@ interface RegistryDetailModalProps {
 export const RegistryDetailModal = ({ isOpen, onClose, registry, onAddProduct }: RegistryDetailModalProps) => {
     const [newProductName, setNewProductName] = useState('');
     const [isAdding, setIsAdding] = useState(false);
+    const navigate = useNavigate();
 
     if (!registry) return null;
 
@@ -126,6 +128,12 @@ export const RegistryDetailModal = ({ isOpen, onClose, registry, onAddProduct }:
                                             </div>
                                             <p className="text-gray-900 font-medium">No items yet</p>
                                             <p className="text-gray-500 text-sm mt-1">Start adding items to build your registry.</p>
+                                            <Button
+                                                onClick={() => navigate('/shop')}
+                                                className="mt-6 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/90 text-white rounded-full px-6"
+                                            >
+                                                Browse Products
+                                            </Button>
                                         </div>
                                     ) : (
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
