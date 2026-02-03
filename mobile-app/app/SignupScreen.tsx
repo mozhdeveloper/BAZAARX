@@ -61,33 +61,14 @@ export default function SignupScreen({ navigation }: Props) {
             return;
         }
 
-        setLoading(true);
-
-        // 1. SIGNUP CALL
-        // Note: With 'Confirm Email' OFF, this creates the user AND logs them in immediately
-        const { data, error } = await supabase.auth.signUp({
+        // DEFER SIGNUP: Navigate to Terms with form data
+        navigation.replace('Terms', { signupData: {
             email: email.trim(),
-            password: password,
-            options: {
-                data: {
-                    first_name: firstName,
-                    last_name: lastName,
-                    phone: phone,
-                    role: 'buyer', // This is what the trigger will read
-                },
-            },
-        });
-
-        setLoading(false);
-
-        if (error) {
-            Alert.alert('Signup Failed', error.message);
-        } else if (data.user) {
-            Alert.alert('Success', 'Welcome to BazaarX!');
-            // Since they are auto-logged in, you can redirect them to the home screen
-            // or back to login to ensure the store state updates correctly
-            navigation.replace('Login');
-        }
+            password,
+            firstName,
+            lastName,
+            phone
+        }});
     };
 
     return (
@@ -214,6 +195,7 @@ export default function SignupScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#FFF' },
+    // ... styles remain same
     scrollContent: { padding: 24, flexGrow: 1 },
     header: { marginBottom: 32, marginTop: 20 },
     backButton: { position: 'absolute', left: 0, top: 0, zIndex: 10 },
