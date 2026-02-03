@@ -72,6 +72,7 @@ export default function HistoryScreen({ navigation }: Props) {
             price: it.unit_price,
             image: it.product?.primary_image || '',
             quantity: it.quantity,
+            selectedVariant: it.selected_variant,
           })),
           total: order.total_amount,
           shippingFee: order.shipping_cost || 0,
@@ -176,6 +177,20 @@ export default function HistoryScreen({ navigation }: Props) {
                   <Image source={{ uri: order.items[0]?.image }} style={styles.productThumb} />
                   <View style={styles.productInfo}>
                     <Text style={styles.productName} numberOfLines={1}>{order.items[0]?.name}</Text>
+                    {order.items[0]?.selectedVariant && (order.items[0].selectedVariant.size || order.items[0].selectedVariant.color) && (
+                      <View style={{ flexDirection: 'row', gap: 8, marginTop: 4, marginBottom: 4 }}>
+                        {order.items[0].selectedVariant.size && (
+                          <Text style={{ fontSize: 11, color: '#6b7280', backgroundColor: '#f3f4f6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' }}>
+                            {order.items[0].selectedVariant.size}
+                          </Text>
+                        )}
+                        {order.items[0].selectedVariant.color && (
+                          <Text style={{ fontSize: 11, color: '#6b7280', backgroundColor: '#f3f4f6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' }}>
+                            {order.items[0].selectedVariant.color}
+                          </Text>
+                        )}
+                      </View>
+                    )}
                     <View style={styles.dateRow}>
                        <Clock size={12} color="#9CA3AF" />
                        <Text style={styles.dateText}>{order.scheduledDate}</Text>

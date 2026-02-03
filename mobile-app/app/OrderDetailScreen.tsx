@@ -278,12 +278,12 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
                     <View style={{ flexDirection: 'row', gap: 8, marginTop: 2 }}>
                       {item.selectedVariant.size && (
                         <Text style={{ fontSize: 11, color: '#6b7280', backgroundColor: '#f3f4f6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
-                          Size: {item.selectedVariant.size}
+                          {item.selectedVariant.size}
                         </Text>
                       )}
                       {item.selectedVariant.color && (
                         <Text style={{ fontSize: 11, color: '#6b7280', backgroundColor: '#f3f4f6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
-                          Color: {item.selectedVariant.color}
+                          {item.selectedVariant.color}
                         </Text>
                       )}
                     </View>

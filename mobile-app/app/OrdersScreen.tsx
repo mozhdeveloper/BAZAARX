@@ -167,6 +167,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
             stock: typeof p.stock === 'number' ? p.stock : 0,
             reviews: p.reviews || [],
             quantity: it.quantity || 1,
+            selectedVariant: it.selected_variant,
           };
         });
         const shippingFee =

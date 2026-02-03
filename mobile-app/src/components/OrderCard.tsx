@@ -131,9 +131,23 @@ export const OrderCard: React.FC<OrderCardProps> = ({
 
           <View style={styles.productDetails}>
             <Text style={styles.productTitle} numberOfLines={1}>
-              {firstItem.name}
-            </Text>
-            <Text style={styles.quantityText}>x{firstItem.quantity}</Text>
+            {firstItem.name}
+          </Text>
+          {firstItem.selectedVariant && (firstItem.selectedVariant.size || firstItem.selectedVariant.color) && (
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 4, marginBottom: 4 }}>
+              {firstItem.selectedVariant.size && (
+                <Text style={{ fontSize: 11, color: '#6b7280', backgroundColor: '#f3f4f6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' }}>
+                  {firstItem.selectedVariant.size}
+                </Text>
+              )}
+              {firstItem.selectedVariant.color && (
+                <Text style={{ fontSize: 11, color: '#6b7280', backgroundColor: '#f3f4f6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' }}>
+                  {firstItem.selectedVariant.color}
+                </Text>
+              )}
+            </View>
+          )}
+          <Text style={styles.quantityText}>x{firstItem.quantity}</Text>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryText}>
                 Total ({itemCount} items): <Text style={styles.totalPrice}>₱{order.total.toLocaleString()}</Text>
