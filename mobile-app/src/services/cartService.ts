@@ -140,6 +140,8 @@ export class CartService {
         if (!isSupabaseConfigured()) return;
 
         try {
+            console.log('[CartService] Adding item:', { cartId, productId, unitPrice, quantity, selectedVariant });
+
             // Build query to find existing item with same variant
             let query = supabase
                 .from('cart_items')
@@ -149,10 +151,25 @@ export class CartService {
             
             // For items with same variant, we increment quantity
             // For items with different variant, we add a new row
-            const { data: existingItems } = await query;
+            const { data: existingItems, error: fetchError } = await query;
+            
+            if (fetchError) {
+                console.error('[CartService] Error fetching existing items:', fetchError);
+                throw fetchError;
+            }
 
             const matchingItem = (existingItems || []).find((item: any) => {
-                const itemVariant = item.selected_variant || null;
+                let itemVariant = item.selected_variant || null;
+                
+                // Handle stringified JSON from DB if necessary
+                if (typeof itemVariant === 'string') {
+                    try {
+                        itemVariant = JSON.parse(itemVariant);
+                    } catch (e) {
+                        // ignore error, keep as string or null
+                    }
+                }
+                
                 const newVariant = selectedVariant || null;
                 
                 // Both null = match
@@ -161,19 +178,25 @@ export class CartService {
                 // One null = no match
                 if (!itemVariant || !newVariant) return false;
                 
-                // Compare variants
-                return itemVariant.color === newVariant.color && 
-                       itemVariant.size === newVariant.size;
+                // Compare variants (normalization for safety)
+                const itemColor = itemVariant.color?.toString().trim() || '';
+                const itemSize = itemVariant.size?.toString().trim() || '';
+                const newColor = newVariant.color?.toString().trim() || '';
+                const newSize = newVariant.size?.toString().trim() || ''; // Ensure 'toString' to avoid type errors
+
+                return itemColor === newColor && itemSize === newSize;
             });
 
             if (matchingItem) {
+                console.log('[CartService] Updating quantity for existing item:', matchingItem.id);
                 const newQty = (matchingItem as any).quantity + quantity;
                 await supabase
                     .from('cart_items')
                     .update({ quantity: newQty, subtotal: newQty * unitPrice })
                     .eq('id', (matchingItem as any).id);
             } else {
-                await supabase
+                console.log('[CartService] Inserting new item');
+                const { error: insertError } = await supabase
                     .from('cart_items')
                     .insert({
                         cart_id: cartId,
@@ -182,6 +205,11 @@ export class CartService {
                         subtotal: quantity * unitPrice,
                         selected_variant: selectedVariant || null,
                     });
+                
+                if (insertError) {
+                    console.error('[CartService] Error inserting item:', insertError);
+                    throw insertError;
+                }
             }
 
             await this.syncCartTotal(cartId);

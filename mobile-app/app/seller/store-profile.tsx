@@ -539,16 +539,16 @@ export default function StoreProfileScreen() {
       {/* Header - Edge to Edge Orange - Match orders/dashboard style */}
       <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: '#FF5722' }]}>
         <View style={styles.headerTop}>
-            <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-                <ArrowLeft size={24} color="#FFF" strokeWidth={2.5} />
-            </Pressable>
-            <Text style={styles.headerTitle}>Store Profile</Text>
-            <View style={{ width: 40 }} />
+          <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
+            <ArrowLeft size={24} color="#FFF" strokeWidth={2.5} />
+          </Pressable>
+          <Text style={styles.headerTitle}>Store Profile</Text>
+          <View style={{ width: 40 }} />
         </View>
 
         {isVerified && (
           <View style={[styles.headerBadge, { position: 'absolute', right: 20, top: insets.top + 14 }]}>
-              <CheckCircle size={16} color="#10B981" strokeWidth={2.5} />
+            <CheckCircle size={16} color="#10B981" strokeWidth={2.5} />
           </View>
         )}
       </View>

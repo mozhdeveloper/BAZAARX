@@ -583,9 +583,6 @@ export default function HomeScreen({ navigation }: Props) {
                   category: 'Electronics',
                   stock: 50
                 }} onPress={() => { }} />
-                <View style={[styles.discountTag, { backgroundColor: BRAND_COLOR }]}>
-                  <Text style={styles.discountTagText}>-48%</Text>
-                </View>
               </View>
             </ScrollView>
 

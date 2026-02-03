@@ -34,14 +34,16 @@ export interface SellerOrder {
 interface OrderStore {
   // Buyer Orders
   orders: Order[];
+  ordersLoading: boolean;
   createOrder: (
     items: CartItem[],
     shippingAddress: ShippingAddress,
     paymentMethod: string,
     options?: { isGift?: boolean; isAnonymous?: boolean; recipientId?: string }
-  ) => Order;
+  ) => Promise<Order>; // Changed to Promise
+  fetchOrders: (userId: string) => Promise<void>; // Added fetchOrders
   getOrderById: (orderId: string) => Order | undefined;
-  updateOrderStatus: (orderId: string, status: Order['status']) => void;
+  updateOrderStatus: (orderId: string, status: Order['status']) => Promise<void>; // Changed to Promise
   getActiveOrders: () => Order[];
   getCompletedOrders: () => Order[];
 
@@ -375,8 +377,21 @@ export const useOrderStore = create<OrderStore>()(
   persist(
     (set, get) => ({
       orders: dummyOrders,
+      ordersLoading: false,
 
-      createOrder: (items, shippingAddress, paymentMethod, options) => {
+      fetchOrders: async (userId: string) => {
+          set({ ordersLoading: true });
+          try {
+              const orders = await orderService.getOrders(userId);
+              set({ orders: orders });
+          } catch (error) {
+              console.error('Error fetching orders:', error);
+          } finally {
+              set({ ordersLoading: false });
+          }
+      },
+
+      createOrder: async (items, shippingAddress, paymentMethod, options) => {
         // Ensure items array is not empty
         if (!items || items.length === 0) {
           throw new Error('Cannot create order with empty cart');
@@ -461,7 +476,7 @@ export const useOrderStore = create<OrderStore>()(
         return get().orders.find((order) => order.id === orderId);
       },
 
-      updateOrderStatus: (orderId, status) => {
+      updateOrderStatus: async (orderId, status) => {
         set({
           orders: get().orders.map((order) =>
             order.id === orderId

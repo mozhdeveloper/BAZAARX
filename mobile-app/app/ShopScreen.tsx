@@ -18,7 +18,7 @@ import MultiSlider from '@ptomasroos/react-native-multi-slider';
 import CameraSearchModal from '../src/components/CameraSearchModal';
 import { ProductCard } from '../src/components/ProductCard';
 // Use the service you provided
-import { productService } from '../src/services/productService'; 
+import { productService } from '../src/services/productService';
 import { supabase } from '../src/lib/supabase';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
@@ -65,13 +65,13 @@ export default function ShopScreen({ navigation, route }: Props) {
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery || '');
   const [selectedCategory, setSelectedCategory] = useState(initialCategory || 'all');
   const [selectedSort, setSelectedSort] = useState('relevance');
-  
+
   const [minPrice, setMinPrice] = useState('0');
   const [maxPrice, setMaxPrice] = useState('100000');
   const [multiSliderValue, setMultiSliderValue] = useState([0, 100000]);
   const [minInput, setMinInput] = useState('0');
   const [maxInput, setMaxInput] = useState('100000');
-  
+
   const [showFiltersModal, setShowFiltersModal] = useState(false);
   const [showCameraSearch, setShowCameraSearch] = useState(false);
 
@@ -105,10 +105,14 @@ export default function ShopScreen({ navigation, route }: Props) {
             sellerVerified: !!row.seller?.is_verified,
             category: row.category ?? '',
             created_at: row.created_at,
+            colors: Array.isArray(row.colors) ? row.colors : [],
+            sizes: Array.isArray(row.sizes) ? row.sizes : [],
           }));
-          setDbProducts(mapped);
+          // Deduplicate by ID to prevent key errors
+          const uniqueMapped = Array.from(new Map(mapped.map(item => [item.id, item])).values());
+          setDbProducts(uniqueMapped);
         }
-        
+
         if (sellersData) setSellers(sellersData);
       } catch (err) {
         console.error('[ShopScreen] Error loading data:', err);
@@ -125,9 +129,9 @@ export default function ShopScreen({ navigation, route }: Props) {
     setMaxInput(values[1].toString());
   };
 
-const filteredProducts = useMemo(() => {
+  const filteredProducts = useMemo(() => {
     if (customResults && customResults.length > 0) return customResults;
-    
+
     // 1. Filter first
     let filtered = dbProducts.filter(p => {
       // Safely handle potential undefined values
@@ -138,7 +142,7 @@ const filteredProducts = useMemo(() => {
       const nameMatch = pName.toLowerCase().includes(searchQuery.toLowerCase());
       const categoryMatch = selectedCategory === 'all' || pCategory.toLowerCase().replace(/\s+/g, '-') === selectedCategory;
       const priceMatch = pPrice >= parseFloat(minPrice) && pPrice <= parseFloat(maxPrice);
-      
+
       return nameMatch && categoryMatch && priceMatch;
     });
 
@@ -152,10 +156,10 @@ const filteredProducts = useMemo(() => {
     } else if (selectedSort === 'newest') {
       filtered.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
     }
-    
+
     return filtered;
   }, [dbProducts, searchQuery, selectedCategory, selectedSort, customResults, minPrice, maxPrice]);
-  
+
   const verifiedStores = useMemo(() => {
     return (sellers || [])
       .map(s => ({
@@ -293,26 +297,26 @@ const filteredProducts = useMemo(() => {
               <View style={styles.priceInputsRow}>
                 <View style={styles.priceInputContainer}>
                   <Text style={styles.priceInputLabel}>Min (₱)</Text>
-                  <TextInput 
-                    style={styles.priceTextInput} 
-                    value={minInput} 
-                    onChangeText={setMinInput} 
-                    keyboardType="numeric" 
+                  <TextInput
+                    style={styles.priceTextInput}
+                    value={minInput}
+                    onChangeText={setMinInput}
+                    keyboardType="numeric"
                   />
                 </View>
                 <View style={styles.priceInputContainer}>
                   <Text style={styles.priceInputLabel}>Max (₱)</Text>
-                  <TextInput 
-                    style={styles.priceTextInput} 
-                    value={maxInput} 
-                    onChangeText={setMaxInput} 
-                    keyboardType="numeric" 
+                  <TextInput
+                    style={styles.priceTextInput}
+                    value={maxInput}
+                    onChangeText={setMaxInput}
+                    keyboardType="numeric"
                   />
                 </View>
               </View>
-              
+
               <View style={styles.sliderContainer}>
-                 <MultiSlider
+                <MultiSlider
                   values={[multiSliderValue[0], multiSliderValue[1]]}
                   sliderLength={width - 80}
                   onValuesChange={handleSliderChange}
@@ -332,7 +336,7 @@ const filteredProducts = useMemo(() => {
                 </Pressable>
               ))}
 
-              <Pressable 
+              <Pressable
                 style={[styles.applyButton, { backgroundColor: BRAND_COLOR }]}
                 onPress={() => {
                   setMinPrice(minInput);

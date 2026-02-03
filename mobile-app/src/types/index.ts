@@ -106,6 +106,14 @@ export interface Order {
   isGift?: boolean;
   isAnonymous?: boolean;
   recipientId?: string;
+  sellerInfo?: {
+    id?: string;
+    store_name?: string;
+    business_name?: string;
+    rating?: number;
+    is_verified?: boolean;
+    business_address?: string;
+  };
 }
 
 export interface ShippingAddress {

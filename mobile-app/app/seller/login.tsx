@@ -24,11 +24,11 @@ const { width } = Dimensions.get('window');
 
 // Test seller accounts - All have password: Seller123!
 const TEST_SELLER_ACCOUNTS = [
-  { email: 'maria.santos@bazaarph.com', password: 'Seller123!', name: 'Bazaar Seller Store' },
-  { email: 'juan.tech@bazaarph.com', password: 'Seller123!', name: 'Seller123 Store' },
-  { email: 'wellness.haven@bazaarph.com', password: 'Seller123!', name: 'Soap Station' },
-  { email: 'home.essentials@bazaarph.com', password: 'Seller123!', name: 'Apple Store' },
-  { email: 'active.sports@bazaarph.com', password: 'Seller123!', name: "Maker's Trail" },
+  { email: 'maria.santos@bazaarph.com', password: 'Seller123!', name: "Maria's Fashion House" },
+  { email: 'juan.tech@bazaarph.com', password: 'Seller123!', name: 'TechHub Philippines' },
+  { email: 'wellness.haven@bazaarph.com', password: 'Seller123!', name: 'Wellness Haven PH' },
+  { email: 'home.essentials@bazaarph.com', password: 'Seller123!', name: 'Home Essentials' },
+  { email: 'active.sports@bazaarph.com', password: 'Seller123!', name: "Active Sports PH" },
 ];
 
 export default function SellerLoginScreen() {
