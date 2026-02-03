@@ -27,6 +27,7 @@ import {
 } from "../data/products";
 import { useBuyerStore, demoSellers } from "../stores/buyerStore";
 import { useProductStore, useAuthStore } from "../stores/sellerStore";
+import { useChatStore } from "../stores/chatStore";
 import { Button } from "../components/ui/button";
 import Header from "../components/Header";
 import { BazaarFooter } from "../components/ui/bazaar-footer";
@@ -982,6 +983,27 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
   const [replyText, setReplyText] = useState("");
   const [reviewFilter, setReviewFilter] = useState("all");
 
+  // Set chat target for floating bubble when viewing product
+  useEffect(() => {
+    if (normalizedProduct && currentSeller) {
+      useChatStore.getState().openChat({
+        sellerId: normalizedProduct?.sellerId || 'seller-001',
+        sellerName: normalizedProduct?.seller || currentSeller.name || 'Official Store',
+        sellerAvatar: currentSeller.avatar,
+        productId: normalizedProduct?.id,
+        productName: productData.name || normalizedProduct?.name,
+        productImage: productData.images?.[0] || normalizedProduct?.image,
+      });
+      // Start in mini mode (just the bubble)
+      useChatStore.getState().setMiniMode(true);
+    }
+    
+    // Cleanup - clear chat target when leaving page
+    return () => {
+      useChatStore.getState().closeChat();
+      useChatStore.getState().clearChatTarget();
+    };
+  }, [normalizedProduct?.id]);
 
 
   if (!normalizedProduct) {
@@ -1325,14 +1347,34 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                   </div>
                 </div>
               </div>
-              <div className="flex flex-col items-end gap-1">
-                <div className="flex items-center gap-1 text-[#ff6a00] font-medium text-xs whitespace-nowrap">
-                  <Star className="w-3 h-3 fill-current" />{" "}
-                  {currentSeller.rating}
-                </div>
-                <div className="flex items-center gap-1 text-xs text-gray-600 group-hover:text-[#ff6a00] transition-colors">
-                  <span>Visit Store</span>
-                  <ChevronRight className="w-4 h-4" />
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    useChatStore.getState().openChat({
+                      sellerId: normalizedProduct?.sellerId || 'seller-001',
+                      sellerName: normalizedProduct?.seller || 'Official Store',
+                      sellerAvatar: currentSeller.avatar,
+                      productId: normalizedProduct?.id,
+                      productName: productData.name,
+                      productImage: productData.images?.[0] || normalizedProduct?.image,
+                    });
+                    useChatStore.getState().setMiniMode(false);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-orange-50 hover:bg-orange-100 text-orange-600 text-xs font-medium transition-all border border-orange-200"
+                >
+                  <MessageCircle className="w-3.5 h-3.5" />
+                  Chat
+                </button>
+                <div className="flex flex-col items-end gap-1">
+                  <div className="flex items-center gap-1 text-[#ff6a00] font-medium text-xs whitespace-nowrap">
+                    <Star className="w-3 h-3 fill-current" />{" "}
+                    {currentSeller.rating}
+                  </div>
+                  <div className="flex items-center gap-1 text-xs text-gray-600 group-hover:text-[#ff6a00] transition-colors">
+                    <span>Visit Store</span>
+                    <ChevronRight className="w-4 h-4" />
+                  </div>
                 </div>
               </div>
             </div>

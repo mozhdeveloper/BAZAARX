@@ -75,7 +75,10 @@ export class ReviewService {
                 .order('created_at', { ascending: false })
                 .range(from, to);
 
-            if (error) throw error;
+            if (error) {
+                console.error('Error fetching product reviews:', error);
+                return { reviews: [], total: 0 };
+            }
 
             return {
                 // @ts-ignore - Supabase types might not fully infer the joined relation
@@ -84,7 +87,7 @@ export class ReviewService {
             };
         } catch (error) {
             console.error('Error fetching product reviews:', error);
-            throw new Error('Failed to fetch reviews');
+            return { reviews: [], total: 0 };
         }
     }
 
