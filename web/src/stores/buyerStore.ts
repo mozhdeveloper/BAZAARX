@@ -1050,7 +1050,6 @@ export const useBuyerStore = create<BuyerStore>()(persist(
               followed_shops: [],
               total_spent: 0,
               bazcoins: 0,
-              total_orders: 0,
             }]);
 
           if (insertError) {
@@ -1088,7 +1087,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
           memberSince: new Date(profileInfo.created_at),
           totalSpent: buyerData.total_spent || 0,
           bazcoins: buyerData.bazcoins || 0,
-          totalOrders: buyerData.total_orders || 0,
+          totalOrders: 0,
         };
 
         // Set the profile in the store

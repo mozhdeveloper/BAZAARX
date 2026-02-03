@@ -141,7 +141,7 @@ export default function ShopPage() {
     return () => {
       unsubscribe();
     };
-  }, [fetchProducts, subscribeToProducts]);
+  }, []);
 
   useEffect(() => {
     setSearchQuery(searchParams.get("q") || "");

@@ -104,9 +104,15 @@ export default function OrderDetailPage() {
           query = query.eq("order_number", orderId);
         }
 
-        const { data: orderData, error } = await query.single();
+        const { data: orderData, error } = await query.maybeSingle();
 
         if (error) throw error;
+
+        if (!orderData) {
+          console.error("Order not found or access denied");
+          navigate("/orders");
+          return;
+        }
 
         if (orderData) {
           // Extract seller info
@@ -184,8 +190,8 @@ export default function OrderDetailPage() {
                 "",
             },
             paymentMethod: {
-              type: typeof orderData.payment_method === 'string' 
-                ? orderData.payment_method 
+              type: typeof orderData.payment_method === 'string'
+                ? orderData.payment_method
                 : (orderData.payment_method as any)?.type || "cod",
               details: undefined, // No extra details needed
             },
@@ -224,13 +230,13 @@ export default function OrderDetailPage() {
       try {
         // Get or create conversation
         const conv = await chatService.getOrCreateConversation(profile.id, sellerId);
-        
+
         if (conv) {
           setConversation(conv);
-          
+
           // Load messages
           const messages = await chatService.getMessages(conv.id);
-          
+
           // Convert to local format
           const formattedMessages: ChatMessage[] = messages.map((msg: Message) => ({
             id: msg.id,
@@ -239,7 +245,7 @@ export default function OrderDetailPage() {
             timestamp: new Date(msg.created_at),
             read: msg.is_read,
           }));
-          
+
           // Add system message at the start if this is a new order
           if (formattedMessages.length === 0) {
             formattedMessages.unshift({
@@ -250,9 +256,9 @@ export default function OrderDetailPage() {
               read: true,
             });
           }
-          
+
           setChatMessages(formattedMessages);
-          
+
           // Mark messages as read
           await chatService.markConversationAsRead(conv.id, 'buyer');
         }
@@ -280,13 +286,13 @@ export default function OrderDetailPage() {
           timestamp: new Date(newMessage.created_at),
           read: newMessage.is_read,
         };
-        
+
         setChatMessages(prev => {
           // Avoid duplicates
           if (prev.some(m => m.id === newMessage.id)) return prev;
           return [...prev, formattedMessage];
         });
-        
+
         // Mark as read if from seller
         if (newMessage.sender_type === 'seller') {
           chatService.markConversationAsRead(conversation.id, 'buyer');
@@ -435,7 +441,7 @@ export default function OrderDetailPage() {
 
       if (sentMessage) {
         // Replace temp message with real one
-        setChatMessages(prev => 
+        setChatMessages(prev =>
           prev.map(m => m.id === tempId ? {
             id: sentMessage.id,
             sender: 'buyer',
@@ -546,7 +552,7 @@ export default function OrderDetailPage() {
     doc.rect(0, 0, pageWidth, 8, 'F');
 
     y = 25;
-    
+
     // Company Logo/Name
     doc.setTextColor(...primaryColor);
     doc.setFont('helvetica', 'bold');
@@ -575,32 +581,32 @@ export default function OrderDetailPage() {
     doc.setDrawColor(229, 231, 235);
     doc.setLineWidth(0.5);
     doc.roundedRect(20, y, pageWidth - 40, 28, 3, 3, 'S');
-    
+
     doc.setTextColor(...darkGray);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
-    
+
     const orderInfoY = y + 8;
     doc.text('Receipt No:', 25, orderInfoY);
     doc.setFont('helvetica', 'bold');
     doc.text(order.id.substring(0, 12), 55, orderInfoY);
-    
+
     doc.setFont('helvetica', 'normal');
     doc.text('Order No:', 25, orderInfoY + 7);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(...primaryColor);
     doc.text(order.orderNumber || (dbOrder as any)?.order_number || 'N/A', 55, orderInfoY + 7);
-    
+
     doc.setTextColor(...darkGray);
     doc.setFont('helvetica', 'normal');
     doc.text('Date:', 25, orderInfoY + 14);
     doc.text(formatDatePH(order.date), 55, orderInfoY + 14);
-    
+
     y += 35;
 
     // ========== SOLD TO / SOLD BY SECTION ==========
     const boxWidth = (pageWidth - 50) / 2;
-    
+
     // Sold To Box
     doc.setFillColor(249, 250, 251);
     doc.rect(20, y, boxWidth, 42, 'F');
@@ -608,7 +614,7 @@ export default function OrderDetailPage() {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
     doc.text('SOLD TO', 25, y + 8);
-    
+
     doc.setTextColor(...darkGray);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
@@ -617,7 +623,7 @@ export default function OrderDetailPage() {
     doc.text(`${order.shippingAddress.city}, ${order.shippingAddress.province}`, 25, y + 28);
     doc.text(order.shippingAddress.postalCode, 25, y + 34);
     doc.text(order.shippingAddress.phone, 25, y + 40);
-    
+
     // Sold By Box
     doc.setFillColor(254, 243, 237);
     doc.rect(25 + boxWidth, y, boxWidth, 42, 'F');
@@ -625,13 +631,13 @@ export default function OrderDetailPage() {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
     doc.text('SOLD BY', 30 + boxWidth, y + 8);
-    
+
     doc.setTextColor(...darkGray);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
     doc.text(storeName, 30 + boxWidth, y + 16);
     doc.text('BazaarX Verified Seller', 30 + boxWidth, y + 24);
-    
+
     y += 50;
 
     // ========== ORDER ITEMS TABLE ==========
@@ -660,18 +666,18 @@ export default function OrderDetailPage() {
       // Calculate row height based on whether there's variant info
       const hasVariant = item.variant && (item.variant.size || item.variant.color);
       const rowHeight = hasVariant ? 16 : 10;
-      
+
       // Alternate row background
       if (index % 2 === 0) {
         doc.setFillColor(249, 250, 251);
         doc.rect(20, y - 4, pageWidth - 40, rowHeight, 'F');
       }
-      
+
       // Item name
       const itemName = item.name.length > 35 ? item.name.substring(0, 32) + '...' : item.name;
       doc.setFont('helvetica', 'normal');
       doc.text(itemName, 25, y + 2);
-      
+
       // Variant info (size, color) on second line
       if (hasVariant) {
         doc.setFontSize(7);
@@ -683,7 +689,7 @@ export default function OrderDetailPage() {
         doc.setFontSize(9);
         doc.setTextColor(...darkGray);
       }
-      
+
       doc.text(item.quantity.toString(), 125, y + 2);
       doc.text(formatPHP(item.price), 140, y + 2);
       doc.text(formatPHP(item.quantity * item.price), 170, y + 2);
@@ -698,15 +704,15 @@ export default function OrderDetailPage() {
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(...darkGray);
-    
+
     doc.text('Subtotal:', 130, y);
     rightText(formatPHP(calculatedSubtotal), y);
     y += 7;
-    
+
     doc.text('Shipping:', 130, y);
     rightText(shippingCost === 0 ? 'FREE' : formatPHP(shippingCost), y);
     y += 10;
-    
+
     // Total with background
     doc.setFillColor(...primaryColor);
     doc.rect(120, y - 5, pageWidth - 140, 12, 'F');
@@ -722,7 +728,7 @@ export default function OrderDetailPage() {
     // ========== PAYMENT & STATUS ==========
     doc.setTextColor(...darkGray);
     doc.setFontSize(10);
-    
+
     // Payment Box
     doc.setDrawColor(229, 231, 235);
     doc.roundedRect(20, y, (pageWidth - 50) / 2, 25, 2, 2, 'S');
@@ -733,7 +739,7 @@ export default function OrderDetailPage() {
     doc.text(getPaymentLabel(order.paymentMethod.type), 25, y + 16);
     doc.setTextColor(order.isPaid ? 22 : 220, order.isPaid ? 163 : 38, order.isPaid ? 74 : 38);
     doc.text(order.isPaid ? 'PAID' : 'Pending Payment', 25, y + 22);
-    
+
     // Status Box
     const statusX = 25 + (pageWidth - 50) / 2;
     doc.setTextColor(...darkGray);
@@ -746,7 +752,7 @@ export default function OrderDetailPage() {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11);
     doc.text(order.status.toUpperCase().replace('_', ' '), statusX + 5, y + 18);
-    
+
     y += 32;
 
     // Tracking Number if exists
@@ -762,7 +768,7 @@ export default function OrderDetailPage() {
     y = pageHeight - 35;
     drawLine(y, primaryColor);
     y += 8;
-    
+
     doc.setTextColor(...darkGray);
     doc.setFont('helvetica', 'italic');
     doc.setFontSize(10);
@@ -1094,55 +1100,55 @@ export default function OrderDetailPage() {
                     </div>
                   ) : (
                     chatMessages.map((msg) => (
-                    <div
-                      key={msg.id}
-                      className={cn(
-                        "flex",
-                        msg.sender === "buyer"
-                          ? "justify-end"
-                          : "justify-start",
-                      )}
-                    >
                       <div
+                        key={msg.id}
                         className={cn(
-                          "max-w-[70%] rounded-lg px-4 py-2",
+                          "flex",
                           msg.sender === "buyer"
-                            ? "bg-orange-500 text-white"
-                            : msg.sender === "seller"
-                              ? "bg-white border border-gray-200 text-gray-900"
-                              : "bg-blue-50 border border-blue-200 text-blue-900 text-sm",
+                            ? "justify-end"
+                            : "justify-start",
                         )}
                       >
-                        {msg.sender === "seller" && (
-                          <div className="flex items-center gap-2 mb-1">
-                            <Store className="w-3 h-3" />
-                            <span className="text-xs font-semibold">
-                              {storeName}
-                            </span>
-                          </div>
-                        )}
-                        {msg.sender === "system" && (
-                          <div className="flex items-center gap-2 mb-1">
-                            <AlertCircle className="w-3 h-3" />
-                            <span className="text-xs font-semibold">
-                              System
-                            </span>
-                          </div>
-                        )}
-                        <p className="text-sm">{msg.message}</p>
-                        <p
+                        <div
                           className={cn(
-                            "text-xs mt-1",
+                            "max-w-[70%] rounded-lg px-4 py-2",
                             msg.sender === "buyer"
-                              ? "text-orange-100"
-                              : "text-gray-500",
+                              ? "bg-orange-500 text-white"
+                              : msg.sender === "seller"
+                                ? "bg-white border border-gray-200 text-gray-900"
+                                : "bg-blue-50 border border-blue-200 text-blue-900 text-sm",
                           )}
                         >
-                          {formatTime(msg.timestamp)}
-                        </p>
+                          {msg.sender === "seller" && (
+                            <div className="flex items-center gap-2 mb-1">
+                              <Store className="w-3 h-3" />
+                              <span className="text-xs font-semibold">
+                                {storeName}
+                              </span>
+                            </div>
+                          )}
+                          {msg.sender === "system" && (
+                            <div className="flex items-center gap-2 mb-1">
+                              <AlertCircle className="w-3 h-3" />
+                              <span className="text-xs font-semibold">
+                                System
+                              </span>
+                            </div>
+                          )}
+                          <p className="text-sm">{msg.message}</p>
+                          <p
+                            className={cn(
+                              "text-xs mt-1",
+                              msg.sender === "buyer"
+                                ? "text-orange-100"
+                                : "text-gray-500",
+                            )}
+                          >
+                            {formatTime(msg.timestamp)}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                  ))
+                    ))
                   )}
                   <div ref={chatEndRef} />
                 </div>
@@ -1222,10 +1228,10 @@ export default function OrderDetailPage() {
                     <div>
                       <p className="font-medium text-gray-900">
                         {order.paymentMethod.type === 'cod' ? 'Cash on Delivery (COD)' :
-                         order.paymentMethod.type === 'gcash' ? 'GCash' :
-                         order.paymentMethod.type === 'paymaya' ? 'PayMaya' :
-                         order.paymentMethod.type === 'card' ? 'Credit/Debit Card' :
-                         String(order.paymentMethod.type).toUpperCase()}
+                          order.paymentMethod.type === 'gcash' ? 'GCash' :
+                            order.paymentMethod.type === 'paymaya' ? 'PayMaya' :
+                              order.paymentMethod.type === 'card' ? 'Credit/Debit Card' :
+                                String(order.paymentMethod.type).toUpperCase()}
                       </p>
                     </div>
                   </div>

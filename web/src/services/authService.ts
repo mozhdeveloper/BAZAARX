@@ -82,8 +82,8 @@ export class AuthService {
 
       // Check if this is a "user already registered" error
       if (error?.message?.includes('User already registered') ||
-          error?.message?.includes('already exists') ||
-          error?.status === 422) {
+        error?.message?.includes('already exists') ||
+        error?.status === 422) {
         // Return a specific error that indicates user already exists
         const authError = new Error('User already registered');
         (authError as any).isAlreadyRegistered = true;
@@ -431,9 +431,7 @@ export class AuthService {
             },
           },
           followed_shops: [],
-          total_spent: 0,
           bazcoins: 0,
-          total_orders: 0,
         },
         { onConflict: 'id' }
       );
@@ -465,9 +463,7 @@ export class AuthService {
           payment_methods: [],
           preferences: {},
           followed_shops: [],
-          total_spent: 0,
           bazcoins: 0,
-          total_orders: 0,
         },
         { onConflict: 'id' }
       );
