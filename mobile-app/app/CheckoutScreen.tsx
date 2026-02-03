@@ -456,92 +456,92 @@ export default function CheckoutScreen({ navigation, route }: Props) {
         console.log('[Checkout] Fetched addresses:', addressData.length, 'addresses');
         setAddresses(addressData);
 
-          // If this is a gift, DO NOT overwrite the selected address with defaults
-          // The other useEffect handles setting the registry address
-          if (isGift) {
-            console.log('[Checkout] Gift mode active, skipping default address selection');
-            setIsLoadingAddresses(false);
-            return;
-          }
+        // If this is a gift, DO NOT overwrite the selected address with defaults
+        // The other useEffect handles setting the registry address
+        if (isGift) {
+          console.log('[Checkout] Gift mode active, skipping default address selection');
+          setIsLoadingAddresses(false);
+          return;
+        }
 
-          // Priority: 1) Address from HomeScreen location modal (via route params)
-          //           2) "Current Location" from database (saved by HomeScreen)
-          //           3) AsyncStorage fallback (if route params not available)
-          //           4) Default saved address
-          //           5) First saved address
-          let homeScreenAddress = params?.deliveryAddress;
-          let homeScreenCoords = params?.deliveryCoordinates;
+        // Priority: 1) Address from HomeScreen location modal (via route params)
+        //           2) "Current Location" from database (saved by HomeScreen)
+        //           3) AsyncStorage fallback (if route params not available)
+        //           4) Default saved address
+        //           5) First saved address
+        let homeScreenAddress = params?.deliveryAddress;
+        let homeScreenCoords = params?.deliveryCoordinates;
 
-          // If no route params, try to get from AsyncStorage or database
-          if (!homeScreenAddress || homeScreenAddress === 'Select Location') {
-            try {
-              // First try database for "Current Location"
-              const dbCurrentLoc = await addressService.getCurrentDeliveryLocation(user.id);
-              if (dbCurrentLoc && dbCurrentLoc.label === 'Current Location') {
-                console.log('[Checkout] Found Current Location in database');
-                homeScreenAddress = `${dbCurrentLoc.street}, ${dbCurrentLoc.city}`;
-                homeScreenCoords = dbCurrentLoc.coordinates;
-              } else {
-                // Fall back to AsyncStorage
-                const storedAddress = await AsyncStorage.getItem('currentDeliveryAddress');
-                const storedCoords = await AsyncStorage.getItem('currentDeliveryCoordinates');
-                if (storedAddress && storedAddress !== 'Select Location') {
-                  console.log('[Checkout] Found address in AsyncStorage:', storedAddress);
-                  homeScreenAddress = storedAddress;
-                  homeScreenCoords = storedCoords ? JSON.parse(storedCoords) : null;
-                }
-              }
-            } catch (storageError) {
-              console.log('[Checkout] Error reading stored address:', storageError);
-            }
-          }
-
-          if (homeScreenAddress && homeScreenAddress !== 'Select Location') {
-            console.log('[Checkout] Using address from HomeScreen:', homeScreenAddress);
-
-            // Check if this matches a saved address (including "Current Location" from DB)
-            const matchingAddress = addressData.find(addr =>
-              addr.label === 'Current Location' ||
-              `${addr.street}, ${addr.city}` === homeScreenAddress ||
-              homeScreenAddress.includes(addr.street)
-            );
-
-            if (matchingAddress) {
-              // Use the matching saved address
-              console.log('[Checkout] Found matching saved address:', matchingAddress.label);
-              setSelectedAddress(matchingAddress);
-              setTempSelectedAddress(matchingAddress);
+        // If no route params, try to get from AsyncStorage or database
+        if (!homeScreenAddress || homeScreenAddress === 'Select Location') {
+          try {
+            // First try database for "Current Location"
+            const dbCurrentLoc = await addressService.getCurrentDeliveryLocation(user.id);
+            if (dbCurrentLoc && dbCurrentLoc.label === 'Current Location') {
+              console.log('[Checkout] Found Current Location in database');
+              homeScreenAddress = `${dbCurrentLoc.street}, ${dbCurrentLoc.city}`;
+              homeScreenCoords = dbCurrentLoc.coordinates;
             } else {
-              // Create a temporary address object from HomeScreen's location
-              console.log('[Checkout] Creating temporary address from HomeScreen location');
-              const tempAddr: Address = {
-                id: 'temp-' + Date.now(),
-                user_id: user.id,
-                label: 'Current Location',
-                first_name: user.name?.split(' ')[0] || 'User',
-                last_name: user.name?.split(' ').slice(1).join(' ') || '',
-                phone: user.phone || '',
-                street: homeScreenAddress.split(',')[0].trim(),
-                barangay: '',
-                city: homeScreenAddress.split(',')[1]?.trim() || '',
-                province: homeScreenAddress.split(',')[2]?.trim() || '',
-                region: '',
-                postal_code: '',
-                is_default: false,
-                coordinates: homeScreenCoords || null,
-              };
-              setSelectedAddress(tempAddr);
-              setTempSelectedAddress(tempAddr);
+              // Fall back to AsyncStorage
+              const storedAddress = await AsyncStorage.getItem('currentDeliveryAddress');
+              const storedCoords = await AsyncStorage.getItem('currentDeliveryCoordinates');
+              if (storedAddress && storedAddress !== 'Select Location') {
+                console.log('[Checkout] Found address in AsyncStorage:', storedAddress);
+                homeScreenAddress = storedAddress;
+                homeScreenCoords = storedCoords ? JSON.parse(storedCoords) : null;
+              }
             }
-          } else {
-            // Use default or first saved address
-          const defaultAddr = addressData.find(a => a.is_default) || addressData[0];
-            if (defaultAddr) {
-              console.log('[Checkout] Using default/first address:', defaultAddr.id);
-              setSelectedAddress(defaultAddr);
-              setTempSelectedAddress(defaultAddr);
-            }
+          } catch (storageError) {
+            console.log('[Checkout] Error reading stored address:', storageError);
           }
+        }
+
+        if (homeScreenAddress && homeScreenAddress !== 'Select Location') {
+          console.log('[Checkout] Using address from HomeScreen:', homeScreenAddress);
+
+          // Check if this matches a saved address (including "Current Location" from DB)
+          const matchingAddress = addressData.find(addr =>
+            addr.label === 'Current Location' ||
+            `${addr.street}, ${addr.city}` === homeScreenAddress ||
+            homeScreenAddress.includes(addr.street)
+          );
+
+          if (matchingAddress) {
+            // Use the matching saved address
+            console.log('[Checkout] Found matching saved address:', matchingAddress.label);
+            setSelectedAddress(matchingAddress);
+            setTempSelectedAddress(matchingAddress);
+          } else {
+            // Create a temporary address object from HomeScreen's location
+            console.log('[Checkout] Creating temporary address from HomeScreen location');
+            const tempAddr: Address = {
+              id: 'temp-' + Date.now(),
+              user_id: user.id,
+              label: 'Current Location',
+              first_name: user.name?.split(' ')[0] || 'User',
+              last_name: user.name?.split(' ').slice(1).join(' ') || '',
+              phone: user.phone || '',
+              street: homeScreenAddress.split(',')[0].trim(),
+              barangay: '',
+              city: homeScreenAddress.split(',')[1]?.trim() || '',
+              province: homeScreenAddress.split(',')[2]?.trim() || '',
+              region: '',
+              postal_code: '',
+              is_default: false,
+              coordinates: homeScreenCoords || null,
+            };
+            setSelectedAddress(tempAddr);
+            setTempSelectedAddress(tempAddr);
+          }
+        } else {
+          // Use default or first saved address
+          const defaultAddr = addressData.find(a => a.is_default) || addressData[0];
+          if (defaultAddr) {
+            console.log('[Checkout] Using default/first address:', defaultAddr.id);
+            setSelectedAddress(defaultAddr);
+            setTempSelectedAddress(defaultAddr);
+          }
+        }
 
         // Fetch Bazcoins balance
         const coins = await addressService.getBazcoins(user.id);
@@ -1392,7 +1392,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
             <MapView
               style={{ flex: 1 }}
               region={mapRegion}
-              onRegionChangeComplete={(region) => setMapRegion(region)}
+              onRegionChangeComplete={(region: Region) => setMapRegion(region)}
               showsUserLocation={true}
             />
             <View style={checkoutStyles.centerMarkerContainer} pointerEvents="none">

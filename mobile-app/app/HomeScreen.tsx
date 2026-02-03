@@ -183,10 +183,10 @@ export default function HomeScreen({ navigation }: Props) {
     : [];
 
   const filteredStores = searchQuery.trim()
-    ? (sellers || []).filter((s: any) => 
-        (s.store_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (s.business_name || '').toLowerCase().includes(searchQuery.toLowerCase())
-      )
+    ? (sellers || []).filter((s: any) =>
+      (s.store_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (s.business_name || '').toLowerCase().includes(searchQuery.toLowerCase())
+    )
     : [];
 
   useEffect(() => {
@@ -284,7 +284,7 @@ export default function HomeScreen({ navigation }: Props) {
       try {
         const savedAddress = await AsyncStorage.getItem('currentDeliveryAddress');
         const savedCoords = await AsyncStorage.getItem('currentDeliveryCoordinates');
-        
+
         if (savedAddress) {
           setDeliveryAddress(savedAddress);
           console.log('[HomeScreen] Loaded address from AsyncStorage:', savedAddress);
@@ -300,13 +300,13 @@ export default function HomeScreen({ navigation }: Props) {
       if (user?.id) {
         try {
           const savedLocation = await addressService.getCurrentDeliveryLocation(user.id);
-          
+
           if (savedLocation) {
             // Format: "Street, City" or full address
-            const formatted = savedLocation.city 
+            const formatted = savedLocation.city
               ? `${savedLocation.street}, ${savedLocation.city}`
               : savedLocation.street;
-            
+
             setDeliveryAddress(formatted);
             console.log('[HomeScreen] Loaded location from database:', formatted);
 
@@ -426,7 +426,7 @@ export default function HomeScreen({ navigation }: Props) {
             style={styles.headerIconButton}
           >
             <Bell size={24} color="#FFF" />
-            {!isGuest && notifications.some(n => !n.read) && <View style={[styles.notifBadge, { backgroundColor: '#FFF' }]} />}
+            {!isGuest && notifications.some(n => !n.is_read) && <View style={[styles.notifBadge, { backgroundColor: '#FFF' }]} />}
           </Pressable>
         </View>
 
@@ -468,14 +468,14 @@ export default function HomeScreen({ navigation }: Props) {
             ) : (
               <View style={styles.resultsSection}>
                 <Text style={styles.discoveryTitle}>{filteredProducts.length + filteredStores.length} results found</Text>
-                
+
                 {filteredStores.length > 0 && (
                   <View style={{ marginBottom: 20 }}>
                     <Text style={styles.sectionHeader}>Stores</Text>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
                       {filteredStores.map(s => (
-                        <Pressable 
-                          key={s.id} 
+                        <Pressable
+                          key={s.id}
                           style={styles.storeSearchResultCard}
                           onPress={() => navigation.navigate('StoreDetail', { store: { ...s, name: s.store_name, verified: !!s.is_verified } })}
                         >
@@ -876,13 +876,15 @@ const styles = StyleSheet.create({
   notificationIcon: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginRight: 15 },
   notifItemTitle: { fontSize: 16, fontWeight: '700', color: '#1F2937' },
   notifItemMsg: { fontSize: 14, color: '#4B5563' },
-  sectionHeader: { fontSize: 16, fontWeight: '800', color: '#1F2937', marginBottom: 12 },
-  storeSearchResultCard: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    backgroundColor: '#FFF', 
-    padding: 12, 
-    borderRadius: 16, 
+
+
+  discountTagText: { color: '#FFF', fontSize: 10, fontWeight: '700' },
+  storeSearchResultCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+    padding: 12,
+    borderRadius: 16,
     width: 220,
     gap: 12,
     borderWidth: 1,

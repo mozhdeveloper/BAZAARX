@@ -30,7 +30,7 @@ export default function AddressesScreen({ navigation }: Props) {
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  
+
   // Map & Geocoding States
   const [isMapModalOpen, setIsMapModalOpen] = useState(false);
   const [mapRegion, setMapRegion] = useState<Region>(DEFAULT_REGION);
@@ -109,7 +109,7 @@ export default function AddressesScreen({ navigation }: Props) {
       if (data && data.length > 0) {
         const lat = parseFloat(data[0].lat);
         const lon = parseFloat(data[0].lon);
-        
+
         setNewAddress(prev => ({ ...prev, coordinates: { latitude: lat, longitude: lon } }));
         setMapRegion({
           latitude: lat,
@@ -130,7 +130,7 @@ export default function AddressesScreen({ navigation }: Props) {
     if (openDropdown === name) {
       setOpenDropdown(null);
     } else {
-      setSearchText(''); 
+      setSearchText('');
       setOpenDropdown(name);
     }
   };
@@ -184,10 +184,10 @@ export default function AddressesScreen({ navigation }: Props) {
   const handleOpenAddressModal = async (address?: Address) => {
     setOpenDropdown(null);
     setSearchText('');
-    
+
     if (address) {
       setEditingId(address.id);
-      setNewAddress({ ...address }); 
+      setNewAddress({ ...address });
       if (address.coordinates) {
         setMapRegion({
           latitude: address.coordinates.latitude,
@@ -243,7 +243,7 @@ export default function AddressesScreen({ navigation }: Props) {
     } catch (error) {
       console.error('Error saving address:', error);
     }
-    
+
     setIsSaving(false);
     setIsAddressModalOpen(false);
   };
@@ -285,9 +285,9 @@ export default function AddressesScreen({ navigation }: Props) {
     return (
       <View style={{ marginBottom: 12, zIndex: isOpen ? 100 : 1 }}>
         <Text style={styles.inputLabel}>{label}</Text>
-        <Pressable 
-          onPress={() => toggleDropdown(type)} 
-          disabled={disabled} 
+        <Pressable
+          onPress={() => toggleDropdown(type)}
+          disabled={disabled}
           style={[styles.dropdownTrigger, disabled && styles.dropdownDisabled, isOpen && styles.dropdownActive]}
         >
           <Text style={[styles.dropdownText, !value && styles.placeholderText, disabled && { color: '#9CA3AF' }]} numberOfLines={1}>
@@ -303,12 +303,12 @@ export default function AddressesScreen({ navigation }: Props) {
           <View style={styles.dropdownListContainer}>
             <View style={styles.searchContainer}>
               <Search size={16} color="#9CA3AF" />
-              <TextInput 
-                style={styles.searchInput} 
-                placeholder="Search..." 
-                value={searchText} 
-                onChangeText={setSearchText} 
-                autoFocus={true} 
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search..."
+                value={searchText}
+                onChangeText={setSearchText}
+                autoFocus={true}
               />
             </View>
             <ScrollView style={styles.selectList} nestedScrollEnabled={true} keyboardShouldPersistTaps="handled">
@@ -321,9 +321,9 @@ export default function AddressesScreen({ navigation }: Props) {
                 else name = item.brgy_name;
 
                 return (
-                  <Pressable 
-                    key={key} 
-                    style={({ pressed }) => [styles.selectItem, pressed && { backgroundColor: '#FFF7ED' }]} 
+                  <Pressable
+                    key={key}
+                    style={({ pressed }) => [styles.selectItem, pressed && { backgroundColor: '#FFF7ED' }]}
                     onPress={() => {
                       if (type === 'region') onRegionChange(item.region_code);
                       else if (type === 'province') onProvinceChange(item.province_code);
@@ -348,11 +348,11 @@ export default function AddressesScreen({ navigation }: Props) {
       {/* HEADER */}
       <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: COLORS.primary }]}>
         <View style={styles.headerTop}>
-            <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-              <ArrowLeft size={24} color="#FFF" />
-            </Pressable>
-            <Text style={styles.headerTitle}>My Addresses</Text>
-            <View style={{ width: 40 }} />
+          <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
+            <ArrowLeft size={24} color="#FFF" />
+          </Pressable>
+          <Text style={styles.headerTitle}>My Addresses</Text>
+          <View style={{ width: 40 }} />
         </View>
       </View>
 
@@ -363,30 +363,30 @@ export default function AddressesScreen({ navigation }: Props) {
           <Text style={styles.addButtonText}>Add New Address</Text>
         </Pressable>
         {addresses.map((address) => {
-            const IconComponent = getAddressIcon(address.label);
-            return (
-              <View key={address.id} style={styles.addressCard}>
-                 <View style={styles.addressHeader}>
-                  <View style={styles.addressTypeContainer}>
-                    <View style={styles.iconContainer}><IconComponent size={18} color="#FF6A00" /></View>
-                    <View>
-                      <Text style={styles.addressType}>{address.label}</Text>
-                      <Text style={{ fontSize: 11, color: '#9CA3AF', textTransform: 'capitalize' }}>{address.addressType}</Text>
-                    </View>
+          const IconComponent = getAddressIcon(address.label);
+          return (
+            <View key={address.id} style={styles.addressCard}>
+              <View style={styles.addressHeader}>
+                <View style={styles.addressTypeContainer}>
+                  <View style={styles.iconContainer}><IconComponent size={18} color="#FF6A00" /></View>
+                  <View>
+                    <Text style={styles.addressType}>{address.label}</Text>
+                    <Text style={{ fontSize: 11, color: '#9CA3AF', textTransform: 'capitalize' }}>{address.addressType}</Text>
                   </View>
-                  {address.isDefault && <View style={styles.defaultBadge}><Text style={styles.defaultText}>Default</Text></View>}
                 </View>
-                <Text style={styles.addressName}>{address.firstName} {address.lastName}</Text>
-                <Text style={styles.addressDetails}>{address.street}{address.landmark ? ` (near ${address.landmark})` : ''}</Text>
-                <Text style={styles.addressDetails}>{address.city}, {address.province}</Text>
-                <View style={styles.actionButtons}>
-                  {!address.isDefault && <Pressable style={styles.actionButton} onPress={() => handleSetDefault(address.id)}><Text style={styles.actionButtonText}>Set Default</Text></Pressable>}
-                  <Pressable style={styles.actionButton} onPress={() => handleOpenAddressModal(address)}><Text style={styles.actionButtonText}>Edit</Text></Pressable>
-                  <Pressable style={styles.deleteButton} onPress={() => { setSelectedAddressId(address.id); setShowDeleteModal(true); }}><Text style={styles.deleteButtonText}>Delete</Text></Pressable>
-                </View>
+                {address.isDefault && <View style={styles.defaultBadge}><Text style={styles.defaultText}>Default</Text></View>}
               </View>
-            );
-          })}
+              <Text style={styles.addressName}>{address.firstName} {address.lastName}</Text>
+              <Text style={styles.addressDetails}>{address.street}{address.landmark ? ` (near ${address.landmark})` : ''}</Text>
+              <Text style={styles.addressDetails}>{address.city}, {address.province}</Text>
+              <View style={styles.actionButtons}>
+                {!address.isDefault && <Pressable style={styles.actionButton} onPress={() => handleSetDefault(address.id)}><Text style={styles.actionButtonText}>Set Default</Text></Pressable>}
+                <Pressable style={styles.actionButton} onPress={() => handleOpenAddressModal(address)}><Text style={styles.actionButtonText}>Edit</Text></Pressable>
+                <Pressable style={styles.deleteButton} onPress={() => { setSelectedAddressId(address.id); setShowDeleteModal(true); }}><Text style={styles.deleteButtonText}>Delete</Text></Pressable>
+              </View>
+            </View>
+          );
+        })}
       </ScrollView>
 
       {/* DELETE MODAL */}
@@ -413,18 +413,18 @@ export default function AddressesScreen({ navigation }: Props) {
           </View>
 
           <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 100 }} keyboardShouldPersistTaps="handled">
-            
+
             <View style={styles.typeSelectorContainer}>
-              <Pressable 
+              <Pressable
                 style={[styles.typeOption, newAddress.addressType === 'residential' && styles.typeOptionActive]}
-                onPress={() => setNewAddress({...newAddress, addressType: 'residential'})}
+                onPress={() => setNewAddress({ ...newAddress, addressType: 'residential' })}
               >
                 <Home size={16} color={newAddress.addressType === 'residential' ? '#FF6A00' : '#6B7280'} />
                 <Text style={[styles.typeOptionText, newAddress.addressType === 'residential' && styles.typeOptionTextActive]}>Residential</Text>
               </Pressable>
-              <Pressable 
+              <Pressable
                 style={[styles.typeOption, newAddress.addressType === 'commercial' && styles.typeOptionActive]}
-                onPress={() => setNewAddress({...newAddress, addressType: 'commercial'})}
+                onPress={() => setNewAddress({ ...newAddress, addressType: 'commercial' })}
               >
                 <Building2 size={16} color={newAddress.addressType === 'commercial' ? '#FF6A00' : '#6B7280'} />
                 <Text style={[styles.typeOptionText, newAddress.addressType === 'commercial' && styles.typeOptionTextActive]}>Commercial</Text>
@@ -455,12 +455,12 @@ export default function AddressesScreen({ navigation }: Props) {
             <Dropdown label="Barangay" type="barangay" value={newAddress.barangay} list={barangayList} disabled={!newAddress.city} />
 
             <Text style={styles.inputLabel}>Street / House No.</Text>
-            <TextInput 
-              value={newAddress.street} 
-              onChangeText={(t) => setNewAddress({ ...newAddress, street: t })} 
-              onEndEditing={onStreetBlur} 
-              style={styles.input} 
-              placeholder="123 Acacia St." 
+            <TextInput
+              value={newAddress.street}
+              onChangeText={(t) => setNewAddress({ ...newAddress, street: t })}
+              onEndEditing={onStreetBlur}
+              style={styles.input}
+              placeholder="123 Acacia St."
             />
 
             {/* --- LIVE MAP PREVIEW --- */}
@@ -491,10 +491,10 @@ export default function AddressesScreen({ navigation }: Props) {
 
               {/* Adjust Button Overlay */}
               <View style={styles.mapOverlay}>
-                 <Pressable style={styles.editPinButton} onPress={handleOpenMap}>
-                    <Move size={14} color="#FFF"/>
-                    <Text style={styles.editPinText}>Adjust Pin</Text>
-                 </Pressable>
+                <Pressable style={styles.editPinButton} onPress={handleOpenMap}>
+                  <Move size={14} color="#FFF" />
+                  <Text style={styles.editPinText}>Adjust Pin</Text>
+                </Pressable>
               </View>
             </View>
 
@@ -502,20 +502,20 @@ export default function AddressesScreen({ navigation }: Props) {
             <TextInput value={newAddress.landmark || ''} onChangeText={(t) => setNewAddress({ ...newAddress, landmark: t })} style={styles.input} placeholder="Near 7-Eleven, Colored gate" />
 
             <Text style={styles.inputLabel}>Delivery Instructions (Optional)</Text>
-            <TextInput 
-              value={newAddress.deliveryInstructions || ''} 
-              onChangeText={(t) => setNewAddress({ ...newAddress, deliveryInstructions: t })} 
-              style={[styles.input, { height: 80, textAlignVertical: 'top', paddingTop: 10 }]} 
-              placeholder="Leave at front desk..." 
+            <TextInput
+              value={newAddress.deliveryInstructions || ''}
+              onChangeText={(t) => setNewAddress({ ...newAddress, deliveryInstructions: t })}
+              style={[styles.input, { height: 80, textAlignVertical: 'top', paddingTop: 10 }]}
+              placeholder="Leave at front desk..."
               multiline={true}
             />
-            
+
             <Text style={styles.inputLabel}>Postal Code</Text>
             <TextInput value={newAddress.zipCode} onChangeText={(t) => setNewAddress({ ...newAddress, zipCode: t })} style={styles.input} placeholder="1000" keyboardType="number-pad" />
 
             <Pressable style={[styles.checkboxContainer, newAddress.isDefault && styles.checkboxActive]} onPress={() => setNewAddress({ ...newAddress, isDefault: !newAddress.isDefault })}>
               <View style={[styles.checkbox, newAddress.isDefault && { borderColor: '#16A34A', backgroundColor: '#16A34A' }]}>
-                 {newAddress.isDefault && <View style={{ width: 8, height: 8, backgroundColor: '#FFF', borderRadius: 4 }} />}
+                {newAddress.isDefault && <View style={{ width: 8, height: 8, backgroundColor: '#FFF', borderRadius: 4 }} />}
               </View>
               <Text style={[styles.checkboxText, newAddress.isDefault && { color: '#16A34A' }]}>Set as default delivery address</Text>
             </Pressable>
@@ -535,13 +535,13 @@ export default function AddressesScreen({ navigation }: Props) {
           <MapView
             style={{ flex: 1 }}
             region={mapRegion}
-            onRegionChangeComplete={(region) => setMapRegion(region)}
+            onRegionChangeComplete={(region: Region) => setMapRegion(region)}
             showsUserLocation={true}
             showsMyLocationButton={true}
           />
           <View style={styles.centerMarkerContainer} pointerEvents="none">
-             <MapPin size={48} color="#FF6A00" fill="#FF6A00" />
-             <View style={styles.markerShadow} />
+            <MapPin size={48} color="#FF6A00" fill="#FF6A00" />
+            <View style={styles.markerShadow} />
           </View>
           <View style={[styles.mapHeader, { paddingTop: insets.top + 10 }]}>
             <Pressable onPress={() => setIsMapModalOpen(false)} style={styles.mapCloseButton}>
@@ -551,10 +551,10 @@ export default function AddressesScreen({ navigation }: Props) {
             <View style={{ width: 40 }} />
           </View>
           <View style={styles.mapFooter}>
-             <Text style={styles.mapInstruction}>Drag map to pin exact location</Text>
-             <Pressable style={styles.confirmButton} onPress={handleConfirmLocation}>
-               <Text style={styles.confirmButtonText}>Confirm Pin</Text>
-             </Pressable>
+            <Text style={styles.mapInstruction}>Drag map to pin exact location</Text>
+            <Pressable style={styles.confirmButton} onPress={handleConfirmLocation}>
+              <Text style={styles.confirmButtonText}>Confirm Pin</Text>
+            </Pressable>
           </View>
         </View>
       </Modal>
@@ -606,7 +606,7 @@ const styles = StyleSheet.create({
   typeOptionActive: { backgroundColor: '#FFFFFF', shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 },
   typeOptionText: { fontSize: 14, fontWeight: '600', color: '#6B7280' },
   typeOptionTextActive: { color: '#111827' },
-  
+
   // Dropdown
   dropdownTrigger: { height: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12, paddingHorizontal: 12, backgroundColor: '#FFFFFF' },
   dropdownActive: { borderColor: '#FF6A00' },
@@ -619,7 +619,7 @@ const styles = StyleSheet.create({
   selectList: { backgroundColor: '#FFFFFF' },
   selectItem: { paddingVertical: 12, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
   selectItemText: { fontSize: 14, color: '#111827' },
-  
+
   // Footer & Checkbox
   checkboxContainer: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, backgroundColor: '#F9FAFB', borderRadius: 12, marginTop: 8 },
   checkboxActive: { backgroundColor: '#DCFCE7' },
@@ -628,7 +628,7 @@ const styles = StyleSheet.create({
   stickyFooter: { padding: 16, borderTopWidth: 1, borderTopColor: '#F3F4F6', backgroundColor: '#FFFFFF' },
   confirmButton: { backgroundColor: '#FF6A00', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
   confirmButtonText: { fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
-  
+
   // NEW MAP PREVIEW STYLES
   mapPreviewWrapper: { height: 180, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: '#E5E7EB', marginBottom: 4, backgroundColor: '#F3F4F6' },
   mapPreview: { flex: 1 },
