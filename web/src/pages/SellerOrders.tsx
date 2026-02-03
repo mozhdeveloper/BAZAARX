@@ -31,7 +31,7 @@ import { cn } from "@/lib/utils";
 import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
 import { useAuthStore, useOrderStore } from "@/stores/sellerStore";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -817,7 +817,7 @@ export function SellerOrders() {
                 className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col"
               >
                 {(() => {
-                  const order = orders.find((o) => o.id === selectedOrder)!;
+                  const order: Order = orders.find((o) => o.id === selectedOrder)!;
                   return (
                     <>
                       {/* Modal Header */}

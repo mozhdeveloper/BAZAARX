@@ -68,12 +68,14 @@ import AdminFlashSales from "./pages/AdminFlashSales";
 import AdminPayouts from "./pages/AdminPayouts";
 import AdminProfile from "./pages/AdminProfile";
 import AdminProductApprovals from "./pages/AdminProductApprovals";
+import { ChatBubble } from "./components/ChatBubble";
 
 function App() {
   return (
     <>
       <Router>
         <ScrollToTop />
+        <ChatBubble />
         <Routes>
           {/* Buyer Routes */}
           <Route path="/" element={<HomePage />} />
