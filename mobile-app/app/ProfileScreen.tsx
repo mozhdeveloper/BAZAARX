@@ -39,6 +39,7 @@ export default function ProfileScreen({ navigation }: Props) {
   const [editEmail, setEditEmail] = React.useState('');
   const [editAvatar, setEditAvatar] = React.useState('');
   const [isSaving, setIsSaving] = React.useState(false);
+  const [isSwitching, setIsSwitching] = React.useState(false);
 
   // Bazcoins State
   const [bazcoins, setBazcoins] = React.useState(0);
@@ -46,38 +47,38 @@ export default function ProfileScreen({ navigation }: Props) {
 
   // Fetch Bazcoins and orders from Supabase
   React.useEffect(() => {
-  if (!user?.id || isGuest) return;
+    if (!user?.id || isGuest) return;
 
-  const fetchProfileData = async () => {
-    try {
-      // 1. Fetch Bazcoins
-      const { data: buyerData } = await supabase
-        .from('buyers')
-        .select('bazcoins')
-        .eq('id', user.id)
-        .single();
+    const fetchProfileData = async () => {
+      try {
+        // 1. Fetch Bazcoins
+        const { data: buyerData } = await supabase
+          .from('buyers')
+          .select('bazcoins')
+          .eq('id', user.id)
+          .single();
 
-      if (buyerData) setBazcoins(buyerData.bazcoins || 0);
+        if (buyerData) setBazcoins(buyerData.bazcoins || 0);
 
-      // 2. Fetch Total Order Count
-      // We use { count: 'exact', head: true } to get the number of rows without downloading the data
-      const { count, error: orderError } = await supabase
-        .from('orders')
-        .select('*', { count: 'exact', head: true })
-        .eq('buyer_id', user.id); // Use 'seller_id' if you want orders sold by this user
+        // 2. Fetch Total Order Count
+        // We use { count: 'exact', head: true } to get the number of rows without downloading the data
+        const { count, error: orderError } = await supabase
+          .from('orders')
+          .select('*', { count: 'exact', head: true })
+          .eq('buyer_id', user.id); // Use 'seller_id' if you want orders sold by this user
 
-      if (!orderError && count !== null) {
-        setTotalOrders(count);
+        if (!orderError && count !== null) {
+          setTotalOrders(count);
+        }
+      } catch (error) {
+        console.error('Error fetching profile data:', error);
       }
-    } catch (error) {
-      console.error('Error fetching profile data:', error);
-    }
-  };
+    };
 
-  fetchProfileData();
+    fetchProfileData();
 
-  // ... keep your existing realtime subscription for bazcoins ...
-}, [user?.id, isGuest]);
+    // ... keep your existing realtime subscription for bazcoins ...
+  }, [user?.id, isGuest]);
 
   const openEditModal = () => {
     setEditFirstName(user?.name.split(' ')[0] || '');
@@ -190,7 +191,7 @@ export default function ProfileScreen({ navigation }: Props) {
     phone: user?.phone || '+63 912 345 6789',
     memberSince: 'January 2024',
     totalOrders: totalOrders,
-    loyaltyPoints: bazcoins, 
+    loyaltyPoints: bazcoins,
     wishlistCount: wishlistItems.length,
   };
 
@@ -231,6 +232,39 @@ export default function ProfileScreen({ navigation }: Props) {
     { icon: Shield, label: 'Privacy Policy', onPress: () => navigation.navigate('PrivacyPolicy') },
   ];
 
+
+  const handleSellerSwitch = async () => {
+    // If we already know they are a seller, just switch
+    if (isSeller) {
+      useAuthStore.getState().switchRole('seller');
+      navigation.navigate('SellerStack');
+      return;
+    }
+
+    // If not known locally, check with server
+    setIsSwitching(true);
+    try {
+      const isActuallySeller = await useAuthStore.getState().checkForSellerAccount();
+
+      if (isActuallySeller) {
+        // Role updated in store by checkForSellerAccount, proceed to switch
+        useAuthStore.getState().switchRole('seller');
+        navigation.navigate('SellerStack');
+      } else {
+        // Really not a seller, go to registration choice
+        navigation.navigate('BecomeSeller');
+      }
+    } catch (error) {
+      console.error('Error switching to seller:', error);
+      Alert.alert(
+        'Connection Error',
+        'Could not verify your seller account. Please check your internet connection and try again.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setIsSwitching(false);
+    }
+  };
 
   if (isGuest) {
     return (
@@ -311,8 +345,8 @@ export default function ProfileScreen({ navigation }: Props) {
           <View style={styles.headerInfo}>
             <Text style={styles.userName}>{profile.firstName} {profile.lastName}</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2, opacity: 0.9 }}>
-               <User size={12} color="#FFF" style={{ marginRight: 6 }} />
-               <Text style={{ color: '#FFF', fontSize: 13, fontWeight: '600', letterSpacing: 0.5 }}>Buyer Account</Text>
+              <User size={12} color="#FFF" style={{ marginRight: 6 }} />
+              <Text style={{ color: '#FFF', fontSize: 13, fontWeight: '600', letterSpacing: 0.5 }}>Buyer Account</Text>
             </View>
           </View>
         </View>
@@ -392,41 +426,31 @@ export default function ProfileScreen({ navigation }: Props) {
                 <ChevronRight size={18} color="#D1D5DB" />
               </Pressable>
             ))}
-        </View>
+          </View>
 
         </View>
 
         {/* 3.5 SELLING SWITCH (Moved to Footer) */}
-        {isSeller ? (
-          <Pressable 
-            style={[styles.logoutBtn, { marginBottom: 15, borderColor: '#FED7AA', backgroundColor: '#FFF7ED' }]}
-            onPress={() => {
-              useAuthStore.getState().switchRole('seller');
-              navigation.navigate('SellerStack');
-            }}
-          >
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              <View style={[styles.iconContainer, { width: 32, height: 32, backgroundColor: '#FFEDD5', margin: 0, marginRight: 0 }]}>
+        <Pressable
+          style={[styles.logoutBtn, { marginBottom: 15, borderColor: '#FED7AA', backgroundColor: '#FFF7ED' }]}
+          onPress={handleSellerSwitch}
+          disabled={isSwitching}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <View style={[styles.iconContainer, { width: 32, height: 32, backgroundColor: '#FFEDD5', margin: 0, marginRight: 0 }]}>
+              {isSwitching ? (
+                <ActivityIndicator size="small" color={BRAND_COLOR} />
+              ) : (
                 <Store size={18} color={BRAND_COLOR} strokeWidth={2.5} />
-              </View>
-              <View>
-                 <Text style={[styles.logoutText, { color: BRAND_COLOR, fontSize: 16 }]}>Switch to Seller Mode</Text>
-              </View>
+              )}
             </View>
-          </Pressable>
-        ) : (
-          <Pressable 
-             style={[styles.logoutBtn, { marginBottom: 15, borderColor: '#FED7AA', backgroundColor: '#FFF7ED' }]}
-             onPress={() => navigation.navigate('SellerAuthChoice')}
-          >
-             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-               <View style={[styles.iconContainer, { width: 32, height: 32, backgroundColor: '#FFEDD5', margin: 0, marginRight: 0 }]}>
-                 <Store size={18} color={BRAND_COLOR} strokeWidth={2.5} />
-               </View>
-               <Text style={[styles.logoutText, { color: BRAND_COLOR, fontSize: 16 }]}>Start Selling</Text>
-             </View>
-          </Pressable>
-        )}
+            <View>
+              <Text style={[styles.logoutText, { color: BRAND_COLOR, fontSize: 16 }]}>
+                {isSwitching ? 'Checking Account...' : (isSeller ? 'Switch to Seller Mode' : 'Start Selling')}
+              </Text>
+            </View>
+          </View>
+        </Pressable>
 
         {/* 4. LOGOUT BUTTON */}
         <Pressable style={styles.logoutBtn} onPress={handleLogout}>

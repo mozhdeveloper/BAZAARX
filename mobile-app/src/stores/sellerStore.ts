@@ -383,53 +383,36 @@ export const useSellerStore = create<SellerStore>()(
     (set, get) => ({
       // Seller Info
       seller: {
-        id: 'seller-001',
+        id: '',
         // Personal
-        ownerName: 'Juan Dela Cruz',
-        email: 'seller@bazaarx.ph',
-        phone: '+63 912 345 6789',
+        ownerName: '',
+        email: '',
+        phone: '',
 
         // Business
-        businessName: 'Tech Shop Philippines Inc.',
-        storeName: 'TechStore Official',
-        storeDescription: 'Your trusted source for premium electronics and gadgets. We provide the latest tech at affordable prices.',
-        storeLogo: '🛍️',
-        storeCategory: ['Electronics', 'Accessories'],
-        businessType: 'corporation',
-        businessRegistrationNumber: 'COR-2024-12345',
-        taxIdNumber: '123-456-789-000',
+        businessName: '',
+        storeName: '',
+        storeDescription: '',
+        storeLogo: '',
+        storeCategory: [],
+        businessType: 'sole_proprietor',
+        businessRegistrationNumber: '',
+        taxIdNumber: '',
 
         // Address
-        businessAddress: '123 Tech St., Makati City',
-        city: 'Makati',
-        province: 'Metro Manila',
-        postalCode: '1200',
+        businessAddress: '',
+        city: '',
+        province: '',
+        postalCode: '',
 
         // Banking
-        bankName: 'BDO',
-        accountName: 'Tech Shop PH Inc.',
-        accountNumber: '**** **** **** 1234',
+        bankName: '',
+        accountName: '',
+        accountNumber: '',
 
         // Status
-        approval_status: 'approved',
-        documents: [
-          {
-            id: 'doc-1',
-            type: 'business_permit',
-            fileName: 'business_permit_2024.pdf',
-            url: '#',
-            uploadDate: '2024-01-15',
-            isVerified: true
-          },
-          {
-            id: 'doc-2',
-            type: 'valid_id',
-            fileName: 'valid_id_juan.png',
-            url: '#',
-            uploadDate: '2024-01-15',
-            isVerified: true
-          }
-        ],
+        approval_status: 'pending',
+        documents: [],
         business_permit_url: null,
         valid_id_url: null,
         proof_of_address_url: null,
@@ -689,20 +672,20 @@ export const useSellerStore = create<SellerStore>()(
         try {
           import('./orderStore').then(({ useOrderStore }) => {
             const orderStore = useOrderStore.getState();
-            
+
             // Find the corresponding buyer order by matching transaction ID
             const buyerOrder = orderStore.orders.find(
               (o) => o.transactionId === orderId
             );
-            
+
             if (buyerOrder) {
               // Map seller status to buyer status
-              const buyerStatus = 
+              const buyerStatus =
                 status === 'pending' ? 'pending' :
-                status === 'to-ship' ? 'processing' :
-                status === 'completed' ? 'delivered' :
-                'canceled';
-              
+                  status === 'to-ship' ? 'processing' :
+                    status === 'completed' ? 'delivered' :
+                      'canceled';
+
               orderStore.updateOrderStatus(buyerOrder.id, buyerStatus as any);
               console.log(`✅ Order status synced to buyer: ${orderId} → ${buyerStatus}`);
             }
@@ -791,7 +774,7 @@ export const useSellerStore = create<SellerStore>()(
         set((state) => ({
           seller: { ...state.seller, ...updates },
         })),
-      
+
       // Auth
       logout: () => {
         // Clear seller data - can be enhanced to clear AsyncStorage if needed
