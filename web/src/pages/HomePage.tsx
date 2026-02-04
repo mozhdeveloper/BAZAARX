@@ -23,19 +23,7 @@ const MobileAppShowcase = lazy(() =>
     default: m.MobileAppShowcase,
   })),
 );
-const BazaarTrustShowcase = lazy(
-  () => import("../components/ui/bazaar-trust-showcase"),
-);
-const POSLiteFeature = lazy(() => import("@/components/sections/PosLite"));
-const Hero195 = lazy(() =>
-  import("../components/ui/hero-195").then((m) => ({ default: m.Hero195 })),
-);
-const BazaarXTestimonials = lazy(
-  () => import("../components/sections/BazaarXTestimonials"),
-);
-const BrandTestimonials = lazy(
-  () => import("../components/sections/BrandTestimonials"),
-);
+
 const FeaturedCollections = lazy(
   () => import("../components/FeaturedCollections"),
 );
@@ -57,13 +45,28 @@ const SectionLoader = () => (
   </div>
 );
 
+const buyerNavItems = [
+  { id: "bazaar-history", label: "Bazaar Origin" },
+  { id: "bazaar-exchange", label: "Exchange" },
+  { id: "bazaar-culture", label: "Culture" },
+  { id: "bazaar-modernity", label: "Modernity" },
+  { id: "bazaar-marketplace-intro", label: "Gateway" },
+  { id: "bazaar-categories", label: "Categories" },
+  { id: "bazaar-collections", label: "Collections" },
+  { id: "bazaar-bestsellers", label: "Best Sellers" },
+  { id: "bazaar-stores", label: "Stores" },
+  { id: "bazaar-new", label: "New" },
+  { id: "bazaar-confidence", label: "Confidence" },
+  { id: "bazaar-mobile", label: "Mobile App" },
+];
+
 const HomePage: React.FC = () => {
   return (
     <div className="min-h-screen bg-white">
-      <FloatingNavigation />
+      <FloatingNavigation navItems={buyerNavItems} />
 
       {/* Bazaar Hero */}
-      <BazaarHero />
+      <BazaarHero mode="buyer" />
 
       <Suspense fallback={<SectionLoader />}>
         {/* Bazaar history section  */}
@@ -109,39 +112,6 @@ const HomePage: React.FC = () => {
         {/* Categories Footer Strip */}
         <div id="bazaar-categories">
           <CategoriesFooterStrip />
-        </div>
-      </Suspense>
-
-      <Suspense fallback={<SectionLoader />}>
-        {/* Trust & Quality Showcase */}
-        <div id="bazaar-trust">
-          <BazaarTrustShowcase />
-        </div>
-      </Suspense>
-
-      <Suspense fallback={<SectionLoader />}>
-        {/* Testimonials from Filipino Sellers */}
-        <div id="bazaar-testimonials">
-          <BazaarXTestimonials />
-        </div>
-      </Suspense>
-
-      <Suspense fallback={<SectionLoader />}>
-        {/* Brand Owner & CEO Testimonials */}
-        <BrandTestimonials />
-      </Suspense>
-
-      <Suspense fallback={<SectionLoader />}>
-        {/* POS Lite Feature*/}
-        <div id="bazaar-inventory">
-          <POSLiteFeature />
-        </div>
-      </Suspense>
-
-      <Suspense fallback={<SectionLoader />}>
-        {/* Seller Dashboard Preview - Interactive Demo */}
-        <div id="bazaar-dashboard">
-          <Hero195 />
         </div>
       </Suspense>
 
@@ -192,17 +162,17 @@ const HomePage: React.FC = () => {
         {/* Feature Strip 2 - Secure Shopping */}
         <div id="bazaar-confidence">
           <FeatureStrip
-            title="Shop with Complete Confidence"
-            description="Experience worry-free shopping with our comprehensive buyer protection, secure payments, and dedicated customer support."
-            image="https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=600&h=400&fit=crop"
+            title="Your Satisfaction, Secured."
+            description="BazaarX maintains the highest standards of trust and quality. We ensure strict verification for all sellers so you can shop with complete peace of mind."
+            image="https://images.unsplash.com/photo-1562564055-71e051d33c19?auto=format&fit=crop&w=1000&q=80"
             features={[
-              "100% secure payment processing",
-              "Buyer protection guarantee",
-              "24/7 customer support",
-              "Easy returns and refunds",
+              "Verified Seller Badges",
+              "Secure Payment Processing",
+              "24/7 Customer Support",
+              "Strict Quality Control",
             ]}
-            buttonText="Learn About Protection"
-            reverse={true}
+            buttonText="Shop with Confidence"
+            buttonAction={() => window.location.href = '/shop'}
           />
         </div>
       </Suspense>
@@ -210,7 +180,7 @@ const HomePage: React.FC = () => {
       <Suspense fallback={<SectionLoader />}>
         {/* Mobile App Showcase */}
         <div id="bazaar-mobile">
-          <MobileAppShowcase />
+          <MobileAppShowcase mode="buyer" />
         </div>
       </Suspense>
 

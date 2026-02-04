@@ -21,7 +21,7 @@ const FeatureStrip: React.FC<FeatureStripProps> = ({
   reverse = false
 }) => {
   return (
-    <section className="py-12 lg:py-16 bg-gray-50">
+    <section className="py-12 lg:py-16 bg-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
         <div className={`grid lg:grid-cols-2 gap-8 sm:gap-12 items-center ${reverse ? 'lg:grid-flow-col-dense' : ''}`}>

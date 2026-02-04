@@ -5,26 +5,16 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
-const navItems = [
-    { id: "bazaar-history", label: "Bazaar Origin" },
-    { id: "bazaar-exchange", label: "Exchange" },
-    { id: "bazaar-culture", label: "Culture" },
-    { id: "bazaar-modernity", label: "Modernity" },
-    { id: "bazaar-marketplace-intro", label: "Gateway" },
-    { id: "bazaar-categories", label: "Categories" },
-    { id: "bazaar-trust", label: "Trust" },
-    { id: "bazaar-testimonials", label: "Testimonials" },
-    { id: "bazaar-inventory", label: "Sync" },
-    { id: "bazaar-dashboard", label: "Dashboard" },
-    { id: "bazaar-collections", label: "Collections" },
-    { id: "bazaar-bestsellers", label: "Best Sellers" },
-    { id: "bazaar-stores", label: "Stores" },
-    { id: "bazaar-new", label: "New" },
-    { id: "bazaar-confidence", label: "Confidence" },
-    { id: "bazaar-mobile", label: "Mobile App" },
-];
+export interface NavItem {
+    id: string;
+    label: string;
+}
 
-export const FloatingNavigation: React.FC = () => {
+interface FloatingNavigationProps {
+    navItems: NavItem[];
+}
+
+export const FloatingNavigation: React.FC<FloatingNavigationProps> = ({ navItems }) => {
     const [showButton, setShowButton] = useState(false);
     const [activeSection, setActiveSection] = useState("");
     const [isExpanded, setIsExpanded] = useState(false);
@@ -46,6 +36,12 @@ export const FloatingNavigation: React.FC = () => {
         const handleScroll = () => {
             // Show back-to-top button if scrolled down
             setShowButton(window.scrollY > 300);
+
+            // If at the top of the page, clear active section
+            if (window.scrollY < 100) {
+                setActiveSection("");
+                return;
+            }
 
             // Determine active section
             let currentSection = "";
