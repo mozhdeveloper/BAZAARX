@@ -24,6 +24,8 @@ import { File, Paths } from 'expo-file-system';
 import * as FileSystem from 'expo-file-system/legacy'; //
 import * as Sharing from 'expo-sharing';
 import SellerDrawer from '../../../src/components/SellerDrawer';
+import { useNavigation } from '@react-navigation/native'; // Import Navigation
+import VariantManager, { Variant } from '../../../src/components/VariantManager'; 
 
 // Generate a proper UUID for product IDs
 const generateUUID = (): string => {
@@ -37,7 +39,7 @@ const generateUUID = (): string => {
 export default function SellerProductsScreen() {
   const { products, loading, error, fetchProducts, toggleProductStatus, deleteProduct, seller, updateProduct } = useSellerStore();
   const { addProductToQA } = useProductQAStore();
-
+  const navigation = useNavigation();
   // Fetch products on mount
   useEffect(() => {
     if (seller?.id) {
@@ -74,6 +76,9 @@ export default function SellerProductsScreen() {
     sizes: [''],
   });
 
+  // NEW STATE: Store the generated variants
+  const [variants, setVariants] = useState<Variant[]>([]);
+
   const categories = [
     'Electronics',
     'Fashion',
@@ -99,6 +104,10 @@ export default function SellerProductsScreen() {
       colors: [''],
       sizes: [''],
     });
+
+    setVariants([]); // Clear variants
+    setCurrentColorInput('');
+    setCurrentSizeInput('');
   };
 
   const handleOpenAddModal = () => {
@@ -237,11 +246,11 @@ export default function SellerProductsScreen() {
         description: formData.description.trim(),
         price: parseFloat(formData.price),
         originalPrice: formData.originalPrice ? parseFloat(formData.originalPrice) : undefined,
-        stock: parseInt(formData.stock),
+        stock: variants.length > 0 
+          ? variants.reduce((acc, v) => acc + (parseInt(v.stock) || 0), 0) 
+          : parseInt(formData.stock),
         category: formData.category,
         images: validImages,
-        colors: validColors.length > 0 ? validColors : undefined,
-        sizes: validSizes.length > 0 ? validSizes : undefined,
         isActive: true,
         sales: 0,
         rating: 0,
@@ -567,7 +576,6 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
   );
 
   return (
-    
     <View style={styles.container}>
       <SellerDrawer visible={drawerVisible} onClose={() => setDrawerVisible(false)} />
             
@@ -591,8 +599,7 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
             </TouchableOpacity>
             <TouchableOpacity 
               style={styles.addButton}
-              onPress={handleOpenAddModal}
-              activeOpacity={0.8}
+              onPress={() => navigation.navigate('AddProduct' as never)} // Navigates to new screen
             >
               <Plus size={18} color="#FFFFFF" strokeWidth={2.5} />
               <Text style={styles.addButtonText}>Add</Text>
@@ -652,375 +659,6 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
           }
         />
       )}
-
-      {/* Bottom Sheet Modal - Add Product */}
-      <Modal
-        visible={isAddModalOpen}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setIsAddModalOpen(false)}
-      >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.modalContainer}
-        >
-          <TouchableOpacity 
-            style={styles.modalOverlay} 
-            activeOpacity={1}
-            onPress={() => setIsAddModalOpen(false)}
-          >
-            <TouchableOpacity 
-              style={styles.bottomSheet} 
-              activeOpacity={1}
-              onPress={(e) => e.stopPropagation()}
-            >
-              {/* Handle Bar */}
-              <View style={styles.handleBar} />
-
-              {/* Modal Header with Gradient */}
-              <View style={styles.addModalHeader}>
-                <View style={styles.addModalHeaderContent}>
-                  <View style={styles.addModalIconContainer}>
-                    <Plus size={20} color="#FF5722" strokeWidth={2.5} />
-                  </View>
-                  <View style={styles.addModalHeaderText}>
-                    <Text style={styles.addModalTitle}>Add New Product</Text>
-                    <Text style={styles.addModalSubtitle}>Fill in the details below</Text>
-                  </View>
-                </View>
-                <TouchableOpacity onPress={() => setIsAddModalOpen(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                  <X size={24} color="#6B7280" strokeWidth={2.5} />
-                </TouchableOpacity>
-              </View>
-
-              {/* Modal Body */}
-              <ScrollView 
-                style={styles.modalScrollView}
-                showsVerticalScrollIndicator={true}
-                contentContainerStyle={styles.scrollContent}
-                bounces={true}
-              >
-                {/* Image Upload/URL Section with Card */}
-                <View style={styles.sectionCard}>
-                  <View style={styles.sectionHeader}>
-                    <Camera size={18} color="#FF5722" strokeWidth={2.5} />
-                    <Text style={styles.sectionTitle}>Product Images</Text>
-                    <View style={styles.requiredBadge}>
-                      <Text style={styles.requiredBadgeText}>Required</Text>
-                    </View>
-                  </View>
-                  
-                  <View style={styles.uploadModeToggle}>
-                    <TouchableOpacity
-                      style={[styles.modeButton, imageUploadMode === 'upload' && styles.modeButtonActive]}
-                      onPress={() => setImageUploadMode('upload')}
-                    >
-                      <Camera size={15} color={imageUploadMode === 'upload' ? '#FFFFFF' : '#6B7280'} />
-                      <Text style={[styles.modeButtonText, imageUploadMode === 'upload' && styles.modeButtonTextActive]}>Upload</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.modeButton, imageUploadMode === 'url' && styles.modeButtonActive]}
-                      onPress={() => setImageUploadMode('url')}
-                    >
-                      <Link size={15} color={imageUploadMode === 'url' ? '#FFFFFF' : '#6B7280'} />
-                      <Text style={[styles.modeButtonText, imageUploadMode === 'url' && styles.modeButtonTextActive]}>URL</Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  {formData.images.map((imageUrl, index) => (
-                    <View key={index} style={{ marginBottom: 12 }}>
-                      {imageUploadMode === 'upload' ? (
-                        <TouchableOpacity style={styles.imageUploadArea} activeOpacity={0.7} onPress={() => handlePickImage(index)}>
-                          {imageUrl ? (
-                            <View style={{ position: 'relative', width: '100%', height: 150 }}>
-                              <Image source={{ uri: imageUrl }} style={styles.uploadedImagePreview} />
-                              {formData.images.length > 1 && (
-                                <TouchableOpacity
-                                  style={styles.removeImageButton}
-                                  onPress={() => removeImageField(index)}
-                                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                                >
-                                  <X size={16} color="#FFFFFF" strokeWidth={2.5} />
-                                </TouchableOpacity>
-                              )}
-                            </View>
-                          ) : (
-                            <>
-                              <Camera size={32} color="#9CA3AF" strokeWidth={2} />
-                              <Text style={styles.imageUploadText}>Tap to upload image {index + 1}</Text>
-                              <Text style={styles.imageUploadHint}>JPG, PNG up to 5MB</Text>
-                              {formData.images.length > 1 && (
-                                <TouchableOpacity
-                                  style={styles.removeImageButtonEmpty}
-                                  onPress={() => removeImageField(index)}
-                                >
-                                  <Text style={styles.removeImageButtonText}>Remove</Text>
-                                </TouchableOpacity>
-                              )}
-                            </>
-                          )}
-                        </TouchableOpacity>
-                      ) : (
-                        <View>
-                          <View style={{ flexDirection: 'row', gap: 8 }}>
-                            <TextInput
-                              style={[styles.modernInput, { flex: 1 }]}
-                              placeholder={`https://example.com/image${index + 1}.jpg`}
-                              value={imageUrl}
-                              onChangeText={(text) => handleImageChange(index, text)}
-                              placeholderTextColor="#9CA3AF"
-                              autoCapitalize="none"
-                              keyboardType="url"
-                            />
-                            {formData.images.length > 1 && (
-                              <TouchableOpacity
-                                style={styles.removeUrlButton}
-                                onPress={() => removeImageField(index)}
-                              >
-                                <X size={16} color="#EF4444" strokeWidth={2.5} />
-                              </TouchableOpacity>
-                            )}
-                          </View>
-                          {imageUrl && imageUrl.startsWith('http') && (
-                            <Image source={{ uri: imageUrl }} style={styles.urlImagePreview} />
-                          )}
-                        </View>
-                      )}
-                    </View>
-                  ))}
-
-                  {/* Add Another Image Button */}
-                  <TouchableOpacity
-                    style={styles.addImageButton}
-                    onPress={addImageField}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.addImageButtonText}>+ Add Another Image</Text>
-                  </TouchableOpacity>
-                </View>
-
-                {/* Product Details Card */}
-                <View style={styles.sectionCard}>
-                  <View style={styles.sectionHeader}>
-                    <PackageIcon size={18} color="#FF5722" strokeWidth={2.5} />
-                    <Text style={styles.sectionTitle}>Product Details</Text>
-                  </View>
-
-                  {/* Product Name */}
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Product Name *</Text>
-                    <TextInput
-                      style={styles.modernInput}
-                      placeholder="e.g. iPhone 15 Pro Max"
-                      value={formData.name}
-                      onChangeText={(text) => setFormData({ ...formData, name: text })}
-                      placeholderTextColor="#9CA3AF"
-                    />
-                  </View>
-
-                  {/* Description */}
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Description *</Text>
-                    <TextInput
-                      style={[styles.modernInput, styles.textArea]}
-                      placeholder="Enter product description..."
-                      value={formData.description}
-                      onChangeText={(text) => setFormData({ ...formData, description: text })}
-                      placeholderTextColor="#9CA3AF"
-                      multiline
-                      numberOfLines={4}
-                      textAlignVertical="top"
-                    />
-                  </View>
-
-                  {/* Category Pills */}
-                  <View style={{ marginBottom: 0 }}>
-                    <Text style={styles.inputLabel}>Category *</Text>
-                    <ScrollView 
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                      contentContainerStyle={styles.pillContainer}
-                    >
-                      {categories.map((item) => (
-                        <TouchableOpacity
-                          key={item}
-                          style={[
-                            styles.pillChip,
-                            formData.category === item && styles.pillChipSelected,
-                          ]}
-                          onPress={() => setFormData({ ...formData, category: item })}
-                          activeOpacity={0.7}
-                        >
-                          <Text
-                            style={[
-                              styles.pillChipText,
-                              formData.category === item && styles.pillChipTextSelected,
-                            ]}
-                          >
-                            {item}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </ScrollView>
-                  </View>
-                </View>
-
-                {/* Pricing & Stock Card */}
-                <View style={styles.sectionCard}>
-                  <View style={styles.sectionHeader}>
-                    <Text style={{ fontSize: 20 }}>💰</Text>
-                    <Text style={styles.sectionTitle}>Pricing & Stock</Text>
-                  </View>
-
-                  {/* Price & Original Price Row */}
-                  <View style={styles.rowInputs}>
-                    <View style={styles.halfInput}>
-                      <Text style={styles.inputLabel}>Price (₱) *</Text>
-                      <TextInput
-                        style={styles.modernInput}
-                        placeholder="0.00"
-                        value={formData.price}
-                        onChangeText={(text) => setFormData({ ...formData, price: text })}
-                        placeholderTextColor="#9CA3AF"
-                        keyboardType="decimal-pad"
-                      />
-                    </View>
-                    <View style={styles.halfInput}>
-                      <Text style={styles.inputLabel}>Original Price (₱)</Text>
-                      <TextInput
-                        style={styles.modernInput}
-                        placeholder="0.00"
-                        value={formData.originalPrice}
-                        onChangeText={(text) => setFormData({ ...formData, originalPrice: text })}
-                        placeholderTextColor="#9CA3AF"
-                        keyboardType="decimal-pad"
-                      />
-                    </View>
-                  </View>
-
-                  {/* Stock Quantity */}
-                  <View style={{ marginBottom: 0 }}>
-                    <Text style={styles.inputLabel}>Stock Quantity *</Text>
-                    <TextInput
-                      style={styles.modernInput}
-                      placeholder="0"
-                      value={formData.stock}
-                      onChangeText={(text) => setFormData({ ...formData, stock: text })}
-                      placeholderTextColor="#9CA3AF"
-                      keyboardType="number-pad"
-                    />
-                  </View>
-                </View>
-
-                {/* Others Card with Colors and Variations */}
-                <View style={styles.sectionCard}>
-                  <View style={styles.sectionHeader}>
-                    <Text style={{ fontSize: 20 }}>✨</Text>
-                    <Text style={styles.sectionTitle}>Others</Text>
-                    <View style={styles.optionalBadge}>
-                      <Text style={styles.optionalBadgeText}>Optional</Text>
-                    </View>
-                  </View>
-
-                  {/* Colors Subsection */}
-                  <View style={{ marginBottom: 20 }}>
-                    <Text style={[styles.inputLabel, { marginBottom: 10 }]}>Colors</Text>
-                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
-                      <TextInput
-                        style={[styles.modernInput, { flex: 1 }]}
-                        placeholder="e.g. Red, Blue, White"
-                        placeholderTextColor="#9CA3AF"
-                        value={currentColorInput} // Use temp state
-                        onChangeText={setCurrentColorInput} // Update temp state
-                        onSubmitEditing={handleAddColor} // Add on Enter
-                        blurOnSubmit={false} // Keeps keyboard open for next entry
-                      />
-                      <TouchableOpacity
-                        style={[styles.modernInput, { width: 50, paddingHorizontal: 12, justifyContent: 'center', alignItems: 'center' }]}
-                        onPress={handleAddColor}
-                      >
-                        <Plus size={20} color="#FF5722" strokeWidth={2.5} />
-                      </TouchableOpacity>
-                    </View>
-                    
-                    {/* Colors Pills - Only shows saved items */}
-                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                      {formData.colors.filter(c => c.trim()).map((color, index) => (
-                        <View key={`color-${index}`} style={styles.variationPillOrange}>
-                          <Text style={styles.variationTextOrange}>{color}</Text>
-                          <TouchableOpacity onPress={() => removeColorField(index)}>
-                            <X size={16} color="#EF4444" strokeWidth={2.5} />
-                          </TouchableOpacity>
-                        </View>
-                      ))}
-                    </View>
-                  </View>
-
-                  {/* Variations Subsection */}
-                  <View style={{ marginBottom: 0 }}>
-                    <Text style={[styles.inputLabel, { marginBottom: 10 }]}>Variations</Text>
-                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
-                      <TextInput
-                        style={[styles.modernInput, { flex: 1 }]}
-                        placeholder="e.g. XL (Press Enter to add)"
-                        placeholderTextColor="#9CA3AF"
-                        value={currentSizeInput} // Use temp state
-                        onChangeText={setCurrentSizeInput} // Update temp state
-                        onSubmitEditing={handleAddSize} // Add on Enter
-                        blurOnSubmit={false}
-                      />
-                      <TouchableOpacity
-                        style={[styles.modernInput, { width: 50, paddingHorizontal: 12, justifyContent: 'center', alignItems: 'center' }]}
-                        onPress={handleAddSize}
-                      >
-                        <Plus size={20} color="#FF5722" strokeWidth={2.5} />
-                      </TouchableOpacity>
-                    </View>
-                    
-                    {/* Variations Pills - Only shows saved items */}
-                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                      {formData.sizes.filter(s => s.trim()).map((size, index) => (
-                        <View key={`size-${index}`} style={styles.variationPillBlue}>
-                          <Text style={styles.variationTextBlue}>{size}</Text>
-                          <TouchableOpacity onPress={() => removeSizeField(index)}>
-                            <X size={16} color="#EF4444" strokeWidth={2.5} />
-                          </TouchableOpacity>
-                        </View>
-                      ))}
-                    </View>
-                  </View>
-                </View>
-
-                {/* QA Note */}
-                <View style={styles.qaNote}>
-                  <Info size={16} color="#FF5722" strokeWidth={2.5} />
-                  <Text style={styles.qaNoteText}>
-                    Product will be submitted for Quality Assurance review. Track progress in QA Products tab.
-                  </Text>
-                </View>
-              </ScrollView>
-
-              {/* Fixed Footer */}
-              <View style={styles.modalFooter}>
-                <TouchableOpacity
-                  style={styles.cancelButton}
-                  onPress={() => setIsAddModalOpen(false)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.cancelButtonText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.submitButton}
-                  onPress={handleAddProduct}
-                  activeOpacity={0.9}
-                >
-                  <Text style={styles.submitButtonText}>Submit for Review</Text>
-                </TouchableOpacity>
-              </View>
-            </TouchableOpacity>
-          </TouchableOpacity>
-        </KeyboardAvoidingView>
-      </Modal>
 
       {/* Edit Product Modal */}
       <Modal

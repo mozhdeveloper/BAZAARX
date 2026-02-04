@@ -31,6 +31,15 @@ export interface SellerProduct {
   sellerName?: string;
   sellerRating?: number;
   sellerLocation?: string;
+  variants?: {
+    id: string;
+    option1: string; // Generic name for "Color" / "Model"
+    option2: string; // Generic name for "Size" / "Capacity"
+    price: string;
+    stock: string;
+    sku: string;
+    image?: string;
+  }[];
 }
 
 export interface SellerOrder {
