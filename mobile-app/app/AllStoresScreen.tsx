@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, Image, Pressable, StatusBar, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, Store, MapPin, Star, Users } from 'lucide-react-native';
-import { useNavigation } from '@react-navigation/native';
+import { ArrowLeft, Store, MapPin, Star, Users, CheckCircle2 } from 'lucide-react-native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { officialStores } from '../src/data/stores';
 import { COLORS } from '../src/constants/theme';
 import { sellerService } from '../src/services/sellerService';
@@ -10,7 +10,10 @@ import { sellerService } from '../src/services/sellerService';
 export default function AllStoresScreen() {
     const insets = useSafeAreaInsets();
     const navigation = useNavigation<any>();
+    const route = useRoute<any>();
     const BRAND_COLOR = COLORS.primary;
+
+    const pageTitle = route.params?.title || 'Official Stores';
 
     // Real stores state
     const [realStores, setRealStores] = useState<any[]>([]);
@@ -21,17 +24,18 @@ export default function AllStoresScreen() {
         const fetchStores = async () => {
             setLoading(true);
             try {
+                // By default getPublicStores returns approved & verified sellers
                 const stores = await sellerService.getPublicStores({ sortBy: 'rating' });
                 if (stores && stores.length > 0) {
                     // Map database stores to display format
                     const mappedStores = stores.map(s => ({
                         id: s.id,
                         name: s.business_name || s.store_name || 'Store',
-                        logo: '🏪',
+                        logo: (s.store_name || s.business_name || 'S').substring(0, 1).toUpperCase(),
                         banner: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=800&h=300&fit=crop',
                         rating: s.rating || 5.0,
                         location: s.city || s.province || 'Philippines',
-                        followers: 0,
+                        followers: 0, // backend doesn't return this yet in list view efficiently
                         products: Array(s.products_count || 0).fill({}),
                         categories: s.store_category || [],
                         isVerified: s.is_verified
@@ -48,7 +52,7 @@ export default function AllStoresScreen() {
         fetchStores();
     }, []);
 
-    // Use real stores if available, fallback to official stores
+    // Use real stores if available, fallback to official stores (which might be empty or mock)
     const displayStores = realStores.length > 0 ? realStores : officialStores;
 
     const renderStoreItem = ({ item }: { item: any }) => (
@@ -64,6 +68,12 @@ export default function AllStoresScreen() {
             <View style={styles.shopInfo}>
                 <View style={styles.shopHeader}>
                     <Text style={styles.shopName}>{item.name}</Text>
+                    {item.isVerified && (
+                         <View style={{ marginLeft: 4 }}>
+                            <CheckCircle2 size={16} color={BRAND_COLOR} fill="#FFF" />
+                         </View>
+                    )}
+                    <View style={{ flex: 1 }} />
                     <View style={styles.ratingBadge}>
                         <Star size={14} color="#FBBF24" fill="#FBBF24" />
                         <Text style={styles.ratingText}>{item.rating}</Text>
@@ -76,10 +86,6 @@ export default function AllStoresScreen() {
                 </View>
 
                 <View style={styles.statsRow}>
-                    <View style={styles.statItem}>
-                        <Users size={14} color="#6B7280" />
-                        <Text style={styles.statText}>{item.followers > 1000 ? (item.followers / 1000).toFixed(1) + 'k' : item.followers} followers</Text>
-                    </View>
                     <View style={styles.statItem}>
                         <Store size={14} color="#6B7280" />
                         <Text style={styles.statText}>{item.products.length} products</Text>
@@ -109,7 +115,7 @@ export default function AllStoresScreen() {
                 <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
                     <ArrowLeft size={24} color="#1F2937" />
                 </Pressable>
-                <Text style={styles.headerTitle}>Official Stores</Text>
+                <Text style={styles.headerTitle}>{pageTitle}</Text>
                 <View style={{ width: 40 }} />
             </View>
 

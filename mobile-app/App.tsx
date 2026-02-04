@@ -104,7 +104,7 @@ export type RootStackParamList = {
   PaymentMethods: undefined;
   HelpSupport: { activeTab?: 'tickets' | 'faq' } | undefined;
   PrivacyPolicy: undefined;
-  AllStores: undefined;
+  AllStores: { title?: string };
   StoreDetail: { store: any };
   ReturnRequest: { order: Order };
   ReturnDetail: { returnId: string };
