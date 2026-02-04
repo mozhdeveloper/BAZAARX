@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import {
   Package,
   Clock,
@@ -43,8 +43,16 @@ export default function OrdersPage() {
 
   const [isLoading, setIsLoading] = useState(false);
 
+  const [searchParams, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("pending");
+  
+  const statusFilter = searchParams.get("status") || "pending";
+  const setStatusFilter = (status: string) => {
+    setSearchParams(prev => {
+      prev.set("status", status);
+      return prev;
+    });
+  };
   const [selectedOrder, setSelectedOrder] = useState<string | null>(null);
   const [trackingOrder, setTrackingOrder] = useState<string | null>(null);
   const [returnModalOpen, setReturnModalOpen] = useState(false);
@@ -74,15 +82,21 @@ export default function OrdersPage() {
   const isWithinReturnWindow = (order: any): boolean => {
     if (order.status !== "delivered") return false;
 
-    const deliveryDate = order.deliveryDate
+    // Use actual delivery date, otherwise fallback to creation date (safer than new Date() which forces window open)
+    const dateReference = order.deliveryDate
       ? parseDate(order.deliveryDate)
-      : new Date();
+      : order.createdAt
+      ? parseDate(order.createdAt)
+      : null;
+
+    if (!dateReference) return false; // If no date reference, assume window closed to be safe
+
     const currentDate = new Date();
     const daysDifference = Math.floor(
-      (currentDate.getTime() - deliveryDate.getTime()) / (1000 * 60 * 60 * 24),
+      (currentDate.getTime() - dateReference.getTime()) / (1000 * 60 * 60 * 24),
     );
 
-    return daysDifference <= 7;
+    return daysDifference <= 7 && daysDifference >= 0;
   };
 
   const handleReturnSubmit = (data: any) => {
@@ -690,44 +704,19 @@ export default function OrdersPage() {
                     {/* Order Footer */}
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pt-2 border-t border-gray-100/50">
                       <div>
-                        {["delivered", "reviewed"].includes(order.status) && (
+                        {/* Return/Refund - Left side, lower prominence (Ghost button) */}
+                        {isWithinReturnWindow(order) && order.status === "delivered" && (
                           <Button
-                            onClick={async () => {
-                              // Process all additions to ensure store updates
-                              const promises = order.items.map((item) => {
-                                // Ensure seller structure matches BuyerStore expectations
-                                const productInput = {
-                                  ...item,
-                                  seller: {
-                                    id: "seller_" + (item.seller || "unknown"),
-                                    name: item.seller || "Verified Seller",
-                                    avatar: "",
-                                    rating: 5,
-                                    isVerified: true,
-                                  },
-                                };
-                                // Pass product, quantity, and variant explicitly
-                                return addToCart(
-                                  productInput as any,
-                                  item.quantity,
-                                  (item as any).selectedVariant,
-                                );
-                              });
-
-                              // Wait for all items to be added before navigating
-                              await Promise.all(promises);
-
-                              navigate("/enhanced-cart", {
-                                state: {
-                                  selectedItems: order.items.map((i) => i.id),
-                                },
-                              });
+                            onClick={() => {
+                              setOrderToReturn(order);
+                              setReturnModalOpen(true);
                             }}
                             size="sm"
-                            className="bg-[#FF5722] hover:bg-[#E64A19] text-white"
+                            variant="ghost"
+                            className="text-gray-400 hover:text-red-700 hover:bg-red-50 text-xs font-normal px-2"
                           >
-                            <ShoppingBag className="w-4 h-4 mr-1" />
-                            Buy Again
+                            <RotateCcw className="w-3.5 h-3.5 mr-1" />
+                            Return or Refund
                           </Button>
                         )}
                       </div>
@@ -752,32 +741,63 @@ export default function OrdersPage() {
                           null : order.status === "delivered" ? (
                             /* Delivered - See Details and Review */
                             <>
-                              <Button
-                                onClick={() => {
-                                  setOrderToReview(order);
-                                  setReviewModalOpen(true);
-                                }}
-                                size="sm"
-                                variant="outline"
-                                className="border-[#FF5722] text-[#FF5722] hover:bg-[#ff6a00] hover:text-white hover:border-[#ff6a00]"
-                              >
-                                <Star className="w-4 h-4 mr-1" />
-                                Write Review
-                              </Button>
-                              {isWithinReturnWindow(order) && (
+                              {/* Review Action - Secondary, right next to primary */}
+                              {order.status === "delivered" && (
                                 <Button
                                   onClick={() => {
-                                    setOrderToReturn(order);
-                                    setReturnModalOpen(true);
+                                    if (window.confirm("Writing a review will mark this order as completed and you may not be able to return/refund. Continue?")) {
+                                      setOrderToReview(order);
+                                      setReviewModalOpen(true);
+                                    }
                                   }}
                                   size="sm"
                                   variant="outline"
-                                  className="border-[#FF5722] text-[#FF5722] hover:bg-[#ff6a00] hover:text-white hover:border-[#ff6a00]"
+                                  className="border-[#FF5722] text-[#FF5722] hover:bg-[#FF5722] hover:text-white hover:border-[#FF5722]"
                                 >
-                                  <RotateCcw className="w-4 h-4 mr-1" />
-                                  Return/Refund
+                                  <Star className="w-4 h-4 mr-1" />
+                                  Write Review
                                 </Button>
                               )}
+
+                              {/* Buy Again - Primary Action */}
+                              <Button
+                                onClick={async () => {
+                                  // Process all additions to ensure store updates
+                                  const promises = order.items.map((item) => {
+                                    // Ensure seller structure matches BuyerStore expectations
+                                    const productInput = {
+                                      ...item,
+                                      seller: {
+                                        id: "seller_" + (item.seller || "unknown"),
+                                        name: item.seller || "Verified Seller",
+                                        avatar: "",
+                                        rating: 5,
+                                        isVerified: true,
+                                      },
+                                    };
+                                    // Pass product, quantity, and variant explicitly
+                                    return addToCart(
+                                      productInput as any,
+                                      item.quantity,
+                                      (item as any).selectedVariant,
+                                    );
+                                  });
+
+                                  // Wait for all items to be added before navigating
+                                  await Promise.all(promises);
+
+                                  navigate("/enhanced-cart", {
+                                    state: {
+                                      selectedItems: order.items.map((i) => i.id),
+                                    },
+                                  });
+                                }}
+                                size="sm"
+                                className="bg-[#FF5722] hover:bg-[#E64A19] text-white shadow-md shadow-orange-500/20"
+                              >
+                                <ShoppingBag className="w-4 h-4 mr-1" />
+                                Buy Again
+                              </Button>
                             </>
                           ) : order.status === "cancelled" ? (
                             /* Canceled - View Details */

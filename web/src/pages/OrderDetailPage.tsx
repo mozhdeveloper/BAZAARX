@@ -57,6 +57,7 @@ export default function OrderDetailPage() {
   const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const isFirstLoad = useRef(true);
   const { profile } = useBuyerStore();
 
   const [isLoading, setIsLoading] = useState(true);
@@ -312,6 +313,12 @@ export default function OrderDetailPage() {
   }, [dbOrder, navigate, isLoading]);
 
   useEffect(() => {
+    // Skip scroll on initial load
+    if (isFirstLoad.current) {
+      isFirstLoad.current = false;
+      return;
+    }
+
     // Auto scroll to bottom when new messages arrive
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages]);
