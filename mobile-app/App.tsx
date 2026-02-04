@@ -38,6 +38,7 @@ import PrivacyPolicyScreen from './app/PrivacyPolicyScreen';
 import SellerLoginScreen from './app/seller/login';
 import SellerSignupScreen from './app/seller/signup';
 import SellerAuthChoiceScreen from './app/seller/auth';
+import BecomeSellerScreen from './app/seller/BecomeSellerScreen';
 import SellerStack from './app/seller/SellerStack';
 import AdminStack from './app/admin/AdminStack';
 import AllStoresScreen from './app/AllStoresScreen';
@@ -78,13 +79,14 @@ export type RootStackParamList = {
   SellerLogin: undefined;
   SellerSignup: undefined;
   SellerAuthChoice: undefined;
+  BecomeSeller: undefined;
   SellerStack: undefined;
   AdminStack: undefined;
   MainTabs: NavigatorScreenParams<TabParamList>;
   ProductDetail: { product: Product };
-  Checkout: { 
-    selectedItems?: CartItem[]; 
-    deliveryAddress?: string; 
+  Checkout: {
+    selectedItems?: CartItem[];
+    deliveryAddress?: string;
     deliveryCoordinates?: { latitude: number; longitude: number };
     isGift?: boolean;
     recipientName?: string;
@@ -121,7 +123,7 @@ const Tab = createBottomTabNavigator<TabParamList>();
 
 function MainTabs() {
   const insets = useSafeAreaInsets();
-  
+
   return (
     <Tab.Navigator
       screenOptions={{
@@ -276,6 +278,11 @@ export default function App() {
               name="SellerAuthChoice"
               component={SellerAuthChoiceScreen}
               options={{ animation: 'fade' }}
+            />
+            <Stack.Screen
+              name="BecomeSeller"
+              component={BecomeSellerScreen}
+              options={{ animation: 'slide_from_bottom', presentation: 'modal' }}
             />
             <Stack.Screen
               name="SellerStack"

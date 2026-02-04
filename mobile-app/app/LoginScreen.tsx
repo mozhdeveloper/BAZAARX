@@ -82,8 +82,8 @@ export default function LoginScreen({ navigation }: Props) {
 
         if (profileError) {
           Alert.alert('Profile Error', 'Could not fetch user profile.');
-        } else if (profile.user_type === 'buyer') {
-
+        } else {
+          // Allow both buyers and sellers to login
           // SYNC USER TO GLOBAL STORE
           const { data: profileDetails } = await supabase
             .from('profiles')
@@ -99,12 +99,18 @@ export default function LoginScreen({ navigation }: Props) {
               phone: profileDetails.phone || '',
               avatar: profileDetails.avatar_url || ''
             });
+
+            // If user is a seller, we might want to ensure they have the role in the store
+            if (profile.user_type === 'seller') {
+              useAuthStore.getState().addRole('seller');
+            }
+
+            // Fetch orders to replace dummy data in OrderStore
+            const { useOrderStore } = await import('../src/stores/orderStore');
+            useOrderStore.getState().fetchOrders(data.user.id);
           }
 
           navigation.replace('MainTabs', { screen: 'Home' });
-        } else if (profile.user_type === 'seller') {
-          Alert.alert('Seller Account', 'This is the buyer portal. Please use the Seller Centre.');
-          await supabase.auth.signOut(); // Log them out if they are in the wrong place
         }
       }
     } catch (err) {
@@ -145,8 +151,8 @@ export default function LoginScreen({ navigation }: Props) {
           </View>
 
           {/* Demo Credentials Banner */}
-          <Pressable 
-            style={styles.demoBanner} 
+          <Pressable
+            style={styles.demoBanner}
             onPress={() => setShowTestAccounts(true)}
           >
             <View style={styles.demoContent}>
@@ -281,7 +287,7 @@ export default function LoginScreen({ navigation }: Props) {
                 <X size={24} color="#6B7280" />
               </Pressable>
             </View>
-            
+
             <ScrollView style={styles.accountsList}>
               {TEST_ACCOUNTS.map((account, index) => (
                 <Pressable

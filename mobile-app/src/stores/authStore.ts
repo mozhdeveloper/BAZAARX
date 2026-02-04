@@ -41,7 +41,7 @@ interface AuthState {
   signIn: (email: string, password: string) => Promise<boolean>;
   signUp: (email: string, password: string, userData: { full_name?: string; phone?: string; user_type: 'buyer' | 'seller' }) => Promise<boolean>;
   signOut: () => Promise<void>;
-  
+
   // State setters
   setUser: (user: User) => void;
   logout: () => void;
@@ -49,10 +49,11 @@ interface AuthState {
   resetOnboarding: () => void;
   loginAsGuest: () => void;
   updateProfile: (updates: Partial<User>) => void;
-  
+
   // Role Management
   switchRole: (role: 'buyer' | 'seller') => void;
   addRole: (role: string) => void;
+  checkForSellerAccount: () => Promise<boolean>;
 
   // Session
   checkSession: () => Promise<void>;
@@ -284,6 +285,36 @@ export const useAuthStore = create<AuthState>()(
           }
           return state;
         });
+      },
+
+      checkForSellerAccount: async () => {
+        const { user } = get();
+        if (!user) return false;
+
+        try {
+          // Check if seller profile exists in Supabase
+          // authService.getSellerProfile throws if no record found (single())
+          const sellerProfile = await authService.getSellerProfile(user.id);
+
+          if (sellerProfile) {
+            // User is a seller, ensure role is in local state
+            const roles = user.roles || [];
+            if (!roles.includes('seller')) {
+              set({
+                user: {
+                  ...user,
+                  roles: [...roles, 'seller'],
+                },
+              });
+            }
+            return true;
+          }
+          return false;
+        } catch (error) {
+          // If error is "row not found" (PGRST116), it means user is not a seller
+          // console.log('Check seller account result:', error);
+          return false;
+        }
       },
     }),
     {
