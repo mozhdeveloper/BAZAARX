@@ -50,6 +50,11 @@ import CreateTicketScreen from './app/tickets/CreateTicketScreen';
 import TicketDetailScreen from './app/tickets/TicketDetailScreen';
 import MessagesScreen from './app/MessagesScreen';
 
+// Onboarding Screens
+import TermsScreen from './app/onboarding/TermsScreen';
+import CategoryPreferenceScreen from './app/onboarding/CategoryPreferenceScreen';
+import AddressSetupScreen from './app/onboarding/AddressSetupScreen';
+
 // Import types
 import type { Product, Order } from './src/types';
 
@@ -64,6 +69,9 @@ export type TabParamList = {
 export type RootStackParamList = {
   Splash: undefined;
   Onboarding: undefined;
+  Terms: { signupData: any };
+  CategoryPreference: { signupData: any };
+  AddressSetup: { signupData: any };
   Login: undefined;
   Signup: undefined;
   SellerLogin: undefined;
@@ -96,7 +104,7 @@ export type RootStackParamList = {
   PaymentMethods: undefined;
   HelpSupport: { activeTab?: 'tickets' | 'faq' } | undefined;
   PrivacyPolicy: undefined;
-  AllStores: undefined;
+  AllStores: { title?: string };
   StoreDetail: { store: any };
   ReturnRequest: { order: Order };
   ReturnDetail: { returnId: string };
@@ -235,6 +243,21 @@ export default function App() {
             name="Signup"
             component={SignupScreen}
             options={{ animation: 'slide_from_bottom' }}
+          />
+          <Stack.Screen
+            name="Terms"
+            component={TermsScreen}
+            options={{ animation: 'slide_from_right' }}
+          />
+          <Stack.Screen
+            name="CategoryPreference"
+            component={CategoryPreferenceScreen}
+            options={{ animation: 'slide_from_right' }}
+          />
+          <Stack.Screen
+            name="AddressSetup"
+            component={AddressSetupScreen}
+            options={{ animation: 'slide_from_right' }}
           />
           <Stack.Screen
             name="SellerLogin"

@@ -223,7 +223,7 @@ export class SellerService {
         .from('sellers')
         .select(`
           *,
-          products:products(count)
+          products:products!fk_seller(count)
         `)
         .eq('approval_status', 'approved')
         .eq('is_verified', true);

@@ -229,7 +229,7 @@ export default function ShopScreen({ navigation, route }: Props) {
               <View style={styles.storesSection}>
                 <View style={styles.sectionHeaderRow}>
                   <Text style={styles.sectionTitle}>Featured Stores</Text>
-                  <Pressable onPress={() => navigation.navigate('AllStores')}>
+                  <Pressable onPress={() => navigation.navigate('AllStores', { title: 'Verified Shops' })}>
                     <Text style={{ color: BRAND_COLOR, fontWeight: '700' }}>See All</Text>
                   </Pressable>
                 </View>
