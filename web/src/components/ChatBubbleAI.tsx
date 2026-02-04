@@ -29,7 +29,7 @@ import { cn } from '@/lib/utils';
 import { useChatStore } from '@/stores/chatStore';
 import { useBuyerStore } from '@/stores/buyerStore';
 import { chatService, Message, Conversation } from '@/services/chatService';
-import { aiChatService, ProductContext, StoreContext, ChatContext, ReviewSummary } from '@/services/aiChatService';
+import { aiChatService, ProductContext, StoreContext, ChatContext, ReviewSummary } from '../services/aiChatService';
 
 interface ChatMessage {
   id: string;

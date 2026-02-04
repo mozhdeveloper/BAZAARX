@@ -44,7 +44,7 @@ async function showCompleteSummary() {
   console.log('   ┌' + '─'.repeat(71) + '┐');
   if (seller.store_description) {
     const lines = seller.store_description.split('\n');
-    lines.forEach(line => {
+    lines.forEach((line: string) => {
       console.log(`   │ ${line.padEnd(69)} │`);
     });
   }

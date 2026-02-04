@@ -27,7 +27,7 @@ async function checkDescriptions() {
     console.log(`   Length: ${seller.store_description.length} characters`);
     console.log('\n   Full Description:');
     console.log('   ' + '─'.repeat(66));
-    console.log(seller.store_description.split('\n').map(line => '   ' + line).join('\n'));
+    console.log(seller.store_description.split('\n').map((line: string) => '   ' + line).join('\n'));
     console.log('   ' + '─'.repeat(66));
   }
 
@@ -35,7 +35,7 @@ async function checkDescriptions() {
   const { data: products } = await supabase
     .from('products')
     .select('name, description')
-    .eq('seller_id', seller?.id);
+    .eq('seller_id', (seller as any)?.id);
   
   console.log('\n\n📦 PRODUCT DESCRIPTIONS:\n');
   products?.forEach((p, i) => {
