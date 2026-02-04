@@ -13,6 +13,23 @@ export interface Message {
   isRead: boolean;
 }
 
+// Registry Product Extension
+export interface RegistryProduct extends Product {
+  requestedQty: number;
+  receivedQty: number;
+  note?: string;
+  isMostWanted?: boolean;
+}
+
+export interface RegistryItem {
+  id: string;
+  title: string;
+  sharedDate: string;
+  imageUrl: string;
+  category?: string;
+  products?: RegistryProduct[];
+}
+
 export interface Conversation {
   id: string;
   sellerId: string;
@@ -74,6 +91,7 @@ export interface CartItem extends Product {
   selectedVariant?: ProductVariant;
   notes?: string;
   selected?: boolean;
+  registryId?: string;
 }
 
 export interface GroupedCart {
@@ -142,6 +160,8 @@ export interface Address {
     lat: number;
     lng: number;
   };
+  landmark?: string;
+  deliveryInstructions?: string;
 }
 
 export interface BuyerProfile {
@@ -222,7 +242,7 @@ interface BuyerStore {
 
   // Quick Order (Buy Now)
   quickOrder: CartItem | null;
-  setQuickOrder: (product: Product, quantity?: number, variant?: ProductVariant) => void;
+  setQuickOrder: (product: Product, quantity?: number, variant?: ProductVariant, registryId?: string) => void;
   clearQuickOrder: () => void;
   getQuickOrderTotal: () => number;
 
@@ -278,19 +298,14 @@ interface BuyerStore {
   registries: RegistryItem[];
   createRegistry: (registry: RegistryItem) => void;
   addToRegistry: (registryId: string, product: Product) => void;
+  updateRegistryItem: (registryId: string, productId: string, updates: Partial<RegistryProduct>) => void;
+  removeRegistryItem: (registryId: string, productId: string) => void;
 
   initializeBuyerProfile: (userId: string, profileData: any) => Promise<BuyerProfile>;
 
 }
 
-export interface RegistryItem {
-  id: string;
-  title: string;
-  sharedDate: string;
-  imageUrl: string;
-  category?: string;
-  products?: Product[];
-}
+
 
 let profileSubscription: any = null;
 
@@ -471,12 +486,13 @@ export const useBuyerStore = create<BuyerStore>()(persist(
     // Quick Order (Buy Now)
     quickOrder: null,
 
-    setQuickOrder: (product, quantity = 1, variant) => {
+    setQuickOrder: (product, quantity = 1, variant, registryId) => {
       set({
         quickOrder: {
           ...product,
           quantity,
-          selectedVariant: variant
+          selectedVariant: variant,
+          registryId
         }
       });
     },
@@ -1204,7 +1220,41 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       set((state) => ({
         registries: state.registries.map(r =>
           r.id === registryId
-            ? { ...r, products: [...(r.products || []), product] }
+            ? {
+              ...r,
+              products: [...(r.products || []), {
+                ...product,
+                requestedQty: 1,
+                receivedQty: 0,
+                isMostWanted: false
+              }]
+            }
+            : r
+        )
+      }));
+    },
+    updateRegistryItem: (registryId, productId, updates) => {
+      set((state) => ({
+        registries: state.registries.map(r =>
+          r.id === registryId
+            ? {
+              ...r,
+              products: (r.products || []).map(p =>
+                p.id === productId ? { ...p, ...updates } : p
+              )
+            }
+            : r
+        )
+      }));
+    },
+    removeRegistryItem: (registryId, productId) => {
+      set((state) => ({
+        registries: state.registries.map(r =>
+          r.id === registryId
+            ? {
+              ...r,
+              products: (r.products || []).filter(p => p.id !== productId)
+            }
             : r
         )
       }));

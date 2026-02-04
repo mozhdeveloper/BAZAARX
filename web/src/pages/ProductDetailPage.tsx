@@ -37,6 +37,7 @@ import { cn } from "../lib/utils";
 import { productService } from "../services/productService";
 import { ProductWithSeller } from "../types/database.types";
 import { ProductReviews } from "@/components/reviews/ProductReviews";
+import { CreateRegistryModal } from "../components/CreateRegistryModal";
 
 interface ProductDetailPageProps { }
 
@@ -815,6 +816,8 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
   const { products: sellerProducts } = useProductStore();
 
   const [showRegistryModal, setShowRegistryModal] = useState(false);
+  const [isCreateRegistryModalOpen, setIsCreateRegistryModalOpen] = useState(false);
+  const { createRegistry } = useBuyerStore();
 
   const [quantity, setQuantity] = useState(1);
   const [selectedImage, setSelectedImage] = useState(0);
@@ -1643,7 +1646,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
               <button
                 onClick={() => {
                   setShowRegistryModal(false);
-                  navigate("/registry", { state: { openCreateModal: true } });
+                  setIsCreateRegistryModalOpen(true);
                 }}
                 className="w-full py-3 px-4 rounded-xl border border-dashed border-gray-300 text-gray-600 font-medium hover:border-orange-400 hover:text-orange-600 hover:bg-orange-50 transition-all flex items-center justify-center gap-2"
               >
@@ -1654,6 +1657,29 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
           </div>
         </div>
       )}
+      {/* Create Registry Modal */}
+      <CreateRegistryModal
+        isOpen={isCreateRegistryModalOpen}
+        onClose={() => setIsCreateRegistryModalOpen(false)}
+        onCreate={(name, category) => {
+          const newRegistry = {
+            id: `reg-${Date.now()}`,
+            title: name,
+            sharedDate: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+            imageUrl: "https://images.unsplash.com/photo-1513201099705-a9746e1e201f?w=400&h=400&fit=crop",
+            category: category,
+            products: []
+          };
+          createRegistry(newRegistry);
+          setIsCreateRegistryModalOpen(false);
+          // Re-open the add to registry modal to allow adding the product immediately
+          setShowRegistryModal(true);
+          toast({
+            title: "Registry Created",
+            description: `${name} has been created successfully.`,
+          });
+        }}
+      />
     </div>
   );
 }

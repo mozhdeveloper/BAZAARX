@@ -123,6 +123,7 @@ export default function CheckoutPage() {
     addAddress,
     updateAddress,
     deleteAddress,
+    updateRegistryItem, // Destructure this
   } = useBuyerStore();
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
   const [addressView, setAddressView] = useState<'list' | 'add' | 'edit'>('list');
@@ -519,6 +520,23 @@ export default function CheckoutPage() {
         }
       }
 
+      // Update registry items if purchased
+      checkoutItems.forEach(item => {
+        if (item.registryId) {
+          const state = useBuyerStore.getState();
+          const registry = state.registries.find(r => r.id === item.registryId);
+          if (registry) {
+            const registryProduct = registry.products?.find(p => p.id === item.id);
+            if (registryProduct) {
+              const currentReceived = registryProduct.receivedQty || 0;
+              updateRegistryItem(item.registryId, item.id, {
+                receivedQty: currentReceived + item.quantity
+              });
+            }
+          }
+        }
+      });
+
       // Clear local stores
       const cartStoreState = useCartStore.getState();
       cartStoreState.clearCart();
@@ -695,13 +713,12 @@ export default function CheckoutPage() {
                   {paymentMethods.map((method) => (
                     <div
                       key={method.id}
-                      className={`border-2 rounded-xl p-4 transition-colors relative ${
-                        method.comingSoon 
-                          ? "border-gray-200 bg-gray-50 cursor-not-allowed opacity-60" 
-                          : formData.paymentMethod === method.id
-                            ? "border-[var(--brand-primary)] bg-orange-50 cursor-pointer"
-                            : "border-gray-200 hover:border-gray-300 cursor-pointer"
-                      }`}
+                      className={`border-2 rounded-xl p-4 transition-colors relative ${method.comingSoon
+                        ? "border-gray-200 bg-gray-50 cursor-not-allowed opacity-60"
+                        : formData.paymentMethod === method.id
+                          ? "border-[var(--brand-primary)] bg-orange-50 cursor-pointer"
+                          : "border-gray-200 hover:border-gray-300 cursor-pointer"
+                        }`}
                       onClick={() => {
                         if (!method.comingSoon) {
                           handleInputChange("paymentMethod", method.id);
@@ -718,13 +735,12 @@ export default function CheckoutPage() {
                       )}
                       <div className="flex items-center gap-3">
                         <div
-                          className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                            method.comingSoon
-                              ? "border-gray-300 bg-gray-200"
-                              : formData.paymentMethod === method.id
-                                ? "border-[var(--brand-primary)] bg-[var(--brand-primary)]"
-                                : "border-gray-300"
-                          }`}
+                          className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${method.comingSoon
+                            ? "border-gray-300 bg-gray-200"
+                            : formData.paymentMethod === method.id
+                              ? "border-[var(--brand-primary)] bg-[var(--brand-primary)]"
+                              : "border-gray-300"
+                            }`}
                         >
                           {!method.comingSoon && formData.paymentMethod === method.id && (
                             <Check className="w-3 h-3 text-white" />
@@ -1318,8 +1334,8 @@ export default function CheckoutPage() {
             <>
               <DialogHeader className="p-6 pb-2">
                 <div className="flex items-center gap-2">
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { 
-                    setAddressView('list'); 
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
+                    setAddressView('list');
                     setShowMapPicker(false);
                     setEditingAddress(null);
                     // Reset form
@@ -1370,259 +1386,259 @@ export default function CheckoutPage() {
                   />
                 </div>
               ) : (
-              /* Address Form View */
-              <div className="flex-1 overflow-y-auto p-6 pt-2 space-y-4">
-                {/* Quick Location Picker Button */}
-                <div className="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-xl p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="bg-orange-500 rounded-full p-2">
-                        <Map className="w-4 h-4 text-white" />
+                /* Address Form View */
+                <div className="flex-1 overflow-y-auto p-6 pt-2 space-y-4">
+                  {/* Quick Location Picker Button */}
+                  <div className="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-xl p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="bg-orange-500 rounded-full p-2">
+                          <Map className="w-4 h-4 text-white" />
+                        </div>
+                        <div>
+                          <p className="font-semibold text-gray-900 text-sm">Pick from Map</p>
+                          <p className="text-xs text-gray-500">Use GPS or search for your location</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-semibold text-gray-900 text-sm">Pick from Map</p>
-                        <p className="text-xs text-gray-500">Use GPS or search for your location</p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowMapPicker(true)}
+                        className="border-orange-300 text-orange-600 hover:bg-orange-50"
+                      >
+                        <LocateFixed className="w-4 h-4 mr-1" />
+                        Open Map
+                      </Button>
+                    </div>
+                    {newAddr.coordinates && (
+                      <div className="mt-3 pt-3 border-t border-orange-200">
+                        <p className="text-xs text-green-600 flex items-center gap-1">
+                          <Check className="w-3 h-3" />
+                          Location selected: {newAddr.coordinates.lat.toFixed(4)}, {newAddr.coordinates.lng.toFixed(4)}
+                        </p>
                       </div>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs">First Name</Label>
+                      <Input placeholder="John" value={newAddr.firstName} onChange={e => setNewAddr({ ...newAddr, firstName: e.target.value })} />
                     </div>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => setShowMapPicker(true)}
-                      className="border-orange-300 text-orange-600 hover:bg-orange-50"
-                    >
-                      <LocateFixed className="w-4 h-4 mr-1" />
-                      Open Map
-                    </Button>
-                  </div>
-                  {newAddr.coordinates && (
-                    <div className="mt-3 pt-3 border-t border-orange-200">
-                      <p className="text-xs text-green-600 flex items-center gap-1">
-                        <Check className="w-3 h-3" />
-                        Location selected: {newAddr.coordinates.lat.toFixed(4)}, {newAddr.coordinates.lng.toFixed(4)}
-                      </p>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Last Name</Label>
+                      <Input placeholder="Doe" value={newAddr.lastName} onChange={e => setNewAddr({ ...newAddr, lastName: e.target.value })} />
                     </div>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label className="text-xs">First Name</Label>
-                    <Input placeholder="John" value={newAddr.firstName} onChange={e => setNewAddr({ ...newAddr, firstName: e.target.value })} />
                   </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Last Name</Label>
-                    <Input placeholder="Doe" value={newAddr.lastName} onChange={e => setNewAddr({ ...newAddr, lastName: e.target.value })} />
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Phone Number</Label>
+                      <Input placeholder="09123456789" value={newAddr.phone} onChange={e => setNewAddr({ ...newAddr, phone: e.target.value })} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Label (e.g. Home, Office)</Label>
+                      <Input placeholder="Home" value={newAddr.label} onChange={e => setNewAddr({ ...newAddr, label: e.target.value })} />
+                    </div>
                   </div>
-                </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                  {/* Region Select */}
                   <div className="space-y-1">
-                    <Label className="text-xs">Phone Number</Label>
-                    <Input placeholder="09123456789" value={newAddr.phone} onChange={e => setNewAddr({ ...newAddr, phone: e.target.value })} />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Label (e.g. Home, Office)</Label>
-                    <Input placeholder="Home" value={newAddr.label} onChange={e => setNewAddr({ ...newAddr, label: e.target.value })} />
-                  </div>
-                </div>
-
-                {/* Region Select */}
-                <div className="space-y-1">
-                  <Label className="text-xs">Region</Label>
-                  <Select onValueChange={onRegionChange}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select Region" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {regionList.map((r) => (
-                        <SelectItem key={r.region_code} value={r.region_code}>{r.region_name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Province Select */}
-                <div className="space-y-1">
-                  <Label className="text-xs">Province</Label>
-                  <Select onValueChange={onProvinceChange} disabled={!newAddr.region}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select Province" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {provinceList.map((p) => (
-                        <SelectItem key={p.province_code} value={p.province_code}>{p.province_name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  {/* City Select */}
-                  <div className="space-y-1">
-                    <Label className="text-xs">City / Municipality</Label>
-                    <Select onValueChange={onCityChange} disabled={!newAddr.province}>
+                    <Label className="text-xs">Region</Label>
+                    <Select onValueChange={onRegionChange}>
                       <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select City" />
+                        <SelectValue placeholder="Select Region" />
                       </SelectTrigger>
                       <SelectContent>
-                        {cityList.map((c) => (
-                          <SelectItem key={c.city_code} value={c.city_code}>{c.city_name}</SelectItem>
+                        {regionList.map((r) => (
+                          <SelectItem key={r.region_code} value={r.region_code}>{r.region_name}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
 
-                  {/* Barangay Select */}
+                  {/* Province Select */}
                   <div className="space-y-1">
-                    <Label className="text-xs">Barangay</Label>
-                    <Select onValueChange={(v) => setNewAddr({ ...newAddr, barangay: barangayList.find(b => b.brgy_code === v)?.brgy_name })} disabled={!newAddr.city}>
+                    <Label className="text-xs">Province</Label>
+                    <Select onValueChange={onProvinceChange} disabled={!newAddr.region}>
                       <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select Barangay" />
+                        <SelectValue placeholder="Select Province" />
                       </SelectTrigger>
                       <SelectContent>
-                        {barangayList.map((b) => (
-                          <SelectItem key={b.brgy_code} value={b.brgy_code}>{b.brgy_name}</SelectItem>
+                        {provinceList.map((p) => (
+                          <SelectItem key={p.province_code} value={p.province_code}>{p.province_name}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
-                </div>
 
-                <div className="space-y-1">
-                  <Label className="text-xs">Street Address</Label>
-                  <Input placeholder="House No., Street Name" value={newAddr.street} onChange={e => setNewAddr({ ...newAddr, street: e.target.value })} />
-                </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* City Select */}
+                    <div className="space-y-1">
+                      <Label className="text-xs">City / Municipality</Label>
+                      <Select onValueChange={onCityChange} disabled={!newAddr.province}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select City" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {cityList.map((c) => (
+                            <SelectItem key={c.city_code} value={c.city_code}>{c.city_name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-                <div className="space-y-1">
-                  <Label className="text-xs">Landmark (Optional)</Label>
-                  <Input placeholder="Near SM Mall, In front of church, etc." value={newAddr.landmark} onChange={e => setNewAddr({ ...newAddr, landmark: e.target.value })} />
-                </div>
+                    {/* Barangay Select */}
+                    <div className="space-y-1">
+                      <Label className="text-xs">Barangay</Label>
+                      <Select onValueChange={(v) => setNewAddr({ ...newAddr, barangay: barangayList.find(b => b.brgy_code === v)?.brgy_name })} disabled={!newAddr.city}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select Barangay" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {barangayList.map((b) => (
+                            <SelectItem key={b.brgy_code} value={b.brgy_code}>{b.brgy_name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
 
-                <div className="grid grid-cols-2 gap-3 items-center">
                   <div className="space-y-1">
-                    <Label className="text-xs">Postal Code</Label>
-                    <Input placeholder="1234" value={newAddr.postalCode} onChange={e => setNewAddr({ ...newAddr, postalCode: e.target.value })} />
+                    <Label className="text-xs">Street Address</Label>
+                    <Input placeholder="House No., Street Name" value={newAddr.street} onChange={e => setNewAddr({ ...newAddr, street: e.target.value })} />
                   </div>
-                  <div className="flex items-center space-x-2 pt-5">
-                    <Switch checked={newAddr.isDefault} onCheckedChange={checked => setNewAddr({ ...newAddr, isDefault: checked })} />
-                    <Label className="text-sm cursor-pointer">Set as default</Label>
-                  </div>
-                </div>
 
-                <div className="space-y-1">
-                  <Label className="text-xs">Delivery Instructions (Optional)</Label>
-                  <Input 
-                    placeholder="Gate code, leave at door, call upon arrival, etc." 
-                    value={newAddr.deliveryInstructions} 
-                    onChange={e => setNewAddr({ ...newAddr, deliveryInstructions: e.target.value })} 
-                  />
+                  <div className="space-y-1">
+                    <Label className="text-xs">Landmark (Optional)</Label>
+                    <Input placeholder="Near SM Mall, In front of church, etc." value={newAddr.landmark} onChange={e => setNewAddr({ ...newAddr, landmark: e.target.value })} />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 items-center">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Postal Code</Label>
+                      <Input placeholder="1234" value={newAddr.postalCode} onChange={e => setNewAddr({ ...newAddr, postalCode: e.target.value })} />
+                    </div>
+                    <div className="flex items-center space-x-2 pt-5">
+                      <Switch checked={newAddr.isDefault} onCheckedChange={checked => setNewAddr({ ...newAddr, isDefault: checked })} />
+                      <Label className="text-sm cursor-pointer">Set as default</Label>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-xs">Delivery Instructions (Optional)</Label>
+                    <Input
+                      placeholder="Gate code, leave at door, call upon arrival, etc."
+                      value={newAddr.deliveryInstructions}
+                      onChange={e => setNewAddr({ ...newAddr, deliveryInstructions: e.target.value })}
+                    />
+                  </div>
                 </div>
-              </div>
               )}
 
               {!showMapPicker && (
-              <div className="p-4 bg-gray-50 border-t flex gap-3">
-                <Button variant="ghost" className="flex-1" onClick={() => {
-                  setAddressView('list');
-                  setEditingAddress(null);
-                  // Reset form
-                  setNewAddr({
-                    label: 'Home',
-                    firstName: profile?.firstName || '',
-                    lastName: profile?.lastName || '',
-                    phone: profile?.phone || '',
-                    street: '',
-                    barangay: '',
-                    city: '',
-                    province: '',
-                    region: '',
-                    postalCode: '',
-                    isDefault: false,
-                    coordinates: null,
-                    landmark: '',
-                    deliveryInstructions: '',
-                  });
-                }}>Back</Button>
-                <Button
-                  className="flex-1 bg-[var(--brand-primary)] hover:bg-orange-600 font-bold text-white"
-                  disabled={isSaving || !newAddr.firstName || !newAddr.phone}
-                  onClick={async () => {
-                    if (!profile) return;
-                    setIsSaving(true);
-                    try {
-                      const { addressService } = await import('../services/addressService');
+                <div className="p-4 bg-gray-50 border-t flex gap-3">
+                  <Button variant="ghost" className="flex-1" onClick={() => {
+                    setAddressView('list');
+                    setEditingAddress(null);
+                    // Reset form
+                    setNewAddr({
+                      label: 'Home',
+                      firstName: profile?.firstName || '',
+                      lastName: profile?.lastName || '',
+                      phone: profile?.phone || '',
+                      street: '',
+                      barangay: '',
+                      city: '',
+                      province: '',
+                      region: '',
+                      postalCode: '',
+                      isDefault: false,
+                      coordinates: null,
+                      landmark: '',
+                      deliveryInstructions: '',
+                    });
+                  }}>Back</Button>
+                  <Button
+                    className="flex-1 bg-[var(--brand-primary)] hover:bg-orange-600 font-bold text-white"
+                    disabled={isSaving || !newAddr.firstName || !newAddr.phone}
+                    onClick={async () => {
+                      if (!profile) return;
+                      setIsSaving(true);
+                      try {
+                        const { addressService } = await import('../services/addressService');
 
-                      const addressPayload: any = {
-                        user_id: profile.id,
-                        label: newAddr.label,
-                        first_name: newAddr.firstName,
-                        last_name: newAddr.lastName,
-                        phone: newAddr.phone,
-                        street: newAddr.street,
-                        barangay: newAddr.barangay,
-                        city: newAddr.city,
-                        province: newAddr.province,
-                        region: newAddr.region,
-                        zip_code: newAddr.postalCode,
-                        is_default: newAddr.isDefault,
-                        landmark: newAddr.landmark || null,
-                        delivery_instructions: newAddr.deliveryInstructions || null,
-                      };
+                        const addressPayload: any = {
+                          user_id: profile.id,
+                          label: newAddr.label,
+                          first_name: newAddr.firstName,
+                          last_name: newAddr.lastName,
+                          phone: newAddr.phone,
+                          street: newAddr.street,
+                          barangay: newAddr.barangay,
+                          city: newAddr.city,
+                          province: newAddr.province,
+                          region: newAddr.region,
+                          zip_code: newAddr.postalCode,
+                          is_default: newAddr.isDefault,
+                          landmark: newAddr.landmark || null,
+                          delivery_instructions: newAddr.deliveryInstructions || null,
+                        };
 
-                      // Include coordinates if available
-                      if (newAddr.coordinates) {
-                        addressPayload.coordinates = newAddr.coordinates;
+                        // Include coordinates if available
+                        if (newAddr.coordinates) {
+                          addressPayload.coordinates = newAddr.coordinates;
+                        }
+
+                        let savedAddress;
+
+                        if (addressView === 'edit' && editingAddress) {
+                          // UPDATE existing address
+                          savedAddress = await addressService.updateAddress(editingAddress.id, addressPayload);
+                          updateAddress(editingAddress.id, savedAddress);
+                          toast({ title: "Address updated", description: "Your address has been updated successfully." });
+                        } else {
+                          // CREATE new address
+                          savedAddress = await addressService.createAddress(addressPayload);
+                          addAddress(savedAddress);
+                          toast({ title: "Address saved", description: "Your new address has been added." });
+                        }
+
+                        setSelectedAddress(savedAddress);
+                        setTempSelected(savedAddress);
+                        setConfirmedAddress(savedAddress);
+                        setIsAddressModalOpen(false);
+                        setAddressView('list');
+                        setShowMapPicker(false);
+                        setEditingAddress(null);
+                        // Reset form
+                        setNewAddr({
+                          label: 'Home',
+                          firstName: profile?.firstName || '',
+                          lastName: profile?.lastName || '',
+                          phone: profile?.phone || '',
+                          street: '',
+                          barangay: '',
+                          city: '',
+                          province: '',
+                          region: '',
+                          postalCode: '',
+                          isDefault: false,
+                          coordinates: null,
+                          landmark: '',
+                          deliveryInstructions: '',
+                        });
+                      } catch (error: any) {
+                        console.error("Error saving address:", error);
+                        toast({ title: "Error", description: error.message || "Failed to save address", variant: "destructive" });
+                      } finally {
+                        setIsSaving(false);
                       }
-
-                      let savedAddress;
-                      
-                      if (addressView === 'edit' && editingAddress) {
-                        // UPDATE existing address
-                        savedAddress = await addressService.updateAddress(editingAddress.id, addressPayload);
-                        updateAddress(editingAddress.id, savedAddress);
-                        toast({ title: "Address updated", description: "Your address has been updated successfully." });
-                      } else {
-                        // CREATE new address
-                        savedAddress = await addressService.createAddress(addressPayload);
-                        addAddress(savedAddress);
-                        toast({ title: "Address saved", description: "Your new address has been added." });
-                      }
-
-                      setSelectedAddress(savedAddress);
-                      setTempSelected(savedAddress);
-                      setConfirmedAddress(savedAddress);
-                      setIsAddressModalOpen(false);
-                      setAddressView('list');
-                      setShowMapPicker(false);
-                      setEditingAddress(null);
-                      // Reset form
-                      setNewAddr({
-                        label: 'Home',
-                        firstName: profile?.firstName || '',
-                        lastName: profile?.lastName || '',
-                        phone: profile?.phone || '',
-                        street: '',
-                        barangay: '',
-                        city: '',
-                        province: '',
-                        region: '',
-                        postalCode: '',
-                        isDefault: false,
-                        coordinates: null,
-                        landmark: '',
-                        deliveryInstructions: '',
-                      });
-                    } catch (error: any) {
-                      console.error("Error saving address:", error);
-                      toast({ title: "Error", description: error.message || "Failed to save address", variant: "destructive" });
-                    } finally {
-                      setIsSaving(false);
-                    }
-                  }}
-                >
-                  {isSaving ? "Saving..." : (addressView === 'edit' ? "Update Address" : "Save and Use")}
-                </Button>
-              </div>
+                    }}
+                  >
+                    {isSaving ? "Saving..." : (addressView === 'edit' ? "Update Address" : "Save and Use")}
+                  </Button>
+                </div>
               )}
             </>
           )}

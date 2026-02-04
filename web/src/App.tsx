@@ -15,6 +15,7 @@ import OrdersPage from "./pages/OrdersPage";
 import OrderDetailPage from "./pages/OrderDetailPage";
 import DeliveryTrackingPage from "./pages/DeliveryTrackingPage";
 import RegistryAndGiftingPage from "./pages/RegistryAndGiftingPage";
+import SharedRegistryPage from "./pages/SharedRegistryPage";
 
 // Enhanced Buyer Pages
 import EnhancedCartPage from "./pages/EnhancedCartPage";
@@ -85,6 +86,7 @@ function App() {
           <Route path="/stores" element={<StoresPage />} />
           <Route path="/product/:id" element={<ProductDetailPage />} />
           <Route path="/registry" element={<RegistryAndGiftingPage />} />
+          <Route path="/registry/:id" element={<SharedRegistryPage />} />
           <Route path="/enhanced-cart"
             element={
               <ProtectedBuyerRoute>
