@@ -67,7 +67,7 @@ export default function SellerLoginScreen() {
       if (authData.user) {
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
-          .select('user_type')
+          .select('*')
           .eq('id', authData.user.id)
           .single();
 
@@ -85,16 +85,25 @@ export default function SellerLoginScreen() {
 
         const { data: sellerData, error: sellerError } = await supabase
           .from('sellers')
-          .select('store_name, approval_status, business_permit_url, valid_id_url, proof_of_address_url, dti_registration_url, tax_id_url')
+          .select('*')
           .eq('id', authData.user.id)
           .single();
 
         if (sellerError || !sellerData) {
           Alert.alert('Error', 'Seller record not found.');
         } else {
-          // IMPORTANT: Include the seller ID from Supabase auth
+          // Sync with AuthStore (Buyer Profile)
+          useAuthStore.getState().setUser({
+            id: authData.user.id,
+            name: profile.full_name || 'BazaarX User',
+            email: authData.user.email || '',
+            phone: profile.phone || '',
+            avatar: profile.avatar_url || ''
+          });
+
+          // Sync with SellerStore
           useSellerStore.getState().updateSellerInfo({
-            id: authData.user.id, // This is critical for QA and product queries
+            id: authData.user.id,
             storeName: sellerData.store_name,
             email: authData.user.email,
             approval_status: sellerData.approval_status,
@@ -104,10 +113,14 @@ export default function SellerLoginScreen() {
             dti_registration_url: sellerData.dti_registration_url,
             tax_id_url: sellerData.tax_id_url,
           });
-          
-          // Sync with AuthStore
+
+          // Set roles and switch to seller role
           useAuthStore.getState().addRole('seller');
           useAuthStore.getState().switchRole('seller');
+
+          // Fetch orders to replace dummy data in OrderStore
+          const { useOrderStore } = await import('../../src/stores/orderStore');
+          useOrderStore.getState().fetchOrders(authData.user.id);
         }
 
         navigation.replace('SellerStack');
@@ -145,8 +158,8 @@ export default function SellerLoginScreen() {
         </View>
 
         {/* Demo Access Card */}
-        <Pressable 
-          style={styles.demoCard} 
+        <Pressable
+          style={styles.demoCard}
           onPress={() => setShowTestAccounts(true)}
         >
           <View style={styles.demoInfo}>
@@ -259,7 +272,7 @@ export default function SellerLoginScreen() {
                 <X size={24} color="#6B7280" />
               </Pressable>
             </View>
-            
+
             <ScrollView style={styles.accountsList}>
               {TEST_SELLER_ACCOUNTS.map((account, index) => (
                 <Pressable

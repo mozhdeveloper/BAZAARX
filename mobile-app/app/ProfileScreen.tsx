@@ -185,10 +185,10 @@ export default function ProfileScreen({ navigation }: Props) {
   };
 
   const profile = {
-    firstName: user?.name.split(' ')[0] || 'Jonathan',
-    lastName: user?.name.split(' ')[1] || 'Doe',
-    email: user?.email || 'jonathan.doe@example.com',
-    phone: user?.phone || '+63 912 345 6789',
+    firstName: user?.name.split(' ')[0] || 'BazaarX',
+    lastName: user?.name.split(' ').slice(1).join(' ') || 'User',
+    email: user?.email || 'user@bazaarx.ph',
+    phone: user?.phone || 'No phone number',
     memberSince: 'January 2024',
     totalOrders: totalOrders,
     loyaltyPoints: bazcoins,

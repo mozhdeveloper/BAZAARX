@@ -104,6 +104,10 @@ export default function LoginScreen({ navigation }: Props) {
             if (profile.user_type === 'seller') {
               useAuthStore.getState().addRole('seller');
             }
+
+            // Fetch orders to replace dummy data in OrderStore
+            const { useOrderStore } = await import('../src/stores/orderStore');
+            useOrderStore.getState().fetchOrders(data.user.id);
           }
 
           navigation.replace('MainTabs', { screen: 'Home' });
