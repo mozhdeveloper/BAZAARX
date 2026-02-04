@@ -247,6 +247,11 @@ interface BuyerStore {
   clearQuickOrder: () => void;
   getQuickOrderTotal: () => number;
 
+  // Buy Again Items (temporary state for direct checkout)
+  buyAgainItems: CartItem[] | null;
+  setBuyAgainItems: (items: CartItem[]) => void;
+  clearBuyAgainItems: () => void;
+
   // Voucher System
   availableVouchers: Voucher[];
   appliedVouchers: { [sellerId: string]: Voucher }; // Per seller vouchers
@@ -351,7 +356,8 @@ const mapDbItemToCartItem = (item: any): CartItem | null => {
     variants: dbProduct.variants || [],
     quantity: item.quantity,
     selectedVariant: item.selected_variant,
-    notes: item.notes
+    notes: item.notes,
+    selected: true // Default to selected so they appear in checkout
   } as CartItem;
 };
 
@@ -505,6 +511,10 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       if (!quickOrder) return 0;
       return quickOrder.price * quickOrder.quantity;
     },
+
+    buyAgainItems: null,
+    setBuyAgainItems: (items) => set({ buyAgainItems: items }),
+    clearBuyAgainItems: () => set({ buyAgainItems: null }),
 
     addToCart: async (product, quantity = 1, variant) => {
       // Check if user is logged in
@@ -1271,6 +1281,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       reviews: state.reviews,
       conversations: state.conversations,
       registries: state.registries
+      // We do NOT persist buyAgainItems or quickOrder to keep them transient
     })
   }
 ));
