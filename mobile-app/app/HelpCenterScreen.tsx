@@ -134,32 +134,18 @@ export default function HelpCenterScreen({ navigation, route }: Props) {
 
   const contactOptions = [
     {
-      icon: Ticket,
-      title: 'Submit a Support Ticket',
-      subtitle: 'Create a ticket and track your concern',
-      color: '#FF6A00',
-      onPress: () => navigation.navigate('CreateTicket'),
-    },
-    {
       icon: MessageCircle,
-      title: 'Live Chat',
+      title: 'Chat Support',
       subtitle: 'Chat with our support team',
       color: '#8B5CF6',
       onPress: () => console.log('Open live chat'),
     },
     {
-      icon: Mail,
-      title: 'Email Support',
-      subtitle: 'support@bazaarx.ph',
-      color: '#3B82F6',
-      onPress: () => Linking.openURL('mailto:support@bazaarx.ph'),
-    },
-    {
-      icon: Phone,
-      title: 'Call Us',
-      subtitle: '+63 2 1234 5678',
-      color: '#10B981',
-      onPress: () => Linking.openURL('tel:+6321234567'),
+      icon: Ticket,
+      title: 'Submit a Support Ticket',
+      subtitle: 'Create a ticket and track your concern',
+      color: '#FF6A00',
+      onPress: () => navigation.navigate('CreateTicket'),
     },
   ];
 
@@ -219,6 +205,16 @@ export default function HelpCenterScreen({ navigation, route }: Props) {
               </Text>
             </View>
 
+            {/* Business Hours */}
+            <View style={styles.hoursCard}>
+              <Clock size={20} color="#FF6A00" />
+              <View style={styles.hoursInfo}>
+                <Text style={styles.hoursTitle}>Support Hours</Text>
+                <Text style={styles.hoursText}>Monday - Saturday: 8:00 AM - 8:00 PM</Text>
+                <Text style={styles.hoursText}>Sunday: 9:00 AM - 6:00 PM</Text>
+              </View>
+            </View>
+
             {/* Contact Options */}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Contact Us</Text>
@@ -241,16 +237,6 @@ export default function HelpCenterScreen({ navigation, route }: Props) {
                   <ChevronRight size={20} color="#9CA3AF" />
                 </Pressable>
               ))}
-            </View>
-
-            {/* Business Hours */}
-            <View style={styles.hoursCard}>
-              <Clock size={20} color="#FF6A00" />
-              <View style={styles.hoursInfo}>
-                <Text style={styles.hoursTitle}>Support Hours</Text>
-                <Text style={styles.hoursText}>Monday - Saturday: 8:00 AM - 8:00 PM</Text>
-                <Text style={styles.hoursText}>Sunday: 9:00 AM - 6:00 PM</Text>
-              </View>
             </View>
 
             {/* FAQs */}
