@@ -130,7 +130,7 @@ export default function SellerMessages() {
   const [dbMessages, setDbMessages] = useState<DBMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
-  
+
   // Check if using real data
   const useRealData = dbConversations.length > 0;
 
@@ -140,7 +140,7 @@ export default function SellerMessages() {
       setLoading(false);
       return;
     }
-    
+
     try {
       const convs = await chatService.getSellerConversations(seller.id);
       setDbConversations(convs);
@@ -150,7 +150,7 @@ export default function SellerMessages() {
       setLoading(false);
     }
   }, [seller?.id]);
-  
+
   useEffect(() => {
     loadConversations();
   }, [loadConversations]);
@@ -161,28 +161,28 @@ export default function SellerMessages() {
       setSelectedConversation(dbConversations[0].id);
     }
   }, [dbConversations, selectedConversation]);
-  
+
   // Load messages when conversation is selected
   useEffect(() => {
     if (!selectedConversation || !useRealData) return;
-    
+
     const loadMessages = async () => {
       const msgs = await chatService.getMessages(selectedConversation);
       setDbMessages(msgs);
-      
+
       // Mark as read
       if (seller?.id) {
         chatService.markAsRead(selectedConversation, seller.id, 'seller');
       }
     };
-    
+
     loadMessages();
   }, [selectedConversation, useRealData, seller?.id]);
-  
+
   // Subscribe to new messages
   useEffect(() => {
     if (!selectedConversation || !useRealData) return;
-    
+
     const unsubscribe = chatService.subscribeToMessages(
       selectedConversation,
       (newMsg) => {
@@ -192,13 +192,13 @@ export default function SellerMessages() {
           if (exists) return prev;
           return [...prev, newMsg];
         });
-        
+
         if (newMsg.sender_type === 'buyer' && seller?.id) {
           chatService.markAsRead(selectedConversation, seller.id, 'seller');
         }
       }
     );
-    
+
     return unsubscribe;
   }, [selectedConversation, useRealData, seller?.id]);
 
@@ -303,19 +303,19 @@ export default function SellerMessages() {
   // Filtered conversations (supports both mock and real data)
   const filteredConversations = useRealData
     ? normalizedDbConversations.filter(conv =>
+      conv.buyerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      conv.lastMessage.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+    : conversations
+      .filter(conv =>
         conv.buyerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
         conv.lastMessage.toLowerCase().includes(searchQuery.toLowerCase())
       )
-    : conversations
-        .filter(conv =>
-          conv.buyerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          conv.lastMessage.toLowerCase().includes(searchQuery.toLowerCase())
-        )
-    .sort((a, b) => {
-      const timeA = a.lastMessageTime ? a.lastMessageTime.getTime() : 0;
-      const timeB = b.lastMessageTime ? b.lastMessageTime.getTime() : 0;
-      return timeB - timeA;
-    });
+      .sort((a, b) => {
+        const timeA = a.lastMessageTime ? a.lastMessageTime.getTime() : 0;
+        const timeB = b.lastMessageTime ? b.lastMessageTime.getTime() : 0;
+        return timeB - timeA;
+      });
 
   return (
     <div className="h-screen w-full flex flex-col md:flex-row bg-gray-50 overflow-hidden">
@@ -350,7 +350,7 @@ export default function SellerMessages() {
       </Sidebar>
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="flex-1 flex h-full overflow-hidden max-w-[1600px] mx-auto w-full p-0 md:p-6 gap-0 md:gap-6">
+        <div className="flex-1 flex h-full overflow-hidden max-w-7xl mx-auto w-full p-0 md:p-6 gap-0 md:gap-6">
           {/* Conversations List Sidebar */}
           <div className="w-full md:w-80 border-r bg-white flex flex-col md:rounded-2xl md:shadow-sm md:border border-gray-100 overflow-hidden hidden md:flex">
             <div className="p-4 border-b border-gray-50 bg-white">
@@ -379,41 +379,41 @@ export default function SellerMessages() {
                 </div>
               ) : (
                 filteredConversations.map((conv) => (
-                <div
-                  key={conv.id}
-                  onClick={() => setSelectedConversation(conv.id)}
-                  className={`p-4 cursor-pointer hover:bg-gray-50 transition-all border-l-4 ${selectedConversation === conv.id
-                    ? 'bg-orange-50 border-l-orange-500'
-                    : 'border-l-transparent'
-                    }`}
-                >
-                  <div className="flex gap-3">
-                    <div className="relative">
-                      <Avatar className="h-12 w-12 border-2 border-white shadow-sm">
-                        <AvatarFallback className="bg-orange-100 text-orange-600 font-bold">
-                          {conv.buyerName.charAt(0)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 border-2 border-white rounded-full" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex justify-between items-baseline mb-0.5">
-                        <h4 className="font-bold text-gray-900 truncate">{conv.buyerName}</h4>
-                        <span className="text-[10px] font-semibold text-gray-400 uppercase">
-                          {conv.lastMessageTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </span>
+                  <div
+                    key={conv.id}
+                    onClick={() => setSelectedConversation(conv.id)}
+                    className={`p-4 cursor-pointer hover:bg-gray-50 transition-all border-l-4 ${selectedConversation === conv.id
+                      ? 'bg-orange-50 border-l-orange-500'
+                      : 'border-l-transparent'
+                      }`}
+                  >
+                    <div className="flex gap-3">
+                      <div className="relative">
+                        <Avatar className="h-12 w-12 border-2 border-white shadow-sm">
+                          <AvatarFallback className="bg-orange-100 text-orange-600 font-bold">
+                            {conv.buyerName.charAt(0)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 border-2 border-white rounded-full" />
                       </div>
-                      <p className={`text-sm truncate ${conv.unreadCount > 0 ? 'text-gray-900 font-semibold' : 'text-gray-500'}`}>
-                        {conv.lastMessage}
-                      </p>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex justify-between items-baseline mb-0.5">
+                          <h4 className="font-bold text-gray-900 truncate">{conv.buyerName}</h4>
+                          <span className="text-[10px] font-semibold text-gray-400 uppercase">
+                            {conv.lastMessageTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                        <p className={`text-sm truncate ${conv.unreadCount > 0 ? 'text-gray-900 font-semibold' : 'text-gray-500'}`}>
+                          {conv.lastMessage}
+                        </p>
+                      </div>
+                      {conv.unreadCount > 0 && (
+                        <Badge className="bg-orange-500 hover:bg-orange-600 rounded-full h-5 min-w-[20px] flex items-center justify-center p-0.5 text-[10px]">
+                          {conv.unreadCount}
+                        </Badge>
+                      )}
                     </div>
-                    {conv.unreadCount > 0 && (
-                      <Badge className="bg-orange-500 hover:bg-orange-600 rounded-full h-5 min-w-[20px] flex items-center justify-center p-0.5 text-[10px]">
-                        {conv.unreadCount}
-                      </Badge>
-                    )}
                   </div>
-                </div>
                 ))
               )}
             </div>

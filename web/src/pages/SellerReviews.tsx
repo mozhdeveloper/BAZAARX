@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Star, 
-  MessageSquare, 
+import {
+  Star,
+  MessageSquare,
   ThumbsUp,
   Search,
   Reply,
@@ -22,9 +22,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 const Logo = () => (
   <Link to="/seller" className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20">
-    <img 
-      src="/Logo.png" 
-      alt="BazaarPH Logo" 
+    <img
+      src="/Logo.png"
+      alt="BazaarPH Logo"
       className="h-8 w-8 object-contain flex-shrink-0"
     />
     <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="font-semibold text-gray-900 whitespace-pre">
@@ -35,9 +35,9 @@ const Logo = () => (
 
 const LogoIcon = () => (
   <Link to="/seller" className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20">
-    <img 
-      src="/Logo.png" 
-      alt="BazaarPH Logo" 
+    <img
+      src="/Logo.png"
+      alt="BazaarPH Logo"
       className="h-8 w-8 object-contain flex-shrink-0"
     />
   </Link>
@@ -146,13 +146,13 @@ export function SellerReviews() {
   };
 
   const filteredReviews = mockReviews.filter(review => {
-    const matchesSearch = 
+    const matchesSearch =
       review.productName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       review.buyerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       review.comment.toLowerCase().includes(searchQuery.toLowerCase());
-    
+
     const matchesFilter = filterRating === 'all' || review.rating === parseInt(filterRating);
-    
+
     return matchesSearch && matchesFilter;
   });
 
@@ -218,279 +218,280 @@ export function SellerReviews() {
         </SidebarBody>
       </Sidebar>
 
-      {/* Main Content */}
       <div className="flex-1 overflow-auto">
-        <div className="p-8">
-          {/* Header */}
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Reviews & Ratings</h1>
-            <p className="text-gray-600">Manage customer feedback and respond to reviews</p>
-          </div>
+        <div className="w-full max-w-7xl mx-auto">
+          <div className="p-8">
+            {/* Header */}
+            <div className="mb-8">
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">Reviews & Ratings</h1>
+              <p className="text-gray-600">Manage customer feedback and respond to reviews</p>
+            </div>
 
-          {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">Average Rating</p>
-                    <p className="text-3xl font-bold text-gray-900">{reviewStats.average}</p>
-                  </div>
-                  <div className="bg-yellow-100 p-3 rounded-full">
-                    <Star className="h-6 w-6 text-yellow-600 fill-current" />
-                  </div>
-                </div>
-                <div className="flex items-center gap-1 mt-3">
-                  {[...Array(5)].map((_, i) => (
-                    <Star key={i} className="h-4 w-4 text-yellow-400 fill-current" />
-                  ))}
-                  <span className="text-sm text-gray-500 ml-2">({reviewStats.total} reviews)</span>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">Total Reviews</p>
-                    <p className="text-3xl font-bold text-gray-900">{reviewStats.total}</p>
-                  </div>
-                  <div className="bg-blue-100 p-3 rounded-full">
-                    <MessageSquare className="h-6 w-6 text-blue-600" />
-                  </div>
-                </div>
-                <p className="text-sm text-gray-500 mt-3">
-                  {reviewStats.withPhotos} with photos
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">Needs Reply</p>
-                    <p className="text-3xl font-bold text-gray-900">{reviewStats.needsReply}</p>
-                  </div>
-                  <div className="bg-orange-100 p-3 rounded-full">
-                    <Reply className="h-6 w-6 text-orange-600" />
-                  </div>
-                </div>
-                <p className="text-sm text-gray-500 mt-3">
-                  {((reviewStats.needsReply / reviewStats.total) * 100).toFixed(0)}% pending
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">5 Star Reviews</p>
-                    <p className="text-3xl font-bold text-gray-900">{reviewStats.fiveStar}</p>
-                  </div>
-                  <div className="bg-green-100 p-3 rounded-full">
-                    <ThumbsUp className="h-6 w-6 text-green-600" />
-                  </div>
-                </div>
-                <p className="text-sm text-gray-500 mt-3">
-                  {((reviewStats.fiveStar / reviewStats.total) * 100).toFixed(0)}% of total
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Rating Breakdown */}
-          <Card className="mb-8">
-            <CardHeader>
-              <CardTitle>Rating Distribution</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {[5, 4, 3, 2, 1].map(rating => {
-                  const count = rating === 5 ? reviewStats.fiveStar : 
-                                rating === 4 ? reviewStats.fourStar :
-                                rating === 3 ? reviewStats.threeStar :
-                                rating === 2 ? reviewStats.twoStar : reviewStats.oneStar;
-                  const percentage = (count / reviewStats.total) * 100;
-                  
-                  return (
-                    <div key={rating} className="flex items-center gap-3">
-                      <div className="flex items-center gap-1 w-24">
-                        <span className="text-sm text-gray-600">{rating}</span>
-                        <Star className="h-4 w-4 text-yellow-400 fill-current" />
-                      </div>
-                      <div className="flex-1 bg-gray-200 rounded-full h-2">
-                        <div 
-                          className="bg-yellow-400 h-2 rounded-full transition-all"
-                          style={{ width: `${percentage}%` }}
-                        />
-                      </div>
-                      <span className="text-sm text-gray-600 w-16 text-right">{count}</span>
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-600 mb-1">Average Rating</p>
+                      <p className="text-3xl font-bold text-gray-900">{reviewStats.average}</p>
                     </div>
-                  );
-                })}
+                    <div className="bg-yellow-100 p-3 rounded-full">
+                      <Star className="h-6 w-6 text-yellow-600 fill-current" />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 mt-3">
+                    {[...Array(5)].map((_, i) => (
+                      <Star key={i} className="h-4 w-4 text-yellow-400 fill-current" />
+                    ))}
+                    <span className="text-sm text-gray-500 ml-2">({reviewStats.total} reviews)</span>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-600 mb-1">Total Reviews</p>
+                      <p className="text-3xl font-bold text-gray-900">{reviewStats.total}</p>
+                    </div>
+                    <div className="bg-blue-100 p-3 rounded-full">
+                      <MessageSquare className="h-6 w-6 text-blue-600" />
+                    </div>
+                  </div>
+                  <p className="text-sm text-gray-500 mt-3">
+                    {reviewStats.withPhotos} with photos
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-600 mb-1">Needs Reply</p>
+                      <p className="text-3xl font-bold text-gray-900">{reviewStats.needsReply}</p>
+                    </div>
+                    <div className="bg-orange-100 p-3 rounded-full">
+                      <Reply className="h-6 w-6 text-orange-600" />
+                    </div>
+                  </div>
+                  <p className="text-sm text-gray-500 mt-3">
+                    {((reviewStats.needsReply / reviewStats.total) * 100).toFixed(0)}% pending
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-600 mb-1">5 Star Reviews</p>
+                      <p className="text-3xl font-bold text-gray-900">{reviewStats.fiveStar}</p>
+                    </div>
+                    <div className="bg-green-100 p-3 rounded-full">
+                      <ThumbsUp className="h-6 w-6 text-green-600" />
+                    </div>
+                  </div>
+                  <p className="text-sm text-gray-500 mt-3">
+                    {((reviewStats.fiveStar / reviewStats.total) * 100).toFixed(0)}% of total
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Rating Breakdown */}
+            <Card className="mb-8">
+              <CardHeader>
+                <CardTitle>Rating Distribution</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {[5, 4, 3, 2, 1].map(rating => {
+                    const count = rating === 5 ? reviewStats.fiveStar :
+                      rating === 4 ? reviewStats.fourStar :
+                        rating === 3 ? reviewStats.threeStar :
+                          rating === 2 ? reviewStats.twoStar : reviewStats.oneStar;
+                    const percentage = (count / reviewStats.total) * 100;
+
+                    return (
+                      <div key={rating} className="flex items-center gap-3">
+                        <div className="flex items-center gap-1 w-24">
+                          <span className="text-sm text-gray-600">{rating}</span>
+                          <Star className="h-4 w-4 text-yellow-400 fill-current" />
+                        </div>
+                        <div className="flex-1 bg-gray-200 rounded-full h-2">
+                          <div
+                            className="bg-yellow-400 h-2 rounded-full transition-all"
+                            style={{ width: `${percentage}%` }}
+                          />
+                        </div>
+                        <span className="text-sm text-gray-600 w-16 text-right">{count}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Filters & Search */}
+            <div className="flex flex-col md:flex-row gap-4 mb-6">
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <Input
+                  placeholder="Search reviews by product, customer, or keywords..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
               </div>
-            </CardContent>
-          </Card>
-
-          {/* Filters & Search */}
-          <div className="flex flex-col md:flex-row gap-4 mb-6">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-              <Input
-                placeholder="Search reviews by product, customer, or keywords..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
-              />
+              <select
+                value={filterRating}
+                onChange={(e) => setFilterRating(e.target.value)}
+                className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+              >
+                <option value="all">All Ratings</option>
+                <option value="5">5 Stars</option>
+                <option value="4">4 Stars</option>
+                <option value="3">3 Stars</option>
+                <option value="2">2 Stars</option>
+                <option value="1">1 Star</option>
+              </select>
             </div>
-            <select
-              value={filterRating}
-              onChange={(e) => setFilterRating(e.target.value)}
-              className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-            >
-              <option value="all">All Ratings</option>
-              <option value="5">5 Stars</option>
-              <option value="4">4 Stars</option>
-              <option value="3">3 Stars</option>
-              <option value="2">2 Stars</option>
-              <option value="1">1 Star</option>
-            </select>
-          </div>
 
-          {/* Reviews List */}
-          <div className="space-y-4">
-            <AnimatePresence>
-              {filteredReviews.map((review) => (
-                <motion.div
-                  key={review.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                >
-                  <Card>
-                    <CardContent className="p-6">
-                      {/* Review Header */}
-                      <div className="flex items-start gap-4 mb-4">
-                        <img
-                          src={review.productImage}
-                          alt={review.productName}
-                          className="w-16 h-16 object-cover rounded-lg"
-                        />
-                        <div className="flex-1">
-                          <h3 className="font-medium text-gray-900 mb-1">{review.productName}</h3>
-                          <div className="flex items-center gap-3">
-                            <div className="flex items-center gap-1">
-                              {[...Array(5)].map((_, i) => (
-                                <Star
-                                  key={i}
-                                  className={cn(
-                                    "h-4 w-4",
-                                    i < review.rating
-                                      ? "text-yellow-400 fill-current"
-                                      : "text-gray-300"
-                                  )}
-                                />
-                              ))}
+            {/* Reviews List */}
+            <div className="space-y-4">
+              <AnimatePresence>
+                {filteredReviews.map((review) => (
+                  <motion.div
+                    key={review.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                  >
+                    <Card>
+                      <CardContent className="p-6">
+                        {/* Review Header */}
+                        <div className="flex items-start gap-4 mb-4">
+                          <img
+                            src={review.productImage}
+                            alt={review.productName}
+                            className="w-16 h-16 object-cover rounded-lg"
+                          />
+                          <div className="flex-1">
+                            <h3 className="font-medium text-gray-900 mb-1">{review.productName}</h3>
+                            <div className="flex items-center gap-3">
+                              <div className="flex items-center gap-1">
+                                {[...Array(5)].map((_, i) => (
+                                  <Star
+                                    key={i}
+                                    className={cn(
+                                      "h-4 w-4",
+                                      i < review.rating
+                                        ? "text-yellow-400 fill-current"
+                                        : "text-gray-300"
+                                    )}
+                                  />
+                                ))}
+                              </div>
+                              <span className="text-sm text-gray-500">
+                                {review.date.toLocaleDateString()}
+                              </span>
+                              {review.verified && (
+                                <Badge variant="outline" className="text-green-600 border-green-200">
+                                  <Check className="h-3 w-3 mr-1" />
+                                  Verified Purchase
+                                </Badge>
+                              )}
                             </div>
-                            <span className="text-sm text-gray-500">
-                              {review.date.toLocaleDateString()}
-                            </span>
-                            {review.verified && (
-                              <Badge variant="outline" className="text-green-600 border-green-200">
-                                <Check className="h-3 w-3 mr-1" />
-                                Verified Purchase
-                              </Badge>
-                            )}
                           </div>
                         </div>
-                      </div>
 
-                      {/* Customer Info */}
-                      <div className="flex items-center gap-3 mb-4">
-                        <img
-                          src={review.buyerAvatar}
-                          alt={review.buyerName}
-                          className="w-10 h-10 rounded-full object-cover"
-                        />
-                        <div>
-                          <p className="font-medium text-gray-900">{review.buyerName}</p>
-                          <p className="text-sm text-gray-500">Customer</p>
-                        </div>
-                      </div>
-
-                      {/* Review Content */}
-                      <p className="text-gray-700 mb-4">{review.comment}</p>
-
-                      {/* Review Images */}
-                      {review.images.length > 0 && (
-                        <div className="flex gap-2 mb-4">
-                          {review.images.map((img, idx) => (
-                            <img
-                              key={idx}
-                              src={img}
-                              alt={`Review ${idx + 1}`}
-                              className="w-20 h-20 object-cover rounded-lg cursor-pointer hover:opacity-80 transition-opacity"
-                            />
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Helpful Count */}
-                      <div className="flex items-center gap-4 mb-4">
-                        <button className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900">
-                          <ThumbsUp className="h-4 w-4" />
-                          <span>{review.helpful} found this helpful</span>
-                        </button>
-                      </div>
-
-                      {/* Seller Reply */}
-                      {review.reply ? (
-                        <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-                          <div className="flex items-center gap-2 mb-2">
-                            <Badge className="bg-orange-500">Seller Response</Badge>
-                            <span className="text-sm text-gray-500">
-                              {review.reply.date.toLocaleDateString()}
-                            </span>
+                        {/* Customer Info */}
+                        <div className="flex items-center gap-3 mb-4">
+                          <img
+                            src={review.buyerAvatar}
+                            alt={review.buyerName}
+                            className="w-10 h-10 rounded-full object-cover"
+                          />
+                          <div>
+                            <p className="font-medium text-gray-900">{review.buyerName}</p>
+                            <p className="text-sm text-gray-500">Customer</p>
                           </div>
-                          <p className="text-gray-700">{review.reply.message}</p>
                         </div>
-                      ) : (
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            onClick={() => handleReply(review.id)}
-                            className="bg-orange-500 hover:bg-orange-600 text-white"
-                          >
-                            <Reply className="h-4 w-4 mr-2" />
-                            Reply to Review
-                          </Button>
-                          <Button size="sm" variant="outline">
-                            <Flag className="h-4 w-4 mr-2" />
-                            Report
-                          </Button>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              ))}
-            </AnimatePresence>
-          </div>
 
-          {filteredReviews.length === 0 && (
-            <div className="text-center py-12">
-              <MessageSquare className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No reviews found</h3>
-              <p className="text-gray-600">
-                {searchQuery || filterRating !== 'all'
-                  ? 'Try adjusting your search or filters'
-                  : 'Reviews will appear here when customers leave feedback'}
-              </p>
+                        {/* Review Content */}
+                        <p className="text-gray-700 mb-4">{review.comment}</p>
+
+                        {/* Review Images */}
+                        {review.images.length > 0 && (
+                          <div className="flex gap-2 mb-4">
+                            {review.images.map((img, idx) => (
+                              <img
+                                key={idx}
+                                src={img}
+                                alt={`Review ${idx + 1}`}
+                                className="w-20 h-20 object-cover rounded-lg cursor-pointer hover:opacity-80 transition-opacity"
+                              />
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Helpful Count */}
+                        <div className="flex items-center gap-4 mb-4">
+                          <button className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900">
+                            <ThumbsUp className="h-4 w-4" />
+                            <span>{review.helpful} found this helpful</span>
+                          </button>
+                        </div>
+
+                        {/* Seller Reply */}
+                        {review.reply ? (
+                          <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Badge className="bg-orange-500">Seller Response</Badge>
+                              <span className="text-sm text-gray-500">
+                                {review.reply.date.toLocaleDateString()}
+                              </span>
+                            </div>
+                            <p className="text-gray-700">{review.reply.message}</p>
+                          </div>
+                        ) : (
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              onClick={() => handleReply(review.id)}
+                              className="bg-orange-500 hover:bg-orange-600 text-white"
+                            >
+                              <Reply className="h-4 w-4 mr-2" />
+                              Reply to Review
+                            </Button>
+                            <Button size="sm" variant="outline">
+                              <Flag className="h-4 w-4 mr-2" />
+                              Report
+                            </Button>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
             </div>
-          )}
+
+            {filteredReviews.length === 0 && (
+              <div className="text-center py-12">
+                <MessageSquare className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No reviews found</h3>
+                <p className="text-gray-600">
+                  {searchQuery || filterRating !== 'all'
+                    ? 'Try adjusting your search or filters'
+                    : 'Reviews will appear here when customers leave feedback'}
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

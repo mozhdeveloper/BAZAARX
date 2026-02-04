@@ -217,184 +217,181 @@ export function SellerNotifications() {
         </SidebarBody>
       </Sidebar>
       <main className="flex-1 overflow-y-auto">
-      <div className="p-6 max-w-5xl mx-auto">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-              <Bell className="w-6 h-6 text-orange-500" />
-              Notifications
-              {unreadCount > 0 && (
-                <Badge className="bg-orange-500 text-white ml-2">
-                  {unreadCount} new
-                </Badge>
-              )}
-            </h1>
-            <p className="text-gray-600 mt-1">
-              Stay updated with your store activity
-            </p>
-          </div>
+        <div className="p-6 max-w-7xl mx-auto">
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+                <Bell className="w-6 h-6 text-orange-500" />
+                Notifications
+                {unreadCount > 0 && (
+                  <Badge className="bg-orange-500 text-white ml-2">
+                    {unreadCount} new
+                  </Badge>
+                )}
+              </h1>
+              <p className="text-gray-600 mt-1">
+                Stay updated with your store activity
+              </p>
+            </div>
 
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={fetchNotifications}
-              disabled={loading}
-            >
-              <RefreshCw className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`} />
-              Refresh
-            </Button>
-            {unreadCount > 0 && (
+            <div className="flex items-center gap-2">
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleMarkAllAsRead}
+                onClick={fetchNotifications}
+                disabled={loading}
               >
-                <Check className="w-4 h-4 mr-2" />
-                Mark All Read
+                <RefreshCw className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+                Refresh
               </Button>
-            )}
-          </div>
-        </div>
-
-        {/* Filters */}
-        <div className="bg-white rounded-lg border p-4 mb-6">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <Input
-                placeholder="Search notifications..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-            <Select value={filterType} onValueChange={setFilterType}>
-              <SelectTrigger className="w-[160px]">
-                <SelectValue placeholder="Type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="orders">Orders</SelectItem>
-                <SelectItem value="returns">Returns</SelectItem>
-                <SelectItem value="reviews">Reviews</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={filterStatus} onValueChange={setFilterStatus}>
-              <SelectTrigger className="w-[140px]">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All</SelectItem>
-                <SelectItem value="unread">Unread</SelectItem>
-                <SelectItem value="read">Read</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        {/* Notifications List */}
-        <div className="bg-white rounded-lg border overflow-hidden">
-          {loading ? (
-            <div className="p-8 text-center">
-              <RefreshCw className="w-8 h-8 text-gray-400 animate-spin mx-auto mb-4" />
-              <p className="text-gray-500">Loading notifications...</p>
-            </div>
-          ) : filteredNotifications.length === 0 ? (
-            <div className="p-12 text-center">
-              <Bell className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
-                No notifications
-              </h3>
-              <p className="text-gray-500">
-                {searchQuery || filterType !== "all" || filterStatus !== "all"
-                  ? "No notifications match your filters"
-                  : "You're all caught up!"}
-              </p>
-            </div>
-          ) : (
-            <div className="divide-y">
-              {filteredNotifications.map((notification, index) => (
-                <motion.div
-                  key={notification.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.03 }}
-                  onClick={() => handleNotificationClick(notification)}
-                  className={`p-4 cursor-pointer hover:bg-gray-50 transition-colors ${
-                    !notification.is_read ? "bg-orange-50/50" : ""
-                  }`}
+              {unreadCount > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleMarkAllAsRead}
                 >
-                  <div className="flex items-start gap-4">
-                    {/* Icon */}
-                    <div
-                      className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${getNotificationBgColor(
-                        notification.type
-                      )}`}
-                    >
-                      {getNotificationIcon(notification.type)}
-                    </div>
+                  <Check className="w-4 h-4 mr-2" />
+                  Mark All Read
+                </Button>
+              )}
+            </div>
+          </div>
 
-                    {/* Content */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <h4
-                            className={`text-sm font-medium ${
-                              !notification.is_read
-                                ? "text-gray-900"
-                                : "text-gray-700"
-                            }`}
-                          >
-                            {notification.title}
-                          </h4>
-                          <p className="text-sm text-gray-600 mt-0.5 line-clamp-2">
-                            {notification.message}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          <span className="text-xs text-gray-400">
-                            {formatTimeAgo(notification.created_at)}
-                          </span>
-                          {!notification.is_read && (
-                            <span className="w-2 h-2 bg-orange-500 rounded-full" />
-                          )}
-                        </div>
+          {/* Filters */}
+          <div className="bg-white rounded-lg border p-4 mb-6">
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <Input
+                  placeholder="Search notifications..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              <Select value={filterType} onValueChange={setFilterType}>
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue placeholder="Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Types</SelectItem>
+                  <SelectItem value="orders">Orders</SelectItem>
+                  <SelectItem value="returns">Returns</SelectItem>
+                  <SelectItem value="reviews">Reviews</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={filterStatus} onValueChange={setFilterStatus}>
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  <SelectItem value="unread">Unread</SelectItem>
+                  <SelectItem value="read">Read</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Notifications List */}
+          <div className="bg-white rounded-lg border overflow-hidden">
+            {loading ? (
+              <div className="p-8 text-center">
+                <RefreshCw className="w-8 h-8 text-gray-400 animate-spin mx-auto mb-4" />
+                <p className="text-gray-500">Loading notifications...</p>
+              </div>
+            ) : filteredNotifications.length === 0 ? (
+              <div className="p-12 text-center">
+                <Bell className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  No notifications
+                </h3>
+                <p className="text-gray-500">
+                  {searchQuery || filterType !== "all" || filterStatus !== "all"
+                    ? "No notifications match your filters"
+                    : "You're all caught up!"}
+                </p>
+              </div>
+            ) : (
+              <div className="divide-y">
+                {filteredNotifications.map((notification, index) => (
+                  <motion.div
+                    key={notification.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.03 }}
+                    onClick={() => handleNotificationClick(notification)}
+                    className={`p-4 cursor-pointer hover:bg-gray-50 transition-colors ${!notification.is_read ? "bg-orange-50/50" : ""
+                      }`}
+                  >
+                    <div className="flex items-start gap-4">
+                      {/* Icon */}
+                      <div
+                        className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${getNotificationBgColor(
+                          notification.type
+                        )}`}
+                      >
+                        {getNotificationIcon(notification.type)}
                       </div>
 
-                      {/* Priority badge */}
-                      {notification.priority === "high" ||
-                      notification.priority === "urgent" ? (
-                        <Badge
-                          variant="outline"
-                          className={`mt-2 ${
-                            notification.priority === "urgent"
-                              ? "border-red-300 text-red-600"
-                              : "border-orange-300 text-orange-600"
-                          }`}
-                        >
-                          {notification.priority === "urgent"
-                            ? "Urgent"
-                            : "High Priority"}
-                        </Badge>
-                      ) : null}
+                      {/* Content */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <h4
+                              className={`text-sm font-medium ${!notification.is_read
+                                  ? "text-gray-900"
+                                  : "text-gray-700"
+                                }`}
+                            >
+                              {notification.title}
+                            </h4>
+                            <p className="text-sm text-gray-600 mt-0.5 line-clamp-2">
+                              {notification.message}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <span className="text-xs text-gray-400">
+                              {formatTimeAgo(notification.created_at)}
+                            </span>
+                            {!notification.is_read && (
+                              <span className="w-2 h-2 bg-orange-500 rounded-full" />
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Priority badge */}
+                        {notification.priority === "high" ||
+                          notification.priority === "urgent" ? (
+                          <Badge
+                            variant="outline"
+                            className={`mt-2 ${notification.priority === "urgent"
+                                ? "border-red-300 text-red-600"
+                                : "border-orange-300 text-orange-600"
+                              }`}
+                          >
+                            {notification.priority === "urgent"
+                              ? "Urgent"
+                              : "High Priority"}
+                          </Badge>
+                        ) : null}
+                      </div>
                     </div>
-                  </div>
-                </motion.div>
-              ))}
+                  </motion.div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Summary */}
+          {notifications.length > 0 && (
+            <div className="mt-4 text-center text-sm text-gray-500">
+              Showing {filteredNotifications.length} of {notifications.length}{" "}
+              notifications
             </div>
           )}
         </div>
-
-        {/* Summary */}
-        {notifications.length > 0 && (
-          <div className="mt-4 text-center text-sm text-gray-500">
-            Showing {filteredNotifications.length} of {notifications.length}{" "}
-            notifications
-          </div>
-        )}
-      </div>
       </main>
     </div>
   );

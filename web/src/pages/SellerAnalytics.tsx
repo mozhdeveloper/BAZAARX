@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { 
+import {
   TrendingUp,
   TrendingDown,
   DollarSign,
@@ -87,9 +87,9 @@ const Logo = () => {
       to="/seller"
       className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20"
     >
-      <img 
-        src="/Logo.png" 
-        alt="BazaarPH Logo" 
+      <img
+        src="/Logo.png"
+        alt="BazaarPH Logo"
         className="h-8 w-8 object-contain flex-shrink-0"
       />
       <motion.span
@@ -109,9 +109,9 @@ const LogoIcon = () => {
       to="/seller"
       className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20"
     >
-      <img 
-        src="/Logo.png" 
-        alt="BazaarPH Logo" 
+      <img
+        src="/Logo.png"
+        alt="BazaarPH Logo"
         className="h-8 w-8 object-contain flex-shrink-0"
       />
     </Link>
@@ -183,210 +183,209 @@ const AnalyticsContent = ({ timeRange, setTimeRange }: AnalyticsContentProps) =>
   ];
 
   return (
-    <div className="flex flex-1 w-full">
-      <div className="p-2 md:p-8 bg-gray-50 flex flex-col gap-6 flex-1 w-full h-full overflow-auto">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold text-gray-900">Analytics</h1>
-            <p className="text-gray-600 mt-1">Track your store performance and insights</p>
-          </div>
-          <div className="flex items-center gap-3">
-            {/* Time Range Selector */}
-            <div className="flex items-center gap-2 bg-white border border-gray-300 rounded-lg p-1">
-              {(['7d', '30d', '90d', '1y'] as const).map((range) => (
-                <button
-                  key={range}
-                  onClick={() => setTimeRange(range)}
-                  className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
-                    timeRange === range
+    <div className="flex flex-1 w-full overflow-hidden">
+      <div className="flex-1 w-full h-full overflow-auto bg-gray-50">
+        <div className="p-2 md:p-8 flex flex-col gap-6 w-full max-w-7xl mx-auto">
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-semibold text-gray-900">Analytics</h1>
+              <p className="text-gray-600 mt-1">Track your store performance and insights</p>
+            </div>
+            <div className="flex items-center gap-3">
+              {/* Time Range Selector */}
+              <div className="flex items-center gap-2 bg-white border border-gray-300 rounded-lg p-1">
+                {(['7d', '30d', '90d', '1y'] as const).map((range) => (
+                  <button
+                    key={range}
+                    onClick={() => setTimeRange(range)}
+                    className={`px-3 py-1.5 text-sm rounded-md transition-colors ${timeRange === range
                       ? 'bg-orange-500 text-white'
                       : 'text-gray-600 hover:bg-gray-100'
-                  }`}
-                >
-                  {range === '7d' ? '7 Days' : range === '30d' ? '30 Days' : range === '90d' ? '90 Days' : '1 Year'}
-                </button>
-              ))}
+                      }`}
+                  >
+                    {range === '7d' ? '7 Days' : range === '30d' ? '30 Days' : range === '90d' ? '90 Days' : '1 Year'}
+                  </button>
+                ))}
+              </div>
+              <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+                <Download className="h-4 w-4 text-gray-600" />
+                <span className="text-sm text-gray-700">Export</span>
+              </button>
             </div>
-            <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
-              <Download className="h-4 w-4 text-gray-600" />
-              <span className="text-sm text-gray-700">Export</span>
-            </button>
           </div>
-        </div>
 
-        {/* Metrics Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {metrics.map((metric, index) => (
-            <motion.div
-              key={index}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1 }}
-              className="bg-white rounded-xl p-6 border border-gray-200"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <div className={`p-2 rounded-lg ${
-                  metric.trend === 'up' ? 'bg-green-50' : 'bg-red-50'
-                }`}>
-                  <div className={metric.trend === 'up' ? 'text-green-600' : 'text-red-600'}>
-                    {metric.icon}
+          {/* Metrics Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {metrics.map((metric, index) => (
+              <motion.div
+                key={index}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.1 }}
+                className="bg-white rounded-xl p-6 border border-gray-200"
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <div className={`p-2 rounded-lg ${metric.trend === 'up' ? 'bg-green-50' : 'bg-red-50'
+                    }`}>
+                    <div className={metric.trend === 'up' ? 'text-green-600' : 'text-red-600'}>
+                      {metric.icon}
+                    </div>
+                  </div>
+                  <div className={`flex items-center gap-1 text-sm font-medium ${metric.trend === 'up' ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                    {metric.trend === 'up' ? (
+                      <TrendingUp className="h-4 w-4" />
+                    ) : (
+                      <TrendingDown className="h-4 w-4" />
+                    )}
+                    {metric.change}
                   </div>
                 </div>
-                <div className={`flex items-center gap-1 text-sm font-medium ${
-                  metric.trend === 'up' ? 'text-green-600' : 'text-red-600'
-                }`}>
-                  {metric.trend === 'up' ? (
-                    <TrendingUp className="h-4 w-4" />
-                  ) : (
-                    <TrendingDown className="h-4 w-4" />
-                  )}
-                  {metric.change}
+                <h3 className="text-gray-600 text-sm font-medium">{metric.title}</h3>
+                <p className="text-2xl font-bold text-gray-900 mt-1">{metric.value}</p>
+              </motion.div>
+            ))}
+          </div>
+
+          {/* Charts Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Revenue Chart */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+              className="lg:col-span-2 bg-white rounded-xl p-6 border border-gray-200"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Revenue Overview</h3>
+                  <p className="text-sm text-gray-600 mt-1">Monthly revenue and order trends</p>
                 </div>
               </div>
-              <h3 className="text-gray-600 text-sm font-medium">{metric.title}</h3>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{metric.value}</p>
+              <ResponsiveContainer width="100%" height={300}>
+                <AreaChart data={revenueData}>
+                  <defs>
+                    <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#f97316" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#f97316" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis dataKey="date" stroke="#9ca3af" />
+                  <YAxis stroke="#9ca3af" />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: 'white',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '8px'
+                    }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="revenue"
+                    stroke="#f97316"
+                    strokeWidth={2}
+                    fillOpacity={1}
+                    fill="url(#colorRevenue)"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
             </motion.div>
-          ))}
-        </div>
 
-        {/* Charts Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Revenue Chart */}
+            {/* Category Distribution */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.5 }}
+              className="bg-white rounded-xl p-6 border border-gray-200"
+            >
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-gray-900">Sales by Category</h3>
+                <p className="text-sm text-gray-600 mt-1">Distribution overview</p>
+              </div>
+              <ResponsiveContainer width="100%" height={200}>
+                <PieChart>
+                  <Pie
+                    data={categoryData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={80}
+                    paddingAngle={2}
+                    dataKey="value"
+                  >
+                    {categoryData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="mt-4 space-y-2">
+                {categoryData.map((category, index) => (
+                  <div key={index} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-3 h-3 rounded-full"
+                        style={{ backgroundColor: category.color }}
+                      />
+                      <span className="text-sm text-gray-600">{category.name}</span>
+                    </div>
+                    <span className="text-sm font-medium text-gray-900">{category.value}%</span>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          </div>
+
+          {/* Top Products */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-            className="lg:col-span-2 bg-white rounded-xl p-6 border border-gray-200"
+            transition={{ delay: 0.6 }}
+            className="bg-white rounded-xl p-6 border border-gray-200"
           >
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h3 className="text-lg font-semibold text-gray-900">Revenue Overview</h3>
-                <p className="text-sm text-gray-600 mt-1">Monthly revenue and order trends</p>
+                <h3 className="text-lg font-semibold text-gray-900">Top Selling Products</h3>
+                <p className="text-sm text-gray-600 mt-1">Best performers this month</p>
               </div>
+              <button className="text-sm text-orange-500 hover:text-orange-600 font-medium">
+                View All
+              </button>
             </div>
-            <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={revenueData}>
-                <defs>
-                  <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#f97316" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#f97316" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="date" stroke="#9ca3af" />
-                <YAxis stroke="#9ca3af" />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: 'white', 
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '8px'
-                  }}
-                />
-                <Area 
-                  type="monotone" 
-                  dataKey="revenue" 
-                  stroke="#f97316" 
-                  strokeWidth={2}
-                  fillOpacity={1} 
-                  fill="url(#colorRevenue)" 
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </motion.div>
-
-          {/* Category Distribution */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5 }}
-            className="bg-white rounded-xl p-6 border border-gray-200"
-          >
-            <div className="mb-6">
-              <h3 className="text-lg font-semibold text-gray-900">Sales by Category</h3>
-              <p className="text-sm text-gray-600 mt-1">Distribution overview</p>
-            </div>
-            <ResponsiveContainer width="100%" height={200}>
-              <PieChart>
-                <Pie
-                  data={categoryData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={80}
-                  paddingAngle={2}
-                  dataKey="value"
-                >
-                  {categoryData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-200">
+                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Product</th>
+                    <th className="text-right py-3 px-4 text-sm font-medium text-gray-600">Units Sold</th>
+                    <th className="text-right py-3 px-4 text-sm font-medium text-gray-600">Revenue</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {topProducts.map((product, index) => (
+                    <tr key={index} className="border-b border-gray-100 last:border-0">
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                            <Package className="h-5 w-5 text-gray-400" />
+                          </div>
+                          <span className="text-sm text-gray-900">{product.name}</span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 text-right text-sm text-gray-900">{product.sold}</td>
+                      <td className="py-3 px-4 text-right text-sm font-medium text-gray-900">
+                        ₱{product.revenue.toLocaleString()}
+                      </td>
+                    </tr>
                   ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-            <div className="mt-4 space-y-2">
-              {categoryData.map((category, index) => (
-                <div key={index} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div 
-                      className="w-3 h-3 rounded-full" 
-                      style={{ backgroundColor: category.color }}
-                    />
-                    <span className="text-sm text-gray-600">{category.name}</span>
-                  </div>
-                  <span className="text-sm font-medium text-gray-900">{category.value}%</span>
-                </div>
-              ))}
+                </tbody>
+              </table>
             </div>
           </motion.div>
         </div>
-
-        {/* Top Products */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.6 }}
-          className="bg-white rounded-xl p-6 border border-gray-200"
-        >
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900">Top Selling Products</h3>
-              <p className="text-sm text-gray-600 mt-1">Best performers this month</p>
-            </div>
-            <button className="text-sm text-orange-500 hover:text-orange-600 font-medium">
-              View All
-            </button>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-200">
-                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Product</th>
-                  <th className="text-right py-3 px-4 text-sm font-medium text-gray-600">Units Sold</th>
-                  <th className="text-right py-3 px-4 text-sm font-medium text-gray-600">Revenue</th>
-                </tr>
-              </thead>
-              <tbody>
-                {topProducts.map((product, index) => (
-                  <tr key={index} className="border-b border-gray-100 last:border-0">
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                          <Package className="h-5 w-5 text-gray-400" />
-                        </div>
-                        <span className="text-sm text-gray-900">{product.name}</span>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 text-right text-sm text-gray-900">{product.sold}</td>
-                    <td className="py-3 px-4 text-right text-sm font-medium text-gray-900">
-                      ₱{product.revenue.toLocaleString()}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </motion.div>
       </div>
     </div>
   );

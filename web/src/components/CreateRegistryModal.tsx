@@ -5,6 +5,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { useNavigate } from 'react-router-dom';
 
 interface CreateRegistryModalProps {
     isOpen: boolean;
@@ -13,6 +14,7 @@ interface CreateRegistryModalProps {
 }
 
 export const CreateRegistryModal = ({ isOpen, onClose, onCreate }: CreateRegistryModalProps) => {
+    const navigate = useNavigate();
     const [registryName, setRegistryName] = useState('');
     const [category, setCategory] = useState('');
     const [shareLink, setShareLink] = useState('');
@@ -23,7 +25,7 @@ export const CreateRegistryModal = ({ isOpen, onClose, onCreate }: CreateRegistr
     useEffect(() => {
         if (registryName) {
             const slug = registryName.toLowerCase().replace(/\s+/g, '-');
-            setShareLink(`bazaarx.com/registry/${slug}`);
+            setShareLink(`${window.location.origin}/registry/${slug}`);
         } else {
             setShareLink('');
         }
@@ -122,7 +124,12 @@ export const CreateRegistryModal = ({ isOpen, onClose, onCreate }: CreateRegistr
                                             <>
                                                 <p className="text-sm text-[var(--text-secondary)] font-medium">Your registry is empty</p>
                                                 <p className="text-xs text-[var(--text-muted)] mt-1 mb-4">Add products from the shop after creating your registry.</p>
-                                                <Button variant="outline" size="sm" className="text-[var(--brand-primary)] border-[var(--brand-primary)]/30 hover:bg-[var(--brand-primary)]">
+                                                <Button
+                                                    onClick={() => navigate('/shop')}
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="text-[var(--brand-primary)] border-[var(--brand-primary)]/30 hover:bg-[var(--brand-primary)]"
+                                                >
                                                     <Plus className="w-4 h-4 mr-2" />
                                                     Browse Products
                                                 </Button>

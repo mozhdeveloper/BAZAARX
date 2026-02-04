@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
+import { toast } from "../hooks/use-toast";
 import {
   Minus,
   Plus,
@@ -16,6 +17,8 @@ import {
   MapPin,
   ShieldCheck,
   ThumbsUp,
+  Gift,
+  Ruler,
 } from "lucide-react";
 import { Textarea } from "../components/ui/textarea";
 import { Badge } from "../components/ui/badge";
@@ -35,6 +38,7 @@ import { cn } from "../lib/utils";
 import { productService } from "../services/productService";
 import { ProductWithSeller } from "../types/database.types";
 import { ProductReviews } from "@/components/reviews/ProductReviews";
+import { CreateRegistryModal } from "../components/CreateRegistryModal";
 
 interface ProductDetailPageProps { }
 
@@ -809,8 +813,12 @@ const reviewsData: Record<string, any[]> = {
 export default function ProductDetailPage({ }: ProductDetailPageProps) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { addToCart, setQuickOrder, profile } = useBuyerStore();
+  const { addToCart, setQuickOrder, profile, registries, addToRegistry } = useBuyerStore();
   const { products: sellerProducts } = useProductStore();
+
+  const [showRegistryModal, setShowRegistryModal] = useState(false);
+  const [isCreateRegistryModalOpen, setIsCreateRegistryModalOpen] = useState(false);
+  const { createRegistry } = useBuyerStore();
 
   const [quantity, setQuantity] = useState(1);
   const [selectedImage, setSelectedImage] = useState(0);
@@ -1509,6 +1517,20 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
             {/* Action Buttons */}
             <div className="flex flex-col sm:flex-row gap-4 -mt-4 mb-8">
               <Button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (!registries || registries.length === 0) {
+                    navigate("/registry", { state: { openCreateModal: true } });
+                  } else {
+                    setShowRegistryModal(true);
+                  }
+                }}
+                className="h-12 sm:h-14 w-12 sm:w-14 rounded-full bg-orange-100/50 hover:bg-orange-100 text-[#ff6a00] border-2 border-[#ff6a00] p-0 flex items-center justify-center font-bold shadow-sm hover:shadow-md transition-all active:scale-[0.98]"
+                title="Add to Registry"
+              >
+                <Gift className="w-6 h-6" />
+              </Button>
+              <Button
                 onClick={handleAddToCart}
                 className="flex-1 h-12 sm:h-14 rounded-full bg-white hover:bg-orange-50 text-[#ff6a00] border-2 border-[#ff6a00] text-sm sm:text-base font-bold shadow-sm hover:shadow-md transition-all active:scale-[0.98]"
               >
@@ -1594,30 +1616,112 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
       </main>
 
       <BazaarFooter />
-    </div>
-  );
-}
+      {/* Registry Selection Modal */}
+      {showRegistryModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl scale-100 opacity-100 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-gray-900">Add to Registry</h2>
+              <button
+                onClick={() => setShowRegistryModal(false)}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <Minus className="w-5 h-5 rotate-45" />
+              </button>
+            </div>
 
-// Helper icon component
-function Ruler(props: any) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.41 2.41 0 0 1 0-3.4l2.6-2.6a2.41 2.41 0 0 1 3.4 0Z" />
-      <path d="m14.5 12.5 2-2" />
-      <path d="m11.5 9.5 2-2" />
-      <path d="m8.5 6.5 2-2" />
-      <path d="m17.5 15.5 2-2" />
-    </svg>
+            <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent">
+              {registries.map((registry) => (
+                <button
+                  key={registry.id}
+                  onClick={() => {
+                    // Create a simplified product object for the registry
+                    const productToAdd = {
+                      id: normalizedProduct?.id || productData.id || "temp-id",
+                      name: productData.name,
+                      price: productData.price,
+                      image: productData.images[0],
+                      // Add other necessary fields as needed by your Product type or make them optional
+                      description: productData.description || "",
+                      images: productData.images,
+                      seller: currentSeller,
+                      sellerId: normalizedProduct?.sellerId || "unknown",
+                      rating: productData.rating,
+                      totalReviews: productData.reviewCount,
+                      category: "General",
+                      sold: 0,
+                      isFreeShipping: false,
+                      location: "Metro Manila",
+                      specifications: {},
+                      variants: []
+                    } as any;
+
+                    addToRegistry(registry.id, productToAdd);
+                    setShowRegistryModal(false);
+                    toast({
+                      title: "Added to Registry",
+                      description: `${productData.name} has been added to ${registry.title}.`,
+                    });
+                  }}
+                  className="w-full flex items-center gap-4 p-4 rounded-2xl border border-gray-100 hover:border-orange-200 hover:bg-orange-50/50 transition-all group text-left"
+                >
+                  <div className="w-12 h-12 rounded-xl bg-gray-100 overflow-hidden shrink-0">
+                    <img
+                      src={registry.imageUrl || "/public/gradGift.jpeg"}
+                      alt={registry.title}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-900 group-hover:text-orange-600 transition-colors">
+                      {registry.title}
+                    </h3>
+                    <p className="text-xs text-gray-500">
+                      {registry.products?.length || 0} items • Shared {registry.sharedDate}
+                    </p>
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-6 pt-4 border-t border-gray-100">
+              <button
+                onClick={() => {
+                  setShowRegistryModal(false);
+                  setIsCreateRegistryModalOpen(true);
+                }}
+                className="w-full py-3 px-4 rounded-xl border border-dashed border-gray-300 text-gray-600 font-medium hover:border-orange-400 hover:text-orange-600 hover:bg-orange-50 transition-all flex items-center justify-center gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                Create New Registry
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Create Registry Modal */}
+      <CreateRegistryModal
+        isOpen={isCreateRegistryModalOpen}
+        onClose={() => setIsCreateRegistryModalOpen(false)}
+        onCreate={(name, category) => {
+          const newRegistry = {
+            id: `reg-${Date.now()}`,
+            title: name,
+            sharedDate: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+            imageUrl: "https://images.unsplash.com/photo-1513201099705-a9746e1e201f?w=400&h=400&fit=crop",
+            category: category,
+            products: []
+          };
+          createRegistry(newRegistry);
+          setIsCreateRegistryModalOpen(false);
+          // Re-open the add to registry modal to allow adding the product immediately
+          setShowRegistryModal(true);
+          toast({
+            title: "Registry Created",
+            description: `${name} has been created successfully.`,
+          });
+        }}
+      />
+    </div>
   );
 }
