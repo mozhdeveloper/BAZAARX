@@ -371,8 +371,7 @@ class AIChatService {
       let query = supabase
         .from('reviews')
         .select(`
-          rating, comment, created_at,
-          profiles!buyer_id(full_name)
+          rating, comment, created_at, buyer_id
         `)
         .eq('is_hidden', false)
         .order('created_at', { ascending: false })
@@ -433,7 +432,7 @@ class AIChatService {
         recentReviews: reviews?.map(r => ({
           rating: r.rating,
           comment: r.comment || '',
-          buyerName: (r.profiles as any)?.full_name || 'Anonymous',
+          buyerName: 'Anonymous', // Simplified - can enhance later by fetching from profiles
           date: r.created_at,
         })) || [],
       };
