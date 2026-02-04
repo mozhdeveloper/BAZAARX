@@ -335,8 +335,12 @@ export default function CheckoutPage() {
     }
   }
 
+  // VAT calculation (12%)
+  const tax = Math.round(totalPrice * 0.12);
+  const totalSavings = discount + bazcoinDiscount;
+
   // Final total calculation including Bazcoins
-  const finalTotal = Math.max(0, totalPrice + shippingFee - discount - bazcoinDiscount);
+  const finalTotal = Math.max(0, totalPrice + shippingFee + tax - totalSavings);
 
   const handleApplyVoucher = () => {
     const code = voucherCode.trim().toUpperCase();
@@ -1141,16 +1145,14 @@ export default function CheckoutPage() {
                       )}
                     </span>
                   </div>
-                  {discount > 0 && (
-                    <div className="flex justify-between text-[var(--brand-primary)] font-medium">
-                      <span>Voucher Discount</span>
-                      <span>-₱{discount.toLocaleString()}</span>
-                    </div>
-                  )}
-                  {useBazcoins && bazcoinDiscount > 0 && (
-                    <div className="flex justify-between text-yellow-600 font-medium">
-                      <span>Bazcoins Redeemed</span>
-                      <span>-₱{bazcoinDiscount.toLocaleString()}</span>
+                  <div className="flex justify-between text-gray-600">
+                    <span>Tax (12% VAT)</span>
+                    <span>₱{tax.toLocaleString()}</span>
+                  </div>
+                  {totalSavings > 0 && (
+                    <div className="flex justify-between text-green-600 font-medium">
+                      <span>Total Savings</span>
+                      <span>-₱{totalSavings.toLocaleString()}</span>
                     </div>
                   )}
                   <hr className="border-gray-300" />
