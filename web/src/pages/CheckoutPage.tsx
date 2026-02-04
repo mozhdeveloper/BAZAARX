@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { checkoutService } from "@/services/checkoutService"; // Import checkout service
 import {
   ArrowLeft,
@@ -109,6 +109,7 @@ const paymentMethods = [
 export default function CheckoutPage() {
   const { toast } = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
   const { createOrder } = useCartStore();
   const {
     cartItems,
@@ -124,6 +125,8 @@ export default function CheckoutPage() {
     updateAddress,
     deleteAddress,
     updateRegistryItem, // Destructure this
+    buyAgainItems,
+    clearBuyAgainItems,
   } = useBuyerStore();
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
   const [addressView, setAddressView] = useState<'list' | 'add' | 'edit'>('list');
@@ -197,17 +200,24 @@ export default function CheckoutPage() {
     }
   }, [addresses]);
 
+  const locationState = location.state as { fromBuyAgain?: boolean } | null;
+  const isBuyAgainMode = !!locationState?.fromBuyAgain || (buyAgainItems && buyAgainItems.length > 0);
+
   // Determine which items to checkout: quick order takes precedence
   // For cart checkout, filter only selected items
-  const checkoutItems = quickOrder
-    ? [quickOrder]
-    : cartItems.filter(item => item.selected);
-  const checkoutTotal = quickOrder
-    ? getQuickOrderTotal()
-    : cartItems
-      .filter(item => item.selected)
-      .reduce((sum, item) => sum + (item.selectedVariant?.price || item.price) * item.quantity, 0);
-  const isQuickCheckout = quickOrder !== null;
+  const checkoutItems = buyAgainItems
+    ? buyAgainItems
+    : (quickOrder ? [quickOrder] : cartItems.filter(item => item.selected));
+
+  const checkoutTotal = buyAgainItems
+    ? buyAgainItems.reduce((sum, item) => sum + (item.selectedVariant?.price || item.price) * item.quantity, 0)
+    : (quickOrder
+      ? getQuickOrderTotal()
+      : cartItems
+        .filter(item => item.selected)
+        .reduce((sum, item) => sum + (item.selectedVariant?.price || item.price) * item.quantity, 0));
+
+  const isQuickCheckout = quickOrder !== null || isBuyAgainMode;
 
   // Bazcoins Logic
   // Earn 1 Bazcoin per ₱10 spent
@@ -422,12 +432,19 @@ export default function CheckoutPage() {
     }
   }, [isStoreReady, profile, navigate, toast]);
 
-  // Check if cart is empty on initial load only (after store is ready)
+  // Check if cart is empty after initial load with a small delay to allow for transitions
   useEffect(() => {
-    if (isStoreReady && checkoutItems.length === 0 && profile) {
-      navigate("/enhanced-cart", { replace: true });
+    // DO NOT redirect if we are in Buy Again mode - we have items in location state
+    if (isStoreReady && checkoutItems.length === 0 && profile && !isBuyAgainMode) {
+      const timer = setTimeout(() => {
+        // Re-check after delay to ensure it's not just a transition state
+        if (checkoutItems.length === 0 && !isBuyAgainMode) {
+          navigate("/enhanced-cart", { replace: true });
+        }
+      }, 1500); // 1.5s delay
+      return () => clearTimeout(timer);
     }
-  }, [isStoreReady, checkoutItems, profile]);
+  }, [isStoreReady, checkoutItems.length, profile, navigate, isBuyAgainMode]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -539,12 +556,19 @@ export default function CheckoutPage() {
 
       // Clear local stores
       const cartStoreState = useCartStore.getState();
-      cartStoreState.clearCart();
-
-      if (isQuickCheckout) {
-        clearQuickOrder();
+      
+      // Only clear cart/selected items if we're NOT in Buy Again mode (since Buy Again bypassed the cart)
+      if (!isBuyAgainMode) {
+        cartStoreState.clearCart();
+        if (isQuickCheckout) {
+          clearQuickOrder();
+        } else {
+          removeSelectedItems();
+        }
       } else {
-        removeSelectedItems();
+        // If in Buy Again mode, clear buyAgainItems and quick order if any
+        clearBuyAgainItems();
+        clearQuickOrder();
       }
 
       // Navigate to the order detail page for the new order

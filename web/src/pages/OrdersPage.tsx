@@ -38,7 +38,7 @@ export default function OrdersPage() {
   const location = useLocation();
   const { orders, updateOrderStatus, updateOrderWithReturnRequest } =
     useCartStore();
-  const { addToCart, profile } = useBuyerStore();
+  const { addToCart, profile, initializeCart } = useBuyerStore();
   const { toast } = useToast();
 
   const [isLoading, setIsLoading] = useState(false);
@@ -61,6 +61,22 @@ export default function OrdersPage() {
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
   const [orderToReview, setOrderToReview] = useState<any>(null);
   const [viewImage, setViewImage] = useState<string | null>(null);
+
+  // Cancel order state
+  const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [orderToCancel, setOrderToCancel] = useState<any>(null);
+  const [cancelReason, setCancelReason] = useState("");
+  const [otherReason, setOtherReason] = useState("");
+
+  const CANCEL_REASONS = [
+    "Changed my mind",
+    "Found a better price elsewhere",
+    "Ordered by mistake",
+    "Delivery time too long",
+    "Want to change shipping address",
+    "Want to modify order items",
+    "Other"
+  ];
 
   // Helper function to parse date strings (MM/DD/YYYY format)
   const parseDate = (dateString: string | Date): Date => {
@@ -146,6 +162,49 @@ export default function OrdersPage() {
     });
   };
 
+  const handleCancelOrder = async () => {
+    if (!orderToCancel?.dbId || !cancelReason) return;
+
+    const reason = cancelReason === "Other" ? otherReason : cancelReason;
+    console.log("Order cancelled with reason:", reason); // TODO: Add cancellation_reason column to orders table if you want to persist this
+
+    try {
+      const { error } = await supabase
+        .from("orders")
+        .update({
+          status: "cancelled",
+          // Note: Add 'cancellation_reason' column to orders table to persist: cancellation_reason: reason
+        })
+        .eq("id", orderToCancel.dbId);
+
+      if (error) throw error;
+
+      useCartStore.setState({
+        orders: orders.map((o: any) =>
+          o.id === orderToCancel.id ? { ...o, status: "cancelled" } : o
+        ),
+      });
+
+      toast({
+        title: "Order Cancelled",
+        description: "Your order has been moved to the Cancelled list.",
+      });
+      setStatusFilter("cancelled");
+    } catch (e) {
+      console.error("Error canceling order:", e);
+      toast({
+        title: "Error",
+        description: "Failed to cancel order. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setCancelModalOpen(false);
+      setOrderToCancel(null);
+      setCancelReason("");
+      setOtherReason("");
+    }
+  };
+
   // Show success message for newly created orders
   const newOrderId = (
     location.state as { newOrderId?: string; fromCheckout?: boolean } | null
@@ -218,7 +277,8 @@ export default function OrdersPage() {
               : undefined,
             estimatedDelivery: estimatedDelivery,
             items: (order.items || []).map((item: any) => ({
-              id: item.id,
+              id: item.product_id, // Map the actual product_id so Buy Again works
+              orderItemId: item.id, // Keep the original order item ID if needed
               name: item.product_name,
               image:
                 item.product_images?.[0] ||
@@ -227,6 +287,7 @@ export default function OrdersPage() {
               quantity: item.quantity,
               seller: item.seller_name || "Seller",
               sellerId: item.seller_id,
+              selectedVariant: item.selected_variant,
               rating: 5, // Default for type compatibility
               category: "General", // Default for type compatibility
             })),
@@ -726,7 +787,10 @@ export default function OrdersPage() {
                         {order.status === "pending" && !order.isPaid ? (
                           <>
                             <Button
-                              onClick={() => alert("Order canceled")}
+                              onClick={() => {
+                                setOrderToCancel(order);
+                                setCancelModalOpen(true);
+                              }}
                               size="sm"
                               variant="outline"
                               className="border-red-500 text-red-500 hover:bg-red-500 hover:text-white text-xs font-semibold"
@@ -759,45 +823,52 @@ export default function OrdersPage() {
                                 </Button>
                               )}
 
-                              {/* Buy Again - Primary Action */}
-                              <Button
-                                onClick={async () => {
-                                  // Process all additions to ensure store updates
-                                  const promises = order.items.map((item) => {
-                                    // Ensure seller structure matches BuyerStore expectations
-                                    const productInput = {
+                                { /* Buy Again - Primary Action */ }
+                                <Button
+                                  onClick={() => {
+                                    if (!order.items || order.items.length === 0) {
+                                      toast({
+                                        title: "Cannot buy again",
+                                        description: "No items found in this order.",
+                                        variant: "destructive"
+                                      });
+                                      return;
+                                    }
+                                    
+                                    toast({
+                                      title: "Redirecting to Checkout",
+                                      description: "Preparing your items for repurchase...",
+                                    });
+
+                                    // Map order items to CartItem structure for direct checkout
+                                    const buyAgainItems = (order.items as any[]).map(item => ({
                                       ...item,
+                                      id: item.id, // Product ID
+                                      selected: true,
                                       seller: {
-                                        id: "seller_" + (item.seller || "unknown"),
+                                        id: item.sellerId || "unknown",
                                         name: item.seller || "Verified Seller",
                                         avatar: "",
                                         rating: 5,
                                         isVerified: true,
                                       },
-                                    };
-                                    // Pass product, quantity, and variant explicitly
-                                    return addToCart(
-                                      productInput as any,
-                                      item.quantity,
-                                      (item as any).selectedVariant,
-                                    );
-                                  });
+                                    }));
 
-                                  // Wait for all items to be added before navigating
-                                  await Promise.all(promises);
+                                    // Set items in store before navigating
+                                    const { setBuyAgainItems } = useBuyerStore.getState();
+                                    setBuyAgainItems(buyAgainItems);
 
-                                  navigate("/enhanced-cart", {
-                                    state: {
-                                      selectedItems: order.items.map((i) => i.id),
-                                    },
-                                  });
-                                }}
-                                size="sm"
-                                className="bg-[#FF5722] hover:bg-[#E64A19] text-white shadow-md shadow-orange-500/20"
-                              >
-                                <ShoppingBag className="w-4 h-4 mr-1" />
-                                Buy Again
-                              </Button>
+                                    // Navigate directly to checkout
+                                    navigate("/checkout", { 
+                                      state: { fromBuyAgain: true } 
+                                    });
+                                  }}
+                                  size="sm"
+                                  className="bg-[#FF5722] hover:bg-[#E64A19] text-white shadow-md shadow-orange-500/20"
+                                >
+                                  <ShoppingBag className="w-4 h-4 mr-1" />
+                                  Buy Again
+                                </Button>
                             </>
                           ) : order.status === "cancelled" ? (
                             /* Canceled - View Details */
@@ -1232,6 +1303,100 @@ export default function OrdersPage() {
               className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
               onClick={(e) => e.stopPropagation()}
             />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+
+      {/* Order Cancel Modal */}
+      <AnimatePresence>
+        {cancelModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+            onClick={() => {
+              setCancelModalOpen(false);
+              setCancelReason("");
+              setOtherReason("");
+            }}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="text-lg font-bold text-gray-900 mb-2">Cancel Order</h3>
+              <p className="text-gray-600 text-sm mb-4">
+                Please tell us why you want to cancel this order.
+              </p>
+
+              {/* Reason Selection */}
+              <div className="space-y-2 mb-4 max-h-48 overflow-y-auto">
+                {CANCEL_REASONS.map((reason) => (
+                  <label
+                    key={reason}
+                    className={cn(
+                      "flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all",
+                      cancelReason === reason
+                        ? "border-[#FF5722] bg-orange-50"
+                        : "border-gray-200 hover:border-gray-300"
+                    )}
+                  >
+                    <input
+                      type="radio"
+                      name="cancelReason"
+                      value={reason}
+                      checked={cancelReason === reason}
+                      onChange={(e) => setCancelReason(e.target.value)}
+                      className="accent-[#FF5722]"
+                    />
+                    <span className="text-sm text-gray-700">{reason}</span>
+                  </label>
+                ))}
+              </div>
+
+              {/* Other Reason Input */}
+              {cancelReason === "Other" && (
+                <textarea
+                  placeholder="Please specify your reason..."
+                  value={otherReason}
+                  onChange={(e) => setOtherReason(e.target.value)}
+                  className="w-full p-3 border rounded-lg text-sm mb-4 focus:ring-2 focus:ring-[#FF5722] focus:outline-none"
+                  rows={2}
+                />
+              )}
+
+              {/* Reassurance */}
+              <p className="text-xs text-gray-500 mb-4">
+                Don't worry, you have not been charged for this order. You can easily buy these items again later.
+              </p>
+
+              {/* Actions */}
+              <div className="flex gap-3">
+                <Button
+                  onClick={() => {
+                    setCancelModalOpen(false);
+                    setCancelReason("");
+                    setOtherReason("");
+                  }}
+                  variant="outline"
+                  className="flex-1"
+                >
+                  Keep Order
+                </Button>
+                <Button
+                  onClick={handleCancelOrder}
+                  disabled={!cancelReason || (cancelReason === "Other" && !otherReason.trim())}
+                  className="flex-1 bg-red-500 hover:bg-red-600 text-white disabled:opacity-50"
+                >
+                  Cancel Order
+                </Button>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
