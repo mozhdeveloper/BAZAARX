@@ -337,10 +337,19 @@ export default function CheckoutPage() {
 
   // VAT calculation (12%)
   const tax = Math.round(totalPrice * 0.12);
-  const totalSavings = discount + bazcoinDiscount;
+  
+  // Item-level savings (Original price vs Current price)
+  const itemSavings = checkoutItems.reduce((sum, item) => {
+    const original = item.originalPrice || item.price;
+    const current = item.selectedVariant?.price || item.price;
+    return sum + (Math.max(0, original - current) * item.quantity);
+  }, 0);
+  
+  const couponSavings = discount + bazcoinDiscount;
+  const grandTotalSavings = itemSavings + couponSavings;
 
   // Final total calculation including Bazcoins
-  const finalTotal = Math.max(0, totalPrice + shippingFee + tax - totalSavings);
+  const finalTotal = Math.max(0, totalPrice + shippingFee + tax - couponSavings);
 
   const handleApplyVoucher = () => {
     const code = voucherCode.trim().toUpperCase();
@@ -1130,7 +1139,6 @@ export default function CheckoutPage() {
                 </motion.section>
 
                 <div className="space-y-2 mb-4">
-                  \n{" "}
                   <div className="flex justify-between text-gray-600">
                     <span>Subtotal</span>
                     <span>₱{totalPrice.toLocaleString()}</span>
@@ -1149,10 +1157,10 @@ export default function CheckoutPage() {
                     <span>Tax (12% VAT)</span>
                     <span>₱{tax.toLocaleString()}</span>
                   </div>
-                  {totalSavings > 0 && (
+                  {couponSavings > 0 && (
                     <div className="flex justify-between text-green-600 font-medium">
-                      <span>Total Savings</span>
-                      <span>-₱{totalSavings.toLocaleString()}</span>
+                      <span>Discounts & Rewards</span>
+                      <span>-₱{couponSavings.toLocaleString()}</span>
                     </div>
                   )}
                   <hr className="border-gray-300" />
@@ -1162,6 +1170,13 @@ export default function CheckoutPage() {
                       ₱{finalTotal.toLocaleString()}
                     </span>
                   </div>
+                  {grandTotalSavings > 0 && (
+                    <div className="mt-2 text-right">
+                      <p className="text-xs text-green-600 font-semibold animate-pulse">
+                        You're saving ₱{grandTotalSavings.toLocaleString()} on this order!
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6 flex items-start gap-3">
