@@ -26,6 +26,7 @@ import BuyerFollowingPage from "./pages/BuyerFollowingPage";
 import BuyerSettingsPage from "./pages/BuyerSettingsPage";
 import BuyerLoginPage from "./pages/BuyerLoginPage";
 import BuyerSignupPage from "./pages/BuyerSignupPage";
+import BuyerOnboardingPage from "@/pages/BuyerOnboardingPage";
 import MessagesPage from "./pages/MessagesPage";
 import { ProtectedBuyerRoute } from "./components/ProtectedBuyerRoute";
 
@@ -81,6 +82,13 @@ function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/login" element={<BuyerLoginPage />} />
           <Route path="/signup" element={<BuyerSignupPage />} />
+          <Route path="/buyer-onboarding"
+            element={
+              <ProtectedBuyerRoute>
+                <BuyerOnboardingPage />
+              </ProtectedBuyerRoute>
+            }
+          />
           <Route path="/shop" element={<ShopPage />} />
           <Route path="/search" element={<SearchPage />} />
           <Route path="/collections" element={<CollectionsPage />} />

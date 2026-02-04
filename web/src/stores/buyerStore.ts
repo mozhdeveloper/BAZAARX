@@ -166,6 +166,7 @@ export interface BuyerProfile {
       showPurchases: boolean;
       showFollowing: boolean;
     };
+    interestedCategories?: string[];
   };
   memberSince: Date;
   totalOrders: number;
