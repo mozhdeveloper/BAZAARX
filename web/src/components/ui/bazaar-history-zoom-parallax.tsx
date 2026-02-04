@@ -27,7 +27,7 @@ export default function BazaarHistoryZoomParallax() {
               Centers of Exchange
             </h2>
 
-            <p className="text-base sm:text-lg md:text-xl leading-relaxed text-white/90 mb-6 sm:mb-8">
+            <p className="text-base sm:text-lg md:text-xl leading-relaxed text-white/90 mb-6 sm:mb-8 text-justify">
               As Persia became a key crossroads of the Silk Road, bazaars evolved
               into international trade hubs. Goods, ideas, and traditions flowed
               through their arcades, supported by surrounding mosques,

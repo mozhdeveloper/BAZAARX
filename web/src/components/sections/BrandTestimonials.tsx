@@ -50,16 +50,16 @@ function BrandTestimonials() {
             Trusted by Leading <br />
             <span className="text-[#ff6a00]">Brands</span>
           </h2>
-          <p className="text-gray-600 text-lg max-w-md">
+          <p className="text-gray-600 text-lg max-w-md text-justify">
             See what business owners and entrepreneurs say about BazaarX.
           </p>
         </div>
 
-        {/* RIGHT COLUMN: CARD + CONTROLS ON THE RIGHT */}
-        <div className="lg:w-3/5 flex flex-col md:flex-row items-center gap-8">
+        {/* RIGHT COLUMN: CARD + CONTROLS BELOW */}
+        <div className="lg:w-3/5 flex flex-col items-center lg:items-start gap-8">
 
           {/* THE REVIEW CARD */}
-          <div className="relative w-full max-w-xl min-h-[400px] flex items-center">
+          <div className="relative w-full min-h-[300px] flex items-center">
             <AnimatePresence mode="wait">
               <motion.div
                 key={index}
@@ -94,32 +94,70 @@ function BrandTestimonials() {
             </AnimatePresence>
           </div>
 
-          <div className="flex items-center gap-2 px-2">
-            {TESTIMONIALS.map((_, i) => (
-              <div
-                key={i}
-                className={`transition-all duration-300 rounded-full h-1.5 ${i === index ? "w-8 bg-[#FF6A00]" : "w-2 bg-gray-300"}`}
-              />
-            ))}
-          </div>
+          {/* CONTROLS (BARS + ARROWS) BELOW CARD */}
+          <div className="w-full flex items-center justify-between px-2">
 
-          <div className="flex flex-col items-center md:items-start gap-10">
+            {/* PAGINATION BARS */}
+            <div className="flex items-center gap-2">
+              {TESTIMONIALS.map((_, i) => (
+                <div
+                  key={i}
+                  onClick={() => setIndex(i)}
+                  className={`cursor-pointer transition-all duration-300 rounded-full h-1.5 ${i === index ? "w-8 bg-[#FF6A00]" : "w-2 bg-gray-300 hover:bg-gray-400"
+                    }`}
+                />
+              ))}
+            </div>
+
+            {/* NAVIGATION ARROWS */}
             <div className="flex gap-4">
               <button
                 onClick={prev}
                 className="p-4 rounded-full border border-gray-200 bg-white hover:bg-[#FF6A00] transition-all active:scale-95 shadow-sm group"
+                aria-label="Previous testimonial"
               >
                 <ArrowLeft className="w-6 h-6 text-gray-700 group-hover:text-white transition-colors" />
               </button>
               <button
                 onClick={next}
                 className="p-4 rounded-full border border-gray-200 bg-white hover:bg-[#FF6A00] transition-all active:scale-95 shadow-sm group"
+                aria-label="Next testimonial"
               >
                 <ArrowRight className="w-6 h-6 text-gray-700 group-hover:text-white transition-colors" />
               </button>
             </div>
+
           </div>
 
+        </div>
+      </section>
+
+      {/* STATS BAR */}
+      <section className="container mx-auto px-6 mt-20">
+        <div className="border-t border-gray-200 pt-10">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+
+            <div className="space-y-2">
+              <h3 className="text-3xl md:text-4xl font-bold text-[#FF6A00]">4.9/5</h3>
+              <p className="text-gray-600 font-medium">Google Rating</p>
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-3xl md:text-4xl font-bold text-[#FF6A00]">15K+</h3>
+              <p className="text-gray-600 font-medium">Happy Sellers</p>
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-3xl md:text-4xl font-bold text-[#FF6A00]">4.8/5</h3>
+              <p className="text-gray-600 font-medium">Facebook Reviews</p>
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-3xl md:text-4xl font-bold text-[#FF6A00]">₱2.5M</h3>
+              <p className="text-gray-600 font-medium">Daily Transactions</p>
+            </div>
+
+          </div>
         </div>
       </section>
     </main>

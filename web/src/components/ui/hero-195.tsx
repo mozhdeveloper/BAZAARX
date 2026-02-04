@@ -33,7 +33,7 @@ export function Hero195() {
                 <span className="text-[#FF6A00]">Seller Dashboard</span>
               </h1>
 
-              <p className="text-base sm:text-lg text-gray-600 mb-8 max-w-lg mx-auto lg:mx-0 leading-relaxed">
+              <p className="text-base sm:text-lg text-gray-600 mb-8 max-w-lg mx-auto lg:mx-0 leading-relaxed text-justify">
                 Experience our powerful seller tools designed for Filipino entrepreneurs.
                 Manage inventory, track sales, and grow your business with real-time analytics
                 and AI-powered insights.

@@ -27,7 +27,7 @@ export const POSLiteFeature = () => {
               <span className="text-[#FF6A00]">Synchronized.</span>
             </h2>
 
-            <p className="text-gray-600 text-base sm:text-lg leading-relaxed max-w-lg mx-auto lg:mx-0">
+            <p className="text-gray-600 text-base sm:text-lg leading-relaxed max-w-lg mx-auto lg:mx-0 text-justify">
               Selling at a weekend bazaar or through FB Messenger? Use <strong>POS-Lite</strong> to
               deduct stock manually and keep your online inventory 100% accurate.
             </p>

@@ -34,12 +34,8 @@ export function BazaarHero() {
   const { scrollY } = useScroll();
 
   useMotionValueEvent(scrollY, "change", (latest) => {
-    // Hide header when scrolling past Hero (100vh) until BazaarMarketplaceIntro
     const heroHeight = window.innerHeight - 100;
     const introSection = document.getElementById("bazaar-marketplace-intro");
-
-    // If we can't find the section, defaulting to showing the header might be safer
-    // or keep separate logic. For now, we assume it exists.
     const showAgainPoint = introSection ? introSection.offsetTop - 100 : 999999;
 
     if (latest > heroHeight && latest < showAgainPoint) {
@@ -191,28 +187,27 @@ export function BazaarHero() {
               <span className="font-fondamento font-bold tracking-tighter text-6xl sm:text-7xl md:text-8xl lg:text-9xl xl:text-[12rem] text-[var(--brand-primary)]">
                 BazaarX
               </span>
-              <div className="h-16 sm:h-24 md:h-32 lg:h-36 w-px bg-gradient-to-b from-transparent via-[var(--brand-primary)] to-transparent" />
             </div>
           }
-          subtitle="Inspired by ancient bazaars. Reimagined as the modern crossroads of global trade."
-          subtitleClassName="font-fondamento text-lg sm:text-xl md:text-2xl mt-4 sm:mt-6 text-center px-4"
+          subtitle="From global factories directly to your doorstep "
+          subtitleClassName="font-fondamento text-xl sm:text-2xl md:text-3xl mt-0 sm:mt-1 text-center px-4 w-full whitespace-nowrap overflow-hidden text-ellipsis"
           actions={[
             {
               label: "Start Shopping",
               href: "/shop",
               variant: "default",
-              className: "bg-[#FF6A00] hover:bg-base text-white rounded-2xl pl-6 pr-4 py-4 text-sm font-medium shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 group flex items-center gap-2",
+              className: "bg-[#FF6A00] hover:bg-base text-white rounded-2xl pl-10 pr-8 py-6 text-lg font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 group flex items-center gap-3",
               icon: (
-                <ShoppingBag className="w-4 h-4 text-white transition-colors" />
+                <ShoppingBag className="w-6 h-6 text-white transition-colors" />
               )
             },
             {
               label: "Explore Stores",
               href: "/stores",
               variant: "outline",
-              className: "bg-white hover:text-gray-900 hover:bg-base text-gray-900 border border-gray-200 rounded-2xl pl-6 pr-4 py-4 text-sm font-medium shadow-sm hover:shadow-md hover:scale-105 transition-all duration-300 group flex items-center gap-2",
+              className: "bg-white hover:text-gray-900 hover:bg-base text-gray-900 border border-gray-200 rounded-2xl pl-10 pr-8 py-6 text-lg font-semibold shadow-sm hover:shadow-md hover:scale-105 transition-all duration-300 group flex items-center gap-3",
               icon: (
-                <Store className="w-4 h-4 text-gray-900" />
+                <Store className="w-6 h-6 text-gray-900" />
               )
             },
           ]}
