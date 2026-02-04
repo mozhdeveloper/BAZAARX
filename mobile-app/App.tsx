@@ -47,6 +47,7 @@ import ReturnRequestScreen from './app/ReturnRequestScreen';
 import ReturnDetailScreen from './app/ReturnDetailScreen';
 import ReturnOrdersScreen from './app/ReturnOrdersScreen';
 import HistoryScreen from './app/HistoryScreen';
+import AddProductScreen from '@/components/seller/AddProductScreen';
 // Ticketing Module
 import CreateTicketScreen from './app/tickets/CreateTicketScreen';
 import TicketDetailScreen from './app/tickets/TicketDetailScreen';
@@ -116,6 +117,7 @@ export type RootStackParamList = {
   CreateTicket: undefined;
   TicketDetail: { ticketId: string };
   Messages: undefined;
+  AddProduct: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -316,6 +318,7 @@ export default function App() {
             <Stack.Screen name="TicketDetail" component={TicketDetailScreen} />
             <Stack.Screen name="Messages" component={MessagesScreen} />
             <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
+            <Stack.Screen name="AddProduct" component={AddProductScreen} />
           </Stack.Navigator>
         </NavigationContainer>
       </SafeAreaProvider>
