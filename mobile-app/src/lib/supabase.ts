@@ -21,9 +21,14 @@ supabase.auth.onAuthStateChange(async (event, session) => {
     console.log('Auth token refreshed successfully');
   } else if (event === 'SIGNED_OUT') {
     console.log('User signed out');
-    // Clear any cached auth data
+    // Clear all auth-related storage keys
     try {
       await AsyncStorage.removeItem('supabase.auth.token');
+      // Also clear the Supabase-specific storage key
+      const supabaseProject = supabaseUrl.split('//')[1]?.split('.')[0];
+      if (supabaseProject) {
+        await AsyncStorage.removeItem(`sb-${supabaseProject}-auth-token`);
+      }
     } catch (error) {
       console.error('Error clearing auth token:', error);
     }

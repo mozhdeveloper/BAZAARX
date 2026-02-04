@@ -161,16 +161,20 @@ export class AuthService {
     try {
       const { data, error } = await supabase.auth.getSession();
       if (error) {
-        // If refresh token is invalid, clear the session
+        // If refresh token is invalid, clear the session silently
         if (error.message?.includes('Refresh Token') || error.message?.includes('Invalid')) {
-          console.warn('Invalid refresh token detected, clearing session...');
+          // Silently clear invalid session without logging (error is suppressed in App.tsx)
           await this.clearInvalidSession();
+          return null; // Return null instead of throwing
         }
         throw error;
       }
       return data.session;
     } catch (error) {
-      console.error('Error getting session:', error);
+      // Only log non-refresh-token errors
+      if (!error.message?.includes('Refresh Token')) {
+        console.error('Error getting session:', error);
+      }
       return null;
     }
   }

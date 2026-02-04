@@ -201,20 +201,25 @@ function MainTabs() {
 
 import { supabase } from './src/lib/supabase';
 import { useAuthStore } from './src/stores/authStore';
+import { LogBox } from 'react-native';
 
 // ... (existing imports)
 
 export default function App() {
   React.useEffect(() => {
+    // Suppress refresh token errors - they're handled automatically by auth service
+    LogBox.ignoreLogs([
+      'AuthApiError: Invalid Refresh Token',
+      'Invalid Refresh Token',
+      'Refresh Token Not Found'
+    ]);
+
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') {
         useAuthStore.getState().logout();
       }
     });
-
-    // Optional: Suppress the specific refresh token error if it's just noise
-    // LogBox.ignoreLogs(['AuthApiError: Invalid Refresh Token']);
 
     return () => subscription.unsubscribe();
   }, []);
