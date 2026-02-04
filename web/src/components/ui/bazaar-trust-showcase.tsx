@@ -197,10 +197,10 @@ export default function BazaarTrustShowcase() {
                 {/* Left: Image + Quote */}
                 <div
                   className={[
-                    "flex flex-col sm:flex-row gap-8 sm:gap-10 lg:col-span-2 lg:border-r lg:pr-12 xl:pr-16 text-left",
+                    "flex flex-col gap-8 sm:gap-10 lg:col-span-2 lg:border-r lg:pr-12 xl:pr-16 text-left",
                     reversed
-                      ? "lg:order-2 lg:border-r-0 lg:border-l border-gray-200 dark:border-gray-800 lg:pl-12 xl:pl-16 lg:pr-0"
-                      : "border-gray-200 dark:border-gray-800",
+                      ? "sm:flex-row-reverse lg:order-2 lg:border-r-0 lg:border-l border-gray-200 dark:border-gray-800 lg:pl-12 xl:pl-16 lg:pr-0"
+                      : "sm:flex-row border-gray-200 dark:border-gray-800",
                   ].join(" ")}
                 >
                   <img
@@ -210,7 +210,7 @@ export default function BazaarTrustShowcase() {
                     loading="lazy"
                     decoding="async"
                   />
-                  <figure className="flex flex-col justify-between gap-6 sm:gap-8 text-left">
+                  <figure className="flex-1 flex flex-col justify-between gap-6 sm:gap-8 text-left">
                     <blockquote className="text-lg sm:text-xl text-foreground leading-relaxed text-left">
                       <div className="flex items-center gap-3 mb-4">
                         <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-[var(--brand-primary)]/10 flex items-center justify-center">

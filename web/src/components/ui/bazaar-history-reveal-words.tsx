@@ -66,12 +66,12 @@ export default function BazaarRevealWords() {
     >
       <div className="sticky top-0 h-screen flex items-center overflow-hidden">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 lg:gap-12 items-center">
+          <div className="grid grid-cols-2 gap-4 sm:gap-8 md:gap-16 lg:gap-32 items-center min-h-[50vh]">
             {/* Left: paragraph */}
-            <div className="order-2 md:order-1">
+            <div className="order-1">
               <div className="max-w-3xl mx-auto">
                 <motion.div
-                  className="relative py-12 sm:py-16 md:py-20"
+                  className="relative py-8 sm:py-16 md:py-20"
                 >
                   {/* Top Gradient Line */}
                   <motion.div
@@ -80,7 +80,7 @@ export default function BazaarRevealWords() {
                   />
 
                   <motion.p
-                    className="text-base sm:text-lg md:text-xl lg:text-2xl leading-relaxed sm:leading-loose text-justify px-2 sm:px-0"
+                    className="text-xs sm:text-base md:text-xl lg:text-2xl leading-relaxed sm:leading-loose text-justify px-0"
                     style={{ color: paragraphColor }}
                   >
                     Over time, the Persian bazaar model spread across the Middle East, North Africa, and beyond, giving rise to iconic marketplaces such as the Turkish bazaars and the Arabic sūqs. Wherever it traveled, the bazaar retained its core purpose: a place where people come together. It thrived as a center of trade, showcased local craft, and fostered vibrant social gatherings—bringing goods, artisans, and communities into one shared space.
@@ -96,12 +96,13 @@ export default function BazaarRevealWords() {
             </div>
 
             {/* Right: stacked reveal words (responsive) */}
-            <div className="order-1 md:order-2 flex flex-col gap-3 sm:gap-4 items-end">
+            <div className="order-2 flex flex-col gap-2 sm:gap-4 items-end">
               <div className="w-full md:w-auto">
                 <RevealImageListItem
                   text="trade"
                   images={TRADE_IMAGES[0]}
                   isActive={activeIndex === 0}
+                  isDimmed={activeIndex !== -1 && activeIndex !== 0}
                   style={{ color: revealTextColor }}
                 />
               </div>
@@ -110,6 +111,7 @@ export default function BazaarRevealWords() {
                   text="craft"
                   images={TRADE_IMAGES[1]}
                   isActive={activeIndex === 1}
+                  isDimmed={activeIndex !== -1 && activeIndex !== 1}
                   style={{ color: revealTextColor }}
                 />
               </div>
@@ -118,6 +120,7 @@ export default function BazaarRevealWords() {
                   text="gathering"
                   images={TRADE_IMAGES[2]}
                   isActive={activeIndex === 2}
+                  isDimmed={activeIndex !== -1 && activeIndex !== 2}
                   style={{ color: revealTextColor }}
                 />
               </div>

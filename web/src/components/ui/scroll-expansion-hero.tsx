@@ -112,16 +112,12 @@ const ScrollExpansionHero = ({
           className="absolute bottom-0 left-0 right-0 z-30 bg-white px-4 sm:px-6 md:px-8 py-8 sm:py-12 md:py-16"
           style={{ opacity: contentOpacity }}
         >
-          <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
+          <div className="max-w-7xl mx-auto space-y-4 sm:space-y-6">
             {/* Body copy */}
-            <p className="text-base sm:text-lg md:text-xl leading-relaxed text-gray-700">
+            <p className="text-base sm:text-lg md:text-xl leading-relaxed text-gray-700 text-justify">
               Today, the spirit of the bazaar lives on—reimagined for a connected
               world. BazaarX is where makers, manufacturers, and buyers meet
-              without unnecessary middlemen.
-            </p>
-
-            <p className="text-base sm:text-lg md:text-xl leading-relaxed text-gray-700">
-              By bringing products straight from the source to your home,
+              without unnecessary middlemen. By bringing products straight from the source to your home,
               BazaarX turns centuries of open exchange into a seamless digital
               marketplace.
             </p>
@@ -135,9 +131,9 @@ const ScrollExpansionHero = ({
                 </p>
               </div>
               <div className="flex items-center justify-center text-center">
-                <p className="text-2xl sm:text-3xl md:text-4xl lg:text-6xl font-bold font-fondamento leading-tight">
-                  <span className="text-orange-500 block">From global factories</span>
-                  <span className="text-gray-900 block">directly to your doorstep</span>
+                <p className="text-xl sm:text-2xl md:text-3xl lg:text-5xl font-bold font-fondamento leading-tight">
+                  <span className="text-orange-500 block">Inspired by ancient bazaars.</span>
+                  <span className="text-gray-900 block">Reimagined as the modern crossroads for global trade.</span>
                 </p>
               </div>
             </div>

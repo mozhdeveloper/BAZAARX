@@ -27,7 +27,12 @@ const navigation = [
   { name: "Stores", href: "/stores" },
 ];
 
-export function BazaarHero() {
+interface BazaarHeroProps {
+  mode?: "buyer" | "seller";
+  scrollTargetId?: string;
+}
+
+export function BazaarHero({ mode = "buyer", scrollTargetId = "bazaar-marketplace-intro" }: BazaarHeroProps) {
   const [isAIChatOpen, setIsAIChatOpen] = useState(false);
   const [isBuyerAuthOpen, setIsBuyerAuthOpen] = useState(false);
   const [isHeaderVisible, setIsHeaderVisible] = useState(true);
@@ -35,7 +40,7 @@ export function BazaarHero() {
 
   useMotionValueEvent(scrollY, "change", (latest) => {
     const heroHeight = window.innerHeight - 100;
-    const introSection = document.getElementById("bazaar-marketplace-intro");
+    const introSection = document.getElementById(scrollTargetId);
     const showAgainPoint = introSection ? introSection.offsetTop - 100 : 999999;
 
     if (latest > heroHeight && latest < showAgainPoint) {
@@ -60,20 +65,46 @@ export function BazaarHero() {
               <div className="flex items-center justify-between w-full">
                 {/* Left Section: Logo + Nav */}
                 <div className="flex items-center gap-6">
-                  <Link
-                    to="/"
-                    className="flex items-center gap-2 hover:scale-110 transition-transform duration-300 transform origin-left"
-                    onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                  <div
+                    className="flex items-center gap-4"
                   >
-                    <img
-                      src="/BazaarX.png"
-                      alt="BazaarX Logo"
-                      className="h-12 w-auto object-contain"
-                    />
-                    <span className="text-2xl font-bold text-[#ff6a00] tracking-tight">
-                      BazaarX
-                    </span>
-                  </Link>
+                    <Link
+                      to="/"
+                      className="flex items-center gap-2 hover:scale-110 transition-transform duration-300 transform origin-left"
+                      onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                    >
+                      <img
+                        src="/BazaarX.png"
+                        alt="BazaarX Logo"
+                        className="h-12 w-auto object-contain"
+                      />
+                      <span className="text-2xl font-bold text-[#ff6a00] tracking-tight">
+                        BazaarX
+                      </span>
+                    </Link>
+
+                    {/* Home / Seller Navigation Switch */}
+                    <div className="hidden md:flex items-center ml-6 gap-6">
+                      <Link
+                        to="/"
+                        className={`text-sm font-medium transition-all duration-200 ${mode === "buyer"
+                          ? "text-[#ff6a00] font-bold"
+                          : "text-gray-500 hover:text-orange-500"
+                          }`}
+                      >
+                        Home
+                      </Link>
+                      <Link
+                        to="/sell"
+                        className={`text-sm font-medium transition-all duration-200 ${mode === "seller"
+                          ? "text-[#ff6a00] font-bold"
+                          : "text-gray-500 hover:text-orange-500"
+                          }`}
+                      >
+                        Seller
+                      </Link>
+                    </div>
+                  </div>
 
 
 
@@ -104,6 +135,20 @@ export function BazaarHero() {
                             </span>
                           </a>
                         </SheetTitle>
+                        <div className="flex gap-2 mt-4">
+                          <Link
+                            to="/"
+                            className={`flex-1 text-center py-2 rounded-lg text-sm font-medium border ${mode === 'buyer' ? 'border-[#ff6a00] text-[#ff6a00] bg-orange-50' : 'border-gray-200 text-gray-600'}`}
+                          >
+                            Buyer
+                          </Link>
+                          <Link
+                            to="/sell"
+                            className={`flex-1 text-center py-2 rounded-lg text-sm font-medium border ${mode === 'seller' ? 'border-[#ff6a00] text-[#ff6a00] bg-orange-50' : 'border-gray-200 text-gray-600'}`}
+                          >
+                            Seller
+                          </Link>
+                        </div>
                       </SheetHeader>
                       <nav className="flex flex-col p-6 space-y-1">
                         {navigation.map((item) => (
@@ -161,19 +206,21 @@ export function BazaarHero() {
                       <Bot className="w-5 h-5" />
                     </Button>
                   </div>
-                  <Link to="/seller/auth">
-                    <Button
-                      variant="secondary"
-                      className="cursor-pointer bg-white p-0 rounded-full shadow-lg hover:shadow-xl hover:bg-orange-600 transition-all duration-300 group h-10"
-                    >
-                      <span className="pl-5 py-1.5 text-sm text-[var(--text-primary)] hover:text-white">
-                        Start Selling
-                      </span>
-                      <div className="rounded-full flex items-center justify-center m-auto bg-[var(--brand-primary)] w-8 h-8 ml-3 group-hover:scale-110 transition-transform duration-300">
-                        <ArrowUpRight className="w-4 h-4 text-white" />
-                      </div>
-                    </Button>
-                  </Link>
+                  {mode === "buyer" && (
+                    <Link to="/seller/auth">
+                      <Button
+                        variant="secondary"
+                        className="cursor-pointer bg-white p-0 rounded-full shadow-lg hover:shadow-xl hover:bg-orange-600 transition-all duration-300 group h-10"
+                      >
+                        <span className="pl-5 py-1.5 text-sm text-[var(--text-primary)] hover:text-white">
+                          Start Selling
+                        </span>
+                        <div className="rounded-full flex items-center justify-center m-auto bg-[var(--brand-primary)] w-8 h-8 ml-3 group-hover:scale-110 transition-transform duration-300">
+                          <ArrowUpRight className="w-4 h-4 text-white" />
+                        </div>
+                      </Button>
+                    </Link>
+                  )}
                 </div>
               </div>
             </motion.header>
@@ -184,32 +231,43 @@ export function BazaarHero() {
           className="min-h-[95vh]"
           title={
             <div className="flex flex-col items-center gap-3 sm:gap-4 md:gap-6">
-              <span className="font-fondamento font-bold tracking-tighter text-6xl sm:text-7xl md:text-8xl lg:text-9xl xl:text-[12rem] text-[var(--brand-primary)]">
+              <span className="font-fondamento font-bold tracking-tighter text-6xl sm:text-7xl md:text-8xl lg:text-9xl xl:text-[12rem] text-[var(--brand-primary)] leading-[0.85]">
                 BazaarX
               </span>
             </div>
           }
-          subtitle="From global factories directly to your doorstep "
-          subtitleClassName="font-fondamento text-xl sm:text-2xl md:text-3xl mt-0 sm:mt-1 text-center px-4 w-full whitespace-nowrap overflow-hidden text-ellipsis"
-          actions={[
+          subtitle={mode === "buyer" ? "From global factories directly to your doorstep" : "Inspired by ancient bazaars. Reimagined as the modern crossroads for global trade."}
+          subtitleClassName="font-fondamento text-xl sm:text-2xl md:text-3xl !mt-0 sm:!mt-[-0.5rem] text-center px-4 w-full whitespace-nowrap overflow-hidden text-ellipsis"
+          actionsClassName="!mt-16 sm:!mt-24 w-full justify-center"
+          actions={mode === "buyer" ? [
             {
               label: "Start Shopping",
               href: "/shop",
               variant: "default",
-              className: "bg-[#FF6A00] hover:bg-base text-white rounded-2xl pl-10 pr-8 py-6 text-lg font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 group flex items-center gap-3",
+              className: "bg-[#FF6A00] hover:bg-base text-white rounded-2xl px-12 py-8 text-xl font-normal shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 group flex items-center gap-3",
               icon: (
-                <ShoppingBag className="w-6 h-6 text-white transition-colors" />
+                <ShoppingBag className="w-7 h-7 text-white transition-colors" />
               )
             },
             {
               label: "Explore Stores",
               href: "/stores",
               variant: "outline",
-              className: "bg-white hover:text-gray-900 hover:bg-base text-gray-900 border border-gray-200 rounded-2xl pl-10 pr-8 py-6 text-lg font-semibold shadow-sm hover:shadow-md hover:scale-105 transition-all duration-300 group flex items-center gap-3",
+              className: "bg-white hover:text-gray-900 hover:bg-base text-gray-900 border border-gray-200 rounded-2xl px-12 py-8 text-xl font-normal shadow-sm hover:shadow-md hover:scale-105 transition-all duration-300 group flex items-center gap-3",
               icon: (
-                <Store className="w-6 h-6 text-gray-900" />
+                <Store className="w-7 h-7 text-gray-900" />
               )
             },
+          ] : [
+            {
+              label: "Start Selling",
+              href: "/seller/auth",
+              variant: "default",
+              className: "bg-[#FF6A00] hover:bg-base text-white rounded-2xl px-12 py-8 text-xl font-normal shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 group flex items-center gap-3",
+              icon: (
+                <ArrowUpRight className="w-7 h-7 text-white transition-colors" />
+              )
+            }
           ]}
           titleClassName="bg-gradient-to-r from-[var(--brand-primary)] via-[var(--brand-primary)]/90 to-[var(--brand-primary-dark)] bg-clip-text text-transparent"
         />

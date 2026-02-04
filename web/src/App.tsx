@@ -4,6 +4,7 @@ import { Toaster } from "./components/ui/toaster";
 import ScrollToTop from "./components/ScrollToTop";
 // import { OrderNotificationModal } from './components/OrderNotificationModal'; // Disabled for testing
 import HomePage from "./pages/HomePage";
+import SellerLandingPage from "./pages/SellerLandingPage";
 import ShopPage from "./pages/ShopPage";
 import SearchPage from "./pages/SearchPage";
 import CollectionsPage from "./pages/CollectionsPage";
@@ -81,6 +82,7 @@ function App() {
         <Routes>
           {/* Buyer Routes */}
           <Route path="/" element={<HomePage />} />
+          <Route path="/sell" element={<SellerLandingPage />} />
           <Route path="/login" element={<BuyerLoginPage />} />
           <Route path="/signup" element={<BuyerSignupPage />} />
           <Route path="/buyer-onboarding"

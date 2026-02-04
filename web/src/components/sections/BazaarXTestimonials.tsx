@@ -83,7 +83,7 @@ const thirdColumn = testimonials.slice(6, 9);
 
 export default function BazaarXTestimonials() {
   return (
-    <section className="bg-gradient-to-b from-white to-orange-50/30 py-16 sm:py-20 md:py-24 relative overflow-hidden">
+    <section className="bg-white py-16 sm:py-20 md:py-24 relative overflow-hidden">
       <div className="container z-10 mx-auto px-4 sm:px-6 lg:px-8">
         {/* Main Grid Layout to match reference layout */}
         <div className="grid lg:grid-cols-12 gap-8 sm:gap-12 items-center">

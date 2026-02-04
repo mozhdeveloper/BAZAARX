@@ -38,7 +38,7 @@ function BrandTestimonials() {
   const prev = () => setIndex((prev) => (prev - 1 + TESTIMONIALS.length) % TESTIMONIALS.length);
 
   return (
-    <main className="w-full bg-[#fdf8f4] py-20 overflow-hidden">
+    <main className="w-full bg-white py-20 overflow-hidden">
       <section className="container mx-auto px-6 flex flex-col lg:flex-row items-center gap-12" ref={testimonialRef}>
 
         {/* LEFT COLUMN: STATIC CONTENT */}
@@ -132,34 +132,7 @@ function BrandTestimonials() {
         </div>
       </section>
 
-      {/* STATS BAR */}
-      <section className="container mx-auto px-6 mt-20">
-        <div className="border-t border-gray-200 pt-10">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
 
-            <div className="space-y-2">
-              <h3 className="text-3xl md:text-4xl font-bold text-[#FF6A00]">4.9/5</h3>
-              <p className="text-gray-600 font-medium">Google Rating</p>
-            </div>
-
-            <div className="space-y-2">
-              <h3 className="text-3xl md:text-4xl font-bold text-[#FF6A00]">15K+</h3>
-              <p className="text-gray-600 font-medium">Happy Sellers</p>
-            </div>
-
-            <div className="space-y-2">
-              <h3 className="text-3xl md:text-4xl font-bold text-[#FF6A00]">4.8/5</h3>
-              <p className="text-gray-600 font-medium">Facebook Reviews</p>
-            </div>
-
-            <div className="space-y-2">
-              <h3 className="text-3xl md:text-4xl font-bold text-[#FF6A00]">₱2.5M</h3>
-              <p className="text-gray-600 font-medium">Daily Transactions</p>
-            </div>
-
-          </div>
-        </div>
-      </section>
     </main>
   );
 }
