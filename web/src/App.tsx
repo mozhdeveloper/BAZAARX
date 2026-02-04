@@ -69,7 +69,7 @@ import AdminFlashSales from "./pages/AdminFlashSales";
 import AdminPayouts from "./pages/AdminPayouts";
 import AdminProfile from "./pages/AdminProfile";
 import AdminProductApprovals from "./pages/AdminProductApprovals";
-import { ChatBubble } from "./components/ChatBubble";
+import { ChatBubble } from "./components/ChatBubbleAI";
 
 function App() {
   return (

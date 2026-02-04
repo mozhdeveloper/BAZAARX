@@ -115,9 +115,12 @@ export class ReviewService {
     }
 
     /**
-     * Get reviews for a seller's products (Seller Dashboard)
+     * Get reviews for a seller's products (Seller Dashboard & Storefront)
      */
-    async getSellerReviews(sellerId: string): Promise<Review[]> {
+    async getSellerReviews(sellerId: string): Promise<(Review & { 
+        buyer?: { full_name: string | null; avatar_url: string | null };
+        product?: { name: string | null; images: string[] | null };
+    })[]> {
         if (!isSupabaseConfigured()) {
             return this.mockReviews.filter(r => r.seller_id === sellerId);
         }
@@ -125,8 +128,13 @@ export class ReviewService {
         try {
             const { data, error } = await supabase
                 .from('reviews')
-                .select('*, products(name)')
+                .select(`
+                    *,
+                    buyer:profiles!buyer_id(full_name, avatar_url),
+                    product:products!product_id(name, images)
+                `)
                 .eq('seller_id', sellerId)
+                .eq('is_hidden', false)
                 .order('created_at', { ascending: false });
 
             if (error) throw error;

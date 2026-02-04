@@ -85,6 +85,7 @@ export function SellerLogin() {
               <div className="space-y-1 text-xs text-primary/90">
                 <p className="font-semibold">Password for all: <span className="font-mono bg-primary/10 px-2 py-0.5 rounded">Seller123!</span></p>
                 <div className="grid grid-cols-1 gap-1 mt-2 text-[11px]">
+                  <button type="button" onClick={() => { setEmail('teststore@bazaar.ph'); setPassword('TestStore123!'); }} className="text-left hover:text-primary hover:underline transition-colors font-semibold">• teststore@bazaar.ph <span className="text-gray-500">(Maria's Fashion Boutique) ⭐ NEW</span></button>
                   <button type="button" onClick={() => { setEmail('active.sports@bazaarph.com'); setPassword('Seller123!'); }} className="text-left hover:text-primary hover:underline transition-colors">• active.sports@bazaarph.com <span className="text-gray-500">(ActiveGear Sports)</span></button>
                   <button type="button" onClick={() => { setEmail('maria.santos@bazaarph.com'); setPassword('Seller123!'); }} className="text-left hover:text-primary hover:underline transition-colors">• maria.santos@bazaarph.com <span className="text-gray-500">(Maria's Fashion House)</span></button>
                   <button type="button" onClick={() => { setEmail('juan.tech@bazaarph.com'); setPassword('Seller123!'); }} className="text-left hover:text-primary hover:underline transition-colors">• juan.tech@bazaarph.com <span className="text-gray-500">(TechStore Official)</span></button>

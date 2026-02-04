@@ -43,6 +43,7 @@ import {
 import { ProductCard } from '../src/components/ProductCard';
 import CameraSearchModal from '../src/components/CameraSearchModal';
 import StoreChatModal from '../src/components/StoreChatModal';
+import { AIChatBubble } from '../src/components/AIChatBubble';
 import { useCartStore } from '../src/stores/cartStore';
 import { useWishlistStore } from '../src/stores/wishlistStore';
 import { trendingProducts } from '../src/data/products';
@@ -926,6 +927,26 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
             message={guestModalMessage || "You need an account to buy items."}
         />
       )}
+
+      {/* AI Chat Bubble */}
+      <AIChatBubble
+        product={{
+          id: product.id,
+          name: product.name,
+          description: product.description || '',
+          price: product.price,
+          category: product.category,
+          colors: productColors,
+          sizes: productSizes,
+          stock: product.stock,
+          rating: averageRating || product.rating,
+          reviewCount: reviewsTotal,
+        }}
+        store={{
+          storeName: product.seller || 'Store',
+        }}
+        onTalkToSeller={() => setShowChat(true)}
+      />
 
     </View>
   );

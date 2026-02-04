@@ -128,7 +128,7 @@ export default function SharedWishlistScreen() {
                     </View>
                 </View>
                 <View style={styles.grid}>
-                    {wishlistOwner.items.filter((item: any) => !item.isPrivate).map((item) => {
+                    {wishlistOwner.items.filter((item: any) => !item.isPrivate).map((item: any) => {
                         const isFullyPurchased = item.purchasedQty >= item.desiredQty;
                         
                         return (
