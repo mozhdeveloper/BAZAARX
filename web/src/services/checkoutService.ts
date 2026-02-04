@@ -96,20 +96,105 @@ export class CheckoutService {
                 }
 
                 if (item.selected_variant) {
-                    const variantId = (item.selected_variant as any).id;
+                    const selectedVar = item.selected_variant as any;
                     const variantsList = Array.isArray(product.variants) ? product.variants : [];
-                    const variant = variantsList.find((v: any) => v.id === variantId);
+                    
+                    // If product has no variants, treat as regular product
+                    if (variantsList.length === 0) {
+                        console.warn(`Product ${item.product_id} has selected_variant in cart but no variants in database. Using product stock.`);
+                        if ((product.stock || 0) < item.quantity) {
+                            throw new Error(`Insufficient stock for product. Available: ${product.stock || 0}, Requested: ${item.quantity}`);
+                        }
+                    } else {
+                        // Try multiple matching strategies
+                        let variant = null;
+                        
+                        // Strategy 1: Match by ID (if both exist)
+                        if (selectedVar.id) {
+                            variant = variantsList.find((v: any) => v.id === selectedVar.id);
+                        }
+                        
+                        // Strategy 2: Match by SKU (if both exist)
+                        if (!variant && selectedVar.sku) {
+                            variant = variantsList.find((v: any) => v.sku === selectedVar.sku);
+                        }
+                        
+                        // Strategy 3: Match by name
+                        if (!variant && selectedVar.name) {
+                            variant = variantsList.find((v: any) => v.name === selectedVar.name);
+                        }
+                        
+                        // Strategy 4: Match by price + name combination
+                        if (!variant && selectedVar.price && selectedVar.name) {
+                            variant = variantsList.find((v: any) => 
+                                v.price === selectedVar.price && v.name === selectedVar.name
+                            );
+                        }
+                        
+                        // Strategy 5: Match by color field (extract from name if needed)
+                        if (!variant && selectedVar.name) {
+                            // Try to extract color from name like "Color: Classic Blue"
+                            const colorMatch = selectedVar.name.match(/Color:\s*(.+)/i);
+                            const colorToFind = selectedVar.color || (colorMatch ? colorMatch[1] : null);
+                            
+                            if (colorToFind) {
+                                // Find first variant with matching color
+                                variant = variantsList.find((v: any) => 
+                                    v.color && v.color.toLowerCase() === colorToFind.toLowerCase()
+                                );
+                            }
+                        }
+                        
+                        // Strategy 6: Match by size field (extract from name if needed)
+                        if (!variant && selectedVar.name) {
+                            const sizeMatch = selectedVar.name.match(/Size:\s*(.+)/i);
+                            const sizeToFind = selectedVar.size || (sizeMatch ? sizeMatch[1] : null);
+                            
+                            if (sizeToFind) {
+                                variant = variantsList.find((v: any) => 
+                                    v.size && v.size.toString() === sizeToFind.toString()
+                                );
+                            }
+                        }
+                        
+                        // Strategy 7: Match by price alone (last resort for same-priced variants)
+                        if (!variant && selectedVar.price) {
+                            const samePrice = variantsList.filter((v: any) => v.price === selectedVar.price);
+                            if (samePrice.length === 1) {
+                                variant = samePrice[0];
+                                console.warn(`Matched variant by price alone for product ${item.product_id}`);
+                            }
+                        }
+                        
+                        if (!variant) {
+                            console.error('Variant matching failed:', {
+                                productId: item.product_id,
+                                selectedVariant: selectedVar,
+                                availableVariants: variantsList
+                            });
+                            console.log('Selected variant structure:', JSON.stringify(selectedVar, null, 2));
+                            console.log('Available variants structure:', JSON.stringify(variantsList, null, 2));
+                            
+                            // Build a readable error message
+                            const variantDescriptions = variantsList.map((v: any) => {
+                                // Try to describe the variant by whatever fields it has
+                                return v.name || v.color || v.size || v.sku || JSON.stringify(v);
+                            }).join(', ');
+                            
+                            throw new Error(
+                                `Variant not found for product ${item.product_id}. ` +
+                                `Looking for: ${JSON.stringify(selectedVar)}. ` +
+                                `Available: ${variantDescriptions || 'No variants'}`
+                            );
+                        }
 
-                    if (!variant) {
-                        throw new Error(`Variant not found for product ${item.product_id}`);
-                    }
-
-                    if (variant.stock < item.quantity) {
-                        throw new Error(`Insufficient stock for ${item.selected_variant.name}`);
+                        if (variant.stock < item.quantity) {
+                            throw new Error(`Insufficient stock for ${selectedVar.name || 'variant'}. Available: ${variant.stock}, Requested: ${item.quantity}`);
+                        }
                     }
                 } else {
                     if ((product.stock || 0) < item.quantity) {
-                        throw new Error(`Insufficient stock for product`);
+                        throw new Error(`Insufficient stock for product. Available: ${product.stock || 0}, Requested: ${item.quantity}`);
                     }
                 }
             }
@@ -237,20 +322,34 @@ export class CheckoutService {
                             .single();
 
                         if (currentProd) {
-                            const updatedVariants = (currentProd.variants as any[]).map((v: any) => {
-                                if (v.id === (item.selected_variant as any)?.id) {
-                                    return { ...v, stock: v.stock - item.quantity };
-                                }
-                                return v;
-                            });
+                            const variantsList = Array.isArray(currentProd.variants) ? currentProd.variants : [];
+                            
+                            // If product has no variants, treat as regular product
+                            if (variantsList.length === 0) {
+                                console.warn(`Product ${item.product_id} has selected_variant in order but no variants in database. Updating main stock.`);
+                                await supabase
+                                    .from('products')
+                                    .update({
+                                        stock: (currentProd.stock || 0) - item.quantity,
+                                        sales_count: (currentProd.sales_count || 0) + item.quantity
+                                    })
+                                    .eq('id', item.product_id);
+                            } else {
+                                const updatedVariants = variantsList.map((v: any) => {
+                                    if (v.id === (item.selected_variant as any)?.id) {
+                                        return { ...v, stock: v.stock - item.quantity };
+                                    }
+                                    return v;
+                                });
 
-                            await supabase
-                                .from('products')
-                                .update({
-                                    variants: updatedVariants,
-                                    sales_count: (currentProd.sales_count || 0) + item.quantity
-                                })
-                                .eq('id', item.product_id);
+                                await supabase
+                                    .from('products')
+                                    .update({
+                                        variants: updatedVariants,
+                                        sales_count: (currentProd.sales_count || 0) + item.quantity
+                                    })
+                                    .eq('id', item.product_id);
+                            }
                         }
                     } else {
                         const { data: currentProd } = await supabase
