@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+﻿import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -348,7 +348,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   };
 
   const handleShare = async () => {
-    await Share.share({ message: `Check out ${product.name} on BazaarX! ₱${product.price}` });
+    await Share.share({ message: `Check out ${product.name} on BazaarX! Γé▒${product.price}` });
   };
 
   const handleChat = () => {
@@ -551,12 +551,12 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
           </View>
 
           <Text style={styles.productName}>{product.name}</Text>
-          <Text style={styles.subInfo}>{product.sold} sold this month • Free Shipping Available</Text>
+          <Text style={styles.subInfo}>{product.sold} sold this month ΓÇó Free Shipping Available</Text>
 
           {/* Price */}
           <View style={styles.priceRow}>
-            <Text style={styles.currentPrice}>₱{(product.price ?? 0).toLocaleString()}</Text>
-            <Text style={styles.originalPrice}>₱{originalPrice.toLocaleString()}</Text>
+            <Text style={styles.currentPrice}>Γé▒{(product.price ?? 0).toLocaleString()}</Text>
+            <Text style={styles.originalPrice}>Γé▒{originalPrice.toLocaleString()}</Text>
           </View>
 
           {/* Stock & Ratings */}
@@ -588,7 +588,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                    >
                      {selectedColor === color && (
                        <View style={styles.colorCheckmark}>
-                         <Text style={{ color: '#FFF', fontSize: 10, fontWeight: 'bold' }}>✓</Text>
+                         <Text style={{ color: '#FFF', fontSize: 10, fontWeight: 'bold' }}>Γ£ô</Text>
                        </View>
                      )}
                    </Pressable>
@@ -738,9 +738,9 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                    {product.description || 'High-fidelity sound with detailed staging. Ergonomic design for long-listening comfort.'}
                    {'\n\n'}
                    Features:
-                   {'\n'}• Active Noise Cancellation
-                   {'\n'}• 24-Hour Battery Life
-                   {'\n'}• Water Resistant (IPX4)
+                   {'\n'}ΓÇó Active Noise Cancellation
+                   {'\n'}ΓÇó 24-Hour Battery Life
+                   {'\n'}ΓÇó Water Resistant (IPX4)
                  </Text>
               )}
               {activeTab === 'support' && (
@@ -804,7 +804,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                     style={styles.variantModalImage} 
                   />
                   <View style={styles.variantModalInfo}>
-                    <Text style={styles.variantModalPrice}>₱{(product.price ?? 0).toLocaleString()}</Text>
+                    <Text style={styles.variantModalPrice}>Γé▒{(product.price ?? 0).toLocaleString()}</Text>
                     <Text style={styles.variantModalStock}>Stock: {(product as any).stock || 12}</Text>
                     <Text style={styles.variantModalSelected}>
                       {[modalSelectedColor, modalSelectedSize].filter(Boolean).join(', ') || 'Select options'}
@@ -832,7 +832,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                             onPress={() => setModalSelectedColor(color)}
                           >
                             {modalSelectedColor === color && (
-                              <Text style={{ color: '#FFF', fontSize: 12, fontWeight: 'bold' }}>✓</Text>
+                              <Text style={{ color: '#FFF', fontSize: 12, fontWeight: 'bold' }}>Γ£ô</Text>
                             )}
                           </Pressable>
                         ))}

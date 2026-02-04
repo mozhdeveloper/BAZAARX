@@ -172,7 +172,7 @@ export class AuthService {
       return data.session;
     } catch (error) {
       // Only log non-refresh-token errors
-      if (!error.message?.includes('Refresh Token')) {
+      if (!(error as any)?.message?.includes('Refresh Token')) {
         console.error('Error getting session:', error);
       }
       return null;
