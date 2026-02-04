@@ -146,6 +146,17 @@ export default function ShopPage() {
 
   useEffect(() => {
     setSearchQuery(searchParams.get("q") || "");
+    const categoryParam = searchParams.get("category");
+    if (categoryParam) {
+      setSelectedCategory(categoryParam);
+      // Wait for layout to settle then scroll
+      setTimeout(() => {
+        const element = document.getElementById("shop-content");
+        if (element) {
+          element.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      }, 100);
+    }
   }, [searchParams]);
 
   // Handle toolbar scroll visibility
@@ -393,7 +404,7 @@ export default function ShopPage() {
             </div>
           </div>
 
-          <div className="flex flex-col lg:flex-row gap-8">
+          <div id="shop-content" className="flex flex-col lg:flex-row gap-8 scroll-mt-24">
             {/* Categories Sidebar */}
             <motion.div
               initial={false}
