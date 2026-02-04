@@ -144,166 +144,168 @@ const Dashboard = () => {
 
   return (
     <div className="flex flex-1 w-full">
-      <div className="p-2 md:p-8 bg-gray-50 flex flex-col gap-6 flex-1 w-full h-full overflow-auto">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold text-gray-900">
-              Good morning, {seller?.name || "Seller"}!
-            </h1>
-            <p className="text-gray-600 mt-1">
-              Here's what's happening with your store today.
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-              <input
-                type="text"
-                placeholder="Search..."
-                className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 w-64"
-              />
+      <div className="p-2 md:p-8 bg-gray-50 flex-1 w-full h-full overflow-auto">
+        <div className="max-w-7xl mx-auto flex flex-col gap-6">
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-semibold text-gray-900">
+                Good morning, {seller?.name || "Seller"}!
+              </h1>
+              <p className="text-gray-600 mt-1">
+                Here's what's happening with your store today.
+              </p>
             </div>
-            <div className="h-8 w-8 bg-orange-500 rounded-full flex items-center justify-center">
-              <span className="text-white text-sm font-medium">
-                {seller?.name?.charAt(0) || "S"}
-              </span>
-            </div>
-          </div>
-        </div>
-
-
-
-        {/* Bottom Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Best Selling Products */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-white rounded-xl border border-gray-200 p-6"
-          >
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">
-                  Best Selling Products
-                </h3>
-                <p className="text-sm text-gray-600">
-                  Top performing items this month
-                </p>
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                <input
+                  type="text"
+                  placeholder="Search..."
+                  className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 w-64"
+                />
               </div>
-              <div className="flex gap-2">
-                <button className="p-2 hover:bg-gray-100 rounded-lg">
-                  <Filter className="h-4 w-4 text-gray-600" />
-                </button>
-                <button className="p-2 hover:bg-gray-100 rounded-lg">
-                  <MoreHorizontal className="h-4 w-4 text-gray-600" />
-                </button>
+              <div className="h-8 w-8 bg-orange-500 rounded-full flex items-center justify-center">
+                <span className="text-white text-sm font-medium">
+                  {seller?.name?.charAt(0) || "S"}
+                </span>
               </div>
             </div>
-            <div className="space-y-4">
-              {topProducts.map((product, index) => (
-                <div
-                  key={product.id}
-                  className="flex items-center gap-4 p-3 hover:bg-gray-50 rounded-lg"
-                >
-                  <div className="text-sm font-medium text-gray-500 w-8">
-                    #{index + 1}
-                  </div>
-                  <img
-                    src={product.images[0]}
-                    alt={product.name}
-                    className="w-12 h-12 object-cover rounded-lg"
-                  />
-                  <div className="flex-1">
-                    <h4 className="font-medium text-gray-900">
-                      {product.name}
-                    </h4>
-                    <p className="text-sm text-gray-600">{product.category}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-medium text-gray-900">
-                      ₱{product.price.toLocaleString()}
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      {product.sales} sold
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Star className="h-4 w-4 text-yellow-500 fill-current" />
-                    <span className="text-sm text-gray-600">
-                      {product.rating}
-                    </span>
-                  </div>
+          </div>
+
+
+
+          {/* Bottom Section */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Best Selling Products */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-white rounded-xl border border-gray-200 p-6"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    Best Selling Products
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    Top performing items this month
+                  </p>
                 </div>
-              ))}
-            </div>
-          </motion.div>
-
-          {/* Recent Orders */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-white rounded-xl border border-gray-200 p-6"
-          >
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">
-                  Recent Orders
-                </h3>
-                <p className="text-sm text-gray-600">Latest customer orders</p>
+                <div className="flex gap-2">
+                  <button className="p-2 hover:bg-gray-100 rounded-lg">
+                    <Filter className="h-4 w-4 text-gray-600" />
+                  </button>
+                  <button className="p-2 hover:bg-gray-100 rounded-lg">
+                    <MoreHorizontal className="h-4 w-4 text-gray-600" />
+                  </button>
+                </div>
               </div>
-              <Link
-                to="/seller/orders"
-                className="text-orange-600 text-sm font-medium hover:text-orange-700"
-              >
-                View All
-              </Link>
-            </div>
-            <div className="space-y-4">
-              {recentOrders.map((order) => (
-                <div
-                  key={order.id}
-                  className="flex items-center gap-4 p-3 hover:bg-gray-50 rounded-lg"
+              <div className="space-y-4">
+                {topProducts.map((product, index) => (
+                  <div
+                    key={product.id}
+                    className="flex items-center gap-4 p-3 hover:bg-gray-50 rounded-lg"
+                  >
+                    <div className="text-sm font-medium text-gray-500 w-8">
+                      #{index + 1}
+                    </div>
+                    <img
+                      src={product.images[0]}
+                      alt={product.name}
+                      className="w-12 h-12 object-cover rounded-lg"
+                    />
+                    <div className="flex-1">
+                      <h4 className="font-medium text-gray-900">
+                        {product.name}
+                      </h4>
+                      <p className="text-sm text-gray-600">{product.category}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-medium text-gray-900">
+                        ₱{product.price.toLocaleString()}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        {product.sales} sold
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Star className="h-4 w-4 text-yellow-500 fill-current" />
+                      <span className="text-sm text-gray-600">
+                        {product.rating}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+
+            {/* Recent Orders */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-white rounded-xl border border-gray-200 p-6"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    Recent Orders
+                  </h3>
+                  <p className="text-sm text-gray-600">Latest customer orders</p>
+                </div>
+                <Link
+                  to="/seller/orders"
+                  className="text-orange-600 text-sm font-medium hover:text-orange-700"
                 >
-                  <div className="h-10 w-10 bg-gray-100 rounded-full flex items-center justify-center">
-                    <Users className="h-5 w-5 text-gray-600" />
-                  </div>
-                  <div className="flex-1">
-                    <h4 className="font-medium text-gray-900">
-                      {order.buyerName}
-                    </h4>
-                    <p className="text-sm text-gray-600">
-                      {order.items.length} item
-                      {order.items.length > 1 ? "s" : ""}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-medium text-gray-900">
-                      ₱{order.total.toLocaleString()}
-                    </p>
-                    <p
-                      className={cn(
-                        "text-xs font-medium px-2 py-1 rounded-full",
-                        order.status === "pending" &&
+                  View All
+                </Link>
+              </div>
+              <div className="space-y-4">
+                {recentOrders.map((order) => (
+                  <div
+                    key={order.id}
+                    className="flex items-center gap-4 p-3 hover:bg-gray-50 rounded-lg"
+                  >
+                    <div className="h-10 w-10 bg-gray-100 rounded-full flex items-center justify-center">
+                      <Users className="h-5 w-5 text-gray-600" />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-medium text-gray-900">
+                        {order.buyerName}
+                      </h4>
+                      <p className="text-sm text-gray-600">
+                        {order.items.length} item
+                        {order.items.length > 1 ? "s" : ""}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-medium text-gray-900">
+                        ₱{order.total.toLocaleString()}
+                      </p>
+                      <p
+                        className={cn(
+                          "text-xs font-medium px-2 py-1 rounded-full",
+                          order.status === "pending" &&
                           "bg-yellow-100 text-yellow-700",
-                        order.status === "confirmed" &&
+                          order.status === "confirmed" &&
                           "bg-blue-100 text-blue-700",
-                        order.status === "shipped" &&
+                          order.status === "shipped" &&
                           "bg-purple-100 text-purple-700",
-                        order.status === "delivered" &&
+                          order.status === "delivered" &&
                           "bg-green-100 text-green-700",
-                        order.status === "cancelled" &&
+                          order.status === "cancelled" &&
                           "bg-red-100 text-red-700",
-                      )}
-                    >
-                      {order.status.charAt(0).toUpperCase() +
-                        order.status.slice(1)}
-                    </p>
+                        )}
+                      >
+                        {order.status.charAt(0).toUpperCase() +
+                          order.status.slice(1)}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          </motion.div>
+                ))}
+              </div>
+            </motion.div>
+          </div>
         </div>
       </div>
     </div>

@@ -165,7 +165,7 @@ export function SellerOrders() {
   // Save edited order details
   const handleSaveOrderDetails = async () => {
     if (!selectedOrder) return;
-    
+
     setIsSaving(true);
     try {
       await orderService.updateOrderDetails(selectedOrder, {
@@ -173,7 +173,7 @@ export function SellerOrders() {
         buyer_email: editedBuyerEmail,
         notes: editedNote,
       });
-      
+
       // Refresh orders
       if (seller?.id) {
         await fetchOrders(seller.id);
@@ -363,10 +363,10 @@ export function SellerOrders() {
         </SidebarBody>
       </Sidebar>
 
-      <div className="flex-1 flex flex-col overflow-hidden bg-gray-50">
-        {/* Header */}
-        <div className="px-8 py-6 bg-white border-b border-gray-200">
-          <div className="flex items-center justify-between mb-6">
+      <div className="flex-1 overflow-auto bg-gray-50 px-8 py-6">
+        <div className="max-w-7xl mx-auto space-y-6">
+          {/* Header */}
+          <div className="flex items-center justify-between">
             <div>
               <h1
                 className="text-3xl font-bold text-gray-900"
@@ -458,83 +458,85 @@ export function SellerOrders() {
               </CardContent>
             </Card>
           </div>
-        </div>
 
-        {/* Advanced Filtering Toolbar */}
-        <div className="px-8 py-4 bg-white border-b border-gray-200">
-          <div className="flex flex-col lg:flex-row gap-4 items-center">
-            {/* Search Input */}
-            <div className="flex-1 w-full lg:w-auto">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                <Input
-                  type="text"
-                  placeholder="Search by Order ID, Customer name, or Email..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 w-full border-gray-300 focus-visible:ring-orange-500"
-                />
+          {/* Advanced Filtering Toolbar - Now a Card */}
+          <Card className="border border-gray-200 shadow-sm">
+            <CardContent className="p-4">
+              <div className="flex flex-col lg:flex-row gap-4 items-center">
+                {/* Search Input */}
+                <div className="flex-1 w-full lg:w-auto">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                    <Input
+                      type="text"
+                      placeholder="Search by Order ID, Customer name, or Email..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-10 w-full border-gray-300 focus-visible:ring-orange-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Channel Filter Tabs */}
+                <Tabs
+                  value={channelFilter}
+                  onValueChange={(v) => setChannelFilter(v as any)}
+                  className="w-full lg:w-auto"
+                >
+                  <TabsList className="grid w-full lg:w-auto grid-cols-3 bg-gray-100">
+                    <TabsTrigger
+                      value="all"
+                      className="data-[state=active]:bg-orange-500 data-[state=active]:text-white"
+                    >
+                      All Channels
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="online"
+                      className="data-[state=active]:bg-orange-500 data-[state=active]:text-white"
+                    >
+                      <Globe className="h-4 w-4 mr-1" />
+                      Online App
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="pos"
+                      className="data-[state=active]:bg-orange-500 data-[state=active]:text-white"
+                    >
+                      <StoreIcon className="h-4 w-4 mr-1" />
+                      POS / Offline
+                    </TabsTrigger>
+                  </TabsList>
+                </Tabs>
+
+                {/* Status Filter Select */}
+                <div className="w-full lg:w-auto flex gap-2">
+                  <Select value={filterStatus} onValueChange={setFilterStatus}>
+                    <SelectTrigger className="w-full lg:w-[180px] border-gray-300">
+                      <SelectValue placeholder="Filter Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Status</SelectItem>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="confirmed">Confirmed</SelectItem>
+                      <SelectItem value="shipped">Shipped</SelectItem>
+                      <SelectItem value="delivered">Delivered</SelectItem>
+                      <SelectItem value="cancelled">Cancelled</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  {/* Export Button */}
+                  <Button
+                    variant="outline"
+                    className="w-full lg:w-auto border-gray-300 hover:bg-gray-50"
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Export
+                  </Button>
+                </div>
               </div>
-            </div>
+            </CardContent>
+          </Card>
 
-            {/* Channel Filter Tabs */}
-            <Tabs
-              value={channelFilter}
-              onValueChange={(v) => setChannelFilter(v as any)}
-              className="w-full lg:w-auto"
-            >
-              <TabsList className="grid w-full lg:w-auto grid-cols-3 bg-gray-100">
-                <TabsTrigger
-                  value="all"
-                  className="data-[state=active]:bg-orange-500 data-[state=active]:text-white"
-                >
-                  All Channels
-                </TabsTrigger>
-                <TabsTrigger
-                  value="online"
-                  className="data-[state=active]:bg-orange-500 data-[state=active]:text-white"
-                >
-                  <Globe className="h-4 w-4 mr-1" />
-                  Online App
-                </TabsTrigger>
-                <TabsTrigger
-                  value="pos"
-                  className="data-[state=active]:bg-orange-500 data-[state=active]:text-white"
-                >
-                  <StoreIcon className="h-4 w-4 mr-1" />
-                  POS / Offline
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-
-            {/* Status Filter Select */}
-            <Select value={filterStatus} onValueChange={setFilterStatus}>
-              <SelectTrigger className="w-full lg:w-[180px] border-gray-300">
-                <SelectValue placeholder="Filter Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="confirmed">Confirmed</SelectItem>
-                <SelectItem value="shipped">Shipped</SelectItem>
-                <SelectItem value="delivered">Delivered</SelectItem>
-                <SelectItem value="cancelled">Cancelled</SelectItem>
-              </SelectContent>
-            </Select>
-
-            {/* Export Button */}
-            <Button
-              variant="outline"
-              className="w-full lg:w-auto border-gray-300 hover:bg-gray-50"
-            >
-              <Download className="h-4 w-4 mr-2" />
-              Export Orders
-            </Button>
-          </div>
-        </div>
-
-        {/* Orders Table */}
-        <div className="flex-1 overflow-auto px-8 py-6">
+          {/* Orders Table */}
           <Card className="border border-gray-200 shadow-sm">
             <Table>
               <TableHeader>
@@ -798,11 +800,9 @@ export function SellerOrders() {
                   No orders found
                 </h3>
                 <p className="text-gray-600 text-sm">
-                  {searchQuery ||
-                    filterStatus !== "all" ||
-                    channelFilter !== "all"
+                  {searchQuery || filterStatus !== "all"
                     ? "Try adjusting your search or filters"
-                    : "Orders will appear here when customers make purchases"}
+                    : "When you receive orders, they will appear here"}
                 </p>
               </div>
             )}
@@ -907,7 +907,7 @@ export function SellerOrders() {
                                 <div>
                                   <span className="text-gray-500">Date</span>
                                   <p className="font-medium text-gray-900">
-                                    {new Date(order.createdAt).toLocaleDateString('en-US', {
+                                    {new Date(order.orderDate).toLocaleDateString('en-US', {
                                       month: 'short', day: 'numeric', year: 'numeric'
                                     })}
                                   </p>

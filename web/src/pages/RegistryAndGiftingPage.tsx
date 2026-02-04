@@ -21,8 +21,8 @@ const RegistryAndGiftingPage = () => {
     const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
     const [userRegistries, setUserRegistries] = useState<RegistryItem[]>([
-        { id: '1', title: 'Graduation list 2026', sharedDate: 'Jan 28, 2026', imageUrl: '/public/gradGift.jpeg' },
-        { id: '2', title: 'Graduation list 2026', sharedDate: 'Jan 30, 2026', imageUrl: '/public/gradGift.jpeg' },
+        { id: '1', title: 'Graduation list 2026', sharedDate: 'Jan 28, 2026', imageUrl: '/gradGift.jpeg' },
+        { id: '2', title: 'Graduation list 2026', sharedDate: 'Jan 30, 2026', imageUrl: '/gradGift.jpeg' },
     ]);
 
     const handleCreateRegistry = (name: string, category: string) => {

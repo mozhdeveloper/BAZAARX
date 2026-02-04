@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { 
+import {
   ArrowLeft,
-  CheckCircle, 
-  XCircle, 
+  CheckCircle,
+  XCircle,
   Clock,
   Search,
   Filter,
@@ -40,9 +40,9 @@ import {
 
 const Logo = () => (
   <Link to="/seller" className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20">
-    <img 
-      src="/Logo.png" 
-      alt="BazaarPH Logo" 
+    <img
+      src="/Logo.png"
+      alt="BazaarPH Logo"
       className="h-8 w-8 object-contain flex-shrink-0"
     />
     <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="font-semibold text-gray-900 whitespace-pre">
@@ -53,9 +53,9 @@ const Logo = () => (
 
 const LogoIcon = () => (
   <Link to="/seller" className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20">
-    <img 
-      src="/Logo.png" 
-      alt="BazaarPH Logo" 
+    <img
+      src="/Logo.png"
+      alt="BazaarPH Logo"
       className="h-8 w-8 object-contain flex-shrink-0"
     />
   </Link>
@@ -66,7 +66,7 @@ export function SellerReturns() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
   const [selectedRequest, setSelectedRequest] = useState<SellerReturnRequest | null>(null);
-  
+
   const { seller, logout } = useAuthStore();
   const { requests, approveRequest, rejectRequest } = useSellerReturnStore();
   const navigate = useNavigate();
@@ -77,13 +77,13 @@ export function SellerReturns() {
   };
 
   const filteredRequests = requests.filter(req => {
-    const matchesSearch = 
+    const matchesSearch =
       req.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
       req.orderId.toLowerCase().includes(searchQuery.toLowerCase()) ||
       req.buyerName.toLowerCase().includes(searchQuery.toLowerCase());
-      
+
     const matchesStatus = statusFilter === 'all' || req.status === statusFilter;
-    
+
     return matchesSearch && matchesStatus;
   });
 
@@ -152,159 +152,163 @@ export function SellerReturns() {
       </Sidebar>
 
       <div className="flex-1 flex flex-col overflow-hidden bg-gray-50">
-        <div className="px-8 py-6 bg-white border-b border-gray-200">
-          <div className="flex items-center justify-between">
-             <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-               <RotateCcw className="h-6 w-6 text-orange-600" />
-               Returns & Refunds
-             </h1>
-             <div className="flex gap-2">
-                <Button 
+        <div className="flex-1 overflow-auto">
+          <div className="w-full max-w-7xl mx-auto">
+            <div className="px-8 py-6 bg-white border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+                  <RotateCcw className="h-6 w-6 text-orange-600" />
+                  Returns & Refunds
+                </h1>
+                <div className="flex gap-2">
+                  <Button
                     variant={statusFilter === 'all' ? 'default' : 'outline'}
                     onClick={() => setStatusFilter('all')}
                     size="sm"
-                >
+                  >
                     All
-                </Button>
-                <Button 
+                  </Button>
+                  <Button
                     variant={statusFilter === 'pending' ? 'default' : 'outline'}
                     onClick={() => setStatusFilter('pending')}
                     size="sm"
                     className={statusFilter === 'pending' ? 'bg-yellow-500 hover:bg-yellow-600' : ''}
-                >
+                  >
                     Pending
-                </Button>
-                <Button 
+                  </Button>
+                  <Button
                     variant={statusFilter === 'approved' ? 'default' : 'outline'}
                     onClick={() => setStatusFilter('approved')}
                     size="sm"
                     className={statusFilter === 'approved' ? 'bg-green-600 hover:bg-green-700' : ''}
-                >
+                  >
                     Approved
-                </Button>
-             </div>
-          </div>
-        </div>
-
-        <div className="p-8 overflow-y-auto">
-             <div className="mb-6 flex gap-4">
-                <div className="relative flex-1 max-w-md">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <Input 
-                        className="pl-9" 
-                        placeholder="Search order ID, buyer name..." 
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                    />
+                  </Button>
                 </div>
-             </div>
+              </div>
+            </div>
 
-             <Card>
+            <div className="p-8 overflow-y-auto">
+              <div className="mb-6 flex gap-4">
+                <div className="relative flex-1 max-w-md">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    className="pl-9"
+                    placeholder="Search order ID, buyer name..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <Card>
                 <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Return ID</TableHead>
-                            <TableHead>Order ID</TableHead>
-                            <TableHead>Buyer</TableHead>
-                            <TableHead>Item</TableHead>
-                            <TableHead>Amount</TableHead>
-                            <TableHead>Date</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead className="text-right">Action</TableHead>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Return ID</TableHead>
+                      <TableHead>Order ID</TableHead>
+                      <TableHead>Buyer</TableHead>
+                      <TableHead>Item</TableHead>
+                      <TableHead>Amount</TableHead>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredRequests.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={8} className="text-center py-8 text-gray-500">
+                          No return requests found
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredRequests.map((req) => (
+                        <TableRow key={req.id}>
+                          <TableCell className="font-medium">#{req.id}</TableCell>
+                          <TableCell>{req.orderId}</TableCell>
+                          <TableCell>
+                            <div className="flex flex-col">
+                              <span className="font-medium">{req.buyerName}</span>
+                              <span className="text-xs text-gray-500">{req.buyerEmail}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <img src={req.items[0].image} className="h-8 w-8 rounded bg-gray-100 object-cover" alt="" />
+                              <span className="text-sm truncate max-w-[150px]">{req.items[0].productName}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>₱{req.totalRefundAmount.toLocaleString()}</TableCell>
+                          <TableCell>{new Date(req.requestDate).toLocaleDateString()}</TableCell>
+                          <TableCell>{getStatusBadge(req.status)}</TableCell>
+                          <TableCell className="text-right">
+                            <Button variant="ghost" size="sm" onClick={() => setSelectedRequest(req)}>
+                              <Eye className="h-4 w-4 text-gray-500" />
+                            </Button>
+                          </TableCell>
                         </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {filteredRequests.length === 0 ? (
-                            <TableRow>
-                                <TableCell colSpan={8} className="text-center py-8 text-gray-500">
-                                    No return requests found
-                                </TableCell>
-                            </TableRow>
-                        ) : (
-                            filteredRequests.map((req) => (
-                                <TableRow key={req.id}>
-                                    <TableCell className="font-medium">#{req.id}</TableCell>
-                                    <TableCell>{req.orderId}</TableCell>
-                                    <TableCell>
-                                        <div className="flex flex-col">
-                                            <span className="font-medium">{req.buyerName}</span>
-                                            <span className="text-xs text-gray-500">{req.buyerEmail}</span>
-                                        </div>
-                                    </TableCell>
-                                    <TableCell>
-                                        <div className="flex items-center gap-2">
-                                            <img src={req.items[0].image} className="h-8 w-8 rounded bg-gray-100 object-cover" alt="" />
-                                            <span className="text-sm truncate max-w-[150px]">{req.items[0].productName}</span>
-                                        </div>
-                                    </TableCell>
-                                    <TableCell>₱{req.totalRefundAmount.toLocaleString()}</TableCell>
-                                    <TableCell>{new Date(req.requestDate).toLocaleDateString()}</TableCell>
-                                    <TableCell>{getStatusBadge(req.status)}</TableCell>
-                                    <TableCell className="text-right">
-                                        <Button variant="ghost" size="sm" onClick={() => setSelectedRequest(req)}>
-                                            <Eye className="h-4 w-4 text-gray-500" />
-                                        </Button>
-                                    </TableCell>
-                                </TableRow>
-                            ))
-                        )}
-                    </TableBody>
+                      ))
+                    )}
+                  </TableBody>
                 </Table>
-             </Card>
-        </div>
-      </div>
+              </Card>
+            </div>
+          </div>
 
-      {/* Detail Dialog */}
-      <Dialog open={!!selectedRequest} onOpenChange={(open) => !open && setSelectedRequest(null)}>
-        <DialogContent className="max-w-2xl">
-            <DialogHeader>
+          {/* Detail Dialog */}
+          <Dialog open={!!selectedRequest} onOpenChange={(open) => !open && setSelectedRequest(null)}>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
                 <DialogTitle>Return Request Details</DialogTitle>
                 <DialogDescription>Review the request below</DialogDescription>
-            </DialogHeader>
-            
-            {selectedRequest && (
+              </DialogHeader>
+
+              {selectedRequest && (
                 <div className="grid gap-4 py-4">
-                    <div className="flex justify-between items-start border-b pb-4">
-                        <div>
-                            <p className="text-sm font-medium text-gray-500">Request ID</p>
-                            <p className="font-mono">#{selectedRequest.id}</p>
-                        </div>
-                        <div className="text-right">
-                             <p className="text-sm font-medium text-gray-500">Status</p>
-                             {getStatusBadge(selectedRequest.status)}
-                        </div>
+                  <div className="flex justify-between items-start border-b pb-4">
+                    <div>
+                      <p className="text-sm font-medium text-gray-500">Request ID</p>
+                      <p className="font-mono">#{selectedRequest.id}</p>
                     </div>
+                    <div className="text-right">
+                      <p className="text-sm font-medium text-gray-500">Status</p>
+                      {getStatusBadge(selectedRequest.status)}
+                    </div>
+                  </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <p className="text-sm font-medium text-gray-500 mb-1">Reason</p>
-                            <p className="text-sm font-semibold">{selectedRequest.reason}</p>
-                        </div>
-                        <div>
-                            <p className="text-sm font-medium text-gray-500 mb-1">Requested Amount</p>
-                            <p className="text-lg font-bold text-orange-600">₱{selectedRequest.totalRefundAmount.toLocaleString()}</p>
-                        </div>
-                        <div className="col-span-2">
-                             <p className="text-sm font-medium text-gray-500 mb-1">Description</p>
-                             <div className="bg-gray-50 p-3 rounded-md text-sm text-gray-700">
-                                {selectedRequest.description}
-                             </div>
-                        </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm font-medium text-gray-500 mb-1">Reason</p>
+                      <p className="text-sm font-semibold">{selectedRequest.reason}</p>
                     </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-500 mb-1">Requested Amount</p>
+                      <p className="text-lg font-bold text-orange-600">₱{selectedRequest.totalRefundAmount.toLocaleString()}</p>
+                    </div>
+                    <div className="col-span-2">
+                      <p className="text-sm font-medium text-gray-500 mb-1">Description</p>
+                      <div className="bg-gray-50 p-3 rounded-md text-sm text-gray-700">
+                        {selectedRequest.description}
+                      </div>
+                    </div>
+                  </div>
                 </div>
-            )}
+              )}
 
-            <DialogFooter className="gap-2 sm:gap-0">
+              <DialogFooter className="gap-2 sm:gap-0">
                 <Button variant="outline" onClick={() => setSelectedRequest(null)}>Close</Button>
                 {selectedRequest?.status === 'pending' && (
-                    <>
-                        <Button variant="destructive" onClick={handleReject}>Reject Request</Button>
-                        <Button className="bg-green-600 hover:bg-green-700" onClick={handeApprove}>Approve Return</Button>
-                    </>
+                  <>
+                    <Button variant="destructive" onClick={handleReject}>Reject Request</Button>
+                    <Button className="bg-green-600 hover:bg-green-700" onClick={handeApprove}>Approve Return</Button>
+                  </>
                 )}
-            </DialogFooter>
-        </DialogContent>
-      </Dialog>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </div>
     </div>
   );
 }

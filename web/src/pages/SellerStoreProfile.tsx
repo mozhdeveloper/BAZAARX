@@ -650,7 +650,7 @@ export function SellerStoreProfile() {
 
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="flex-1 overflow-auto">
-          <div className="max-w-6xl mx-auto p-8">
+          <div className="max-w-7xl mx-auto p-8">
             {/* Header */}
             <div className="mb-8 flex items-center justify-between">
               <div>
@@ -1439,8 +1439,8 @@ export function SellerStoreProfile() {
                     <div
                       key={doc.key}
                       className={`p-4 border rounded-lg transition-colors ${hasDocument
-                          ? "border-green-200 bg-green-50/50 hover:border-green-300"
-                          : "border-gray-200 hover:border-orange-300"
+                        ? "border-green-200 bg-green-50/50 hover:border-green-300"
+                        : "border-gray-200 hover:border-orange-300"
                         }`}
                     >
                       <div className="flex items-center justify-between mb-3">

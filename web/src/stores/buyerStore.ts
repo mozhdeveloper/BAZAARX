@@ -273,13 +273,14 @@ interface BuyerStore {
   addCard: (card: PaymentMethod) => void;
   deleteCard: (id: string) => void;
   setDefaultPaymentMethod: (id: string) => void;
-  deleteCard: (id: string) => void;
-  setDefaultPaymentMethod: (id: string) => void;
 
   // Registry & Gifting
   registries: RegistryItem[];
   createRegistry: (registry: RegistryItem) => void;
   addToRegistry: (registryId: string, product: Product) => void;
+
+  initializeBuyerProfile: (userId: string, profileData: any) => Promise<BuyerProfile>;
+
 }
 
 export interface RegistryItem {
@@ -1190,6 +1191,23 @@ export const useBuyerStore = create<BuyerStore>()(persist(
           viewedSellers: state.viewedSellers.filter(s => s.id !== conversation.sellerId)
         };
       });
+    },
+
+    // Registry & Gifting
+    registries: [],
+    createRegistry: (registry) => {
+      set((state) => ({
+        registries: [...state.registries, registry]
+      }));
+    },
+    addToRegistry: (registryId, product) => {
+      set((state) => ({
+        registries: state.registries.map(r =>
+          r.id === registryId
+            ? { ...r, products: [...(r.products || []), product] }
+            : r
+        )
+      }));
     }
   }),
   {
@@ -1200,7 +1218,8 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       followedShops: state.followedShops,
       cartItems: state.cartItems,
       reviews: state.reviews,
-      conversations: state.conversations
+      conversations: state.conversations,
+      registries: state.registries
     })
   }
 ));
