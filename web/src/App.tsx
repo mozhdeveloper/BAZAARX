@@ -32,6 +32,7 @@ import { BuyerSupport } from "./pages/BuyerSupport";
 import BuyerOnboardingPage from "@/pages/BuyerOnboardingPage";
 import MessagesPage from "./pages/MessagesPage";
 import { ProtectedBuyerRoute } from "./components/ProtectedBuyerRoute";
+import TrackingForm from "./components/TrackingForm";
 
 // Seller Pages
 import { SellerLogin, SellerRegister } from "./pages/SellerAuth";
@@ -189,6 +190,7 @@ function App() {
               </ProtectedBuyerRoute>
             }
           />
+          <Route path="/track-delivery" element={<TrackingForm />} />
           {/* Seller Routes */}
           <Route path="/seller/auth" element={<SellerAuthChoice />} />
           <Route path="/seller/login" element={<SellerLogin />} />
