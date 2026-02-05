@@ -13,7 +13,7 @@ const SAMPLE_PRICES = [899, 1299, 1599];
 export function Hero195() {
   return (
     <>
-      <section className="bg-[#FFF5F2]/80 py-16 sm:py-20 md:py-24 relative overflow-hidden border-y border-[#FF5722]/10">
+      <section className="bg-white py-16 sm:py-20 md:py-24 relative overflow-hidden">
         {/* Background decoration */}
         <div className="absolute -top-12 -right-12 sm:-top-24 sm:-right-24 w-64 h-64 sm:w-96 sm:h-96 bg-[#FF5722]/10 rounded-full blur-3xl opacity-50" />
         <div className="absolute -bottom-12 -left-12 sm:-bottom-24 sm:-left-24 w-64 h-64 sm:w-96 sm:h-96 bg-[#FF5722]/10 rounded-full blur-3xl opacity-50" />
@@ -33,7 +33,7 @@ export function Hero195() {
                 <span className="text-[#FF6A00]">Seller Dashboard</span>
               </h1>
 
-              <p className="text-base sm:text-lg text-gray-600 mb-8 max-w-lg mx-auto lg:mx-0 leading-relaxed">
+              <p className="text-base sm:text-lg text-gray-600 mb-8 max-w-lg mx-auto lg:mx-0 leading-relaxed text-justify">
                 Experience our powerful seller tools designed for Filipino entrepreneurs.
                 Manage inventory, track sales, and grow your business with real-time analytics
                 and AI-powered insights.
@@ -242,8 +242,7 @@ export function Hero195() {
         </div>
       </section>
 
-      {/* Combined Featured Section - Dashboard Capabilities */}
-      <CombinedFeaturedSection />
+
     </>
   );
 }

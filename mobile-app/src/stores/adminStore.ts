@@ -553,10 +553,10 @@ export const useAdminProductQA = create<AdminProductQAState>()(
 
       loadProducts: async () => {
         set({ isLoading: true });
-        await new Promise(resolve => setTimeout(resolve, 800));
 
-        // Get products from shared productQAStore
+        // Load products from shared productQAStore (which now uses database)
         const productQAStore = useProductQAStore.getState();
+        await productQAStore.loadProducts(); // Load all products for admin
         const qaProducts = productQAStore.products;
 
         // Convert QA products to admin ProductQA format
@@ -572,7 +572,7 @@ export const useAdminProductQA = create<AdminProductQAState>()(
           subcategory: undefined,
           brand: undefined,
           images: qp.images || [qp.image],
-          sellerId: qp.vendor,
+          sellerId: qp.sellerId || qp.vendor,
           sellerName: qp.vendor,
           sellerStoreName: qp.vendor,
           status: qp.status as any,
@@ -603,14 +603,20 @@ export const useAdminProductQA = create<AdminProductQAState>()(
 
       approveForSampleSubmission: async (id, note) => {
         set({ isLoading: true });
-        await new Promise(resolve => setTimeout(resolve, 1000));
 
-        // Sync with seller productQAStore
+        // Sync with seller productQAStore (now using database)
         try {
           const productQAStore = useProductQAStore.getState();
-          productQAStore.approveForSampleSubmission(id);
+          // Find the product to get its productId
+          const product = get().products.find(p => p.id === id);
+          if (product) {
+            // Use productId for database operations
+            await productQAStore.approveForSampleSubmission(product.id);
+          }
         } catch (error) {
           console.error('Error syncing to productQAStore:', error);
+          set({ isLoading: false });
+          throw error;
         }
 
         // Reload products from shared store
@@ -619,14 +625,18 @@ export const useAdminProductQA = create<AdminProductQAState>()(
 
       rejectDigitalReview: async (id, reason) => {
         set({ isLoading: true });
-        await new Promise(resolve => setTimeout(resolve, 1000));
 
-        // Sync with seller productQAStore
+        // Sync with seller productQAStore (now using database)
         try {
           const productQAStore = useProductQAStore.getState();
-          productQAStore.rejectProduct(id, reason, 'digital');
+          const product = get().products.find(p => p.id === id);
+          if (product) {
+            await productQAStore.rejectProduct(product.id, reason, 'digital');
+          }
         } catch (error) {
           console.error('Error syncing to productQAStore:', error);
+          set({ isLoading: false });
+          throw error;
         }
 
         // Reload products from shared store
@@ -635,41 +645,38 @@ export const useAdminProductQA = create<AdminProductQAState>()(
 
       submitSample: async (id, logisticsMethod, address, note) => {
         set({ isLoading: true });
-        await new Promise(resolve => setTimeout(resolve, 1000));
 
-        set(state => {
-          const updatedProducts = state.products.map(product =>
-            product.id === id && product.status === 'WAITING_FOR_SAMPLE'
-              ? {
-                  ...product,
-                  status: 'IN_QUALITY_REVIEW' as const,
-                  sampleSubmittedAt: new Date(),
-                  logisticsMethod,
-                  logisticsAddress: address,
-                  logisticsNotes: note,
-                }
-              : product
-          );
+        // Use productQAStore for database sync
+        try {
+          const productQAStore = useProductQAStore.getState();
+          const product = get().products.find(p => p.id === id);
+          if (product) {
+            await productQAStore.submitSample(product.id, logisticsMethod);
+          }
+        } catch (error) {
+          console.error('Error syncing to productQAStore:', error);
+          set({ isLoading: false });
+          throw error;
+        }
 
-          return {
-            products: updatedProducts,
-            waitingForSample: updatedProducts.filter(p => p.status === 'WAITING_FOR_SAMPLE'),
-            inQualityReview: updatedProducts.filter(p => p.status === 'IN_QUALITY_REVIEW'),
-            isLoading: false,
-          };
-        });
+        // Reload products from shared store
+        await get().loadProducts();
       },
 
       passQualityCheck: async (id, note) => {
         set({ isLoading: true });
-        await new Promise(resolve => setTimeout(resolve, 1000));
 
-        // Sync with seller productQAStore
+        // Sync with seller productQAStore (now using database)
         try {
           const productQAStore = useProductQAStore.getState();
-          productQAStore.passQualityCheck(id);
+          const product = get().products.find(p => p.id === id);
+          if (product) {
+            await productQAStore.passQualityCheck(product.id);
+          }
         } catch (error) {
           console.error('Error syncing to productQAStore:', error);
+          set({ isLoading: false });
+          throw error;
         }
 
         // Reload products from shared store
@@ -678,14 +685,18 @@ export const useAdminProductQA = create<AdminProductQAState>()(
 
       failQualityCheck: async (id, reason) => {
         set({ isLoading: true });
-        await new Promise(resolve => setTimeout(resolve, 1000));
 
-        // Sync with seller productQAStore
+        // Sync with seller productQAStore (now using database)
         try {
           const productQAStore = useProductQAStore.getState();
-          productQAStore.rejectProduct(id, reason, 'physical');
+          const product = get().products.find(p => p.id === id);
+          if (product) {
+            await productQAStore.rejectProduct(product.id, reason, 'physical');
+          }
         } catch (error) {
           console.error('Error syncing to productQAStore:', error);
+          set({ isLoading: false });
+          throw error;
         }
 
         // Reload products from shared store

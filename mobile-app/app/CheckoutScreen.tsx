@@ -15,10 +15,13 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, MapPin, CreditCard, Shield, Tag, X, ChevronDown, Check, Plus, ShieldCheck, ChevronRight } from 'lucide-react-native';
+import { ArrowLeft, MapPin, CreditCard, Shield, Tag, X, ChevronDown, Check, Plus, ShieldCheck, ChevronRight, Home, Briefcase, MapPinned, Building2, Move, Search, ChevronUp } from 'lucide-react-native';
+import MapView, { Marker, Region, PROVIDER_GOOGLE, PROVIDER_DEFAULT } from 'react-native-maps';
+import { regions, provinces, cities, barangays } from 'select-philippines-address';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS } from '../src/constants/theme';
-import { supabase } from '../src/lib/supabase';
 import { processCheckout } from '@/services/checkoutService';
+import { addressService } from '@/services/addressService';
 import { useCartStore } from '../src/stores/cartStore';
 import { useAuthStore } from '../src/stores/authStore';
 import { useOrderStore } from '../src/stores/orderStore';
@@ -68,63 +71,76 @@ export default function CheckoutScreen({ navigation, route }: Props) {
   const recipientId = params?.recipientId || 'user_123'; // Mock recipient ID if not passed
 
   // Override address state if it's a gift
-  // Override address state if it's a gift
   React.useEffect(() => {
     if (isGift) {
-        setUseDefaultAddress(false);
-        const registryAddress: Address = {
-            id: 'registry-hidden-1',
-            user_id: user?.id || 'guest',
-            label: 'Registry Address',
-            first_name: recipientName,
-            last_name: '(Hidden)',
-            phone: '****',
-            street: 'Confidential Registry Address',
-            barangay: '',
-            city: registryLocation,
-            province: '',
-            region: '',
-            postal_code: '0000',
-            is_default: false
-        };
-        
-        // AUTO-SELECT this address so validation passes
-        setSelectedAddress(registryAddress);
-        setTempSelectedAddress(registryAddress);
-        
-        // Also update the form state for good measure, though less critical if selectedAddress is used
-        setAddress({
-            name: `${registryAddress.first_name} ${registryAddress.last_name}`,
-            email: user?.email || '',
-            phone: registryAddress.phone,
-            address: registryAddress.street,
-            city: registryAddress.city,
-            region: registryAddress.region,
-            postalCode: registryAddress.postal_code
-        });
+      const registryAddress: Address = {
+        id: 'registry-hidden-1',
+        user_id: user?.id || 'guest',
+        label: 'Registry Address',
+        first_name: recipientName,
+        last_name: '(Hidden)',
+        phone: '****',
+        street: 'Confidential Registry Address',
+        barangay: '',
+        city: registryLocation,
+        province: '',
+        region: '',
+        postal_code: '0000',
+        is_default: false
+      };
+
+      // AUTO-SELECT this address so validation passes
+      setSelectedAddress(registryAddress);
+      setTempSelectedAddress(registryAddress);
     }
   }, [isGift, recipientName, registryLocation, user?.id]);
 
-  const DEFAULT_ADDRESS: ShippingAddress = {
-    name: user?.name || 'Guest User',
-    email: user?.email || '',
-    phone: user?.phone || '',
-    address: 'Default Address',
-    city: 'City',
-    region: 'Region',
-    postalCode: '0000',
+  const DEFAULT_REGION = {
+    latitude: 14.5995,
+    longitude: 120.9842,
+    latitudeDelta: 0.01,
+    longitudeDelta: 0.01,
   };
 
-  const [useDefaultAddress, setUseDefaultAddress] = useState(true);
+  // Address states
+  const [addresses, setAddresses] = useState<Address[]>([]);
+  const [selectedAddress, setSelectedAddress] = useState<Address | null>(null);
+  const [showAddressModal, setShowAddressModal] = useState(false);
+  const [tempSelectedAddress, setTempSelectedAddress] = useState<Address | null>(null);
+  const [isLoadingAddresses, setIsLoadingAddresses] = useState(false);
 
-  const [address, setAddress] = useState<ShippingAddress>(DEFAULT_ADDRESS);
+  // Address Creation States (from AddressesScreen)
+  const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isMapModalOpen, setIsMapModalOpen] = useState(false);
+  const [mapRegion, setMapRegion] = useState<Region>(DEFAULT_REGION);
+  const [isGeocoding, setIsGeocoding] = useState(false);
+  const [isLoadingLocation, setIsLoadingLocation] = useState(false);
+  const [openDropdown, setOpenDropdown] = useState<'region' | 'province' | 'city' | 'barangay' | null>(null);
+  const [searchText, setSearchText] = useState('');
 
-  // Update address when toggle changes
-  React.useEffect(() => {
-    if (useDefaultAddress) {
-      setAddress(DEFAULT_ADDRESS);
-    }
-  }, [useDefaultAddress]);
+  const [regionList, setRegionList] = useState<any[]>([]);
+  const [provinceList, setProvinceList] = useState<any[]>([]);
+  const [cityList, setCityList] = useState<any[]>([]);
+  const [barangayList, setBarangayList] = useState<any[]>([]);
+
+  const initialAddressState: Omit<Address, 'id'> = {
+    user_id: user?.id || '',
+    label: '',
+    first_name: '',
+    last_name: '',
+    phone: '',
+    street: '',
+    barangay: '',
+    city: '',
+    province: '',
+    region: '',
+    postal_code: '',
+    is_default: false,
+    coordinates: null,
+  };
+
+  const [newAddress, setNewAddress] = useState<Omit<Address, 'id'>>(initialAddressState);
 
   // Get selected items from navigation params (from CartScreen)
   const selectedItemsFromCart: CartItem[] = params?.selectedItems || [];
@@ -171,30 +187,13 @@ export default function CheckoutScreen({ navigation, route }: Props) {
     };
   };
 
-  // Address Management
-  const [addresses, setAddresses] = useState<Address[]>([]);
-  const [selectedAddress, setSelectedAddress] = useState<Address | null>(null);
-  const [showAddressModal, setShowAddressModal] = useState(false);
-  const [tempSelectedAddress, setTempSelectedAddress] = useState<Address | null>(null);
-  const [isLoadingAddresses, setIsLoadingAddresses] = useState(false);
-
+  // Payments and Vouchers
   const [paymentMethod, setPaymentMethod] = useState<'cod' | 'gcash' | 'card' | 'paymongo'>('cod');
   const [voucherCode, setVoucherCode] = useState('');
   const [appliedVoucher, setAppliedVoucher] = useState<keyof typeof VOUCHERS | null>(null);
   const [isAnonymous, setIsAnonymous] = useState(false);
 
-  // Custom Address Form State
-  const [showCustomAddressForm, setShowCustomAddressForm] = useState(false);
-  const [customAddress, setCustomAddress] = useState({
-    firstName: '',
-    lastName: '',
-    phone: '',
-    street: '',
-    barangay: '',
-    city: '',
-    province: '',
-    postalCode: ''
-  });
+
 
 
 
@@ -225,6 +224,10 @@ export default function CheckoutScreen({ navigation, route }: Props) {
 
   const total = Math.max(0, subtotal + shippingFee - discount - bazcoinDiscount);
 
+  useEffect(() => {
+    regions().then(res => setRegionList(res));
+  }, []);
+
   const handleApplyVoucher = () => {
     const code = voucherCode.trim().toUpperCase();
     if (VOUCHERS[code as keyof typeof VOUCHERS]) {
@@ -240,7 +243,192 @@ export default function CheckoutScreen({ navigation, route }: Props) {
     setVoucherCode('');
   };
 
-  // Fetch addresses and Bazcoins from Supabase
+  // --- ADDRESS HANDLERS (from AddressesScreen) ---
+  const attemptGeocode = async (overrideAddress?: Partial<typeof newAddress>) => {
+    const current = { ...newAddress, ...overrideAddress };
+    const queryParts = [current.street, current.barangay, current.city, current.province, "Philippines"].filter(Boolean);
+    if (queryParts.length < 3) return;
+
+    const query = queryParts.join(', ');
+    setIsGeocoding(true);
+
+    try {
+      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`, {
+        headers: { 'User-Agent': 'PHAddressApp/1.0' }
+      });
+      const data = await response.json();
+
+      if (data && data.length > 0) {
+        const lat = parseFloat(data[0].lat);
+        const lon = parseFloat(data[0].lon);
+
+        setNewAddress(prev => ({ ...prev, coordinates: { latitude: lat, longitude: lon } }));
+        setMapRegion({
+          latitude: lat,
+          longitude: lon,
+          latitudeDelta: 0.005,
+          longitudeDelta: 0.005,
+        });
+      }
+    } catch (error) {
+      console.log('Geocoding error:', error);
+    } finally {
+      setIsGeocoding(false);
+    }
+  };
+
+  const toggleDropdown = (name: 'region' | 'province' | 'city' | 'barangay') => {
+    if (openDropdown === name) {
+      setOpenDropdown(null);
+    } else {
+      setSearchText('');
+      setOpenDropdown(name);
+    }
+  };
+
+  const onRegionChange = async (code: string) => {
+    const name = regionList.find(i => i.region_code === code)?.region_name || '';
+    setNewAddress({ ...newAddress, region: name, province: '', city: '', barangay: '', coordinates: null });
+    setOpenDropdown(null);
+    setIsLoadingLocation(true);
+    const provs = await provinces(code);
+    setProvinceList(provs);
+    setCityList([]);
+    setBarangayList([]);
+    setIsLoadingLocation(false);
+  };
+
+  const onProvinceChange = async (code: string) => {
+    const name = provinceList.find(i => i.province_code === code)?.province_name || '';
+    setNewAddress({ ...newAddress, province: name, city: '', barangay: '', coordinates: null });
+    setOpenDropdown(null);
+    setIsLoadingLocation(true);
+    const cts = await cities(code);
+    setCityList(cts);
+    setBarangayList([]);
+    setIsLoadingLocation(false);
+  };
+
+  const onCityChange = async (code: string) => {
+    const name = cityList.find(i => i.city_code === code)?.city_name || '';
+    setNewAddress({ ...newAddress, city: name, barangay: '', coordinates: null });
+    setOpenDropdown(null);
+    setIsLoadingLocation(true);
+    const brgys = await barangays(code);
+    setBarangayList(brgys);
+    setIsLoadingLocation(false);
+    attemptGeocode({ city: name, barangay: '' });
+  };
+
+  const onBarangayChange = (name: string) => {
+    setNewAddress({ ...newAddress, barangay: name });
+    setOpenDropdown(null);
+    attemptGeocode({ barangay: name });
+  };
+
+  const onStreetBlur = () => {
+    if (newAddress.street.length > 3) {
+      attemptGeocode();
+    }
+  };
+
+  const handleOpenAddressModalForAdd = async () => {
+    setOpenDropdown(null);
+    setSearchText('');
+    setProvinceList([]);
+    setCityList([]);
+    setBarangayList([]);
+    setNewAddress({
+      ...initialAddressState,
+      first_name: user?.name?.split(' ')[0] || '',
+      last_name: user?.name?.split(' ').slice(1).join(' ') || '',
+      phone: user?.phone || '',
+      is_default: addresses.length === 0,
+    });
+    setMapRegion(DEFAULT_REGION);
+    setIsAddressModalOpen(true);
+  };
+
+  const handleConfirmLocation = () => {
+    setNewAddress({
+      ...newAddress,
+      coordinates: {
+        latitude: mapRegion.latitude,
+        longitude: mapRegion.longitude,
+      },
+    });
+    setIsMapModalOpen(false);
+  };
+
+  const handleSaveAddress = async () => {
+    if (!user) return;
+    setIsSaving(true);
+
+    // Validate required fields
+    if (!newAddress.first_name || !newAddress.phone || !newAddress.street || !newAddress.city) {
+      Alert.alert('Incomplete Form', 'Please fill in required fields.');
+      setIsSaving(false);
+      return;
+    }
+
+    try {
+      const created = await addressService.createAddress(user.id, {
+        label: newAddress.label || 'Other',
+        firstName: newAddress.first_name,
+        lastName: newAddress.last_name,
+        phone: newAddress.phone,
+        street: newAddress.street,
+        barangay: newAddress.barangay,
+        city: newAddress.city,
+        province: newAddress.province,
+        region: newAddress.region,
+        zipCode: newAddress.postal_code,
+        isDefault: newAddress.is_default,
+        coordinates: newAddress.coordinates,
+        addressType: 'residential',
+        landmark: null,
+        deliveryInstructions: null,
+      });
+
+      const createdLocal: Address = {
+        id: created.id,
+        user_id: user.id,
+        label: created.label,
+        first_name: created.firstName,
+        last_name: created.lastName,
+        phone: created.phone,
+        street: created.street,
+        barangay: created.barangay,
+        city: created.city,
+        province: created.province,
+        region: created.region,
+        postal_code: created.zipCode,
+        is_default: created.isDefault,
+        coordinates: created.coordinates,
+      };
+
+      setAddresses(prev => [createdLocal, ...prev]);
+      setSelectedAddress(createdLocal);
+      setTempSelectedAddress(createdLocal);
+      setIsSaving(false);
+      setIsAddressModalOpen(false);
+      setShowAddressModal(false);
+    } catch (error) {
+      console.error('Error saving address:', error);
+      Alert.alert('Error', 'Failed to save address. Please try again.');
+      setIsSaving(false);
+    }
+  };
+
+  const getAddressIcon = (type: string) => {
+    switch (type.toLowerCase()) {
+      case 'home': return Home;
+      case 'office': return Briefcase;
+      default: return MapPinned;
+    }
+  };
+
+  // Fetch addresses and Bazcoins via service layer
   useEffect(() => {
     if (!user?.id) return;
 
@@ -248,92 +436,117 @@ export default function CheckoutScreen({ navigation, route }: Props) {
       setIsLoadingAddresses(true);
       try {
         // Fetch all saved addresses
-        const { data: addressData, error: addressError } = await supabase
-          .from('addresses')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('is_default', { ascending: false });
+        const serviceAddresses = await addressService.getAddresses(user.id);
+        const addressData: Address[] = (serviceAddresses || []).map(a => ({
+          id: a.id,
+          user_id: user.id,
+          label: a.label,
+          first_name: a.firstName,
+          last_name: a.lastName,
+          phone: a.phone,
+          street: a.street,
+          barangay: a.barangay,
+          city: a.city,
+          province: a.province,
+          region: a.region,
+          postal_code: a.zipCode,
+          is_default: a.isDefault,
+          coordinates: a.coordinates,
+        }));
+        console.log('[Checkout] Fetched addresses:', addressData.length, 'addresses');
+        setAddresses(addressData);
 
-        if (!addressError && addressData) {
-          console.log('[Checkout] Fetched addresses:', addressData.length, 'addresses');
-          setAddresses(addressData);
+        // If this is a gift, DO NOT overwrite the selected address with defaults
+        // The other useEffect handles setting the registry address
+        if (isGift) {
+          console.log('[Checkout] Gift mode active, skipping default address selection');
+          setIsLoadingAddresses(false);
+          return;
+        }
 
-          // If this is a gift, DO NOT overwrite the selected address with defaults
-          // The other useEffect handles setting the registry address
-          if (isGift) {
-            console.log('[Checkout] Gift mode active, skipping default address selection');
-            setIsLoadingAddresses(false);
-            return;
-          }
+        // Priority: 1) Address from HomeScreen location modal (via route params)
+        //           2) "Current Location" from database (saved by HomeScreen)
+        //           3) AsyncStorage fallback (if route params not available)
+        //           4) Default saved address
+        //           5) First saved address
+        let homeScreenAddress = params?.deliveryAddress;
+        let homeScreenCoords = params?.deliveryCoordinates;
 
-          // Priority: 1) Address from HomeScreen location modal (via route params)
-          //           2) Default saved address
-          //           3) First saved address
-          const homeScreenAddress = params?.deliveryAddress;
-          const homeScreenCoords = params?.deliveryCoordinates;
-
-          if (homeScreenAddress && homeScreenAddress !== 'Select Location') {
-            console.log('[Checkout] Using address from HomeScreen:', homeScreenAddress);
-
-            // Check if this matches a saved address
-            const matchingAddress = addressData.find(addr =>
-              `${addr.street}, ${addr.city}` === homeScreenAddress ||
-              homeScreenAddress.includes(addr.street)
-            );
-
-            if (matchingAddress) {
-              // Use the matching saved address
-              console.log('[Checkout] Found matching saved address');
-              setSelectedAddress(matchingAddress);
-              setTempSelectedAddress(matchingAddress);
+        // If no route params, try to get from AsyncStorage or database
+        if (!homeScreenAddress || homeScreenAddress === 'Select Location') {
+          try {
+            // First try database for "Current Location"
+            const dbCurrentLoc = await addressService.getCurrentDeliveryLocation(user.id);
+            if (dbCurrentLoc && dbCurrentLoc.label === 'Current Location') {
+              console.log('[Checkout] Found Current Location in database');
+              homeScreenAddress = `${dbCurrentLoc.street}, ${dbCurrentLoc.city}`;
+              homeScreenCoords = dbCurrentLoc.coordinates;
             } else {
-              // Create a temporary address object from HomeScreen's location
-              console.log('[Checkout] Creating temporary address from HomeScreen location');
-              const tempAddr: Address = {
-                id: 'temp-' + Date.now(),
-                user_id: user.id,
-                label: 'Current Location',
-                first_name: user.name?.split(' ')[0] || 'User',
-                last_name: user.name?.split(' ').slice(1).join(' ') || '',
-                phone: user.phone || '',
-                street: homeScreenAddress.split(',')[0].trim(),
-                barangay: '',
-                city: homeScreenAddress.split(',')[1]?.trim() || '',
-                province: homeScreenAddress.split(',')[2]?.trim() || '',
-                region: '',
-                postal_code: '',
-                is_default: false,
-                coordinates: homeScreenCoords || null,
-              };
-              setSelectedAddress(tempAddr);
-              setTempSelectedAddress(tempAddr);
+              // Fall back to AsyncStorage
+              const storedAddress = await AsyncStorage.getItem('currentDeliveryAddress');
+              const storedCoords = await AsyncStorage.getItem('currentDeliveryCoordinates');
+              if (storedAddress && storedAddress !== 'Select Location') {
+                console.log('[Checkout] Found address in AsyncStorage:', storedAddress);
+                homeScreenAddress = storedAddress;
+                homeScreenCoords = storedCoords ? JSON.parse(storedCoords) : null;
+              }
             }
+          } catch (storageError) {
+            console.log('[Checkout] Error reading stored address:', storageError);
+          }
+        }
+
+        if (homeScreenAddress && homeScreenAddress !== 'Select Location') {
+          console.log('[Checkout] Using address from HomeScreen:', homeScreenAddress);
+
+          // Check if this matches a saved address (including "Current Location" from DB)
+          const matchingAddress = addressData.find(addr =>
+            addr.label === 'Current Location' ||
+            `${addr.street}, ${addr.city}` === homeScreenAddress ||
+            homeScreenAddress.includes(addr.street)
+          );
+
+          if (matchingAddress) {
+            // Use the matching saved address
+            console.log('[Checkout] Found matching saved address:', matchingAddress.label);
+            setSelectedAddress(matchingAddress);
+            setTempSelectedAddress(matchingAddress);
           } else {
-            // Use default or first saved address
-            const defaultAddr = addressData.find(a => a.is_default) || addressData[0];
-            if (defaultAddr) {
-              console.log('[Checkout] Using default/first address:', defaultAddr.id);
-              setSelectedAddress(defaultAddr);
-              setTempSelectedAddress(defaultAddr);
-            }
+            // Create a temporary address object from HomeScreen's location
+            console.log('[Checkout] Creating temporary address from HomeScreen location');
+            const tempAddr: Address = {
+              id: 'temp-' + Date.now(),
+              user_id: user.id,
+              label: 'Current Location',
+              first_name: user.name?.split(' ')[0] || 'User',
+              last_name: user.name?.split(' ').slice(1).join(' ') || '',
+              phone: user.phone || '',
+              street: homeScreenAddress.split(',')[0].trim(),
+              barangay: '',
+              city: homeScreenAddress.split(',')[1]?.trim() || '',
+              province: homeScreenAddress.split(',')[2]?.trim() || '',
+              region: '',
+              postal_code: '',
+              is_default: false,
+              coordinates: homeScreenCoords || null,
+            };
+            setSelectedAddress(tempAddr);
+            setTempSelectedAddress(tempAddr);
           }
         } else {
-          console.error('[Checkout] Error fetching addresses:', addressError);
+          // Use default or first saved address
+          const defaultAddr = addressData.find(a => a.is_default) || addressData[0];
+          if (defaultAddr) {
+            console.log('[Checkout] Using default/first address:', defaultAddr.id);
+            setSelectedAddress(defaultAddr);
+            setTempSelectedAddress(defaultAddr);
+          }
         }
 
-        // Fetch Bazcoins from buyers table
-        const { data: buyerData, error: buyerError } = await supabase
-          .from('buyers')
-          .select('bazcoins')
-          .eq('id', user.id)
-          .single();
-
-        if (!buyerError && buyerData) {
-          console.log('[Checkout] Fetched Bazcoins:', buyerData.bazcoins);
-          setAvailableBazcoins(buyerData.bazcoins || 0);
-        } else {
-          console.error('[Checkout] Error fetching Bazcoins:', buyerError);
-        }
+        // Fetch Bazcoins balance
+        const coins = await addressService.getBazcoins(user.id);
+        console.log('[Checkout] Fetched Bazcoins:', coins);
+        setAvailableBazcoins(coins || 0);
       } catch (error) {
         console.error('Error fetching checkout data:', error);
       } finally {
@@ -343,21 +556,11 @@ export default function CheckoutScreen({ navigation, route }: Props) {
 
     fetchData();
 
-    // Subscribe to real-time Bazcoins updates
-    const subscription = supabase
-      .channel('checkout_bazcoins')
-      .on('postgres_changes', {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'buyers',
-        filter: `id=eq.${user.id}`
-      }, (payload) => {
-        if (payload.new && 'bazcoins' in payload.new) {
-          console.log('[Checkout] Bazcoins updated:', (payload.new as any).bazcoins);
-          setAvailableBazcoins((payload.new as any).bazcoins || 0);
-        }
-      })
-      .subscribe();
+    // Subscribe to real-time Bazcoins updates via service
+    const subscription = addressService.subscribeToBazcoinChanges(user.id, (newBalance) => {
+      console.log('[Checkout] Bazcoins updated:', newBalance);
+      setAvailableBazcoins(newBalance || 0);
+    });
 
     return () => {
       subscription.unsubscribe();
@@ -433,22 +636,20 @@ export default function CheckoutScreen({ navigation, route }: Props) {
         clearQuickOrder();
       }
 
-      
+
       // Check if online payment (GCash, PayMongo, PayMaya, Card)
 
       const isOnlinePayment = paymentMethod.toLowerCase() !== 'cod' && paymentMethod.toLowerCase() !== 'cash on delivery';
 
-      const shippingAddressForOrder: ShippingAddress = isGift
-        ? address
-        : {
-            name: `${selectedAddress?.first_name || ''} ${selectedAddress?.last_name || ''}`.trim(),
-            email: user.email,
-            phone: selectedAddress?.phone || '',
-            address: `${selectedAddress?.street || ''}${selectedAddress?.barangay ? `, ${selectedAddress.barangay}` : ''}`,
-            city: selectedAddress?.city || '',
-            region: selectedAddress?.province || selectedAddress?.region || '',
-            postalCode: selectedAddress?.postal_code || '',
-          };
+      const shippingAddressForOrder: ShippingAddress = {
+        name: `${selectedAddress?.first_name || ''} ${selectedAddress?.last_name || ''}`.trim(),
+        email: user.email,
+        phone: selectedAddress?.phone || '',
+        address: `${selectedAddress?.street || ''}${selectedAddress?.barangay ? `, ${selectedAddress.barangay}` : ''}`,
+        city: selectedAddress?.city || '',
+        region: selectedAddress?.province || selectedAddress?.region || '',
+        postalCode: selectedAddress?.postal_code || '',
+      };
 
       const order: Order = {
         id: 'ORD-' + Date.now(),
@@ -462,11 +663,9 @@ export default function CheckoutScreen({ navigation, route }: Props) {
         shippingAddress: shippingAddressForOrder,
         paymentMethod,
         createdAt: new Date().toISOString(),
-        ...{
-          isGift,
-          isAnonymous,
-          recipientId: isGift ? recipientId : undefined
-        }
+        isGift,
+        isAnonymous,
+        recipientId: isGift ? recipientId : undefined
       };
 
       // Check if online payment (GCash, PayMongo, PayMaya, Card)
@@ -476,8 +675,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
         // Pass isQuickCheckout flag so we know what to clear later
         navigation.navigate('PaymentGateway', { paymentMethod, order, isQuickCheckout });
       } else {
-        // COD - Clear cart immediately and go to confirmation
-        clearCart();
+        // COD - Cart items already removed per processCheckout; just clear quick order if used
         if (isQuickCheckout) {
           clearQuickOrder();
         }
@@ -592,14 +790,21 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                 <View style={styles.compactOrderInfo}>
                   <Text style={styles.compactProductName} numberOfLines={1}>{item.name}</Text>
                   <View style={styles.compactDetailsRow}>
-                    <View style={styles.compactSelector}>
-                      <Text style={styles.compactSelectorText}>Color</Text>
-                      <ChevronDown size={12} color="#6B7280" />
-                    </View>
-                    <View style={styles.compactSelector}>
-                      <Text style={styles.compactSelectorText}>Size</Text>
-                      <ChevronDown size={12} color="#6B7280" />
-                    </View>
+                    {/* Show selected variant (color/size) if available */}
+                    {item.selectedVariant?.color && (
+                      <View style={styles.compactVariantTag}>
+                        <Text style={styles.compactVariantText}>{item.selectedVariant.color}</Text>
+                      </View>
+                    )}
+                    {item.selectedVariant?.size && (
+                      <View style={styles.compactVariantTag}>
+                        <Text style={styles.compactVariantText}>{item.selectedVariant.size}</Text>
+                      </View>
+                    )}
+                    {/* Fallback if no variant selected */}
+                    {!item.selectedVariant?.color && !item.selectedVariant?.size && (
+                      <Text style={styles.compactVariantText}>Standard</Text>
+                    )}
                     <Text style={styles.compactQuantity}>x{item.quantity}</Text>
                   </View>
                 </View>
@@ -620,292 +825,73 @@ export default function CheckoutScreen({ navigation, route }: Props) {
               </View>
             </View>
 
-
-          
-          {isGift ? (
-             /* REGISTRY PRIVACY MODE */
-             <View style={{ backgroundColor: '#F0FDF4', borderRadius: 12, padding: 16, borderWidth: 1, borderColor: '#BBF7D0' }}>
-                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
-                   <View style={{ backgroundColor: '#DCFCE7', padding: 8, borderRadius: 20 }}>
-                       <ShieldCheck size={24} color="#166534" />
-                   </View>
-                   <View style={{ flex: 1 }}>
-                       <Text style={{ fontSize: 16, fontWeight: '700', color: '#14532D', marginBottom: 4 }}>Registry Gift Address</Text>
-                       <Text style={{ fontSize: 14, fontWeight: '600', color: '#166534', marginBottom: 2 }}>Recipient: {recipientName}</Text>
-                       <Text style={{ fontSize: 14, color: '#166534' }}>Location: {registryLocation}</Text>
-                       
-                       <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 12, gap: 6 }}>
-                           <Shield size={12} color="#15803D" />
-                           <Text style={{ fontSize: 11, color: '#15803D', fontStyle: 'italic' }}>
-                               Full address is hidden for privacy.
-                           </Text>
-                       </View>
-                   </View>
-                </View>
-
-                {/* Anonymous Toggle */}
-                <View style={{ marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderColor: '#BBF7D0', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <View>
-                    <Text style={{ fontSize: 14, fontWeight: '700', color: '#14532D' }}>Keep me anonymous</Text>
-                    <Text style={{ fontSize: 12, color: '#15803D' }}>Do not disclose my name to recipient</Text>
-                  </View>
-                  <Switch
-                    trackColor={{ false: '#D1D5DB', true: '#166534' }}
-                    thumbColor={isAnonymous ? '#FFFFFF' : '#f4f3f4'}
-                    onValueChange={setIsAnonymous}
-                    value={isAnonymous}
-                  />
-                </View>
-             </View>
-          ) : (
-            <>
-                {useDefaultAddress ? (
-                    isLoadingAddresses ? (
-                      <View style={{ padding: 20, alignItems: 'center' }}>
-                        <ActivityIndicator size="small" color={COLORS.primary} />
-                        <Text style={{ marginTop: 8, color: '#6B7280' }}>Loading addresses...</Text>
-                      </View>
-                    ) : selectedAddress ? (
-                      <View>
-                        <Pressable
-                          style={{
-                            backgroundColor: '#FFF4ED',
-                            borderRadius: 12,
-                            padding: 16,
-                            borderWidth: 1,
-                            borderColor: '#FFE4E6'
-                          }}
-                          onPress={() => {
-                            console.log('[Checkout] Opening address modal');
-                            setShowAddressModal(true);
-                          }}
-                        >
-                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                            <View style={{ flex: 1 }}>
-                              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-                                <Text style={{ fontSize: 16, fontWeight: '700', color: '#111827' }}>
-                                  {selectedAddress.first_name} {selectedAddress.last_name}
-                                </Text>
-                                {selectedAddress.is_default && (
-                                  <View style={{ backgroundColor: COLORS.primary, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4, marginLeft: 8 }}>
-                                    <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>Default</Text>
-                                  </View>
-                                )}
-                              </View>
-                              <Text style={{ fontSize: 14, color: '#4B5563', marginBottom: 2 }}>{selectedAddress.phone}</Text>
-                              <Text style={{ fontSize: 14, color: '#4B5563', marginBottom: 2 }}>
-                                {selectedAddress.street}, {selectedAddress.barangay}
-                              </Text>
-                              <Text style={{ fontSize: 14, color: '#4B5563' }}>
-                                {selectedAddress.city}, {selectedAddress.province}, {selectedAddress.postal_code}
-                              </Text>
-                            </View>
-                            <ChevronRight size={20} color={COLORS.primary} />
+            {isLoadingAddresses ? (
+              <View style={{ padding: 20, alignItems: 'center' }}>
+                <ActivityIndicator size="small" color={COLORS.primary} />
+                <Text style={{ marginTop: 8, color: '#6B7280' }}>Loading addresses...</Text>
+              </View>
+            ) : selectedAddress ? (
+              <View>
+                <Pressable
+                  style={{
+                    backgroundColor: '#FFF4ED',
+                    borderRadius: 12,
+                    padding: 16,
+                    borderWidth: 1,
+                    borderColor: '#FFE4E6'
+                  }}
+                  onPress={() => {
+                    console.log('[Checkout] Opening address modal');
+                    setShowAddressModal(true);
+                  }}
+                >
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                        <Text style={{ fontSize: 16, fontWeight: '700', color: '#111827' }}>
+                          {selectedAddress.first_name} {selectedAddress.last_name}
+                        </Text>
+                        {selectedAddress.is_default && (
+                          <View style={{ backgroundColor: COLORS.primary, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4, marginLeft: 8 }}>
+                            <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>Default</Text>
                           </View>
-                        </Pressable>
-                        <Pressable 
-                          onPress={() => {
-                            setUseDefaultAddress(false);
-                            setShowCustomAddressForm(true);
-                          }}
-                          style={{ marginTop: 12, alignSelf: 'flex-start' }}
-                        >
-                          <Text style={{ color: COLORS.primary, fontWeight: '700', fontSize: 13 }}>
-                            Deliver to a different address?
-                          </Text>
-                        </Pressable>
+                        )}
                       </View>
-                    ) : (
-                      <Pressable
-                        style={{
-                          backgroundColor: '#F9FAFB',
-                          borderRadius: 12,
-                          padding: 20,
-                          borderWidth: 2,
-                          borderColor: '#E5E7EB',
-                          borderStyle: 'dashed',
-                          alignItems: 'center'
-                        }}
-                        onPress={() => navigation.navigate('Addresses')}
-                      >
-                        <Plus size={24} color={COLORS.primary} />
-                        <Text style={{ marginTop: 8, fontSize: 14, fontWeight: '600', color: '#111827' }}>
-                          Add Delivery Address
-                        </Text>
-                        <Text style={{ fontSize: 12, color: '#6B7280' }}>
-                          Tap to add your shipping address
-                        </Text>
-                      </Pressable>
-                    ) 
-                ) : (
-                  showCustomAddressForm ? (
-                    <View style={styles.inlineFormContainer}>
-                      <View style={styles.inlineFormHeader}>
-                        <View>
-                          <Text style={styles.inlineFormTitle}>Custom Shipping Address</Text>
-                          <Pressable onPress={() => setUseDefaultAddress(true)}>
-                            <Text style={{ color: COLORS.primary, fontSize: 12, fontWeight: '600', marginTop: 2 }}>Use saved addresses</Text>
-                          </Pressable>
-                        </View>
-                        <Pressable onPress={() => setShowCustomAddressForm(false)}><X size={20} color="#6B7280" /></Pressable>
-                      </View>
-                      
-                      <View style={styles.rowInputs}>
-                        <View style={[styles.inputGroup, styles.halfInput]}>
-                          <Text style={styles.inputLabel}>First Name</Text>
-                          <TextInput
-                            style={styles.formInput}
-                            placeholder="Juan"
-                            value={customAddress.firstName}
-                            onChangeText={(val) => setCustomAddress({...customAddress, firstName: val})}
-                          />
-                        </View>
-                        <View style={[styles.inputGroup, styles.halfInput]}>
-                          <Text style={styles.inputLabel}>Last Name</Text>
-                          <TextInput
-                            style={styles.formInput}
-                            placeholder="Dela Cruz"
-                            value={customAddress.lastName}
-                            onChangeText={(val) => setCustomAddress({...customAddress, lastName: val})}
-                          />
-                        </View>
-                      </View>
-
-                      <View style={styles.inputGroup}>
-                        <Text style={styles.inputLabel}>Phone Number</Text>
-                        <TextInput
-                          style={styles.formInput}
-                          placeholder="0917XXXXXXX"
-                          keyboardType="phone-pad"
-                          value={customAddress.phone}
-                          onChangeText={(val) => setCustomAddress({...customAddress, phone: val})}
-                        />
-                      </View>
-
-                      <View style={styles.inputGroup}>
-                        <Text style={styles.inputLabel}>Street / Unit / Bldg</Text>
-                        <TextInput
-                          style={styles.formInput}
-                          placeholder="123 Example St."
-                          value={customAddress.street}
-                          onChangeText={(val) => setCustomAddress({...customAddress, street: val})}
-                        />
-                      </View>
-
-                      <View style={styles.rowInputs}>
-                        <View style={[styles.inputGroup, styles.halfInput]}>
-                          <Text style={styles.inputLabel}>Barangay</Text>
-                          <TextInput
-                            style={styles.formInput}
-                            placeholder="Brgy. 1"
-                            value={customAddress.barangay}
-                            onChangeText={(val) => setCustomAddress({...customAddress, barangay: val})}
-                          />
-                        </View>
-                        <View style={[styles.inputGroup, styles.halfInput]}>
-                          <Text style={styles.inputLabel}>City</Text>
-                          <TextInput
-                            style={styles.formInput}
-                            placeholder="Manila"
-                            value={customAddress.city}
-                            onChangeText={(val) => setCustomAddress({...customAddress, city: val})}
-                          />
-                        </View>
-                      </View>
-
-                      <View style={styles.rowInputs}>
-                        <View style={[styles.inputGroup, styles.halfInput]}>
-                          <Text style={styles.inputLabel}>Province</Text>
-                          <TextInput
-                            style={styles.formInput}
-                            placeholder="Metro Manila"
-                            value={customAddress.province}
-                            onChangeText={(val) => setCustomAddress({...customAddress, province: val})}
-                          />
-                        </View>
-                        <View style={[styles.inputGroup, styles.halfInput]}>
-                          <Text style={styles.inputLabel}>Postal Code</Text>
-                          <TextInput
-                            style={styles.formInput}
-                            placeholder="1000"
-                            keyboardType="numeric"
-                            value={customAddress.postalCode}
-                            onChangeText={(val) => setCustomAddress({...customAddress, postalCode: val})}
-                          />
-                        </View>
-                      </View>
-
-                      <View style={styles.formActions}>
-                        <Pressable style={styles.cancelBtn} onPress={() => setShowCustomAddressForm(false)}>
-                          <Text style={[styles.btnText, { color: '#6B7280' }]}>Cancel</Text>
-                        </Pressable>
-                        <Pressable 
-                          style={styles.saveBtn} 
-                          onPress={() => {
-                            if (!customAddress.firstName || !customAddress.street || !customAddress.city) {
-                              Alert.alert('Incomplete Form', 'Please fill in required fields.');
-                              return;
-                            }
-                            const addr: Address = {
-                              id: 'custom-' + Date.now(),
-                              user_id: user?.id || 'guest',
-                              label: 'Custom Address',
-                              first_name: customAddress.firstName,
-                              last_name: customAddress.lastName,
-                              phone: customAddress.phone,
-                              street: customAddress.street,
-                              barangay: customAddress.barangay,
-                              city: customAddress.city,
-                              province: customAddress.province,
-                              region: '',
-                              postal_code: customAddress.postalCode,
-                              is_default: false
-                            };
-                            setSelectedAddress(addr);
-                            setTempSelectedAddress(addr);
-                            setShowCustomAddressForm(false);
-                          }}
-                        >
-                          <Text style={[styles.btnText, { color: '#FFFFFF' }]}>Apply Address</Text>
-                        </Pressable>
-                      </View>
+                      <Text style={{ fontSize: 14, color: '#4B5563', marginBottom: 2 }}>{selectedAddress.phone}</Text>
+                      <Text style={{ fontSize: 14, color: '#4B5563', marginBottom: 2 }}>
+                        {selectedAddress.street}, {selectedAddress.barangay}
+                      </Text>
+                      <Text style={{ fontSize: 14, color: '#4B5563' }}>
+                        {selectedAddress.city}, {selectedAddress.province}, {selectedAddress.postal_code}
+                      </Text>
                     </View>
-                  ) : (
-                    <Pressable
-                      style={{
-                        backgroundColor: '#F9FAFB',
-                        borderRadius: 12,
-                        padding: 20,
-                        borderWidth: 2,
-                        borderColor: '#E5E7EB',
-                        borderStyle: 'dashed',
-                        alignItems: 'center'
-                      }}
-                      onPress={() => setShowCustomAddressForm(true)}
-                    >
-                      <Plus size={24} color={COLORS.primary} />
-                      <Text style={{ marginTop: 8, fontSize: 14, fontWeight: '600', color: '#111827' }}>
-                        Add Custom Address
-                      </Text>
-                      <Text style={{ fontSize: 12, color: '#6B7280' }}>
-                        Input a one-time shipping address
-                      </Text>
-                    </Pressable>
-                  )
-                )}
-                {selectedAddress && selectedAddress.id.toString().startsWith('custom-') && !showCustomAddressForm && (
-                  <Pressable 
-                    onPress={() => setShowCustomAddressForm(true)}
-                    style={{ marginTop: 12, alignItems: 'center' }}
-                  >
-                    <Text style={{ color: COLORS.primary, fontWeight: '700', fontSize: 14 }}>
-                      Use different custom address
-                    </Text>
-                  </Pressable>
-                )}
-              </>
-          )}
-        </View>
+                    <ChevronRight size={20} color={COLORS.primary} />
+                  </View>
+                </Pressable>
+              </View>
+            ) : (
+              <Pressable
+                style={{
+                  backgroundColor: '#F9FAFB',
+                  borderRadius: 12,
+                  padding: 20,
+                  borderWidth: 2,
+                  borderColor: '#E5E7EB',
+                  borderStyle: 'dashed',
+                  alignItems: 'center'
+                }}
+                onPress={() => setShowAddressModal(true)}
+              >
+                <Plus size={24} color={COLORS.primary} />
+                <Text style={{ marginTop: 8, fontSize: 14, fontWeight: '600', color: '#111827' }}>
+                  Add Delivery Address
+                </Text>
+                <Text style={{ fontSize: 12, color: '#6B7280' }}>
+                  Tap to add your shipping address
+                </Text>
+              </Pressable>
+            )}
+          </View>
 
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
@@ -997,15 +983,27 @@ export default function CheckoutScreen({ navigation, route }: Props) {
             </View>
 
             <Pressable
-              onPress={() => setPaymentMethod('cod')}
-              style={[styles.paymentOption, paymentMethod === 'cod' && styles.paymentOptionActive]}
+              onPress={() => {
+                if (isGift) {
+                  Alert.alert('Not Available', 'Cash on Delivery is not available for wishlist/registry items.');
+                  return;
+                }
+                setPaymentMethod('cod');
+              }}
+              style={[
+                styles.paymentOption, 
+                paymentMethod === 'cod' && styles.paymentOptionActive,
+                isGift && { opacity: 0.5, backgroundColor: '#F3F4F6' }
+              ]}
             >
               <View style={styles.radio}>
                 {paymentMethod === 'cod' && <View style={styles.radioInner} />}
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.paymentText}>Cash on Delivery</Text>
-                <Text style={styles.paymentSubtext}>Pay when you receive</Text>
+                <Text style={[styles.paymentText, isGift && { color: '#9CA3AF' }]}>Cash on Delivery</Text>
+                <Text style={styles.paymentSubtext}>
+                    {isGift ? 'Not available for wishlist items' : 'Pay when you receive'}
+                </Text>
               </View>
             </Pressable>
 
@@ -1180,6 +1178,26 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                 </Pressable>
               </View>
 
+              <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' }}>
+                <Pressable
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                    backgroundColor: '#FEF3E8',
+                    paddingVertical: 12,
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: '#FED7AA'
+                  }}
+                  onPress={handleOpenAddressModalForAdd}
+                >
+                  <Plus size={20} color={COLORS.primary} />
+                  <Text style={{ fontSize: 15, fontWeight: '700', color: COLORS.primary }}>Add New Address</Text>
+                </Pressable>
+              </View>
+
               <ScrollView
                 style={{ flex: 1, minHeight: 200 }}
                 contentContainerStyle={{ padding: 20, flexGrow: 1 }}
@@ -1238,11 +1256,9 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                         paddingVertical: 12,
                         borderRadius: 12
                       }}
-                      onPress={() => {
-                        setShowAddressModal(false);
-                        navigation.navigate('Addresses');
-                      }}
+                      onPress={handleOpenAddressModalForAdd}
                     >
+                      <Plus size={20} color="white" style={{ marginRight: 8 }} />
                       <Text style={{ color: 'white', fontWeight: '600' }}>Add Address</Text>
                     </Pressable>
                   </View>
@@ -1270,10 +1286,498 @@ export default function CheckoutScreen({ navigation, route }: Props) {
             </View>
           </View>
         </Modal>
+
+        {/* --- ADD NEW ADDRESS MODAL (Nested/Separate) --- */}
+        <Modal
+          visible={isAddressModalOpen}
+          animationType="slide"
+          transparent={false}
+          onRequestClose={() => setIsAddressModalOpen(false)}
+        >
+          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 40, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' }}>
+              <Text style={{ fontSize: 20, fontWeight: '800', color: '#1F2937' }}>Add New Address</Text>
+              <Pressable onPress={() => setIsAddressModalOpen(false)} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#F5F5F7', justifyContent: 'center', alignItems: 'center' }}>
+                <X size={22} color="#1F2937" />
+              </Pressable>
+            </View>
+
+            <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 100 }} keyboardShouldPersistTaps="handled">
+
+              {/* Type Selector */}
+              <View style={checkoutStyles.typeSelectorContainer}>
+                <Pressable
+                  style={[checkoutStyles.typeOption, newAddress.label === 'Home' && checkoutStyles.typeOptionActive]}
+                  onPress={() => setNewAddress({ ...newAddress, label: 'Home' })}
+                >
+                  <Home size={16} color={newAddress.label === 'Home' ? COLORS.primary : '#6B7280'} />
+                  <Text style={[checkoutStyles.typeOptionText, newAddress.label === 'Home' && checkoutStyles.typeOptionTextActive]}>Home</Text>
+                </Pressable>
+                <Pressable
+                  style={[checkoutStyles.typeOption, newAddress.label === 'Office' && checkoutStyles.typeOptionActive]}
+                  onPress={() => setNewAddress({ ...newAddress, label: 'Office' })}
+                >
+                  <Briefcase size={16} color={newAddress.label === 'Office' ? COLORS.primary : '#6B7280'} />
+                  <Text style={[checkoutStyles.typeOptionText, newAddress.label === 'Office' && checkoutStyles.typeOptionTextActive]}>Office</Text>
+                </Pressable>
+                <Pressable
+                  style={[checkoutStyles.typeOption, (newAddress.label !== 'Home' && newAddress.label !== 'Office') && checkoutStyles.typeOptionActive]}
+                  onPress={() => setNewAddress({ ...newAddress, label: 'Other' })}
+                >
+                  <MapPin size={16} color={(newAddress.label !== 'Home' && newAddress.label !== 'Office') ? COLORS.primary : '#6B7280'} />
+                  <Text style={[checkoutStyles.typeOptionText, (newAddress.label !== 'Home' && newAddress.label !== 'Office') && checkoutStyles.typeOptionTextActive]}>Other</Text>
+                </Pressable>
+              </View>
+
+              <Text style={checkoutStyles.sectionHeader}>Contact Information</Text>
+              <View style={{ flexDirection: 'row', gap: 12 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={checkoutStyles.inputLabel}>First Name</Text>
+                  <TextInput value={newAddress.first_name} onChangeText={(t) => setNewAddress({ ...newAddress, first_name: t })} style={checkoutStyles.formInput} placeholder="John" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={checkoutStyles.inputLabel}>Last Name</Text>
+                  <TextInput value={newAddress.last_name} onChangeText={(t) => setNewAddress({ ...newAddress, last_name: t })} style={checkoutStyles.formInput} placeholder="Doe" />
+                </View>
+              </View>
+              <Text style={checkoutStyles.inputLabel}>Phone Number</Text>
+              <TextInput value={newAddress.phone} onChangeText={(t) => setNewAddress({ ...newAddress, phone: t })} style={checkoutStyles.formInput} placeholder="+63" keyboardType="phone-pad" />
+
+              <Text style={[checkoutStyles.sectionHeader, { marginTop: 12 }]}>Location Details</Text>
+
+              <AddressDropdown label="Region" type="region" value={newAddress.region} list={regionList} />
+              <AddressDropdown label="Province" type="province" value={newAddress.province} list={provinceList} disabled={!newAddress.region} />
+              <AddressDropdown label="City / Municipality" type="city" value={newAddress.city} list={cityList} disabled={!newAddress.province} />
+              <AddressDropdown label="Barangay" type="barangay" value={newAddress.barangay} list={barangayList} disabled={!newAddress.city} />
+
+              <Text style={checkoutStyles.inputLabel}>Street / House No.</Text>
+              <TextInput
+                value={newAddress.street}
+                onChangeText={(t) => setNewAddress({ ...newAddress, street: t })}
+                onEndEditing={onStreetBlur}
+                style={checkoutStyles.formInput}
+                placeholder="123 Acacia St."
+              />
+
+              {/* Live Map Preview (same as AddressesScreen) */}
+              <Text style={checkoutStyles.inputLabel}>Pin Location</Text>
+              <View style={checkoutStyles.mapPreviewWrapper}>
+                <MapView
+                  provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : PROVIDER_DEFAULT}
+                  style={checkoutStyles.mapPreview}
+                  region={mapRegion}
+                  scrollEnabled={false}
+                  zoomEnabled={false}
+                >
+                  {newAddress.coordinates && <Marker coordinate={newAddress.coordinates} />}
+                </MapView>
+                <View style={checkoutStyles.mapOverlay}>
+                  <Pressable style={checkoutStyles.editPinButton} onPress={() => setIsMapModalOpen(true)}>
+                    <Move size={14} color="#FFF" />
+                    <Text style={checkoutStyles.editPinText}>Adjust Pin</Text>
+                  </Pressable>
+                </View>
+              </View>
+
+              <Text style={checkoutStyles.inputLabel}>Postal Code</Text>
+              <TextInput value={newAddress.postal_code} onChangeText={(t) => setNewAddress({ ...newAddress, postal_code: t })} style={checkoutStyles.formInput} placeholder="1000" keyboardType="number-pad" />
+
+              <Pressable style={[checkoutStyles.checkboxContainer, newAddress.is_default && checkoutStyles.checkboxActive]} onPress={() => setNewAddress({ ...newAddress, is_default: !newAddress.is_default })}>
+                <View style={[checkoutStyles.checkbox, newAddress.is_default && { borderColor: '#16A34A', backgroundColor: '#16A34A' }]}>
+                  {newAddress.is_default && <View style={{ width: 8, height: 8, backgroundColor: '#FFF', borderRadius: 4 }} />}
+                </View>
+                <Text style={[checkoutStyles.checkboxText, newAddress.is_default && { color: '#16A34A' }]}>Set as default delivery address</Text>
+              </Pressable>
+            </ScrollView>
+
+            <View style={checkoutStyles.stickyFooter}>
+              <Pressable style={[checkoutStyles.confirmButton, isSaving && { opacity: 0.7 }]} onPress={handleSaveAddress} disabled={isSaving}>
+                {isSaving ? <ActivityIndicator color="#FFF" /> : <Text style={checkoutStyles.confirmButtonText}>Save Address</Text>}
+              </Pressable>
+            </View>
+          </KeyboardAvoidingView>
+        </Modal>
+
+        {/* --- PRECISION MAP MODAL --- */}
+        <Modal visible={isMapModalOpen} animationType="slide" onRequestClose={() => setIsMapModalOpen(false)}>
+          <View style={{ flex: 1, backgroundColor: '#FFF' }}>
+            <MapView
+              style={{ flex: 1 }}
+              region={mapRegion}
+              onRegionChangeComplete={(region: Region) => setMapRegion(region)}
+              showsUserLocation={true}
+            />
+            <View style={checkoutStyles.centerMarkerContainer} pointerEvents="none">
+              <MapPin size={48} color={COLORS.primary} fill={COLORS.primary} />
+              <View style={checkoutStyles.markerShadow} />
+            </View>
+            <View style={[checkoutStyles.mapHeader, { paddingTop: insets.top + 10 }]}>
+              <Pressable onPress={() => setIsMapModalOpen(false)} style={checkoutStyles.mapCloseButton}>
+                <ArrowLeft size={24} color="#1F2937" />
+              </Pressable>
+              <Text style={checkoutStyles.mapTitle}>Adjust Location</Text>
+              <View style={{ width: 40 }} />
+            </View>
+            <View style={checkoutStyles.mapFooter}>
+              <Text style={checkoutStyles.mapInstruction}>Drag map to pin exact location</Text>
+              <Pressable style={checkoutStyles.confirmButton} onPress={handleConfirmLocation}>
+                <Text style={checkoutStyles.confirmButtonText}>Confirm Pin</Text>
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
+
+  // --- STRICTLY FORMATTED DROPDOWN (inside CheckoutScreen) ---
+  function AddressDropdown({ label, value, type, list, disabled = false, placeholder = "Select..." }: any) {
+    const isOpen = openDropdown === type;
+    const filteredList = list.filter((item: any) => {
+      const itemName = item.region_name || item.province_name || item.city_name || item.brgy_name || '';
+      return itemName.toLowerCase().includes(searchText.toLowerCase());
+    });
+
+    return (
+      <View style={{ marginBottom: 12, zIndex: isOpen ? 100 : 1 }}>
+        <Text style={checkoutStyles.inputLabel}>{label}</Text>
+        <Pressable
+          onPress={() => toggleDropdown(type)}
+          disabled={disabled}
+          style={[checkoutStyles.dropdownTrigger, disabled && checkoutStyles.dropdownDisabled, isOpen && checkoutStyles.dropdownActive]}
+        >
+          <Text style={[checkoutStyles.dropdownText, !value && checkoutStyles.placeholderText, disabled && { color: '#9CA3AF' }]} numberOfLines={1}>
+            {value || placeholder}
+          </Text>
+          {isLoadingLocation && isOpen ? (
+            <ActivityIndicator size="small" color={COLORS.primary} />
+          ) : (
+            isOpen ? <ChevronUp size={20} color={disabled ? "#9CA3AF" : "#4B5563"} /> : <ChevronDown size={20} color={disabled ? "#9CA3AF" : "#4B5563"} />
+          )}
+        </Pressable>
+        {isOpen && (
+          <View style={checkoutStyles.dropdownListContainer}>
+            <View style={checkoutStyles.searchContainer}>
+              <Search size={16} color="#9CA3AF" />
+              <TextInput
+                style={checkoutStyles.searchInput}
+                placeholder="Search..."
+                value={searchText}
+                onChangeText={setSearchText}
+                autoFocus={true}
+              />
+            </View>
+            <ScrollView style={checkoutStyles.selectList} nestedScrollEnabled={true} keyboardShouldPersistTaps="handled">
+              {filteredList.map((item: any, index: number) => {
+                const key = `${type}-${index}`;
+                let name = '';
+                if (type === 'region') name = item.region_name;
+                else if (type === 'province') name = item.province_name;
+                else if (type === 'city') name = item.city_name;
+                else name = item.brgy_name || item.barangay_name;
+
+                return (
+                  <Pressable
+                    key={key}
+                    style={({ pressed }) => [checkoutStyles.selectItem, pressed && { backgroundColor: '#FFF7ED' }]}
+                    onPress={() => {
+                      if (type === 'region') onRegionChange(item.region_code);
+                      else if (type === 'province') onProvinceChange(item.province_code);
+                      else if (type === 'city') onCityChange(item.city_code);
+                      else onBarangayChange(item.brgy_name || item.barangay_name);
+                    }}
+                  >
+                    <Text style={checkoutStyles.selectItemText}>{name}</Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
+      </View>
+    );
+  }
 }
+
+const checkoutStyles = StyleSheet.create({
+  sectionCard: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  sectionHeader: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#9CA3AF',
+    textTransform: 'uppercase',
+    marginBottom: 8,
+    letterSpacing: 0.5,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#374151',
+    marginBottom: 6,
+  },
+  formInput: {
+    height: 48,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    fontSize: 15,
+    color: '#1F2937',
+    backgroundColor: '#F9FAFB',
+    marginBottom: 16,
+  },
+  typeSelectorContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#F3F4F6',
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 20,
+  },
+  typeOption: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  typeOptionActive: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  typeOptionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  typeOptionTextActive: {
+    color: '#111827',
+  },
+  dropdownTrigger: {
+    height: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    backgroundColor: '#FFFFFF',
+    marginBottom: 12,
+  },
+  dropdownActive: {
+    borderColor: COLORS.primary,
+  },
+  dropdownDisabled: {
+    backgroundColor: '#F9FAFB',
+    borderColor: '#F3F4F6',
+  },
+  dropdownText: {
+    fontSize: 15,
+    color: '#1F2937',
+    flex: 1,
+  },
+  placeholderText: {
+    color: '#9CA3AF',
+  },
+  dropdownListContainer: {
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    marginTop: -8,
+    marginBottom: 16,
+    backgroundColor: '#FFFFFF',
+    maxHeight: 250,
+    overflow: 'hidden',
+    zIndex: 1000,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+    gap: 10,
+  },
+  searchInput: {
+    flex: 1,
+    height: 40,
+    fontSize: 15,
+    color: '#1F2937',
+  },
+  selectList: {
+    backgroundColor: '#FFFFFF',
+  },
+  selectItem: {
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  selectItemText: {
+    fontSize: 15,
+    color: '#111827',
+  },
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 16,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    marginTop: 8,
+  },
+  checkboxActive: {
+    backgroundColor: '#DCFCE7',
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#D1D5DB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#4B5563',
+  },
+  stickyFooter: {
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+    backgroundColor: '#FFFFFF',
+    paddingBottom: Platform.OS === 'ios' ? 40 : 20,
+  },
+  confirmButton: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 14,
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  confirmButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  mapPreviewWrapper: {
+    height: 180,
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    marginBottom: 16,
+    backgroundColor: '#F3F4F6',
+  },
+  mapPreview: {
+    flex: 1,
+  },
+  mapOverlay: {
+    position: 'absolute',
+    bottom: 12,
+    right: 12,
+  },
+  editPinButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#1F2937',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+  },
+  editPinText: {
+    color: '#FFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  centerMarkerContainer: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    marginLeft: -24,
+    marginTop: -48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  markerShadow: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    transform: [{ scaleX: 2 }],
+  },
+  mapHeader: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingBottom: 10,
+    zIndex: 10,
+  },
+  mapCloseButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+  },
+  mapTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#1F2937',
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
+  mapFooter: {
+    position: 'absolute',
+    bottom: 40,
+    left: 20,
+    right: 20,
+    backgroundColor: '#FFF',
+    padding: 20,
+    borderRadius: 20,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 15,
+    elevation: 8,
+  },
+  mapInstruction: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 16,
+  },
+});
 
 const styles = StyleSheet.create({
   container: {
@@ -1444,6 +1948,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    flexWrap: 'wrap',
+  },
+  compactVariantTag: {
+    backgroundColor: '#FFF4ED',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FFCBB0',
+  },
+  compactVariantText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#EA580C',
   },
   compactSelector: {
     flexDirection: 'row',

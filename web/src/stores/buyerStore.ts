@@ -13,6 +13,23 @@ export interface Message {
   isRead: boolean;
 }
 
+// Registry Product Extension
+export interface RegistryProduct extends Product {
+  requestedQty: number;
+  receivedQty: number;
+  note?: string;
+  isMostWanted?: boolean;
+}
+
+export interface RegistryItem {
+  id: string;
+  title: string;
+  sharedDate: string;
+  imageUrl: string;
+  category?: string;
+  products?: RegistryProduct[];
+}
+
 export interface Conversation {
   id: string;
   sellerId: string;
@@ -74,6 +91,7 @@ export interface CartItem extends Product {
   selectedVariant?: ProductVariant;
   notes?: string;
   selected?: boolean;
+  registryId?: string;
 }
 
 export interface GroupedCart {
@@ -142,6 +160,8 @@ export interface Address {
     lat: number;
     lng: number;
   };
+  landmark?: string;
+  deliveryInstructions?: string;
 }
 
 export interface BuyerProfile {
@@ -166,6 +186,7 @@ export interface BuyerProfile {
       showPurchases: boolean;
       showFollowing: boolean;
     };
+    interestedCategories?: string[];
   };
   memberSince: Date;
   totalOrders: number;
@@ -222,9 +243,14 @@ interface BuyerStore {
 
   // Quick Order (Buy Now)
   quickOrder: CartItem | null;
-  setQuickOrder: (product: Product, quantity?: number, variant?: ProductVariant) => void;
+  setQuickOrder: (product: Product, quantity?: number, variant?: ProductVariant, registryId?: string) => void;
   clearQuickOrder: () => void;
   getQuickOrderTotal: () => number;
+
+  // Buy Again Items (temporary state for direct checkout)
+  buyAgainItems: CartItem[] | null;
+  setBuyAgainItems: (items: CartItem[]) => void;
+  clearBuyAgainItems: () => void;
 
   // Voucher System
   availableVouchers: Voucher[];
@@ -273,7 +299,19 @@ interface BuyerStore {
   addCard: (card: PaymentMethod) => void;
   deleteCard: (id: string) => void;
   setDefaultPaymentMethod: (id: string) => void;
+
+  // Registry & Gifting
+  registries: RegistryItem[];
+  createRegistry: (registry: RegistryItem) => void;
+  addToRegistry: (registryId: string, product: Product) => void;
+  updateRegistryItem: (registryId: string, productId: string, updates: Partial<RegistryProduct>) => void;
+  removeRegistryItem: (registryId: string, productId: string) => void;
+
+  initializeBuyerProfile: (userId: string, profileData: any) => Promise<BuyerProfile>;
+
 }
+
+
 
 let profileSubscription: any = null;
 
@@ -318,7 +356,8 @@ const mapDbItemToCartItem = (item: any): CartItem | null => {
     variants: dbProduct.variants || [],
     quantity: item.quantity,
     selectedVariant: item.selected_variant,
-    notes: item.notes
+    notes: item.notes,
+    selected: true // Default to selected so they appear in checkout
   } as CartItem;
 };
 
@@ -454,12 +493,13 @@ export const useBuyerStore = create<BuyerStore>()(persist(
     // Quick Order (Buy Now)
     quickOrder: null,
 
-    setQuickOrder: (product, quantity = 1, variant) => {
+    setQuickOrder: (product, quantity = 1, variant, registryId) => {
       set({
         quickOrder: {
           ...product,
           quantity,
-          selectedVariant: variant
+          selectedVariant: variant,
+          registryId
         }
       });
     },
@@ -471,6 +511,10 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       if (!quickOrder) return 0;
       return quickOrder.price * quickOrder.quantity;
     },
+
+    buyAgainItems: null,
+    setBuyAgainItems: (items) => set({ buyAgainItems: items }),
+    clearBuyAgainItems: () => set({ buyAgainItems: null }),
 
     addToCart: async (product, quantity = 1, variant) => {
       // Check if user is logged in
@@ -1010,6 +1054,99 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       }
     },
 
+    // Initialize buyer profile ensuring the buyer record exists in the database
+    initializeBuyerProfile: async (userId: string, profileData: any) => {
+      try {
+        // First, check if buyer record exists
+        const { data: existingBuyer, error: fetchError } = await supabase
+          .from('buyers')
+          .select('*')
+          .eq('id', userId)
+          .single();
+
+        if (fetchError && fetchError.code !== 'PGRST116') {
+          // PGRST116 is the error code for "Row not found"
+          console.error('Error checking buyer profile:', fetchError);
+        }
+
+        if (!existingBuyer) {
+          // Buyer record doesn't exist, create one
+          const { error: insertError } = await supabase
+            .from('buyers')
+            .insert([{
+              id: userId,
+              shipping_addresses: [],
+              payment_methods: [],
+              preferences: {
+                language: 'en',
+                currency: 'PHP',
+                notifications: {
+                  email: true,
+                  sms: false,
+                  push: true,
+                },
+                privacy: {
+                  showProfile: true,
+                  showPurchases: false,
+                  showFollowing: true,
+                },
+              },
+              followed_shops: [],
+              total_spent: 0,
+              bazcoins: 0,
+            }]);
+
+          if (insertError) {
+            console.error('Error creating buyer profile:', insertError);
+            throw insertError;
+          }
+        }
+
+        // Now fetch the complete profile data
+        const { data: buyerData, error: buyerError } = await supabase
+          .from('buyers')
+          .select(`
+            *,
+            profile:profiles!id (
+              id, email, full_name, phone, avatar_url, user_type, created_at
+            )
+          `)
+          .eq('id', userId)
+          .single();
+
+        if (buyerError) {
+          console.error('Error fetching buyer profile:', buyerError);
+          throw buyerError;
+        }
+
+        // Extract profile info from the joined data
+        const profileInfo = buyerData.profile;
+        const buyerInfo = {
+          ...buyerData,
+          firstName: profileInfo.full_name?.split(' ')[0] || '',
+          lastName: profileInfo.full_name?.split(' ').slice(1).join(' ') || '',
+          email: profileInfo.email,
+          phone: profileInfo.phone || '',
+          avatar: profileInfo.avatar_url || '/placeholder-avatar.jpg',
+          memberSince: new Date(profileInfo.created_at),
+          totalSpent: buyerData.total_spent || 0,
+          bazcoins: buyerData.bazcoins || 0,
+          totalOrders: 0,
+        };
+
+        // Set the profile in the store
+        set({ profile: buyerInfo as BuyerProfile });
+
+        // Initialize addresses
+        set({ addresses: buyerData.shipping_addresses || [] });
+
+        return buyerInfo;
+      } catch (error) {
+        console.error('Error initializing buyer profile:', error);
+        throw error;
+      }
+    },
+
     subscribeToProfile: (userId) => {
       if (profileSubscription) return; // Already subscribed
 
@@ -1081,6 +1218,57 @@ export const useBuyerStore = create<BuyerStore>()(persist(
           viewedSellers: state.viewedSellers.filter(s => s.id !== conversation.sellerId)
         };
       });
+    },
+
+    // Registry & Gifting
+    registries: [],
+    createRegistry: (registry) => {
+      set((state) => ({
+        registries: [...state.registries, registry]
+      }));
+    },
+    addToRegistry: (registryId, product) => {
+      set((state) => ({
+        registries: state.registries.map(r =>
+          r.id === registryId
+            ? {
+              ...r,
+              products: [...(r.products || []), {
+                ...product,
+                requestedQty: 1,
+                receivedQty: 0,
+                isMostWanted: false
+              }]
+            }
+            : r
+        )
+      }));
+    },
+    updateRegistryItem: (registryId, productId, updates) => {
+      set((state) => ({
+        registries: state.registries.map(r =>
+          r.id === registryId
+            ? {
+              ...r,
+              products: (r.products || []).map(p =>
+                p.id === productId ? { ...p, ...updates } : p
+              )
+            }
+            : r
+        )
+      }));
+    },
+    removeRegistryItem: (registryId, productId) => {
+      set((state) => ({
+        registries: state.registries.map(r =>
+          r.id === registryId
+            ? {
+              ...r,
+              products: (r.products || []).filter(p => p.id !== productId)
+            }
+            : r
+        )
+      }));
     }
   }),
   {
@@ -1091,7 +1279,9 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       followedShops: state.followedShops,
       cartItems: state.cartItems,
       reviews: state.reviews,
-      conversations: state.conversations
+      conversations: state.conversations,
+      registries: state.registries
+      // We do NOT persist buyAgainItems or quickOrder to keep them transient
     })
   }
 ));

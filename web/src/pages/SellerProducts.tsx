@@ -257,209 +257,213 @@ export function SellerProducts() {
       </Sidebar>
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="p-6 bg-white border-b border-gray-200">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-semibold text-gray-900">Products</h1>
-              <p className="text-gray-600 mt-1">
-                Manage your product inventory
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              <Button
-                onClick={() => setIsBulkUploadOpen(true)}
-                variant="outline"
-                className="border-orange-500 text-orange-500 hover:bg-orange-50 flex items-center gap-2"
-              >
-                <Upload className="h-4 w-4" />
-                Bulk Upload
-              </Button>
-              <Link to="/seller/products/add">
-                <Button className="bg-orange-500 hover:bg-orange-600 text-white flex items-center gap-2">
-                  <Plus className="h-4 w-4" />
-                  Add Product
-                </Button>
-              </Link>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex-1 p-6 overflow-auto">
-          {/* Filters */}
-          <div className="flex flex-col sm:flex-row gap-4 mb-6">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-              <input
-                type="text"
-                placeholder="Search products..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-              />
-            </div>
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-            >
-              <option value="all">All Products</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-            </select>
-          </div>
-
-          {/* Products Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredProducts.map((product) => (
-              <motion.div
-                key={product.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-lg transition-shadow duration-300"
-              >
-                <div className="relative">
-                  <img
-                    src={product.images[0]}
-                    alt={product.name}
-                    className="w-full h-48 object-cover"
-                  />
-                  <div className="absolute top-3 left-3">
-                    <button
-                      onClick={() =>
-                        handleToggleStatus(product.id, product.isActive)
-                      }
-                      className="flex items-center gap-1"
-                    >
-                      {product.isActive ? (
-                        <ToggleRight className="h-6 w-6 text-green-500" />
-                      ) : (
-                        <ToggleLeft className="h-6 w-6 text-gray-400" />
-                      )}
-                    </button>
-                  </div>
-                  <div className="absolute top-3 right-3">
-                    <div className="relative">
-                      <button className="p-2 bg-white rounded-full shadow-md hover:shadow-lg transition-shadow">
-                        <MoreHorizontal className="h-4 w-4 text-gray-600" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="p-4">
-                  <div className="flex items-start justify-between mb-2">
-                    <h3 className="font-medium text-gray-900 line-clamp-2">
-                      {product.name}
-                    </h3>
-                  </div>
-
-                  <p className="text-gray-600 text-sm mb-3 line-clamp-2">
-                    {product.description}
+        <div className="flex-1 overflow-auto">
+          <div className="w-full max-w-7xl mx-auto">
+            <div className="p-6 bg-white border-b border-gray-200">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <h1 className="text-2xl font-semibold text-gray-900">Products</h1>
+                  <p className="text-gray-600 mt-1">
+                    Manage your product inventory
                   </p>
-
-                  {/* Approval Status Badge */}
-                  {product.approvalStatus && (
-                    <div className="mb-3">
-                      {product.approvalStatus === "pending" && (
-                        <Badge className="bg-yellow-100 text-yellow-700 hover:bg-yellow-100">
-                          <Clock className="w-3 h-3 mr-1" />
-                          Pending Approval
-                        </Badge>
-                      )}
-                      {product.approvalStatus === "approved" && (
-                        <Badge className="bg-green-100 text-green-700 hover:bg-green-100">
-                          <BadgeCheck className="w-3 h-3 mr-1" />
-                          Verified
-                        </Badge>
-                      )}
-                      {product.approvalStatus === "rejected" && (
-                        <Badge className="bg-red-100 text-red-700 hover:bg-red-100">
-                          <AlertTriangle className="w-3 h-3 mr-1" />
-                          Rejected
-                        </Badge>
-                      )}
-                      {product.approvalStatus === "reclassified" && (
-                        <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100">
-                          <AlertTriangle className="w-3 h-3 mr-1" />
-                          Category Adjusted
-                        </Badge>
-                      )}
-                    </div>
-                  )}
-
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-1">
-                      <Star className="h-4 w-4 text-yellow-500 fill-current" />
-                      <span className="text-sm text-gray-600">
-                        {product.rating}
-                      </span>
-                      <span className="text-sm text-gray-500">
-                        ({product.reviews})
-                      </span>
-                    </div>
-                    <span
-                      className={cn(
-                        "px-2 py-1 rounded-full text-xs font-medium",
-                        product.isActive
-                          ? "bg-green-100 text-green-700"
-                          : "bg-gray-100 text-gray-700"
-                      )}
-                    >
-                      {product.isActive ? "Active" : "Inactive"}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <p className="text-lg font-semibold text-gray-900">
-                        ₱{product.price.toLocaleString()}
-                      </p>
-                      {product.originalPrice && (
-                        <p className="text-sm text-gray-500 line-through">
-                          ₱{product.originalPrice.toLocaleString()}
-                        </p>
-                      )}
-                    </div>
-                    <p className="text-sm text-gray-600">
-                      Stock: {product.stock}
-                    </p>
-                  </div>
-
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => handleEditClick(product)}
-                      className="flex-1 px-3 py-2 bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100 transition-colors text-center text-sm font-medium"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDelete(product.id)}
-                      className="px-3 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
                 </div>
-              </motion.div>
-            ))}
-          </div>
-
-          {filteredProducts.length === 0 && (
-            <div className="text-center py-12">
-              <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
-                No products found
-              </h3>
-              <p className="text-gray-600 mb-6">
-                Start by adding your first product to your store
-              </p>
-              <Link to="/seller/products/add">
-                <Button className="bg-orange-500 hover:bg-orange-600 text-white">
-                  Add Your First Product
-                </Button>
-              </Link>
+                <div className="flex items-center gap-3">
+                  <Button
+                    onClick={() => setIsBulkUploadOpen(true)}
+                    variant="outline"
+                    className="border-orange-500 text-orange-500 hover:bg-orange-50 flex items-center gap-2"
+                  >
+                    <Upload className="h-4 w-4" />
+                    Bulk Upload
+                  </Button>
+                  <Link to="/seller/products/add">
+                    <Button className="bg-orange-500 hover:bg-orange-600 text-white flex items-center gap-2">
+                      <Plus className="h-4 w-4" />
+                      Add Product
+                    </Button>
+                  </Link>
+                </div>
+              </div>
             </div>
-          )}
+
+            <div className="p-6">
+              {/* Filters */}
+              <div className="flex flex-col sm:flex-row gap-4 mb-6">
+                <div className="flex-1 relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                  <input
+                    type="text"
+                    placeholder="Search products..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                  />
+                </div>
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                >
+                  <option value="all">All Products</option>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </div>
+
+              {/* Products Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredProducts.map((product) => (
+                  <motion.div
+                    key={product.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-lg transition-shadow duration-300"
+                  >
+                    <div className="relative">
+                      <img
+                        src={product.images[0]}
+                        alt={product.name}
+                        className="w-full h-48 object-cover"
+                      />
+                      <div className="absolute top-3 left-3">
+                        <button
+                          onClick={() =>
+                            handleToggleStatus(product.id, product.isActive)
+                          }
+                          className="flex items-center gap-1"
+                        >
+                          {product.isActive ? (
+                            <ToggleRight className="h-6 w-6 text-green-500" />
+                          ) : (
+                            <ToggleLeft className="h-6 w-6 text-gray-400" />
+                          )}
+                        </button>
+                      </div>
+                      <div className="absolute top-3 right-3">
+                        <div className="relative">
+                          <button className="p-2 bg-white rounded-full shadow-md hover:shadow-lg transition-shadow">
+                            <MoreHorizontal className="h-4 w-4 text-gray-600" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="p-4">
+                      <div className="flex items-start justify-between mb-2">
+                        <h3 className="font-medium text-gray-900 line-clamp-2">
+                          {product.name}
+                        </h3>
+                      </div>
+
+                      <p className="text-gray-600 text-sm mb-3 line-clamp-2">
+                        {product.description}
+                      </p>
+
+                      {/* Approval Status Badge */}
+                      {product.approvalStatus && (
+                        <div className="mb-3">
+                          {product.approvalStatus === "pending" && (
+                            <Badge className="bg-yellow-100 text-yellow-700 hover:bg-yellow-100">
+                              <Clock className="w-3 h-3 mr-1" />
+                              Pending Approval
+                            </Badge>
+                          )}
+                          {product.approvalStatus === "approved" && (
+                            <Badge className="bg-green-100 text-green-700 hover:bg-green-100">
+                              <BadgeCheck className="w-3 h-3 mr-1" />
+                              Verified
+                            </Badge>
+                          )}
+                          {product.approvalStatus === "rejected" && (
+                            <Badge className="bg-red-100 text-red-700 hover:bg-red-100">
+                              <AlertTriangle className="w-3 h-3 mr-1" />
+                              Rejected
+                            </Badge>
+                          )}
+                          {product.approvalStatus === "reclassified" && (
+                            <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100">
+                              <AlertTriangle className="w-3 h-3 mr-1" />
+                              Category Adjusted
+                            </Badge>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-1">
+                          <Star className="h-4 w-4 text-yellow-500 fill-current" />
+                          <span className="text-sm text-gray-600">
+                            {product.rating}
+                          </span>
+                          <span className="text-sm text-gray-500">
+                            ({product.reviews})
+                          </span>
+                        </div>
+                        <span
+                          className={cn(
+                            "px-2 py-1 rounded-full text-xs font-medium",
+                            product.isActive
+                              ? "bg-green-100 text-green-700"
+                              : "bg-gray-100 text-gray-700"
+                          )}
+                        >
+                          {product.isActive ? "Active" : "Inactive"}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <p className="text-lg font-semibold text-gray-900">
+                            ₱{product.price.toLocaleString()}
+                          </p>
+                          {product.originalPrice && (
+                            <p className="text-sm text-gray-500 line-through">
+                              ₱{product.originalPrice.toLocaleString()}
+                            </p>
+                          )}
+                        </div>
+                        <p className="text-sm text-gray-600">
+                          Stock: {product.stock}
+                        </p>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleEditClick(product)}
+                          className="flex-1 px-3 py-2 bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100 transition-colors text-center text-sm font-medium"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDelete(product.id)}
+                          className="px-3 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+
+              {filteredProducts.length === 0 && (
+                <div className="text-center py-12">
+                  <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">
+                    No products found
+                  </h3>
+                  <p className="text-gray-600 mb-6">
+                    Start by adding your first product to your store
+                  </p>
+                  <Link to="/seller/products/add">
+                    <Button className="bg-orange-500 hover:bg-orange-600 text-white">
+                      Add Your First Product
+                    </Button>
+                  </Link>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 

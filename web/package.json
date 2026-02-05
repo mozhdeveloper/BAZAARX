@@ -23,7 +23,12 @@
     "vitest:all": "vitest run src/tests/",
     "test:qa": "vitest run qa-system-integration",
     "test:qa-integration": "tsx scripts/test-qa-system.ts",
-    "test:qa-full": "npm run test:qa && npm run test:qa-integration"
+    "test:qa-full": "npm run test:qa && npm run test:qa-integration",
+    "test:messages": "tsx scripts/test-messages.ts",
+    "test:buyer": "tsx scripts/test-buyer-process.ts",
+    "test:seller-flow": "tsx scripts/test-seller-complete-flow.ts",
+    "test:e2e": "tsx scripts/test-e2e-buyer-seller.ts",
+    "test:address": "tsx scripts/test-address-system.ts"
   },
   "dependencies": {
     "@lottiefiles/react-lottie-player": "^3.6.0",
@@ -60,6 +65,7 @@
     "embla-carousel-react": "^8.6.0",
     "framer-motion": "^12.26.1",
     "gsap": "^3.14.1",
+    "jspdf": "^4.0.0",
     "leaflet": "^1.9.4",
     "lenis": "^1.3.17",
     "lottie-react": "^2.4.1",

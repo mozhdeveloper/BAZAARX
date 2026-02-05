@@ -160,11 +160,37 @@ export class AuthService {
 
     try {
       const { data, error } = await supabase.auth.getSession();
-      if (error) throw error;
+      if (error) {
+        // If refresh token is invalid, clear the session silently
+        if (error.message?.includes('Refresh Token') || error.message?.includes('Invalid')) {
+          // Silently clear invalid session without logging (error is suppressed in App.tsx)
+          await this.clearInvalidSession();
+          return null; // Return null instead of throwing
+        }
+        throw error;
+      }
       return data.session;
     } catch (error) {
-      console.error('Error getting session:', error);
+      // Only log non-refresh-token errors
+      if (!(error as any)?.message?.includes('Refresh Token')) {
+        console.error('Error getting session:', error);
+      }
       return null;
+    }
+  }
+
+  /**
+   * Clear invalid session from storage
+   */
+  private async clearInvalidSession(): Promise<void> {
+    try {
+      await supabase.auth.signOut();
+      // Force clear AsyncStorage keys
+      const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+      await AsyncStorage.removeItem('supabase.auth.token');
+      await AsyncStorage.removeItem('sb-' + process.env.EXPO_PUBLIC_SUPABASE_URL?.split('//')[1]?.split('.')[0] + '-auth-token');
+    } catch (error) {
+      console.error('Error clearing invalid session:', error);
     }
   }
 

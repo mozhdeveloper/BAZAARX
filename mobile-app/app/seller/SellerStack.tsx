@@ -8,11 +8,12 @@ import SellerPOSScreen from './pos';
 import SellerFlashSalesScreen from './flash-sales';
 import SellerMessagesScreen from './messages';
 import SellerReviewsScreen from './reviews';
+import SellerNotificationsScreen from './notifications';
 import SellerReturnDetailScreen from './ReturnDetailScreen';
 import TicketListScreen from '../tickets/TicketListScreen';
 
 export type SellerStackParamList = {
-  SellerTabs: undefined;
+  SellerTabs: { screen?: string } | undefined;
   Analytics: undefined;
   StoreProfile: undefined;
   Earnings: undefined;
@@ -20,6 +21,7 @@ export type SellerStackParamList = {
   FlashSales: undefined;
   Messages: undefined;
   Reviews: undefined;
+  Notifications: undefined;
   ReturnDetail: { returnId: string };
   TicketList: undefined;
 };
@@ -43,6 +45,7 @@ export default function SellerStack() {
       <Stack.Screen name="FlashSales" component={SellerFlashSalesScreen} />
       <Stack.Screen name="Messages" component={SellerMessagesScreen} />
       <Stack.Screen name="Reviews" component={SellerReviewsScreen} />
+      <Stack.Screen name="Notifications" component={SellerNotificationsScreen} />
       <Stack.Screen name="ReturnDetail" component={SellerReturnDetailScreen} />
       <Stack.Screen name="TicketList" component={TicketListScreen} />
     </Stack.Navigator>

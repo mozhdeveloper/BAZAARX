@@ -21,6 +21,8 @@ import type { RootStackParamList } from '../App';
 import { useOrderStore } from '../src/stores/orderStore';
 import { supabase } from '../src/lib/supabase';
 import { useReturnStore } from '../src/stores/returnStore';
+import { reviewService } from '../src/services/reviewService';
+import { useAuthStore } from '../src/stores/authStore';
 import ReviewModal from '../src/components/ReviewModal';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'OrderDetail'>;
@@ -49,17 +51,17 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
 
   const handleSendMessage = () => {
     if (!chatMessage.trim()) return;
-    
+
     const newMessage = {
       id: Date.now().toString(),
       sender: 'buyer',
       message: chatMessage,
       timestamp: new Date(),
     };
-    
+
     setChatMessages([...chatMessages, newMessage]);
     setChatMessage('');
-    
+
     // Simulate seller response
     setTimeout(() => {
       const response = {
@@ -80,25 +82,71 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Yes, Received',
-          onPress: () => {
-            updateOrderStatus(order.id, 'delivered');
-            setShowReviewModal(true);
+          onPress: async () => {
+            try {
+              // 1. Update Supabase
+              const { error } = await supabase
+                .from('orders')
+                .update({ status: 'delivered' })
+                .eq('id', order.id);
+
+              if (error) throw error;
+
+              // 2. Update Local Store
+              updateOrderStatus(order.id, 'delivered');
+
+              // 3. Update local order param (if needed for UI immediate reflection)
+              // But we are showing review modal immediately
+              setShowReviewModal(true);
+            } catch (e) {
+              console.error('Error updating order:', e);
+              Alert.alert('Error', 'Failed to update order status');
+            }
           },
         },
       ]
     );
   };
 
-  const handleSubmitReview = (rating: number, review: string) => {
-    // In a real app, this would save to a reviews API
-    console.log('Review submitted:', { rating, review, orderId: order.id });
-    
-    Alert.alert('Thank You!', 'Your review has been submitted successfully.', [
-      { text: 'OK', onPress: () => {
-        setShowReviewModal(false);
-        navigation.goBack();
-      }},
-    ]);
+  const handleSubmitReview = async (productId: string, rating: number, review: string) => {
+    const { user } = useAuthStore.getState();
+    if (!user?.id) {
+      Alert.alert('Error', 'You must be logged in to submit a review');
+      return;
+    }
+
+    try {
+      const item = order.items.find(i => i.id === productId);
+      if (!item) throw new Error('Product not found');
+
+      const sellerId = item.sellerId || (item as any).seller_id;
+
+      if (!sellerId) {
+        throw new Error('Seller information missing');
+      }
+
+      // Create review
+      await reviewService.createReview({
+        product_id: productId,
+        buyer_id: user.id,
+        seller_id: sellerId,
+        order_id: order.id,
+        rating,
+        comment: review || null,
+        images: null,
+      });
+
+      // Mark order item as reviewed
+      await reviewService.markItemAsReviewed(order.id, productId);
+
+      // Check if all items reviewed and update order
+      await reviewService.checkAndUpdateOrderReviewed(order.id);
+
+      Alert.alert('Success', 'Your review has been submitted.');
+    } catch (error: any) {
+      console.error('[OrderDetail] Error submitting review:', error);
+      Alert.alert('Error', error.message || 'Failed to submit review. Please try again.');
+    }
   };
 
   const handleCancelOrder = () => {
@@ -122,7 +170,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
 
               // 2. Update Local Store
               updateOrderStatus(order.id, 'cancelled');
-              
+
               Alert.alert('Order Cancelled', 'Your order has been moved to the Cancelled list.', [
                 { text: 'OK', onPress: () => navigation.goBack() }
               ]);
@@ -185,39 +233,25 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
         </View>
       </View>
 
-      <ScrollView 
+      <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={{ paddingBottom: order.status !== 'delivered' ? 100 : 24 }}
+        contentContainerStyle={{ paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Status Banner Card */}
-        <View style={[styles.statusBanner, { backgroundColor: getStatusColor() }]}>
+        {/* Interactive Status Banner */}
+        <Pressable
+          style={[styles.statusBanner, { backgroundColor: getStatusColor() }]}
+          onPress={() => navigation.navigate('DeliveryTracking', { order })}
+        >
           <View style={styles.statusContent}>
             <View style={styles.statusLeft}>
               <Text style={styles.statusTitle}>{getStatusText()}</Text>
-              <Text style={styles.statusTimestamp}>
-                {order.status === 'delivered' 
-                  ? `Delivered on ${order.deliveryDate}`
-                  : `Last updated: ${new Date(order.createdAt).toLocaleDateString()}`
-                }
-              </Text>
+              <Text style={styles.tapToTrack}>Tap to Track {'>'}</Text>
             </View>
             <View style={styles.statusIconContainer}>
               <StatusIcon size={48} color="#FFFFFF" strokeWidth={1.5} />
             </View>
           </View>
-        </View>
-
-        {/* Chat Button */}
-        <Pressable 
-          style={({ pressed }) => [
-            styles.chatButton,
-            pressed && styles.chatButtonPressed,
-          ]}
-          onPress={() => setShowChatModal(true)}
-        >
-          <MessageCircle size={18} color={COLORS.primary} />
-          <Text style={styles.chatButtonText}>Chat with Seller</Text>
         </Pressable>
 
         {/* Order Items Card */}
@@ -233,13 +267,27 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
               {index > 0 && <View style={styles.itemDivider} />}
               <View style={styles.itemRow}>
                 <Pressable onPress={() => navigation.navigate('ProductDetail', { product: item })}>
-                  <Image 
+                  <Image
                     source={{ uri: item.image || 'https://via.placeholder.com/60' }}
                     style={styles.itemImage}
                   />
                 </Pressable>
                 <View style={styles.itemInfo}>
                   <Text style={styles.itemName}>{item.name}</Text>
+                  {item.selectedVariant && (item.selectedVariant.size || item.selectedVariant.color) && (
+                    <View style={{ flexDirection: 'row', gap: 8, marginTop: 2 }}>
+                      {item.selectedVariant.size && (
+                        <Text style={{ fontSize: 11, color: '#6b7280', backgroundColor: '#f3f4f6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                          {item.selectedVariant.size}
+                        </Text>
+                      )}
+                      {item.selectedVariant.color && (
+                        <Text style={{ fontSize: 11, color: '#6b7280', backgroundColor: '#f3f4f6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                          {item.selectedVariant.color}
+                        </Text>
+                      )}
+                    </View>
+                  )}
                   <Text style={styles.itemVariant}>
                     {item.quantity} × ₱{(item.price ?? 0).toLocaleString()}
                   </Text>
@@ -259,12 +307,14 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
             <Text style={styles.cardTitle}>Shipping Address</Text>
           </View>
           <View style={styles.cardContent}>
-            <Text style={styles.addressName}>{order.shippingAddress.name}</Text>
-            <Text style={styles.addressPhone}>{order.shippingAddress.phone}</Text>
-            <Text style={styles.addressLine}>{order.shippingAddress.address}</Text>
-            <Text style={styles.addressLine}>
-              {order.shippingAddress.city}, {order.shippingAddress.region} {order.shippingAddress.postalCode}
-            </Text>
+            <View style={styles.shippingInfoBlock}>
+              <Text style={styles.shippingName}>{order.shippingAddress.name}</Text>
+              <Text style={styles.shippingPhone}>{order.shippingAddress.phone}</Text>
+              <Text style={styles.shippingAddress}>
+                {order.shippingAddress.address}, {order.shippingAddress.city}, {order.shippingAddress.region} {order.shippingAddress.postalCode}
+              </Text>
+              <Text style={styles.shippingEmail}>{order.shippingAddress.email}</Text>
+            </View>
           </View>
         </View>
 
@@ -313,71 +363,89 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
       </ScrollView>
 
       {/* Bottom Action Bar */}
-      {(order.status === 'shipped' || order.status === 'delivered' || order.status === 'pending') && (
-        <View style={styles.bottomBar}>
-          {order.status === 'shipped' && (
-            <Pressable onPress={handleMarkAsReceived} style={styles.receivedButton}>
-              <CheckCircle size={20} color="#FFFFFF" />
-              <Text style={styles.receivedButtonText}>Mark as Received</Text>
+      <View style={[styles.bottomBar, { flexDirection: 'row', gap: 12, paddingHorizontal: 16, paddingVertical: 12 }]}>
+        {order.status === 'pending' && (
+          <>
+            <Pressable
+              onPress={() => setShowChatModal(true)}
+              style={[styles.outlineButton, { flex: 1 }]}
+            >
+              <MessageCircle size={20} color={COLORS.primary} />
+              <Text style={styles.outlineButtonText}>Chat</Text>
             </Pressable>
-          )}
+            <Pressable
+              onPress={handleCancelOrder}
+              style={[styles.solidButton, { flex: 1, backgroundColor: COLORS.primary }]}
+            >
+              <Text style={styles.solidButtonText}>Cancel Order</Text>
+            </Pressable>
+          </>
+        )}
 
-          {order.status === 'delivered' && (() => {
-              // Safely parse date for "MM/DD/YYYY" format which can be flaky on Android
-              const getDeliveryDate = (dateStr: string | undefined): Date => {
+        {order.status === 'processing' && (
+          <Pressable
+            onPress={() => setShowChatModal(true)}
+            style={[styles.solidButton, { flex: 1, backgroundColor: COLORS.primary }]}
+          >
+            <MessageCircle size={20} color="#FFFFFF" />
+            <Text style={styles.solidButtonText}>Chat with Seller</Text>
+          </Pressable>
+        )}
+
+        {order.status === 'shipped' && (
+          <>
+            <Pressable
+              onPress={() => setShowChatModal(true)}
+              style={[styles.outlineButton, { flex: 1 }]}
+            >
+              <MessageCircle size={20} color={COLORS.primary} />
+              <Text style={styles.outlineButtonText}>Chat</Text>
+            </Pressable>
+            <Pressable
+              onPress={handleMarkAsReceived}
+              style={[styles.solidButton, { flex: 1, backgroundColor: COLORS.primary }]}
+            >
+              <Text style={styles.solidButtonText}>Order Received</Text>
+            </Pressable>
+          </>
+        )}
+
+        {order.status === 'delivered' && (
+          <>
+            <Pressable
+              onPress={() => setShowChatModal(true)}
+              style={[styles.outlineButton, { flex: 1 }]}
+            >
+              <MessageCircle size={20} color={COLORS.primary} />
+              <Text style={styles.outlineButtonText}>Chat</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                // Calculate return window validity
+                const getDeliveryDate = (dateStr: string | undefined): Date => {
                   if (!dateStr) return new Date();
                   const parts = dateStr.split('/');
                   if (parts.length === 3) {
-                      return new Date(parseInt(parts[2]), parseInt(parts[0]) - 1, parseInt(parts[1]));
+                    return new Date(parseInt(parts[2]), parseInt(parts[0]) - 1, parseInt(parts[1]));
                   }
                   return new Date(dateStr);
-              };
+                };
+                const deliveryDate = getDeliveryDate(order.deliveryDate);
+                const currentDate = new Date();
+                const diffTime = currentDate.getTime() - deliveryDate.getTime();
+                const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                const isReturnable = diffDays <= 7 && diffDays >= 0;
 
-              const deliveryDate = getDeliveryDate(order.deliveryDate);
-              const currentDate = new Date();
-              
-              // Calculate difference in milliseconds
-              const diffTime = currentDate.getTime() - deliveryDate.getTime();
-              
-              // Convert to days (rounding down to be lenient for "same day" or partial days)
-              const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-              
-              const isReturnable = diffDays <= 7 && diffDays >= 0;
-
-              return (
-                <Pressable 
-                  onPress={() => {
-                    if (isReturnable) navigation.navigate('ReturnRequest', { order });
-                    else Alert.alert('Return Window Closed', 'Returns are only available within 7 days of delivery.');
-                  }} 
-                  style={[
-                    styles.receivedButton, 
-                    { 
-                      backgroundColor: isReturnable ? '#FFFFFF' : '#F3F4F6', 
-                      borderWidth: 1, 
-                      borderColor: '#D1D5DB', 
-                      elevation: 0,
-                      opacity: isReturnable ? 1 : 0.8
-                    }
-                  ]}
-                >
-                  <RotateCcw size={20} color={isReturnable ? "#374151" : "#9CA3AF"} />
-                  <Text style={[styles.receivedButtonText, { color: isReturnable ? '#374151' : '#9CA3AF' }]}>
-                    {isReturnable ? 'Return / Refund' : 'Return Window Closed'}
-                  </Text>
-                </Pressable>
-              );
-            })()
-          }
-
-          {order.status === 'pending' && (
-            <Pressable onPress={handleCancelOrder} style={[styles.receivedButton, { backgroundColor: '#FEE2E2', shadowColor: '#EF4444' }]}>
-              <X size={20} color="#DC2626" />
-              <Text style={[styles.receivedButtonText, { color: '#DC2626' }]}>Cancel Order</Text>
+                if (isReturnable) navigation.navigate('ReturnRequest', { order });
+                else Alert.alert('Return Window Closed', 'Returns are only available within 7 days of delivery.');
+              }}
+              style={[styles.solidButton, { flex: 1, backgroundColor: COLORS.primary }]}
+            >
+              <Text style={styles.solidButtonText}>Return / Refund</Text>
             </Pressable>
-          )}
-        </View>
-      )}
+          </>
+        )}
+      </View>
 
       {/* Review Modal */}
       <ReviewModal
@@ -398,13 +466,13 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
         onRequestClose={() => setShowChatModal(false)}
       >
         <SafeAreaView style={styles.chatModalContainer}>
-          <KeyboardAvoidingView 
+          <KeyboardAvoidingView
             behavior={Platform.OS === "ios" ? "padding" : "height"}
             style={{ flex: 1 }}
           >
             <View style={styles.chatHeader}>
-              <Pressable 
-                onPress={() => setShowChatModal(false)} 
+              <Pressable
+                onPress={() => setShowChatModal(false)}
                 style={styles.closeButton}
                 hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
               >
@@ -413,21 +481,21 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
               <View>
                 <Text style={styles.chatTitle}>Seller Chat</Text>
                 <Text style={styles.chatSubtitle}>
-                  {order.transactionId.length > 20 
-                    ? `Order #TRK-${order.transactionId.slice(0, 8).toUpperCase()}` 
+                  {order.transactionId.length > 20
+                    ? `Order #TRK-${order.transactionId.slice(0, 8).toUpperCase()}`
                     : `Order #${order.transactionId}`}
                 </Text>
               </View>
               <View style={{ width: 24 }} />
             </View>
 
-            <ScrollView 
+            <ScrollView
               style={styles.chatMessages}
               contentContainerStyle={{ padding: 16, gap: 16 }}
             >
               {chatMessages.map((msg) => (
-                <View 
-                  key={msg.id} 
+                <View
+                  key={msg.id}
                   style={[
                     styles.messageBubble,
                     msg.sender === 'buyer' ? styles.buyerMessage : styles.sellerMessage,
@@ -459,7 +527,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
                 onChangeText={setChatMessage}
                 multiline
               />
-              <Pressable 
+              <Pressable
                 style={[styles.sendButton, !chatMessage.trim() && styles.sendButtonDisabled]}
                 onPress={handleSendMessage}
                 disabled={!chatMessage.trim()}
@@ -661,6 +729,34 @@ const styles = StyleSheet.create({
     color: '#4B5563',
     fontWeight: '600',
     marginBottom: 8,
+  },
+  shippingInfoBlock: {
+    gap: 4,
+  },
+  shippingName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  shippingPhone: {
+    fontSize: 14,
+    color: '#4B5563',
+    marginBottom: 4,
+  },
+  shippingAddress: {
+    fontSize: 14,
+    color: '#4B5563',
+    lineHeight: 20,
+  },
+  shippingEmail: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginTop: 4,
+  },
+  tapToTrack: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontWeight: '500',
   },
   addressLine: {
     fontSize: 14,
@@ -882,5 +978,39 @@ const styles = StyleSheet.create({
   returnDate: {
     fontSize: 12,
     color: '#6B7280',
+  },
+  outlineButton: {
+    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+    gap: 8,
+  },
+  outlineButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.primary,
+  },
+  solidButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 12,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+    gap: 8,
+  },
+  solidButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
 });

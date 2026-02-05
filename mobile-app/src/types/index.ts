@@ -60,10 +60,17 @@ export interface Product {
   isFreeShipping?: boolean;
   isVerified?: boolean;
   seller?: string;
+  sellerId?: string; // Alias for seller_id
   sellerRating?: number;
   sellerVerified?: boolean;
   sold?: number;
   location?: string;
+  // Selected variant for cart/checkout
+  selectedVariant?: {
+    color?: string;
+    size?: string;
+  } | null;
+  quantity?: number;
 }
 
 export interface ProductVariant {
@@ -77,6 +84,10 @@ export interface ProductVariant {
 
 export interface CartItem extends Product {
   quantity: number;
+  selectedVariant?: {
+    color?: string;
+    size?: string;
+  } | null;
 }
 
 export interface Order {
@@ -95,6 +106,14 @@ export interface Order {
   isGift?: boolean;
   isAnonymous?: boolean;
   recipientId?: string;
+  sellerInfo?: {
+    id?: string;
+    store_name?: string;
+    business_name?: string;
+    rating?: number;
+    is_verified?: boolean;
+    business_address?: string;
+  };
 }
 
 export interface ShippingAddress {

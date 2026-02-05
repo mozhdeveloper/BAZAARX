@@ -150,12 +150,15 @@ export default function BuyerSignupPage() {
       await useBuyerStore.getState().initializeCart();
       setIsLoading(false);
 
-      // Show success message and redirect
-      alert("Welcome to BazaarX! You've received 100 bonus points!");
-      navigate("/shop");
-    } catch (err) {
+      // Redirect to onboarding
+      navigate("/buyer-onboarding");
+    } catch (err: any) {
       console.error("Signup exception:", err);
-      setError("Something went wrong. Please try again.");
+      if (err.message?.includes("User already registered") || err.message?.includes("already exists")) {
+        setError("This email is already registered. Please sign in instead.");
+      } else {
+        setError("Something went wrong. Please try again.");
+      }
       setIsLoading(false);
     }
   };

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -17,7 +17,9 @@ import {
     Smile,
     Store,
     Trash2,
-    ExternalLink
+    ExternalLink,
+    MessageSquare,
+    Loader2
 } from 'lucide-react';
 import {
     DropdownMenu,
@@ -26,6 +28,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useBuyerStore, demoSellers, Message, Conversation } from '../stores/buyerStore';
+import { chatService, Conversation as DBConversation, Message as DBMessage } from '../services/chatService';
 
 export default function MessagesPage() {
     const navigate = useNavigate();
@@ -36,6 +39,76 @@ export default function MessagesPage() {
     const [searchQuery, setSearchQuery] = useState('');
     const [previewImage, setPreviewImage] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    
+    // Real data state
+    const [dbConversations, setDbConversations] = useState<DBConversation[]>([]);
+    const [dbMessages, setDbMessages] = useState<DBMessage[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [sending, setSending] = useState(false);
+    
+    // Check if using real data
+    const useRealData = dbConversations.length > 0;
+
+    // Load real conversations from Supabase
+    const loadConversations = useCallback(async () => {
+        if (!profile?.id) {
+            setLoading(false);
+            return;
+        }
+        
+        try {
+            const convs = await chatService.getBuyerConversations(profile.id);
+            setDbConversations(convs);
+        } catch (error) {
+            console.error('[MessagesPage] Error loading conversations:', error);
+        } finally {
+            setLoading(false);
+        }
+    }, [profile?.id]);
+    
+    useEffect(() => {
+        loadConversations();
+    }, [loadConversations]);
+    
+    // Load messages when conversation is selected
+    useEffect(() => {
+        if (!selectedConversation || !useRealData) return;
+        
+        const loadMessages = async () => {
+            const msgs = await chatService.getMessages(selectedConversation);
+            setDbMessages(msgs);
+            
+            // Mark as read
+            if (profile?.id) {
+                chatService.markAsRead(selectedConversation, profile.id, 'buyer');
+            }
+        };
+        
+        loadMessages();
+    }, [selectedConversation, useRealData, profile?.id]);
+    
+    // Subscribe to new messages
+    useEffect(() => {
+        if (!selectedConversation || !useRealData) return;
+        
+        const unsubscribe = chatService.subscribeToMessages(
+            selectedConversation,
+            (newMsg) => {
+                // Prevent duplicates
+                setDbMessages(prev => {
+                    const exists = prev.some(msg => msg.id === newMsg.id);
+                    if (exists) return prev;
+                    return [...prev, newMsg];
+                });
+                
+                if (newMsg.sender_type === 'seller' && profile?.id) {
+                    chatService.markAsRead(selectedConversation, profile.id, 'buyer');
+                }
+            }
+        );
+        
+        return unsubscribe;
+    }, [selectedConversation, useRealData, profile?.id]);
 
     // Extract sellerId from URL if present
     const queryParams = new URLSearchParams(location.search);
@@ -43,7 +116,33 @@ export default function MessagesPage() {
 
     // Handle sellerId from URL only when it changes or on mount
     useEffect(() => {
-        if (initialSellerId) {
+        if (!initialSellerId) return;
+        
+        const initConversation = async () => {
+            // If user is logged in, try to use real database
+            if (profile?.id) {
+                try {
+                    // Check if conversation already exists in dbConversations
+                    const existingDbConv = dbConversations.find(c => c.seller_id === initialSellerId);
+                    if (existingDbConv) {
+                        setSelectedConversation(existingDbConv.id);
+                        return;
+                    }
+                    
+                    // Create or get conversation from database
+                    const conv = await chatService.getOrCreateConversation(profile.id, initialSellerId);
+                    if (conv) {
+                        setSelectedConversation(conv.id);
+                        // Reload conversations to include the new one
+                        loadConversations();
+                        return;
+                    }
+                } catch (error) {
+                    console.error('[MessagesPage] Error creating conversation:', error);
+                }
+            }
+            
+            // Fallback to local store for demo/guest mode
             const existingConv = conversations.find(c => c.sellerId === initialSellerId);
             if (existingConv) {
                 setSelectedConversation(existingConv.id);
@@ -74,23 +173,55 @@ export default function MessagesPage() {
                 addConversation(newConv);
                 setSelectedConversation(newConv.id);
             }
-        }
-    }, [initialSellerId, conversations, demoSellers, viewedSellers, addConversation]);
+        };
+        
+        initConversation();
+    }, [initialSellerId, profile?.id, dbConversations, conversations, demoSellers, viewedSellers, addConversation, loadConversations]);
 
     // Handle default selection of first conversation if none selected
     useEffect(() => {
-        if (!selectedConversation && conversations.length > 0 && !initialSellerId) {
-            setSelectedConversation(conversations[0].id);
+        if (useRealData) {
+            if (!selectedConversation && dbConversations.length > 0) {
+                setSelectedConversation(dbConversations[0].id);
+            }
+        } else {
+            if (!selectedConversation && conversations.length > 0 && !initialSellerId) {
+                setSelectedConversation(conversations[0].id);
+            }
         }
-    }, [conversations.length, selectedConversation, initialSellerId]);
+    }, [conversations.length, dbConversations.length, selectedConversation, initialSellerId, useRealData]);
 
-    const activeConversation = conversations.find(c => c.id === selectedConversation);
+    const activeConversation = useRealData
+        ? dbConversations.find(c => c.id === selectedConversation)
+        : conversations.find(c => c.id === selectedConversation);
 
-    const handleSendMessage = (e?: React.FormEvent, textOverride?: string, imageUrls?: string[]) => {
+    const handleSendMessage = async (e?: React.FormEvent, textOverride?: string, imageUrls?: string[]) => {
         e?.preventDefault();
         const messageText = textOverride || newMessage;
         if (!messageText.trim() && (!imageUrls || imageUrls.length === 0) || !selectedConversation) return;
 
+        // Real data mode
+        if (useRealData && profile?.id) {
+            setSending(true);
+            try {
+                const result = await chatService.sendMessage(
+                    selectedConversation,
+                    profile.id,
+                    'buyer',
+                    messageText.trim()
+                );
+                if (result) {
+                    setNewMessage('');
+                }
+            } catch (error) {
+                console.error('Error sending message:', error);
+            } finally {
+                setSending(false);
+            }
+            return;
+        }
+
+        // Mock data mode
         addChatMessage(selectedConversation, {
             id: `m${Date.now()}`,
             senderId: 'buyer',
@@ -122,16 +253,22 @@ export default function MessagesPage() {
         }
     };
 
-    const filteredConversations = conversations
-        .filter(conv =>
-            conv.sellerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            conv.lastMessage.toLowerCase().includes(searchQuery.toLowerCase())
-        )
-        .sort((a, b) => {
-            const timeA = a.lastMessageTime ? new Date(a.lastMessageTime).getTime() : 0;
-            const timeB = b.lastMessageTime ? new Date(b.lastMessageTime).getTime() : 0;
-            return timeB - timeA;
-        });
+    // Filtered conversations (supports both mock and real data)
+    const filteredConversations = useRealData
+        ? dbConversations.filter(conv =>
+            (conv.seller_store_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+            conv.last_message.toLowerCase().includes(searchQuery.toLowerCase())
+          )
+        : conversations
+            .filter(conv =>
+                conv.sellerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                conv.lastMessage.toLowerCase().includes(searchQuery.toLowerCase())
+            )
+            .sort((a, b) => {
+                const timeA = a.lastMessageTime ? new Date(a.lastMessageTime).getTime() : 0;
+                const timeB = b.lastMessageTime ? new Date(b.lastMessageTime).getTime() : 0;
+                return timeB - timeA;
+            });
 
     const quickReplies = [
         "Is this available?",
@@ -152,8 +289,10 @@ export default function MessagesPage() {
     };
 
     const handleVisitStore = () => {
-        if (activeConversation?.sellerId) {
-            navigate(`/seller/${activeConversation.sellerId}`);
+        if (useRealData && activeConversation) {
+            navigate(`/seller/${(activeConversation as DBConversation).seller_id}`);
+        } else if ((activeConversation as Conversation)?.sellerId) {
+            navigate(`/seller/${(activeConversation as Conversation).sellerId}`);
         }
     };
 
@@ -176,46 +315,96 @@ export default function MessagesPage() {
                     </div>
 
                     <div className="flex-1 overflow-y-auto">
-                        {filteredConversations.map((conv) => (
-                            <div
-                                key={conv.id}
-                                onClick={() => setSelectedConversation(conv.id)}
-                                className={`p-4 cursor-pointer hover:bg-gray-50 transition-all border-l-4 ${selectedConversation === conv.id
-                                    ? 'bg-orange-50 border-l-orange-500'
-                                    : 'border-l-transparent'
-                                    }`}
-                            >
-                                <div className="flex gap-3">
-                                    <div className="relative">
-                                        <Avatar className="h-12 w-12 border-2 border-white shadow-sm">
-                                            <AvatarImage src={conv.sellerImage} />
-                                            <AvatarFallback className="bg-orange-100 text-orange-600 font-bold">
-                                                {conv.sellerName.charAt(0)}
-                                            </AvatarFallback>
-                                        </Avatar>
-                                        {conv.isOnline && (
+                        {loading ? (
+                            <div className="flex items-center justify-center py-12">
+                                <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+                            </div>
+                        ) : filteredConversations.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+                                <MessageSquare className="h-12 w-12 text-gray-300 mb-3" />
+                                <h3 className="text-gray-500 font-medium">No messages yet</h3>
+                                <p className="text-gray-400 text-sm mt-1">Start a conversation with a seller</p>
+                            </div>
+                        ) : useRealData ? (
+                            (filteredConversations as DBConversation[]).map((conv) => (
+                                <div
+                                    key={conv.id}
+                                    onClick={() => setSelectedConversation(conv.id)}
+                                    className={`p-4 cursor-pointer hover:bg-gray-50 transition-all border-l-4 ${selectedConversation === conv.id
+                                        ? 'bg-orange-50 border-l-orange-500'
+                                        : 'border-l-transparent'
+                                        }`}
+                                >
+                                    <div className="flex gap-3">
+                                        <div className="relative">
+                                            <Avatar className="h-12 w-12 border-2 border-white shadow-sm">
+                                                <AvatarFallback className="bg-orange-100 text-orange-600 font-bold">
+                                                    {(conv.seller_store_name || 'S').charAt(0)}
+                                                </AvatarFallback>
+                                            </Avatar>
                                             <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 border-2 border-white rounded-full" />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex justify-between items-baseline mb-0.5">
+                                                <h4 className="font-bold text-gray-900 truncate">{conv.seller_store_name || 'Store'}</h4>
+                                                <span className="text-[10px] font-semibold text-gray-400 uppercase">
+                                                    {new Date(conv.last_message_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                </span>
+                                            </div>
+                                            <p className={`text-sm truncate ${conv.buyer_unread_count > 0 ? 'text-gray-900 font-semibold' : 'text-gray-500'}`}>
+                                                {conv.last_message || 'Start a conversation'}
+                                            </p>
+                                        </div>
+                                        {conv.buyer_unread_count > 0 && (
+                                            <Badge className="bg-orange-500 hover:bg-orange-600 h-5 min-w-[20px] rounded-full flex items-center justify-center p-0.5 text-[10px]">
+                                                {conv.buyer_unread_count}
+                                            </Badge>
                                         )}
                                     </div>
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex justify-between items-baseline mb-0.5">
-                                            <h4 className="font-bold text-gray-900 truncate">{conv.sellerName}</h4>
-                                            <span className="text-[10px] font-semibold text-gray-400 uppercase">
-                                                {new Date(conv.lastMessageTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                            </span>
-                                        </div>
-                                        <p className={`text-sm truncate ${conv.unreadCount > 0 ? 'text-gray-900 font-semibold' : 'text-gray-500'}`}>
-                                            {conv.lastMessage || 'Start a conversation'}
-                                        </p>
-                                    </div>
-                                    {conv.unreadCount > 0 && (
-                                        <Badge className="bg-orange-500 hover:bg-orange-600 h-5 min-w-[20px] rounded-full flex items-center justify-center p-0.5 text-[10px]">
-                                            {conv.unreadCount}
-                                        </Badge>
-                                    )}
                                 </div>
-                            </div>
-                        ))}
+                            ))
+                        ) : (
+                            (filteredConversations as Conversation[]).map((conv) => (
+                                <div
+                                    key={conv.id}
+                                    onClick={() => setSelectedConversation(conv.id)}
+                                    className={`p-4 cursor-pointer hover:bg-gray-50 transition-all border-l-4 ${selectedConversation === conv.id
+                                        ? 'bg-orange-50 border-l-orange-500'
+                                        : 'border-l-transparent'
+                                        }`}
+                                >
+                                    <div className="flex gap-3">
+                                        <div className="relative">
+                                            <Avatar className="h-12 w-12 border-2 border-white shadow-sm">
+                                                <AvatarImage src={conv.sellerImage} />
+                                                <AvatarFallback className="bg-orange-100 text-orange-600 font-bold">
+                                                    {conv.sellerName.charAt(0)}
+                                                </AvatarFallback>
+                                            </Avatar>
+                                            {conv.isOnline && (
+                                                <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 border-2 border-white rounded-full" />
+                                            )}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex justify-between items-baseline mb-0.5">
+                                                <h4 className="font-bold text-gray-900 truncate">{conv.sellerName}</h4>
+                                                <span className="text-[10px] font-semibold text-gray-400 uppercase">
+                                                    {new Date(conv.lastMessageTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                </span>
+                                            </div>
+                                            <p className={`text-sm truncate ${conv.unreadCount > 0 ? 'text-gray-900 font-semibold' : 'text-gray-500'}`}>
+                                                {conv.lastMessage || 'Start a conversation'}
+                                            </p>
+                                        </div>
+                                        {conv.unreadCount > 0 && (
+                                            <Badge className="bg-orange-500 hover:bg-orange-600 h-5 min-w-[20px] rounded-full flex items-center justify-center p-0.5 text-[10px]">
+                                                {conv.unreadCount}
+                                            </Badge>
+                                        )}
+                                    </div>
+                                </div>
+                            ))
+                        )}
                     </div>
                 </div>
 
@@ -237,18 +426,24 @@ export default function MessagesPage() {
 
                                 <div className="relative">
                                     <Avatar className="h-10 w-10 border-2 border-white/20">
-                                        <AvatarImage src={activeConversation.sellerImage} />
+                                        <AvatarImage src={useRealData ? undefined : (activeConversation as Conversation).sellerImage} />
                                         <AvatarFallback className="bg-white/20 text-white font-bold">
-                                            {activeConversation.sellerName.charAt(0)}
+                                            {(useRealData 
+                                                ? ((activeConversation as DBConversation).seller_store_name || 'S')
+                                                : (activeConversation as Conversation).sellerName
+                                            ).charAt(0)}
                                         </AvatarFallback>
                                     </Avatar>
-                                    {activeConversation.isOnline && (
-                                        <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-400 border-2 border-[#ff6a00] rounded-full" />
-                                    )}
+                                    <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-400 border-2 border-[#ff6a00] rounded-full" />
                                 </div>
 
                                 <div className="flex-1">
-                                    <h3 className="font-bold leading-tight">{activeConversation.sellerName}</h3>
+                                    <h3 className="font-bold leading-tight">
+                                        {useRealData 
+                                            ? (activeConversation as DBConversation).seller_store_name || 'Store'
+                                            : (activeConversation as Conversation).sellerName
+                                        }
+                                    </h3>
                                     <div className="flex items-center gap-1 text-[11px] font-medium opacity-90">
                                         <span className="w-1.5 h-1.5 bg-green-400 rounded-full" />
                                         Online
@@ -287,12 +482,40 @@ export default function MessagesPage() {
 
                             {/* Messages Content */}
                             <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-gray-50/50">
-                                {activeConversation.messages.map((msg, idx) => {
-                                    const isBuyer = msg.senderId === 'buyer';
-                                    return (
-                                        <motion.div
-                                            initial={{ opacity: 0, y: 10 }}
-                                            animate={{ opacity: 1, y: 0 }}
+                                {useRealData ? (
+                                    dbMessages.map((msg) => {
+                                        const isBuyer = msg.sender_type === 'buyer';
+                                        return (
+                                            <motion.div
+                                                initial={{ opacity: 0, y: 10 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                key={msg.id}
+                                                className={`flex ${isBuyer ? 'justify-end' : 'justify-start'}`}
+                                            >
+                                                <div className={`max-w-[80%] flex flex-col ${isBuyer ? 'items-end' : 'items-start'}`}>
+                                                    <div className={`
+                                                        px-4 py-3 rounded-2xl shadow-sm
+                                                        ${isBuyer
+                                                            ? 'bg-orange-500 text-white rounded-tr-sm'
+                                                            : 'bg-white text-gray-800 rounded-tl-sm border border-gray-100'
+                                                        }
+                                                    `}>
+                                                        <p className="text-sm leading-relaxed">{msg.content}</p>
+                                                    </div>
+                                                    <span className="text-[10px] text-gray-400 mt-1.5 px-1 font-medium">
+                                                        {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                    </span>
+                                                </div>
+                                            </motion.div>
+                                        );
+                                    })
+                                ) : (
+                                    (activeConversation as Conversation).messages.map((msg, idx) => {
+                                        const isBuyer = msg.senderId === 'buyer';
+                                        return (
+                                            <motion.div
+                                                initial={{ opacity: 0, y: 10 }}
+                                                animate={{ opacity: 1, y: 0 }}
                                             key={msg.id}
                                             className={`flex ${isBuyer ? 'justify-end' : 'justify-start'}`}
                                         >
@@ -329,7 +552,8 @@ export default function MessagesPage() {
                                             </div>
                                         </motion.div>
                                     );
-                                })}
+                                    })
+                                )}
                             </div>
 
                             {/* Input Area Section */}
@@ -366,6 +590,7 @@ export default function MessagesPage() {
                                         size="icon"
                                         className="text-gray-400 hover:text-[#ff6a00] rounded-full hover:bg-base"
                                         onClick={() => fileInputRef.current?.click()}
+                                        disabled={sending}
                                     >
                                         <ImageIcon className="h-5 w-5" />
                                     </Button>
@@ -375,15 +600,20 @@ export default function MessagesPage() {
                                         onChange={(e) => setNewMessage(e.target.value)}
                                         placeholder="Type a message..."
                                         className="flex-1 bg-transparent border-none focus-visible:ring-0 text-gray-700 shadow-none h-10"
+                                        disabled={sending}
                                     />
 
                                     <div className="flex items-center gap-1 pr-1">
                                         <Button
                                             type="submit"
                                             className="bg-[#ff6a00] hover:bg-[#e65e00] text-white rounded-xl h-10 w-10 p-0 shadow-lg shadow-orange-500/20"
-                                            disabled={!newMessage.trim()}
+                                            disabled={!newMessage.trim() || sending}
                                         >
-                                            <Send className="h-5 w-5" />
+                                            {sending ? (
+                                                <Loader2 className="h-5 w-5 animate-spin" />
+                                            ) : (
+                                                <Send className="h-5 w-5" />
+                                            )}
                                         </Button>
                                     </div>
                                 </form>

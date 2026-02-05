@@ -24,7 +24,8 @@ import {
   Filter,
   Grid,
   List,
-  ThumbsUp
+  ThumbsUp,
+  Loader2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -37,6 +38,10 @@ import {
 import { Textarea } from "../components/ui/textarea";
 
 import { useProductStore } from '../stores/sellerStore';
+import { sellerService, type SellerData } from '../services/sellerService';
+import { ProductService } from '../services/productService';
+import { reviewService } from '../services/reviewService';
+import type { ProductWithSeller } from '@/types/database.types';
 
 interface Reply {
   id: number;
@@ -48,7 +53,7 @@ interface Reply {
 }
 
 interface Review {
-  id: number;
+  id: string;
   author: string;
   avatar: string;
   rating: number;
@@ -57,6 +62,9 @@ interface Review {
   helpfulCount: number;
   isLiked?: boolean;
   replies: Reply[];
+  productName?: string;
+  productImage?: string;
+  images?: string[];
 }
 
 export default function SellerStorefrontPage() {
@@ -76,24 +84,23 @@ export default function SellerStorefrontPage() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [sortBy, setSortBy] = useState('popular');
   const [reviewFilter, setReviewFilter] = useState('all');
-  const [replyingTo, setReplyingTo] = useState<number | null>(null);
+  const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
 
-  const [reviews, setReviews] = useState<Review[]>(
-    Array.from({ length: 5 }).map((_, i) => ({
-      id: i + 1,
-      author: "Maria S.",
-      avatar: `https://images.unsplash.com/photo-${1594750108750 + i}?w=40&h=40&fit=crop&crop=face`,
-      rating: 5,
-      date: "2 days ago",
-      content: "Excellent seller! Fast shipping and product exactly as described. Highly recommended! The packaging was secure and the item arrived in perfect condition.",
-      helpfulCount: 12,
-      isLiked: false,
-      replies: []
-    }))
-  );
+  // Real data state
+  const [realSeller, setRealSeller] = useState<SellerData | null>(null);
+  const [realProducts, setRealProducts] = useState<ProductWithSeller[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [realReviews, setRealReviews] = useState<Review[]>([]);
+  const [reviewStats, setReviewStats] = useState<{ total: number; avgRating: number; distribution: number[] }>({
+    total: 0,
+    avgRating: 0,
+    distribution: [0, 0, 0, 0, 0] // 1-5 stars
+  });
 
-  const handleToggleLike = (reviewId: number) => {
+  const [reviews, setReviews] = useState<Review[]>([]);
+
+  const handleToggleLike = (reviewId: string) => {
     setReviews(prev => prev.map(review => {
       if (review.id === reviewId) {
         return {
@@ -106,7 +113,7 @@ export default function SellerStorefrontPage() {
     }));
   };
 
-  const handlePostReply = (reviewId: number) => {
+  const handlePostReply = (reviewId: string) => {
     if (!replyText.trim()) return;
 
     setReviews(prev => prev.map(review => {
@@ -130,16 +137,126 @@ export default function SellerStorefrontPage() {
     setReplyingTo(null);
   };
 
-  // Get seller data
+  // Fetch real seller and products from database
+  useEffect(() => {
+    const fetchSellerData = async () => {
+      if (!sellerId) return;
+      
+      setLoading(true);
+      try {
+        // Fetch seller data
+        const sellerData = await sellerService.getStoreById(sellerId);
+        if (sellerData) {
+          setRealSeller(sellerData);
+        }
+
+        // Fetch products for this seller - use 'approved' status for public view
+        const productsData = await ProductService.getInstance().getProducts({
+          sellerId: sellerId,
+          isActive: true,
+          approvalStatus: 'approved'
+        });
+        if (productsData && productsData.length > 0) {
+          setRealProducts(productsData);
+        }
+
+        // Fetch real reviews for this seller
+        try {
+          const reviewsData = await reviewService.getSellerReviews(sellerId);
+          if (reviewsData && reviewsData.length > 0) {
+            // Map database reviews to UI format
+            const mappedReviews: Review[] = reviewsData.map((r: any) => ({
+              id: r.id,
+              author: r.buyer?.full_name || 'Anonymous Buyer',
+              avatar: r.buyer?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(r.buyer?.full_name || 'A')}&background=FF6A00&color=fff`,
+              rating: r.rating,
+              date: formatRelativeDate(r.created_at),
+              content: r.comment || 'Great product!',
+              helpfulCount: r.helpful_count || 0,
+              isLiked: false,
+              replies: r.seller_reply ? [{
+                id: 1,
+                text: typeof r.seller_reply === 'string' ? r.seller_reply : r.seller_reply.text || '',
+                author: 'Seller',
+                date: r.seller_reply_at ? formatRelativeDate(r.seller_reply_at) : 'Recently',
+                avatar: sellerData?.business_permit_url || 'https://ui-avatars.com/api/?name=S&background=FF6A00&color=fff',
+                isSeller: true
+              }] : [],
+              productName: r.product?.name || undefined,
+              productImage: r.product?.images?.[0] || undefined,
+              images: r.images || []
+            }));
+            
+            setRealReviews(mappedReviews);
+            setReviews(mappedReviews);
+
+            // Calculate review statistics
+            const total = mappedReviews.length;
+            const avgRating = total > 0 
+              ? mappedReviews.reduce((sum, r) => sum + r.rating, 0) / total 
+              : 0;
+            const distribution = [0, 0, 0, 0, 0];
+            mappedReviews.forEach(r => {
+              if (r.rating >= 1 && r.rating <= 5) {
+                distribution[r.rating - 1]++;
+              }
+            });
+            setReviewStats({ total, avgRating, distribution });
+          }
+        } catch (reviewError) {
+          console.error('Error fetching reviews:', reviewError);
+        }
+      } catch (error) {
+        console.error('Error fetching seller data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSellerData();
+  }, [sellerId]);
+
+  // Helper function to format relative dates
+  const formatRelativeDate = (dateString: string): string => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return `${diffDays} days ago`;
+    if (diffDays < 30) return `${Math.floor(diffDays / 7)} week${diffDays >= 14 ? 's' : ''} ago`;
+    if (diffDays < 365) return `${Math.floor(diffDays / 30)} month${diffDays >= 60 ? 's' : ''} ago`;
+    return `${Math.floor(diffDays / 365)} year${diffDays >= 730 ? 's' : ''} ago`;
+  };
+
+  // Get seller data - prioritize real data
   const demoSeller = demoSellers.find(s => s.id === sellerId);
 
   // Try to find seller from products if not in demo
   const dbSellerProduct = !demoSeller ? allProducts.find(p => p.sellerId === sellerId) : null;
 
-  const seller = demoSeller || (dbSellerProduct ? {
+  // Build seller object from real data or fallback to demo
+  const seller = realSeller ? {
+    id: realSeller.id,
+    name: realSeller.business_name || 'Verified Seller',
+    avatar: realSeller.profile_picture || 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=150&h=150&fit=crop',
+    rating: (realSeller as any).rating || 5.0,
+    totalReviews: (realSeller as any).products_count || 0,
+    followers: 0,
+    isVerified: realSeller.is_verified || false,
+    description: realSeller.business_description || 'Welcome to our store!',
+    location: realSeller.city || realSeller.region || 'Philippines',
+    established: realSeller.created_at ? new Date(realSeller.created_at).getFullYear().toString() : '2024',
+    badges: realSeller.is_verified ? ['Verified Seller'] : [],
+    responseTime: '< 24 hours',
+    categories: realSeller.product_categories || ['General'],
+    products: []
+  } : demoSeller || (dbSellerProduct ? {
     id: dbSellerProduct.sellerId,
     name: dbSellerProduct.sellerName || "Verified Seller",
-    avatar: 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=150&h=150&fit=crop', // Default avatar
+    avatar: 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=150&h=150&fit=crop',
     rating: dbSellerProduct.sellerRating || 5.0,
     totalReviews: 10,
     followers: 5,
@@ -159,7 +276,7 @@ export default function SellerStorefrontPage() {
     }
   }, [seller, addViewedSeller]);
 
-  // Demo products for the seller
+  // Demo products for the seller (fallback only)
   const demoProducts = [
     {
       id: 'prod-1',
@@ -196,9 +313,24 @@ export default function SellerStorefrontPage() {
     }
   ];
 
+  // Map real products to display format
+  const displayProducts = realProducts.length > 0 
+    ? realProducts.map(p => ({
+        id: p.id,
+        name: p.name || 'Untitled Product',
+        price: p.price || 0,
+        originalPrice: p.original_price || undefined,
+        image: p.primary_image || (p.images && p.images[0]) || 'https://images.unsplash.com/photo-1560393464-5c69a73c5770?w=400&h=400&fit=crop',
+        rating: p.rating || 5.0,
+        sold: p.sales_count || 0,
+        category: p.category || 'General',
+        isFreeShipping: p.is_free_shipping || false
+      }))
+    : demoProducts;
+
   const filteredProducts = selectedCategory === 'all'
-    ? demoProducts
-    : demoProducts.filter(p => p.category === selectedCategory);
+    ? displayProducts
+    : displayProducts.filter(p => p.category === selectedCategory);
 
   const handleAddToCart = (product: any) => {
     const cartProduct = {
@@ -214,6 +346,21 @@ export default function SellerStorefrontPage() {
     };
     addToCart(cartProduct, 1);
   };
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Header hideSearch />
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="flex flex-col items-center gap-4">
+            <Loader2 className="w-8 h-8 animate-spin text-[#FF6A00]" />
+            <p className="text-gray-500">Loading store...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -523,39 +670,51 @@ export default function SellerStorefrontPage() {
               <div className="md:col-span-5 lg:col-span-4 sticky top-36">
                 <div>
                   <div className="text-center mb-2">
-                    <div className="text-4xl font-bold text-gray-900 leading-none mb-1">{seller.rating}</div>
+                    <div className="text-4xl font-bold text-gray-900 leading-none mb-1">
+                      {reviewStats.total > 0 ? reviewStats.avgRating.toFixed(1) : seller.rating}
+                    </div>
                     <div className="flex items-center justify-center gap-1 mb-1">
                       {[...Array(5)].map((_, i) => (
                         <Star
                           key={i}
                           className={cn(
                             "h-3 w-3",
-                            i < Math.floor(seller.rating) ? "fill-current text-yellow-400" : "text-gray-300"
+                            i < Math.floor(reviewStats.total > 0 ? reviewStats.avgRating : seller.rating) 
+                              ? "fill-current text-yellow-400" 
+                              : "text-gray-300"
                           )}
                         />
                       ))}
                     </div>
-                    <div className="text-xs text-gray-500 font-medium">{seller.totalReviews.toLocaleString()} reviews</div>
+                    <div className="text-xs text-gray-500 font-medium">
+                      {reviewStats.total > 0 ? reviewStats.total.toLocaleString() : seller.totalReviews.toLocaleString()} reviews
+                    </div>
                   </div>
 
                   <div className="space-y-1">
-                    {[5, 4, 3, 2, 1].map((star) => (
-                      <div key={star} className="flex items-center gap-3">
-                        <div className="flex items-center justify-end gap-1.5 w-12 shrink-0">
-                          <span className="text-sm font-medium text-gray-700">{star}</span>
-                          <Star className="h-3 w-3 fill-current text-yellow-400" />
+                    {[5, 4, 3, 2, 1].map((star) => {
+                      const count = reviewStats.distribution[star - 1] || 0;
+                      const percentage = reviewStats.total > 0 
+                        ? Math.round((count / reviewStats.total) * 100) 
+                        : (star === 5 ? 70 : star === 4 ? 20 : star === 3 ? 6 : star === 2 ? 3 : 1);
+                      return (
+                        <div key={star} className="flex items-center gap-3">
+                          <div className="flex items-center justify-end gap-1.5 w-12 shrink-0">
+                            <span className="text-sm font-medium text-gray-700">{star}</span>
+                            <Star className="h-3 w-3 fill-current text-yellow-400" />
+                          </div>
+                          <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-yellow-400 rounded-full"
+                              style={{ width: `${percentage}%` }}
+                            />
+                          </div>
+                          <span className="text-xs text-gray-400 w-8 text-right tabular-nums">
+                            {percentage}%
+                          </span>
                         </div>
-                        <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-yellow-400 rounded-full"
-                            style={{ width: `${star === 5 ? 70 : star === 4 ? 20 : star === 3 ? 6 : star === 2 ? 3 : 1}%` }}
-                          />
-                        </div>
-                        <span className="text-xs text-gray-400 w-8 text-right tabular-nums">
-                          {star === 5 ? '70%' : star === 4 ? '20%' : star === 3 ? '6%' : star === 2 ? '3%' : '1%'}
-                        </span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               </div>
@@ -580,7 +739,31 @@ export default function SellerStorefrontPage() {
                   ))}
                 </div>
 
-                {reviews.map((review) => (
+                {/* Filter reviews based on selected filter */}
+                {(() => {
+                  const filteredReviews = reviews.filter(review => {
+                    if (reviewFilter === 'all') return true;
+                    if (reviewFilter === 'media') return review.images && review.images.length > 0;
+                    return review.rating === parseInt(reviewFilter);
+                  });
+
+                  if (filteredReviews.length === 0) {
+                    return (
+                      <div className="text-center py-12">
+                        <div className="text-gray-400 mb-2">
+                          <Star className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                        </div>
+                        <h3 className="text-lg font-semibold text-gray-600 mb-2">No Reviews Yet</h3>
+                        <p className="text-gray-500 text-sm">
+                          {reviewFilter === 'all' 
+                            ? 'Be the first to review products from this store!'
+                            : `No ${reviewFilter === 'media' ? 'reviews with photos' : `${reviewFilter}-star reviews`} found.`}
+                        </p>
+                      </div>
+                    );
+                  }
+
+                  return filteredReviews.map((review) => (
                   <Card key={review.id} className="border-gray-100 shadow-sm hover:shadow-md transition-shadow">
                     <CardContent className="p-5">
                       <div className="flex items-start gap-4">
@@ -608,9 +791,39 @@ export default function SellerStorefrontPage() {
                             </div>
                           </div>
 
+                          {/* Product info if available */}
+                          {review.productName && (
+                            <div className="flex items-center gap-2 mb-2 bg-gray-50 rounded-lg p-2">
+                              {review.productImage && (
+                                <img 
+                                  src={review.productImage} 
+                                  alt={review.productName}
+                                  className="w-8 h-8 rounded object-cover"
+                                />
+                              )}
+                              <span className="text-xs text-gray-600">
+                                Purchased: <span className="font-medium text-gray-800">{review.productName}</span>
+                              </span>
+                            </div>
+                          )}
+
                           <p className="text-sm text-gray-600 mb-3 leading-relaxed">
                             {review.content}
                           </p>
+
+                          {/* Review Images if available */}
+                          {review.images && review.images.length > 0 && (
+                            <div className="flex gap-2 mb-3 flex-wrap">
+                              {review.images.map((img, idx) => (
+                                <img 
+                                  key={idx}
+                                  src={img} 
+                                  alt={`Review image ${idx + 1}`}
+                                  className="w-16 h-16 rounded-lg object-cover border border-gray-100 cursor-pointer hover:opacity-80 transition-opacity"
+                                />
+                              ))}
+                            </div>
+                          )}
 
                           {/* Existing Replies */}
                           {review.replies.length > 0 && (
@@ -619,6 +832,11 @@ export default function SellerStorefrontPage() {
                                 <div key={reply.id} className="bg-gray-50/50 p-3 rounded-lg">
                                   <div className="flex items-center gap-2 mb-1">
                                     <span className="font-semibold text-xs text-gray-900">{reply.author}</span>
+                                    {reply.isSeller && (
+                                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 bg-orange-50 text-orange-600 border-orange-200">
+                                        Seller
+                                      </Badge>
+                                    )}
                                     <span className="text-[10px] text-gray-400">{reply.date}</span>
                                   </div>
                                   <p className="text-xs text-gray-600 leading-relaxed">{reply.text}</p>
@@ -686,7 +904,8 @@ export default function SellerStorefrontPage() {
                       </div>
                     </CardContent>
                   </Card>
-                ))}
+                ));
+                })()}
               </div>
             </motion.div>
           </TabsContent>

@@ -16,7 +16,7 @@ const BazaarXCrossroadsHero = () => {
         mediaSrc="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQmZuouK6m6ZrZBycVXgyXEh5FcCkIk48iUPg&s"
         bgImageSrc="https://upload.wikimedia.org/wikipedia/commons/1/1c/Kashan_-_Timche-ye_Amin_od-Dowleh_-_20140512_-_JB.jpg"
         title="Your Modern Crossroads of Global Trade"
-        date="From global factories directly to your doorstep"
+        date="Inspired by ancient bazaars. Reimagined as the modern crossroads for global trade."
       />
     </div>
   );

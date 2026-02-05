@@ -2,7 +2,7 @@ import { motion } from 'framer-motion';
 
 export const POSLiteFeature = () => {
   return (
-    <section className="h-auto w-full flex items-center justify-center bg-[#FFF5F2]/80 py-16 sm:py-20 md:py-24 relative overflow-hidden border-y border-[#FF5722]/10">
+    <section className="h-auto w-full flex items-center justify-center bg-white py-16 sm:py-20 md:py-24 relative overflow-hidden border-y border-[#FF5722]/10">
 
       <div className="absolute -top-24 -right-24 w-64 h-64 sm:w-96 sm:h-96 bg-[#FF5722]/10 rounded-full blur-3xl opacity-50" />
       <div className="absolute -bottom-24 -left-24 w-64 h-64 sm:w-96 sm:h-96 bg-[#FF5722]/10 rounded-full blur-3xl opacity-50" />
@@ -27,7 +27,7 @@ export const POSLiteFeature = () => {
               <span className="text-[#FF6A00]">Synchronized.</span>
             </h2>
 
-            <p className="text-gray-600 text-base sm:text-lg leading-relaxed max-w-lg mx-auto lg:mx-0">
+            <p className="text-gray-600 text-base sm:text-lg leading-relaxed max-w-lg mx-auto lg:mx-0 text-justify">
               Selling at a weekend bazaar or through FB Messenger? Use <strong>POS-Lite</strong> to
               deduct stock manually and keep your online inventory 100% accurate.
             </p>

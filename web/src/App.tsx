@@ -4,6 +4,7 @@ import { Toaster } from "./components/ui/toaster";
 import ScrollToTop from "./components/ScrollToTop";
 // import { OrderNotificationModal } from './components/OrderNotificationModal'; // Disabled for testing
 import HomePage from "./pages/HomePage";
+import SellerLandingPage from "./pages/SellerLandingPage";
 import ShopPage from "./pages/ShopPage";
 import SearchPage from "./pages/SearchPage";
 import CollectionsPage from "./pages/CollectionsPage";
@@ -15,6 +16,7 @@ import OrdersPage from "./pages/OrdersPage";
 import OrderDetailPage from "./pages/OrderDetailPage";
 import DeliveryTrackingPage from "./pages/DeliveryTrackingPage";
 import RegistryAndGiftingPage from "./pages/RegistryAndGiftingPage";
+import SharedRegistryPage from "./pages/SharedRegistryPage";
 
 // Enhanced Buyer Pages
 import EnhancedCartPage from "./pages/EnhancedCartPage";
@@ -26,6 +28,7 @@ import BuyerFollowingPage from "./pages/BuyerFollowingPage";
 import BuyerSettingsPage from "./pages/BuyerSettingsPage";
 import BuyerLoginPage from "./pages/BuyerLoginPage";
 import BuyerSignupPage from "./pages/BuyerSignupPage";
+import BuyerOnboardingPage from "@/pages/BuyerOnboardingPage";
 import MessagesPage from "./pages/MessagesPage";
 import { ProtectedBuyerRoute } from "./components/ProtectedBuyerRoute";
 
@@ -39,6 +42,7 @@ import { SellerStoreProfile } from "./pages/SellerStoreProfile";
 import { SellerEarnings } from "./pages/SellerEarnings";
 import { SellerProducts, AddProduct } from "./pages/SellerProducts";
 import { SellerOrders } from "./pages/SellerOrders";
+import SellerNotifications from "./pages/SellerNotifications";
 import { SellerReturns } from "./pages/SellerReturns";
 import { SellerReviews } from "./pages/SellerReviews";
 import { SellerAnalytics } from "./pages/SellerAnalytics";
@@ -67,23 +71,34 @@ import AdminFlashSales from "./pages/AdminFlashSales";
 import AdminPayouts from "./pages/AdminPayouts";
 import AdminProfile from "./pages/AdminProfile";
 import AdminProductApprovals from "./pages/AdminProductApprovals";
+import { ChatBubble } from "./components/ChatBubbleAI";
 
 function App() {
   return (
     <>
       <Router>
         <ScrollToTop />
+        <ChatBubble />
         <Routes>
           {/* Buyer Routes */}
           <Route path="/" element={<HomePage />} />
+          <Route path="/sell" element={<SellerLandingPage />} />
           <Route path="/login" element={<BuyerLoginPage />} />
           <Route path="/signup" element={<BuyerSignupPage />} />
+          <Route path="/buyer-onboarding"
+            element={
+              <ProtectedBuyerRoute>
+                <BuyerOnboardingPage />
+              </ProtectedBuyerRoute>
+            }
+          />
           <Route path="/shop" element={<ShopPage />} />
           <Route path="/search" element={<SearchPage />} />
           <Route path="/collections" element={<CollectionsPage />} />
           <Route path="/stores" element={<StoresPage />} />
           <Route path="/product/:id" element={<ProductDetailPage />} />
           <Route path="/registry" element={<RegistryAndGiftingPage />} />
+          <Route path="/registry/:id" element={<SharedRegistryPage />} />
           <Route path="/enhanced-cart"
             element={
               <ProtectedBuyerRoute>
@@ -236,6 +251,14 @@ function App() {
             element={
               <ProtectedSellerRoute>
                 <SellerOrders />
+              </ProtectedSellerRoute>
+            }
+          />
+          <Route
+            path="/seller/notifications"
+            element={
+              <ProtectedSellerRoute>
+                <SellerNotifications />
               </ProtectedSellerRoute>
             }
           />

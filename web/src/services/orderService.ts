@@ -6,12 +6,160 @@
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import type { Order, Database } from '@/types/database.types';
 import { reviewService } from './reviewService';
+import { orderNotificationService } from './orderNotificationService';
+import { notificationService } from './notificationService';
 
 export type OrderInsert = Database['public']['Tables']['orders']['Insert'];
 export type OrderItemInsert = Database['public']['Tables']['order_items']['Insert'];
 
 export class OrderService {
   private mockOrders: Order[] = [];
+
+  /**
+   * Create a POS (Point of Sale) offline order
+   * This saves directly to Supabase and is used for walk-in customers
+   * 
+   * IMPORTANT: Run this SQL in Supabase to allow POS orders:
+   * ALTER TABLE orders ALTER COLUMN buyer_id DROP NOT NULL;
+   */
+  async createPOSOrder(
+    sellerId: string,
+    sellerName: string,
+    items: {
+      productId: string;
+      productName: string;
+      quantity: number;
+      price: number;
+      image: string;
+      selectedColor?: string;
+      selectedSize?: string;
+    }[],
+    total: number,
+    note?: string
+  ): Promise<{ orderId: string; orderNumber: string } | null> {
+    // Generate order number
+    const orderNumber = `POS-${Date.now().toString().slice(-8)}`;
+    const orderId = crypto.randomUUID();
+
+    // Create order data for Supabase
+    // buyer_id is NULL for walk-in customers (requires DB to allow NULL)
+    const orderData = {
+      id: orderId,
+      order_number: orderNumber,
+      buyer_id: null, // Walk-in customers - NULL for POS orders
+      seller_id: sellerId,
+      buyer_name: 'Walk-in Customer',
+      buyer_email: 'pos@walkin.local',
+      buyer_phone: null,
+      order_type: 'OFFLINE' as const,
+      pos_note: note || 'POS Sale',
+      subtotal: total,
+      discount_amount: 0,
+      shipping_cost: 0,
+      tax_amount: 0,
+      total_amount: total,
+      currency: 'PHP',
+      status: 'delivered',
+      payment_status: 'paid',
+      shipping_address: {
+        fullName: 'Walk-in Customer',
+        street: 'In-Store Purchase',
+        city: sellerName,
+        province: 'POS',
+        postalCode: '0000',
+        phone: 'N/A'
+      },
+      shipping_method: null,
+      tracking_number: null,
+      estimated_delivery_date: null,
+      actual_delivery_date: new Date().toISOString(),
+      delivery_instructions: null,
+      payment_method: { type: 'cash', details: 'POS Cash Payment' },
+      payment_reference: `CASH-${Date.now()}`,
+      payment_date: new Date().toISOString(),
+      promo_code: null,
+      voucher_id: null,
+      notes: note || null,
+    };
+
+    // Create order items
+    const orderItems = items.map((item, index) => ({
+      id: crypto.randomUUID(),
+      order_id: orderId,
+      product_id: item.productId,
+      product_name: item.productName,
+      product_images: [item.image],
+      price: item.price,
+      quantity: item.quantity,
+      subtotal: item.price * item.quantity,
+      selected_variant: item.selectedColor || item.selectedSize ? {
+        color: item.selectedColor,
+        size: item.selectedSize
+      } : null,
+    }));
+
+    if (!isSupabaseConfigured()) {
+      // Mock mode
+      const mockOrder = {
+        ...orderData,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      } as unknown as Order;
+      this.mockOrders.push(mockOrder);
+      console.log('📝 Mock POS order created:', orderNumber);
+      return { orderId, orderNumber };
+    }
+
+    try {
+      // Insert order (buyer_id is NULL for walk-in customers)
+      const { error: orderError } = await supabase
+        .from('orders')
+        .insert(orderData);
+
+      if (orderError) {
+        console.error('Error creating POS order:', orderError);
+        
+        // If error is about buyer_id constraint, provide helpful message
+        if (orderError.message?.includes('buyer_id') || orderError.code === '23503') {
+          throw new Error(
+            'Database requires buyer_id. Please run this SQL in Supabase:\n' +
+            'ALTER TABLE orders ALTER COLUMN buyer_id DROP NOT NULL;'
+          );
+        }
+        throw orderError;
+      }
+
+      // Insert order items
+      const { error: itemsError } = await supabase
+        .from('order_items')
+        .insert(orderItems);
+
+      if (itemsError) {
+        console.error('Error creating order items:', itemsError);
+        // Rollback: delete the order
+        await supabase.from('orders').delete().eq('id', orderId);
+        throw itemsError;
+      }
+
+      // Deduct stock for each item
+      for (const item of items) {
+        const { error: stockError } = await supabase.rpc('decrement_product_stock', {
+          p_product_id: item.productId,
+          p_quantity: item.quantity
+        });
+
+        if (stockError) {
+          console.warn('Stock deduction failed for:', item.productName, stockError);
+        }
+      }
+
+      console.log('✅ POS order saved to Supabase:', orderNumber);
+      return { orderId, orderNumber };
+    } catch (error) {
+      console.error('Failed to create POS order:', error);
+      throw new Error('Failed to create POS order. Please try again.');
+    }
+  }
 
   /**
    * Create a new order with items
@@ -124,6 +272,53 @@ export class OrderService {
   }
 
   /**
+   * Update order details (buyer name, email, notes)
+   */
+  async updateOrderDetails(
+    orderId: string,
+    details: {
+      buyer_name?: string;
+      buyer_email?: string;
+      notes?: string;
+    }
+  ): Promise<boolean> {
+    if (!isSupabaseConfigured()) {
+      const order = this.mockOrders.find(o => o.id === orderId);
+      if (order) {
+        if (details.buyer_name) order.buyer_name = details.buyer_name;
+        if (details.buyer_email) order.buyer_email = details.buyer_email;
+        if (details.notes !== undefined) (order as any).notes = details.notes;
+        order.updated_at = new Date().toISOString();
+        return true;
+      }
+      return false;
+    }
+
+    try {
+      const updateData: any = {
+        updated_at: new Date().toISOString(),
+      };
+
+      if (details.buyer_name !== undefined) updateData.buyer_name = details.buyer_name;
+      if (details.buyer_email !== undefined) updateData.buyer_email = details.buyer_email;
+      if (details.notes !== undefined) updateData.notes = details.notes;
+
+      const { error } = await supabase
+        .from('orders')
+        .update(updateData)
+        .eq('id', orderId);
+
+      if (error) throw error;
+      
+      console.log(`[OrderService] ✅ Order details updated: ${orderId}`);
+      return true;
+    } catch (error) {
+      console.error('Error updating order details:', error);
+      throw new Error('Failed to update order details');
+    }
+  }
+
+  /**
    * Update order status
    */
   async updateOrderStatus(
@@ -144,6 +339,12 @@ export class OrderService {
     }
 
     try {
+      // Get order first to get buyer/seller info
+      const order = await this.getOrderById(orderId);
+      if (!order) {
+        throw new Error('Order not found');
+      }
+
       // Update order
       const { error: orderError } = await supabase
         .from('orders')
@@ -165,6 +366,39 @@ export class OrderService {
         });
 
       if (historyError) throw historyError;
+
+      // Send notification to buyer if seller made the update
+      if (userRole === 'seller' && order.buyer_id && order.seller_id) {
+        // Send chat message
+        await orderNotificationService.sendStatusUpdateNotification(
+          orderId,
+          status,
+          order.seller_id,
+          order.buyer_id
+        );
+
+        // Send proper notification (shows in notification bell)
+        const statusMessages: Record<string, string> = {
+          confirmed: `Your order #${(order as any).order_number || orderId.substring(0, 8)} has been confirmed by the seller.`,
+          processing: `Your order #${(order as any).order_number || orderId.substring(0, 8)} is now being prepared.`,
+          shipped: `Your order #${(order as any).order_number || orderId.substring(0, 8)} has been shipped!`,
+          delivered: `Your order #${(order as any).order_number || orderId.substring(0, 8)} has been delivered!`,
+          cancelled: `Your order #${(order as any).order_number || orderId.substring(0, 8)} has been cancelled.`,
+        };
+
+        const message = statusMessages[status] || `Your order status has been updated to ${status}.`;
+
+        await notificationService.notifyBuyerOrderStatus({
+          buyerId: order.buyer_id,
+          orderId: orderId,
+          orderNumber: (order as any).order_number || orderId.substring(0, 8),
+          status: status,
+          message: message,
+        }).catch(err => {
+          console.error('Failed to send buyer notification:', err);
+        });
+      }
+
       return true;
     } catch (error) {
       console.error('Error updating order status:', error);
@@ -235,6 +469,29 @@ export class OrderService {
         console.warn('Failed to create status history:', historyError);
       }
 
+      // Send notification to buyer with tracking number
+      if (order.buyer_id) {
+        // Send chat message
+        await orderNotificationService.sendStatusUpdateNotification(
+          orderId,
+          'shipped',
+          sellerId,
+          order.buyer_id,
+          trackingNumber
+        );
+
+        // Send proper notification (shows in notification bell)
+        await notificationService.notifyBuyerOrderStatus({
+          buyerId: order.buyer_id,
+          orderId: orderId,
+          orderNumber: (order as any).order_number || orderId.substring(0, 8),
+          status: 'shipped',
+          message: `Your order #${(order as any).order_number || orderId.substring(0, 8)} has been shipped! Tracking: ${trackingNumber}`,
+        }).catch(err => {
+          console.error('Failed to send shipped notification:', err);
+        });
+      }
+
       return true;
     } catch (error) {
       console.error('Error marking order as shipped:', error);
@@ -298,6 +555,28 @@ export class OrderService {
 
       if (historyError) {
         console.warn('Failed to create status history:', historyError);
+      }
+
+      // Send delivery notification to buyer
+      if (order.buyer_id) {
+        // Send chat message
+        await orderNotificationService.sendStatusUpdateNotification(
+          orderId,
+          'delivered',
+          sellerId,
+          order.buyer_id
+        );
+
+        // Send proper notification (shows in notification bell)
+        await notificationService.notifyBuyerOrderStatus({
+          buyerId: order.buyer_id,
+          orderId: orderId,
+          orderNumber: (order as any).order_number || orderId.substring(0, 8),
+          status: 'delivered',
+          message: `Your order #${(order as any).order_number || orderId.substring(0, 8)} has been delivered! Enjoy your purchase!`,
+        }).catch(err => {
+          console.error('Failed to send delivered notification:', err);
+        });
       }
 
       return true;

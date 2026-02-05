@@ -1,29 +1,31 @@
 import React from 'react';
 import Header from "../components/Header";
-import { Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Plus, Globe, Gift, RotateCcw } from 'lucide-react';
-import { useState } from 'react';
-import { RegistryDetailModal, Product } from '../components/RegistryDetailModal';
+import { RegistryDetailModal } from '../components/RegistryDetailModal';
 import { CreateRegistryModal } from '../components/CreateRegistryModal';
+import { useBuyerStore } from '../stores/buyerStore';
 
-interface RegistryItem {
-    id: string;
-    title: string;
-    sharedDate: string;
-    imageUrl: string;
-    category?: string;
-    products?: Product[];
-}
+// interface RegistryItem definition kept or unused if I use the store's type. 
+// Ideally should import from store but for now locally defined is fine if shapes match.
+// I will just keep it or let it act as alias.
+// No change needed here, just context note.
+import { RegistryItem, Product } from '../stores/buyerStore';
+
+// Remapping Component Props if needed or casting
+// But RegistryDetailModal expects ITS own Product type (string price)
+// I should update RegistryAndGiftingPage to fully use store types, 
+// AND cast when passing to RegistryDetailModal if minimal changes desired, 
+// OR update RegistryDetailModal to accept store types.
+// Updating RegistryDetailModal is cleaner but might break other things.
+// Casting in RegistryAndGiftingPage is safer for now.
 const RegistryAndGiftingPage = () => {
+    const { registries, createRegistry, addToRegistry } = useBuyerStore();
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [selectedRegistry, setSelectedRegistry] = useState<RegistryItem | null>(null);
     const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
-
-    const [userRegistries, setUserRegistries] = useState<RegistryItem[]>([
-        { id: '1', title: 'Graduation list 2026', sharedDate: 'Jan 28, 2026', imageUrl: '/public/gradGift.jpeg' },
-        { id: '2', title: 'Graduation list 2026', sharedDate: 'Jan 30, 2026', imageUrl: '/public/gradGift.jpeg' },
-    ]);
 
     const handleCreateRegistry = (name: string, category: string) => {
         const newRegistry: RegistryItem = {
@@ -31,43 +33,64 @@ const RegistryAndGiftingPage = () => {
             title: name,
             category: category,
             sharedDate: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-            imageUrl: '/public/gradGift.jpeg',
+            imageUrl: '/gradGift.jpeg',
             products: [],
         };
-        setUserRegistries([newRegistry, ...userRegistries]);
+        createRegistry(newRegistry);
     };
 
     const handleAddProductToRegistry = (registryId: string, productName: string) => {
-        const newProduct: Product = {
+        // Create a mock product that satisfies the store's Product interface
+        // We cast to any because creating a full valid Product with all fields is tedious for this mock
+        const newProduct: any = {
             id: Date.now().toString(),
             name: productName,
-            price: '$0.00', // Placeholder
+            price: 0,
             image: '',
-        };
-
-        const updatedRegistries = userRegistries.map(reg => {
-            if (reg.id === registryId) {
-                return {
-                    ...reg,
-                    products: [...(reg.products || []), newProduct]
-                };
+            images: [],
+            sellerId: 'demo-seller',
+            description: 'Registry Item',
+            category: 'Gift',
+            rating: 0,
+            totalReviews: 0,
+            sold: 0,
+            isFreeShipping: false,
+            location: 'Manila',
+            specifications: {},
+            variants: [],
+            seller: {
+                id: 'demo-seller',
+                name: 'Verified Seller',
+                avatar: '',
+                rating: 5,
+                totalReviews: 10,
+                followers: 100,
+                isVerified: true,
+                description: '',
+                location: '',
+                established: '',
+                products: [],
+                badges: [],
+                responseTime: '',
+                categories: []
             }
-            return reg;
-        });
-
-        setUserRegistries(updatedRegistries);
-
-        // Update selected registry to reflect changes immediately in modal
-        if (selectedRegistry && selectedRegistry.id === registryId) {
-            const updated = updatedRegistries.find(r => r.id === registryId) || null;
-            setSelectedRegistry(updated);
-        }
+        };
+        addToRegistry(registryId, newProduct);
     };
 
     const handleRegistryClick = (item: RegistryItem) => {
         setSelectedRegistry(item);
         setIsDetailModalOpen(true);
     };
+    const location = useLocation();
+
+    // Check for navigation state to open create modal
+    useEffect(() => {
+        if (location.state && (location.state as any).openCreateModal) {
+            setIsCreateModalOpen(true);
+        }
+    }, [location]);
+
     return (
         <div className="min-h-screen bg-gray-50">
             <Header />
@@ -123,9 +146,6 @@ const RegistryAndGiftingPage = () => {
                             >
                                 Create a registry
                             </button>
-                            <button className="w-full sm:w-auto px-8 py-3 bg-white border border-gray-300 rounded-full text-gray-700 font-medium hover:bg-gray-50 hover:border-gray-400 transition-all shadow-sm">
-                                Find a registry
-                            </button>
                         </div>
                     </motion.div>
                 </div>
@@ -163,10 +183,10 @@ const RegistryAndGiftingPage = () => {
                         </button>
                     </div>
                     <div className="flex flex-wrap gap-4">
-                        {userRegistries.map((list) => (
+                        {registries.map((list) => (
                             <div
                                 key={list.id}
-                                onClick={() => handleRegistryClick(list)}
+                                onClick={() => handleRegistryClick(list as any)}
                                 className="flex items-center w-full md:w-80 p-3 border border-gray-200 rounded-lg hover:shadow-sm cursor-pointer transition bg-white"
                             >
                                 <img src={list.imageUrl} alt="Gift list" className="w-12 h-12 rounded object-cover mr-4" />
@@ -209,7 +229,7 @@ const RegistryAndGiftingPage = () => {
                 <RegistryDetailModal
                     isOpen={isDetailModalOpen}
                     onClose={() => setIsDetailModalOpen(false)}
-                    registry={selectedRegistry}
+                    registry={selectedRegistry as any}
                     onAddProduct={handleAddProductToRegistry}
                 />
             </div>

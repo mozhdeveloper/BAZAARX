@@ -26,7 +26,10 @@ import {
   Eye,
   EyeOff,
   Save,
-  Loader2
+  Loader2,
+  Map,
+  LocateFixed,
+  Check
 } from 'lucide-react';
 import {
   Dialog,
@@ -41,6 +44,7 @@ import { useBuyerStore, Address } from '../stores/buyerStore';
 import { useToast } from '@/hooks/use-toast';
 import { regions, provinces, cities, barangays } from "select-philippines-address";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { AddressPicker } from '@/components/ui/address-picker';
 
 // Mock data
 const mockAddresses = [
@@ -115,8 +119,14 @@ export default function BuyerSettingsPage() {
     province: '',
     region: '',
     postalCode: '',
-    isDefault: false
+    isDefault: false,
+    coordinates: null as { lat: number; lng: number } | null,
+    landmark: '',
+    deliveryInstructions: '',
   });
+
+  // Map picker state
+  const [showMapPicker, setShowMapPicker] = useState(false);
 
   // Load regions on mount
   useEffect(() => {
@@ -206,7 +216,7 @@ export default function BuyerSettingsPage() {
         });
       }
 
-      const addressPayload = {
+      const addressPayload: any = {
         user_id: profile.id,
         label: newAddress.label,
         first_name: newAddress.firstName,
@@ -219,7 +229,14 @@ export default function BuyerSettingsPage() {
         region: newAddress.region,
         zip_code: newAddress.postalCode,
         is_default: newAddress.isDefault,
+        landmark: newAddress.landmark || null,
+        delivery_instructions: newAddress.deliveryInstructions || null,
       };
+
+      // Include coordinates if available
+      if (newAddress.coordinates) {
+        addressPayload.coordinates = newAddress.coordinates;
+      }
 
       if (editingId) {
         const updatedAddress = await addressService.updateAddress(editingId, addressPayload);
@@ -229,6 +246,7 @@ export default function BuyerSettingsPage() {
         addAddress(savedAddress);
       }
       setIsAddressOpen(false);
+      setShowMapPicker(false);
       toast({ title: editingId ? "Address updated" : "Address added" });
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -737,12 +755,67 @@ export default function BuyerSettingsPage() {
       </div>
       <BazaarFooter />
 
-      <Dialog open={isAddressOpen} onOpenChange={setIsAddressOpen}>
-        <DialogContent className="sm:max-w-[550px]">
+      <Dialog open={isAddressOpen} onOpenChange={(open) => { setIsAddressOpen(open); if (!open) setShowMapPicker(false); }}>
+        <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle>{editingId ? 'Edit Address' : 'Add New Address'}</DialogTitle>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
+
+          {/* Map Picker View */}
+          {showMapPicker ? (
+            <div className="flex-1 overflow-hidden" style={{ height: '450px' }}>
+              <AddressPicker
+                initialCoordinates={newAddress.coordinates || undefined}
+                onLocationSelect={(location) => {
+                  setNewAddress({
+                    ...newAddress,
+                    street: location.street || newAddress.street,
+                    barangay: location.barangay || newAddress.barangay,
+                    city: location.city || newAddress.city,
+                    province: location.province || newAddress.province,
+                    region: location.region || newAddress.region,
+                    postalCode: location.postalCode || newAddress.postalCode,
+                    coordinates: location.coordinates,
+                  });
+                  setShowMapPicker(false);
+                }}
+                onClose={() => setShowMapPicker(false)}
+              />
+            </div>
+          ) : (
+          <div className="grid gap-4 py-4 flex-1 overflow-y-auto">
+            {/* Map Picker Button */}
+            <div className="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-xl p-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="bg-orange-500 rounded-full p-2">
+                    <Map className="w-4 h-4 text-white" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-gray-900 text-sm">Pick from Map</p>
+                    <p className="text-xs text-gray-500">Use GPS or search location</p>
+                  </div>
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setShowMapPicker(true)}
+                  className="border-orange-300 text-orange-600 hover:bg-orange-50"
+                >
+                  <LocateFixed className="w-4 h-4 mr-1" />
+                  Open Map
+                </Button>
+              </div>
+              {newAddress.coordinates && (
+                <div className="mt-2 pt-2 border-t border-orange-200">
+                  <p className="text-xs text-green-600 flex items-center gap-1">
+                    <Check className="w-3 h-3" />
+                    Location: {newAddress.coordinates.lat.toFixed(4)}, {newAddress.coordinates.lng.toFixed(4)}
+                  </p>
+                </div>
+              )}
+            </div>
+
             {/* 1. Address Label & Phone Number */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -852,10 +925,35 @@ export default function BuyerSettingsPage() {
                   checked={newAddress.isDefault}
                   onCheckedChange={(checked) => setNewAddress({ ...newAddress, isDefault: checked })}
                 />
-                <Label htmlFor="set-default" className="cursor-pointer">Set as Default Address</Label>
+                <Label htmlFor="set-default" className="cursor-pointer">Set as Default</Label>
               </div>
             </div>
+
+            {/* Landmark (Optional) */}
+            <div className="space-y-2">
+              <Label htmlFor="landmark">Landmark (Optional)</Label>
+              <Input
+                id="landmark"
+                placeholder="Near SM Mall, In front of church, etc."
+                value={newAddress.landmark}
+                onChange={e => setNewAddress({ ...newAddress, landmark: e.target.value })}
+              />
+            </div>
+
+            {/* Delivery Instructions (Optional) */}
+            <div className="space-y-2">
+              <Label htmlFor="deliveryInstructions">Delivery Instructions (Optional)</Label>
+              <Input
+                id="deliveryInstructions"
+                placeholder="Gate code, leave at door, call upon arrival, etc."
+                value={newAddress.deliveryInstructions}
+                onChange={e => setNewAddress({ ...newAddress, deliveryInstructions: e.target.value })}
+              />
+            </div>
           </div>
+          )}
+
+          {!showMapPicker && (
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsAddressOpen(false)}>Cancel</Button>
             <Button onClick={handleSaveAddress} disabled={isSaving} className="bg-[#ff6a00] hover:bg-[#e65e00] text-white">
@@ -863,6 +961,7 @@ export default function BuyerSettingsPage() {
               {editingId ? 'Update Address' : 'Save Address'}
             </Button>
           </DialogFooter>
+          )}
         </DialogContent>
       </Dialog>
     </div>

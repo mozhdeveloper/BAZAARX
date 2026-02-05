@@ -134,6 +134,26 @@ export interface Database {
         Insert: Omit<Seller, 'created_at' | 'updated_at' | 'join_date'>;
         Update: Partial<Omit<Seller, 'id' | 'created_at' | 'join_date'>>;
       };
+      shop_followers: {
+        Row: {
+          id: string;
+          buyer_id: string;
+          seller_id: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          buyer_id: string;
+          seller_id: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          buyer_id?: string;
+          seller_id?: string;
+          created_at?: string;
+        };
+      };
     };
   };
 }

@@ -70,6 +70,8 @@ export function BuyerAuthModal({
         const result = await authService.signUp(email, password, {
           full_name: fullName,
           user_type: "buyer",
+          email: "",
+          password: ""
         });
 
         if (!result || !result.user) {
@@ -114,9 +116,13 @@ export function BuyerAuthModal({
         setIsSuccess(true);
         onAuthSuccess?.(user.id, email);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Authentication error:", err);
-      setError("Something went wrong. Please try again.");
+      if (err.message?.includes("User already registered") || err.message?.includes("already exists")) {
+        setError("This email is already registered. Please sign in instead.");
+      } else {
+        setError("Something went wrong. Please try again.");
+      }
     } finally {
       setIsLoading(false);
     }

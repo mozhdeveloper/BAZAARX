@@ -265,6 +265,128 @@ export class SellerService {
             throw new Error('Failed to update seller rating.');
         }
     }
+
+    /**
+     * Get approved/verified stores for public display
+     */
+    async getPublicStores(filters?: {
+        category?: string;
+        location?: string;
+        searchQuery?: string;
+        sortBy?: 'featured' | 'rating' | 'newest' | 'popular';
+        limit?: number;
+    }): Promise<(SellerData & { products_count?: number })[]> {
+        if (!isSupabaseConfigured()) {
+            console.warn('Supabase not configured - cannot fetch stores');
+            return [];
+        }
+
+        try {
+            let query = supabase
+                .from('sellers')
+                .select('*')
+                .eq('approval_status', 'approved')
+                .eq('is_verified', true);
+
+            // Apply search filter
+            if (filters?.searchQuery) {
+                query = query.or(`store_name.ilike.%${filters.searchQuery}%,store_description.ilike.%${filters.searchQuery}%`);
+            }
+
+            // Apply location filter
+            if (filters?.location && filters.location !== 'All') {
+                query = query.ilike('city', `%${filters.location}%`);
+            }
+
+            // Apply sorting
+            if (filters?.sortBy === 'rating') {
+                query = query.order('rating', { ascending: false });
+            } else if (filters?.sortBy === 'newest') {
+                query = query.order('created_at', { ascending: false });
+            } else if (filters?.sortBy === 'popular') {
+                query = query.order('total_sales', { ascending: false });
+            } else {
+                // Default: featured (by rating then sales)
+                query = query.order('rating', { ascending: false }).order('total_sales', { ascending: false });
+            }
+
+            if (filters?.limit) {
+                query = query.limit(filters.limit);
+            }
+
+            const { data: sellers, error } = await query;
+
+            if (error) throw error;
+            if (!sellers || sellers.length === 0) return [];
+
+            // Get product counts for each seller
+            const sellerIds = sellers.map(s => s.id);
+            const { data: productCounts, error: countError } = await supabase
+                .from('products')
+                .select('seller_id')
+                .in('seller_id', sellerIds)
+                .eq('is_active', true)
+                .eq('approval_status', 'ACTIVE_VERIFIED');
+
+            if (countError) {
+                console.warn('Error fetching product counts:', countError);
+            }
+
+            // Count products per seller
+            const countMap = new Map<string, number>();
+            productCounts?.forEach(p => {
+                countMap.set(p.seller_id, (countMap.get(p.seller_id) || 0) + 1);
+            });
+
+            return sellers.map(seller => ({
+                ...seller,
+                products_count: countMap.get(seller.id) || 0
+            }));
+        } catch (error) {
+            console.error('Error fetching public stores:', error);
+            return [];
+        }
+    }
+
+    /**
+     * Get a single store by ID with product count
+     */
+    async getStoreById(storeId: string): Promise<(SellerData & { products_count?: number }) | null> {
+        if (!isSupabaseConfigured()) {
+            return null;
+        }
+
+        try {
+            const { data: seller, error } = await supabase
+                .from('sellers')
+                .select('*')
+                .eq('id', storeId)
+                .single();
+
+            if (error) throw error;
+            if (!seller) return null;
+
+            // Get product count
+            const { count, error: countError } = await supabase
+                .from('products')
+                .select('*', { count: 'exact', head: true })
+                .eq('seller_id', storeId)
+                .eq('is_active', true)
+                .eq('approval_status', 'ACTIVE_VERIFIED');
+
+            if (countError) {
+                console.warn('Error fetching product count:', countError);
+            }
+
+            return {
+                ...seller,
+                products_count: count || 0
+            };
+        } catch (error) {
+            console.error('Error fetching store:', error);
+            return null;
+        }
+    }
 }
 
 export const sellerService = SellerService.getInstance();

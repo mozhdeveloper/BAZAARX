@@ -42,8 +42,8 @@ export function SellerLogin() {
   };
 
   const handleDemoLogin = () => {
-    setEmail('seller@bazaarph.com');
-    setPassword('password');
+    setEmail('active.sports@bazaarph.com');
+    setPassword('Seller123!');
   };
 
   return (
@@ -68,18 +68,31 @@ export function SellerLogin() {
             </div>
 
             {/* Quick Access Card */}
-            <div className="mb-6 p-4 bg-primary/5 rounded-2xl border border-primary/10 flex items-center justify-between">
-              <div>
-                <p className="text-[12px] font-bold text-primary uppercase tracking-widest mb-0.5">Quick Access</p>
-                <p className="text-xs font-bold text-[#0F172A]">Demo Seller Account</p>
+            <div className="mb-6 p-4 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border border-primary/10 rounded-2xl">
+              <div className="flex justify-between items-start mb-3">
+                <div>
+                  <p className="text-[10px] font-black text-primary uppercase tracking-[0.1em] mb-0.5">🧪 Test Seller Accounts</p>
+                  <p className="text-xs text-[#6B7280]">All have products & orders</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleDemoLogin}
+                  className="text-[10px] font-bold text-primary border border-primary/20 px-3 py-1.5 rounded-xl bg-white hover:bg-primary/10 transition-all active:scale-95 shadow-sm"
+                >
+                  Auto-Fill ActiveGear
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={handleDemoLogin}
-                className="bg-white hover:bg-primary/10 text-primary px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all shadow-sm border border-primary/20"
-              >
-                Auto-Fill
-              </button>
+              <div className="space-y-1 text-xs text-primary/90">
+                <p className="font-semibold">Password for all: <span className="font-mono bg-primary/10 px-2 py-0.5 rounded">Seller123!</span></p>
+                <div className="grid grid-cols-1 gap-1 mt-2 text-[11px]">
+                  <button type="button" onClick={() => { setEmail('teststore@bazaar.ph'); setPassword('TestStore123!'); }} className="text-left hover:text-primary hover:underline transition-colors font-semibold">• teststore@bazaar.ph <span className="text-gray-500">(Maria's Fashion Boutique) ⭐ NEW</span></button>
+                  <button type="button" onClick={() => { setEmail('active.sports@bazaarph.com'); setPassword('Seller123!'); }} className="text-left hover:text-primary hover:underline transition-colors">• active.sports@bazaarph.com <span className="text-gray-500">(ActiveGear Sports)</span></button>
+                  <button type="button" onClick={() => { setEmail('maria.santos@bazaarph.com'); setPassword('Seller123!'); }} className="text-left hover:text-primary hover:underline transition-colors">• maria.santos@bazaarph.com <span className="text-gray-500">(Maria's Fashion House)</span></button>
+                  <button type="button" onClick={() => { setEmail('juan.tech@bazaarph.com'); setPassword('Seller123!'); }} className="text-left hover:text-primary hover:underline transition-colors">• juan.tech@bazaarph.com <span className="text-gray-500">(TechStore Official)</span></button>
+                  <button type="button" onClick={() => { setEmail('wellness.haven@bazaarph.com'); setPassword('Seller123!'); }} className="text-left hover:text-primary hover:underline transition-colors">• wellness.haven@bazaarph.com <span className="text-gray-500">(Wellness Haven)</span></button>
+                  <button type="button" onClick={() => { setEmail('home.essentials@bazaarph.com'); setPassword('Seller123!'); }} className="text-left hover:text-primary hover:underline transition-colors">• home.essentials@bazaarph.com <span className="text-gray-500">(Home Essentials Co.)</span></button>
+                </div>
+              </div>
             </div>
 
             {error && (

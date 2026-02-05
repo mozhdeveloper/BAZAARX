@@ -12,16 +12,29 @@ import {
   ActivityIndicator,
   Linking,
   Image,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ShoppingBag, Mail, Lock, Eye, EyeOff, ArrowRight, Store, Shield } from 'lucide-react-native';
+import { ShoppingBag, Mail, Lock, Eye, EyeOff, ArrowRight, Store, Shield, ChevronDown, X } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import { useAuthStore } from '../src/stores/authStore';
 import { supabase } from '../src/lib/supabase';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Login'>;
+
+// Test accounts with conversations - All have password: Buyer123!
+const TEST_ACCOUNTS = [
+  { email: 'anna.cruz@gmail.com', password: 'Buyer123!', name: 'Anna Marie Cruz', note: '2 conversations' },
+  { email: 'miguel.santos@gmail.com', password: 'Buyer123!', name: 'Miguel Antonio Santos', note: '3 conversations' },
+  { email: 'sofia.reyes@gmail.com', password: 'Buyer123!', name: 'Sofia Gabrielle Reyes', note: '3 conversations' },
+  { email: 'carlos.garcia@gmail.com', password: 'Buyer123!', name: 'Carlos Miguel Garcia', note: '3 conversations' },
+  { email: 'isabella.fernandez@gmail.com', password: 'Buyer123!', name: 'Isabella Rose Fernandez', note: '3 conversations' },
+  { email: 'rafael.mendoza@gmail.com', password: 'Buyer123!', name: 'Rafael Jose Mendoza', note: '2 conversations' },
+  { email: 'gabriela.torres@gmail.com', password: 'Buyer123!', name: 'Gabriela Maria Torres', note: '3 conversations' },
+  { email: 'daniel.villanueva@gmail.com', password: 'Buyer123!', name: 'Daniel James Villanueva', note: '2 conversations' },
+];
 
 
 export default function LoginScreen({ navigation }: Props) {
@@ -30,6 +43,13 @@ export default function LoginScreen({ navigation }: Props) {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [showTestAccounts, setShowTestAccounts] = useState(false);
+
+  const selectTestAccount = (account: typeof TEST_ACCOUNTS[0]) => {
+    setEmail(account.email);
+    setPassword(account.password);
+    setShowTestAccounts(false);
+  };
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -62,8 +82,8 @@ export default function LoginScreen({ navigation }: Props) {
 
         if (profileError) {
           Alert.alert('Profile Error', 'Could not fetch user profile.');
-        } else if (profile.user_type === 'buyer') {
-
+        } else {
+          // Allow both buyers and sellers to login
           // SYNC USER TO GLOBAL STORE
           const { data: profileDetails } = await supabase
             .from('profiles')
@@ -79,12 +99,18 @@ export default function LoginScreen({ navigation }: Props) {
               phone: profileDetails.phone || '',
               avatar: profileDetails.avatar_url || ''
             });
+
+            // If user is a seller, we might want to ensure they have the role in the store
+            if (profile.user_type === 'seller') {
+              useAuthStore.getState().addRole('seller');
+            }
+
+            // Fetch orders to replace dummy data in OrderStore
+            const { useOrderStore } = await import('../src/stores/orderStore');
+            useOrderStore.getState().fetchOrders(data.user.id);
           }
 
           navigation.replace('MainTabs', { screen: 'Home' });
-        } else if (profile.user_type === 'seller') {
-          Alert.alert('Seller Account', 'This is the buyer portal. Please use the Seller Centre.');
-          await supabase.auth.signOut(); // Log them out if they are in the wrong place
         }
       }
     } catch (err) {
@@ -125,12 +151,17 @@ export default function LoginScreen({ navigation }: Props) {
           </View>
 
           {/* Demo Credentials Banner */}
-          <Pressable style={styles.demoBanner} onPress={fillDemoCredentials}>
+          <Pressable
+            style={styles.demoBanner}
+            onPress={() => setShowTestAccounts(true)}
+          >
             <View style={styles.demoContent}>
-              <Text style={styles.demoTitle}>🎉 Demo Credentials</Text>
-              <Text style={styles.demoText}>Email: buyer@bazaarx.ph</Text>
-              <Text style={styles.demoText}>Password: password</Text>
-              <Text style={styles.demoHint}>Tap here to auto-fill</Text>
+              <Text style={styles.demoTitle}>🧪 Test Accounts</Text>
+              <Text style={styles.demoText}>Tap to select a test account</Text>
+              <View style={styles.demoHintRow}>
+                <Text style={styles.demoHint}>All accounts have messages & data</Text>
+                <ChevronDown size={16} color="#F97316" />
+              </View>
             </View>
           </Pressable>
 
@@ -240,6 +271,44 @@ export default function LoginScreen({ navigation }: Props) {
           </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Test Accounts Modal */}
+      <Modal
+        visible={showTestAccounts}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowTestAccounts(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Test Account</Text>
+              <Pressable onPress={() => setShowTestAccounts(false)}>
+                <X size={24} color="#6B7280" />
+              </Pressable>
+            </View>
+
+            <ScrollView style={styles.accountsList}>
+              {TEST_ACCOUNTS.map((account, index) => (
+                <Pressable
+                  key={index}
+                  style={styles.accountItem}
+                  onPress={() => selectTestAccount(account)}
+                >
+                  <View style={styles.accountInfo}>
+                    <Text style={styles.accountName}>{account.name}</Text>
+                    <Text style={styles.accountEmail}>{account.email}</Text>
+                    <Text style={styles.accountDetails}>
+                      � Password: {account.password} • {account.note}
+                    </Text>
+                  </View>
+                  <ArrowRight size={20} color="#FF6A00" />
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -306,13 +375,17 @@ const styles = StyleSheet.create({
   demoText: {
     fontSize: 13,
     color: '#F97316',
-    marginBottom: 2,
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    marginBottom: 4,
+  },
+  demoHintRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
   },
   demoHint: {
     fontSize: 12,
     color: '#FF6A00',
-    marginTop: 8,
     fontWeight: '600',
   },
   form: {
@@ -448,5 +521,66 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#8B5CF6',
+  },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 20,
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  accountsList: {
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+  },
+  accountItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    marginVertical: 6,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  accountInfo: {
+    flex: 1,
+  },
+  accountName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  accountEmail: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 4,
+  },
+  accountDetails: {
+    fontSize: 12,
+    color: '#9CA3AF',
   },
 });

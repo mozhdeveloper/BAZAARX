@@ -44,7 +44,7 @@ export default function LocationModal({
   
   // Ref to programmatically move the map
   const mapRef = useRef<MapView>(null);
-  const searchTimeout = useRef<NodeJS.Timeout | null>(null);
+  const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [addresses, setAddresses] = useState<any[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);

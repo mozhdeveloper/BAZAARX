@@ -151,14 +151,24 @@ export class CartService {
         .eq('cart_id', cartId)
         .eq('product_id', productId);
 
-      if (selectedVariant) {
-        query = query.eq('selected_variant', selectedVariant);
-      } else {
-        query = query.is('selected_variant', null);
-      }
-
-      const { data: existing, error: findError } = await query.maybeSingle();
+      // For variant comparison, we can't use .eq() on JSON objects
+      // Instead, we'll fetch all items and filter in JavaScript
+      const { data: allItems, error: findError } = await query;
       if (findError) throw findError;
+
+      // Find matching item based on variant
+      const existing = allItems?.find((item: any) => {
+        if (!selectedVariant && !item.selected_variant) {
+          return true; // Both null
+        }
+        if (selectedVariant && item.selected_variant) {
+          // Compare by variant ID or other unique fields
+          const itemVariantId = item.selected_variant?.id;
+          const newVariantId = selectedVariant?.id;
+          return itemVariantId && newVariantId && itemVariantId === newVariantId;
+        }
+        return false;
+      });
 
       let result;
       if (existing) {

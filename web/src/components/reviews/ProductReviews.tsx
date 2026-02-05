@@ -46,14 +46,21 @@ export function ProductReviews({ productId, rating, reviewCount }: ProductReview
 
     const fetchReviews = async () => {
         setLoading(true);
-        const result = await reviewService.getProductReviews(productId, page, 5); // 5 per page
-        if (page === 1) {
-            setReviews(result.reviews);
-        } else {
-            setReviews(prev => [...prev, ...result.reviews]);
+        try {
+            const result = await reviewService.getProductReviews(productId, page, 5); // 5 per page
+            if (page === 1) {
+                setReviews(result.reviews);
+            } else {
+                setReviews(prev => [...prev, ...result.reviews]);
+            }
+            setTotal(result.total);
+        } catch (error) {
+            console.error('Error fetching reviews:', error);
+            setReviews([]);
+            setTotal(0);
+        } finally {
+            setLoading(false);
         }
-        setTotal(result.total);
-        setLoading(false);
     };
 
     const handleLoadMore = () => {

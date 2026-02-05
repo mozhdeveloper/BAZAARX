@@ -638,9 +638,18 @@ const Header: React.FC<{ mode: 'login' | 'register' }> = ({ mode }) => (
 
 const DemoCredentials: React.FC = () => (
   <div className="mb-6 bg-orange-50 border border-orange-200 rounded-lg p-4">
-    <h3 className="font-medium text-orange-800 mb-2 text-sm">Demo Credentials:</h3>
-    <p className="text-sm text-orange-700">Email: seller@bazaarph.com</p>
-    <p className="text-sm text-orange-700">Password: password123</p>
+    <h3 className="font-medium text-orange-800 mb-2 text-sm">🧪 Test Seller Accounts:</h3>
+    <div className="space-y-1.5 text-xs text-orange-700">
+      <p className="font-semibold">Password: <span className="font-mono bg-orange-100 px-2 py-0.5 rounded">Seller123!</span> or <span className="font-mono bg-orange-100 px-2 py-0.5 rounded">TestStore123!</span></p>
+      <div className="grid gap-1 mt-2">
+        <p className="font-semibold">• teststore@bazaar.ph - Maria's Fashion Boutique ⭐ NEW</p>
+        <p>• maria.santos@bazaarph.com - Bazaar Seller Store</p>
+        <p>• juan.tech@bazaarph.com - Seller123 Store</p>
+        <p>• wellness.haven@bazaarph.com - Soap Station</p>
+        <p>• home.essentials@bazaarph.com - Apple Store</p>
+        <p>• active.sports@bazaarph.com - Maker's Trail</p>
+      </div>
+    </div>
   </div>
 )
 

@@ -42,12 +42,12 @@ export default function SellerSettingsScreen() {
   const insets = useSafeAreaInsets();
   const [selectedTab, setSelectedTab] = useState<SettingTab>('profile');
   const [drawerVisible, setDrawerVisible] = useState(false);
-  
+
   // Edit modes
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isEditingStore, setIsEditingStore] = useState(false);
   const [isEditingPayments, setIsEditingPayments] = useState(false);
-  
+
   // Profile
   const [ownerName, setOwnerName] = useState(seller.ownerName);
   const [email, setEmail] = useState(seller.email);
@@ -66,7 +66,7 @@ export default function SellerSettingsScreen() {
   const [city, setCity] = useState(seller.city);
   const [province, setProvince] = useState(seller.province);
   const [postalCode, setPostalCode] = useState(seller.postalCode);
-  
+
   // Payments
   const [bankName, setBankName] = useState(seller.bankName);
   const [accountName, setAccountName] = useState(seller.accountName);
@@ -119,8 +119,19 @@ export default function SellerSettingsScreen() {
     ]);
   };
 
-  const handleSwitchToBuyer = () => {
-    useAuthStore.getState().switchRole('buyer');
+  const handleSwitchToBuyer = async () => {
+    const authStore = useAuthStore.getState();
+    authStore.switchRole('buyer');
+
+    // Ensure buyer data is loaded if it's the first switch
+    if (authStore.user?.id) {
+      const { useOrderStore } = await import('../../../src/stores/orderStore');
+      // Only fetch if we currently have dummy data or none
+      if (useOrderStore.getState().orders.length <= 8) { // dummyOrders has exactly 8 items
+        useOrderStore.getState().fetchOrders(authStore.user.id);
+      }
+    }
+
     navigation.navigate('MainTabs' as never);
   };
 
@@ -136,14 +147,14 @@ export default function SellerSettingsScreen() {
             <View style={styles.formSection}>
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>Owner Information</Text>
-                <Pressable 
+                <Pressable
                   style={styles.editButton}
                   onPress={() => setIsEditingProfile(!isEditingProfile)}
                 >
                   <Edit3 size={18} color={isEditingProfile ? '#FF5722' : '#6B7280'} strokeWidth={2.5} />
                 </Pressable>
               </View>
-              
+
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Full Name</Text>
                 <TextInput
@@ -192,14 +203,14 @@ export default function SellerSettingsScreen() {
             <View style={styles.formSection}>
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>Store Details</Text>
-                <Pressable 
+                <Pressable
                   style={styles.editButton}
                   onPress={() => setIsEditingStore(!isEditingStore)}
                 >
                   <Edit3 size={18} color={isEditingStore ? '#FF5722' : '#6B7280'} strokeWidth={2.5} />
                 </Pressable>
               </View>
-              
+
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Store Name</Text>
                 <TextInput
@@ -230,7 +241,7 @@ export default function SellerSettingsScreen() {
 
             <View style={styles.formSection}>
               <Text style={styles.sectionTitle}>Business Information</Text>
-              
+
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Business Name</Text>
                 <TextInput
@@ -490,7 +501,7 @@ export default function SellerSettingsScreen() {
           <View style={styles.formCard}>
             <View style={styles.formSection}>
               <Text style={styles.sectionTitle}>Password & Security</Text>
-              
+
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Current Password</Text>
                 <TextInput
@@ -527,7 +538,7 @@ export default function SellerSettingsScreen() {
               <Text style={styles.sectionDescription}>
                 Add an extra layer of security to your account
               </Text>
-              
+
               <Pressable style={styles.enableButton}>
                 <Text style={styles.enableButtonText}>Enable 2FA</Text>
               </Pressable>
@@ -541,14 +552,14 @@ export default function SellerSettingsScreen() {
             <View style={styles.formSection}>
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>Bank Account</Text>
-                <Pressable 
+                <Pressable
                   style={styles.editButton}
                   onPress={() => setIsEditingPayments(!isEditingPayments)}
                 >
                   <Edit3 size={18} color={isEditingPayments ? '#FF5722' : '#6B7280'} strokeWidth={2.5} />
                 </Pressable>
               </View>
-              
+
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Bank Name</Text>
                 <TextInput
@@ -589,7 +600,7 @@ export default function SellerSettingsScreen() {
 
             <View style={styles.formSection}>
               <Text style={styles.sectionTitle}>GCash</Text>
-              
+
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>GCash Number</Text>
                 <TextInput
@@ -636,6 +647,7 @@ export default function SellerSettingsScreen() {
         {/* Notification positioned absolutely to prevent cutoff */}
         <Pressable
           style={[styles.notificationButton, { position: 'absolute', right: 20, top: insets.top + 20 }]}
+          onPress={() => navigation.getParent()?.navigate('Notifications')}
         >
           <Bell size={22} color="#FFFFFF" strokeWidth={2.5} />
           <View style={styles.notificationBadge} />
@@ -832,7 +844,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 4,
-    borderBottomLeftRadius: 20, 
+    borderBottomLeftRadius: 20,
     borderBottomRightRadius: 20,
   },
   headerContent: {

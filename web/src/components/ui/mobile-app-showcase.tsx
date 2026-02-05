@@ -4,18 +4,31 @@ import { AppStoreButton } from "./app-store-button";
 import { PlayStoreButton } from "./play-store-button";
 import { Download, Smartphone, Star } from "lucide-react";
 
-export function MobileAppShowcase() {
+interface MobileAppShowcaseProps {
+  mode?: "buyer" | "seller";
+}
+
+export function MobileAppShowcase({ mode = "buyer" }: MobileAppShowcaseProps) {
   return (
-    <div className="bg-gradient-to-b from-white via-gray-50 to-white">
+    <div className="bg-white">
       <MobileAppScroll
         titleComponent={
           <div className="text-center space-y-4 sm:space-y-6 px-4">
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-gray-900 leading-tight">
-              <span className="text-[#FF6A00]">Experience <span className="font-fondamento">Bazaar</span></span> On Your Phone
+              {mode === "buyer" ? (
+                <>
+                  <span className="text-[#FF6A00]">Experience <span className="font-fondamento">Bazaar</span></span> On Your Phone
+                </>
+              ) : (
+                <>
+                  <span className="text-black">Start Your Business With </span><span className="font-fondamento text-[#FF6A00]">BazaarX</span>
+                </>
+              )}
             </h2>
             <p className="text-base sm:text-lg md:text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
-              Shop anywhere, anytime with our powerful mobile app. Featuring AI-powered search,
-              camera shopping, and seamless checkout experience.
+              {mode === "buyer"
+                ? "Shop anywhere, anytime with our powerful mobile app. Featuring AI-powered search, camera shopping, and seamless checkout experience."
+                : "Track sales, manage inventory, and respond to customers instantly. Run your entire business from the palm of your hand."}
             </p>
 
             {/* App Features */}
@@ -54,11 +67,12 @@ export function MobileAppShowcase() {
       {/* Call to Action Section */}
       <div className="text-center pb-20">
         <h3 className="text-2xl md:text-3xl font-bold text-gray-900 mb-6">
-          Download the Bazaar App Today
+          {mode === "buyer" ? "Download the Bazaar App Today" : "Start Selling on Mobile Today"}
         </h3>
         <p className="text-lg text-gray-600 mb-8 max-w-2xl mx-auto">
-          Join thousands of satisfied customers shopping smarter with AI-powered features,
-          instant notifications, and exclusive mobile-only deals.
+          {mode === "buyer"
+            ? "Join thousands of satisfied customers shopping smarter with AI-powered features, instant notifications, and exclusive mobile-only deals."
+            : "Join thousands of successful sellers growing their business with real-time analytics, instant notifications, and powerful management tools."}
         </p>
 
         <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
@@ -68,7 +82,7 @@ export function MobileAppShowcase() {
         </div>
 
         <p className="text-sm text-gray-500 mt-6">
-          Available on iPhone 12+ and Android 8.0+ | Experience shopping reimagined
+          Available on iPhone 12+ and Android 8.0+ | Experience {mode === "buyer" ? "shopping" : "business"} reimagined
         </p>
       </div>
     </div>

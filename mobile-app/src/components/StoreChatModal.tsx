@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
     Modal,
     View,
@@ -9,33 +9,22 @@ import {
     StyleSheet,
     KeyboardAvoidingView,
     Platform,
-    Image,
-    Dimensions,
+    ActivityIndicator,
 } from 'react-native';
-import { ArrowLeft, Send, MoreVertical, Store, CheckCircle2, Ticket } from 'lucide-react-native';
+import { ArrowLeft, Send, MoreVertical, Store, Ticket } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../constants/theme';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../App';
-
-const { width } = Dimensions.get('window');
-
-interface Message {
-    id: string;
-    text: string;
-    isUser: boolean;
-    timestamp: Date;
-    action?: {
-        label: string;
-        target: 'CreateTicket';
-    };
-}
+import { chatService, Conversation, Message as ChatMessage } from '../services/chatService';
+import { useAuthStore } from '../stores/authStore';
 
 interface StoreChatModalProps {
     visible: boolean;
     onClose: () => void;
     storeName: string;
+    sellerId?: string; // Required for real chat
 }
 
 const quickReplies = [
@@ -45,26 +34,83 @@ const quickReplies = [
     'When will you ship?',
 ];
 
-export default function StoreChatModal({ visible, onClose, storeName }: StoreChatModalProps) {
+export default function StoreChatModal({ visible, onClose, storeName, sellerId }: StoreChatModalProps) {
     const insets = useSafeAreaInsets();
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-    const [messages, setMessages] = useState<Message[]>([
-        {
-            id: '1',
-            text: `Welcome to ${storeName}! 🛍️\nHow can we help you today? We usually reply within minutes.`,
-            isUser: false,
-            timestamp: new Date(),
-        },
-    ]);
+    const { user } = useAuthStore();
+    
+    // Real chat state
+    const [conversation, setConversation] = useState<Conversation | null>(null);
+    const [realMessages, setRealMessages] = useState<ChatMessage[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [sending, setSending] = useState(false);
     const [inputText, setInputText] = useState('');
-    const [isTyping, setIsTyping] = useState(false);
     const scrollViewRef = useRef<ScrollView>(null);
+
+    // Load real conversation if sellerId is provided
+    const loadConversation = useCallback(async () => {
+        if (!sellerId || !user?.id) {
+            console.log('[StoreChatModal] Cannot load conversation:', { sellerId, userId: user?.id });
+            return;
+        }
+        
+        console.log('[StoreChatModal] Loading conversation for:', { sellerId, storeName, userId: user.id });
+        setLoading(true);
+        try {
+            const conv = await chatService.getOrCreateConversation(user.id, sellerId);
+            console.log('[StoreChatModal] Conversation result:', conv);
+            
+            if (conv) {
+                setConversation(conv);
+                const msgs = await chatService.getMessages(conv.id);
+                console.log('[StoreChatModal] Loaded messages:', msgs.length);
+                setRealMessages(msgs);
+                
+                // Mark as read
+                await chatService.markAsRead(conv.id, user.id, 'buyer');
+            } else {
+                console.error('[StoreChatModal] Failed to get/create conversation');
+            }
+        } catch (error) {
+            console.error('[StoreChatModal] Error loading conversation:', error);
+        } finally {
+            setLoading(false);
+        }
+    }, [sellerId, user?.id, storeName]);
+
+    useEffect(() => {
+        if (visible && sellerId && user?.id) {
+            loadConversation();
+        }
+    }, [visible, sellerId, user?.id, loadConversation]);
+
+    // Subscribe to new messages
+    useEffect(() => {
+        if (!conversation?.id) return;
+
+        const unsubscribe = chatService.subscribeToMessages(
+            conversation.id,
+            (newMsg) => {
+                // Prevent duplicate messages by checking if it already exists
+                setRealMessages(prev => {
+                    const exists = prev.some(m => m.id === newMsg.id);
+                    if (exists) return prev;
+                    return [...prev, newMsg];
+                });
+                if (newMsg.sender_type === 'seller' && user?.id) {
+                    chatService.markAsRead(conversation.id, user.id, 'buyer');
+                }
+            }
+        );
+
+        return unsubscribe;
+    }, [conversation?.id, user?.id]);
 
     useEffect(() => {
         if (visible) {
             scrollToBottom();
         }
-    }, [messages, visible]);
+    }, [realMessages, visible]);
 
     const scrollToBottom = () => {
         setTimeout(() => {
@@ -72,58 +118,45 @@ export default function StoreChatModal({ visible, onClose, storeName }: StoreCha
         }, 100);
     };
 
-    const handleSend = (text?: string) => {
+    // Send message handler
+    const handleSend = async (text?: string) => {
         const messageText = text || inputText.trim();
-        if (messageText) {
-            const userMessage: Message = {
-                id: Date.now().toString(),
-                text: messageText,
-                isUser: true,
-                timestamp: new Date(),
-            };
-
-            setMessages([...messages, userMessage]);
-            setInputText('');
-            setIsTyping(true);
-
-            // Simulate Store typing and response
-            setTimeout(() => {
-                setIsTyping(false);
-                const response = getAutoResponse(messageText);
-                const autoResponse: Message = {
-                    id: (Date.now() + 1).toString(),
-                    text: response.text,
-                    isUser: false,
-                    timestamp: new Date(),
-                    action: response.action,
-                };
-                setMessages((prev) => [...prev, autoResponse]);
-            }, 1500);
-        }
-    };
-
-    const getAutoResponse = (input: string): { text: string, action?: { label: string, target: 'CreateTicket' } } => {
-        const lower = input.toLowerCase();
-        
-        // Smart Redirect Logic
-        // Smart Redirect Logic
-        const ticketKeywords = ['ticket', 'refund', 'return', 'complaint', 'broken', 'missing', 'damaged', 'received wrong', 'bad quality', 'support', 'technical error', 'app bug'];
-        if (ticketKeywords.some(keyword => lower.includes(keyword))) {
-            return {
-                text: "We're sorry to hear you're having trouble. For issues like this, it's best to open an official support ticket so we can track and resolve it properly.",
-                action: {
-                    label: 'Create a Ticket',
-                    target: 'CreateTicket'
-                }
-            };
+        if (!messageText || !conversation || !user?.id || sending) {
+            console.log('[StoreChatModal] Cannot send message:', { 
+                hasMessage: !!messageText, 
+                hasConversation: !!conversation, 
+                hasUser: !!user?.id, 
+                sending 
+            });
+            return;
         }
 
-        if (lower.includes('available')) return { text: "Yes, this item is in stock and ready to ship! 📦" };
-        if (lower.includes('real photo') || lower.includes('picture')) return { text: "Sending you actual photos shortly... 📸" };
-        if (lower.includes('discount') || lower.includes('price')) return { text: "You can claim our store vouchers for extra savings! 💰" };
-        if (lower.includes('ship')) return { text: "We ship daily at 4PM. Orders placed before then ship today! 🚚" };
-        
-        return { text: "Thanks for your message! Our staff will get back to you shortly." };
+        console.log('[StoreChatModal] Sending message:', { conversationId: conversation.id, messageText: messageText.substring(0, 50) });
+        setInputText('');
+        setSending(true);
+
+        try {
+            const sentMessage = await chatService.sendMessage(
+                conversation.id,
+                user.id,
+                'buyer',
+                messageText
+            );
+
+            if (sentMessage) {
+                console.log('[StoreChatModal] Message sent successfully, ID:', sentMessage.id);
+                // Don't add manually - let the subscription handle it to avoid duplicates
+                // The subscription will pick up the new message via real-time
+            } else {
+                console.error('[StoreChatModal] sendMessage returned null');
+                setInputText(messageText); // Restore on error
+            }
+        } catch (error) {
+            console.error('[StoreChatModal] Error sending message:', error);
+            setInputText(messageText); // Restore on error
+        } finally {
+            setSending(false);
+        }
     };
 
     const handleAction = (target: string) => {
@@ -178,52 +211,71 @@ export default function StoreChatModal({ visible, onClose, storeName }: StoreCha
                     style={styles.messagesContainer}
                     contentContainerStyle={styles.messagesContent}
                 >
-                    {messages.map((message) => (
-                        <View key={message.id} style={[
-                            styles.messageBubble,
-                            message.isUser ? styles.userBubble : styles.storeBubble,
-                        ]}>
-                            <Text style={[
-                                styles.messageText,
-                                message.isUser ? styles.userText : styles.storeText,
-                            ]}>
-                                {message.text}
-                            </Text>
-                            <Text style={[
-                                styles.timestamp,
-                                message.isUser ? styles.userTimestamp : styles.storeTimestamp
-                            ]}>
-                                {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            </Text>
-
-                            {/* Action Button */}
-                            {message.action && (
-                                <Pressable 
-                                    style={styles.actionButton}
-                                    onPress={() => message.action && handleAction(message.action.target)}
-                                >
-                                    <Text style={styles.actionButtonText}>{message.action.label}</Text>
-                                    <View style={{ marginLeft: 6 }}>
-                                        <ArrowLeft size={16} color="#FFF" style={{ transform: [{ rotate: '180deg' }] }} />
-                                    </View>
-                                </Pressable>
-                            )}
+                    {loading ? (
+                        <View style={styles.loadingContainer}>
+                            <ActivityIndicator size="large" color={COLORS.primary} />
                         </View>
-                    ))}
-
-                    {isTyping && (
-                        <View style={[styles.messageBubble, styles.storeBubble]}>
-                            <View style={styles.typingIndicator}>
-                                <View style={styles.typingDot} />
-                                <View style={styles.typingDot} />
-                                <View style={styles.typingDot} />
-                            </View>
+                    ) : !sellerId ? (
+                        // No sellerId provided - cannot chat
+                        <View style={styles.loadingContainer}>
+                            <Text style={{ color: '#6B7280', textAlign: 'center' }}>
+                                Unable to start chat. Store information unavailable.
+                            </Text>
+                        </View>
+                    ) : !user?.id ? (
+                        // Not logged in
+                        <View style={styles.loadingContainer}>
+                            <Text style={{ color: '#6B7280', textAlign: 'center' }}>
+                                Please log in to chat with this store.
+                            </Text>
+                        </View>
+                    ) : !conversation ? (
+                        // Conversation not yet loaded
+                        <View style={styles.loadingContainer}>
+                            <ActivityIndicator size="large" color={COLORS.primary} />
+                            <Text style={{ color: '#6B7280', marginTop: 12 }}>Starting conversation...</Text>
+                        </View>
+                    ) : (
+                        // Real messages from database
+                        <>
+                            {realMessages.length === 0 && (
+                                <View style={[styles.messageBubble, styles.storeBubble]}>
+                                    <Text style={[styles.messageText, styles.storeText]}>
+                                        {`Welcome to ${storeName}! 🛍️\nHow can we help you today?`}
+                                    </Text>
+                                </View>
+                            )}
+                            {realMessages.map((msg) => (
+                                <View key={msg.id} style={[
+                                    styles.messageBubble,
+                                    msg.sender_type === 'buyer' ? styles.userBubble : styles.storeBubble,
+                                ]}>
+                                    <Text style={[
+                                        styles.messageText,
+                                        msg.sender_type === 'buyer' ? styles.userText : styles.storeText,
+                                    ]}>
+                                        {msg.content}
+                                    </Text>
+                                    <Text style={[
+                                        styles.timestamp,
+                                        msg.sender_type === 'buyer' ? styles.userTimestamp : styles.storeTimestamp
+                                    ]}>
+                                        {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </Text>
+                                </View>
+                            ))}
+                        </>
+                    )}
+                    
+                    {sending && (
+                        <View style={styles.sendingIndicator}>
+                            <ActivityIndicator size="small" color={COLORS.primary} />
                         </View>
                     )}
                 </ScrollView>
 
                 {/* Suggestions */}
-                {messages.length < 3 && (
+                {conversation && realMessages.length < 3 && (
                     <View style={styles.quickRepliesContainer}>
                         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16 }}>
                             {quickReplies.map((reply, i) => (
@@ -251,7 +303,7 @@ export default function StoreChatModal({ visible, onClose, storeName }: StoreCha
                             onPress={() => handleSend()}
                             style={[
                                 styles.sendButton,
-                                !inputText.trim() && styles.sendButtonDisabled,
+                                (!inputText.trim() || sending) && styles.sendButtonDisabled,
                             ]}
                             disabled={!inputText.trim()}
                         >
@@ -447,5 +499,15 @@ const styles = StyleSheet.create({
         color: '#FFF',
         fontWeight: '600',
         fontSize: 13,
+    },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingVertical: 40,
+    },
+    sendingIndicator: {
+        alignSelf: 'flex-end',
+        marginTop: 8,
     },
 });

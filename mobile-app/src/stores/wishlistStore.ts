@@ -86,7 +86,8 @@ export const useWishlistStore = create<WishlistState>()(
             createCategory: (name, privacy, description) => {
                 const { categories } = get();
                 const newId = 'list_' + Date.now();
-                const newCategory = { id: newId, name, privacy, description };
+                // Force private
+                const newCategory = { id: newId, name, privacy: 'private' as const, description };
                 set({ categories: [...categories, newCategory] });
                 return newId;
             },
@@ -110,7 +111,7 @@ export const useWishlistStore = create<WishlistState>()(
                 const { categories } = get();
                 set({
                     categories: categories.map(c => 
-                        c.id === categoryId ? { ...c, ...updates } : c
+                        c.id === categoryId ? { ...c, ...updates, privacy: 'private' as const } : c
                     )
                 });
             },
@@ -127,6 +128,8 @@ export const useWishlistStore = create<WishlistState>()(
             shareWishlist: async (categoryId) => {
                 return `https://bazaarx.app/wishlist/${categoryId}`;
             },
+
+
 
             markAsPurchased: (productId, qty) => {
                 const { items } = get();

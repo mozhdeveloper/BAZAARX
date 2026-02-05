@@ -11,6 +11,7 @@ import {
   Clock,
   BadgeCheck,
   ShoppingCart,
+  Gift,
   Menu,
 } from "lucide-react";
 import Header from "../components/Header";
@@ -26,6 +27,7 @@ import {
   SelectValue,
 } from "../components/ui/select";
 import { CartModal } from "../components/ui/cart-modal";
+import { BuyNowModal } from "../components/ui/buy-now-modal";
 import ProductRequestModal from "../components/ProductRequestModal";
 import VisualSearchModal from "../components/VisualSearchModal";
 import { useToast } from "../hooks/use-toast";
@@ -45,6 +47,7 @@ type ShopProduct = {
   price: number;
   originalPrice?: number;
   image: string;
+  images?: string[];
   rating: number;
   sold: number;
   category: string;
@@ -56,6 +59,9 @@ type ShopProduct = {
   description?: string;
   sellerRating?: number;
   sellerVerified?: boolean;
+  colors?: string[];
+  sizes?: string[];
+  stock?: number;
 };
 
 // Flash sale products are now derived from real products in the component
@@ -94,6 +100,8 @@ export default function ShopPage() {
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [showVisualSearchModal, setShowVisualSearchModal] = useState(false);
   const [isToolbarSticky, setIsToolbarSticky] = useState(true);
+  const [showBuyNowModal, setShowBuyNowModal] = useState(false);
+  const [buyNowProduct, setBuyNowProduct] = useState<any>(null);
 
   // Flash Sale Countdown
   const [timeLeft, setTimeLeft] = useState({
@@ -134,10 +142,21 @@ export default function ShopPage() {
     return () => {
       unsubscribe();
     };
-  }, [fetchProducts, subscribeToProducts]);
+  }, []);
 
   useEffect(() => {
     setSearchQuery(searchParams.get("q") || "");
+    const categoryParam = searchParams.get("category");
+    if (categoryParam) {
+      setSelectedCategory(categoryParam);
+      // Wait for layout to settle then scroll
+      setTimeout(() => {
+        const element = document.getElementById("shop-content");
+        if (element) {
+          element.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      }, 100);
+    }
   }, [searchParams]);
 
   // Handle toolbar scroll visibility
@@ -165,6 +184,7 @@ export default function ShopPage() {
         price: p.price,
         originalPrice: p.originalPrice,
         image: p.images?.[0] || "https://placehold.co/400?text=Product",
+        images: p.images || [],
         rating: p.rating || 0,
         sold: p.sales || 0,
         category: p.category,
@@ -175,6 +195,9 @@ export default function ShopPage() {
         description: p.description,
         sellerRating: p.sellerRating || 0,
         sellerVerified: p.approvalStatus === "pending",
+        colors: p.colors || [],
+        sizes: p.sizes || [],
+        stock: p.stock || 99,
       }));
 
     return dbProducts;
@@ -381,7 +404,7 @@ export default function ShopPage() {
             </div>
           </div>
 
-          <div className="flex flex-col lg:flex-row gap-8">
+          <div id="shop-content" className="flex flex-col lg:flex-row gap-8 scroll-mt-24">
             {/* Categories Sidebar */}
             <motion.div
               initial={false}
@@ -628,6 +651,7 @@ export default function ShopPage() {
 
                       {/* Always Visible Action Buttons */}
                       <div className="mt-auto pt-4 space-y-2">
+
                         <Button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -706,45 +730,30 @@ export default function ShopPage() {
                               return;
                             }
 
-                            const sellerLocation = product.location || "Metro Manila";
-                            const quickOrderItem: any = {
+                            // Set the product for buy now modal
+                            setBuyNowProduct({
                               id: product.id,
                               name: product.name,
                               price: product.price,
                               originalPrice: product.originalPrice,
                               image: product.image,
-                              images: [product.image],
-                              seller: {
-                                id: product.sellerId,
-                                name: product.seller,
-                                avatar: "",
-                                rating: product.sellerRating || 0,
-                                totalReviews: 100,
-                                followers: 1000,
-                                isVerified: product.sellerVerified || false,
-                                description: "",
-                                location: sellerLocation,
-                                established: "2020",
-                                products: [],
-                                badges: [],
-                                responseTime: "1 hour",
-                                categories: [product.category],
-                              },
+                              images: product.images || [product.image],
                               sellerId: product.sellerId,
+                              seller: product.seller,
+                              sellerRating: product.sellerRating || 0,
+                              sellerVerified: product.sellerVerified || false,
                               rating: product.rating,
-                              totalReviews: 100,
                               category: product.category,
                               sold: product.sold,
                               isFreeShipping: product.isFreeShipping ?? true,
-                              location: sellerLocation,
+                              location: product.location || "Metro Manila",
                               description: product.description || "",
-                              specifications: {},
                               variants: [],
-                            };
-
-                            setQuickOrder(quickOrderItem, 1);
-                            // Navigate to checkout
-                            navigate("/checkout");
+                              colors: product.colors || [],
+                              sizes: product.sizes || [],
+                              stock: product.stock || 99,
+                            });
+                            setShowBuyNowModal(true);
                           }}
                           className="w-full bg-[#FF5722] hover:bg-[#271e1b] text-white rounded-xl transition-all active:scale-95"
                         >
@@ -780,15 +789,17 @@ export default function ShopPage() {
       <BazaarFooter />
 
       {/* Cart Modal */}
-      {addedProduct && showCartModal && (
-        <CartModal
-          isOpen={showCartModal}
-          onClose={() => setShowCartModal(false)}
-          productName={addedProduct.name}
-          productImage={addedProduct.image}
-          cartItemCount={cartItems.length}
-        />
-      )}
+      {
+        addedProduct && showCartModal && (
+          <CartModal
+            isOpen={showCartModal}
+            onClose={() => setShowCartModal(false)}
+            productName={addedProduct.name}
+            productImage={addedProduct.image}
+            cartItemCount={cartItems.length}
+          />
+        )
+      }
 
       {/* Visual Search Modal */}
       <VisualSearchModal
@@ -807,6 +818,63 @@ export default function ShopPage() {
         onClose={() => setShowRequestModal(false)}
         initialSearchTerm={searchQuery}
       />
-    </div>
+
+      {/* Buy Now Modal */}
+      {
+        buyNowProduct && (
+          <BuyNowModal
+            isOpen={showBuyNowModal}
+            onClose={() => {
+              setShowBuyNowModal(false);
+              setBuyNowProduct(null);
+            }}
+            product={buyNowProduct}
+            onConfirm={(quantity, variant) => {
+              const sellerLocation = buyNowProduct.location || "Metro Manila";
+              const quickOrderItem: any = {
+                id: buyNowProduct.id,
+                name: buyNowProduct.name,
+                price: variant?.price || buyNowProduct.price,
+                originalPrice: buyNowProduct.originalPrice,
+                image: variant?.image || buyNowProduct.image,
+                images: buyNowProduct.images || [buyNowProduct.image],
+                seller: {
+                  id: buyNowProduct.sellerId,
+                  name: buyNowProduct.seller,
+                  avatar: "",
+                  rating: buyNowProduct.sellerRating || 0,
+                  totalReviews: 100,
+                  followers: 1000,
+                  isVerified: buyNowProduct.sellerVerified || false,
+                  description: "",
+                  location: sellerLocation,
+                  established: "2020",
+                  products: [],
+                  badges: [],
+                  responseTime: "1 hour",
+                  categories: [buyNowProduct.category],
+                },
+                sellerId: buyNowProduct.sellerId,
+                rating: buyNowProduct.rating,
+                totalReviews: 100,
+                category: buyNowProduct.category,
+                sold: buyNowProduct.sold,
+                isFreeShipping: buyNowProduct.isFreeShipping ?? true,
+                location: sellerLocation,
+                description: buyNowProduct.description || "",
+                specifications: {},
+                variants: buyNowProduct.variants || [],
+                selectedVariant: variant,
+              };
+
+              setQuickOrder(quickOrderItem, quantity, variant);
+              setShowBuyNowModal(false);
+              setBuyNowProduct(null);
+              navigate("/checkout");
+            }}
+          />
+        )
+      }
+    </div >
   );
 }

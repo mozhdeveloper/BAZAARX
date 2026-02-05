@@ -2,7 +2,8 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { productService } from '@/services/productService';
-import { isSupabaseConfigured, supabase } from '@/lib/supabase';
+import { authService } from '@/services/authService';
+import { orderService } from '@/services/orderService';
 import type { Product as DbProduct } from '@/types/database.types';
 
 export interface SellerProduct {
@@ -30,6 +31,15 @@ export interface SellerProduct {
   sellerName?: string;
   sellerRating?: number;
   sellerLocation?: string;
+  variants?: {
+    id: string;
+    option1: string; // Generic name for "Color" / "Model"
+    option2: string; // Generic name for "Size" / "Capacity"
+    price: string;
+    stock: string;
+    sku: string;
+    image?: string;
+  }[];
 }
 
 export interface SellerOrder {
@@ -43,6 +53,8 @@ export interface SellerOrder {
     image: string;
     quantity: number;
     price: number;
+    selectedColor?: string;
+    selectedSize?: string;
   }[];
   total: number;
   status: 'pending' | 'to-ship' | 'completed' | 'cancelled';
@@ -120,6 +132,36 @@ interface SellerStats {
   visitsChange: number;
 }
 
+// Inventory Ledger Entry for tracking all stock changes
+export interface InventoryLedgerEntry {
+  id: string;
+  timestamp: string;
+  productId: string;
+  productName: string;
+  changeType: 'DEDUCTION' | 'ADDITION' | 'ADJUSTMENT' | 'RESERVATION' | 'RELEASE';
+  quantityBefore: number;
+  quantityChange: number;
+  quantityAfter: number;
+  reason: 'ONLINE_SALE' | 'OFFLINE_SALE' | 'MANUAL_ADJUSTMENT' | 'STOCK_REPLENISHMENT' | 'ORDER_CANCELLATION' | 'RESERVATION';
+  referenceId: string; // Order ID or adjustment ID
+  userId: string; // Seller ID or 'SYSTEM'
+  notes?: string;
+}
+
+// Low Stock Alert
+export interface LowStockAlert {
+  id: string;
+  productId: string;
+  productName: string;
+  currentStock: number;
+  threshold: number;
+  timestamp: string;
+  acknowledged: boolean;
+}
+
+// Low stock threshold constant
+const LOW_STOCK_THRESHOLD = 10;
+
 interface SellerStore {
   // Seller Info
   seller: SellerProfile;
@@ -132,15 +174,34 @@ interface SellerStore {
   loading: boolean;
   error: string | null;
   fetchProducts: (sellerId?: string) => Promise<void>;
-  addProduct: (product: SellerProduct) => Promise<void>;
+  addProduct: (product: SellerProduct) => Promise<string>; // Returns the database product ID
   updateProduct: (id: string, updates: Partial<SellerProduct>) => Promise<void>;
   deleteProduct: (id: string) => Promise<void>;
   toggleProductStatus: (id: string) => void;
 
+  // Inventory Management
+  inventoryLedger: InventoryLedgerEntry[];
+  lowStockAlerts: LowStockAlert[];
+  deductStock: (productId: string, quantity: number, reason: 'ONLINE_SALE' | 'OFFLINE_SALE', referenceId: string, notes?: string) => void;
+  addStock: (productId: string, quantity: number, reason: string, notes?: string) => void;
+  adjustStock: (productId: string, newQuantity: number, reason: string, notes: string) => void;
+  reserveStock: (productId: string, quantity: number, orderId: string) => void;
+  releaseStock: (productId: string, quantity: number, orderId: string) => void;
+  // Variant-level stock management
+  deductVariantStock: (productId: string, variantId: string, quantity: number, reason: 'ONLINE_SALE' | 'OFFLINE_SALE', referenceId: string, notes?: string) => void;
+  addVariantStock: (productId: string, variantId: string, quantity: number, reason: string, notes?: string) => void;
+  getLedgerByProduct: (productId: string) => InventoryLedgerEntry[];
+  getRecentLedgerEntries: (limit?: number) => InventoryLedgerEntry[];
+  checkLowStock: () => void;
+  acknowledgeLowStockAlert: (alertId: string) => void;
+  getLowStockThreshold: () => number;
+
   // Orders
   orders: SellerOrder[];
+  ordersLoading: boolean;
+  fetchOrders: (sellerId?: string) => Promise<void>;
   updateOrderStatus: (orderId: string, status: SellerOrder['status']) => void;
-  addOfflineOrder: (cartItems: { productId: string; productName: string; quantity: number; price: number; image: string }[], total: number, note?: string) => string;
+  addOfflineOrder: (cartItems: { productId: string; productName: string; quantity: number; price: number; image: string; selectedColor?: string; selectedSize?: string }[], total: number, note?: string) => string;
 
   // Analytics
   revenueData: RevenueData[];
@@ -378,53 +439,36 @@ export const useSellerStore = create<SellerStore>()(
     (set, get) => ({
       // Seller Info
       seller: {
-        id: 'seller-001',
+        id: '',
         // Personal
-        ownerName: 'Juan Dela Cruz',
-        email: 'seller@bazaarx.ph',
-        phone: '+63 912 345 6789',
+        ownerName: '',
+        email: '',
+        phone: '',
 
         // Business
-        businessName: 'Tech Shop Philippines Inc.',
-        storeName: 'TechStore Official',
-        storeDescription: 'Your trusted source for premium electronics and gadgets. We provide the latest tech at affordable prices.',
-        storeLogo: '🛍️',
-        storeCategory: ['Electronics', 'Accessories'],
-        businessType: 'corporation',
-        businessRegistrationNumber: 'COR-2024-12345',
-        taxIdNumber: '123-456-789-000',
+        businessName: '',
+        storeName: '',
+        storeDescription: '',
+        storeLogo: '',
+        storeCategory: [],
+        businessType: 'sole_proprietor',
+        businessRegistrationNumber: '',
+        taxIdNumber: '',
 
         // Address
-        businessAddress: '123 Tech St., Makati City',
-        city: 'Makati',
-        province: 'Metro Manila',
-        postalCode: '1200',
+        businessAddress: '',
+        city: '',
+        province: '',
+        postalCode: '',
 
         // Banking
-        bankName: 'BDO',
-        accountName: 'Tech Shop PH Inc.',
-        accountNumber: '**** **** **** 1234',
+        bankName: '',
+        accountName: '',
+        accountNumber: '',
 
         // Status
-        approval_status: 'approved',
-        documents: [
-          {
-            id: 'doc-1',
-            type: 'business_permit',
-            fileName: 'business_permit_2024.pdf',
-            url: '#',
-            uploadDate: '2024-01-15',
-            isVerified: true
-          },
-          {
-            id: 'doc-2',
-            type: 'valid_id',
-            fileName: 'valid_id_juan.png',
-            url: '#',
-            uploadDate: '2024-01-15',
-            isVerified: true
-          }
-        ],
+        approval_status: 'pending',
+        documents: [],
         business_permit_url: null,
         valid_id_url: null,
         proof_of_address_url: null,
@@ -447,40 +491,35 @@ export const useSellerStore = create<SellerStore>()(
       loading: false,
       error: null,
 
+      // Inventory Management
+      inventoryLedger: [],
+      lowStockAlerts: [],
+
       fetchProducts: async (sellerId?: string) => {
         console.log('[sellerStore] fetchProducts called with provided sellerId:', sellerId);
-        
-        if (!isSupabaseConfigured()) {
-          console.log('[sellerStore] Supabase not configured - using dummy products');
-          // Keep dummy products if not configured
-          return;
-        }
-
-        console.log('[sellerStore] Setting loading state...');
         set({ loading: true, error: null });
         try {
-          // Get the authenticated user's ID from Supabase session
           let actualSellerId = sellerId;
-          
-          // If sellerId looks like a dummy ID (not a UUID), get the real one from session
-          const isValidUUID = sellerId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sellerId);
-          
+          const isValidUUID =
+            sellerId &&
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sellerId);
+
           if (!isValidUUID) {
-            console.log('[sellerStore] SellerId is not a valid UUID, getting from Supabase session...');
-            const { data: { session } } = await supabase.auth.getSession();
+            console.log('[sellerStore] SellerId is not a valid UUID, getting from session via authService...');
+            const session = await authService.getSession();
             if (session?.user?.id) {
               actualSellerId = session.user.id;
               console.log('[sellerStore] Got seller ID from session:', actualSellerId);
             } else {
               console.log('[sellerStore] No authenticated session, fetching all products');
-              actualSellerId = undefined; // Don't filter by seller, get all products
+              actualSellerId = undefined;
             }
           }
-          
+
           console.log('[sellerStore] Calling productService.getProducts with sellerId:', actualSellerId);
           const data = await productService.getProducts({ sellerId: actualSellerId });
           console.log('[sellerStore] Got products from service:', data?.length || 0, 'items');
-          
+
           const mappedProducts: SellerProduct[] = data.map((p) => ({
             id: p.id || '',
             name: p.name || '',
@@ -520,7 +559,6 @@ export const useSellerStore = create<SellerStore>()(
 
       addProduct: async (product) => {
         try {
-          // Validation
           if (!product.name || product.name.trim() === '') {
             throw new Error('Product name is required');
           }
@@ -534,23 +572,23 @@ export const useSellerStore = create<SellerStore>()(
             throw new Error('Product category is required');
           }
 
-          if (isSupabaseConfigured()) {
-            // Get the authenticated user's ID from Supabase session
-            let actualSellerId = product.sellerId;
-            const isValidUUID = actualSellerId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(actualSellerId);
-            
-            if (!isValidUUID) {
-              console.log('[sellerStore] addProduct: SellerId is not a valid UUID, getting from Supabase session...');
-              const { data: { session } } = await supabase.auth.getSession();
-              if (session?.user?.id) {
-                actualSellerId = session.user.id;
-                console.log('[sellerStore] addProduct: Got seller ID from session:', actualSellerId);
-              } else {
-                throw new Error('Not authenticated. Please log in to add products.');
-              }
+          let actualSellerId = product.sellerId;
+          const isValidUUID =
+            actualSellerId &&
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(actualSellerId);
+
+          if (!isValidUUID) {
+            console.log('[sellerStore] addProduct: SellerId is not a valid UUID, getting from session via authService...');
+            const session = await authService.getSession();
+            if (session?.user?.id) {
+              actualSellerId = session.user.id;
+              console.log('[sellerStore] addProduct: Got seller ID from session:', actualSellerId);
+            } else {
+              throw new Error('Not authenticated. Please log in to add products.');
             }
-            
-            // Use Supabase
+          }
+
+          try {
             const dbProduct = await productService.createProduct({
               name: product.name,
               description: product.description,
@@ -566,7 +604,6 @@ export const useSellerStore = create<SellerStore>()(
               approval_status: 'pending',
               vendor_submitted_category: product.category,
             });
-            // Add returned product to local state
             const newProduct: SellerProduct = {
               ...product,
               id: dbProduct.id || product.id,
@@ -574,9 +611,11 @@ export const useSellerStore = create<SellerStore>()(
               updatedAt: dbProduct.updated_at || new Date().toISOString(),
             };
             set((state) => ({ products: [...state.products, newProduct] }));
-          } else {
-            // Fallback: local state only
+            return dbProduct.id || product.id;
+          } catch (dbErr) {
+            console.warn('[sellerStore] addProduct: DB unavailable, saving locally only');
             set((state) => ({ products: [...state.products, product] }));
+            return product.id;
           }
         } catch (error) {
           console.error('Error adding product:', error);
@@ -586,28 +625,26 @@ export const useSellerStore = create<SellerStore>()(
 
       updateProduct: async (id, updates) => {
         try {
-          if (isSupabaseConfigured()) {
-            // Map to DB fields
-            const dbUpdates: Record<string, unknown> = {};
-            if (updates.name !== undefined) dbUpdates.name = updates.name;
-            if (updates.description !== undefined) dbUpdates.description = updates.description;
-            if (updates.price !== undefined) dbUpdates.price = updates.price;
-            if (updates.originalPrice !== undefined) dbUpdates.original_price = updates.originalPrice;
-            if (updates.stock !== undefined) dbUpdates.stock = updates.stock;
-            if (updates.category !== undefined) dbUpdates.category = updates.category;
-            if (updates.images !== undefined) dbUpdates.images = updates.images;
-            if (updates.sizes !== undefined) dbUpdates.sizes = updates.sizes;
-            if (updates.colors !== undefined) dbUpdates.colors = updates.colors;
-            if (updates.isActive !== undefined) dbUpdates.is_active = updates.isActive;
+          const dbUpdates: Record<string, unknown> = {};
+          if (updates.name !== undefined) dbUpdates.name = updates.name;
+          if (updates.description !== undefined) dbUpdates.description = updates.description;
+          if (updates.price !== undefined) dbUpdates.price = updates.price;
+          if (updates.originalPrice !== undefined) dbUpdates.original_price = updates.originalPrice;
+          if (updates.stock !== undefined) dbUpdates.stock = updates.stock;
+          if (updates.category !== undefined) dbUpdates.category = updates.category;
+          if (updates.images !== undefined) dbUpdates.images = updates.images;
+          if (updates.sizes !== undefined) dbUpdates.sizes = updates.sizes;
+          if (updates.colors !== undefined) dbUpdates.colors = updates.colors;
+          if (updates.isActive !== undefined) dbUpdates.is_active = updates.isActive;
 
+          try {
             await productService.updateProduct(id, dbUpdates);
+          } catch (dbErr) {
+            console.warn('[sellerStore] updateProduct: DB unavailable, updating local state only');
           }
 
-          // Always update local state
           set((state) => ({
-            products: state.products.map((p) =>
-              p.id === id ? { ...p, ...updates } : p
-            ),
+            products: state.products.map((p) => (p.id === id ? { ...p, ...updates } : p)),
           }));
         } catch (error) {
           console.error('Error updating product:', error);
@@ -617,10 +654,11 @@ export const useSellerStore = create<SellerStore>()(
 
       deleteProduct: async (id) => {
         try {
-          if (isSupabaseConfigured()) {
+          try {
             await productService.deleteProduct(id);
+          } catch (dbErr) {
+            console.warn('[sellerStore] deleteProduct: DB unavailable, removing from local state only');
           }
-          // Always update local state
           set((state) => ({
             products: state.products.filter((p) => p.id !== id),
           }));
@@ -638,35 +676,76 @@ export const useSellerStore = create<SellerStore>()(
         })),
 
       // Orders
-      orders: dummyOrders,
+      orders: [],
+      ordersLoading: false,
 
-      updateOrderStatus: (orderId, status) => {
-        // Update seller's order list
+      fetchOrders: async (sellerId?: string) => {
+        const targetSellerId = sellerId || get().seller.id;
+        if (!targetSellerId) {
+          console.warn('[SellerStore] No seller ID available for fetchOrders');
+          return;
+        }
+
+        set({ ordersLoading: true });
+        try {
+          const orders = await orderService.getSellerOrders(targetSellerId);
+          set({ orders: orders as SellerOrder[], ordersLoading: false });
+          console.log(`[SellerStore] Fetched ${orders.length} orders from database`);
+        } catch (error) {
+          console.error('[SellerStore] Error fetching orders:', error);
+          set({ ordersLoading: false });
+        }
+      },
+
+      updateOrderStatus: async (orderId, status) => {
+        // Map UI status to database status
+        const dbStatusMap: Record<string, string> = {
+          pending: 'pending',
+          'to-ship': 'processing',
+          completed: 'delivered',
+          cancelled: 'cancelled',
+        };
+        const dbStatus = dbStatusMap[status] || status;
+
+        // Optimistically update local state
         set((state) => ({
           orders: state.orders.map((o) =>
-            o.orderId === orderId ? { ...o, status } : o
+            o.orderId === orderId || o.id === orderId ? { ...o, status } : o
           ),
         }));
 
-    
+        // Find the actual order ID (database UUID)
+        const order = get().orders.find(o => o.orderId === orderId || o.id === orderId);
+        const actualOrderId = order?.id || orderId;
+
+        // Update in database
+        try {
+          await orderService.updateOrderStatus(actualOrderId, dbStatus);
+          console.log(`[SellerStore] ✅ Order status updated in DB: ${orderId} → ${dbStatus}`);
+        } catch (error) {
+          console.error('[SellerStore] Failed to update order status in DB:', error);
+          // Revert on failure
+          await get().fetchOrders();
+        }
+
         // SYNC TO BUYER: Also update the buyer's order store
         try {
           import('./orderStore').then(({ useOrderStore }) => {
             const orderStore = useOrderStore.getState();
-            
+
             // Find the corresponding buyer order by matching transaction ID
             const buyerOrder = orderStore.orders.find(
               (o) => o.transactionId === orderId
             );
-            
+
             if (buyerOrder) {
               // Map seller status to buyer status
-              const buyerStatus = 
+              const buyerStatus =
                 status === 'pending' ? 'pending' :
-                status === 'to-ship' ? 'processing' :
-                status === 'completed' ? 'delivered' :
-                'canceled';
-              
+                  status === 'to-ship' ? 'processing' :
+                    status === 'completed' ? 'delivered' :
+                      'canceled';
+
               orderStore.updateOrderStatus(buyerOrder.id, buyerStatus as any);
               console.log(`✅ Order status synced to buyer: ${orderId} → ${buyerStatus}`);
             }
@@ -739,9 +818,500 @@ export const useSellerStore = create<SellerStore>()(
           });
 
           console.log(`✅ Offline order created: ${orderId}. Stock updated.`);
+          
+          // Create ledger entries for each item sold
+          const ledgerEntries: InventoryLedgerEntry[] = cartItems.map(item => {
+            const product = get().products.find(p => p.id === item.productId);
+            const quantityBefore = (product?.stock ?? 0) + item.quantity; // Stock before deduction
+            return {
+              id: `ledger-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              timestamp: new Date().toISOString(),
+              productId: item.productId,
+              productName: item.productName,
+              changeType: 'DEDUCTION' as const,
+              quantityBefore,
+              quantityChange: -item.quantity,
+              quantityAfter: quantityBefore - item.quantity,
+              reason: 'OFFLINE_SALE' as const,
+              referenceId: orderId,
+              userId: get().seller.id || 'SYSTEM',
+              notes: `POS sale: ${item.productName} x${item.quantity}`,
+            };
+          });
+          
+          set((state) => ({
+            inventoryLedger: [...state.inventoryLedger, ...ledgerEntries],
+          }));
+          
+          // Check for low stock alerts
+          get().checkLowStock();
+          
           return orderId;
         } catch (error) {
           console.error('Failed to create offline order:', error);
+          throw error;
+        }
+      },
+
+      // ============ INVENTORY MANAGEMENT METHODS ============
+
+      // Deduct stock with full audit trail
+      deductStock: (productId, quantity, reason, referenceId, notes) => {
+        try {
+          const product = get().products.find(p => p.id === productId);
+          if (!product) {
+            throw new Error(`Product ${productId} not found`);
+          }
+
+          // RULE: No negative stock allowed
+          if (product.stock < quantity) {
+            throw new Error(`Insufficient stock for ${product.name}. Available: ${product.stock}, Requested: ${quantity}`);
+          }
+
+          const newStock = product.stock - quantity;
+
+          // Update product stock
+          set((state) => ({
+            products: state.products.map(p =>
+              p.id === productId
+                ? { ...p, stock: newStock, sales: p.sales + quantity }
+                : p
+            ),
+          }));
+
+          // Create immutable ledger entry
+          const ledgerEntry: InventoryLedgerEntry = {
+            id: `ledger-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            timestamp: new Date().toISOString(),
+            productId,
+            productName: product.name,
+            changeType: 'DEDUCTION',
+            quantityBefore: product.stock,
+            quantityChange: -quantity,
+            quantityAfter: newStock,
+            reason,
+            referenceId,
+            userId: get().seller.id || 'SYSTEM',
+            notes: notes || `Stock deducted for ${reason.replace('_', ' ').toLowerCase()}`,
+          };
+
+          set((state) => ({
+            inventoryLedger: [...state.inventoryLedger, ledgerEntry],
+          }));
+
+          // Check for low stock alerts
+          get().checkLowStock();
+
+          console.log(`✅ Stock deducted: ${product.name} - ${quantity} units. New stock: ${newStock}. Ledger ID: ${ledgerEntry.id}`);
+        } catch (error) {
+          console.error('Failed to deduct stock:', error);
+          throw error;
+        }
+      },
+
+      // Add stock (replenishment)
+      addStock: (productId, quantity, reason, notes) => {
+        try {
+          const product = get().products.find(p => p.id === productId);
+          if (!product) {
+            throw new Error(`Product ${productId} not found`);
+          }
+
+          if (quantity <= 0) {
+            throw new Error('Quantity must be greater than 0');
+          }
+
+          const newStock = product.stock + quantity;
+
+          // Update product stock
+          set((state) => ({
+            products: state.products.map(p =>
+              p.id === productId
+                ? { ...p, stock: newStock }
+                : p
+            ),
+          }));
+
+          // Create ledger entry
+          const ledgerEntry: InventoryLedgerEntry = {
+            id: `ledger-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            timestamp: new Date().toISOString(),
+            productId,
+            productName: product.name,
+            changeType: 'ADDITION',
+            quantityBefore: product.stock,
+            quantityChange: quantity,
+            quantityAfter: newStock,
+            reason: 'STOCK_REPLENISHMENT',
+            referenceId: `REPL-${Date.now()}`,
+            userId: get().seller.id || 'SYSTEM',
+            notes: notes || reason,
+          };
+
+          set((state) => ({
+            inventoryLedger: [...state.inventoryLedger, ledgerEntry],
+          }));
+
+          get().checkLowStock();
+
+          console.log(`✅ Stock added: ${product.name} + ${quantity} units. New stock: ${newStock}`);
+        } catch (error) {
+          console.error('Failed to add stock:', error);
+          throw error;
+        }
+      },
+
+      // Manual stock adjustment (requires reason notes)
+      adjustStock: (productId, newQuantity, reason, notes) => {
+        try {
+          const product = get().products.find(p => p.id === productId);
+          if (!product) {
+            throw new Error(`Product ${productId} not found`);
+          }
+
+          if (newQuantity < 0) {
+            throw new Error('Stock quantity cannot be negative');
+          }
+
+          // RULE: Adjustments require reason notes
+          if (!notes || notes.trim() === '') {
+            throw new Error('Adjustment notes are required');
+          }
+
+          const quantityChange = newQuantity - product.stock;
+
+          set((state) => ({
+            products: state.products.map(p =>
+              p.id === productId
+                ? { ...p, stock: newQuantity }
+                : p
+            ),
+          }));
+
+          // Create ledger entry
+          const ledgerEntry: InventoryLedgerEntry = {
+            id: `ledger-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            timestamp: new Date().toISOString(),
+            productId,
+            productName: product.name,
+            changeType: 'ADJUSTMENT',
+            quantityBefore: product.stock,
+            quantityChange,
+            quantityAfter: newQuantity,
+            reason: 'MANUAL_ADJUSTMENT',
+            referenceId: `ADJ-${Date.now()}`,
+            userId: get().seller.id || 'SYSTEM',
+            notes: `${reason}: ${notes}`,
+          };
+
+          set((state) => ({
+            inventoryLedger: [...state.inventoryLedger, ledgerEntry],
+          }));
+
+          get().checkLowStock();
+
+          console.log(`✅ Stock adjusted: ${product.name}. Old: ${product.stock}, New: ${newQuantity}`);
+        } catch (error) {
+          console.error('Failed to adjust stock:', error);
+          throw error;
+        }
+      },
+
+      // Reserve stock for online orders (before payment)
+      reserveStock: (productId, quantity, orderId) => {
+        try {
+          const product = get().products.find(p => p.id === productId);
+          if (!product) {
+            throw new Error(`Product ${productId} not found`);
+          }
+
+          // RULE: No negative stock allowed
+          if (product.stock < quantity) {
+            throw new Error(`Insufficient stock for ${product.name}. Available: ${product.stock}, Requested: ${quantity}`);
+          }
+
+          const newStock = product.stock - quantity;
+
+          set((state) => ({
+            products: state.products.map(p =>
+              p.id === productId
+                ? { ...p, stock: newStock }
+                : p
+            ),
+          }));
+
+          // Create ledger entry
+          const ledgerEntry: InventoryLedgerEntry = {
+            id: `ledger-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            timestamp: new Date().toISOString(),
+            productId,
+            productName: product.name,
+            changeType: 'RESERVATION',
+            quantityBefore: product.stock,
+            quantityChange: -quantity,
+            quantityAfter: newStock,
+            reason: 'RESERVATION',
+            referenceId: orderId,
+            userId: get().seller.id || 'SYSTEM',
+            notes: `Stock reserved for order ${orderId}`,
+          };
+
+          set((state) => ({
+            inventoryLedger: [...state.inventoryLedger, ledgerEntry],
+          }));
+
+          get().checkLowStock();
+
+          console.log(`✅ Stock reserved: ${product.name} - ${quantity} units for order ${orderId}`);
+        } catch (error) {
+          console.error('Failed to reserve stock:', error);
+          throw error;
+        }
+      },
+
+      // Release reserved stock (order cancelled)
+      releaseStock: (productId, quantity, orderId) => {
+        try {
+          const product = get().products.find(p => p.id === productId);
+          if (!product) {
+            throw new Error(`Product ${productId} not found`);
+          }
+
+          const newStock = product.stock + quantity;
+
+          set((state) => ({
+            products: state.products.map(p =>
+              p.id === productId
+                ? { ...p, stock: newStock }
+                : p
+            ),
+          }));
+
+          // Create ledger entry
+          const ledgerEntry: InventoryLedgerEntry = {
+            id: `ledger-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            timestamp: new Date().toISOString(),
+            productId,
+            productName: product.name,
+            changeType: 'RELEASE',
+            quantityBefore: product.stock,
+            quantityChange: quantity,
+            quantityAfter: newStock,
+            reason: 'ORDER_CANCELLATION',
+            referenceId: orderId,
+            userId: get().seller.id || 'SYSTEM',
+            notes: `Stock released from cancelled order ${orderId}`,
+          };
+
+          set((state) => ({
+            inventoryLedger: [...state.inventoryLedger, ledgerEntry],
+          }));
+
+          get().checkLowStock();
+
+          console.log(`✅ Stock released: ${product.name} + ${quantity} units from order ${orderId}`);
+        } catch (error) {
+          console.error('Failed to release stock:', error);
+          throw error;
+        }
+      },
+
+      // Get ledger entries for a specific product
+      getLedgerByProduct: (productId) => {
+        return get().inventoryLedger.filter(entry => entry.productId === productId);
+      },
+
+      // Get recent ledger entries
+      getRecentLedgerEntries: (limit = 50) => {
+        return get().inventoryLedger
+          .slice()
+          .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+          .slice(0, limit);
+      },
+
+      // Check and create low stock alerts
+      checkLowStock: () => {
+        const { products, lowStockAlerts } = get();
+        const threshold = LOW_STOCK_THRESHOLD;
+
+        products.forEach(product => {
+          // Check if stock is low (between 0 and threshold)
+          if (product.stock > 0 && product.stock < threshold) {
+            // Check if alert already exists for this product
+            const existingAlert = lowStockAlerts.find(
+              alert => alert.productId === product.id && !alert.acknowledged
+            );
+
+            if (!existingAlert) {
+              const newAlert: LowStockAlert = {
+                id: `alert-${Date.now()}-${product.id}`,
+                productId: product.id,
+                productName: product.name,
+                currentStock: product.stock,
+                threshold,
+                timestamp: new Date().toISOString(),
+                acknowledged: false,
+              };
+
+              set((state) => ({
+                lowStockAlerts: [...state.lowStockAlerts, newAlert],
+              }));
+
+              console.log(`⚠️ LOW STOCK ALERT: ${product.name} - Only ${product.stock} units remaining!`);
+            }
+          }
+        });
+      },
+
+      // Acknowledge low stock alert
+      acknowledgeLowStockAlert: (alertId) => {
+        set((state) => ({
+          lowStockAlerts: state.lowStockAlerts.map(alert =>
+            alert.id === alertId ? { ...alert, acknowledged: true } : alert
+          ),
+        }));
+      },
+
+      // Get low stock threshold
+      getLowStockThreshold: () => LOW_STOCK_THRESHOLD,
+
+      // Deduct variant stock (SKU level)
+      deductVariantStock: (productId, variantId, quantity, reason, referenceId, notes) => {
+        try {
+          const product = get().products.find(p => p.id === productId);
+          if (!product) {
+            throw new Error(`Product ${productId} not found`);
+          }
+
+          if (!product.variants || product.variants.length === 0) {
+            throw new Error(`Product ${product.name} has no variants`);
+          }
+
+          const variantIndex = product.variants.findIndex(v => v.id === variantId);
+          if (variantIndex === -1) {
+            throw new Error(`Variant ${variantId} not found in product ${product.name}`);
+          }
+
+          const variant = product.variants[variantIndex];
+          const currentStock = parseInt(variant.stock, 10) || 0;
+
+          // RULE: No negative stock allowed
+          if (currentStock < quantity) {
+            throw new Error(`Insufficient stock for ${product.name} (${variant.option1}/${variant.option2}). Available: ${currentStock}, Requested: ${quantity}`);
+          }
+
+          const newStock = currentStock - quantity;
+
+          // Update variant stock
+          set((state) => ({
+            products: state.products.map(p => {
+              if (p.id === productId && p.variants) {
+                return {
+                  ...p,
+                  variants: p.variants.map((v, i) =>
+                    i === variantIndex ? { ...v, stock: newStock.toString() } : v
+                  ),
+                  sales: p.sales + quantity,
+                };
+              }
+              return p;
+            }),
+          }));
+
+          // Create ledger entry
+          const ledgerEntry: InventoryLedgerEntry = {
+            id: `ledger-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            timestamp: new Date().toISOString(),
+            productId,
+            productName: `${product.name} (${variant.option1}/${variant.option2})`,
+            changeType: 'DEDUCTION',
+            quantityBefore: currentStock,
+            quantityChange: -quantity,
+            quantityAfter: newStock,
+            reason,
+            referenceId,
+            userId: get().seller.id || 'SYSTEM',
+            notes: notes || `Variant stock deducted: SKU ${variant.sku}`,
+          };
+
+          set((state) => ({
+            inventoryLedger: [...state.inventoryLedger, ledgerEntry],
+          }));
+
+          get().checkLowStock();
+
+          console.log(`✅ Variant stock deducted: ${product.name} (${variant.option1}/${variant.option2}) - ${quantity} units. New stock: ${newStock}`);
+        } catch (error) {
+          console.error('Failed to deduct variant stock:', error);
+          throw error;
+        }
+      },
+
+      // Add variant stock (SKU level replenishment)
+      addVariantStock: (productId, variantId, quantity, reason, notes) => {
+        try {
+          const product = get().products.find(p => p.id === productId);
+          if (!product) {
+            throw new Error(`Product ${productId} not found`);
+          }
+
+          if (!product.variants || product.variants.length === 0) {
+            throw new Error(`Product ${product.name} has no variants`);
+          }
+
+          const variantIndex = product.variants.findIndex(v => v.id === variantId);
+          if (variantIndex === -1) {
+            throw new Error(`Variant ${variantId} not found in product ${product.name}`);
+          }
+
+          if (quantity <= 0) {
+            throw new Error('Quantity must be greater than 0');
+          }
+
+          const variant = product.variants[variantIndex];
+          const currentStock = parseInt(variant.stock, 10) || 0;
+          const newStock = currentStock + quantity;
+
+          // Update variant stock
+          set((state) => ({
+            products: state.products.map(p => {
+              if (p.id === productId && p.variants) {
+                return {
+                  ...p,
+                  variants: p.variants.map((v, i) =>
+                    i === variantIndex ? { ...v, stock: newStock.toString() } : v
+                  ),
+                };
+              }
+              return p;
+            }),
+          }));
+
+          // Create ledger entry
+          const ledgerEntry: InventoryLedgerEntry = {
+            id: `ledger-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            timestamp: new Date().toISOString(),
+            productId,
+            productName: `${product.name} (${variant.option1}/${variant.option2})`,
+            changeType: 'ADDITION',
+            quantityBefore: currentStock,
+            quantityChange: quantity,
+            quantityAfter: newStock,
+            reason: 'STOCK_REPLENISHMENT',
+            referenceId: `REPL-${Date.now()}`,
+            userId: get().seller.id || 'SYSTEM',
+            notes: notes || `Variant stock added: SKU ${variant.sku} - ${reason}`,
+          };
+
+          set((state) => ({
+            inventoryLedger: [...state.inventoryLedger, ledgerEntry],
+          }));
+
+          get().checkLowStock();
+
+          console.log(`✅ Variant stock added: ${product.name} (${variant.option1}/${variant.option2}) + ${quantity} units. New stock: ${newStock}`);
+        } catch (error) {
+          console.error('Failed to add variant stock:', error);
           throw error;
         }
       },
@@ -755,7 +1325,7 @@ export const useSellerStore = create<SellerStore>()(
         set((state) => ({
           seller: { ...state.seller, ...updates },
         })),
-      
+
       // Auth
       logout: () => {
         // Clear seller data - can be enhanced to clear AsyncStorage if needed

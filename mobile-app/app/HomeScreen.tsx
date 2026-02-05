@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,9 +11,10 @@ import {
   Dimensions,
   StatusBar,
   Alert,
+  TouchableOpacity,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Search, Bell, Camera, Bot, X, Package, Timer, MapPin, ChevronDown, ArrowLeft, Clock, MessageSquare, MessageCircle, CheckCircle2 } from 'lucide-react-native';
+import { Search, Bell, Camera, Bot, X, Package, Timer, MapPin, ChevronDown, ArrowLeft, Clock, MessageSquare, MessageCircle, CheckCircle2, ShoppingBag, Truck, XCircle } from 'lucide-react-native';
 import { ProductCard } from '../src/components/ProductCard';
 import CameraSearchModal from '../src/components/CameraSearchModal';
 import AIChatModal from '../src/components/AIChatModal';
@@ -24,7 +25,10 @@ import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList, TabParamList } from '../App';
 import type { Product } from '../src/types';
-import { supabase } from '../src/lib/supabase';
+import { productService } from '../src/services/productService';
+import { sellerService } from '../src/services/sellerService';
+import { addressService } from '../src/services/addressService';
+import { notificationService, Notification } from '../src/services/notificationService';
 import { useAuthStore } from '../src/stores/authStore';
 import { useSellerStore } from '../src/stores/sellerStore';
 import { GuestLoginModal } from '../src/components/GuestLoginModal';
@@ -39,12 +43,21 @@ type Props = CompositeScreenProps<
 const { width } = Dimensions.get('window');
 
 const categories = [
-  { id: 'electronics', name: 'Electronics', image: 'https://images.unsplash.com/photo-1498049794561-7780e7231661?w=300' },
+  { id: 'electronics', name: 'Electronics', image: 'https://images.unsplash.com/photo-1498049794561-7780e7231661?w=300', size: '' },
   { id: 'fashion', name: 'Fashion', image: 'https://images.unsplash.com/photo-1445205170230-053b83016050?w=300' },
   { id: 'home-garden', name: 'Home & Living', image: 'https://images.unsplash.com/photo-1556911220-bff31c812dba?w=300' },
   { id: 'beauty', name: 'Beauty', image: 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=300' },
   { id: 'sports', name: 'Sports', image: 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=300' },
 ];
+
+const CategoryItem = ({ label, image }: { label: string; image: string }) => (
+  <View style={styles.categoryItm}>
+    <View style={styles.iconCircle}>
+      <Image source={{ uri: image }} style={{ width: 60, height: 60, borderRadius: 30 }} />
+    </View>
+    <Text style={styles.categoryLabel}>{label}</Text>
+  </View>
+);
 
 export default function HomeScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
@@ -60,6 +73,8 @@ export default function HomeScreen({ navigation }: Props) {
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [sellers, setSellers] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   // LOCATION STATE
   const [deliveryAddress, setDeliveryAddress] = useState('Select Location');
@@ -130,19 +145,48 @@ export default function HomeScreen({ navigation }: Props) {
   // Display name logic
   const username = user?.name ? user.name.split(' ')[0] : 'Guest';
 
-  const notifications = [
-    { id: '1', title: 'Order Shipped! 📦', message: 'Your order #A238567K has been shipped!', time: '2h ago', read: false, icon: Package, color: '#3B82F6' },
-  ];
+  // Helper to get icon component for notification type
+  const getNotificationIcon = (type: string) => {
+    if (type.includes('shipped')) return Truck;
+    if (type.includes('delivered') || type.includes('confirmed')) return CheckCircle2;
+    if (type.includes('placed')) return ShoppingBag;
+    if (type.includes('cancelled')) return XCircle;
+    return Package;
+  };
+
+  // Helper to get notification color
+  const getNotificationColor = (type: string) => {
+    if (type.includes('shipped')) return '#F97316';
+    if (type.includes('delivered')) return '#22C55E';
+    if (type.includes('confirmed')) return '#3B82F6';
+    if (type.includes('placed')) return '#22C55E';
+    if (type.includes('cancelled')) return '#EF4444';
+    return '#6B7280';
+  };
+
+  // Format notification time
+  const formatNotificationTime = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    const diffHrs = Math.floor(diffMins / 60);
+    if (diffHrs < 24) return `${diffHrs}h ago`;
+    const diffDays = Math.floor(diffHrs / 24);
+    return `${diffDays}d ago`;
+  };
 
   const filteredProducts = searchQuery.trim()
     ? dbProducts.filter(p => (p.name || '').toLowerCase().includes(searchQuery.toLowerCase()))
     : [];
 
   const filteredStores = searchQuery.trim()
-    ? (sellers || []).filter((s: any) => 
-        (s.store_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (s.business_name || '').toLowerCase().includes(searchQuery.toLowerCase())
-      )
+    ? (sellers || []).filter((s: any) =>
+      (s.store_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (s.business_name || '').toLowerCase().includes(searchQuery.toLowerCase())
+    )
     : [];
 
   useEffect(() => {
@@ -150,27 +194,12 @@ export default function HomeScreen({ navigation }: Props) {
       setIsLoadingProducts(true);
       setFetchError(null);
       try {
-        const { data, error } = await supabase
-          .from('products')
-          .select(`
-            *,
-            seller:sellers!products_seller_id_fkey (
-              business_name,
-              store_name,
-              rating,
-              business_address,
-              id,
-              is_verified
-            )
-          `)
-          .eq('is_active', true)
-          .eq('approval_status', 'pending')
-          .order('created_at', { ascending: false });
-        if (error) {
-          setFetchError(error.message);
-          setDbProducts([]);
-          return;
-        }
+        // BUYER VIEW: Only show approved products that passed QA
+        const data = await productService.getProducts({
+          isActive: true,
+          approvalStatus: 'approved'
+        });
+
         const mapped: Product[] = (data || []).map((row: any) => {
           const imageUrl =
             row.primary_image ||
@@ -205,6 +234,9 @@ export default function HomeScreen({ navigation }: Props) {
             description: row.description || '',
             category: row.category || '',
             stock: row.stock,
+            // Include variant data for ProductDetailScreen
+            colors: Array.isArray(row.colors) ? row.colors : [],
+            sizes: Array.isArray(row.sizes) ? row.sizes : [],
           } as Product;
         });
         // Deduplicate
@@ -222,48 +254,91 @@ export default function HomeScreen({ navigation }: Props) {
 
   useEffect(() => {
     const fetchSellers = async () => {
-      const { data } = await supabase.from('sellers').select('*');
+      const data = await sellerService.getSellers();
       if (data) setSellers(data);
     };
     fetchSellers();
   }, []);
 
-  // --- NEW: FETCH DEFAULT ADDRESS ---
+  // --- FETCH NOTIFICATIONS ---
+  const loadNotifications = useCallback(async () => {
+    if (!user?.id || isGuest) return;
+    try {
+      const data = await notificationService.getNotifications(user.id, 'buyer', 20);
+      setNotifications(data);
+      setUnreadCount(data.filter(n => !n.is_read).length);
+    } catch (error) {
+      console.error('[HomeScreen] Error loading notifications:', error);
+    }
+  }, [user?.id, isGuest]);
+
   useEffect(() => {
-    if (!user) return;
-    const fetchDefaultAddress = async () => {
-      const { data, error } = await supabase
-        .from('addresses')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('is_default', true)
-        .single();
+    loadNotifications();
+  }, [loadNotifications]);
 
-      if (data && !error) {
-        // Format: "123 Street, City"
-        const formatted = `${data.street}, ${data.city}`;
-        setDeliveryAddress(formatted);
+  // --- LOAD SAVED DELIVERY LOCATION ---
+  // Priority: 1) "Current Location" from DB, 2) Default address, 3) AsyncStorage fallback
+  useEffect(() => {
+    const loadSavedLocation = async () => {
+      // First try AsyncStorage (works for guests too)
+      try {
+        const savedAddress = await AsyncStorage.getItem('currentDeliveryAddress');
+        const savedCoords = await AsyncStorage.getItem('currentDeliveryCoordinates');
 
-        // Store coordinates if available
-        if (data.coordinates) {
-          setDeliveryCoordinates(data.coordinates);
+        if (savedAddress) {
+          setDeliveryAddress(savedAddress);
+          console.log('[HomeScreen] Loaded address from AsyncStorage:', savedAddress);
+        }
+        if (savedCoords) {
+          setDeliveryCoordinates(JSON.parse(savedCoords));
+        }
+      } catch (e) {
+        console.error('[HomeScreen] Error loading from AsyncStorage:', e);
+      }
+
+      // If user is logged in, prioritize database location
+      if (user?.id) {
+        try {
+          const savedLocation = await addressService.getCurrentDeliveryLocation(user.id);
+
+          if (savedLocation) {
+            // Format: "Street, City" or full address
+            const formatted = savedLocation.city
+              ? `${savedLocation.street}, ${savedLocation.city}`
+              : savedLocation.street;
+
+            setDeliveryAddress(formatted);
+            console.log('[HomeScreen] Loaded location from database:', formatted);
+
+            // Store coordinates if available
+            if (savedLocation.coordinates) {
+              setDeliveryCoordinates(savedLocation.coordinates);
+            }
+
+            // Also sync to AsyncStorage for faster loading next time
+            await AsyncStorage.setItem('currentDeliveryAddress', formatted);
+            if (savedLocation.coordinates) {
+              await AsyncStorage.setItem('currentDeliveryCoordinates', JSON.stringify(savedLocation.coordinates));
+            }
+          }
+        } catch (dbError) {
+          console.error('[HomeScreen] Error loading from database:', dbError);
         }
       }
     };
 
-    // Subscribe to address changes to update realtime
-    const subscription = supabase
-      .channel('addresses_channel')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'addresses', filter: `user_id=eq.${user.id}` }, () => {
-        fetchDefaultAddress();
-      })
-      .subscribe();
+    loadSavedLocation();
 
-    fetchDefaultAddress();
+    // Subscribe to address changes to update realtime (only for logged in users)
+    if (user?.id) {
+      const subscription = addressService.subscribeToAddressChanges(user.id, () => {
+        loadSavedLocation();
+      });
 
-    return () => {
-      subscription.unsubscribe();
-    };
+      return () => {
+        subscription.unsubscribe();
+      };
+    }
   }, [user]);
 
   // Handle address selection from modal
@@ -278,6 +353,16 @@ export default function HomeScreen({ navigation }: Props) {
         await AsyncStorage.setItem('currentDeliveryCoordinates', JSON.stringify(coords));
       }
       console.log('[HomeScreen] Saved delivery address to AsyncStorage:', address);
+
+      // Also save to database if user is logged in
+      if (user?.id) {
+        try {
+          await addressService.saveCurrentDeliveryLocation(user.id, address, coords || null);
+          console.log('[HomeScreen] Saved delivery location to database');
+        } catch (dbError) {
+          console.error('[HomeScreen] Error saving to database (non-critical):', dbError);
+        }
+      }
     } catch (error) {
       console.error('[HomeScreen] Error saving delivery address:', error);
     }
@@ -287,7 +372,7 @@ export default function HomeScreen({ navigation }: Props) {
     const interval = setInterval(() => {
       let nextSlide = activeSlide + 1;
       if (nextSlide >= promoSlides.length) nextSlide = 0;
-      
+
       scrollRef.current?.scrollTo({ x: nextSlide * width, animated: true });
       setActiveSlide(nextSlide);
     }, 4000); // 4 seconds interval
@@ -321,85 +406,51 @@ export default function HomeScreen({ navigation }: Props) {
 
       {/* 1. BRANDED HEADER */}
       <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: BRAND_COLOR }]}>
-        <View style={styles.headerTop}>
-          <View style={styles.headerLeft}>
-            {/* PROFILE AVATAR CLICKABLE LOGIC */}
-            <Pressable onPress={() => navigation.navigate('MainTabs', { screen: 'Profile' })}>
-              <Image
-                source={{ uri: user?.avatar || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100' }}
-                style={styles.avatar}
-              />
-            </Pressable>
-
-            <View style={styles.greetingContainer}>
-              <Text style={[styles.greetingTitle, { color: '#FFF' }]}>Hi, {username}</Text>
-              <Text style={[styles.greetingSubtitle, { color: 'rgba(255,255,255,0.8)' }]}>Let's go shopping</Text>
+        <View style={styles.locationRow}>
+          <Pressable onPress={() => setShowLocationModal(true)}>
+            <Text style={styles.locationLabel}>Location</Text>
+            <View style={styles.locationSelector}>
+              <MapPin size={16} color="white" fill="white" />
+              <Text numberOfLines={1} style={[styles.locationText, { maxWidth: 200, color: 'white', fontWeight: 'bold', fontSize: 16 }]}>{deliveryAddress}</Text>
+              <ChevronDown size={16} color="white" />
             </View>
-          </View>
-          <View style={styles.headerRight}>
-            <Pressable onPress={() => setIsSearchFocused(true)} style={styles.headerIconButton}><Search size={24} color="#FFF" /></Pressable>
-            <Pressable
-              onPress={() => {
-                if (isGuest) {
-                  setShowGuestModal(true);
-                } else {
-                  setShowNotifications(true);
-                }
-              }}
-              style={styles.headerIconButton}
-            >
-              <Bell size={24} color="#FFF" />
-              {!isGuest && notifications.some(n => !n.read) && <View style={[styles.notifBadge, { backgroundColor: '#FFF' }]} />}
-            </Pressable>
-          </View>
+          </Pressable>
+          <Pressable
+            onPress={() => {
+              if (isGuest) {
+                setShowGuestModal(true);
+              } else {
+                setShowNotifications(true);
+              }
+            }}
+            style={styles.headerIconButton}
+          >
+            <Bell size={24} color="#FFF" />
+            {!isGuest && notifications.some(n => !n.is_read) && <View style={[styles.notifBadge, { backgroundColor: '#FFF' }]} />}
+          </Pressable>
         </View>
 
-        {isSearchFocused && (
-          <View style={styles.searchBarWrapper}>
-            <Pressable onPress={() => { setIsSearchFocused(false); setSearchQuery(''); }} style={styles.searchBackBtn}>
-              <ArrowLeft size={20} color="#FFF" />
-            </Pressable>
-            <View style={[styles.searchBarInner, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
-              <Search size={18} color="#FFF" />
-              <TextInput
-                style={[styles.searchInput, { color: '#FFF' }]}
-                placeholder="Search products..."
-                placeholderTextColor="rgba(255,255,255,0.7)"
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                autoFocus
-              />
-              <Pressable onPress={() => setShowCameraSearch(true)}><Camera size={18} color="#FFF" /></Pressable>
-            </View>
+        {/* 2. PERSISTENT SEARCH BAR */}
+        <View style={styles.searchBarWrapper}>
+          <View style={[styles.searchBarInner, { backgroundColor: '#FFFFFF' }]}>
+            <Search size={18} color="#9CA3AF" />
+            <TextInput
+              style={[styles.searchInput, { color: '#1F2937' }]}
+              placeholder="Search products..."
+              placeholderTextColor="#9CA3AF"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              onFocus={() => setIsSearchFocused(true)}
+            />
+            <Pressable onPress={() => setShowCameraSearch(true)}><Camera size={18} color="#9CA3AF" /></Pressable>
           </View>
-        )}
-
-        {!isSearchFocused && (
-          <View style={styles.tabBarCenter}>
-            <Pressable style={styles.tabItem} onPress={() => setActiveTab('Home')}>
-              <Text style={[styles.tabLabel, activeTab === 'Home' && { color: '#FFF', fontWeight: '800' }]}>Home</Text>
-              <View style={[styles.tabIndicator, activeTab === 'Home' && { backgroundColor: '#FFF' }]} />
+          {isSearchFocused && (
+            <Pressable onPress={() => { setIsSearchFocused(false); setSearchQuery(''); }} style={{ paddingLeft: 10 }}>
+              <Text style={{ color: '#FFF', fontWeight: '600' }}>Cancel</Text>
             </Pressable>
-            <Pressable style={styles.tabItem} onPress={() => setActiveTab('Category')}>
-              <Text style={[styles.tabLabel, activeTab === 'Category' && { color: '#FFF', fontWeight: '800' }]}>Category</Text>
-              <View style={[styles.tabIndicator, activeTab === 'Category' && { backgroundColor: '#FFF' }]} />
-            </Pressable>
-          </View>
-        )}
+          )}
+        </View>
       </View>
-
-      {/* DELIVERY BAR - Displays fetched address */}
-      {!isSearchFocused && activeTab === 'Home' && (
-        <Pressable style={styles.deliveryBarVisible} onPress={() => setShowLocationModal(true)}>
-          <View style={styles.deliveryContent}>
-            <MapPin size={16} color={BRAND_COLOR} />
-            <Text style={styles.deliveryText} numberOfLines={1}>
-              Deliver to: <Text style={styles.deliveryAddressBold}>{deliveryAddress}</Text>
-            </Text>
-            <ChevronDown size={16} color="#9CA3AF" />
-          </View>
-        </Pressable>
-      )}
 
       <ScrollView style={styles.contentScroll} showsVerticalScrollIndicator={false}>
         {isSearchFocused ? (
@@ -417,14 +468,14 @@ export default function HomeScreen({ navigation }: Props) {
             ) : (
               <View style={styles.resultsSection}>
                 <Text style={styles.discoveryTitle}>{filteredProducts.length + filteredStores.length} results found</Text>
-                
+
                 {filteredStores.length > 0 && (
                   <View style={{ marginBottom: 20 }}>
                     <Text style={styles.sectionHeader}>Stores</Text>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
                       {filteredStores.map(s => (
-                        <Pressable 
-                          key={s.id} 
+                        <Pressable
+                          key={s.id}
                           style={styles.storeSearchResultCard}
                           onPress={() => navigation.navigate('StoreDetail', { store: { ...s, name: s.store_name, verified: !!s.is_verified } })}
                         >
@@ -459,37 +510,13 @@ export default function HomeScreen({ navigation }: Props) {
           </View>
         ) : activeTab === 'Home' ? (
           <>
-            <View style={styles.flashSaleSection}>
-              <View style={styles.flashHeader}>
-                <View style={styles.row}>
-                  <Text style={[styles.gridTitleText, { color: BRAND_COLOR }]}>FLASH SALE</Text>
-                  <View style={[styles.timerBox, { backgroundColor: '#333' }]}>
-                    <Timer size={14} color="#FFF" /><Text style={styles.timerText}>02:15:45</Text>
-                  </View>
-                </View>
-              </View>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingLeft: 20, paddingBottom: 10 }}>
-                {flashSaleProducts.map(p => (
-                  <View key={p.id} style={styles.itemBoxContainerHorizontal}>
-                    <ProductCard product={p} onPress={() => handleProductPress(p)} />
-                    <View style={[styles.discountTag, { backgroundColor: BRAND_COLOR }]}>
-                      <Text style={styles.discountTagText}>
-                        {p.originalPrice && typeof p.price === 'number' && p.originalPrice > p.price
-                          ? `-${Math.round(((p.originalPrice - p.price) / p.originalPrice) * 100)}%`
-                          : ''}
-                      </Text>
-                    </View>
-                  </View>
-                ))}
-              </ScrollView>
-            </View>
 
             {/* SPECIAL OFFER CAROUSEL */}
             <View style={styles.carouselContainer}>
-              <ScrollView 
+              <ScrollView
                 ref={scrollRef}
-                horizontal 
-                pagingEnabled 
+                horizontal
+                pagingEnabled
                 showsHorizontalScrollIndicator={false}
                 onScroll={(e) => {
                   const x = e.nativeEvent.contentOffset.x;
@@ -514,20 +541,64 @@ export default function HomeScreen({ navigation }: Props) {
                   </View>
                 ))}
               </ScrollView>
-              
+
               {/* Pagination Dots */}
               <View style={styles.paginationContainer}>
                 {promoSlides.map((_, i) => (
-                  <View 
-                    key={i} 
+                  <View
+                    key={i}
                     style={[
-                      styles.paginationDot, 
+                      styles.paginationDot,
                       { backgroundColor: i === activeSlide ? BRAND_COLOR : '#E5E7EB', width: i === activeSlide ? 20 : 8 }
-                    ]} 
+                    ]}
                   />
                 ))}
               </View>
             </View>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Flash Sale</Text>
+              <View style={styles.timerContainer}>
+                <Text style={styles.timerLabel}>Closing in : </Text>
+                <Text style={[styles.timerTime, { color: BRAND_COLOR }]}>02 : 12 : 56</Text>
+              </View>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingLeft: 20, paddingBottom: 10 }}>
+              <View style={styles.itemBoxContainerHorizontal}>
+                <ProductCard product={{
+                  id: 'dummy1',
+                  name: 'Wireless Headphones',
+                  price: 1299,
+                  originalPrice: 2500,
+                  image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500',
+                  rating: 4.8,
+                  sold: 120,
+                  seller: 'TechStore',
+                  sellerId: 's1',
+                  sellerRating: 4.8,
+                  sellerVerified: true,
+                  isFreeShipping: true,
+                  isVerified: true,
+                  location: 'Manila',
+                  description: 'Great sound',
+                  category: 'Electronics',
+                  stock: 50
+                }} onPress={() => { }} />
+              </View>
+            </ScrollView>
+
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Category</Text>
+              <TouchableOpacity><Text style={styles.seeAll}>See All</Text></TouchableOpacity>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRow} style={{ flexGrow: 0 }}>
+              {categories.map((item) => (
+                <View key={item.id} style={{ marginRight: 20 }}>
+                  <CategoryItem label={item.name} image={item.image} />
+                </View>
+              ))}
+            </ScrollView>
+
+
 
             <View style={styles.section}>
               <Pressable
@@ -595,49 +666,95 @@ export default function HomeScreen({ navigation }: Props) {
         initialCoordinates={deliveryCoordinates}
       />
 
-      {showGuestModal && (
-        <GuestLoginModal
-          visible={true}
-          onClose={() => setShowGuestModal(false)}
-          message="Sign up to view your notifications."
-        />
-      )}
+      {
+        showGuestModal && (
+          <GuestLoginModal
+            visible={true}
+            onClose={() => setShowGuestModal(false)}
+            message="Sign up to view your notifications."
+          />
+        )
+      }
 
       <Modal visible={showNotifications} animationType="slide" transparent={true} onRequestClose={() => setShowNotifications(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.notificationModalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Notifications</Text>
-              <Pressable onPress={() => setShowNotifications(false)}><X size={24} color="#1F2937" /></Pressable>
+              <View style={{ flexDirection: 'row', gap: 12 }}>
+                {notifications.length > 0 && (
+                  <Pressable onPress={async () => {
+                    if (user?.id) {
+                      await notificationService.markAllAsRead(user.id, 'buyer');
+                      loadNotifications();
+                    }
+                  }}>
+                    <Text style={{ color: COLORS.primary, fontSize: 14, fontWeight: '600' }}>Mark All Read</Text>
+                  </Pressable>
+                )}
+                <Pressable onPress={() => setShowNotifications(false)}><X size={24} color="#1F2937" /></Pressable>
+              </View>
             </View>
             <ScrollView style={{ padding: 20 }}>
-              {notifications.map((n) => (
-                <View key={n.id} style={styles.notificationItem}>
-                  <View style={[styles.notificationIcon, { backgroundColor: `${n.color}15` }]}><n.icon size={24} color={n.color} /></View>
-                  <View style={{ flex: 1 }}><Text style={styles.notifItemTitle}>{n.title}</Text><Text style={styles.notifItemMsg}>{n.message}</Text></View>
+              {notifications.length === 0 ? (
+                <View style={{ alignItems: 'center', paddingVertical: 40 }}>
+                  <Bell size={48} color="#D1D5DB" />
+                  <Text style={{ color: '#6B7280', marginTop: 12, fontSize: 14 }}>No notifications yet</Text>
                 </View>
-              ))}
+              ) : (
+                notifications.map((n) => {
+                  const IconComponent = getNotificationIcon(n.type);
+                  const color = getNotificationColor(n.type);
+                  return (
+                    <Pressable
+                      key={n.id}
+                      style={[styles.notificationItem, !n.is_read && { backgroundColor: '#FFF7ED' }]}
+                      onPress={async () => {
+                        if (!n.is_read) {
+                          await notificationService.markAsRead(n.id);
+                          loadNotifications();
+                        }
+                        // Navigate to orders tab if it's an order notification
+                        if (n.action_data?.orderNumber || n.type.includes('order')) {
+                          setShowNotifications(false);
+                          // Navigate to Orders tab in MainTabs
+                          navigation.navigate('MainTabs', { screen: 'Orders' } as any);
+                        }
+                      }}
+                    >
+                      <View style={[styles.notificationIcon, { backgroundColor: `${color}15` }]}>
+                        <IconComponent size={24} color={color} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <Text style={[styles.notifItemTitle, !n.is_read && { fontWeight: '700' }]}>{n.title}</Text>
+                          <Text style={{ fontSize: 11, color: '#9CA3AF' }}>{formatNotificationTime(n.created_at)}</Text>
+                        </View>
+                        <Text style={styles.notifItemMsg}>{n.message}</Text>
+                      </View>
+                      {!n.is_read && <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: COLORS.primary, marginLeft: 8 }} />}
+                    </Pressable>
+                  );
+                })
+              )}
             </ScrollView>
           </View>
         </View>
       </Modal>
-    </View>
+    </View >
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F9FAFB' },
-  headerContainer: { paddingHorizontal: 20, borderBottomLeftRadius: 20, borderBottomRightRadius: 20 },
-  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
-  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  avatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(255,255,255,0.3)', borderWidth: 1, borderColor: '#FFF' },
-  greetingContainer: { justifyContent: 'center' },
-  greetingTitle: { fontSize: 16, fontWeight: '700' },
-  greetingSubtitle: { fontSize: 13 },
-  headerRight: { flexDirection: 'row', gap: 16 },
+  headerContainer: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 15, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 },
+  locationRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  locationLabel: { color: 'rgba(255,255,255,0.7)', fontSize: 14, paddingBottom: 7 },
+  locationSelector: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  locationText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
   headerIconButton: { padding: 4 },
   notifBadge: { position: 'absolute', top: 4, right: 4, width: 8, height: 8, borderRadius: 4, borderWidth: 1.5, borderColor: COLORS.primary },
-  searchBarWrapper: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 15 },
+  searchBarWrapper: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
   searchBarInner: { flex: 1, flexDirection: 'row', alignItems: 'center', borderRadius: 12, paddingHorizontal: 15, height: 48, gap: 10 },
   searchInput: { flex: 1, fontSize: 14 },
   searchBackBtn: { padding: 4 },
@@ -649,22 +766,21 @@ const styles = StyleSheet.create({
   deliveryContent: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   deliveryText: { fontSize: 13, color: '#4B5563', flex: 1 },
   deliveryAddressBold: { fontWeight: '700', color: '#1F2937' },
-
   contentScroll: { flex: 1 },
-  carouselContainer: { marginVertical: 15 },
+  carouselContainer: { marginVertical: 10 },
   promoWrapper: { marginVertical: 15 },
-  promoBox: { 
-    height: 160, 
-    backgroundColor: '#FFF', 
-    borderRadius: 20, 
-    padding: 20, 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'space-between', 
-    elevation: 4, 
-    shadowColor: '#000', 
-    shadowOffset: { width: 0, height: 4 }, 
-    shadowOpacity: 0.1, 
+  promoBox: {
+    height: 160,
+    backgroundColor: '#FFF',
+    borderRadius: 20,
+    padding: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
     shadowRadius: 8,
     marginHorizontal: 20, // Add spacing for carousel items if we use padding logic? No, width is specific.
     // Wait, ScrollView with pagingEnabled needs exact width match.
@@ -686,11 +802,27 @@ const styles = StyleSheet.create({
   promoBrandName: { fontSize: 12, fontWeight: '700', color: '#666', marginTop: 4 },
   promoImgPart: { width: 80, height: 100, borderRadius: 12, overflow: 'hidden' },
   promoImg: { width: '100%', height: '100%' },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 15, paddingTop: 5 },
+  sectionTitle: { fontSize: 19, fontWeight: 'bold', color: '#333' },
+  timerContainer: { flexDirection: 'row', alignItems: 'center' },
+  timerLabel: { fontSize: 12, color: '#999' },
+  timerTime: { color: COLORS.primary, fontWeight: '700', fontSize: 13 },
+  filterTabs: { paddingLeft: 20 },
+  filterTab: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20, backgroundColor: '#F8F8F8', marginRight: 10, borderWidth: 1, borderColor: '#EEE' },
+  activeTab: { backgroundColor: '#FF6a00', borderColor: '#FF6a00' },
+  filterTabText: { color: '#666', fontWeight: '600' },
+  activeTabText: { color: 'white' },
+  seeAll: { color: COLORS.primary, fontSize: 12, fontWeight: '600' },
+  categoryRow: { flexDirection: 'row', paddingHorizontal: 20, marginBottom: 10 },
+  categoryItm: { alignItems: 'center', gap: 8 },
+  iconCircle: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center' },
+  iconText: { fontSize: 24 },
+  categoryLabel: { fontSize: 13, color: '#4B5563', fontWeight: '500' },
   flashSaleSection: { marginVertical: 15 },
   flashHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 15, paddingHorizontal: 20 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   timerBox: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, gap: 4 },
-  timerText: { color: '#FFF', fontSize: 11, fontWeight: '700' },
+  timerText: { color: '#FFF', fontSize: 12, fontWeight: '700' },
   itemBoxContainerHorizontal: { width: 160, marginRight: 15, backgroundColor: '#FFF', borderRadius: 18, elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.1, shadowRadius: 6 },
   itemBoxContainerVertical: { width: (width - 55) / 2, marginBottom: 20, backgroundColor: '#FFF', borderRadius: 18, elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.1, shadowRadius: 6 },
   section: { paddingHorizontal: 20, marginVertical: 15 },
@@ -702,7 +834,6 @@ const styles = StyleSheet.create({
   productRequestTitle: { fontSize: 16, fontWeight: '800', color: '#1F2937' },
   productRequestSubtitle: { fontSize: 12, color: '#6B7280', marginTop: 2 },
   discountTag: { position: 'absolute', top: 10, right: 10, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, zIndex: 1 },
-  discountTagText: { color: '#FFF', fontSize: 10, fontWeight: '900' },
   gridContainer: { paddingHorizontal: 20, marginBottom: 20 },
   gridHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   gridTitleText: { fontSize: 18, fontWeight: '900', color: '#1F2937' },
@@ -742,13 +873,15 @@ const styles = StyleSheet.create({
   notificationIcon: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginRight: 15 },
   notifItemTitle: { fontSize: 16, fontWeight: '700', color: '#1F2937' },
   notifItemMsg: { fontSize: 14, color: '#4B5563' },
-  sectionHeader: { fontSize: 16, fontWeight: '800', color: '#1F2937', marginBottom: 12 },
-  storeSearchResultCard: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    backgroundColor: '#FFF', 
-    padding: 12, 
-    borderRadius: 16, 
+
+
+  discountTagText: { color: '#FFF', fontSize: 10, fontWeight: '700' },
+  storeSearchResultCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+    padding: 12,
+    borderRadius: 16,
     width: 220,
     gap: 12,
     borderWidth: 1,

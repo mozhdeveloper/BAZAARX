@@ -8,8 +8,12 @@ import { useAuthStore } from '../src/stores/authStore';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Splash'>;
 
+import { supabase } from '../src/lib/supabase';
+
+// ...
+
 export default function SplashScreen({ navigation }: Props) {
-  const { isAuthenticated, hasCompletedOnboarding } = useAuthStore();
+  const { isAuthenticated, hasCompletedOnboarding, logout } = useAuthStore();
   const fadeAnim = new Animated.Value(0);
   const scaleAnim = new Animated.Value(0.8);
 
@@ -29,18 +33,38 @@ export default function SplashScreen({ navigation }: Props) {
       }),
     ]).start();
 
-    // Navigate after 2.5 seconds
-    const timer = setTimeout(() => {
-      if (isAuthenticated) {
-        navigation.replace('MainTabs', { screen: 'Home' });
-      } else if (hasCompletedOnboarding) {
-        navigation.replace('Login');
-      } else {
-        navigation.replace('Onboarding');
-      }
-    }, 2500);
+    const checkSession = async () => {
+      // Wait a minimum time for the animation
+      await new Promise(resolve => setTimeout(resolve, 2500));
 
-    return () => clearTimeout(timer);
+      try {
+        // Validate the actual Supabase session
+        const { data, error } = await supabase.auth.getSession();
+
+        if (error || (!data.session && isAuthenticated)) {
+          // Invalid session or mismatch
+          console.log('Session refresh failed or expired', error);
+          logout();
+          navigation.replace('Login');
+          return;
+        }
+
+        // Proceed based on store (which should be in sync now or valid)
+        if (isAuthenticated) {
+          navigation.replace('MainTabs', { screen: 'Home' });
+        } else if (hasCompletedOnboarding) {
+          navigation.replace('Login');
+        } else {
+          navigation.replace('Onboarding');
+        }
+      } catch (e) {
+        console.error('Splash checks failed', e);
+        logout();
+        navigation.replace('Login');
+      }
+    };
+
+    checkSession();
   }, [isAuthenticated, hasCompletedOnboarding]);
 
   return (

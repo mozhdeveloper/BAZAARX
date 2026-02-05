@@ -63,7 +63,7 @@ const AdminReviewModeration: React.FC = () => {
 
   const [open, setOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeTab, setActiveTab] = useState('pending');
+  const [activeTab, setActiveTab] = useState('flagged');
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [showRejectDialog, setShowRejectDialog] = useState(false);
   const [showFlagDialog, setShowFlagDialog] = useState(false);

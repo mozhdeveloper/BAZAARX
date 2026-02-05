@@ -88,6 +88,20 @@ export default function OrderConfirmationScreen({ route, navigation }: Props) {
                   <Text style={styles.productName} numberOfLines={2}>
                     {item.name}
                   </Text>
+                  {item.selectedVariant && (item.selectedVariant.size || item.selectedVariant.color) && (
+                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 4 }}>
+                      {item.selectedVariant.size && (
+                        <Text style={{ fontSize: 11, color: '#6b7280', backgroundColor: '#f3f4f6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' }}>
+                          {item.selectedVariant.size}
+                        </Text>
+                      )}
+                      {item.selectedVariant.color && (
+                        <Text style={{ fontSize: 11, color: '#6b7280', backgroundColor: '#f3f4f6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' }}>
+                          {item.selectedVariant.color}
+                        </Text>
+                      )}
+                    </View>
+                  )}
                   <Text style={styles.productQty}>Qty: {item.quantity}</Text>
                 </View>
                 <Text style={styles.productPrice}>

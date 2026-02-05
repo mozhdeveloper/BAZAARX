@@ -5,7 +5,9 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Home, Store, ShoppingCart, Package, User } from 'lucide-react-native';
+import type { CartItem } from './src/types';
 
 // Import screens
 import SplashScreen from './app/SplashScreen';
@@ -36,6 +38,7 @@ import PrivacyPolicyScreen from './app/PrivacyPolicyScreen';
 import SellerLoginScreen from './app/seller/login';
 import SellerSignupScreen from './app/seller/signup';
 import SellerAuthChoiceScreen from './app/seller/auth';
+import BecomeSellerScreen from './app/seller/BecomeSellerScreen';
 import SellerStack from './app/seller/SellerStack';
 import AdminStack from './app/admin/AdminStack';
 import AllStoresScreen from './app/AllStoresScreen';
@@ -44,10 +47,16 @@ import ReturnRequestScreen from './app/ReturnRequestScreen';
 import ReturnDetailScreen from './app/ReturnDetailScreen';
 import ReturnOrdersScreen from './app/ReturnOrdersScreen';
 import HistoryScreen from './app/HistoryScreen';
+import AddProductScreen from '@/components/seller/AddProductScreen';
 // Ticketing Module
 import CreateTicketScreen from './app/tickets/CreateTicketScreen';
 import TicketDetailScreen from './app/tickets/TicketDetailScreen';
 import MessagesScreen from './app/MessagesScreen';
+
+// Onboarding Screens
+import TermsScreen from './app/onboarding/TermsScreen';
+import CategoryPreferenceScreen from './app/onboarding/CategoryPreferenceScreen';
+import AddressSetupScreen from './app/onboarding/AddressSetupScreen';
 
 // Import types
 import type { Product, Order } from './src/types';
@@ -63,16 +72,28 @@ export type TabParamList = {
 export type RootStackParamList = {
   Splash: undefined;
   Onboarding: undefined;
+  Terms: { signupData: any };
+  CategoryPreference: { signupData: any };
+  AddressSetup: { signupData: any };
   Login: undefined;
   Signup: undefined;
   SellerLogin: undefined;
   SellerSignup: undefined;
   SellerAuthChoice: undefined;
+  BecomeSeller: undefined;
   SellerStack: undefined;
   AdminStack: undefined;
   MainTabs: NavigatorScreenParams<TabParamList>;
   ProductDetail: { product: Product };
-  Checkout: undefined;
+  Checkout: {
+    selectedItems?: CartItem[];
+    deliveryAddress?: string;
+    deliveryCoordinates?: { latitude: number; longitude: number };
+    isGift?: boolean;
+    recipientName?: string;
+    registryLocation?: string;
+    recipientId?: string;
+  };
   PaymentGateway: { paymentMethod: string; order: Order; isQuickCheckout?: boolean };
   OrderConfirmation: { order: Order };
   OrderDetail: { order: Order };
@@ -85,9 +106,9 @@ export type RootStackParamList = {
   Settings: undefined;
   Notifications: undefined;
   PaymentMethods: undefined;
-  HelpSupport: undefined;
+  HelpSupport: { activeTab?: 'tickets' | 'faq' } | undefined;
   PrivacyPolicy: undefined;
-  AllStores: undefined;
+  AllStores: { title?: string };
   StoreDetail: { store: any };
   ReturnRequest: { order: Order };
   ReturnDetail: { returnId: string };
@@ -96,12 +117,15 @@ export type RootStackParamList = {
   CreateTicket: undefined;
   TicketDetail: { ticketId: string };
   Messages: undefined;
+  AddProduct: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<TabParamList>();
 
 function MainTabs() {
+  const insets = useSafeAreaInsets();
+
   return (
     <Tab.Navigator
       screenOptions={{
@@ -113,8 +137,8 @@ function MainTabs() {
           bottom: 0,
           left: 0,
           right: 0,
-          height: 70,
-          paddingBottom: 10,
+          height: 70 + insets.bottom,
+          paddingBottom: 10 + insets.bottom,
           paddingTop: 10,
           borderTopWidth: 1,
           borderTopColor: '#E5E7EB',
@@ -175,87 +199,134 @@ function MainTabs() {
   );
 }
 
+import { supabase } from './src/lib/supabase';
+import { useAuthStore } from './src/stores/authStore';
+import { LogBox } from 'react-native';
+
+// ... (existing imports)
+
 export default function App() {
+  React.useEffect(() => {
+    // Suppress refresh token errors - they're handled automatically by auth service
+    LogBox.ignoreLogs([
+      'AuthApiError: Invalid Refresh Token',
+      'Invalid Refresh Token',
+      'Refresh Token Not Found'
+    ]);
+
+    // Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        useAuthStore.getState().logout();
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <NavigationContainer>
-        <StatusBar style="dark" />
-        <Stack.Navigator
-          initialRouteName="Splash"
-          screenOptions={{
-            headerShown: false,
-            animation: 'slide_from_right',
-          }}
-        >
-          <Stack.Screen
-            name="Splash"
-            component={SplashScreen}
-            options={{ animation: 'fade' }}
-          />
-          <Stack.Screen
-            name="Onboarding"
-            component={OnboardingScreen}
-            options={{ animation: 'fade' }}
-          />
-          <Stack.Screen
-            name="Login"
-            component={LoginScreen}
-            options={{ animation: 'slide_from_bottom' }}
-          />
-          <Stack.Screen
-            name="Signup"
-            component={SignupScreen}
-            options={{ animation: 'slide_from_bottom' }}
-          />
-          <Stack.Screen
-            name="SellerLogin"
-            component={SellerLoginScreen}
-            options={{ animation: 'slide_from_bottom' }}
-          />
-          <Stack.Screen
-            name="SellerSignup"
-            component={SellerSignupScreen}
-            options={{ animation: 'slide_from_bottom' }}
-          />
-          <Stack.Screen
-            name="SellerAuthChoice"
-            component={SellerAuthChoiceScreen}
-            options={{ animation: 'fade' }}
-          />
-          <Stack.Screen
-            name="SellerStack"
-            component={SellerStack}
-            options={{ headerShown: false }}
-          />
+      <SafeAreaProvider>
+        <NavigationContainer>
+          <StatusBar style="dark" />
+          <Stack.Navigator
+            initialRouteName="Splash"
+            screenOptions={{
+              headerShown: false,
+              animation: 'slide_from_right',
+            }}
+          >
+            <Stack.Screen
+              name="Splash"
+              component={SplashScreen}
+              options={{ animation: 'fade' }}
+            />
+            <Stack.Screen
+              name="Onboarding"
+              component={OnboardingScreen}
+              options={{ animation: 'fade' }}
+            />
+            <Stack.Screen
+              name="Login"
+              component={LoginScreen}
+              options={{ animation: 'slide_from_bottom' }}
+            />
+            <Stack.Screen
+              name="Signup"
+              component={SignupScreen}
+              options={{ animation: 'slide_from_bottom' }}
+            />
+            <Stack.Screen
+              name="Terms"
+              component={TermsScreen}
+              options={{ animation: 'slide_from_right' }}
+            />
+            <Stack.Screen
+              name="CategoryPreference"
+              component={CategoryPreferenceScreen}
+              options={{ animation: 'slide_from_right' }}
+            />
+            <Stack.Screen
+              name="AddressSetup"
+              component={AddressSetupScreen}
+              options={{ animation: 'slide_from_right' }}
+            />
+            <Stack.Screen
+              name="SellerLogin"
+              component={SellerLoginScreen}
+              options={{ animation: 'slide_from_bottom' }}
+            />
+            <Stack.Screen
+              name="SellerSignup"
+              component={SellerSignupScreen}
+              options={{ animation: 'slide_from_bottom' }}
+            />
+            <Stack.Screen
+              name="SellerAuthChoice"
+              component={SellerAuthChoiceScreen}
+              options={{ animation: 'fade' }}
+            />
+            <Stack.Screen
+              name="BecomeSeller"
+              component={BecomeSellerScreen}
+              options={{ animation: 'slide_from_bottom', presentation: 'modal' }}
+            />
+            <Stack.Screen
+              name="SellerStack"
+              component={SellerStack}
+              options={{ headerShown: false }}
+            />
 
-          <Stack.Screen name="MainTabs" component={MainTabs} />
-          <Stack.Screen name="ProductDetail" component={ProductDetailScreen} />
-          <Stack.Screen name="Checkout" component={CheckoutScreen} />
-          <Stack.Screen name="PaymentGateway" component={PaymentGatewayScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="OrderConfirmation" component={OrderConfirmationScreen} />
-          <Stack.Screen name="OrderDetail" component={OrderDetailScreen} />
-          <Stack.Screen name="DeliveryTracking" component={DeliveryTrackingScreen} />
-          <Stack.Screen name="FollowingShops" component={FollowingShopsScreen} />
-          <Stack.Screen name="Wishlist" component={WishlistScreen} />
-          <Stack.Screen name="SharedWishlist" component={SharedWishlistScreen} />
-          <Stack.Screen name="FindRegistry" component={FindRegistryScreen} />
-          <Stack.Screen name="Addresses" component={AddressesScreen} />
-          <Stack.Screen name="Settings" component={SettingsScreen} />
-          <Stack.Screen name="Notifications" component={NotificationsScreen} />
-          <Stack.Screen name="PaymentMethods" component={PaymentMethodsScreen} />
-          <Stack.Screen name="AllStores" component={AllStoresScreen} />
-          <Stack.Screen name="StoreDetail" component={StoreDetailScreen} />
-          <Stack.Screen name="ReturnRequest" component={ReturnRequestScreen} />
-          <Stack.Screen name="ReturnDetail" component={ReturnDetailScreen} />
-          <Stack.Screen name="ReturnOrders" component={ReturnOrdersScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="History" component={HistoryScreen} />
-          <Stack.Screen name="HelpSupport" component={HelpCenterScreen} />
-          <Stack.Screen name="CreateTicket" component={CreateTicketScreen} />
-          <Stack.Screen name="TicketDetail" component={TicketDetailScreen} />
-          <Stack.Screen name="Messages" component={MessagesScreen} />
-          <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
-        </Stack.Navigator>
-      </NavigationContainer>
+            <Stack.Screen name="MainTabs" component={MainTabs} />
+            <Stack.Screen name="ProductDetail" component={ProductDetailScreen} />
+            <Stack.Screen name="Checkout" component={CheckoutScreen} />
+            <Stack.Screen name="PaymentGateway" component={PaymentGatewayScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="OrderConfirmation" component={OrderConfirmationScreen} />
+            <Stack.Screen name="OrderDetail" component={OrderDetailScreen} />
+            <Stack.Screen name="DeliveryTracking" component={DeliveryTrackingScreen} />
+            <Stack.Screen name="FollowingShops" component={FollowingShopsScreen} />
+            <Stack.Screen name="Wishlist" component={WishlistScreen} />
+            <Stack.Screen name="SharedWishlist" component={SharedWishlistScreen} />
+            <Stack.Screen name="FindRegistry" component={FindRegistryScreen} />
+            <Stack.Screen name="Addresses" component={AddressesScreen} />
+            <Stack.Screen name="Settings" component={SettingsScreen} />
+            <Stack.Screen name="Notifications" component={NotificationsScreen} />
+            <Stack.Screen name="PaymentMethods" component={PaymentMethodsScreen} />
+            <Stack.Screen name="AllStores" component={AllStoresScreen} />
+            <Stack.Screen name="StoreDetail" component={StoreDetailScreen} />
+            <Stack.Screen name="ReturnRequest" component={ReturnRequestScreen} />
+            <Stack.Screen name="ReturnDetail" component={ReturnDetailScreen} />
+            <Stack.Screen name="ReturnOrders" component={ReturnOrdersScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="History" component={HistoryScreen} />
+            <Stack.Screen name="HelpSupport" component={HelpCenterScreen} />
+            <Stack.Screen name="CreateTicket" component={CreateTicketScreen} />
+            <Stack.Screen name="TicketDetail" component={TicketDetailScreen} />
+            <Stack.Screen name="Messages" component={MessagesScreen} />
+            <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
+            <Stack.Screen name="AddProduct" component={AddProductScreen} />
+          </Stack.Navigator>
+        </NavigationContainer>
+      </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }

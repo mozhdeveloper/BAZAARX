@@ -1,25 +1,14 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Gift, Plus, ShoppingBag } from 'lucide-react';
+import { X, Gift, Plus, ShoppingBag, Copy, Check } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
+import { useNavigate } from 'react-router-dom';
+import { useBuyerStore, RegistryProduct, RegistryItem } from '../stores/buyerStore';
+import { EditRegistryItemModal } from './EditRegistryItemModal';
 
-export interface Product {
-    id: string;
-    name: string;
-    price: string;
-    image: string;
-}
 
-export interface RegistryItem {
-    id: string;
-    title: string;
-    sharedDate: string;
-    imageUrl: string;
-    category?: string;
-    products?: Product[];
-}
 
 interface RegistryDetailModalProps {
     isOpen: boolean;
@@ -31,6 +20,12 @@ interface RegistryDetailModalProps {
 export const RegistryDetailModal = ({ isOpen, onClose, registry, onAddProduct }: RegistryDetailModalProps) => {
     const [newProductName, setNewProductName] = useState('');
     const [isAdding, setIsAdding] = useState(false);
+    const navigate = useNavigate();
+
+    const { updateRegistryItem, removeRegistryItem } = useBuyerStore();
+    const [selectedItem, setSelectedItem] = useState<RegistryProduct | null>(null);
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [isCopied, setIsCopied] = useState(false);
 
     if (!registry) return null;
 
@@ -42,10 +37,22 @@ export const RegistryDetailModal = ({ isOpen, onClose, registry, onAddProduct }:
         }
     };
 
+    const handleItemClick = (item: any) => {
+        setSelectedItem(item);
+        setIsEditModalOpen(true);
+    };
+
+    const handleCopyLink = () => {
+        const link = `${window.location.origin}/registry/${registry.id}`;
+        navigator.clipboard.writeText(link);
+        setIsCopied(true);
+        setTimeout(() => setIsCopied(false), 2000);
+    };
+
     return (
         <AnimatePresence>
             {isOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6">
                     {/* Backdrop */}
                     <motion.div
                         initial={{ opacity: 0 }}
@@ -60,9 +67,9 @@ export const RegistryDetailModal = ({ isOpen, onClose, registry, onAddProduct }:
                         initial={{ opacity: 0, scale: 0.95, y: 20 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                        className="w-full max-w-3xl bg-white rounded-2xl shadow-xl relative z-10 overflow-hidden max-h-[90vh] flex flex-col"
+                        className="w-full max-w-5xl bg-white rounded-2xl shadow-xl relative z-10 overflow-hidden max-h-[90vh] flex flex-col"
                     >
-                        <div className="p-6 relative overflow-y-auto max-h-[calc(90vh)]">
+                        <div className="p-6 relative overflow-y-auto flex-1">
                             <button
                                 onClick={onClose}
                                 className="absolute right-4 top-4 p-2 rounded-full hover:bg-gray-100 transition-colors"
@@ -79,7 +86,27 @@ export const RegistryDetailModal = ({ isOpen, onClose, registry, onAddProduct }:
                                         Created on {registry.sharedDate}
                                     </span>
                                 </div>
-                                <h2 className="text-3xl font-bold text-[var(--text-primary)]">{registry.title}</h2>
+                                <div className="flex items-start justify-between gap-4">
+                                    <h2 className="text-3xl font-bold text-[var(--text-primary)]">{registry.title}</h2>
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={handleCopyLink}
+                                        className="gap-2 text-gray-600 border-gray-200 hover:bg-gray-50 hover:text-gray-900"
+                                    >
+                                        {isCopied ? (
+                                            <>
+                                                <Check className="w-4 h-4 text-green-600" />
+                                                <span className="text-green-600">Copied</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Copy className="w-4 h-4" />
+                                                <span>Share</span>
+                                            </>
+                                        )}
+                                    </Button>
+                                </div>
                             </div>
 
                             <div className="space-y-6">
@@ -126,21 +153,52 @@ export const RegistryDetailModal = ({ isOpen, onClose, registry, onAddProduct }:
                                             </div>
                                             <p className="text-gray-900 font-medium">No items yet</p>
                                             <p className="text-gray-500 text-sm mt-1">Start adding items to build your registry.</p>
+                                            <Button
+                                                onClick={() => navigate('/shop')}
+                                                className="mt-6 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/90 text-white rounded-full px-6"
+                                            >
+                                                Browse Products
+                                            </Button>
                                         </div>
                                     ) : (
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                            {registry.products.map((product, idx) => (
-                                                <div key={idx} className="flex items-center gap-4 p-4 border border-gray-100 rounded-xl hover:shadow-md transition-shadow bg-white">
-                                                    <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center shrink-0">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                                            {registry.products.map((product: any, idx) => (
+                                                <div
+                                                    key={idx}
+                                                    onClick={() => handleItemClick(product)}
+                                                    className="flex flex-col bg-white rounded-xl shadow-sm hover:shadow-md transition-all cursor-pointer overflow-hidden border border-gray-100 group"
+                                                >
+                                                    <div className="aspect-[1/1] relative bg-gray-100 overflow-hidden">
                                                         {product.image ? (
-                                                            <img src={product.image} alt={product.name} className="w-full h-full object-cover rounded-lg" />
+                                                            <img
+                                                                src={product.image}
+                                                                alt={product.name}
+                                                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                                            />
                                                         ) : (
-                                                            <Gift className="w-8 h-8 text-gray-300" />
+                                                            <div className="w-full h-full flex items-center justify-center">
+                                                                <Gift className="w-12 h-12 text-gray-300" />
+                                                            </div>
+                                                        )}
+                                                        {(product as any).isMostWanted && (
+                                                            <div className="absolute top-2 left-2 bg-[var(--brand-primary)] text-white text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wide">
+                                                                Most Wanted
+                                                            </div>
                                                         )}
                                                     </div>
-                                                    <div>
-                                                        <h4 className="font-semibold text-gray-900">{product.name}</h4>
-                                                        <p className="text-sm text-[var(--brand-primary)] font-medium">{product.price || 'Price varies'}</p>
+                                                    <div className="p-3 flex flex-col">
+                                                        <h4 className="font-medium text-gray-900 line-clamp-2 text-sm mb-1 leading-snug">{product.name}</h4>
+                                                        <div className="flex items-center gap-1 mb-2">
+                                                            <span className="text-yellow-400 text-xs">★</span>
+                                                            <span className="text-xs text-gray-500">4.9 {product.totalReviews ? `(${product.totalReviews})` : ''}</span>
+                                                        </div>
+                                                        <div className="mt-4">
+                                                            <p className="text-lg font-bold text-[var(--brand-primary)]">₱{product.price.toLocaleString()}</p>
+                                                            <div className="flex justify-between items-center mt-1 text-xs text-gray-500 border-t border-gray-50 pt-2">
+                                                                <span>Requested: {(product as any).requestedQty || 1}</span>
+                                                                <span>Has: {(product as any).receivedQty || 0}</span>
+                                                            </div>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             ))}
@@ -149,7 +207,23 @@ export const RegistryDetailModal = ({ isOpen, onClose, registry, onAddProduct }:
                                 </div>
                             </div>
                         </div>
+                        <div className="border-t border-gray-100 p-6 flex justify-center">
+                            <Button
+                                onClick={onClose}
+                                className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/90 text-white rounded-full px-8"
+                            >
+                                Save
+                            </Button>
+                        </div>
                     </motion.div>
+
+                    <EditRegistryItemModal
+                        isOpen={isEditModalOpen}
+                        onClose={() => setIsEditModalOpen(false)}
+                        item={selectedItem}
+                        onUpdate={(pid, updates) => updateRegistryItem(registry.id, pid, updates)}
+                        onRemove={(pid) => removeRegistryItem(registry.id, pid)}
+                    />
                 </div>
             )}
         </AnimatePresence>

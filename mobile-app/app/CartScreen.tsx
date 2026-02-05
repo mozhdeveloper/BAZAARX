@@ -71,21 +71,36 @@ export default function CartScreen({ navigation }: any) {
     }
   };
 
-  const handleCheckout = () => {
+  const handleCheckout = async () => {
     if (selectedIds.length === 0) return;
     
     // Clear any previous quick order to ensure we checkout strictly from cart selections
     clearQuickOrder();
     
-    // In a real app, we might pass selectedIds to checkout, 
-    // but for now we assume Checkout takes all "items" or we need to implement partial checkout in store.
-    // The current CheckoutScreen logic takes `items` (all cart items) if quickOrder is null.
-    // To support selecting specific items, we would need to filter `items` in the store or pass them.
-    // For this demo, let's assume we checkout ALL items if we select checkout, 
-    // OR we can pass a param. 
-    // However, existing `CheckoutScreen` logic is simple. 
-    // Let's navigate to Checkout. 
-    navigation.navigate('Checkout');
+    // Get delivery address from AsyncStorage
+    let deliveryAddress: string | undefined;
+    let deliveryCoordinates: { latitude: number; longitude: number } | undefined;
+    
+    try {
+      const savedAddress = await AsyncStorage.getItem('currentDeliveryAddress');
+      const savedCoords = await AsyncStorage.getItem('currentDeliveryCoordinates');
+      
+      if (savedAddress) {
+        deliveryAddress = savedAddress;
+      }
+      if (savedCoords) {
+        deliveryCoordinates = JSON.parse(savedCoords);
+      }
+    } catch (error) {
+      console.error('[CartScreen] Error reading delivery address:', error);
+    }
+    
+    // Navigate to Checkout with selected items and delivery address
+    navigation.navigate('Checkout', {
+      selectedItems: selectedItems, // Pass the selected cart items
+      deliveryAddress,
+      deliveryCoordinates,
+    });
   };
 
 

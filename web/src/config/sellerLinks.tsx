@@ -12,6 +12,7 @@ import {
   FileCheck,
   CreditCard,
   RotateCcw,
+  Bell,
 } from "lucide-react";
 
 export const sellerLinks = [
@@ -48,6 +49,13 @@ export const sellerLinks = [
     href: "/seller/orders",
     icon: (
       <ShoppingCart className="text-gray-700 dark:text-gray-200 h-5 w-5 flex-shrink-0" />
+    ),
+  },
+  {
+    label: "Notifications",
+    href: "/seller/notifications",
+    icon: (
+      <Bell className="text-orange-500 dark:text-orange-400 h-5 w-5 flex-shrink-0" />
     ),
   },
   {
