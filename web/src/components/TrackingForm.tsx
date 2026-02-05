@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNinjaVanTracking } from '@/hooks/useNinjaVanTracking';
+import { useNinjaVanTracking } from '../hooks/useNinjaVanTracking';
 import TrackingTimeline from './TrackingTimeline';
 
 export default function TrackingForm() {

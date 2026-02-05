@@ -1,15 +1,31 @@
 import type {
     UnifiedTrackingResponse,
-    AfterShipResponse,
     TrackingStatus,
-    AfterShipCheckpoint,
 } from '../../types/tracking';
 
-const API_KEY = import.meta.env.VITE_AFTERSHIP_API_KEY || '';
-const API_URL = import.meta.env.VITE_AFTERSHIP_API_URL || '';
+const PROXY_URL = '/api/track';
 
-if (!API_KEY) {
-    console.warn('AfterShip API key is not set in environment variables.'); 
+// AfterShip API types
+interface AfterShipTracking {
+    tracking_number: string;
+    slug: string;
+    tag: string;
+    subtag: string;
+    updated_at: string;
+    courier_estimated_delivery_date?: { estimated_delivery_date: string } | null;
+    checkpoints: Array<{
+        checkpoint_time: string;
+        location: string;
+        message: string;
+        tag: string;
+    }>;
+}
+
+interface AfterShipListResponse {
+    meta: { code: number };
+    data: {
+        trackings: AfterShipTracking[];
+    };
 }
 
 export async function trackWithAfterShip(
@@ -21,38 +37,37 @@ export async function trackWithAfterShip(
             throw new Error('Tracking number cannot be empty.');
         }
 
-        const url = `${API_URL}/trackings/${carrierCode}/${trackingNumber}`;
+        console.log(`🔍 Fetching tracking via local proxy: ${trackingNumber}`);
 
-        console.log(`🔍 Fetching tracking from AfterShip: ${trackingNumber}`);
-
-        const response = await fetch(url, {
-            method: 'GET',
+        // Call local proxy to avoid CORS
+        const response = await fetch(PROXY_URL, {
+            method: 'POST',
             headers: {
-                'aftership-api-key': API_KEY,
                 'Content-Type': 'application/json',
             },
+            body: JSON.stringify({
+                trackingNumber,
+                carrierCode,
+            }),
         });
-
-        if (response.status === 404) {
-            throw new Error(
-                `Tracking number "${trackingNumber}" not found. Please verify the number.`
-            );
-        }
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
-            console.error('AfterShip API Error:', errorData);
-            throw new Error(
-                `AfterShip API Error: ${response.status} ${response.statusText}`
-            );
+            throw new Error(errorData.error || `HTTP ${response.status}`);
         }
 
-        const data: AfterShipResponse = await response.json();
-        const tracking = data.data.tracking;
+        const data: AfterShipListResponse = await response.json();
+        
+        // Find the tracking in the list
+        const tracking = data.data.trackings.find(t => t.tracking_number === trackingNumber);
+        
+        if (!tracking) {
+            throw new Error(`Tracking number "${trackingNumber}" not found in AfterShip`);
+        }
 
         console.log('✅ Tracking data received:', tracking);
 
-    // Transform AfterShip response to our unified format
+        // Transform AfterShip response to our unified format
         const unified = transformAfterShipResponse(tracking);
 
         return unified;
@@ -63,46 +78,53 @@ export async function trackWithAfterShip(
     }
 }
 
-function transformAfterShipResponse(tracking: AfterShipResponse['data']['tracking']): UnifiedTrackingResponse   {
+function transformAfterShipResponse(tracking: AfterShipTracking): UnifiedTrackingResponse {
     return {
         tracking_number: tracking.tracking_number || '',
         carrier: tracking.slug || 'unknown',
-        status: mapAfterShipStatus(tracking.delivery_status),
+        status: mapAfterShipStatus(tracking.tag),
         last_location: extractLastLocation(tracking),
         last_update: tracking.updated_at || new Date().toISOString(),
-        estimated_delivery: tracking.estimated_delivery_date,
+        estimated_delivery: tracking.courier_estimated_delivery_date?.estimated_delivery_date || undefined,
         events: transformCheckpoints(tracking.checkpoints || []),
-    }
+    };
 }
 
 function mapAfterShipStatus(status: string | undefined): TrackingStatus {
     if (!status) return 'pending';
 
     const statusMap: Record<string, TrackingStatus> = {
-        'pending': 'pending',
-        'on_the_way': 'in_transit',
-        'in_transit': 'in_transit',
-        'out_for_delivery': 'out_for_delivery',
-        'delivered': 'delivered',
-        'failed': 'failed',
-        'returned': 'failed',
-        'exception': 'failed'
+        // Pending states
+        'Pending': 'pending',
+        'InfoReceived': 'pending',
+        
+        // In Transit states
+        'InTransit': 'in_transit',
+        'OutForDelivery': 'out_for_delivery',
+        
+        // Delivered states
+        'Delivered': 'delivered',
+        
+        // Failed states
+        'Failed': 'failed',
+        'Returned': 'failed',
+        'Exception': 'failed',
     };
 
-    return statusMap[status.toLowerCase()] || 'pending';
+    return statusMap[status] || 'pending';
 }
 
-function extractLastLocation(tracking: AfterShipResponse['data']['tracking']): string {
+function extractLastLocation(tracking: AfterShipTracking): string {
     if (!tracking.checkpoints || tracking.checkpoints.length === 0) {
         return 'Location unknown';
     }
 
-    // Get the most recent checkpoint
+    // Get the most recent checkpoint (first in array)
     const lastCheckpoint = tracking.checkpoints[0];
     return lastCheckpoint.location || 'Location unknown';
 }
 
-function transformCheckpoints(checkpoints: AfterShipCheckpoint[]): UnifiedTrackingResponse['events'] {
+function transformCheckpoints(checkpoints: AfterShipTracking['checkpoints']): UnifiedTrackingResponse['events'] {
     if (!Array.isArray(checkpoints)) {
         return [];
     }
@@ -110,38 +132,38 @@ function transformCheckpoints(checkpoints: AfterShipCheckpoint[]): UnifiedTracki
     return checkpoints
         .filter((cp) => cp) // Filter out null/undefined
         .map((checkpoint) => ({
-        timestamp: checkpoint.checkpoint_time || '',
-        status: checkpoint.checkpoint_status || 'unknown',
-        location: checkpoint.location || 'Unknown',
-        message: checkpoint.message || '',
+            timestamp: checkpoint.checkpoint_time || '',
+            status: checkpoint.tag || 'unknown',
+            location: checkpoint.location || 'Unknown',
+            message: checkpoint.message || '',
         }));
 }
 
 export async function testAfterShipConnection(): Promise<boolean> {
     try {
-        console.log('🧪 Testing AfterShip connection...');
+        console.log('🧪 Testing local proxy connection...');
         
-        const response = await fetch(
-            `${API_URL}/trackings`,
-            {
-                method: 'GET',
-                headers: {
-                    'aftership-api-key': API_KEY,
-                    'Content-Type': 'application/json',
-                },
-            }
-        );
+        const response = await fetch(PROXY_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                trackingNumber: 'TEST',
+                carrierCode: 'ninjava',
+            }),
+        });
 
         if (response.ok) {
-            console.log('✅ AfterShip connection successful');
+            console.log('✅ Local proxy connection successful');
             return true;
         } else {
-            console.error('❌ AfterShip connection failed:', response.statusText);
+            console.error('❌ Proxy connection failed:', response.statusText);
             return false;
         }
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        console.error('❌ AfterShip test error:', errorMessage);
+        console.error('❌ Connection test error:', errorMessage);
         return false;
     }
 }
