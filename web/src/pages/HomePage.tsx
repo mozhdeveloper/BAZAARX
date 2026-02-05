@@ -34,6 +34,8 @@ const CategoriesFooterStrip = lazy(
   () => import("../components/CategoriesFooterStrip"),
 );
 
+const ConfidenceStats = lazy(() => import("../components/sections/ConfidenceStats"));
+
 // Data imports
 import { bestSellerProducts, newArrivals } from "../data/products";
 import { featuredStores } from "../data/stores";
@@ -142,6 +144,7 @@ const HomePage: React.FC = () => {
             subtitle="Trusted sellers with verified quality and excellent service"
             stores={featuredStores}
             actionLabel="Explore All Stores"
+            actionLink="/stores"
           />
         </div>
       </Suspense>
@@ -174,6 +177,7 @@ const HomePage: React.FC = () => {
             buttonText="Shop with Confidence"
             buttonAction={() => window.location.href = '/shop'}
           />
+          <ConfidenceStats />
         </div>
       </Suspense>
 

@@ -7,7 +7,7 @@ const CategoriesFooterStrip: React.FC = () => {
   const navigate = useNavigate();
 
   return (
-    <section className="py-24 lg:py-32 bg-white overflow-hidden">
+    <section className="py-18 lg:py-20 bg-white overflow-hidden pb-0">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
 
         <motion.div
@@ -25,7 +25,7 @@ const CategoriesFooterStrip: React.FC = () => {
           </p>
         </motion.div>
 
-        <div className="relative h-[500px] flex items-center justify-center">
+        <div className="relative h-[400px] flex items-center justify-center">
           {categories.slice(0, 10).map((category, index) => {
             const zIndexValue = categories.length - index;
             const xOffset = (index - 4.5) * 120;
@@ -74,26 +74,6 @@ const CategoriesFooterStrip: React.FC = () => {
             );
           })}
         </div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5, duration: 0.8 }}
-          viewport={{ once: true }}
-          className="mt-6 grid grid-cols-2 lg:grid-cols-4 gap-12 border-t border-orange-100 pt-16"
-        >
-          {[
-            { label: "24/7", sub: "Customer Support" },
-            { label: "Fast", sub: "Nationwide Delivery" },
-            { label: "100%", sub: "Secure Payments" },
-            { label: "Free", sub: "Returns & Exchange" }
-          ].map((stat, i) => (
-            <div key={i} className="text-center">
-              <div className="text-4xl font-black text-[var(--brand-primary)] mb-1">{stat.label}</div>
-              <div className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-[0.2em]">{stat.sub}</div>
-            </div>
-          ))}
-        </motion.div>
       </div>
     </section>
   );
