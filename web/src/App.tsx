@@ -28,6 +28,7 @@ import BuyerFollowingPage from "./pages/BuyerFollowingPage";
 import BuyerSettingsPage from "./pages/BuyerSettingsPage";
 import BuyerLoginPage from "./pages/BuyerLoginPage";
 import BuyerSignupPage from "./pages/BuyerSignupPage";
+import { BuyerSupport } from "./pages/BuyerSupport";
 import BuyerOnboardingPage from "@/pages/BuyerOnboardingPage";
 import MessagesPage from "./pages/MessagesPage";
 import { ProtectedBuyerRoute } from "./components/ProtectedBuyerRoute";
@@ -178,6 +179,13 @@ function App() {
             element={
               <ProtectedBuyerRoute>
                 <BuyerSettingsPage />
+              </ProtectedBuyerRoute>
+            }
+          />
+          <Route path="/buyer-support"
+            element={
+              <ProtectedBuyerRoute>
+                <BuyerSupport />
               </ProtectedBuyerRoute>
             }
           />
