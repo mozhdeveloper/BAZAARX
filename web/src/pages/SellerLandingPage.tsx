@@ -13,8 +13,8 @@ export default function SellerLandingPage() {
     const sellerNavItems = [
         { id: "bazaar-dashboard", label: "Dashboard" },
         { id: "bazaar-pos", label: "POS Lite" },
-        { id: "bazaar-trust", label: "Trust" },
-        { id: "bazaar-testimonials", label: "Testimonials" },
+        { id: "bazaar-trust-showcase", label: "Trust" },
+        { id: "bazaarxtestimonials", label: "Testimonials" },
         { id: "bazaar-mobile", label: "Mobile App" },
     ];
 
@@ -25,7 +25,7 @@ export default function SellerLandingPage() {
 
             {/* Hero Section */}
             <div id="bazaar-hero">
-                <BazaarHero mode="seller" scrollTargetId="bazaar-trust" />
+                <BazaarHero mode="seller" scrollTargetId="bazaar-trust-showcase" />
             </div>
 
             {/* Seller Dashboard Preview */}
@@ -38,16 +38,16 @@ export default function SellerLandingPage() {
                 <POSLiteFeature />
             </div>
 
-            {/* Testimonials */}
-            <div id="bazaar-testimonials">
-                <div className="py-8">
+            {/* Trust Showcase */}
+            <div id="bazaar-trust-showcase" className="py-8">
+                <BazaarTrustShowcase />
+            </div>
 
-                    <BazaarTrustShowcase />
-                    <div className="h-10"></div>
-                    <BazaarXTestimonials />
-                    <div className="h-16"></div>
-                    <BrandTestimonials />
-                </div>
+            {/* Testimonials */}
+            <div id="bazaarxtestimonials" className="pb-16">
+                <BazaarXTestimonials />
+                <div className="h-16"></div>
+                <BrandTestimonials />
             </div>
 
             {/* Mobile App Showcase */}

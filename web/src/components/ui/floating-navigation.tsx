@@ -18,7 +18,6 @@ export const FloatingNavigation: React.FC<FloatingNavigationProps> = ({ navItems
     const [showButton, setShowButton] = useState(false);
     const [activeSection, setActiveSection] = useState("");
     const [isExpanded, setIsExpanded] = useState(false);
-    const [isHoveringBack, setIsHoveringBack] = useState(false);
 
     const scrollToTop = () => {
         window.scrollTo({ top: 0, behavior: "smooth" });
@@ -34,16 +33,12 @@ export const FloatingNavigation: React.FC<FloatingNavigationProps> = ({ navItems
 
     useEffect(() => {
         const handleScroll = () => {
-            // Show back-to-top button if scrolled down
             setShowButton(window.scrollY > 300);
-
-            // If at the top of the page, clear active section
             if (window.scrollY < 100) {
                 setActiveSection("");
                 return;
             }
 
-            // Determine active section
             let currentSection = "";
             let minDistance = Infinity;
 
@@ -82,30 +77,18 @@ export const FloatingNavigation: React.FC<FloatingNavigationProps> = ({ navItems
             <AnimatePresence>
                 {showButton && (
                     <motion.button
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 0.3 }}
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.8 }}
+                        transition={{ duration: 0.2 }}
                         onClick={scrollToTop}
-                        onMouseEnter={() => setIsHoveringBack(true)}
-                        onMouseLeave={() => setIsHoveringBack(false)}
-                        className="fixed bottom-6 right-6 z-50 p-3 bg-white/80 backdrop-blur-md text-[#ff6a00] rounded-full shadow-lg hover:bg-white/80 hover:text-orange-600 transition-all duration-300 flex items-center overflow-hidden"
+                        className="fixed bottom-6 right-6 z-50 p-3 bg-white/80 backdrop-blur-md text-[#ff6a00] rounded-full shadow-lg hover:bg-white hover:text-orange-600 transition-all duration-300 flex items-center overflow-hidden group"
                         aria-label="Back to top"
                     >
                         <ArrowUp className="w-6 h-6 flex-shrink-0" />
-                        <AnimatePresence>
-                            {isHoveringBack && (
-                                <motion.span
-                                    initial={{ width: 0, opacity: 0, paddingLeft: 0 }}
-                                    animate={{ width: "auto", opacity: 1, paddingLeft: 8 }}
-                                    exit={{ width: 0, opacity: 0, paddingLeft: 0 }}
-                                    transition={{ duration: 0.2 }}
-                                    className="whitespace-nowrap text-sm font-medium pr-1"
-                                >
-                                    Back to Top
-                                </motion.span>
-                            )}
-                        </AnimatePresence>
+                        <span className="max-w-0 opacity-0 group-hover:max-w-[100px] group-hover:opacity-100 group-hover:pl-2 transition-all duration-300 whitespace-nowrap font-medium text-sm overflow-hidden">
+                            Back to Top
+                        </span>
                     </motion.button>
                 )}
             </AnimatePresence>
@@ -132,7 +115,6 @@ export const FloatingNavigation: React.FC<FloatingNavigationProps> = ({ navItems
                         <Menu className="w-6 h-6 text-[#ff6a00]" />
                     </div>
 
-                    {/* Horizontal Scrollable List - Hidden Scrollbar */}
                     <motion.div
                         className="flex flex-row items-center gap-1 h-full overflow-x-auto hide-scrollbar"
                         initial={{ opacity: 0 }}
@@ -149,9 +131,9 @@ export const FloatingNavigation: React.FC<FloatingNavigationProps> = ({ navItems
                                             e.stopPropagation();
                                             scrollToSection(item.id);
                                         }}
-                                        className={`text-[11px] px-3 py-1.5 rounded-full transition-all duration-200 whitespace-nowrap flex-shrink-0 ${isActive
-                                            ? "bg-[#ff6a00] text-white font-medium shadow-sm"
-                                            : "bg-transparent text-gray-600 hover:text-[#ff6a00] hover:bg-orange-50/50"
+                                        className={`text-[13px] px-3 py-1.5 rounded-full transition-all duration-200 whitespace-nowrap flex-shrink-0 ${isActive
+                                            ? "bg-[#ff6a00] text-white font-semibold shadow-sm"
+                                            : "bg-transparent text-gray-800 hover:text-orange-600"
                                             }`}
                                     >
                                         {item.label}

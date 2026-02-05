@@ -9,6 +9,7 @@ interface StoreRailProps {
   subtitle?: string;
   stores: Store[];
   actionLabel?: string;
+  actionLink?: string;
   onActionClick?: () => void;
 }
 
@@ -17,6 +18,7 @@ const StoreRail: React.FC<StoreRailProps> = ({
   subtitle,
   stores,
   actionLabel = "View All Stores",
+  actionLink,
   onActionClick
 }) => {
   return (
@@ -60,10 +62,14 @@ const StoreRail: React.FC<StoreRailProps> = ({
             )}
 
             <Link
-              to="#"
+              to={actionLink || "#"}
               onClick={(e) => {
-                e.preventDefault();
-                onActionClick?.();
+                if (onActionClick) {
+                  e.preventDefault();
+                  onActionClick();
+                } else if (!actionLink) {
+                  e.preventDefault();
+                }
               }}
               className="group flex items-center gap-2 text-[var(--text-primary)] font-bold text-lg hover:text-[var(--brand-primary)] transition-colors"
             >
