@@ -83,30 +83,7 @@ export function BazaarHero({ mode = "buyer", scrollTargetId = "bazaar-marketplac
                       </span>
                     </Link>
 
-                    {/* Home / Seller Navigation Switch */}
-                    <div className="hidden md:flex items-center ml-6 gap-6">
-                      <Link
-                        to="/"
-                        className={`text-sm font-medium transition-all duration-200 ${mode === "buyer"
-                          ? "text-[#ff6a00] font-bold"
-                          : "text-gray-500 hover:text-orange-500"
-                          }`}
-                      >
-                        Home
-                      </Link>
-                      <Link
-                        to="/sell"
-                        className={`text-sm font-medium transition-all duration-200 ${mode === "seller"
-                          ? "text-[#ff6a00] font-bold"
-                          : "text-gray-500 hover:text-orange-500"
-                          }`}
-                      >
-                        Seller
-                      </Link>
-                    </div>
                   </div>
-
-
 
                   <Sheet>
                     <SheetTrigger asChild className="lg:hidden">
@@ -183,7 +160,7 @@ export function BazaarHero({ mode = "buyer", scrollTargetId = "bazaar-marketplac
                       </div>
                       <Separator className="mx-6" />
                       <div className="p-6">
-                        <Link to="/seller/auth">
+                        <Link to="/sell">
                           <Button className="w-full h-12 bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-dark)] hover:from-[var(--brand-primary)]/90 hover:to-[var(--brand-primary-dark)]/90 transition-all duration-300 shadow-lg hover:shadow-xl">
                             Start Selling
                             <ArrowUpRight className="w-4 h-4 ml-2" />
@@ -195,19 +172,8 @@ export function BazaarHero({ mode = "buyer", scrollTargetId = "bazaar-marketplac
                 </div>
 
                 <div className="hidden md:flex items-center gap-2">
-                  <div className="flex items-center gap-1 mr-2">
-
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setIsAIChatOpen(true)}
-                      className="cursor-pointer relative group hover:text-[var(--brand-primary)] hover:bg-transparent transition-colors h-9 w-9"
-                    >
-                      <Bot className="w-5 h-5" />
-                    </Button>
-                  </div>
                   {mode === "buyer" && (
-                    <Link to="/seller/auth">
+                    <Link to="/sell">
                       <Button
                         variant="secondary"
                         className="cursor-pointer bg-white p-0 rounded-full shadow-lg hover:shadow-xl hover:bg-orange-600 transition-all duration-300 group h-10"
@@ -244,18 +210,18 @@ export function BazaarHero({ mode = "buyer", scrollTargetId = "bazaar-marketplac
               label: "Start Shopping",
               href: "/shop",
               variant: "default",
-              className: "bg-[#FF6A00] hover:bg-base text-white rounded-2xl px-12 py-8 text-xl font-normal shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 group flex items-center gap-3",
+              className: "bg-[#FF6A00] hover:bg-base text-white rounded-2xl px-8 py-4 text-lg font-normal shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 group flex items-center gap-3",
               icon: (
-                <ShoppingBag className="w-7 h-7 text-white transition-colors" />
+                <ShoppingBag className="w-5 h-5 text-white transition-colors" />
               )
             },
             {
               label: "Explore Stores",
               href: "/stores",
               variant: "outline",
-              className: "bg-white hover:text-gray-900 hover:bg-base text-gray-900 border border-gray-200 rounded-2xl px-12 py-8 text-xl font-normal shadow-sm hover:shadow-md hover:scale-105 transition-all duration-300 group flex items-center gap-3",
+              className: "bg-white hover:text-gray-900 hover:bg-base text-gray-900 border border-gray-200 rounded-2xl px-8 py-4 text-lg font-normal shadow-sm hover:shadow-md hover:scale-105 transition-all duration-300 group flex items-center gap-3",
               icon: (
-                <Store className="w-7 h-7 text-gray-900" />
+                <Store className="w-5 h-5 text-gray-900" />
               )
             },
           ] : [
@@ -263,9 +229,9 @@ export function BazaarHero({ mode = "buyer", scrollTargetId = "bazaar-marketplac
               label: "Start Selling",
               href: "/seller/auth",
               variant: "default",
-              className: "bg-[#FF6A00] hover:bg-base text-white rounded-2xl px-12 py-8 text-xl font-normal shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 group flex items-center gap-3",
+              className: "bg-[#FF6A00] hover:bg-base text-white rounded-2xl px-8 py-4 text-lg font-normal shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 group flex items-center gap-3",
               icon: (
-                <ArrowUpRight className="w-7 h-7 text-white transition-colors" />
+                <ArrowUpRight className="w-5 h-5 text-white transition-colors" />
               )
             }
           ]}
