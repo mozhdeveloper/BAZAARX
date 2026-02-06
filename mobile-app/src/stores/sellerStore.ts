@@ -1,57 +1,59 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { useProductQAStore } from './productQAStore';
+import { useOrderStore as useOrderStoreExternal } from './orderStore';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { authService } from '@/services/authService';
 import { productService } from '@/services/productService';
 import { orderService } from '@/services/orderService';
 import type { Seller as DBSeller, Database, Order, OrderItem } from '@/types/database.types';
 
-// Types
+// Types - Matches normalized database schema (February 2026)
 interface Seller {
+  // Core seller info (from sellers table)
   id: string;
-
-  // Personal Info
-  name: string;
-  ownerName: string;
-  email: string;
-  phone: string;
-
-  // Business Info
-  businessName: string;
-  storeName: string;
-  storeDescription: string;
-  storeCategory: string[];
-  businessType: string;
-  businessRegistrationNumber: string;
-  taxIdNumber: string;
-
-  // Address
-  businessAddress: string;
-  city: string;
-  province: string;
-  postalCode: string;
-  storeAddress: string; // Combined address
-
-  // Banking
-  bankName: string;
-  accountName: string;
-  accountNumber: string;
-
-  // Document URLs
-  businessPermitUrl?: string;
-  validIdUrl?: string;
-  proofOfAddressUrl?: string;
-  dtiRegistrationUrl?: string;
-  taxIdUrl?: string;
-
-  // Status
-  isVerified: boolean;
-  approvalStatus: 'pending' | 'approved' | 'rejected';
-  rating: number;
-  totalSales: number;
-  joinDate: string;
-  avatar?: string;
+  store_name: string;
+  store_description: string;
+  owner_name: string;
+  avatar_url?: string;
+  approval_status: 'pending' | 'verified' | 'rejected';
+  verified_at?: string;
+  created_at?: string;
+  
+  // Legacy fields for backward compatibility
+  email?: string;
+  phone?: string;
+  rating?: number;
+  totalSales?: number;
+  storeCategory?: string[];
+  
+  // Nested business profile (from seller_business_profiles table)
+  business_profile?: {
+    business_type?: string;
+    business_registration_number?: string;
+    tax_id_number?: string;
+    address_line_1?: string;
+    address_line_2?: string;
+    city?: string;
+    province?: string;
+    postal_code?: string;
+  };
+  
+  // Nested payout account (from seller_payout_accounts table)
+  payout_account?: {
+    bank_name?: string;
+    account_name?: string;
+    account_number?: string;
+  };
+  
+  // Nested verification documents (from seller_verification_documents table)
+  verification_documents?: {
+    business_permit_url?: string;
+    valid_id_url?: string;
+    proof_of_address_url?: string;
+    dti_registration_url?: string;
+    tax_id_url?: string;
+  };
 }
 
 export interface SellerProduct {
@@ -66,13 +68,13 @@ export interface SellerProduct {
   sizes?: string[];
   colors?: string[];
   isActive: boolean;
-  sellerId: string;
+  sellerId?: string;
   createdAt: string;
   updatedAt: string;
   sales: number;
   rating: number;
   reviews: number;
-  approvalStatus?: 'pending' | 'approved' | 'rejected' | 'reclassified';
+  approval_status?: 'pending' | 'approved' | 'rejected' | 'reclassified';
   rejectionReason?: string;
   vendorSubmittedCategory?: string;
   adminReclassifiedCategory?: string;
@@ -149,7 +151,7 @@ interface SellerStats {
   totalOrders: number;
   totalProducts: number;
   avgRating: number;
-  monthlyRevenue: { month: string; revenue: number }[];
+  monthlyRevenue: { month: string; revenue: number; value?: number; date?: string }[];
   topProducts: { name: string; sales: number; revenue: number }[];
   recentActivity: {
     id: string;
@@ -157,18 +159,29 @@ interface SellerStats {
     message: string;
     time: string;
   }[];
+  revenueData?: { month: string; revenue: number; value?: number; date?: string }[];
+  categorySales?: { category: string; sales: number; value?: number; color?: string }[];
+  revenueChange?: number;
+  ordersChange?: number;
+  totalVisits?: number;
+  visitsChange?: number;
 }
 
 interface AuthStore {
   seller: Seller | null;
+  user: any;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<boolean>;
   register: (sellerData: Partial<Seller> & { email: string; password: string }) => Promise<boolean>;
   logout: () => void;
   updateProfile: (updates: Partial<Seller>) => void;
   updateSellerDetails: (details: Partial<Seller>) => void;
+  updateSellerInfo: (info: Partial<Seller>) => void;
   authenticateSeller: () => void;
   createBuyerAccount: () => Promise<boolean>;
+  addRole: (role: string) => void;
+  switchRole: (role: 'buyer' | 'seller') => void;
+  setUser: (user: any) => void;
 }
 
 interface ProductStore {
@@ -186,11 +199,16 @@ interface ProductStore {
     limit?: number;
     offset?: number;
   }) => Promise<void>;
-  addProduct: (product: Omit<SellerProduct, 'id' | 'createdAt' | 'updatedAt' | 'sales' | 'rating' | 'reviews'>) => Promise<void>;
+  addProduct: (product: Omit<SellerProduct, 'id' | 'createdAt' | 'updatedAt' | 'sales' | 'rating' | 'reviews'>) => Promise<string>;
+  toggleProductStatus: (id: string) => Promise<void>;
   bulkAddProducts: (products: Array<{ name: string; description: string; price: number; originalPrice?: number; stock: number; category: string; imageUrl: string }>) => void;
   updateProduct: (id: string, updates: Partial<SellerProduct>) => Promise<void>;
   deleteProduct: (id: string) => Promise<void>;
   getProduct: (id: string) => SellerProduct | undefined;
+  getProductById: (id: string) => SellerProduct | undefined;
+  searchProducts: (query: string) => SellerProduct[];
+  getProductsByCategory: (category: string) => SellerProduct[];
+  addInventoryEntry: (entry: Omit<InventoryLedgerEntry, 'id' | 'timestamp'>) => void;
   // POS-Lite: Deduct stock when offline sale is made
   deductStock: (productId: string, quantity: number, reason: 'ONLINE_SALE' | 'OFFLINE_SALE', referenceId: string, notes?: string) => Promise<void>;
   // Inventory management
@@ -263,8 +281,9 @@ interface StatsStore {
 type ProductInsert = Database['public']['Tables']['products']['Insert'];
 type ProductUpdate = Database['public']['Tables']['products']['Update'];
 
-// Optional fallback seller ID for Supabase inserts (set VITE_SUPABASE_SELLER_ID in .env for testing)
-const fallbackSellerId = (import.meta as { env?: { VITE_SUPABASE_SELLER_ID?: string } }).env?.VITE_SUPABASE_SELLER_ID;
+// Optional fallback seller ID for Supabase inserts (set in .env for testing)
+// React Native uses process.env, not import.meta
+const fallbackSellerId = process.env.EXPO_PUBLIC_SUPABASE_SELLER_ID || process.env.VITE_SUPABASE_SELLER_ID;
 
 /**
  * Map database seller to Seller interface
@@ -276,34 +295,52 @@ const fallbackSellerId = (import.meta as { env?: { VITE_SUPABASE_SELLER_ID?: str
 const mapDbSellerToSeller = (s: any): Seller => {
   const bp = s.business_profile || s.seller_business_profiles || {};
   const pa = s.payout_account || s.seller_payout_accounts || {};
-  
+  const vd = s.verification_documents || s.seller_verification_documents || {};
+
   return {
     id: s.id,
-    name: s.owner_name || s.store_name || 'Seller',
-    ownerName: s.owner_name || s.store_name || 'Seller',
-    email: '',
-    phone: '',
-    businessName: s.owner_name || '',
-    storeName: s.store_name || '',
-    storeDescription: s.store_description || '',
-    storeCategory: [],
-    businessType: bp.business_type || '',
-    businessRegistrationNumber: bp.business_registration_number || '',
-    taxIdNumber: bp.tax_id_number || '',
-    businessAddress: bp.business_address || '',
-    city: bp.city || '',
-    province: bp.province || '',
-    postalCode: bp.postal_code || '',
-    storeAddress: bp.business_address || '',
-    bankName: pa.bank_name || '',
-    accountName: pa.account_name || '',
-    accountNumber: pa.account_number || '',
-    isVerified: s.approval_status === 'verified',
-    approvalStatus: (s.approval_status as Seller['approvalStatus']) || 'pending',
+    store_name: s.store_name || '',
+    store_description: s.store_description || '',
+    owner_name: s.owner_name || '',
+    avatar_url: s.avatar_url,
+    approval_status: (s.approval_status as Seller['approval_status']) || 'pending',
+    verified_at: s.verified_at,
+    created_at: s.created_at,
+    
+    // Legacy fields for backward compatibility
+    email: s.email || '',
+    phone: s.phone || '',
     rating: 0, // Computed from reviews
     totalSales: 0, // Computed from orders
-    joinDate: s.verified_at || s.created_at || new Date().toISOString().split('T')[0],
-    avatar: s.avatar_url,
+    storeCategory: [],
+    
+    // Nested business profile
+    business_profile: bp.business_type || bp.business_registration_number || bp.tax_id_number || bp.address_line_1 ? {
+      business_type: bp.business_type || '',
+      business_registration_number: bp.business_registration_number || '',
+      tax_id_number: bp.tax_id_number || '',
+      address_line_1: bp.address_line_1 || bp.business_address || '',
+      address_line_2: bp.address_line_2 || '',
+      city: bp.city || '',
+      province: bp.province || '',
+      postal_code: bp.postal_code || '',
+    } : undefined,
+    
+    // Nested payout account
+    payout_account: pa.bank_name || pa.account_name || pa.account_number ? {
+      bank_name: pa.bank_name || '',
+      account_name: pa.account_name || '',
+      account_number: pa.account_number || '',
+    } : undefined,
+    
+    // Nested verification documents
+    verification_documents: vd.business_permit_url || vd.valid_id_url || vd.proof_of_address_url || vd.dti_registration_url || vd.tax_id_url ? {
+      business_permit_url: vd.business_permit_url || '',
+      valid_id_url: vd.valid_id_url || '',
+      proof_of_address_url: vd.proof_of_address_url || '',
+      dti_registration_url: vd.dti_registration_url || '',
+      tax_id_url: vd.tax_id_url || '',
+    } : undefined,
   };
 };
 
@@ -316,19 +353,19 @@ const mapDbSellerToSeller = (s: any): Seller => {
  */
 const mapDbProductToSellerProduct = (p: any): SellerProduct => {
   // Handle images from product_images relation
-  const images = Array.isArray(p.images) 
-    ? p.images.map((img: any) => typeof img === 'string' ? img : img.image_url) 
+  const images = Array.isArray(p.images)
+    ? p.images.map((img: any) => typeof img === 'string' ? img : img.image_url)
     : [];
-  
+
   // Handle variants to get colors, sizes, and stock
   const variants = Array.isArray(p.variants) ? p.variants : [];
   const colors = [...new Set(variants.map((v: any) => v.color).filter(Boolean))];
   const sizes = [...new Set(variants.map((v: any) => v.size).filter(Boolean))];
   const totalStock = variants.reduce((sum: number, v: any) => sum + (v.stock || 0), 0);
-  
+
   // Get category name from relation
-  const categoryName = typeof p.category === 'string' 
-    ? p.category 
+  const categoryName = typeof p.category === 'string'
+    ? p.category
     : (p.category?.name || p.categories?.name || '');
 
   return {
@@ -340,8 +377,8 @@ const mapDbProductToSellerProduct = (p: any): SellerProduct => {
     stock: totalStock || p.stock || 0,
     category: categoryName,
     images: images,
-    sizes: sizes,
-    colors: colors,
+    sizes: sizes as string[],
+    colors: colors as string[],
     isActive: !p.disabled_at,
     sellerId: p.seller_id || '',
     createdAt: p.created_at || '',
@@ -349,7 +386,7 @@ const mapDbProductToSellerProduct = (p: any): SellerProduct => {
     sales: 0,
     rating: 0,
     reviews: 0,
-    approvalStatus: (p.approval_status as SellerProduct['approvalStatus']) || 'pending',
+    approval_status: (p.approval_status as SellerProduct['approval_status']) || 'pending',
     rejectionReason: undefined,
     vendorSubmittedCategory: undefined,
     adminReclassifiedCategory: undefined,
@@ -392,7 +429,7 @@ const mapSellerUpdatesToDb = (updates: Partial<SellerProduct>): any => {
   if (updates.description !== undefined) dbUpdates.description = updates.description;
   if (updates.price !== undefined) dbUpdates.price = updates.price;
   if (updates.isActive !== undefined) dbUpdates.disabled_at = updates.isActive ? null : new Date().toISOString();
-  if (updates.approvalStatus !== undefined) dbUpdates.approval_status = updates.approvalStatus;
+  if (updates.approval_status !== undefined) dbUpdates.approval_status = updates.approval_status;
 
   return dbUpdates;
 };
@@ -511,34 +548,40 @@ export const useAuthStore = create<AuthStore>()(
       },
       register: async (sellerData) => {
         if (!isSupabaseConfigured()) {
-          // Existing mock flow
-          const fullAddress = `${sellerData.businessAddress}, ${sellerData.city}, ${sellerData.province} ${sellerData.postalCode}`;
+          // Mock flow with new Seller interface structure
           const newSeller: Seller = {
             id: `seller-${Date.now()}`,
-            name: sellerData.ownerName || sellerData.email?.split('@')[0] || 'New Seller',
-            ownerName: sellerData.ownerName || '',
+            store_name: (sellerData as any).storeName || (sellerData as any).store_name || 'My Store',
+            store_description: (sellerData as any).storeDescription || (sellerData as any).store_description || '',
+            owner_name: (sellerData as any).ownerName || (sellerData as any).owner_name || '',
+            approval_status: 'pending',
+            verified_at: undefined,
+            created_at: new Date().toISOString(),
+            
+            // Legacy fields
             email: sellerData.email!,
-            phone: sellerData.phone || '',
-            businessName: sellerData.businessName || '',
-            storeName: sellerData.storeName || 'My Store',
-            storeDescription: sellerData.storeDescription || '',
-            storeCategory: sellerData.storeCategory || [],
-            businessType: sellerData.businessType || '',
-            businessRegistrationNumber: sellerData.businessRegistrationNumber || '',
-            taxIdNumber: sellerData.taxIdNumber || '',
-            businessAddress: sellerData.businessAddress || '',
-            city: sellerData.city || '',
-            province: sellerData.province || '',
-            postalCode: sellerData.postalCode || '',
-            storeAddress: fullAddress,
-            bankName: sellerData.bankName || '',
-            accountName: sellerData.accountName || '',
-            accountNumber: sellerData.accountNumber || '',
-            isVerified: false,
-            approvalStatus: 'pending',
+            phone: (sellerData as any).phone || '',
             rating: 0,
             totalSales: 0,
-            joinDate: new Date().toISOString().split('T')[0]
+            storeCategory: (sellerData as any).storeCategory || [],
+            
+            // Nested business profile
+            business_profile: {
+              business_type: (sellerData as any).businessType || '',
+              business_registration_number: (sellerData as any).businessRegistrationNumber || '',
+              tax_id_number: (sellerData as any).taxIdNumber || '',
+              address_line_1: (sellerData as any).businessAddress || '',
+              city: (sellerData as any).city || '',
+              province: (sellerData as any).province || '',
+              postal_code: (sellerData as any).postalCode || '',
+            },
+            
+            // Nested payout account
+            payout_account: {
+              bank_name: (sellerData as any).bankName || '',
+              account_name: (sellerData as any).accountName || '',
+              account_number: (sellerData as any).accountNumber || '',
+            },
           };
           set({ seller: newSeller, isAuthenticated: false });
           return true;
@@ -577,8 +620,9 @@ export const useAuthStore = create<AuthStore>()(
           // If user doesn't exist, try to sign up
           if (!isExistingUser) {
             try {
+              const legacyData = sellerData as any;
               const signUpResult = await authService.signUp(sellerData.email!, sellerData.password!, {
-                full_name: sellerData.ownerName || sellerData.storeName || sellerData.email?.split('@')[0],
+                full_name: sellerData.owner_name || legacyData.ownerName || sellerData.store_name || legacyData.storeName || sellerData.email?.split('@')[0],
                 phone: sellerData.phone,
                 user_type: 'seller',
                 email: sellerData.email!,
@@ -594,9 +638,9 @@ export const useAuthStore = create<AuthStore>()(
             } catch (signUpError: any) {
               // If signup fails because user already exists, try to sign in again
               if (signUpError?.isAlreadyRegistered ||
-                  signUpError?.message?.includes('User already registered') ||
-                  signUpError?.message?.includes('already exists') ||
-                  signUpError?.status === 422) {
+                signUpError?.message?.includes('User already registered') ||
+                signUpError?.message?.includes('already exists') ||
+                signUpError?.status === 422) {
                 // User exists, sign in and continue with upgrade process
                 const signInResult = await authService.signIn(sellerData.email!, sellerData.password!);
                 if (signInResult && signInResult.user) {
@@ -636,34 +680,30 @@ export const useAuthStore = create<AuthStore>()(
           // 2) Create or update seller record (use upsert to handle conflicts)
           const { sellerService } = await import('@/services/sellerService');
 
+          const legacyData = sellerData as any;
           const sellerInsertData = {
             id: user.id,
-            business_name: sellerData.businessName || sellerData.storeName || 'My Store',
-            store_name: sellerData.storeName || 'My Store',
-            store_description: sellerData.storeDescription || '',
-            store_category: sellerData.storeCategory || ['General'],
-            business_type: sellerData.businessType || 'sole_proprietor',
-            business_registration_number: sellerData.businessRegistrationNumber || '',
-            tax_id_number: sellerData.taxIdNumber || '',
-            business_address: sellerData.businessAddress || sellerData.storeAddress || '',
-            city: sellerData.city || '',
-            province: sellerData.province || '',
-            postal_code: sellerData.postalCode || '',
-            bank_name: sellerData.bankName || '',
-            account_name: sellerData.accountName || '',
-            account_number: sellerData.accountNumber || '',
+            store_name: sellerData.store_name || legacyData.storeName || 'My Store',
+            store_description: sellerData.store_description || legacyData.storeDescription || '',
+            owner_name: sellerData.owner_name || legacyData.ownerName || '',
+            approval_status: 'pending' as const,
+            // Business profile data
+            business_type: sellerData.business_profile?.business_type || legacyData.businessType || 'sole_proprietor',
+            business_registration_number: sellerData.business_profile?.business_registration_number || legacyData.businessRegistrationNumber || '',
+            tax_id_number: sellerData.business_profile?.tax_id_number || legacyData.taxIdNumber || '',
+            business_address: sellerData.business_profile?.address_line_1 || legacyData.businessAddress || legacyData.storeAddress || '',
+            city: sellerData.business_profile?.city || legacyData.city || '',
+            province: sellerData.business_profile?.province || legacyData.province || '',
+            postal_code: sellerData.business_profile?.postal_code || legacyData.postalCode || '',
+            // Payout account data
+            bank_name: sellerData.payout_account?.bank_name || legacyData.bankName || '',
+            account_name: sellerData.payout_account?.account_name || legacyData.accountName || '',
+            account_number: sellerData.payout_account?.account_number || legacyData.accountNumber || '',
             business_permit_url: null,
             valid_id_url: null,
             proof_of_address_url: null,
             dti_registration_url: null,
             tax_id_url: null,
-            is_verified: false,
-            approval_status: 'pending' as const,
-            rating: 0,
-            total_sales: 0,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            join_date: new Date().toISOString().split('T')[0],
           };
 
           const savedSeller = await sellerService.upsertSeller(sellerInsertData);
@@ -698,7 +738,7 @@ export const useAuthStore = create<AuthStore>()(
       },
       authenticateSeller: () => {
         const { seller } = get();
-        if (seller && seller.isVerified) {
+        if (seller && seller.approval_status === 'verified') {
           set({ isAuthenticated: true });
         }
       },
@@ -726,7 +766,29 @@ export const useAuthStore = create<AuthStore>()(
           console.error('Error creating buyer account:', error);
           return false;
         }
-      }
+      },
+
+      updateSellerInfo: (info) => {
+        const { seller } = get();
+        if (seller) {
+          set({ seller: { ...seller, ...info } });
+        }
+      },
+
+      user: null,
+
+      addRole: (role: string) => {
+        // For seller store, this is a no-op or we could store roles locally if needed
+        console.log(`Adding role: ${role}`);
+      },
+
+      switchRole: (role: 'buyer' | 'seller') => {
+        console.log(`Switching role to: ${role}`);
+      },
+
+      setUser: (user: any) => {
+        set({ user });
+      },
     }),
     {
       name: 'seller-auth-storage'
@@ -849,13 +911,18 @@ export const useProductStore = create<ProductStore>()(
             const variants = (product as any).variants;
             if (variants && Array.isArray(variants) && variants.length > 0) {
               const variantInserts = variants.map((v: any, index: number) => ({
-                variant_name: [v.size || v.option2, v.color || v.option1].filter(x => x && x !== '-').join(' - ') || 'Default',
+                product_id: newProduct.id, // Added by productService but required by type
+                variant_name: [v.size || v.option2, v.color || v.option1].filter((x: any) => x && x !== '-').join(' - ') || 'Default',
                 size: (v.size || v.option2 || '') === '-' ? null : (v.size || v.option2 || null),
                 color: (v.color || v.option1 || '') === '-' ? null : (v.color || v.option1 || null),
                 stock: parseInt(v.stock) || 0,
                 price: parseFloat(v.price) || product.price,
                 sku: v.sku || `${newProduct.id.substring(0, 8)}-${index}`,
                 thumbnail_url: v.image || null,
+                barcode: null,
+                option_1_value: (v.color || v.option1 || '') === '-' ? null : (v.color || v.option1 || null),
+                option_2_value: (v.size || v.option2 || '') === '-' ? null : (v.size || v.option2 || null),
+                embedding: null,
               }));
 
               try {
@@ -869,6 +936,7 @@ export const useProductStore = create<ProductStore>()(
               // Create a default variant with the product's base stock/price
               try {
                 await productService.addProductVariants(newProduct.id, [{
+                  product_id: newProduct.id,
                   variant_name: 'Default',
                   size: null,
                   color: null,
@@ -876,6 +944,10 @@ export const useProductStore = create<ProductStore>()(
                   price: product.price,
                   sku: `${newProduct.id.substring(0, 8)}-default`,
                   thumbnail_url: null,
+                  barcode: null,
+                  option_1_value: null,
+                  option_2_value: null,
+                  embedding: null,
                 }]);
               } catch (variantError) {
                 console.error('Failed to create default variant:', variantError);
@@ -891,7 +963,7 @@ export const useProductStore = create<ProductStore>()(
               sales: 0,
               rating: 0,
               reviews: 0,
-              approvalStatus: 'pending',
+              approval_status: 'pending',
               vendorSubmittedCategory: product.category,
               sizes: product.sizes || [],
               colors: product.colors || [],
@@ -927,18 +999,17 @@ export const useProductStore = create<ProductStore>()(
           // Also add to QA flow store
           try {
             const qaStore = useProductQAStore.getState();
-            await qaStore.addProductToQA({
-              id: newProduct.id,
-              name: newProduct.name,
-              vendor: authStoreState.seller?.name || 'Unknown Vendor',
-              sellerId: resolvedSellerId, // Pass seller ID for proper filtering
-              price: newProduct.price,
-              category: newProduct.category,
-              image: newProduct.images[0] || 'https://placehold.co/100?text=Product',
-            });
+            await qaStore.addProductToQA(
+              newProduct.id,
+              authStoreState.seller?.store_name || 'Unknown Vendor',
+              authStoreState.seller?.id
+            );
           } catch (qaError) {
             console.error('Error adding product to QA flow:', qaError);
           }
+
+          // Return the product ID
+          return newProduct.id;
         } catch (error) {
           console.error('Error adding product:', error);
           throw error;
@@ -1001,7 +1072,7 @@ export const useProductStore = create<ProductStore>()(
                 sales: 0,
                 rating: 0,
                 reviews: 0,
-                approvalStatus: 'pending',
+                approval_status: 'pending',
                 vendorSubmittedCategory: productData.category,
               };
             });
@@ -1025,17 +1096,11 @@ export const useProductStore = create<ProductStore>()(
           // Add to QA flow store
           addedProducts.forEach(p => {
             try {
-              qaStore.addProductToQA({
-                id: p.id,
-                name: p.name,
-                description: p.description,
-                vendor: authStore.seller?.name || 'Unknown Vendor',
-                sellerId: resolvedSellerId, // Pass seller ID for proper filtering
-                price: p.price,
-                originalPrice: p.originalPrice,
-                category: p.category,
-                image: p.images[0],
-              });
+              qaStore.addProductToQA(
+                p.id,
+                authStore.seller?.store_name || 'Unknown Vendor',
+                authStore.seller?.id
+              );
             } catch (qaError) {
               console.error('Error adding product to QA flow:', qaError);
             }
@@ -1111,8 +1176,51 @@ export const useProductStore = create<ProductStore>()(
         }
       },
 
+      toggleProductStatus: async (id) => {
+        try {
+          const product = get().products.find(p => p.id === id);
+          if (!product) {
+            throw new Error('Product not found');
+          }
+
+          const newStatus = !product.isActive;
+          await get().updateProduct(id, { isActive: newStatus });
+        } catch (error) {
+          console.error('Error toggling product status:', error);
+          throw error;
+        }
+      },
+
       getProduct: (id) => {
         return get().products.find(product => product.id === id);
+      },
+
+      getProductById: (id) => {
+        return get().products.find(product => product.id === id);
+      },
+
+      searchProducts: (query) => {
+        const lowerQuery = query.toLowerCase();
+        return get().products.filter(p =>
+          p.name.toLowerCase().includes(lowerQuery) ||
+          p.description.toLowerCase().includes(lowerQuery) ||
+          p.category.toLowerCase().includes(lowerQuery)
+        );
+      },
+
+      getProductsByCategory: (category) => {
+        return get().products.filter(p => p.category === category);
+      },
+
+      addInventoryEntry: (entry) => {
+        const newEntry: InventoryLedgerEntry = {
+          ...entry,
+          id: `ledger-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          timestamp: new Date().toISOString()
+        };
+        set((state) => ({
+          inventoryLedger: [...state.inventoryLedger, newEntry]
+        }));
       },
 
       // POS-Lite: Deduct stock with full audit trail
@@ -1856,7 +1964,9 @@ export const useStatsStore = create<StatsStore>()((set) => ({
     avgRating: 0,
     monthlyRevenue: [],
     topProducts: [],
-    recentActivity: []
+    recentActivity: [],
+    revenueData: [],
+    categorySales: []
   },
   refreshStats: () => {
     const orderStore = useOrderStore.getState();
@@ -1901,7 +2011,9 @@ export const useStatsStore = create<StatsStore>()((set) => ({
         avgRating: Math.round(avgRating * 10) / 10,
         monthlyRevenue,
         topProducts,
-        recentActivity
+        recentActivity,
+        revenueData: monthlyRevenue, // Use same data as monthlyRevenue
+        categorySales: [] // Would need to be computed from order data
       }
     });
   }
@@ -2018,3 +2130,65 @@ function getRelativeTime(dateString: string): string {
   if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
   return date.toLocaleDateString();
 }
+
+// Combined useSellerStore hook for backward compatibility
+// This provides a unified interface to all seller-related stores
+export const useSellerStore = () => {
+  const auth = useAuthStore();
+  const products = useProductStore();
+  const stats = useStatsStore();
+  const orders = useOrderStoreExternal();
+
+  return {
+    // Auth store
+    seller: auth.seller,
+    isAuthenticated: auth.isAuthenticated,
+    login: auth.login,
+    register: auth.register,
+    logout: auth.logout,
+    updateSellerInfo: auth.updateSellerInfo,
+    addRole: auth.addRole,
+    switchRole: auth.switchRole,
+    setUser: auth.setUser,
+    user: auth.user,
+
+    // Product store (with fallback to empty array)
+    products: products.products || [],
+    loading: products.loading,
+    error: products.error,
+    inventoryLedger: products.inventoryLedger || [],
+    lowStockAlerts: products.lowStockAlerts || [],
+    fetchProducts: products.fetchProducts,
+    addProduct: products.addProduct,
+    updateProduct: products.updateProduct,
+    deleteProduct: products.deleteProduct,
+    toggleProductStatus: products.toggleProductStatus,
+    getProductById: products.getProductById,
+    getProductsByCategory: products.getProductsByCategory,
+    searchProducts: products.searchProducts,
+    addInventoryEntry: products.addInventoryEntry,
+    deductStock: products.deductStock,
+    releaseStock: products.releaseStock,
+    getLedgerByProduct: products.getLedgerByProduct,
+    getRecentLedgerEntries: products.getRecentLedgerEntries,
+    checkLowStock: products.checkLowStock,
+    acknowledgeLowStockAlert: products.acknowledgeLowStockAlert,
+    getLowStockThreshold: products.getLowStockThreshold,
+    subscribeToProducts: products.subscribeToProducts,
+
+    // Stats store
+    stats: stats.stats,
+    refreshStats: stats.refreshStats,
+
+    // Revenue data & category sales
+    revenueData: stats.stats.revenueData || [],
+    categorySales: stats.stats.categorySales || [],
+
+    // Order store (with fallback to empty array)
+    orders: orders.sellerOrders || [],
+    ordersLoading: orders.sellerOrdersLoading,
+    fetchOrders: orders.fetchSellerOrders,
+    updateOrderStatus: orders.updateSellerOrderStatus,
+    addOfflineOrder: orders.addOfflineOrder,
+  };
+};

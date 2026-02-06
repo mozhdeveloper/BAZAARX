@@ -1,6 +1,11 @@
 /**
  * Notification Service
  * Handles all notification-related database operations for mobile app
+ * 
+ * NOTE: Database has separate notification tables:
+ * - buyer_notifications (has buyer_id)
+ * - seller_notifications (MISSING seller_id - needs schema fix!)
+ * - admin_notifications (has admin_id)
  */
 
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
@@ -20,6 +25,34 @@ export interface Notification {
   read_at?: string;
   priority: 'low' | 'normal' | 'high' | 'urgent';
   created_at: string;
+}
+
+/**
+ * Get the correct notification table name based on user type
+ */
+function getNotificationTable(userType: 'buyer' | 'seller' | 'admin'): string {
+  switch (userType) {
+    case 'buyer': return 'buyer_notifications';
+    case 'seller': return 'seller_notifications';
+    case 'admin': return 'admin_notifications';
+    default: return 'buyer_notifications';
+  }
+}
+
+/**
+ * Get the correct user ID column name based on user type
+ */
+function getUserIdColumn(userType: 'buyer' | 'seller' | 'admin'): string {
+  switch (userType) {
+    case 'buyer': return 'buyer_id';
+    case 'admin': return 'admin_id';
+    case 'seller': 
+      // WARNING: seller_notifications table is missing seller_id column in schema!
+      // For now, we'll skip seller_id filtering which means all sellers see all notifications
+      // TODO: Fix database schema to add seller_id to seller_notifications table
+      return 'id'; // Fallback - will cause issues
+    default: return 'buyer_id';
+  }
 }
 
 class NotificationService {
@@ -44,26 +77,48 @@ class NotificationService {
     }
 
     try {
+      const table = getNotificationTable(params.userType);
+      const userIdColumn = getUserIdColumn(params.userType);
+      
+      const insertData: any = {
+        type: params.type,
+        title: params.title,
+        message: params.message,
+        action_url: params.actionUrl,
+        action_data: params.actionData,
+        priority: params.priority || 'normal'
+      };
+      
+      // Only add user ID column if it's not seller (seller_notifications missing seller_id)
+      if (params.userType !== 'seller') {
+        insertData[userIdColumn] = params.userId;
+      }
+      
       const { data, error } = await supabase
-        .from('notifications')
-        .insert({
-          user_id: params.userId,
-          user_type: params.userType,
-          type: params.type,
-          title: params.title,
-          message: params.message,
-          icon: params.icon,
-          icon_bg: params.iconBg,
-          action_url: params.actionUrl,
-          action_data: params.actionData,
-          priority: params.priority || 'normal',
-          is_read: false
-        })
+        .from(table)
+        .insert(insertData)
         .select()
         .single();
 
       if (error) throw error;
-      return data;
+      
+      // Map database response to Notification interface
+      const notification: Notification = {
+        id: data.id,
+        user_id: params.userId,
+        user_type: params.userType,
+        type: data.type,
+        title: data.title,
+        message: data.message,
+        action_url: data.action_url,
+        action_data: data.action_data,
+        is_read: !!data.read_at,
+        read_at: data.read_at,
+        priority: data.priority,
+        created_at: data.created_at
+      };
+      
+      return notification;
     } catch (error) {
       console.error('[NotificationService] Error creating notification:', error);
       return null;
@@ -83,16 +138,41 @@ class NotificationService {
     }
 
     try {
-      const { data, error } = await supabase
-        .from('notifications')
+      const table = getNotificationTable(userType);
+      const userIdColumn = getUserIdColumn(userType);
+      
+      let query = supabase
+        .from(table)
         .select('*')
-        .eq('user_id', userId)
-        .eq('user_type', userType)
         .order('created_at', { ascending: false })
         .limit(limit);
+      
+      // Only filter by user ID if not seller (seller_notifications missing seller_id)
+      if (userType !== 'seller') {
+        query = query.eq(userIdColumn, userId);
+      }
+      
+      const { data, error } = await query;
 
       if (error) throw error;
-      return data || [];
+      
+      // Map database response to Notification interface
+      const notifications: Notification[] = (data || []).map((item: any) => ({
+        id: item.id,
+        user_id: userId,
+        user_type: userType,
+        type: item.type,
+        title: item.title,
+        message: item.message,
+        action_url: item.action_url,
+        action_data: item.action_data,
+        is_read: !!item.read_at,
+        read_at: item.read_at,
+        priority: item.priority,
+        created_at: item.created_at
+      }));
+      
+      return notifications;
     } catch (error) {
       console.error('[NotificationService] Error fetching notifications:', error);
       return [];
@@ -101,14 +181,16 @@ class NotificationService {
 
   /**
    * Mark a notification as read
+   * Note: We need userType to know which table to update
    */
-  async markAsRead(notificationId: string): Promise<void> {
+  async markAsRead(notificationId: string, userType: 'buyer' | 'seller' | 'admin' = 'buyer'): Promise<void> {
     if (!isSupabaseConfigured()) return;
 
     try {
+      const table = getNotificationTable(userType);
       await supabase
-        .from('notifications')
-        .update({ is_read: true, read_at: new Date().toISOString() })
+        .from(table)
+        .update({ read_at: new Date().toISOString() })
         .eq('id', notificationId);
     } catch (error) {
       console.error('[NotificationService] Error marking as read:', error);
@@ -122,12 +204,20 @@ class NotificationService {
     if (!isSupabaseConfigured()) return;
 
     try {
-      await supabase
-        .from('notifications')
-        .update({ is_read: true, read_at: new Date().toISOString() })
-        .eq('user_id', userId)
-        .eq('user_type', userType)
-        .eq('is_read', false);
+      const table = getNotificationTable(userType);
+      const userIdColumn = getUserIdColumn(userType);
+      
+      let query = supabase
+        .from(table)
+        .update({ read_at: new Date().toISOString() })
+        .is('read_at', null);
+      
+      // Only filter by user ID if not seller (seller_notifications missing seller_id)
+      if (userType !== 'seller') {
+        query = query.eq(userIdColumn, userId);
+      }
+      
+      await query;
     } catch (error) {
       console.error('[NotificationService] Error marking all as read:', error);
     }
@@ -140,12 +230,20 @@ class NotificationService {
     if (!isSupabaseConfigured()) return 0;
 
     try {
-      const { count, error } = await supabase
-        .from('notifications')
+      const table = getNotificationTable(userType);
+      const userIdColumn = getUserIdColumn(userType);
+      
+      let query = supabase
+        .from(table)
         .select('*', { count: 'exact', head: true })
-        .eq('user_id', userId)
-        .eq('user_type', userType)
-        .eq('is_read', false);
+        .is('read_at', null);
+      
+      // Only filter by user ID if not seller (seller_notifications missing seller_id)
+      if (userType !== 'seller') {
+        query = query.eq(userIdColumn, userId);
+      }
+      
+      const { count, error } = await query;
 
       if (error) throw error;
       return count || 0;

@@ -128,7 +128,7 @@ export class ProductService {
       const { data, error } = await query;
 
       if (error) throw error;
-      
+
       // Transform to add legacy compatibility fields
       return (data || []).map(this.transformProduct);
     } catch (error) {
@@ -143,7 +143,7 @@ export class ProductService {
   private transformProduct(product: any): ProductWithSeller {
     const primaryImage = product.images?.find((img: ProductImage) => img.is_primary) || product.images?.[0];
     const totalStock = product.variants?.reduce((sum: number, v: ProductVariant) => sum + (v.stock || 0), 0) || 0;
-    
+
     return {
       ...product,
       // Legacy compatibility fields
@@ -168,27 +168,6 @@ export class ProductService {
    */
   async getActiveProducts(): Promise<ProductWithSeller[]> {
     return this.getProducts({ isActive: true });
-  }
-
-  /**
-   * Get products for a specific seller
-   */
-  async getSellerProducts(sellerId: string): Promise<ProductWithSeller[]> {
-    return this.getProducts({ sellerId });
-  }
-
-  /**
-   * Get products by category ID
-   */
-  async getProductsByCategory(categoryId: string): Promise<ProductWithSeller[]> {
-    return this.getProducts({ categoryId });
-  }
-
-  /**
-   * Search products by query
-   */
-  async searchProducts(query: string, limit?: number): Promise<ProductWithSeller[]> {
-    return this.getProducts({ searchQuery: query, limit: limit || 20 });
   }
 
   /**
@@ -518,7 +497,7 @@ export class ProductService {
       if (variants && variants.length > 0) {
         const variant = variants[0];
         const newStock = Math.max(0, (variant.stock || 0) - quantity);
-        
+
         const { error } = await supabase
           .from('product_variants')
           .update({ stock: newStock })
@@ -558,7 +537,7 @@ export class ProductService {
       if (variants && variants.length > 0) {
         const variant = variants[0];
         const newStock = (variant.stock || 0) + quantity;
-        
+
         const { error } = await supabase
           .from('product_variants')
           .update({ stock: newStock })
@@ -577,20 +556,6 @@ export class ProductService {
    */
   async getProductsBySeller(sellerId: string): Promise<Product[]> {
     return this.getProducts({ sellerId });
-  }
-
-  /**
-   * Get products by category
-   */
-  async getProductsByCategory(category: string): Promise<Product[]> {
-    return this.getProducts({ category });
-  }
-
-  /**
-   * Search products
-   */
-  async searchProducts(query: string, limit = 20): Promise<Product[]> {
-    return this.getProducts({ searchQuery: query, limit });
   }
 
   /**

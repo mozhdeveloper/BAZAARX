@@ -48,7 +48,7 @@ interface ProductQAStore {
   requestRevision: (productId: string, reason: string, stage: 'digital' | 'physical') => Promise<void>;
   getProductById: (productId: string) => QAProduct | undefined;
   getProductsByStatus: (status: ProductQAStatus) => QAProduct[];
-  addProductToQA: (productId: string, vendorName: string) => Promise<void>;
+  addProductToQA: (productId: string, vendorName: string, sellerId?: string) => Promise<void>;
   resetToInitialState: () => void;
 }
 
@@ -113,10 +113,7 @@ export const useProductQAStore = create<ProductQAStore>()(
             throw new Error('Product must be in PENDING_DIGITAL_REVIEW status');
           }
 
-          const success = await qaService.approveForSampleSubmission(productId);
-          if (!success) {
-            throw new Error('Failed to approve product');
-          }
+          await qaService.approveForSampleSubmission(productId);
 
           // Update local state
           set((state) => ({
@@ -153,10 +150,7 @@ export const useProductQAStore = create<ProductQAStore>()(
             throw new Error('Product must be in WAITING_FOR_SAMPLE status');
           }
 
-          const success = await qaService.submitSample(productId, logisticsMethod);
-          if (!success) {
-            throw new Error('Failed to submit sample');
-          }
+          await qaService.submitSample(productId, logisticsMethod);
 
           // Update local state
           set((state) => ({
@@ -189,10 +183,7 @@ export const useProductQAStore = create<ProductQAStore>()(
             throw new Error('Product must be in IN_QUALITY_REVIEW status');
           }
 
-          const success = await qaService.passQualityCheck(productId);
-          if (!success) {
-            throw new Error('Failed to pass quality check');
-          }
+          await qaService.passQualityCheck(productId);
 
           // Update local state
           set((state) => ({
@@ -229,10 +220,7 @@ export const useProductQAStore = create<ProductQAStore>()(
             throw new Error('Product cannot be rejected from current status');
           }
 
-          const success = await qaService.rejectProduct(productId, reason, stage);
-          if (!success) {
-            throw new Error('Failed to reject product');
-          }
+          await qaService.rejectProduct(productId, reason, stage);
 
           // Update local state
           set((state) => ({
@@ -271,10 +259,7 @@ export const useProductQAStore = create<ProductQAStore>()(
             throw new Error('Product cannot request revision from current status');
           }
 
-          const success = await qaService.requestRevision(productId, reason, stage);
-          if (!success) {
-            throw new Error('Failed to request revision');
-          }
+          await qaService.requestRevision(productId, reason, stage);
 
           // Update local state
           set((state) => ({
@@ -306,10 +291,10 @@ export const useProductQAStore = create<ProductQAStore>()(
         return get().products.filter((p) => p.status === status);
       },
 
-      addProductToQA: async (productId: string, vendorName: string) => {
+      addProductToQA: async (productId: string, vendorName: string, sellerId?: string) => {
         set({ isLoading: true });
         try {
-          const entry = await qaService.createQAEntry(productId, vendorName);
+          const entry = await qaService.createQAEntry(productId, vendorName, sellerId || 'unknown');
           if (!entry) {
             throw new Error('Failed to create QA entry');
           }

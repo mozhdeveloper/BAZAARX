@@ -151,14 +151,13 @@ export default function AddProductScreen() {
         sales: 0,
         rating: 0,
         reviews: 0,
-        approvalStatus: 'pending',
+        approval_status: 'pending',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        variants: showVariants && variants.length > 0 ? variants : [],
       };
 
       const dbProductId = await addProduct(newProduct);
-      await addProductToQA(dbProductId, seller?.storeName || 'Store');
+      await addProductToQA(dbProductId, seller?.store_name || 'Store');
 
       Alert.alert('Success', 'Product submitted for review.', [{ text: 'OK', onPress: () => navigation.goBack() }]);
 

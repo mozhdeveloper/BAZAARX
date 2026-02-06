@@ -42,7 +42,7 @@ export default function SellerProductQAScreen() {
   const insets = useSafeAreaInsets();
 
   const { products: qaProducts, submitSample, loadProducts, isLoading } = useProductQAStore();
-  const { seller, products: sellerProducts } = useSellerStore();
+  const { seller, products: sellerProducts = [] } = useSellerStore();
 
   // Load QA products for this seller on mount and when screen is focused
   useFocusEffect(
@@ -77,8 +77,9 @@ export default function SellerProductQAScreen() {
       return p.sellerId === seller.id;
     }
     // Fallback: match by store name / vendor
-    if (seller?.storeName && p.vendor) {
-      return p.vendor.toLowerCase() === seller.storeName.toLowerCase();
+    if (seller?.store_name && p.vendor) {
+      const vendorName = seller.store_name;
+      return p.vendor.toLowerCase() === vendorName.toLowerCase();
     }
     return true; // Show all if no filter criteria
   });

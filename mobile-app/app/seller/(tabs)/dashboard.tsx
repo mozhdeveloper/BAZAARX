@@ -24,11 +24,10 @@ const { width } = Dimensions.get('window');
 
 export default function SellerDashboardScreen() {
   const { stats, revenueData, seller } = useSellerStore();
-  const { sellerOrders: orders } = useOrderStore();
+  const { sellerOrders: orders = [] } = useOrderStore();
   const getReturnRequestsBySeller = useReturnStore((state) => state.getReturnRequestsBySeller);
-  // Assuming seller has an ID or name matching the return requests. 
-  // For now using a hardcoded value or seller.storeName as per previous context
-  const returnRequests = getReturnRequestsBySeller('TechStore Official');
+  // Get return requests for the current seller
+  const returnRequests = getReturnRequestsBySeller(seller?.store_name || '');
   const pendingReturns = returnRequests.filter(r => r.status === 'pending_review');
 
   const navigation = useNavigation<any>();
@@ -60,9 +59,9 @@ export default function SellerDashboardScreen() {
   }, [seller?.id]);
 
   const chartData = revenueData.map((item) => ({
-    value: item.value / 1000, // Convert to thousands for better display
-    label: item.date.split(' ')[1], // Just show day number
-    dataPointText: `₱${(item.value / 1000).toFixed(0)}k`,
+    value: (item.value ?? 0) / 1000, // Convert to thousands for better display
+    label: (item.date ?? '').split(' ')[1] || '', // Just show day number
+    dataPointText: `₱${((item.value ?? 0) / 1000).toFixed(0)}k`,
   }));
 
   const getStatusColor = (status: string) => {
@@ -92,6 +91,16 @@ export default function SellerDashboardScreen() {
   };
 
   const maxVal = Math.max(...chartData.map(d => d.value));
+
+  // Null guard for seller
+  if (!seller) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={{ fontSize: 16, color: '#9CA3AF' }}>Loading seller information...</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       {/* Seller Drawer */}
@@ -107,7 +116,7 @@ export default function SellerDashboardScreen() {
             </Pressable>
             <View style={{ flex: 1 }}>
               <Text style={styles.headerTitle}>Seller Hub</Text>
-              <Text style={styles.headerSubtitle}>{seller.storeName}</Text>
+              <Text style={styles.headerSubtitle}>{seller.store_name}</Text>
             </View>
           </View>
         </View>
@@ -139,11 +148,11 @@ export default function SellerDashboardScreen() {
         >
           {/* Check if all documents are uploaded */}
           {(() => {
-            const hasAllDocs = seller.business_permit_url &&
-              seller.valid_id_url &&
-              seller.proof_of_address_url &&
-              seller.dti_registration_url &&
-              seller.tax_id_url;
+            const hasAllDocs = seller.verification_documents?.business_permit_url &&
+              seller.verification_documents?.valid_id_url &&
+              seller.verification_documents?.proof_of_address_url &&
+              seller.verification_documents?.dti_registration_url &&
+              seller.verification_documents?.tax_id_url;
 
             if (hasAllDocs) {
               return (
@@ -243,7 +252,7 @@ export default function SellerDashboardScreen() {
                   <Eye size={24} color="#FF5722" strokeWidth={2.5} />
                 </View>
                 <Text style={styles.statLabel}>Store Visits</Text>
-                <Text style={styles.statValue}>{stats.totalVisits.toLocaleString()}</Text>
+                <Text style={styles.statValue}>{(stats.totalVisits ?? 0).toLocaleString()}</Text>
                 <View style={styles.statChange}>
                   <TrendingUp size={14} color="#10B981" strokeWidth={2.5} />
                   <Text style={styles.statChangeText}>+{stats.visitsChange}%</Text>

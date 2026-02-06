@@ -11,7 +11,8 @@
 
 import { supabase } from '../lib/supabase';
 
-const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+// React Native uses process.env, not import.meta
+const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
 // Using gemini-1.5-flash for reliable availability
 // Free tier: 1500 requests/day, 1M tokens/minute
 const GEMINI_MODEL = 'gemini-1.5-flash';

@@ -23,19 +23,19 @@ type TimeRange = '7d' | '30d' | '90d';
 export default function SellerAnalyticsScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<SellerStackParamList>>();
   
-  const { stats, revenueData, categorySales, products } = useSellerStore();
+  const { stats, revenueData = [], categorySales = [], products = [] } = useSellerStore();
   const insets = useSafeAreaInsets();
   const [selectedRange, setSelectedRange] = useState<TimeRange>('7d');
 
   const chartData = revenueData.map((item) => ({
-    value: item.value / 1000,
-    label: item.date.split(' ')[1],
+    value: (item.value ?? 0) / 1000,
+    label: (item.date ?? '').split(' ')[1] || '',
   }));
 
   const pieData = categorySales.map((item, index) => ({
-    value: item.value,
-    color: item.color,
-    text: `${item.value}%`,
+    value: item.value ?? 0,
+    color: item.color ?? '#FF5722',
+    text: `${item.value ?? 0}%`,
   }));
 
   const topProducts = products

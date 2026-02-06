@@ -946,17 +946,18 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       <AIChatBubble
         product={{
           id: product.id,
-          name: product.name,
+          name: product.name || 'Product',
           description: product.description || '',
-          price: product.price,
+          price: product.price || 0,
           category: product.category,
           colors: productColors,
           sizes: productSizes,
-          stock: product.stock,
+          stock: product.stock || 0,
           rating: averageRating || product.rating,
           reviewCount: reviewsTotal,
         }}
         store={{
+          id: product.sellerId || '',
           storeName: product.seller || 'Store',
         }}
         onTalkToSeller={() => setShowChat(true)}
