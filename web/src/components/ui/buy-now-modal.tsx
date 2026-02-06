@@ -40,7 +40,7 @@ export function BuyNowModal({ isOpen, onClose, product, onConfirm }: BuyNowModal
   const hasSizes = product.sizes && product.sizes.length > 0;
 
   const currentPrice = selectedVariant?.price || product.price;
-  const maxStock = selectedVariant?.stock || product.stock || 99;
+  const maxStock = selectedVariant ? (selectedVariant.stock ?? 0) : (product.stock || 99);
 
   const handleConfirm = () => {
     onConfirm(quantity, selectedVariant || undefined);

@@ -857,11 +857,9 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
     fetchProduct();
   }, [id]);
 
-  // Check seller products first (verified products)
-  const sellerProduct = dbProduct || sellerProducts.find((p) => p.id === id);
-
-  const baseProduct =
-    sellerProduct ||
+  // Initial product from lists (optimistic data)
+  const initialProduct =
+    sellerProducts.find((p) => p.id === id) ||
     trendingProducts.find((p) => p.id === id) ||
     trendingProducts.find((p) => p.id === id?.split("-")[0]) ||
     bestSellerProducts.find((p) => p.id === id) ||
@@ -869,10 +867,22 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
     newArrivals.find((p) => p.id === id) ||
     newArrivals.find((p) => p.id === id?.split("-")[0]);
 
+  // Check seller products first (verified products)
+  const sellerProduct = dbProduct || initialProduct;
+
+  const baseProduct = sellerProduct; 
+  // Note: baseProduct definition was redundant if we use sellerProduct like this, 
+  // but keeping structure similar to avoid large diffs.
+
   // For seller products, create a product-like object
   const sellerAuth = useAuthStore.getState().seller;
   const sellerNameFallback =
-    sellerAuth?.businessName || sellerAuth?.storeName || "Verified Seller";
+    (initialProduct as any)?.seller?.store_name ||
+    (initialProduct as any)?.sellerName ||
+    (typeof (initialProduct as any)?.seller === 'string' ? (initialProduct as any)?.seller : null) ||
+    sellerAuth?.businessName || 
+    sellerAuth?.storeName || 
+    "Verified Seller";
 
   // Handle both camelCase (from store) and snake_case (from DB)
   // Extract unique sizes and colors from variants if available
@@ -1789,6 +1799,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
             images: productData.images,
             colors: productData.colors?.map((c: any) => c.name || c) || [],
             sizes: productData.sizes || [],
+            variants: productData.variants || [],
             stock: normalizedProduct.stock || 100,
           }}
           onConfirm={(qty, variant) => {
