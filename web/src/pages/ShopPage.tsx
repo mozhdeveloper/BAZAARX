@@ -334,7 +334,7 @@ export default function ShopPage() {
           >
             <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-2 tracking-tight">
               Shop All {''}
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-red-500">
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-[var(--brand-primary)] to-red-500">
                 Products
               </span>
             </h1>
@@ -347,20 +347,24 @@ export default function ShopPage() {
 
         <div className="py-2 md:py-4">
           {/* Flash Sale Section */}
-          <div className="mb-8 bg-white border-l-[8px] border-l-orange-500 rounded-2xl py-4 px-8 shadow-[0_4px_20px_rgba(0,0,0,0.08)] hover:shadow-[0_8px_30px_rgba(255,106,0,0.15)] transition-all">
+          <div className="mb-8 bg-white border-l-[8px] border-l-[var(--brand-primary)] rounded-2xl py-4 px-8 shadow-[0_4px_20px_rgba(0,0,0,0.08)] hover:shadow-[0_8px_30px_rgba(255,106,0,0.15)] transition-all">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                <div className="p-1.5 bg-orange-50 rounded-lg text-orange-600">
-                  <Flame className="w-5 h-5" />
-                </div>
-                <h2 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-red-500 uppercase tracking-wide">FLASH SALE</h2>
+                <h2 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-[var(--brand-primary)] to-red-500 uppercase tracking-wide">
+                  FLASH SALE
+                </h2>
               </div>
 
-              <div className="bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-lg px-3 py-1.5 flex items-center gap-2 shadow-sm border border-orange-400/20">
-                <Clock className="w-4 h-4 text-white" />
+              {/* Ends in + Timer */}
+              <div className="bg-gradient-to-r from-[var(--brand-primary)] to-red-500 text-white rounded-lg px-3 py-1.5 flex items-center gap-2 shadow-sm border border-[var(--brand-primary)]/20">
+                <span className="text-xs font-semibold uppercase tracking-wide opacity-90">
+                  Ends in
+                </span>
                 <div className="flex items-baseline gap-1">
                   <span className="text-lg font-bold font-mono tracking-widest">
-                    {String(timeLeft.hours).padStart(2, "0")}:{String(timeLeft.minutes).padStart(2, "0")}:{String(timeLeft.seconds).padStart(2, "0")}
+                    {String(timeLeft.hours).padStart(2, "0")}:
+                    {String(timeLeft.minutes).padStart(2, "0")}:
+                    {String(timeLeft.seconds).padStart(2, "0")}
                   </span>
                 </div>
               </div>
@@ -373,7 +377,7 @@ export default function ShopPage() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.1 }}
-                  className="bg-white rounded-lg overflow-hidden cursor-pointer hover:shadow-lg transition-all border border-gray-100 hover:border-orange-500 pb-2"
+                  className="bg-white rounded-lg overflow-hidden cursor-pointer hover:shadow-lg transition-all border border-gray-100 hover:border-[var(--brand-primary)] pb-2"
                   onClick={() => navigate(`/product/${product.id}`)}
                 >
                   <div className="relative aspect-[4/3] mb-2">
@@ -382,7 +386,7 @@ export default function ShopPage() {
                       alt={product.name}
                       className="w-full h-full object-cover"
                     />
-                    <div className="absolute top-0 right-0 bg-orange-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-bl-md z-10">
+                    <div className="absolute top-0 right-0 bg-[var(--brand-primary)] text-white text-[9px] font-bold px-1.5 py-0.5 rounded-bl-md z-10">
                       -{product.discount}%
                     </div>
                   </div>
@@ -399,7 +403,7 @@ export default function ShopPage() {
                     </div>
 
                     <div className="flex flex-col gap-0.5">
-                      <div className="text-base font-bold text-orange-600 leading-none">
+                      <div className="text-base font-bold text-[var(--brand-primary)] leading-none">
                         ₱{product.price.toLocaleString()}
                       </div>
                       <div className="flex items-center gap-1.5">
@@ -418,6 +422,7 @@ export default function ShopPage() {
               ))}
             </div>
           </div>
+
 
           <div id="shop-content" className="flex flex-col lg:flex-row gap-8 scroll-mt-24">
             {/* Categories Sidebar */}
@@ -443,7 +448,7 @@ export default function ShopPage() {
                         }}
                         className={`w-full text-left px-4 rounded-xl transition-all duration-300
                           ${isSelected
-                            ? "bg-[#ff6a00] text-white font-bold shadow-md py-4 text-base"
+                            ? "bg-[var(--brand-primary)] text-white font-bold shadow-md py-4 text-base"
                             : "text-gray-600 hover:bg-gray-50 hover:text-gray-900 font-normal py-2.5 text-sm"
                           }
                         `}
@@ -469,7 +474,7 @@ export default function ShopPage() {
                         onClick={() => setSelectedCategory(category)}
                         className={`w-full text-left px-4 rounded-xl transition-all duration-300
                           ${isSelected
-                            ? "bg-[#ff6a00] text-white font-bold shadow-md py-4 text-base"
+                            ? "bg-[var(--brand-primary)] text-white font-bold shadow-md py-4 text-base"
                             : "text-gray-600 hover:bg-gray-50 hover:text-gray-900 font-normal py-2.5 text-sm"
                           }
                         `}
@@ -514,7 +519,7 @@ export default function ShopPage() {
                       <Filter className="w-4 h-4 text-gray-400 mr-1" />
 
                       <Select value={selectedSort} onValueChange={setSelectedSort}>
-                        <SelectTrigger className="w-[130px] md:w-[150px] h-8 border-gray-200 rounded-xl bg-white transition-all hover:border-[#ff6a00] hover:shadow-sm text-[12px] text-gray-800">
+                        <SelectTrigger className="w-[130px] md:w-[150px] h-8 border-gray-200 rounded-xl bg-white transition-all hover:border-[var(--brand-primary)] hover:shadow-sm text-[12px] text-gray-800">
                           <SelectValue placeholder="Sort by" />
                         </SelectTrigger>
                         <SelectContent className="rounded-xl border-gray-100">
@@ -536,11 +541,11 @@ export default function ShopPage() {
                             step={100}
                             value={priceRange}
                             onValueChange={setPriceRange}
-                            className="w-full text-[#ff6a00]"
+                            className="w-full text-[var(--brand-primary)]"
                           />
                         </div>
                         <div className="flex items-center gap-1 text-[11px] text-gray-700">
-                          <div className="flex items-center bg-gray-50/50 px-2 py-0.5 rounded-lg border border-transparent focus-within:border-[#ff6a00] transition-colors">
+                          <div className="flex items-center bg-gray-50/50 px-2 py-0.5 rounded-lg border border-transparent focus-within:border-[var(--brand-primary)] transition-colors">
                             <span className="text-gray-400 font-normal mr-0.5">₱</span>
                             <input
                               type="text"
@@ -553,7 +558,7 @@ export default function ShopPage() {
                             />
                           </div>
                           <span className="text-gray-300 font-normal">-</span>
-                          <div className="flex items-center bg-gray-50/50 px-2 py-0.5 rounded-lg border border-transparent focus-within:border-[#ff6a00] transition-colors">
+                          <div className="flex items-center bg-gray-50/50 px-2 py-0.5 rounded-lg border border-transparent focus-within:border-[var(--brand-primary)] transition-colors">
                             <span className="text-gray-400 font-normal mr-0.5">₱</span>
                             <input
                               type="text"
@@ -570,7 +575,7 @@ export default function ShopPage() {
                     </div>
                     <button
                       onClick={resetFilters}
-                      className="text-[12px] -mb-3 font-small text-[#ff6a00] hover:text-[#e65f00] transition-colors pr-2"
+                      className="text-[12px] -mb-3 font-small text-[var(--brand-primary)] hover:text-[var(--brand-primary-dark)] transition-colors pr-2"
                     >
                       Clear Filters
                     </button>
@@ -620,7 +625,7 @@ export default function ShopPage() {
                     </div>
 
                     <div className="p-4 flex-1 flex flex-col">
-                      <h3 className="font-semibold text-gray-900 group-hover:text-[#FF5722] transition-colors duration-200 line-clamp-2 h-12">
+                      <h3 className="font-semibold text-gray-900 group-hover:text-[var(--brand-primary)] transition-colors duration-200 line-clamp-2 h-12">
                         {product.name}
                       </h3>
 
@@ -644,7 +649,7 @@ export default function ShopPage() {
 
                       <div className="mt-2">
                         <div className="flex items-center gap-2">
-                          <span className="text-lg font-bold text-[#FF5722]">
+                          <span className="text-lg font-bold text-[var(--brand-primary)]">
                             ₱{product.price.toLocaleString()}
                           </span>
                           {product.originalPrice && (
@@ -758,7 +763,7 @@ export default function ShopPage() {
                             setShowCartModal(true);
                           }}
                           variant="outline"
-                          className="w-full border-[#FF5722] text-[#FF5722] hover:bg-[#FF5722] hover:text-white rounded-xl gap-2 transition-all active:scale-95"
+                          className="w-full border-[var(--brand-primary)] text-[var(--brand-primary)] hover:bg-[var(--brand-primary)] hover:text-white rounded-xl gap-2 transition-all active:scale-95"
                         >
                           <ShoppingCart className="w-4 h-4" />
                           Add to Cart
@@ -802,7 +807,7 @@ export default function ShopPage() {
                             });
                             setShowBuyNowModal(true);
                           }}
-                          className="w-full bg-[#FF5722] hover:bg-[#E64A19] text-white rounded-xl transition-all active:scale-95"
+                          className="w-full bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white rounded-xl transition-all active:scale-95"
                         >
                           Buy Now
                         </Button>
