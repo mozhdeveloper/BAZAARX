@@ -14,59 +14,24 @@ import {
 import Header from '../components/Header';
 import { BazaarFooter } from '../components/ui/bazaar-footer';
 import { Badge } from "../components/ui/badge";
+import { useSupportStore, type TicketStatus } from '../stores/supportStore';
+import { useBuyerStore } from '../stores/buyerStore';
 
-type TicketStatus = 'Open' | 'In Review' | 'Resolved' | 'Closed';
 
-interface SupportTicket {
-    id: string;
-    subject: string;
-    description: string;
-    status: TicketStatus;
-    createdAt: string;
-    category: string;
-}
-
-const mockTickets: SupportTicket[] = [
-    {
-        id: 'BX-10234',
-        subject: 'Damaged Item on Delivery',
-        description: 'The item arrived with a broken screen. I need a replacement.',
-        status: 'Open',
-        createdAt: '2026-02-06',
-        category: 'Returns'
-    },
-    {
-        id: 'BX-10192',
-        subject: 'Missing Refund for Order #4492',
-        description: 'My order was cancelled last week but I haven\'t seen the refund yet.',
-        status: 'In Review',
-        createdAt: '2026-02-01',
-        category: 'Payment'
-    },
-    {
-        id: 'BX-09845',
-        subject: 'Wrong Item Received',
-        description: 'Received a blue shirt instead of the red one I ordered.',
-        status: 'Resolved',
-        createdAt: '2026-01-25',
-        category: 'Order Issue'
-    },
-    {
-        id: 'BX-08211',
-        subject: 'Shipping Query',
-        description: 'How can I change my delivery address after ordering?',
-        status: 'Closed',
-        createdAt: '2026-01-15',
-        category: 'Shipping'
-    }
-];
 
 export default function MyTickets() {
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState<'All' | TicketStatus>('All');
     const [searchQuery, setSearchQuery] = useState('');
 
-    const filteredTickets = mockTickets.filter(ticket => {
+    // Get tickets from store and filter by current buyer
+    const { getTicketsByBuyer, tickets } = useSupportStore();
+    const { profile } = useBuyerStore();
+
+    // Get buyer's tickets or show all if no profile
+    const buyerTickets = profile?.email ? getTicketsByBuyer(profile.email) : tickets;
+
+    const filteredTickets = buyerTickets.filter(ticket => {
         const matchesTab = activeTab === 'All' || ticket.status === activeTab;
         const matchesSearch = ticket.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
             ticket.id.toLowerCase().includes(searchQuery.toLowerCase());

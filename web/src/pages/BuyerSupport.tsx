@@ -17,23 +17,30 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "../components/Header";
 import { BazaarFooter } from "../components/ui/bazaar-footer";
+import { useSupportStore } from "../stores/supportStore";
+import { useBuyerStore } from "../stores/buyerStore";
 
 interface TicketData {
     subject: string;
     description: string;
+    category: string;
     proof: File | null;
 }
 
 export function BuyerSupport() {
     const [showTicketModal, setShowTicketModal] = useState(false);
     const [isSubmitted, setIsSubmitted] = useState(false);
+    const [generatedTicketId, setGeneratedTicketId] = useState<string>("");
     const [ticket, setTicket] = useState<TicketData>({
         subject: '',
         description: '',
+        category: 'General',
         proof: null
     });
     const [chatMessage, setChatMessage] = useState("");
     const navigate = useNavigate();
+    const { submitTicket } = useSupportStore();
+    const { profile } = useBuyerStore();
 
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -43,14 +50,34 @@ export function BuyerSupport() {
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        console.log('Submitting to BazaarX:', ticket);
+
+        // Submit ticket to store
+        const ticketId = submitTicket({
+            buyerName: profile ? `${profile.firstName} ${profile.lastName}` : 'Guest User',
+            buyerId: profile?.id,
+            email: profile?.email || 'guest@example.com',
+            subject: ticket.subject,
+            description: ticket.description,
+            category: ticket.category,
+            proof: ticket.proof
+        });
+
+        setGeneratedTicketId(ticketId);
         setIsSubmitted(true);
     };
 
     const handleCloseModal = () => {
         setShowTicketModal(false);
-        // Reset state after closing animation would be ideal, but simple reset works for now
-        setTimeout(() => setIsSubmitted(false), 300);
+        // Reset state after closing animation
+        setTimeout(() => {
+            setIsSubmitted(false);
+            setTicket({
+                subject: '',
+                description: '',
+                category: 'General',
+                proof: null
+            });
+        }, 300);
     };
 
     const handleChatSubmit = (e: React.FormEvent) => {
@@ -208,8 +235,26 @@ export function BuyerSupport() {
                                                 required
                                                 placeholder="e.g., Damaged Item, Missing Refund"
                                                 className="w-full border border-gray-200 p-3 rounded-lg text-sm focus:border-[#FF4500] focus:ring-1 focus:ring-[#FF4500] outline-none transition-all placeholder-gray-300"
+                                                value={ticket.subject}
                                                 onChange={(e) => setTicket({ ...ticket, subject: e.target.value })}
                                             />
+                                        </div>
+
+                                        <div>
+                                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">Category</label>
+                                            <select
+                                                required
+                                                className="w-full border border-gray-200 p-3 rounded-lg text-sm focus:border-[#FF4500] focus:ring-1 focus:ring-[#FF4500] outline-none transition-all"
+                                                value={ticket.category}
+                                                onChange={(e) => setTicket({ ...ticket, category: e.target.value })}
+                                            >
+                                                <option value="General">General</option>
+                                                <option value="Order Issue">Order Issue</option>
+                                                <option value="Payment">Payment</option>
+                                                <option value="Shipping">Shipping</option>
+                                                <option value="Returns">Returns</option>
+                                                <option value="Product Quality">Product Quality</option>
+                                            </select>
                                         </div>
 
                                         <div>
@@ -219,6 +264,7 @@ export function BuyerSupport() {
                                                 rows={4}
                                                 placeholder="Provide as much detail as possible..."
                                                 className="w-full border border-gray-200 p-3 rounded-lg text-sm focus:border-[#FF4500] focus:ring-1 focus:ring-[#FF4500] outline-none transition-all resize-none placeholder-gray-300"
+                                                value={ticket.description}
                                                 onChange={(e) => setTicket({ ...ticket, description: e.target.value })}
                                             />
                                         </div>
@@ -250,7 +296,7 @@ export function BuyerSupport() {
                                     <h3 className="text-xl font-bold text-gray-900 mb-2">Your ticket has been submitted successfully.</h3>
                                     <div className="bg-gray-50 px-5 py-3 rounded-xl border border-gray-200 border-dashed mb-4">
                                         <p className="text-sm text-gray-600">
-                                            Ticket ID: <span className="text-gray-900 font-black tracking-wide">#BX-10234</span>
+                                            Ticket ID: <span className="text-gray-900 font-black tracking-wide">#{generatedTicketId}</span>
                                         </p>
                                     </div>
                                     <p className="text-sm text-gray-500 mb-8 max-w-xs leading-relaxed">

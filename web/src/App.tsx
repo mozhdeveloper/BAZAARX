@@ -74,6 +74,7 @@ import AdminFlashSales from "./pages/AdminFlashSales";
 import AdminPayouts from "./pages/AdminPayouts";
 import AdminProfile from "./pages/AdminProfile";
 import AdminProductApprovals from "./pages/AdminProductApprovals";
+import AdminTickets from "./pages/AdminTickets";
 import { ChatBubble } from "./components/ChatBubbleAI";
 
 function App() {
@@ -367,6 +368,7 @@ function App() {
           <Route path="/admin/payouts" element={<AdminPayouts />} />
           <Route path="/admin/profile" element={<AdminProfile />} />
           <Route path="/admin/analytics" element={<AdminAnalytics />} />
+          <Route path="/admin/tickets" element={<AdminTickets />} />
           <Route path="/admin/settings" element={<AdminSettings />} />
         </Routes>
 
