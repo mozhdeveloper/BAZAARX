@@ -282,6 +282,11 @@ export default function EnhancedCartPage() {
                               <h4 className="font-medium text-gray-900 text-sm mb-1 truncate">
                                 {item.name}
                               </h4>
+                              {item.selectedVariant && (
+                                <p className="text-xs text-gray-500 mb-1">
+                                  Variation: {item.selectedVariant.name}
+                                </p>
+                              )}
 
                               {/* Quantity Controls */}
                               <div className="flex items-center gap-4 mt-2">

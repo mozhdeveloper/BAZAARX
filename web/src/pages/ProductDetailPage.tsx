@@ -826,6 +826,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
   const [selectedImage, setSelectedImage] = useState(0);
   const [selectedColor, setSelectedColor] = useState(0);
   const [selectedSize, setSelectedSize] = useState("");
+  const [showVariantError, setShowVariantError] = useState(false);
   const [activeTab, setActiveTab] = useState("description");
   const [dbProduct, setDbProduct] = useState<ProductWithSeller | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -1087,6 +1088,14 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
   const handleAddToCart = () => {
     if (!normalizedProduct) return;
 
+    // Validation
+    if (productData.sizes?.length > 0 && !selectedSize) {
+      setShowVariantError(true);
+      // Optional: Scroll to variant selector if needed
+      return;
+    }
+    setShowVariantError(false);
+
     const productImage =
       "image" in normalizedProduct
         ? normalizedProduct.image
@@ -1246,15 +1255,12 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
   const handleBuyNow = () => {
     if (!normalizedProduct) return;
 
-    // Check if we still need to make a selection
-    // Size is required if sizes array exists and no size selected
-    const needsSize = productData.sizes && productData.sizes.length > 0 && !selectedSize;
-    
-    // If selections are incomplete, show modal
-    if (needsSize) {
-      setShowBuyNowModal(true);
+    // Validation
+    if (productData.sizes?.length > 0 && !selectedSize) {
+      setShowVariantError(true);
       return;
     }
+    setShowVariantError(false);
 
     // Construct the variant object (Logic matched with handleAddToCart)
     const dbVariant = getSelectedVariant();
@@ -1485,7 +1491,14 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
             {productData.sizes && productData.sizes.length > 0 && (
               <div className="mb-8">
                 <div className="flex items-center justify-between mb-3">
-                  <p className="text-sm font-semibold text-gray-900">Size</p>
+                  <div className="flex items-center gap-2">
+                    <p className={cn("text-sm font-semibold transition-colors", showVariantError ? "text-red-500" : "text-gray-900")}>Size</p>
+                    {showVariantError && (
+                      <span className="text-xs text-red-500 font-medium animate-pulse">
+                        * Please select a size
+                      </span>
+                    )}
+                  </div>
                   <button className="text-xs text-gray-500 hover:text-[#ff6a00] hover:underline flex items-center gap-1">
                     <Ruler className="w-3 h-3" /> Size Guide
                   </button>
@@ -1494,7 +1507,10 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                   {productData.sizes.map((size: string) => (
                     <button
                       key={size}
-                      onClick={() => setSelectedSize(size)}
+                      onClick={() => {
+                        setSelectedSize(size);
+                        setShowVariantError(false); // Clear error on select
+                      }}
                       className={cn(
                         "min-w-[3rem] w-auto px-3 h-8 flex items-center justify-center rounded-lg border-2 text-xs transition-all",
                         selectedSize === size
