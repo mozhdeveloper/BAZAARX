@@ -70,49 +70,22 @@ export default function BuyerOnboardingPage() {
         if (step === 1 && !termsAccepted) return;
         if (step === 2 && selectedCategories.length < 3) return;
 
-        if (step === 3) {
-            // Create Address
-            setIsLoading(true);
-            try {
-                if (!profile?.id) throw new Error("User not found");
-
-                const newAddress = await addressService.createAddress({
-                    user_id: profile.id,
-                    address_line_1: `${addressData.firstName} ${addressData.lastName}, ${addressData.phone}, ${addressData.street}`,
-                    barangay: addressData.barangay,
-                    city: addressData.city,
-                    province: addressData.province,
-                    region: addressData.region,
-                    postal_code: addressData.postalCode,
-                    label: addressData.label,
-                    is_default: addressData.isDefault,
-                    address_type: 'residential',
-                });
-
-                addAddress(newAddress);
-
-                // Also save categories to preferences if possible
-                if (selectedCategories.length > 0) {
+        if (step === 2) {
+            // Save categories to preferences if possible
+            if (selectedCategories.length > 0 && profile) {
+                try {
                     await updateProfile({
                         preferences: {
                             ...profile.preferences,
                             interestedCategories: selectedCategories
                         }
                     });
+                } catch (error) {
+                    console.error("Failed to save categories:", error);
                 }
-
-                setStep(4);
-            } catch (error) {
-                console.error("Address creation failed:", error);
-                toast({
-                    title: "Error",
-                    description: "Failed to save address. Please try again.",
-                    variant: "destructive"
-                });
-                setIsLoading(false);
-                return; // Don't advance
             }
-            setIsLoading(false);
+            // Skip address step, go to finish
+            setStep(3);
             return;
         }
 
@@ -177,7 +150,7 @@ export default function BuyerOnboardingPage() {
                         <div className="h-1 w-full bg-gray-200 rounded-full overflow-hidden">
                             <motion.div
                                 initial={{ width: 0 }}
-                                animate={{ width: `${(step / 4) * 100}%` }}
+                                animate={{ width: `${(step / 3) * 100}%` }}
                                 transition={{ duration: 0.5, ease: "easeInOut" }}
                                 className="h-full bg-orange-500 rounded-full"
                             />
@@ -200,8 +173,7 @@ export default function BuyerOnboardingPage() {
                             <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">
                                 {step === 1 && "Terms & Conditions"}
                                 {step === 2 && "Choose Interests"}
-                                {step === 3 && "Delivery Address"}
-                                {step === 4 && ""}
+                                {step === 3 && ""}
                             </span>
                         </div>
 
@@ -325,7 +297,7 @@ export default function BuyerOnboardingPage() {
                                             disabled={selectedCategories.length < 3}
                                             className="px-8 py-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-xl font-bold shadow-lg shadow-orange-200 disabled:opacity-50 disabled:shadow-none hover:shadow-xl hover:scale-105 transition-all flex items-center gap-2"
                                         >
-                                            Next <ArrowRight size={18} />
+                                            Finish <ArrowRight size={18} />
                                         </button>
                                     </div>
                                 </motion.div>
@@ -334,158 +306,6 @@ export default function BuyerOnboardingPage() {
                             {step === 3 && (
                                 <motion.div
                                     key="step3"
-                                    variants={containerVariants}
-                                    initial="hidden"
-                                    animate="visible"
-                                    exit="exit"
-                                    className="h-full flex flex-col"
-                                >
-                                    <div className="text-center mb-6">
-                                        <h2 className="text-2xl font-bold text-gray-800">Shipping Details</h2>
-                                        <p className="text-gray-500 text-sm">Where should we deliver your orders?</p>
-                                    </div>
-
-                                    <div className="space-y-4 overflow-y-auto pr-2 -mr-2 pb-4 flex-1">
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div className="space-y-1">
-                                                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">First Name</label>
-                                                <input
-                                                    name="firstName"
-                                                    value={addressData.firstName}
-                                                    onChange={handleAddressChange}
-                                                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-100 focus:border-orange-500 outline-none transition-all text-sm"
-                                                    placeholder="John"
-                                                />
-                                            </div>
-                                            <div className="space-y-1">
-                                                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Last Name</label>
-                                                <input
-                                                    name="lastName"
-                                                    value={addressData.lastName}
-                                                    onChange={handleAddressChange}
-                                                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-100 focus:border-orange-500 outline-none transition-all text-sm"
-                                                    placeholder="Doe"
-                                                />
-                                            </div>
-                                        </div>
-
-                                        <div className="space-y-1">
-                                            <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Phone</label>
-                                            <div className="relative">
-                                                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-                                                <input
-                                                    name="phone"
-                                                    value={addressData.phone}
-                                                    onChange={handleAddressChange}
-                                                    className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-100 focus:border-orange-500 outline-none transition-all text-sm"
-                                                    placeholder="+63 900 000 0000"
-                                                />
-                                            </div>
-                                        </div>
-
-                                        <div className="space-y-1">
-                                            <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Address</label>
-                                            <div className="relative">
-                                                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-                                                <input
-                                                    name="street"
-                                                    value={addressData.street}
-                                                    onChange={handleAddressChange}
-                                                    className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-100 focus:border-orange-500 outline-none transition-all text-sm"
-                                                    placeholder="Unit, Building, Street"
-                                                />
-                                            </div>
-                                        </div>
-
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div className="space-y-1">
-                                                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Barangay</label>
-                                                <input
-                                                    name="barangay"
-                                                    value={addressData.barangay}
-                                                    onChange={handleAddressChange}
-                                                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-100 focus:border-orange-500 outline-none transition-all text-sm"
-                                                    placeholder="Barangay"
-                                                />
-                                            </div>
-                                            <div className="space-y-1">
-                                                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">City</label>
-                                                <input
-                                                    name="city"
-                                                    value={addressData.city}
-                                                    onChange={handleAddressChange}
-                                                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-100 focus:border-orange-500 outline-none transition-all text-sm"
-                                                    placeholder="City"
-                                                />
-                                            </div>
-                                        </div>
-
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div className="space-y-1">
-                                                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Province</label>
-                                                <input
-                                                    name="province"
-                                                    value={addressData.province}
-                                                    onChange={handleAddressChange}
-                                                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-100 focus:border-orange-500 outline-none transition-all text-sm"
-                                                    placeholder="Province"
-                                                />
-                                            </div>
-                                            <div className="space-y-1">
-                                                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Zip Code</label>
-                                                <input
-                                                    name="postalCode"
-                                                    value={addressData.postalCode}
-                                                    onChange={handleAddressChange}
-                                                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-100 focus:border-orange-500 outline-none transition-all text-sm"
-                                                    placeholder="0000"
-                                                />
-                                            </div>
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Region</label>
-                                            <input
-                                                name="region"
-                                                value={addressData.region}
-                                                onChange={handleAddressChange}
-                                                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-100 focus:border-orange-500 outline-none transition-all text-sm"
-                                                placeholder="Region"
-                                            />
-                                        </div>
-
-                                        <div className="flex gap-3 pt-2">
-                                            {(["Home", "Work"] as const).map((lbl) => (
-                                                <button
-                                                    key={lbl}
-                                                    type="button"
-                                                    onClick={() => setAddressData(prev => ({ ...prev, label: lbl }))}
-                                                    className={`flex-1 py-2.5 rounded-xl border text-sm font-medium transition-all flex items-center justify-center gap-2 ${addressData.label === lbl
-                                                        ? "bg-orange-50 border-orange-500 text-orange-700"
-                                                        : "bg-white border-gray-200 text-gray-500 hover:bg-gray-50"
-                                                        }`}
-                                                >
-                                                    {lbl === "Home" ? <Home size={16} /> : <Building size={16} />}
-                                                    {lbl}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    <div className="mt-4 pt-4 border-t border-gray-100">
-                                        <button
-                                            onClick={handleNext}
-                                            disabled={isLoading || !addressData.street || !addressData.city || !addressData.province || !addressData.region || !addressData.postalCode}
-                                            className="w-full py-3.5 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-xl font-bold shadow-lg shadow-orange-200 disabled:opacity-50 disabled:shadow-none hover:shadow-xl hover:scale-[1.02] transition-all flex items-center justify-center gap-2"
-                                        >
-                                            {isLoading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : "Save & Finish"}
-                                        </button>
-                                    </div>
-                                </motion.div>
-                            )}
-
-                            {step === 4 && (
-                                <motion.div
-                                    key="step4"
                                     variants={containerVariants}
                                     initial="hidden"
                                     animate="visible"
@@ -505,9 +325,7 @@ export default function BuyerOnboardingPage() {
                                     </button>
                                 </motion.div>
                             )}
-
                         </AnimatePresence>
-
                     </div>
                 </div>
             </div>

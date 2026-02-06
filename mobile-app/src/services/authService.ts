@@ -18,8 +18,12 @@ export interface SignUpData {
 }
 
 // Legacy support - maps to first_name
-export interface LegacySignUpData extends Omit<SignUpData, 'first_name' | 'last_name'> {
+export interface LegacySignUpData {
+  email: string;
+  password: string;
   full_name?: string;
+  phone?: string;
+  user_type: UserRole;
 }
 
 export interface AuthResult {
@@ -46,10 +50,10 @@ export class AuthService {
     }
 
     // Handle legacy full_name format
-    const first_name = 'first_name' in userData ? userData.first_name : 
-                       ('full_name' in userData ? (userData as LegacySignUpData).full_name?.split(' ')[0] : null);
+    const first_name = 'first_name' in userData ? userData.first_name :
+      ('full_name' in userData ? (userData as LegacySignUpData).full_name?.split(' ')[0] : null);
     const last_name = 'last_name' in userData ? userData.last_name :
-                      ('full_name' in userData ? (userData as LegacySignUpData).full_name?.split(' ').slice(1).join(' ') : null);
+      ('full_name' in userData ? (userData as LegacySignUpData).full_name?.split(' ').slice(1).join(' ') : null);
 
     try {
       // Sign up with Supabase Auth
@@ -366,6 +370,29 @@ export class AuthService {
     } catch (error) {
       console.error(`Error signing in with ${provider}:`, error);
       throw new Error(`Failed to sign in with ${provider}. Please try again.`);
+    }
+  }
+
+  /**
+   * Get current session
+   * @returns Promise with current session or null
+   */
+  async getSession(): Promise<{ user: any; session?: any } | null> {
+    if (!isSupabaseConfigured()) {
+      return null;
+    }
+
+    try {
+      const { data, error } = await supabase.auth.getSession();
+      if (error) throw error;
+
+      if (data?.session?.user) {
+        return { user: data.session.user, session: data.session };
+      }
+      return null;
+    } catch (error) {
+      console.error('Error getting session:', error);
+      return null;
     }
   }
 

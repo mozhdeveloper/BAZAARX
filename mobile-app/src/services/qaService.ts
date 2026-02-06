@@ -17,7 +17,7 @@ import type { ProductAssessmentStatus } from '@/types/database.types';
 export type ProductAssessmentStatusType = ProductAssessmentStatus;
 
 // Legacy status type for backwards compatibility
-export type ProductQAStatus = 
+export type ProductQAStatus =
   | 'PENDING_DIGITAL_REVIEW'
   | 'WAITING_FOR_SAMPLE'
   | 'IN_QUALITY_REVIEW'
@@ -106,6 +106,10 @@ export interface QAProductDB {
   product?: any;
 }
 
+// Alias for backwards compatibility
+export type QAProductWithDetails = QAProductDB;
+
+
 export class QAService {
   private static instance: QAService;
 
@@ -154,7 +158,7 @@ export class QAService {
       .single();
 
     const legacyStatus = NEW_TO_LEGACY_STATUS[assessment.status] || 'PENDING_DIGITAL_REVIEW';
-    
+
     return {
       id: assessment.id,
       product_id: assessment.product_id,
@@ -354,7 +358,7 @@ export class QAService {
         .single();
 
       if (error) throw error;
-      
+
       return this.transformToLegacy({ ...data, product: { name: vendorName } });
     } catch (error) {
       console.error('Error creating QA entry:', error);
@@ -394,7 +398,7 @@ export class QAService {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      
+
       const assessments = data || [];
       return Promise.all(assessments.map(a => this.transformToLegacy(a)));
     } catch (error) {
@@ -434,7 +438,7 @@ export class QAService {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      
+
       const assessments = data || [];
       return Promise.all(assessments.map(a => this.transformToLegacy(a)));
     } catch (error) {

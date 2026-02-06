@@ -37,7 +37,7 @@ export default function AllStoresScreen() {
                         location: s.city || s.province || 'Philippines',
                         followers: 0, // backend doesn't return this yet in list view efficiently
                         products: Array(s.products_count || 0).fill({}),
-                        categories: s.store_category || [],
+                        categories: [], // Categories not on SellerData type
                         isVerified: s.is_verified
                     }));
                     setRealStores(mappedStores);

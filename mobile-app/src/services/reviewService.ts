@@ -100,18 +100,28 @@ export class ReviewService {
 
             if (error) throw error;
             
-            // Fetch buyer info for each review
+            // Fetch buyer info for each review (from profiles table with first_name/last_name)
             const reviewsWithBuyer = await Promise.all((data || []).map(async (review) => {
                 try {
-                    const { data: buyerData } = await supabase
-                        .from('buyers')
-                        .select('full_name, avatar_url')
+                    const { data: profileData } = await supabase
+                        .from('profiles')
+                        .select('first_name, last_name')
                         .eq('id', review.buyer_id)
                         .single();
                     
+                    const { data: buyerData } = await supabase
+                        .from('buyers')
+                        .select('avatar_url')
+                        .eq('id', review.buyer_id)
+                        .single();
+                    
+                    const fullName = profileData 
+                        ? `${profileData.first_name || ''} ${profileData.last_name || ''}`.trim() 
+                        : null;
+                    
                     return {
                         ...review,
-                        buyer: buyerData || { full_name: null, avatar_url: null }
+                        buyer: { full_name: fullName, avatar_url: buyerData?.avatar_url || null }
                     };
                 } catch {
                     return {

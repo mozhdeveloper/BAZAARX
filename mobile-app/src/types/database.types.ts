@@ -547,6 +547,17 @@ export interface Order {
   // Legacy compatibility
   status?: string;
   seller_id?: string;
+  // Additional computed/legacy fields
+  buyer_name?: string;
+  buyer_email?: string;
+  tracking_number?: string;
+  completed_at?: string;
+  cancelled_at?: string;
+  is_reviewed?: boolean;
+  rating?: number;
+  review_comment?: string;
+  review_images?: string[];
+  review_date?: string;
 }
 
 export interface OrderItem {

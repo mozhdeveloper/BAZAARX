@@ -116,8 +116,11 @@ export default function HomeScreen({ navigation }: Props) {
   ];
 
   // Fetch seller products and convert to buyer Product format
-  const sellerProducts = useSellerStore((state) => state.products);
-  const seller = useSellerStore((state) => state.seller);
+  // NOTE: useSellerStore is a plain hook (not a Zustand store), so NO selectors - must destructure
+  const { products: sellerProducts = [], seller } = useSellerStore();
+  
+  // Placeholder image for products without images
+  const PLACEHOLDER_IMAGE = 'https://placehold.co/400x400/e5e7eb/6b7280?text=No+Image';
 
   const convertedSellerProducts: Product[] = sellerProducts
     .filter(p => p.isActive) // Only show active products
@@ -126,17 +129,17 @@ export default function HomeScreen({ navigation }: Props) {
       name: p.name,
       price: p.price,
       originalPrice: p.originalPrice,
-      image: (p.images && p.images.length > 0) ? p.images[0] : '',
-      images: p.images || [],
+      image: (p.images && p.images.length > 0 && p.images[0]) ? p.images[0] : PLACEHOLDER_IMAGE,
+      images: (p.images && p.images.length > 0) ? p.images.filter(img => img && typeof img === 'string' && img.trim() !== '') : [PLACEHOLDER_IMAGE],
       rating: 4.5,
       sold: p.sales || 0, // SellerProduct has 'sales', mapping to 'sold'
-      seller: seller?.storeName || 'Verified Seller',
+      seller: seller?.store_name || 'Verified Seller',
       sellerId: seller?.id,
       sellerRating: 4.9,
       sellerVerified: true,
       isFreeShipping: (p.price || 0) >= 1000, // Free shipping for orders over 1000
       isVerified: true,
-      location: seller ? `${seller.city}, ${seller.province}` : 'Philippines',
+      location: seller ? `${seller.business_profile?.city || 'City'}, ${seller.business_profile?.province || 'Province'}` : 'Philippines',
       description: p.description,
       category: p.category,
       stock: p.stock,
@@ -254,7 +257,7 @@ export default function HomeScreen({ navigation }: Props) {
 
   useEffect(() => {
     const fetchSellers = async () => {
-      const data = await sellerService.getSellers();
+      const data = await sellerService.getAllSellers();
       if (data) setSellers(data);
     };
     fetchSellers();

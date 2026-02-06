@@ -7,7 +7,7 @@ import SellerQAProductsScreen from './(tabs)/qa-products';
 import SellerOrdersScreen from './(tabs)/orders';
 import SellerPOSScreen from './pos';
 import SellerSettingsScreen from './(tabs)/settings';
-import { useSellerStore } from '../../src/stores/sellerStore';
+import { useSellerStore, useAuthStore } from '../../src/stores/sellerStore';
 
 export type SellerTabParamList = {
   Dashboard: undefined;
@@ -62,8 +62,8 @@ export default function SellerTabs() {
         }}
         listeners={{
           tabPress: (e) => {
-            const { seller } = useSellerStore.getState();
-            if (seller.approval_status === 'pending') {
+            const { seller } = useAuthStore.getState();
+            if (seller?.approval_status === 'pending') {
               e.preventDefault();
             }
           },
@@ -77,8 +77,8 @@ export default function SellerTabs() {
         }}
         listeners={{
           tabPress: (e) => {
-            const { seller } = useSellerStore.getState();
-            if (seller.approval_status === 'pending') {
+            const { seller } = useAuthStore.getState();
+            if (seller?.approval_status === 'pending') {
               e.preventDefault();
             }
           },
@@ -92,8 +92,8 @@ export default function SellerTabs() {
         }}
         listeners={{
           tabPress: (e) => {
-            const { seller } = useSellerStore.getState();
-            if (seller.approval_status === 'pending') {
+            const { seller } = useAuthStore.getState();
+            if (seller?.approval_status === 'pending') {
               e.preventDefault();
             }
           },
@@ -107,8 +107,8 @@ export default function SellerTabs() {
         }}
         listeners={{
           tabPress: (e) => {
-            const { seller } = useSellerStore.getState();
-            if (seller.approval_status === 'pending') {
+            const { seller } = useAuthStore.getState();
+            if (seller?.approval_status === 'pending') {
               e.preventDefault();
             }
           },
