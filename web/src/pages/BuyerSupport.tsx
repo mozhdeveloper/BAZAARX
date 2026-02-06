@@ -10,10 +10,13 @@ import {
     Upload,
     Send,
     MessageSquare,
-    Package
+    Package,
+    CheckCircle
 } from "lucide-react";
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import Header from "../components/Header";
+import { BazaarFooter } from "../components/ui/bazaar-footer";
 
 interface TicketData {
     subject: string;
@@ -23,6 +26,7 @@ interface TicketData {
 
 export function BuyerSupport() {
     const [showTicketModal, setShowTicketModal] = useState(false);
+    const [isSubmitted, setIsSubmitted] = useState(false);
     const [ticket, setTicket] = useState<TicketData>({
         subject: '',
         description: '',
@@ -40,8 +44,13 @@ export function BuyerSupport() {
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         console.log('Submitting to BazaarX:', ticket);
-        alert('Ticket Submitted Successfully!');
+        setIsSubmitted(true);
+    };
+
+    const handleCloseModal = () => {
         setShowTicketModal(false);
+        // Reset state after closing animation would be ideal, but simple reset works for now
+        setTimeout(() => setIsSubmitted(false), 300);
     };
 
     const handleChatSubmit = (e: React.FormEvent) => {
@@ -52,189 +61,232 @@ export function BuyerSupport() {
         // Logic for AI assistant would go here
     };
 
-    const handleClose = () => {
-        setShowTicketModal(false);
-        navigate('/shop');
-    };
+    // Removed handleClose as we are now a full page
 
     return (
-        <div className='min-h-screen bg-black/50 flex items-center justify-center p-4 font-[family-name:var(--font-sans)] text-[var(--text-primary)]'>
-            {/* Main Card Container */}
-            <div className="w-full max-w-3xl bg-white rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+        <div className='min-h-screen bg-gray-50 font-[family-name:var(--font-sans)] text-[var(--text-primary)]'>
+            <Header />
 
-                {/* Header */}
-                <div className="p-6 flex items-center justify-between border-b border-[var(--border)] relative">
-                    <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-[#FF4500] text-white flex items-center justify-center font-bold text-xl rounded-xl shadow-sm">
-                            BX
-                        </div>
-                        <div>
-                            <h1 className="text-xl font-bold tracking-tight text-gray-900">BazaarX Support</h1>
-                            <p className="text-gray-500 text-xs">We're here to help</p>
-                        </div>
-                    </div>
-                    <button className="text-gray-400 hover:text-gray-600 transition-colors">
-                        <X size={24} onClick={handleClose} />
-                    </button>
-                </div>
+            <div className="max-w-7xl mx-auto px-4 py-8 flex flex-col items-center">
 
-                {/* Shipping Notice Bar */}
-                <div className="bg-red-50/50 px-6 py-3 flex items-start gap-3 border-b border-red-100">
-                    <span className="text-red-500 text-sm mt-0.5">📢</span>
-                    <p className="text-xs text-gray-600 leading-relaxed">
-                        <span className="font-bold text-gray-800">Shipping Delay Notice:</span> Peak season volumes may affect delivery times by 1-2 days.
-                        Thank you for your patience.
-                    </p>
-                </div>
+                {/* Main Card Container */}
+                <div className="w-full max-w-5xl bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden animate-in fade-in duration-300">
 
-                {/* Content Body */}
-                <div className="p-6">
-                    {/* Service Grid */}
-                    <div className="grid grid-cols-4 gap-4 mb-8">
-                        <ServiceCard icon={<Truck size={24} />} label="Track Order" />
-
-                        <button
-                            onClick={() => setShowTicketModal(true)}
-                            className="flex flex-col items-center gap-3 group transition-all p-3 rounded-xl hover:bg-gray-50"
-                        >
-                            <div className="w-14 h-14 bg-orange-50 rounded-2xl flex items-center justify-center border border-transparent group-hover:border-[#FF4500]/20 group-hover:bg-[#FF4500]/10 transition-colors">
-                                <Ticket size={24} className="text-[#FF4500]" />
+                    {/* Header */}
+                    <div className="p-6 flex items-center justify-between border-b border-[var(--border)] relative">
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 bg-[#FF4500] text-white flex items-center justify-center font-bold text-xl rounded-xl shadow-sm">
+                                BX
                             </div>
-                            <span className="text-[11px] font-medium text-center text-gray-600 group-hover:text-[#FF4500]">Submit Ticket</span>
-                        </button>
-
-                        <ServiceCard icon={<Zap size={24} />} label="Urgent Delivery" />
-                        <ServiceCard icon={<RotateCcw size={24} />} label="Return & Refund" />
+                            <div>
+                                <h1 className="text-xl font-bold tracking-tight text-gray-900">BazaarX Help Center</h1>
+                                <p className="text-gray-500 text-xs">We're here to help</p>
+                            </div>
+                        </div>
                     </div>
 
-                    {/* Tabs & Questions */}
-                    <div className="mb-6">
-                        <div className="flex gap-6 border-b border-gray-100 mb-4 text-sm font-medium">
-                            <span className="text-[#FF4500] border-b-2 border-[#FF4500] pb-2 cursor-pointer transition-colors">Hot Questions</span>
-                            <span className="text-gray-400 pb-2 cursor-pointer hover:text-gray-600 transition-colors">Pre-sale</span>
-                            <span className="text-gray-400 pb-2 cursor-pointer hover:text-gray-600 transition-colors">Payment</span>
+                    {/* Shipping Notice Bar */}
+                    <div className="bg-red-50/50 px-6 py-3 flex items-start gap-3 border-b border-red-100">
+                        <span className="text-red-500 text-sm mt-0.5">📢</span>
+                        <p className="text-xs text-gray-600 leading-relaxed">
+                            <span className="font-bold text-gray-800">Shipping Delay Notice:</span> Peak season volumes may affect delivery times by 1-2 days.
+                            Thank you for your patience.
+                        </p>
+                    </div>
+
+                    {/* Content Body */}
+                    <div className="p-6">
+                        {/* Service Grid */}
+                        <div className="grid grid-cols-5 gap-4 mb-8">
+                            <ServiceCard icon={<Truck size={24} />} label="Track Order" />
+
+                            <button
+                                onClick={() => setShowTicketModal(true)}
+                                className="flex flex-col items-center gap-3 group transition-all p-3 rounded-xl hover:bg-gray-50"
+                            >
+                                <div className="w-14 h-14 bg-orange-50 rounded-2xl flex items-center justify-center border border-transparent group-hover:border-[#FF4500]/20 group-hover:bg-[#FF4500]/10 transition-colors">
+                                    <Ticket size={24} className="text-[#FF4500]" />
+                                </div>
+                                <span className="text-[11px] font-medium text-center text-gray-600 group-hover:text-[#FF4500]">Submit Ticket</span>
+                            </button>
+
+                            <ServiceCard
+                                icon={<Clock size={24} />}
+                                label="My Tickets"
+                                onClick={() => navigate('/my-tickets')}
+                            />
+                            <ServiceCard icon={<Zap size={24} />} label="Urgent Delivery" />
+                            <ServiceCard icon={<RotateCcw size={24} />} label="Return & Refund" />
                         </div>
 
-                        <div className="space-y-2">
-                            {[
-                                "Can I cancel my order?",
-                                "Can I receive my order before a certain time?",
-                                "Why is my order delayed?",
-                                "Why is my item missing?"
-                            ].map((q, idx) => (
-                                <button key={idx} className="w-full flex items-center justify-between text-sm py-3 px-2 rounded-lg hover:bg-gray-50 group transition-colors text-left">
-                                    <p className="flex items-center gap-4">
-                                        <span className="italic font-bold text-[#FF4500] w-4 text-center">{idx + 1}</span>
-                                        <span className="text-gray-600 group-hover:text-gray-900 font-medium">{q}</span>
-                                    </p>
-                                    <ChevronRight size={16} className="text-gray-300 group-hover:text-[#FF4500]" />
+                        {/* Tabs & Questions */}
+                        <div className="mb-6">
+                            <div className="flex gap-6 border-b border-gray-100 mb-4 text-sm font-medium">
+                                <span className="text-[#FF4500] border-b-2 border-[#FF4500] pb-2 cursor-pointer transition-colors">Hot Questions</span>
+                                <span className="text-gray-400 pb-2 cursor-pointer hover:text-gray-600 transition-colors">Pre-sale</span>
+                                <span className="text-gray-400 pb-2 cursor-pointer hover:text-gray-600 transition-colors">Payment</span>
+                            </div>
+
+                            <div className="space-y-2">
+                                {[
+                                    "Can I cancel my order?",
+                                    "Can I receive my order before a certain time?",
+                                    "Why is my order delayed?",
+                                    "Why is my item missing?"
+                                ].map((q, idx) => (
+                                    <button key={idx} className="w-full flex items-center justify-between text-sm py-3 px-2 rounded-lg hover:bg-gray-50 group transition-colors text-left">
+                                        <p className="flex items-center gap-4">
+                                            <span className="italic font-bold text-[#FF4500] w-4 text-center">{idx + 1}</span>
+                                            <span className="text-gray-600 group-hover:text-gray-900 font-medium">{q}</span>
+                                        </p>
+                                        <ChevronRight size={16} className="text-gray-300 group-hover:text-[#FF4500]" />
+                                    </button>
+                                ))}
+                            </div>
+
+                            <div className="mt-4 flex justify-center">
+                                <button className="flex items-center gap-2 text-xs text-gray-400 hover:text-[#FF4500] transition-colors">
+                                    <RefreshCw size={12} /> View More Topics
                                 </button>
-                            ))}
-                        </div>
-
-                        <div className="mt-4 flex justify-center">
-                            <button className="flex items-center gap-2 text-xs text-gray-400 hover:text-[#FF4500] transition-colors">
-                                <RefreshCw size={12} /> View More Topics
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* AI Chat Interface */}
-                    <div className="mt-8 pt-6 border-t border-gray-100 flex flex-col gap-4">
-                        {/* Suggestion Chips */}
-                        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide no-scrollbar mask-linear-fade">
-                            <ChatChip icon={<Package size={14} />} label="Select Order" />
-                            <ChatChip icon={<Truck size={14} />} label="Track Order" />
-                            <ChatChip icon={<Zap size={14} />} label="Urgent Delivery" />
-                            <ChatChip icon={<Upload size={14} />} label="Expedite Shipment" />
-                            <ChatChip icon={<Clock size={14} />} label="Service Records" />
-                            <ChatChip icon={<RotateCcw size={14} />} label="Return & Refund Record" />
-                        </div>
-
-                        {/* Input Area */}
-                        <form onSubmit={handleChatSubmit} className="relative flex items-center gap-2">
-                            <div className="relative flex-1">
-                                <input
-                                    type="text"
-                                    placeholder="Type your message briefly here"
-                                    className="w-full pl-4 pr-12 py-3 bg-gray-50 border-none rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-[var(--brand-primary)]/20 focus:bg-white transition-all"
-                                    value={chatMessage}
-                                    onChange={(e) => setChatMessage(e.target.value)}
-                                />
                             </div>
-                            <button
-                                type="submit"
-                                disabled={!chatMessage.trim()}
-                                className="px-6 py-3 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] disabled:opacity-50 disabled:bg-gray-400 disabled:hover:bg-gray-400 text-white text-sm font-bold rounded-xl transition-colors shadow-sm"
-                            >
-                                Enter
-                            </button>
-                        </form>
+                        </div>
+
+                        {/* AI Chat Interface */}
+                        <div className="mt-8 pt-6 border-t border-gray-100 flex flex-col gap-4">
+                            {/* Suggestion Chips */}
+                            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide no-scrollbar mask-linear-fade">
+                                <ChatChip icon={<Package size={14} />} label="Select Order" />
+                                <ChatChip icon={<Truck size={14} />} label="Track Order" />
+                                <ChatChip icon={<Zap size={14} />} label="Urgent Delivery" />
+                                <ChatChip icon={<Upload size={14} />} label="Expedite Shipment" />
+                                <ChatChip icon={<Clock size={14} />} label="Service Records" />
+                                <ChatChip icon={<RotateCcw size={14} />} label="Return & Refund Record" />
+                            </div>
+
+                            {/* Input Area */}
+                            <form onSubmit={handleChatSubmit} className="relative flex items-center gap-2">
+                                <div className="relative flex-1">
+                                    <input
+                                        type="text"
+                                        placeholder="Type your message briefly here"
+                                        className="w-full pl-4 pr-12 py-3 bg-gray-50 border-none rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-[var(--brand-primary)]/20 focus:bg-white transition-all"
+                                        value={chatMessage}
+                                        onChange={(e) => setChatMessage(e.target.value)}
+                                    />
+                                </div>
+                                <button
+                                    type="submit"
+                                    disabled={!chatMessage.trim()}
+                                    className="px-6 py-3 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] disabled:opacity-50 disabled:bg-gray-400 disabled:hover:bg-gray-400 text-white text-sm font-bold rounded-xl transition-colors shadow-sm"
+                                >
+                                    Enter
+                                </button>
+                            </form>
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            {/* Ticket Modal (Nested or separate?) - Keeping it as a portal/overlay in spirit */}
-            {showTicketModal && (
-                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-                    <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl animate-in zoom-in-95 duration-200">
-                        <div className="flex items-center justify-between p-4 border-b border-gray-100">
-                            <h2 className="font-bold text-lg text-gray-900">BazaarX Support Ticket</h2>
-                            <button onClick={() => setShowTicketModal(false)} className="p-2 hover:bg-gray-100 rounded-full text-gray-500 transition-colors">
-                                <X size={20} />
-                            </button>
-                        </div>
+                {/* Ticket Modal (Nested or separate?) - Keeping it as a portal/overlay in spirit */}
+                {showTicketModal && (
+                    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                        <div className="bg-white w-full max-w-xl h-auto rounded-2xl shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col">
 
-                        <form onSubmit={handleSubmit} className="p-5 space-y-4">
-                            <div>
-                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">Subject</label>
-                                <input
-                                    type="text"
-                                    required
-                                    placeholder="e.g., Damaged Item, Missing Refund"
-                                    className="w-full border border-gray-200 p-3 rounded-lg text-sm focus:border-[#FF4500] focus:ring-1 focus:ring-[#FF4500] outline-none transition-all placeholder-gray-300"
-                                    onChange={(e) => setTicket({ ...ticket, subject: e.target.value })}
-                                />
-                            </div>
-
-                            <div>
-                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">Describe your issue</label>
-                                <textarea
-                                    required
-                                    rows={4}
-                                    placeholder="Provide as much detail as possible..."
-                                    className="w-full border border-gray-200 p-3 rounded-lg text-sm focus:border-[#FF4500] focus:ring-1 focus:ring-[#FF4500] outline-none transition-all resize-none placeholder-gray-300"
-                                    onChange={(e) => setTicket({ ...ticket, description: e.target.value })}
-                                />
-                            </div>
-
-                            <div>
-                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">Attach Proof (Image/PDF)</label>
-                                <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-gray-200 rounded-xl cursor-pointer hover:bg-gray-50 hover:border-[#FF4500]/50 transition-all group">
-                                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                                        <Upload size={20} className="text-gray-400 mb-2 group-hover:text-[#FF4500] transition-colors" />
-                                        <p className="text-xs text-gray-500 group-hover:text-gray-700">{ticket.proof ? ticket.proof.name : 'Click to upload'}</p>
+                            {!isSubmitted ? (
+                                <>
+                                    <div className="flex items-center justify-between p-4 border-b border-gray-100">
+                                        <h2 className="font-bold text-lg text-gray-900">BazaarX Support Ticket</h2>
+                                        <button onClick={handleCloseModal} className="p-2 hover:bg-gray-100 rounded-full text-gray-500 transition-colors">
+                                            <X size={20} />
+                                        </button>
                                     </div>
-                                    <input type="file" className="hidden" onChange={handleFileUpload} />
-                                </label>
-                            </div>
 
-                            <button
-                                type="submit"
-                                className="w-full bg-[var(--brand-primary)] text-white py-3.5 font-bold hover:bg-[var(--brand-primary-dark)] transition-colors rounded-xl shadow-lg shadow-orange-500/20 active:scale-[0.98]"
-                            >
-                                SUBMIT TICKET
-                            </button>
-                        </form>
+                                    <form onSubmit={handleSubmit} className="p-5 space-y-4">
+                                        <div>
+                                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">Subject</label>
+                                            <input
+                                                type="text"
+                                                required
+                                                placeholder="e.g., Damaged Item, Missing Refund"
+                                                className="w-full border border-gray-200 p-3 rounded-lg text-sm focus:border-[#FF4500] focus:ring-1 focus:ring-[#FF4500] outline-none transition-all placeholder-gray-300"
+                                                onChange={(e) => setTicket({ ...ticket, subject: e.target.value })}
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">Describe your issue</label>
+                                            <textarea
+                                                required
+                                                rows={4}
+                                                placeholder="Provide as much detail as possible..."
+                                                className="w-full border border-gray-200 p-3 rounded-lg text-sm focus:border-[#FF4500] focus:ring-1 focus:ring-[#FF4500] outline-none transition-all resize-none placeholder-gray-300"
+                                                onChange={(e) => setTicket({ ...ticket, description: e.target.value })}
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">Attach Proof (Image/PDF)</label>
+                                            <label className="flex flex-col items-center justify-center w-full h-36 border-2 border-dashed border-gray-200 rounded-xl cursor-pointer hover:bg-gray-50 hover:border-[#FF4500]/50 transition-all group">
+                                                <div className="flex flex-col items-center justify-center pt-6 pb-6">
+                                                    <Upload size={20} className="text-gray-400 mb-2 group-hover:text-[#FF4500] transition-colors" />
+                                                    <p className="text-xs text-gray-500 group-hover:text-gray-700">{ticket.proof ? ticket.proof.name : 'Click to upload'}</p>
+                                                </div>
+                                                <input type="file" className="hidden" onChange={handleFileUpload} />
+                                            </label>
+                                        </div>
+
+                                        <button
+                                            type="submit"
+                                            className="w-full bg-[var(--brand-primary)] text-white py-3.5 font-bold hover:bg-[var(--brand-primary-dark)] transition-colors rounded-xl shadow-lg shadow-orange-500/20 active:scale-[0.98]"
+                                        >
+                                            SUBMIT TICKET
+                                        </button>
+                                    </form>
+                                </>
+                            ) : (
+                                <div className="flex flex-col items-center justify-center h-full p-8 text-center animate-in zoom-in-95">
+                                    <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-6 shadow-sm">
+                                        <CheckCircle size={32} />
+                                    </div>
+                                    <h3 className="text-xl font-bold text-gray-900 mb-2">Your ticket has been submitted successfully.</h3>
+                                    <div className="bg-gray-50 px-5 py-3 rounded-xl border border-gray-200 border-dashed mb-4">
+                                        <p className="text-sm text-gray-600">
+                                            Ticket ID: <span className="text-gray-900 font-black tracking-wide">#BX-10234</span>
+                                        </p>
+                                    </div>
+                                    <p className="text-sm text-gray-500 mb-8 max-w-xs leading-relaxed">
+                                        Our support team will review your request within <span className="font-semibold text-gray-700">24–48 hours</span>.
+                                    </p>
+
+                                    <div className="flex flex-col gap-3 w-full max-w-sm">
+                                        <button
+                                            onClick={() => navigate('/my-tickets')}
+                                            className="w-full bg-[var(--brand-primary)] text-white py-3.5 font-bold rounded-xl hover:bg-[var(--brand-primary-dark)] transition-all shadow-lg shadow-orange-500/20 active:scale-[0.98]"
+                                        >
+                                            View My Tickets
+                                        </button>
+                                        <button
+                                            onClick={() => navigate('/')}
+                                            className="w-full bg-white text-gray-600 border border-gray-200 py-3.5 font-bold rounded-xl hover:bg-gray-50 hover:text-gray-900 transition-colors"
+                                        >
+                                            Back to Home
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
-                </div>
-            )}
+                )}
+            </div>
+            <BazaarFooter />
         </div>
     );
 }
 
-const ServiceCard = ({ icon, label }: { icon: React.ReactNode, label: string }) => (
-    <button className="flex flex-col items-center gap-3 group transition-all p-3 rounded-xl hover:bg-gray-50">
+const ServiceCard = ({ icon, label, onClick }: { icon: React.ReactNode, label: string, onClick?: () => void }) => (
+    <button
+        onClick={onClick}
+        className="flex flex-col items-center gap-3 group transition-all p-3 rounded-xl hover:bg-gray-50"
+    >
         <div className="w-14 h-14 bg-orange-50 rounded-2xl flex items-center justify-center border border-transparent group-hover:border-[#FF4500]/20 group-hover:bg-[#FF4500]/10 transition-colors">
             <div className="text-[#FF4500]">{icon}</div>
         </div>
