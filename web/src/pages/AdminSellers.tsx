@@ -391,7 +391,7 @@ const AdminSellers: React.FC = () => {
       <AdminSidebar open={open} setOpen={setOpen} />
 
       <main className="flex-1 overflow-auto">
-        <div className="p-8">
+        <div className="max-w-7xl mx-auto px-8 py-8">
           {/* Header */}
           <div className="flex items-center justify-between mb-8">
             <div>
@@ -776,46 +776,46 @@ const AdminSellers: React.FC = () => {
               {/* Status Information */}
               {(selectedSeller.status === "rejected" ||
                 selectedSeller.status === "suspended") && (
-                <div>
-                  <h4 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
-                    <AlertTriangle className="w-5 h-5 text-red-500" />
-                    {selectedSeller.status === "rejected"
-                      ? "Rejection"
-                      : "Suspension"}{" "}
-                    Details
-                  </h4>
-                  <div className="bg-red-50 border border-red-200 p-4 rounded-lg">
-                    <p className="text-sm font-medium text-red-900 mb-1">
-                      Reason:
-                    </p>
-                    <p className="text-sm text-red-800">
+                  <div>
+                    <h4 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
+                      <AlertTriangle className="w-5 h-5 text-red-500" />
                       {selectedSeller.status === "rejected"
-                        ? selectedSeller.rejectionReason
-                        : selectedSeller.suspensionReason}
-                    </p>
-                    {selectedSeller.status === "rejected" &&
-                      selectedSeller.rejectedAt && (
-                        <p className="text-xs text-red-600 mt-2">
-                          Rejected on{" "}
-                          {new Date(
-                            selectedSeller.rejectedAt,
-                          ).toLocaleDateString()}{" "}
-                          by {selectedSeller.rejectedBy}
-                        </p>
-                      )}
-                    {selectedSeller.status === "suspended" &&
-                      selectedSeller.suspendedAt && (
-                        <p className="text-xs text-red-600 mt-2">
-                          Suspended on{" "}
-                          {new Date(
-                            selectedSeller.suspendedAt,
-                          ).toLocaleDateString()}{" "}
-                          by {selectedSeller.suspendedBy}
-                        </p>
-                      )}
+                        ? "Rejection"
+                        : "Suspension"}{" "}
+                      Details
+                    </h4>
+                    <div className="bg-red-50 border border-red-200 p-4 rounded-lg">
+                      <p className="text-sm font-medium text-red-900 mb-1">
+                        Reason:
+                      </p>
+                      <p className="text-sm text-red-800">
+                        {selectedSeller.status === "rejected"
+                          ? selectedSeller.rejectionReason
+                          : selectedSeller.suspensionReason}
+                      </p>
+                      {selectedSeller.status === "rejected" &&
+                        selectedSeller.rejectedAt && (
+                          <p className="text-xs text-red-600 mt-2">
+                            Rejected on{" "}
+                            {new Date(
+                              selectedSeller.rejectedAt,
+                            ).toLocaleDateString()}{" "}
+                            by {selectedSeller.rejectedBy}
+                          </p>
+                        )}
+                      {selectedSeller.status === "suspended" &&
+                        selectedSeller.suspendedAt && (
+                          <p className="text-xs text-red-600 mt-2">
+                            Suspended on{" "}
+                            {new Date(
+                              selectedSeller.suspendedAt,
+                            ).toLocaleDateString()}{" "}
+                            by {selectedSeller.suspendedBy}
+                          </p>
+                        )}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
               {/* Documents */}
               <div>
