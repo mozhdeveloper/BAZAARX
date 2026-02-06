@@ -41,11 +41,6 @@ export function SellerLogin() {
     }
   };
 
-  const handleDemoLogin = () => {
-    setEmail('active.sports@bazaarph.com');
-    setPassword('Seller123!');
-  };
-
   return (
     <div className="min-h-screen flex items-center justify-center p-4 lg:p-8 font-sans bg-gradient-to-br from-white via-orange-50/30 to-white">
       <motion.div
@@ -72,25 +67,22 @@ export function SellerLogin() {
               <div className="flex justify-between items-start mb-3">
                 <div>
                   <p className="text-[10px] font-black text-primary uppercase tracking-[0.1em] mb-0.5">🧪 Test Seller Accounts</p>
-                  <p className="text-xs text-[#6B7280]">All have products & orders</p>
+                  <p className="text-xs text-[#6B7280]">All have products & reviews</p>
                 </div>
                 <button
                   type="button"
-                  onClick={handleDemoLogin}
+                  onClick={() => { setEmail('seller1@bazaarph.com'); setPassword('Test@123456'); }}
                   className="text-[10px] font-bold text-primary border border-primary/20 px-3 py-1.5 rounded-xl bg-white hover:bg-primary/10 transition-all active:scale-95 shadow-sm"
                 >
-                  Auto-Fill ActiveGear
+                  Auto-Fill
                 </button>
               </div>
               <div className="space-y-1 text-xs text-primary/90">
-                <p className="font-semibold">Password for all: <span className="font-mono bg-primary/10 px-2 py-0.5 rounded">Seller123!</span></p>
+                <p className="font-semibold">Password for all: <span className="font-mono bg-primary/10 px-2 py-0.5 rounded">Test@123456</span></p>
                 <div className="grid grid-cols-1 gap-1 mt-2 text-[11px]">
-                  <button type="button" onClick={() => { setEmail('teststore@bazaar.ph'); setPassword('TestStore123!'); }} className="text-left hover:text-primary hover:underline transition-colors font-semibold">• teststore@bazaar.ph <span className="text-gray-500">(Maria's Fashion Boutique) ⭐ NEW</span></button>
-                  <button type="button" onClick={() => { setEmail('active.sports@bazaarph.com'); setPassword('Seller123!'); }} className="text-left hover:text-primary hover:underline transition-colors">• active.sports@bazaarph.com <span className="text-gray-500">(ActiveGear Sports)</span></button>
-                  <button type="button" onClick={() => { setEmail('maria.santos@bazaarph.com'); setPassword('Seller123!'); }} className="text-left hover:text-primary hover:underline transition-colors">• maria.santos@bazaarph.com <span className="text-gray-500">(Maria's Fashion House)</span></button>
-                  <button type="button" onClick={() => { setEmail('juan.tech@bazaarph.com'); setPassword('Seller123!'); }} className="text-left hover:text-primary hover:underline transition-colors">• juan.tech@bazaarph.com <span className="text-gray-500">(TechStore Official)</span></button>
-                  <button type="button" onClick={() => { setEmail('wellness.haven@bazaarph.com'); setPassword('Seller123!'); }} className="text-left hover:text-primary hover:underline transition-colors">• wellness.haven@bazaarph.com <span className="text-gray-500">(Wellness Haven)</span></button>
-                  <button type="button" onClick={() => { setEmail('home.essentials@bazaarph.com'); setPassword('Seller123!'); }} className="text-left hover:text-primary hover:underline transition-colors">• home.essentials@bazaarph.com <span className="text-gray-500">(Home Essentials Co.)</span></button>
+                  <button type="button" onClick={() => { setEmail('seller1@bazaarph.com'); setPassword('Test@123456'); }} className="text-left hover:text-primary hover:underline transition-colors font-semibold">• seller1@bazaarph.com <span className="text-gray-500">(Maria's Fashion Boutique) 👗 3 Products</span></button>
+                  <button type="button" onClick={() => { setEmail('seller2@bazaarph.com'); setPassword('Test@123456'); }} className="text-left hover:text-primary hover:underline transition-colors">• seller2@bazaarph.com <span className="text-gray-500">(TechHub Electronics) 📱 3 Products</span></button>
+                  <button type="button" onClick={() => { setEmail('seller3@bazaarph.com'); setPassword('Test@123456'); }} className="text-left hover:text-primary hover:underline transition-colors">• seller3@bazaarph.com <span className="text-gray-500">(Beauty Essentials PH) 💄 3 Products</span></button>
                 </div>
               </div>
             </div>

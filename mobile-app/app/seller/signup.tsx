@@ -8,6 +8,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Mail, Lock, Store, Phone, Eye, EyeOff, ArrowRight, Check, XCircle, ChevronRight, CheckCircle2, UserCheck } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../../src/lib/supabase';
+import { authService } from '../../src/services/authService';
 import { useSellerStore } from '../../src/stores/sellerStore';
 import { useAuthStore } from '../../src/stores/authStore';
 
@@ -127,54 +128,52 @@ export default function SellerSignupScreen() {
         setError("");
 
         try {
-            const { data: authData, error: authError } = await supabase.auth.signUp({
-                email: formData.email.trim(),
-                password: formData.password,
-                options: { data: { role: 'seller', store_name: formData.storeName } }
+            // Use authService for proper profile and user_roles creation
+            const result = await authService.signUp(
+                formData.email.trim(),
+                formData.password,
+                {
+                    first_name: formData.storeName,
+                    phone: formData.phone,
+                    user_type: 'seller',
+                    email: formData.email.trim(),
+                    password: formData.password,
+                }
+            );
+
+            if (!result || !result.user) throw new Error('Signup failed. Please try again.');
+
+            const userId = result.user.id;
+
+            // Insert Seller record
+            const { error: sellerError } = await supabase.from('sellers').insert({
+                id: userId,
+                store_name: formData.storeName,
+                business_name: formData.storeName,
+                store_description: formData.storeDescription,
+                business_address: formData.storeAddress,
+                approval_status: 'pending'
             });
 
-            if (authError) throw authError;
+            if (sellerError) throw sellerError;
 
-            if (authData.user) {
-                // Update Profile
-                const { error: profileError } = await supabase.from('profiles').update({
-                    full_name: formData.storeName,
-                    phone: formData.phone,
-                    user_type: 'seller'
-                }).eq('id', authData.user.id);
+            // Sync data to store - IMPORTANT: Include the seller ID
+            useSellerStore.getState().updateSellerInfo({
+                id: userId,
+                storeName: formData.storeName,
+                email: formData.email,
+                approval_status: 'pending'
+            });
 
-                if (profileError) throw profileError;
+            // Sync roles to AuthStore
+            useAuthStore.getState().addRole('seller');
+            useAuthStore.getState().switchRole('seller');
 
-                // Insert Seller
-                const { error: sellerError } = await supabase.from('sellers').insert({
-                    id: authData.user.id,
-                    store_name: formData.storeName,
-                    business_name: formData.storeName,
-                    store_description: formData.storeDescription,
-                    business_address: formData.storeAddress,
-                    approval_status: 'pending'
-                });
-
-                if (sellerError) throw sellerError;
-
-                // Sync data to store - IMPORTANT: Include the seller ID
-                useSellerStore.getState().updateSellerInfo({
-                    id: authData.user.id, // This is critical for QA and product queries
-                    storeName: formData.storeName,
-                    email: formData.email,
-                    approval_status: 'pending'
-                });
-
-                // Sync roles to AuthStore
-                useAuthStore.getState().addRole('seller');
-                useAuthStore.getState().switchRole('seller');
-
-                Alert.alert(
-                    'Success',
-                    'Application submitted! We will review your shop.',
-                    [{ text: 'OK', onPress: () => navigation.replace('SellerStack') }]
-                );
-            }
+            Alert.alert(
+                'Success',
+                'Application submitted! We will review your shop.',
+                [{ text: 'OK', onPress: () => navigation.replace('SellerStack') }]
+            );
         } catch (err: any) {
             setError(err.message || 'Signup failed. Please try again.');
         } finally {

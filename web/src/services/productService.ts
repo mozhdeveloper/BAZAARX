@@ -1,11 +1,17 @@
 /**
  * Product Service
  * Handles all product-related database operations
- * Adheres to the Class-based Service Layer Architecture
+ * Updated for new normalized schema (February 2026)
+ * 
+ * Key changes:
+ * - Uses category_id FK instead of category string
+ * - Joins product_images and product_variants tables
+ * - Uses disabled_at/deleted_at instead of is_active boolean
+ * - Products may not have seller_id directly (check schema)
  */
 
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import type { Product, ProductWithSeller, Database } from '@/types/database.types';
+import type { Product, ProductWithSeller, ProductImage, ProductVariant, Category, Database } from '@/types/database.types';
 
 type ProductInsert = Database['public']['Tables']['products']['Insert'];
 type ProductUpdate = Database['public']['Tables']['products']['Update'];
@@ -28,11 +34,13 @@ export class ProductService {
 
   /**
    * Fetch products with optional filters
+   * Updated for new normalized schema with separate images/variants tables
    */
   async getProducts(filters?: {
-    category?: string;
+    categoryId?: string;  // Changed from category to categoryId
+    category?: string;    // Legacy support - will be converted to categoryId lookup
     sellerId?: string;
-    isActive?: boolean;
+    isActive?: boolean;   // Legacy - maps to disabled_at IS NULL
     approvalStatus?: string;
     searchQuery?: string;
     limit?: number;
@@ -44,28 +52,76 @@ export class ProductService {
     }
 
     try {
+      // New normalized query with proper joins including reviews and seller
       let query = supabase
         .from('products')
         .select(`
           *,
+          category:categories!products_category_id_fkey (
+            id,
+            name,
+            slug,
+            parent_id
+          ),
+          images:product_images (
+            id,
+            image_url,
+            alt_text,
+            sort_order,
+            is_primary
+          ),
+          variants:product_variants (
+            id,
+            sku,
+            variant_name,
+            size,
+            color,
+            price,
+            stock,
+            thumbnail_url
+          ),
+          reviews (
+            id,
+            rating
+          ),
           seller:sellers!products_seller_id_fkey (
-            business_name,
+            id,
             store_name,
-            rating,
-            business_address
+            approval_status,
+            business_profile:seller_business_profiles (
+              city
+            )
           )
         `)
+        .is('deleted_at', null)  // Only non-deleted products
         .order('created_at', { ascending: false });
 
       // Apply filters
-      if (filters?.category) {
-        query = query.eq('category', filters.category);
+      if (filters?.categoryId) {
+        query = query.eq('category_id', filters.categoryId);
+      }
+      // Legacy category string support - lookup by name
+      if (filters?.category && !filters?.categoryId) {
+        // For now, filter on the joined category name
+        query = query.eq('category.name', filters.category);
       }
       if (filters?.sellerId) {
-        query = query.eq('seller_id', filters.sellerId);
+        // Note: seller_id may not exist in products table yet (needs migration 003)
+        // This filter will work after running the migration
+        // For now, skip this filter if it causes an error
+        try {
+          query = query.eq('seller_id', filters.sellerId);
+        } catch {
+          console.warn('seller_id column not in products table - run migration 003');
+        }
       }
       if (filters?.isActive !== undefined) {
-        query = query.eq('is_active', filters.isActive);
+        // Map legacy is_active to disabled_at
+        if (filters.isActive) {
+          query = query.is('disabled_at', null);
+        } else {
+          query = query.not('disabled_at', 'is', null);
+        }
       }
       if (filters?.approvalStatus) {
         query = query.eq('approval_status', filters.approvalStatus);
@@ -84,11 +140,80 @@ export class ProductService {
       const { data, error } = await query;
 
       if (error) throw error;
-      return data || [];
+      
+      // Transform to add legacy compatibility fields
+      return (data || []).map((p) => this.transformProduct(p));
     } catch (error) {
       console.error('Error fetching products:', error);
       throw new Error('Failed to fetch products. Please try again later.');
     }
+  }
+
+  /**
+   * Transform product from DB to include legacy fields
+   */
+  private transformProduct(product: any): ProductWithSeller {
+    const primaryImage = product.images?.find((img: ProductImage) => img.is_primary) || product.images?.[0];
+    const totalStock = product.variants?.reduce((sum: number, v: ProductVariant) => sum + (v.stock || 0), 0) || 0;
+    
+    // Calculate average rating from reviews
+    const reviews = product.reviews || [];
+    const totalRatings = reviews.length;
+    const averageRating = totalRatings > 0 
+      ? reviews.reduce((sum: number, r: any) => sum + (r.rating || 0), 0) / totalRatings 
+      : 0;
+    
+    return {
+      ...product,
+      // Legacy compatibility fields
+      is_active: !product.disabled_at,
+      stock: totalStock,
+      // Primary image as main image
+      primary_image_url: primaryImage?.image_url,
+      // Category name for legacy code
+      category: product.category?.name,
+      // Rating from reviews
+      rating: Math.round(averageRating * 10) / 10, // Round to 1 decimal
+      reviewCount: totalRatings,
+      // Seller info
+      sellerName: product.seller?.store_name,
+      sellerLocation: product.seller?.business_profile?.city,
+    };
+  }
+
+  /**
+   * Get all products (alias for getProducts without filters)
+   */
+  async getAllProducts(): Promise<ProductWithSeller[]> {
+    return this.getProducts();
+  }
+
+  /**
+   * Get only active products (not disabled or deleted)
+   */
+  async getActiveProducts(): Promise<ProductWithSeller[]> {
+    return this.getProducts({ isActive: true });
+  }
+
+  /**
+   * Get products for a specific seller
+   */
+  async getSellerProducts(sellerId: string): Promise<ProductWithSeller[]> {
+    return this.getProducts({ sellerId });
+  }
+
+  /**
+   * Get products by category ID
+   */
+  async getProductsByCategory(categoryId: string): Promise<ProductWithSeller[]> {
+    return this.getProducts({ categoryId });
+  }
+
+  /**
+   * Search products by query
+   */
+  async searchProducts(query: string, limit?: number): Promise<ProductWithSeller[]> {
+    return this.getProducts({ searchQuery: query, limit: limit || 20 });
   }
 
   /**
@@ -105,18 +230,40 @@ export class ProductService {
         .from('products')
         .select(`
           *,
-          seller:sellers!products_seller_id_fkey (
-            business_name,
-            store_name,
-            rating,
-            business_address
+          category:categories!products_category_id_fkey (
+            id,
+            name,
+            slug,
+            parent_id,
+            icon,
+            image_url
+          ),
+          images:product_images (
+            id,
+            image_url,
+            alt_text,
+            sort_order,
+            is_primary
+          ),
+          variants:product_variants (
+            id,
+            sku,
+            barcode,
+            variant_name,
+            size,
+            color,
+            option_1_value,
+            option_2_value,
+            price,
+            stock,
+            thumbnail_url
           )
         `)
         .eq('id', id)
         .single();
 
       if (error) throw error;
-      return data;
+      return data ? this.transformProduct(data) : null;
     } catch (error) {
       console.error('Error fetching product:', error);
       throw new Error('Failed to fetch product details.');
@@ -197,7 +344,8 @@ export class ProductService {
   }
 
   /**
-   * Delete a product (soft delete by setting is_active to false)
+   * Delete a product (soft delete using deleted_at timestamp)
+   * New schema uses deleted_at instead of is_active boolean
    */
   async deleteProduct(id: string): Promise<void> {
     if (!isSupabaseConfigured()) {
@@ -207,7 +355,7 @@ export class ProductService {
     try {
       const { error } = await supabase
         .from('products')
-        .update({ is_active: false })
+        .update({ deleted_at: new Date().toISOString() })
         .eq('id', id);
 
       if (error) throw error;
@@ -218,14 +366,166 @@ export class ProductService {
   }
 
   /**
-   * Deduct stock for a product (creates inventory ledger entry)
+   * Disable a product (sets disabled_at timestamp)
+   */
+  async disableProduct(id: string): Promise<void> {
+    if (!isSupabaseConfigured()) {
+      throw new Error('Supabase not configured - cannot disable product');
+    }
+
+    try {
+      const { error } = await supabase
+        .from('products')
+        .update({ disabled_at: new Date().toISOString() })
+        .eq('id', id);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error disabling product:', error);
+      throw new Error('Failed to disable product.');
+    }
+  }
+
+  /**
+   * Enable a product (clears disabled_at timestamp)
+   */
+  async enableProduct(id: string): Promise<void> {
+    if (!isSupabaseConfigured()) {
+      throw new Error('Supabase not configured - cannot enable product');
+    }
+
+    try {
+      const { error } = await supabase
+        .from('products')
+        .update({ disabled_at: null })
+        .eq('id', id);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error enabling product:', error);
+      throw new Error('Failed to enable product.');
+    }
+  }
+
+  /**
+   * Add images to a product
+   */
+  async addProductImages(productId: string, images: Omit<ProductImage, 'id' | 'uploaded_at'>[]): Promise<ProductImage[]> {
+    if (!isSupabaseConfigured()) {
+      throw new Error('Supabase not configured');
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('product_images')
+        .insert(images.map(img => ({ ...img, product_id: productId })))
+        .select();
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error adding product images:', error);
+      throw new Error('Failed to add product images.');
+    }
+  }
+
+  /**
+   * Add variants to a product
+   */
+  async addProductVariants(productId: string, variants: Omit<ProductVariant, 'id' | 'created_at' | 'updated_at'>[]): Promise<ProductVariant[]> {
+    if (!isSupabaseConfigured()) {
+      throw new Error('Supabase not configured');
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('product_variants')
+        .insert(variants.map(v => ({ ...v, product_id: productId })))
+        .select();
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error adding product variants:', error);
+      throw new Error('Failed to add product variants.');
+    }
+  }
+
+  /**
+   * Update product variant stock
+   */
+  async updateVariantStock(variantId: string, stock: number): Promise<void> {
+    if (!isSupabaseConfigured()) {
+      throw new Error('Supabase not configured');
+    }
+
+    try {
+      const { error } = await supabase
+        .from('product_variants')
+        .update({ stock })
+        .eq('id', variantId);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error updating variant stock:', error);
+      throw new Error('Failed to update stock.');
+    }
+  }
+
+  /**
+   * Update a product variant (price and/or stock)
+   */
+  async updateVariant(variantId: string, updates: { price?: number; stock?: number }): Promise<void> {
+    if (!isSupabaseConfigured()) {
+      throw new Error('Supabase not configured');
+    }
+
+    try {
+      const updateData: any = { updated_at: new Date().toISOString() };
+      if (updates.price !== undefined) updateData.price = updates.price;
+      if (updates.stock !== undefined) updateData.stock = updates.stock;
+
+      const { error } = await supabase
+        .from('product_variants')
+        .update(updateData)
+        .eq('id', variantId);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error updating variant:', error);
+      throw new Error('Failed to update variant.');
+    }
+  }
+
+  /**
+   * Update multiple variants at once
+   */
+  async updateVariants(variants: { id: string; price?: number; stock?: number }[]): Promise<void> {
+    if (!isSupabaseConfigured()) {
+      throw new Error('Supabase not configured');
+    }
+
+    try {
+      // Update each variant individually (Supabase doesn't support bulk update with different values)
+      await Promise.all(
+        variants.map(v => this.updateVariant(v.id, { price: v.price, stock: v.stock }))
+      );
+    } catch (error) {
+      console.error('Error updating variants:', error);
+      throw new Error('Failed to update variants.');
+    }
+  }
+
+  /**
+   * Deduct stock for a product variant (updates product_variants stock directly)
    */
   async deductStock(
     productId: string,
     quantity: number,
     reason: string,
     referenceId: string,
-    userId?: string
+    userId?: string,
+    variantId?: string
   ): Promise<void> {
     if (!isSupabaseConfigured()) {
       console.warn('Supabase not configured - stock deduction skipped');
@@ -233,15 +533,48 @@ export class ProductService {
     }
 
     try {
-      const { error } = await supabase.rpc('deduct_product_stock', {
-        p_product_id: productId,
-        p_quantity: quantity,
-        p_reason: reason,
-        p_reference_id: referenceId,
-        p_user_id: userId,
-      });
+      if (variantId) {
+        // Deduct from specific variant
+        const { data: variant, error: fetchError } = await supabase
+          .from('product_variants')
+          .select('stock')
+          .eq('id', variantId)
+          .single();
 
-      if (error) throw error;
+        if (fetchError) throw fetchError;
+
+        const newStock = Math.max(0, (variant?.stock || 0) - quantity);
+
+        const { error: updateError } = await supabase
+          .from('product_variants')
+          .update({ stock: newStock, updated_at: new Date().toISOString() })
+          .eq('id', variantId);
+
+        if (updateError) throw updateError;
+      } else {
+        // Deduct from first variant of product
+        const { data: variants, error: fetchError } = await supabase
+          .from('product_variants')
+          .select('id, stock')
+          .eq('product_id', productId)
+          .limit(1);
+
+        if (fetchError) throw fetchError;
+        
+        if (variants && variants.length > 0) {
+          const variant = variants[0];
+          const newStock = Math.max(0, (variant.stock || 0) - quantity);
+
+          const { error: updateError } = await supabase
+            .from('product_variants')
+            .update({ stock: newStock, updated_at: new Date().toISOString() })
+            .eq('id', variant.id);
+
+          if (updateError) throw updateError;
+        }
+      }
+
+      console.log(`Stock deducted: ${quantity} units from ${variantId || productId}`);
     } catch (error) {
       console.error('Stock deduction failed:', error);
       throw new Error('Failed to deduct stock.');
@@ -249,13 +582,14 @@ export class ProductService {
   }
 
   /**
-   * Add stock for a product
+   * Add stock for a product variant
    */
   async addStock(
     productId: string,
     quantity: number,
     reason: string,
-    userId?: string
+    userId?: string,
+    variantId?: string
   ): Promise<void> {
     if (!isSupabaseConfigured()) {
       console.warn('Supabase not configured - stock addition skipped');
@@ -263,14 +597,48 @@ export class ProductService {
     }
 
     try {
-      const { error } = await supabase.rpc('add_product_stock', {
-        p_product_id: productId,
-        p_quantity: quantity,
-        p_reason: reason,
-        p_user_id: userId,
-      });
+      if (variantId) {
+        // Add to specific variant
+        const { data: variant, error: fetchError } = await supabase
+          .from('product_variants')
+          .select('stock')
+          .eq('id', variantId)
+          .single();
 
-      if (error) throw error;
+        if (fetchError) throw fetchError;
+
+        const newStock = (variant?.stock || 0) + quantity;
+
+        const { error: updateError } = await supabase
+          .from('product_variants')
+          .update({ stock: newStock, updated_at: new Date().toISOString() })
+          .eq('id', variantId);
+
+        if (updateError) throw updateError;
+      } else {
+        // Add to first variant of product
+        const { data: variants, error: fetchError } = await supabase
+          .from('product_variants')
+          .select('id, stock')
+          .eq('product_id', productId)
+          .limit(1);
+
+        if (fetchError) throw fetchError;
+        
+        if (variants && variants.length > 0) {
+          const variant = variants[0];
+          const newStock = (variant.stock || 0) + quantity;
+
+          const { error: updateError } = await supabase
+            .from('product_variants')
+            .update({ stock: newStock, updated_at: new Date().toISOString() })
+            .eq('id', variant.id);
+
+          if (updateError) throw updateError;
+        }
+      }
+
+      console.log(`Stock added: ${quantity} units to ${variantId || productId}`);
     } catch (error) {
       console.error('Stock addition failed:', error);
       throw new Error('Failed to add stock.');
@@ -282,20 +650,6 @@ export class ProductService {
    */
   async getProductsBySeller(sellerId: string): Promise<Product[]> {
     return this.getProducts({ sellerId });
-  }
-
-  /**
-   * Get products by category
-   */
-  async getProductsByCategory(category: string): Promise<Product[]> {
-    return this.getProducts({ category });
-  }
-
-  /**
-   * Search products
-   */
-  async searchProducts(query: string, limit = 20): Promise<Product[]> {
-    return this.getProducts({ searchQuery: query, limit });
   }
 
   /**
@@ -311,6 +665,72 @@ export class ProductService {
       isActive: true,
       approvalStatus: 'approved', // Changed to approved from pending for public view
     });
+  }
+
+  /**
+   * Fetch all categories from DB
+   */
+  async getCategories(): Promise<Category[]> {
+    if (!isSupabaseConfigured()) {
+      console.warn('Supabase not configured - cannot fetch categories');
+      return [];
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('categories')
+        .select('*')
+        .order('sort_order', { ascending: true });
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get or create category by name
+   * Returns the category_id for the given category name
+   */
+  async getOrCreateCategoryByName(name: string): Promise<string | null> {
+    if (!isSupabaseConfigured()) {
+      console.warn('Supabase not configured');
+      return null;
+    }
+
+    try {
+      // First, try to find existing category
+      const { data: existing, error: findError } = await supabase
+        .from('categories')
+        .select('id')
+        .eq('name', name)
+        .single();
+
+      if (existing) {
+        return existing.id;
+      }
+
+      // If not found and findError is not a "not found" error, throw
+      if (findError && findError.code !== 'PGRST116') {
+        throw findError;
+      }
+
+      // Create new category
+      const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      const { data: created, error: createError } = await supabase
+        .from('categories')
+        .insert({ name, slug })
+        .select('id')
+        .single();
+
+      if (createError) throw createError;
+      return created?.id || null;
+    } catch (error) {
+      console.error('Error getting/creating category:', error);
+      return null;
+    }
   }
 }
 

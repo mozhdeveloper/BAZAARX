@@ -194,8 +194,15 @@ export const useAdminAuth = create<AdminAuthState>()(
               return false;
             }
 
-            // Verify user is an admin
-            if (profile.user_type !== 'admin') {
+            // Verify user is an admin by checking the admins table
+            const { data: adminRecord, error: adminError } = await supabase
+              .from('admins')
+              .select('*')
+              .eq('id', authData.user.id)
+              .single();
+
+            if (adminError || !adminRecord) {
+              console.error('Admin record not found:', adminError);
               await supabase.auth.signOut();
               set({
                 error: 'Access denied. Admin account required.',
@@ -205,12 +212,13 @@ export const useAdminAuth = create<AdminAuthState>()(
             }
 
             // Create admin user object
+            const fullName = [profile.first_name, profile.last_name].filter(Boolean).join(' ') || 'Admin User';
             const adminUser: AdminUser = {
               id: authData.user.id,
               email: profile.email || email,
-              name: profile.full_name || 'Admin User',
+              name: fullName,
               role: 'admin',
-              avatar: profile.avatar_url || `https://ui-avatars.io/api/?name=${encodeURIComponent(profile.full_name || 'Admin')}&background=FF6A00&color=fff`,
+              avatar: `https://ui-avatars.io/api/?name=${encodeURIComponent(fullName)}&background=FF6A00&color=fff`,
               lastLogin: new Date(),
               permissions: [
                 { id: '1', name: 'Full Access', resource: 'users', actions: ['read', 'write', 'delete'] },

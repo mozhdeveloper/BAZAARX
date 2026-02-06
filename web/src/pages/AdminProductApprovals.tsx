@@ -11,6 +11,13 @@ import {
   RefreshCw,
   User,
   Search,
+  Eye,
+  Calendar,
+  Tag,
+  DollarSign,
+  ChevronLeft,
+  ChevronRight,
+  Layers,
 } from 'lucide-react';
 import { useAdminAuth } from '../stores/adminStore';
 import AdminSidebar from '../components/AdminSidebar';
@@ -62,6 +69,17 @@ const AdminProductApprovals = () => {
   const [selectedRevisionTemplate, setSelectedRevisionTemplate] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'digital' | 'waiting' | 'qa' | 'revision' | 'verified' | 'rejected'>('all');
+  
+  // Product detail modal state
+  const [showDetailDialog, setShowDetailDialog] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<typeof products[0] | null>(null);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  
+  const handleViewDetails = (product: typeof products[0]) => {
+    setSelectedProduct(product);
+    setCurrentImageIndex(0);
+    setShowDetailDialog(true);
+  };
 
   // Load all QA products on mount (admin sees all)
   useEffect(() => {
@@ -88,6 +106,17 @@ const AdminProductApprovals = () => {
     'Please add more product specifications',
     'Product name could be more descriptive',
   ];
+
+  // Helper to safely extract category name (handles both string and {name} object)
+  const getCategoryName = (category: any): string => {
+    if (typeof category === 'object' && category?.name) {
+      return category.name;
+    }
+    if (typeof category === 'string') {
+      return category;
+    }
+    return 'Uncategorized';
+  };
 
   // Redirect if not authenticated
   if (!isAuthenticated) {
@@ -131,7 +160,7 @@ const AdminProductApprovals = () => {
     if (searchQuery.trim()) {
       filtered = filtered.filter(p => 
         p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        getCategoryName(p.category).toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.vendor.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
@@ -417,8 +446,11 @@ const AdminProductApprovals = () => {
                 filteredProducts.map((product) => (
                   <div key={product.id} className="p-5 hover:bg-gray-50 transition-colors">
                     <div className="flex items-center gap-5">
-                      {/* Product Image */}
-                      <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+                      {/* Product Image - Clickable */}
+                      <div 
+                        className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 cursor-pointer hover:ring-2 hover:ring-[#FF5722] transition-all"
+                        onClick={() => handleViewDetails(product)}
+                      >
                         {product.image ? (
                           <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
                         ) : (
@@ -430,9 +462,20 @@ const AdminProductApprovals = () => {
 
                       {/* Product Info */}
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-gray-900 truncate">{product.name}</h3>
-                        <div className="flex items-center gap-2 mt-1">
-                          <Badge variant="outline" className="text-xs">{product.category}</Badge>
+                        <h3 
+                          className="font-semibold text-gray-900 truncate cursor-pointer hover:text-[#FF5722] transition-colors"
+                          onClick={() => handleViewDetails(product)}
+                        >
+                          {product.name}
+                        </h3>
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                          <Badge variant="outline" className="text-xs">{getCategoryName(product.category)}</Badge>
+                          {product.variants && product.variants.length > 0 && (
+                            <Badge variant="secondary" className="text-xs flex items-center gap-1">
+                              <Layers className="w-3 h-3" />
+                              {product.variants.length} variants
+                            </Badge>
+                          )}
                           <span className="text-sm text-gray-500 flex items-center gap-1">
                             <User className="w-3 h-3" />
                             {product.vendor}
@@ -440,9 +483,32 @@ const AdminProductApprovals = () => {
                         </div>
                       </div>
 
+                      {/* View Details Button */}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleViewDetails(product)}
+                        className="text-gray-600 hover:text-[#FF5722]"
+                      >
+                        <Eye className="w-4 h-4 mr-1" />
+                        View
+                      </Button>
+
                       {/* Price */}
-                      <div className="flex-shrink-0">
-                        <p className="text-xl font-bold text-[#FF5722]">₱{product.price.toLocaleString()}</p>
+                      <div className="flex-shrink-0 text-right">
+                        {product.variants && product.variants.length > 0 ? (
+                          <>
+                            <p className="text-xl font-bold text-[#FF5722]">
+                              {Math.min(...product.variants.map(v => v.price)) !== Math.max(...product.variants.map(v => v.price))
+                                ? `From ₱${Math.min(...product.variants.map(v => v.price)).toLocaleString()}`
+                                : `₱${product.variants[0].price.toLocaleString()}`
+                              }
+                            </p>
+                            <p className="text-xs text-gray-500">Stock: {product.variants.reduce((sum, v) => sum + v.stock, 0)}</p>
+                          </>
+                        ) : (
+                          <p className="text-xl font-bold text-[#FF5722]">₱{product.price.toLocaleString()}</p>
+                        )}
                       </div>
 
                       {/* Actions */}
@@ -709,6 +775,313 @@ const AdminProductApprovals = () => {
               <RefreshCw className="w-4 h-4 mr-2" />
               Request Revision
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Product Detail Dialog */}
+      <Dialog open={showDetailDialog} onOpenChange={setShowDetailDialog}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold text-gray-900 flex items-center gap-2">
+              <Package className="w-5 h-5 text-[#FF5722]" />
+              Product Details
+            </DialogTitle>
+            <DialogDescription className="text-gray-600">
+              Full information about this product submission
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedProduct && (
+            <div className="space-y-6">
+              {/* Image Gallery */}
+              <div className="space-y-3">
+                <div className="relative aspect-video bg-gray-100 rounded-xl overflow-hidden">
+                  <img 
+                    src={selectedProduct.images?.[currentImageIndex] || selectedProduct.image} 
+                    alt={selectedProduct.name}
+                    className="w-full h-full object-contain"
+                  />
+                  {selectedProduct.images && selectedProduct.images.length > 1 && (
+                    <>
+                      <button
+                        onClick={() => setCurrentImageIndex(i => i > 0 ? i - 1 : selectedProduct.images!.length - 1)}
+                        className="absolute left-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors"
+                      >
+                        <ChevronLeft className="w-5 h-5" />
+                      </button>
+                      <button
+                        onClick={() => setCurrentImageIndex(i => i < selectedProduct.images!.length - 1 ? i + 1 : 0)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors"
+                      >
+                        <ChevronRight className="w-5 h-5" />
+                      </button>
+                      <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-2">
+                        {selectedProduct.images.map((_, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => setCurrentImageIndex(idx)}
+                            className={`w-2 h-2 rounded-full transition-all ${idx === currentImageIndex ? 'bg-[#FF5722] w-4' : 'bg-white/70 hover:bg-white'}`}
+                          />
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+                {/* Thumbnails */}
+                {selectedProduct.images && selectedProduct.images.length > 1 && (
+                  <div className="flex gap-2 overflow-x-auto pb-2">
+                    {selectedProduct.images.map((img, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setCurrentImageIndex(idx)}
+                        className={`w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 border-2 transition-all ${idx === currentImageIndex ? 'border-[#FF5722]' : 'border-transparent hover:border-gray-300'}`}
+                      >
+                        <img src={img} alt={`${selectedProduct.name} ${idx + 1}`} className="w-full h-full object-cover" />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Product Info Grid */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <Label className="text-xs text-gray-500 uppercase">Product Name</Label>
+                  <p className="font-semibold text-gray-900">{selectedProduct.name}</p>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-gray-500 uppercase">Price</Label>
+                  {selectedProduct.variants && selectedProduct.variants.length > 0 ? (
+                    <div>
+                      <p className="font-bold text-[#FF5722] text-xl">
+                        {Math.min(...selectedProduct.variants.map(v => v.price)) !== Math.max(...selectedProduct.variants.map(v => v.price))
+                          ? `₱${Math.min(...selectedProduct.variants.map(v => v.price)).toLocaleString()} - ₱${Math.max(...selectedProduct.variants.map(v => v.price)).toLocaleString()}`
+                          : `₱${selectedProduct.variants[0].price.toLocaleString()}`
+                        }
+                      </p>
+                      <p className="text-xs text-gray-500">Base: ₱{selectedProduct.price.toLocaleString()}</p>
+                    </div>
+                  ) : (
+                    <p className="font-bold text-[#FF5722] text-xl">₱{selectedProduct.price.toLocaleString()}</p>
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-gray-500 uppercase flex items-center gap-1">
+                    <Tag className="w-3 h-3" />
+                    Category
+                  </Label>
+                  <Badge variant="outline">{getCategoryName(selectedProduct.category)}</Badge>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-gray-500 uppercase flex items-center gap-1">
+                    <User className="w-3 h-3" />
+                    Vendor
+                  </Label>
+                  <p className="text-gray-700">{selectedProduct.vendor}</p>
+                </div>
+                {/* Total Stock - only show when variants exist */}
+                {selectedProduct.variants && selectedProduct.variants.length > 0 && (
+                  <div className="space-y-1">
+                    <Label className="text-xs text-gray-500 uppercase flex items-center gap-1">
+                      <Package className="w-3 h-3" />
+                      Total Stock
+                    </Label>
+                    <p className="font-semibold text-gray-900">
+                      {selectedProduct.variants.reduce((sum, v) => sum + v.stock, 0).toLocaleString()}
+                      <span className="text-xs text-gray-500 font-normal ml-1">
+                        ({selectedProduct.variants.length} variants)
+                      </span>
+                    </p>
+                  </div>
+                )}
+                <div className="space-y-1">
+                  <Label className="text-xs text-gray-500 uppercase">Status</Label>
+                  <div>
+                    {selectedProduct.status === 'PENDING_DIGITAL_REVIEW' && (
+                      <Badge className="bg-blue-100 text-blue-700">Pending Digital Review</Badge>
+                    )}
+                    {selectedProduct.status === 'WAITING_FOR_SAMPLE' && (
+                      <Badge className="bg-cyan-100 text-cyan-700">Waiting for Sample</Badge>
+                    )}
+                    {selectedProduct.status === 'IN_QUALITY_REVIEW' && (
+                      <Badge className="bg-purple-100 text-purple-700">In Quality Review</Badge>
+                    )}
+                    {selectedProduct.status === 'FOR_REVISION' && (
+                      <Badge className="bg-amber-100 text-amber-700">For Revision</Badge>
+                    )}
+                    {selectedProduct.status === 'ACTIVE_VERIFIED' && (
+                      <Badge className="bg-green-100 text-green-700">Verified</Badge>
+                    )}
+                    {selectedProduct.status === 'REJECTED' && (
+                      <Badge className="bg-red-100 text-red-700">Rejected</Badge>
+                    )}
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-gray-500 uppercase flex items-center gap-1">
+                    <Calendar className="w-3 h-3" />
+                    Submitted
+                  </Label>
+                  <p className="text-gray-700">
+                    {selectedProduct.submittedAt 
+                      ? new Date(selectedProduct.submittedAt).toLocaleDateString('en-PH', { 
+                          year: 'numeric', 
+                          month: 'short', 
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })
+                      : 'N/A'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Description */}
+              {selectedProduct.description && (
+                <div className="border-t pt-4">
+                  <Label className="text-xs text-gray-500 uppercase mb-2 block">Description</Label>
+                  <p className="text-gray-700 text-sm">{selectedProduct.description}</p>
+                </div>
+              )}
+
+              {/* Variants Section */}
+              {selectedProduct.variants && selectedProduct.variants.length > 0 && (
+                <div className="border-t pt-4">
+                  <Label className="text-xs text-gray-500 uppercase mb-3 flex items-center gap-1">
+                    <Layers className="w-3 h-3" />
+                    Variants ({selectedProduct.variants.length})
+                  </Label>
+                  <div className="grid gap-2 max-h-48 overflow-y-auto">
+                    {selectedProduct.variants.map((variant) => (
+                      <div 
+                        key={variant.id}
+                        className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg border"
+                      >
+                        {/* Variant Thumbnail */}
+                        {variant.thumbnail_url && (
+                          <img 
+                            src={variant.thumbnail_url} 
+                            alt={variant.variant_name}
+                            className="w-10 h-10 rounded object-cover"
+                          />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">{variant.variant_name}</p>
+                          <div className="flex gap-2 text-xs text-gray-500">
+                            {variant.size && (
+                              <span className="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">
+                                {selectedProduct.variantLabel1 || 'Size'}: {variant.size}
+                              </span>
+                            )}
+                            {variant.color && (
+                              <span className="flex items-center gap-1 bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded">
+                                {selectedProduct.variantLabel2 || 'Color'}: {variant.color}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-semibold text-[#FF5722]">₱{variant.price.toLocaleString()}</p>
+                          <p className="text-xs text-gray-500">
+                            Stock: <span className={variant.stock <= 0 ? 'text-red-600 font-medium' : variant.stock <= 10 ? 'text-amber-600' : 'text-green-600'}>{variant.stock}</span>
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {/* Variant Summary */}
+                  <div className="mt-3 flex gap-4 text-xs text-gray-500">
+                    <span>Total Stock: <strong className="text-gray-700">{selectedProduct.variants.reduce((sum, v) => sum + v.stock, 0)}</strong></span>
+                    <span>Price Range: <strong className="text-gray-700">₱{Math.min(...selectedProduct.variants.map(v => v.price)).toLocaleString()} - ₱{Math.max(...selectedProduct.variants.map(v => v.price)).toLocaleString()}</strong></span>
+                  </div>
+                </div>
+              )}
+
+              {/* Logistics & Rejection Info */}
+              {selectedProduct.logistics && (
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <Label className="text-xs text-blue-600 uppercase mb-1 block">Sample Logistics</Label>
+                  <p className="text-blue-900">{selectedProduct.logistics}</p>
+                </div>
+              )}
+              
+              {selectedProduct.rejectionReason && (
+                <div className="bg-red-50 p-4 rounded-lg">
+                  <Label className="text-xs text-red-600 uppercase mb-1 block">
+                    {selectedProduct.status === 'FOR_REVISION' ? 'Revision Requested' : 'Rejection Reason'}
+                  </Label>
+                  <p className="text-red-900">{selectedProduct.rejectionReason}</p>
+                </div>
+              )}
+
+              {/* Timeline */}
+              <div className="border-t pt-4">
+                <Label className="text-xs text-gray-500 uppercase mb-3 block">Timeline</Label>
+                <div className="space-y-2 text-sm">
+                  {selectedProduct.submittedAt && (
+                    <div className="flex items-center gap-2 text-gray-600">
+                      <Clock className="w-4 h-4" />
+                      <span>Submitted: {new Date(selectedProduct.submittedAt).toLocaleString()}</span>
+                    </div>
+                  )}
+                  {selectedProduct.approvedAt && (
+                    <div className="flex items-center gap-2 text-green-600">
+                      <CheckCircle className="w-4 h-4" />
+                      <span>Approved: {new Date(selectedProduct.approvedAt).toLocaleString()}</span>
+                    </div>
+                  )}
+                  {selectedProduct.verifiedAt && (
+                    <div className="flex items-center gap-2 text-green-600">
+                      <BadgeCheck className="w-4 h-4" />
+                      <span>Verified: {new Date(selectedProduct.verifiedAt).toLocaleString()}</span>
+                    </div>
+                  )}
+                  {selectedProduct.revisionRequestedAt && (
+                    <div className="flex items-center gap-2 text-amber-600">
+                      <RefreshCw className="w-4 h-4" />
+                      <span>Revision Requested: {new Date(selectedProduct.revisionRequestedAt).toLocaleString()}</span>
+                    </div>
+                  )}
+                  {selectedProduct.rejectedAt && (
+                    <div className="flex items-center gap-2 text-red-600">
+                      <XCircle className="w-4 h-4" />
+                      <span>Rejected: {new Date(selectedProduct.rejectedAt).toLocaleString()}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDetailDialog(false)}>
+              Close
+            </Button>
+            {selectedProduct && selectedProduct.status === 'PENDING_DIGITAL_REVIEW' && (
+              <Button 
+                onClick={() => {
+                  handleApproveDigital(selectedProduct.id);
+                  setShowDetailDialog(false);
+                }}
+                className="bg-[#FF5722] hover:bg-[#E64A19] text-white"
+              >
+                <CheckCircle className="w-4 h-4 mr-1" />
+                Approve
+              </Button>
+            )}
+            {selectedProduct && selectedProduct.status === 'IN_QUALITY_REVIEW' && (
+              <Button 
+                onClick={() => {
+                  handlePassQA(selectedProduct.id);
+                  setShowDetailDialog(false);
+                }}
+                className="bg-[#FF5722] hover:bg-[#E64A19] text-white"
+              >
+                <CheckCircle className="w-4 h-4 mr-1" />
+                Pass QA
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

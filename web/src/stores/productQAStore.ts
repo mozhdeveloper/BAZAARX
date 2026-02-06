@@ -6,6 +6,18 @@ import { useProductStore } from './sellerStore';
 
 export type { ProductQAStatus };
 
+// Variant interface matching the database
+export interface QAProductVariant {
+  id: string;
+  variant_name: string;
+  sku: string;
+  size?: string | null;
+  color?: string | null;
+  price: number;
+  stock: number;
+  thumbnail_url?: string | null;
+}
+
 export interface QAProduct {
   id: string;
   name: string;
@@ -19,6 +31,9 @@ export interface QAProduct {
   logistics: string | null;
   image: string;
   images?: string[];
+  variants?: QAProductVariant[]; // Product variants
+  variantLabel1?: string | null; // Label for first variant option (e.g., "Size")
+  variantLabel2?: string | null; // Label for second variant option (e.g., "Color")
   rejectionReason?: string;
   rejectionStage?: 'digital' | 'physical'; // Track which stage rejected
   submittedAt?: string;
@@ -116,25 +131,55 @@ export const useProductQAStore = create<ProductQAStore>()(
             ? await qaService.getQAEntriesBySeller(sellerId)
             : await qaService.getAllQAEntries();
 
-          const qaProducts: QAProduct[] = qaEntries.map((entry: any) => ({
-            id: entry.product_id,
-            name: entry.product?.name || 'Unknown Product',
-            vendor: entry.vendor,
-            sellerId: entry.product?.seller_id,
-            price: entry.product?.price || 0,
-            category: entry.product?.category || 'Uncategorized',
-            status: entry.status,
-            logistics: entry.logistics,
-            image: entry.product?.images?.[0] || 'https://placehold.co/100?text=Product',
-            images: entry.product?.images || [],
-            rejectionReason: entry.rejection_reason,
-            rejectionStage: entry.rejection_stage,
-            submittedAt: entry.submitted_at,
-            approvedAt: entry.approved_at,
-            verifiedAt: entry.verified_at,
-            rejectedAt: entry.rejected_at,
-            revisionRequestedAt: entry.revision_requested_at,
-          }));
+          const qaProducts: QAProduct[] = qaEntries.map((entry: any) => {
+            // Extract category name from nested object or use string directly
+            const categoryValue = entry.product?.category;
+            const categoryName = typeof categoryValue === 'object' && categoryValue?.name 
+              ? categoryValue.name 
+              : (typeof categoryValue === 'string' ? categoryValue : 'Uncategorized');
+            
+            // Extract image URL from nested image objects
+            const imageList = entry.product?.images || [];
+            const primaryImage = imageList.find((img: any) => img.is_primary) || imageList[0];
+            const imageUrl = primaryImage?.image_url || primaryImage || 'https://placehold.co/100?text=Product';
+            const imageUrls = imageList.map((img: any) => img.image_url || img).filter(Boolean);
+
+            // Extract variants
+            const variants = (entry.product?.variants || []).map((v: any) => ({
+              id: v.id,
+              variant_name: v.variant_name,
+              sku: v.sku,
+              size: v.size,
+              color: v.color,
+              price: v.price,
+              stock: v.stock,
+              thumbnail_url: v.thumbnail_url,
+            }));
+
+            return {
+              id: entry.product_id,
+              name: entry.product?.name || 'Unknown Product',
+              description: entry.product?.description,
+              vendor: entry.vendor,
+              sellerId: entry.product?.seller_id,
+              price: entry.product?.price || 0,
+              category: categoryName,
+              status: entry.status,
+              logistics: entry.logistics,
+              image: imageUrl,
+              images: imageUrls.length > 0 ? imageUrls : ['https://placehold.co/100?text=Product'],
+              variants: variants.length > 0 ? variants : undefined,
+              variantLabel1: entry.product?.variant_label_1,
+              variantLabel2: entry.product?.variant_label_2,
+              rejectionReason: entry.rejection_reason,
+              rejectionStage: entry.rejection_stage,
+              submittedAt: entry.submitted_at,
+              approvedAt: entry.approved_at,
+              verifiedAt: entry.verified_at,
+              rejectedAt: entry.rejected_at,
+              revisionRequestedAt: entry.revision_requested_at,
+            };
+          });
 
           set({ products: qaProducts, isLoading: false });
         } catch (error) {

@@ -78,17 +78,15 @@ export default function BuyerOnboardingPage() {
 
                 const newAddress = await addressService.createAddress({
                     user_id: profile.id,
-                    first_name: addressData.firstName,
-                    last_name: addressData.lastName,
-                    phone: addressData.phone,
-                    street: addressData.street,
+                    address_line_1: `${addressData.firstName} ${addressData.lastName}, ${addressData.phone}, ${addressData.street}`,
                     barangay: addressData.barangay,
                     city: addressData.city,
                     province: addressData.province,
                     region: addressData.region,
-                    zip_code: addressData.postalCode,
+                    postal_code: addressData.postalCode,
                     label: addressData.label,
-                    is_default: addressData.isDefault
+                    is_default: addressData.isDefault,
+                    address_type: 'residential',
                 });
 
                 addAddress(newAddress);

@@ -132,8 +132,8 @@ export default function BuyerLoginPage() {
   };
 
   const handleDemoLogin = () => {
-    setEmail("anna.cruz@gmail.com");
-    setPassword("Buyer123!");
+    setEmail("buyer1@gmail.com");
+    setPassword("Test@123456");
     setError("");
   };
 
@@ -211,27 +211,22 @@ export default function BuyerLoginPage() {
             <div className="flex justify-between items-start mb-3">
               <div>
                 <p className="text-[10px] font-black text-orange-600 uppercase tracking-[0.1em] mb-0.5">🧪 Test Buyer Accounts</p>
-                <p className="text-xs text-[var(--text-secondary)]">All have conversations & messages</p>
+                <p className="text-xs text-[var(--text-secondary)]">All have addresses & BazCoins</p>
               </div>
               <button
                 type="button"
                 onClick={handleDemoLogin}
                 className="text-[10px] font-bold text-orange-600 border border-orange-200 px-3 py-1.5 rounded-xl bg-white hover:bg-orange-50 transition-all active:scale-95 shadow-sm"
               >
-                Auto-Fill Anna
+                Auto-Fill
               </button>
             </div>
             <div className="space-y-1 text-xs text-orange-700">
-              <p className="font-semibold">Password for all: <span className="font-mono bg-orange-100 px-2 py-0.5 rounded">Buyer123!</span></p>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-2 text-[11px]">
-                <button type="button" onClick={() => { setEmail('anna.cruz@gmail.com'); setPassword('Buyer123!'); }} className="text-left hover:text-orange-900 hover:underline transition-colors">• anna.cruz@gmail.com</button>
-                <button type="button" onClick={() => { setEmail('miguel.santos@gmail.com'); setPassword('Buyer123!'); }} className="text-left hover:text-orange-900 hover:underline transition-colors">• miguel.santos@gmail.com</button>
-                <button type="button" onClick={() => { setEmail('sofia.reyes@gmail.com'); setPassword('Buyer123!'); }} className="text-left hover:text-orange-900 hover:underline transition-colors">• sofia.reyes@gmail.com</button>
-                <button type="button" onClick={() => { setEmail('carlos.garcia@gmail.com'); setPassword('Buyer123!'); }} className="text-left hover:text-orange-900 hover:underline transition-colors">• carlos.garcia@gmail.com</button>
-                <button type="button" onClick={() => { setEmail('isabella.fernandez@gmail.com'); setPassword('Buyer123!'); }} className="text-left hover:text-orange-900 hover:underline transition-colors">• isabella.fernandez@gmail.com</button>
-                <button type="button" onClick={() => { setEmail('rafael.mendoza@gmail.com'); setPassword('Buyer123!'); }} className="text-left hover:text-orange-900 hover:underline transition-colors">• rafael.mendoza@gmail.com</button>
-                <button type="button" onClick={() => { setEmail('gabriela.torres@gmail.com'); setPassword('Buyer123!'); }} className="text-left hover:text-orange-900 hover:underline transition-colors">• gabriela.torres@gmail.com</button>
-                <button type="button" onClick={() => { setEmail('daniel.villanueva@gmail.com'); setPassword('Buyer123!'); }} className="text-left hover:text-orange-900 hover:underline transition-colors">• daniel.villanueva@gmail.com</button>
+              <p className="font-semibold">Password for all: <span className="font-mono bg-orange-100 px-2 py-0.5 rounded">Test@123456</span></p>
+              <div className="grid grid-cols-1 gap-y-1 mt-2 text-[11px]">
+                <button type="button" onClick={() => { setEmail('buyer1@gmail.com'); setPassword('Test@123456'); }} className="text-left hover:text-orange-900 hover:underline transition-colors font-semibold">• buyer1@gmail.com <span className="text-gray-500">(Angela Cruz) ⭐ 1500 BazCoins</span></button>
+                <button type="button" onClick={() => { setEmail('buyer2@gmail.com'); setPassword('Test@123456'); }} className="text-left hover:text-orange-900 hover:underline transition-colors">• buyer2@gmail.com <span className="text-gray-500">(John Mendoza) 💰 2300 BazCoins</span></button>
+                <button type="button" onClick={() => { setEmail('buyer3@gmail.com'); setPassword('Test@123456'); }} className="text-left hover:text-orange-900 hover:underline transition-colors">• buyer3@gmail.com <span className="text-gray-500">(Sofia Reyes) 💰 800 BazCoins</span></button>
               </div>
             </div>
           </div>

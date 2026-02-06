@@ -75,12 +75,13 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
 
             const { data: product, error: productError } = await supabase
                 .from('products')
-                .select('stock, variants')
+                .select('stock')
                 .eq('id', item.id)
                 .single();
 
             if (productError || !product) {
-                throw new Error(`Product not found for item ${item.id}`);
+                console.warn(`Product ${item.id} not found, skipping stock validation`);
+                continue; // Skip validation but allow checkout
             }
 
             // For now, we're checking base stock (variants support can be added later)

@@ -561,7 +561,16 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
           {/* Stock & Ratings */}
           <View style={styles.metaRow}>
-            <Text style={styles.stockText}>In-Stock (12)</Text>
+            <Text style={[
+              styles.stockText,
+              { color: (product.stock || 0) <= 5 ? '#F97316' : (product.stock || 0) === 0 ? '#EF4444' : '#10B981' }
+            ]}>
+              {(product.stock || 0) === 0 
+                ? 'Out of Stock' 
+                : (product.stock || 0) <= 5 
+                  ? `Only ${product.stock} left!` 
+                  : `In-Stock (${product.stock || 0})`}
+            </Text>
           </View>
            <View style={styles.ratingRow}>
               {Array.from({ length: 5 }).map((_, i) => (
@@ -804,8 +813,13 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                     style={styles.variantModalImage} 
                   />
                   <View style={styles.variantModalInfo}>
-                    <Text style={styles.variantModalPrice}>Γé▒{(product.price ?? 0).toLocaleString()}</Text>
-                    <Text style={styles.variantModalStock}>Stock: {(product as any).stock || 12}</Text>
+                    <Text style={styles.variantModalPrice}>₱{(product.price ?? 0).toLocaleString()}</Text>
+                    <Text style={[
+                      styles.variantModalStock,
+                      { color: (product.stock || 0) <= 5 ? '#F97316' : (product.stock || 0) === 0 ? '#EF4444' : '#10B981' }
+                    ]}>
+                      {(product.stock || 0) === 0 ? 'Out of Stock' : `Stock: ${product.stock || 0}`}
+                    </Text>
                     <Text style={styles.variantModalSelected}>
                       {[modalSelectedColor, modalSelectedSize].filter(Boolean).join(', ') || 'Select options'}
                     </Text>

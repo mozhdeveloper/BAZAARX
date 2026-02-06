@@ -1,18 +1,25 @@
 /**
  * Authentication Service
  * Handles user authentication and profile management
+ * Updated for new normalized database schema (February 2026)
  */
 
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import type { Profile, Buyer, Seller } from '@/types/database.types';
+import type { Profile, Buyer, Seller, UserRole, UserRoleRecord, FullProfile } from '@/types/database.types';
 
 // Service-specific types
 export interface SignUpData {
   email: string;
   password: string;
-  full_name?: string;
+  first_name?: string;
+  last_name?: string;
   phone?: string;
-  user_type: 'buyer' | 'seller' | 'admin';
+  user_type: UserRole;
+}
+
+// Legacy support - maps to first_name
+export interface LegacySignUpData extends Omit<SignUpData, 'first_name' | 'last_name'> {
+  full_name?: string;
 }
 
 export interface AuthResult {
@@ -31,12 +38,18 @@ export class AuthService {
   async signUp(
     email: string,
     password: string,
-    userData: SignUpData
+    userData: SignUpData | LegacySignUpData
   ): Promise<AuthResult | null> {
     if (!isSupabaseConfigured()) {
       console.warn('Supabase not configured - cannot sign up');
       return { user: { id: crypto.randomUUID(), email } } as AuthResult;
     }
+
+    // Handle legacy full_name format
+    const first_name = 'first_name' in userData ? userData.first_name : 
+                       ('full_name' in userData ? (userData as LegacySignUpData).full_name?.split(' ')[0] : null);
+    const last_name = 'last_name' in userData ? userData.last_name :
+                      ('full_name' in userData ? (userData as LegacySignUpData).full_name?.split(' ').slice(1).join(' ') : null);
 
     try {
       // Sign up with Supabase Auth
@@ -44,13 +57,17 @@ export class AuthService {
         email,
         password,
         options: {
-          data: userData,
+          data: {
+            ...userData,
+            first_name,
+            last_name,
+          },
         },
       });
 
       if (authError) throw authError;
 
-      // Create or update profile
+      // Create or update profile (new schema - no user_type)
       if (authData.user) {
         const { error: profileError } = await supabase
           .from('profiles')
@@ -58,10 +75,9 @@ export class AuthService {
             {
               id: authData.user.id,
               email,
-              full_name: userData.full_name || null,
+              first_name: first_name || null,
+              last_name: last_name || null,
               phone: userData.phone || null,
-              user_type: userData.user_type,
-              avatar_url: null,
               last_login_at: null,
             },
             {
@@ -71,6 +87,9 @@ export class AuthService {
           );
 
         if (profileError) throw profileError;
+
+        // Create user_role entry (new normalized schema)
+        await this.addUserRole(authData.user.id, userData.user_type);
 
         // Create user-type specific record
         await this.createUserTypeRecord(authData.user.id, userData.user_type);
@@ -96,24 +115,20 @@ export class AuthService {
 
   /**
    * Upgrade an existing user to a different type (e.g., buyer to seller)
+   * Uses user_roles table for multi-role support (users can be BOTH buyer AND seller)
    * @param userId - User ID to upgrade
-   * @param newUserType - New user type to assign
+   * @param newUserType - New user type to add
    * @returns Promise<boolean>
    */
-  async upgradeUserType(userId: string, newUserType: 'buyer' | 'seller' | 'admin'): Promise<boolean> {
+  async upgradeUserType(userId: string, newUserType: UserRole): Promise<boolean> {
     if (!isSupabaseConfigured()) {
       console.warn('Supabase not configured - cannot upgrade user type');
       return true;
     }
 
     try {
-      // Update the user type in the profile
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({ user_type: newUserType })
-        .eq('id', userId);
-
-      if (profileError) throw profileError;
+      // Add new role (doesn't replace existing roles)
+      await this.addUserRole(userId, newUserType);
 
       // Create user-type specific record if needed
       // For seller, we don't create the record here since it's handled separately
@@ -126,6 +141,161 @@ export class AuthService {
       console.error('Error upgrading user type:', error);
       throw new Error('Failed to upgrade user type. Please try again.');
     }
+  }
+
+  /**
+   * Register an existing buyer as a seller (same email, multi-role)
+   * This allows a buyer to also become a seller while keeping their buyer account
+   * @param userId - User ID (must already be a buyer)
+   * @param sellerData - Seller registration data
+   * @returns Promise<Seller | null>
+   */
+  async registerBuyerAsSeller(
+    userId: string,
+    sellerData: {
+      store_name: string;
+      store_description?: string;
+      owner_name?: string;
+    }
+  ): Promise<any | null> {
+    if (!isSupabaseConfigured()) {
+      console.warn('Supabase not configured - cannot register as seller');
+      return null;
+    }
+
+    try {
+      // 1. Verify user exists and is a buyer
+      const isBuyer = await this.isUserBuyer(userId);
+      if (!isBuyer) {
+        throw new Error('User must be a buyer first');
+      }
+
+      // 2. Check if already a seller
+      const isSeller = await this.isUserSeller(userId);
+      if (isSeller) {
+        throw new Error('User is already registered as a seller');
+      }
+
+      // 3. Add seller role
+      await this.addUserRole(userId, 'seller');
+
+      // 4. Create seller record with proper schema fields
+      const { data: seller, error: sellerError } = await supabase
+        .from('sellers')
+        .insert({
+          id: userId,
+          store_name: sellerData.store_name,
+          store_description: sellerData.store_description || null,
+          owner_name: sellerData.owner_name || null,
+          avatar_url: null,
+          approval_status: 'pending', // New sellers start as pending
+        })
+        .select()
+        .single();
+
+      if (sellerError) {
+        // Rollback role if seller creation fails
+        await supabase.from('user_roles').delete()
+          .eq('user_id', userId)
+          .eq('role', 'seller');
+        throw sellerError;
+      }
+
+      return seller;
+    } catch (error: any) {
+      console.error('Error registering buyer as seller:', error);
+      if (error.message?.includes('duplicate key') || error.message?.includes('unique')) {
+        throw new Error('A store with this name already exists');
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Add a role to a user (new normalized schema)
+   * @param userId - User ID
+   * @param role - Role to add
+   */
+  async addUserRole(userId: string, role: UserRole): Promise<void> {
+    if (!isSupabaseConfigured()) return;
+
+    // Check if role already exists
+    const { data: existingRole } = await supabase
+      .from('user_roles')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('role', role)
+      .single();
+
+    if (existingRole) return; // Role already exists
+
+    const { error } = await supabase
+      .from('user_roles')
+      .insert({ user_id: userId, role });
+
+    if (error) {
+      console.error('Error adding user role:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get all roles for a user
+   * @param userId - User ID
+   * @returns Promise<UserRole[]>
+   */
+  async getUserRoles(userId: string): Promise<UserRole[]> {
+    if (!isSupabaseConfigured()) return [];
+
+    const { data, error } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', userId);
+
+    if (error) {
+      console.error('Error fetching user roles:', error);
+      return [];
+    }
+
+    return data?.map(r => r.role as UserRole) || [];
+  }
+
+  /**
+   * Check if user has a specific role
+   * @param userId - User ID
+   * @param role - Role to check
+   * @returns Promise<boolean>
+   */
+  async hasRole(userId: string, role: UserRole): Promise<boolean> {
+    const roles = await this.getUserRoles(userId);
+    return roles.includes(role);
+  }
+
+  /**
+   * Check if user is a seller
+   * @param userId - User ID
+   * @returns Promise<boolean>
+   */
+  async isUserSeller(userId: string): Promise<boolean> {
+    return this.hasRole(userId, 'seller');
+  }
+
+  /**
+   * Check if user is a buyer
+   * @param userId - User ID
+   * @returns Promise<boolean>
+   */
+  async isUserBuyer(userId: string): Promise<boolean> {
+    return this.hasRole(userId, 'buyer');
+  }
+
+  /**
+   * Check if user is an admin
+   * @param userId - User ID
+   * @returns Promise<boolean>
+   */
+  async isUserAdmin(userId: string): Promise<boolean> {
+    return this.hasRole(userId, 'admin');
   }
 
   /**
@@ -151,12 +321,42 @@ export class AuthService {
 
       if (error) throw error;
 
-      // Update last login
+      // Ensure profile exists and update last login
       if (data.user) {
-        await supabase
+        // Upsert profile to ensure it exists (handles legacy users without profiles)
+        const { error: profileError } = await supabase
           .from('profiles')
-          .update({ last_login_at: new Date().toISOString() })
-          .eq('id', data.user.id);
+          .upsert(
+            {
+              id: data.user.id,
+              email: data.user.email || email,
+              first_name: data.user.user_metadata?.first_name || null,
+              last_name: data.user.user_metadata?.last_name || null,
+              phone: data.user.user_metadata?.phone || null,
+              last_login_at: new Date().toISOString(),
+            },
+            { onConflict: 'id' }
+          );
+
+        if (profileError) {
+          console.error('Error upserting profile:', profileError);
+        }
+
+        // Also ensure buyer record exists for buyer role users
+        const { error: buyerError } = await supabase
+          .from('buyers')
+          .upsert(
+            {
+              id: data.user.id,
+              preferences: {},
+              bazcoins: 0,
+            },
+            { onConflict: 'id', ignoreDuplicates: true }
+          );
+
+        if (buyerError) {
+          console.error('Error upserting buyer record:', buyerError);
+        }
       }
 
       return { user: data.user, session: data.session };
@@ -388,6 +588,7 @@ export class AuthService {
 
   /**
    * Create or ensure a buyer account exists for the user
+   * Updated for new normalized schema - buyers table only has preferences, avatar_url, bazcoins
    * @param userId - User ID
    * @returns Promise<boolean> indicating success
    */
@@ -410,12 +611,11 @@ export class AuthService {
         return true;
       }
 
-      // Create buyer record
+      // Create buyer record (new normalized schema)
       const { error } = await supabase.from('buyers').upsert(
         {
           id: userId,
-          shipping_addresses: [],
-          payment_methods: [],
+          avatar_url: null,
           preferences: {
             language: 'en',
             currency: 'PHP',
@@ -430,7 +630,6 @@ export class AuthService {
               showFollowing: true,
             },
           },
-          followed_shops: [],
           bazcoins: 0,
         },
         { onConflict: 'id' }
@@ -441,6 +640,9 @@ export class AuthService {
         throw error;
       }
 
+      // Also ensure user has buyer role
+      await this.addUserRole(userId, 'buyer');
+
       return true;
     } catch (error) {
       console.error('Error in createBuyerAccount:', error);
@@ -450,19 +652,18 @@ export class AuthService {
 
   /**
    * Private helper: Create user-type specific record
+   * Updated for new normalized schema
    */
   private async createUserTypeRecord(
     userId: string,
-    userType: 'buyer' | 'seller' | 'admin'
+    userType: UserRole
   ): Promise<void> {
     if (userType === 'buyer') {
       const { error } = await supabase.from('buyers').upsert(
         {
           id: userId,
-          shipping_addresses: [],
-          payment_methods: [],
+          avatar_url: null,
           preferences: {},
-          followed_shops: [],
           bazcoins: 0,
         },
         { onConflict: 'id' }
@@ -476,7 +677,6 @@ export class AuthService {
       const { error } = await supabase.from('admins').upsert(
         {
           id: userId,
-          role: 'admin',
           permissions: {},
         },
         { onConflict: 'id' }

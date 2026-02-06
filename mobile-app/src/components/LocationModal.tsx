@@ -24,10 +24,21 @@ import { useAuthStore } from '../stores/authStore';
 
 const { height } = Dimensions.get('window');
 
+interface LocationDetails {
+  address: string;
+  coordinates: { latitude: number; longitude: number };
+  street?: string;
+  barangay?: string;
+  city?: string;
+  province?: string;
+  region?: string;
+  postalCode?: string;
+}
+
 interface LocationModalProps {
   visible: boolean;
   onClose: () => void;
-  onSelectLocation: (address: string, coords?: { latitude: number, longitude: number }) => void;
+  onSelectLocation: (address: string, coords?: { latitude: number, longitude: number }, details?: LocationDetails) => void;
   currentAddress?: string;
   initialCoordinates?: { latitude: number; longitude: number } | null;
 }
@@ -54,6 +65,9 @@ export default function LocationModal({
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  
+  // Location details state for autofill
+  const [locationDetails, setLocationDetails] = useState<LocationDetails | null>(null);
 
   // Map Region State
   const [region, setRegion] = useState<Region>({
@@ -139,6 +153,20 @@ export default function LocationModal({
     setRegion(newRegion);
     mapRef.current?.animateToRegion(newRegion, 1000);
 
+    // Extract address details from suggestion
+    const addr = item.address || {};
+    const details: LocationDetails = {
+      address: item.display_name,
+      coordinates: { latitude: lat, longitude: lon },
+      street: addr.road || addr.pedestrian || '',
+      barangay: addr.neighbourhood || addr.suburb || addr.village || '',
+      city: addr.city || addr.municipality || addr.town || '',
+      province: addr.county || addr.state || '',
+      region: addr.region || addr.state || '',
+      postalCode: addr.postcode || '',
+    };
+    setLocationDetails(details);
+
     // Update UI
     setSearchQuery(item.display_name);
     setSuggestions([]); // Close dropdown
@@ -169,9 +197,9 @@ export default function LocationModal({
       setRegion(newRegion);
       mapRef.current?.animateToRegion(newRegion, 1000);
 
-      // Reverse Geocode
+      // Reverse Geocode with address details
       const response = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`,
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`,
         { headers: { 'User-Agent': 'BazaarXApp/1.0' } }
       );
       const data = await response.json();
@@ -180,6 +208,20 @@ export default function LocationModal({
         const simpleAddress = (data.display_name || '').split(',').slice(0, 3).join(',');
         setSearchQuery(simpleAddress);
         setSelectedAddressId(null);
+        
+        // Extract address details for autofill
+        const addr = data.address || {};
+        const details: LocationDetails = {
+          address: data.display_name,
+          coordinates: { latitude, longitude },
+          street: addr.road || addr.pedestrian || '',
+          barangay: addr.neighbourhood || addr.suburb || addr.village || '',
+          city: addr.city || addr.municipality || addr.town || '',
+          province: addr.county || addr.state || '',
+          region: addr.region || addr.state || '',
+          postalCode: addr.postcode || '',
+        };
+        setLocationDetails(details);
       }
 
     } catch (error) {
@@ -195,6 +237,19 @@ export default function LocationModal({
     const addrString = `${item.street}, ${item.city}`;
     setSearchQuery(addrString);
     
+    // Set location details from saved address
+    const details: LocationDetails = {
+      address: addrString,
+      coordinates: item.coordinates || { latitude: region.latitude, longitude: region.longitude },
+      street: item.street || '',
+      barangay: item.barangay || '',
+      city: item.city || '',
+      province: item.province || '',
+      region: item.region || '',
+      postalCode: item.postalCode || item.postal_code || '',
+    };
+    setLocationDetails(details);
+    
     if (item.coordinates) {
       const newRegion = {
         latitude: item.coordinates.latitude,
@@ -209,18 +264,66 @@ export default function LocationModal({
 
   // --- 5. CONFIRM SELECTION ---
   const handleConfirm = () => {
-    // Send back the current search text AND the exact map coordinates
+    // Send back the current search text AND the exact map coordinates AND location details
     const finalAddress = searchQuery || "Pinned Location";
-    onSelectLocation(finalAddress, {
+    const coords = {
       latitude: region.latitude,
       longitude: region.longitude
-    });
+    };
+    
+    // Build final location details
+    const finalDetails: LocationDetails = locationDetails ? {
+      ...locationDetails,
+      address: finalAddress,
+      coordinates: coords,
+    } : {
+      address: finalAddress,
+      coordinates: coords,
+    };
+    
+    onSelectLocation(finalAddress, coords, finalDetails);
     onClose();
   };
 
-  // When dragging the map manually, keep the marker centered
-  const onRegionChangeComplete = (newRegion: Region) => {
+  // When dragging the map manually, reverse geocode the new location
+  const reverseGeocodeTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  const onRegionChangeComplete = async (newRegion: Region) => {
     setRegion(newRegion);
+    
+    // Debounce reverse geocoding to avoid too many API calls while dragging
+    if (reverseGeocodeTimeout.current) clearTimeout(reverseGeocodeTimeout.current);
+    
+    reverseGeocodeTimeout.current = setTimeout(async () => {
+      try {
+        const response = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${newRegion.latitude}&lon=${newRegion.longitude}&addressdetails=1`,
+          { headers: { 'User-Agent': 'BazaarXApp/1.0' } }
+        );
+        const data = await response.json();
+        
+        if (data && data.display_name) {
+          const simpleAddress = (data.display_name || '').split(',').slice(0, 3).join(',');
+          setSearchQuery(simpleAddress);
+          
+          // Extract address details for autofill
+          const addr = data.address || {};
+          const details: LocationDetails = {
+            address: data.display_name,
+            coordinates: { latitude: newRegion.latitude, longitude: newRegion.longitude },
+            street: addr.road || addr.pedestrian || '',
+            barangay: addr.neighbourhood || addr.suburb || addr.village || '',
+            city: addr.city || addr.municipality || addr.town || '',
+            province: addr.county || addr.state || '',
+            region: addr.region || addr.state || '',
+            postalCode: addr.postcode || '',
+          };
+          setLocationDetails(details);
+        }
+      } catch (error) {
+        console.log('Reverse geocode error:', error);
+      }
+    }, 500);
   };
 
   const getAddressIcon = (label: string) => {

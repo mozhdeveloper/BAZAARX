@@ -45,7 +45,7 @@ export default function OrdersPage() {
 
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState("");
-  
+
   const statusFilter = searchParams.get("status") || "pending";
   const setStatusFilter = (status: string) => {
     setSearchParams(prev => {
@@ -102,8 +102,8 @@ export default function OrdersPage() {
     const dateReference = order.deliveryDate
       ? parseDate(order.deliveryDate)
       : order.createdAt
-      ? parseDate(order.createdAt)
-      : null;
+        ? parseDate(order.createdAt)
+        : null;
 
     if (!dateReference) return false; // If no date reference, assume window closed to be safe
 
@@ -220,13 +220,48 @@ export default function OrdersPage() {
 
       setIsLoading(true);
       try {
+        // Actual schema: orders has NO seller_id, total_amount, shipping_address, status
+        // Orders use payment_status + shipment_status, totals computed from order_items
         const { data, error } = await supabase
           .from("orders")
           .select(
             `
             *,
-            items:order_items (*),
-            seller:sellers (store_name, id)
+            items:order_items (
+              id,
+              product_id,
+              product_name,
+              primary_image_url,
+              quantity,
+              price,
+              price_discount,
+              shipping_price,
+              shipping_discount,
+              variant_id,
+              variant:product_variants (
+                id,
+                variant_name,
+                size,
+                color,
+                price,
+                thumbnail_url
+              )
+            ),
+            recipient:order_recipients (
+              first_name,
+              last_name,
+              phone,
+              email
+            ),
+            address:shipping_addresses (
+              label,
+              address_line_1,
+              address_line_2,
+              city,
+              province,
+              region,
+              postal_code
+            )
           `,
           )
           .eq("buyer_id", profile.id)
@@ -234,30 +269,51 @@ export default function OrdersPage() {
 
         if (error) throw error;
 
-        // Map database shape to UI expected shape
-        const mappedOrders = (data || []).map((order) => {
-          const statusMap: Record<string, string> = {
-            pending_payment: "pending",
-            paid: "confirmed",
-            processing: "confirmed",
-            ready_to_ship: "confirmed",
-            shipped: "shipped",
-            out_for_delivery: "shipped",
-            delivered: "delivered",
-            completed: "delivered",
-            cancelled: "cancelled",
-            returned: "returned",
-            refunded: "returned",
-          };
+        // For each order, we need to get seller info from products
+        // Since seller_id is on products, not orders
+        const mappedOrders = await Promise.all((data || []).map(async (order) => {
+          // Compute order status from payment_status + shipment_status
+          let status = "pending";
+          if (order.shipment_status === "delivered") {
+            status = "delivered";
+          } else if (order.shipment_status === "shipped" || order.shipment_status === "out_for_delivery") {
+            status = "shipped";
+          } else if (order.shipment_status === "cancelled") {
+            status = "cancelled";
+          } else if (order.shipment_status === "returned" || order.shipment_status === "refunded") {
+            status = "returned";
+          } else if (order.payment_status === "paid" || order.shipment_status === "processing" || order.shipment_status === "ready_to_ship") {
+            status = "confirmed";
+          }
 
-          const status = statusMap[order.status] || "pending";
-          const sa = order.shipping_address as any;
+          // Compute total from order_items
+          const items = order.items || [];
+          const totalAmount = items.reduce((sum: number, item: any) => {
+            const itemPrice = (item.price || 0) - (item.price_discount || 0);
+            const shippingPrice = (item.shipping_price || 0) - (item.shipping_discount || 0);
+            return sum + (item.quantity * itemPrice) + shippingPrice;
+          }, 0);
+
+          // Get seller info from the first product
+          let storeName = "Unknown Store";
+          let sellerId = null;
+          if (items.length > 0 && items[0].product_id) {
+            const { data: productData } = await supabase
+              .from("products")
+              .select("seller_id, sellers(store_name)")
+              .eq("id", items[0].product_id)
+              .single();
+            if (productData) {
+              sellerId = productData.seller_id;
+              storeName = (productData.sellers as any)?.store_name || "Unknown Store";
+            }
+          }
+
+          const recipient = order.recipient as any;
+          const address = order.address as any;
 
           const createdAt = new Date(order.created_at);
-          const estimatedDelivery = order.estimated_delivery_date
-            ? new Date(order.estimated_delivery_date)
-            : new Date(createdAt.getTime() + 3 * 24 * 60 * 60 * 1000);
-          const pm = order.payment_method as any;
+          const estimatedDelivery = new Date(createdAt.getTime() + 3 * 24 * 60 * 60 * 1000);
 
           return {
             id: order.order_number || order.id,
@@ -271,45 +327,73 @@ export default function OrdersPage() {
             }),
             status: status as any,
             isPaid: order.payment_status === "paid",
-            total: order.total_amount,
-            deliveryDate: order.actual_delivery_date
-              ? new Date(order.actual_delivery_date)
-              : undefined,
+            total: totalAmount,
             estimatedDelivery: estimatedDelivery,
-            items: (order.items || []).map((item: any) => ({
-              id: item.product_id, // Map the actual product_id so Buy Again works
-              orderItemId: item.id, // Keep the original order item ID if needed
-              name: item.product_name,
-              image:
-                item.product_images?.[0] ||
-                "https://placehold.co/100?text=Product",
-              price: item.price,
-              quantity: item.quantity,
-              seller: item.seller_name || "Seller",
-              sellerId: item.seller_id,
-              selectedVariant: item.selected_variant,
-              rating: 5, // Default for type compatibility
-              category: "General", // Default for type compatibility
-            })),
-            shippingAddress: {
-              fullName:
-                sa?.fullName ||
-                `${sa?.first_name || ""} ${sa?.last_name || ""}`.trim() ||
-                order.buyer_name,
-              street: sa?.street || "",
-              city: sa?.city || "",
-              province: sa?.province || "",
-              postalCode: sa?.postalCode || sa?.zip_code || "",
-              phone: sa?.phone || order.buyer_phone || "",
-            },
+            items: items.map((item: any) => {
+              const variantData = item.variant;
+              // Build variant display text
+              let variantDisplay = null;
+              if (variantData) {
+                const parts = [];
+                if (variantData.variant_name) parts.push(variantData.variant_name);
+                if (variantData.size) parts.push(`Size: ${variantData.size}`);
+                if (variantData.color) parts.push(`Color: ${variantData.color}`);
+                if (parts.length > 0) variantDisplay = parts.join(' / ');
+              }
+              
+              return {
+                id: item.product_id,
+                orderItemId: item.id,
+                name: item.product_name,
+                image: variantData?.thumbnail_url || item.primary_image_url || "https://placehold.co/100?text=Product",
+                price: variantData?.price || item.price,
+                quantity: item.quantity,
+                seller: storeName,
+                sellerId: sellerId,
+                selectedVariant: variantData ? {
+                  id: variantData.id,
+                  name: variantData.variant_name,
+                  size: variantData.size,
+                  color: variantData.color,
+                } : null,
+                variantDisplay,
+                rating: 5,
+                category: "General",
+              };
+            }),
+            shippingAddress: (() => {
+              // Try to parse shipping address from notes (JSON embedded)
+              let notesAddress: any = null;
+              if (order.notes && order.notes.includes('SHIPPING_ADDRESS:')) {
+                try {
+                  const jsonPart = order.notes.split('SHIPPING_ADDRESS:')[1]?.split('|')[0];
+                  if (jsonPart) {
+                    notesAddress = JSON.parse(jsonPart);
+                  }
+                } catch (e) {
+                  console.warn('Could not parse shipping address from notes');
+                }
+              }
+              
+              return {
+                fullName: notesAddress?.fullName || (recipient
+                  ? `${recipient.first_name || ""} ${recipient.last_name || ""}`.trim()
+                  : "Customer"),
+                street: notesAddress?.street || address?.address_line_1 || "",
+                city: notesAddress?.city || address?.city || "",
+                province: notesAddress?.province || address?.province || "",
+                postalCode: notesAddress?.postalCode || address?.postal_code || "",
+                phone: notesAddress?.phone || recipient?.phone || "",
+              };
+            })(),
             paymentMethod: {
-              type: pm?.type || "cod",
-              details: pm?.details ? JSON.stringify(pm.details) : "",
+              type: "cod",
+              details: "",
             },
-            storeName: (order as any).seller?.store_name || "Unknown Store",
-            sellerId: (order as any).seller?.id || order.seller_id,
+            storeName: storeName,
+            sellerId: sellerId,
           };
-        });
+        }));
 
         useCartStore.setState({ orders: mappedOrders as any });
       } catch (err) {
@@ -450,7 +534,7 @@ export default function OrdersPage() {
   // Always show orders page with sample orders - users should see this immediately
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-gray-50">
       <Header />
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
@@ -512,7 +596,7 @@ export default function OrdersPage() {
           {/* Status Navigation Container */}
           <div className="flex-1 relative min-w-0">
             <div className="overflow-x-auto scrollbar-hide pb-0.5">
-              <div className="inline-flex items-center p-1 bg-gray-50/80 rounded-full border border-gray-100 shadow-sm min-w-full md:min-w-max">
+              <div className="inline-flex items-center p-1 bg-white rounded-full border border-gray-100 shadow-sm min-w-full md:min-w-max">
                 {statusOptions.map((option) => (
                   <button
                     key={option.value}
@@ -625,10 +709,15 @@ export default function OrdersPage() {
                               alt={item.name}
                               className="w-12 h-12 object-cover rounded-md shadow-sm border border-gray-100"
                             />
-                            <div className="flex flex-col sm:flex-row sm:items-center sm:gap-4">
-                              <span className="text-sm font-medium text-gray-800 line-clamp-2">
+                            <div className="flex flex-col">
+                              <span className="text-sm font-medium text-gray-800 line-clamp-1">
                                 {item.name}
                               </span>
+                              {(item as any).variantDisplay && (
+                                <span className="text-xs text-orange-600 font-medium">
+                                  {(item as any).variantDisplay}
+                                </span>
+                              )}
                               <span className="text-xs text-gray-500">
                                 x{item.quantity}
                               </span>
@@ -710,6 +799,12 @@ export default function OrdersPage() {
                             NEW
                           </span>
                         )}
+                        {(order as any).order_type === 'OFFLINE' && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-purple-100 text-purple-700 border border-purple-200">
+                            <Store className="w-3 h-3" />
+                            In-Store
+                          </span>
+                        )}
                         <div
                           className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border ${getStatusColor(order.status)}`}
                         >
@@ -742,10 +837,15 @@ export default function OrdersPage() {
                               alt={item.name}
                               className="w-12 h-12 object-cover rounded-md shadow-sm border border-gray-100"
                             />
-                            <div className="flex flex-col sm:flex-row sm:items-center sm:gap-4">
-                              <span className="text-sm font-medium text-gray-800 line-clamp-2">
+                            <div className="flex flex-col">
+                              <span className="text-sm font-medium text-gray-800 line-clamp-1">
                                 {item.name}
                               </span>
+                              {(item as any).variantDisplay && (
+                                <span className="text-xs text-orange-600 font-medium">
+                                  {(item as any).variantDisplay}
+                                </span>
+                              )}
                               <span className="text-xs text-gray-500">
                                 x{item.quantity}
                               </span>
@@ -793,7 +893,7 @@ export default function OrdersPage() {
                               }}
                               size="sm"
                               variant="outline"
-                              className="border-red-500 text-red-500 hover:bg-red-500 hover:text-white text-xs font-semibold"
+                              className="border-red-500 text-red-500 hover:bg-red-500 hover:text-white"
                             >
                               Cancel Order
                             </Button>
@@ -818,57 +918,55 @@ export default function OrdersPage() {
                                   variant="outline"
                                   className="border-[#FF5722] text-[#FF5722] hover:bg-[#FF5722] hover:text-white hover:border-[#FF5722]"
                                 >
-                                  <Star className="w-4 h-4 mr-1" />
                                   Write Review
                                 </Button>
                               )}
 
-                                { /* Buy Again - Primary Action */ }
-                                <Button
-                                  onClick={() => {
-                                    if (!order.items || order.items.length === 0) {
-                                      toast({
-                                        title: "Cannot buy again",
-                                        description: "No items found in this order.",
-                                        variant: "destructive"
-                                      });
-                                      return;
-                                    }
-                                    
+                              { /* Buy Again - Primary Action */}
+                              <Button
+                                onClick={() => {
+                                  if (!order.items || order.items.length === 0) {
                                     toast({
-                                      title: "Redirecting to Checkout",
-                                      description: "Preparing your items for repurchase...",
+                                      title: "Cannot buy again",
+                                      description: "No items found in this order.",
+                                      variant: "destructive"
                                     });
+                                    return;
+                                  }
 
-                                    // Map order items to CartItem structure for direct checkout
-                                    const buyAgainItems = (order.items as any[]).map(item => ({
-                                      ...item,
-                                      id: item.id, // Product ID
-                                      selected: true,
-                                      seller: {
-                                        id: item.sellerId || "unknown",
-                                        name: item.seller || "Verified Seller",
-                                        avatar: "",
-                                        rating: 5,
-                                        isVerified: true,
-                                      },
-                                    }));
+                                  toast({
+                                    title: "Redirecting to Checkout",
+                                    description: "Preparing your items for repurchase...",
+                                  });
 
-                                    // Set items in store before navigating
-                                    const { setBuyAgainItems } = useBuyerStore.getState();
-                                    setBuyAgainItems(buyAgainItems);
+                                  // Map order items to CartItem structure for direct checkout
+                                  const buyAgainItems = (order.items as any[]).map(item => ({
+                                    ...item,
+                                    id: item.id, // Product ID
+                                    selected: true,
+                                    seller: {
+                                      id: item.sellerId || "unknown",
+                                      name: item.seller || "Verified Seller",
+                                      avatar: "",
+                                      rating: 5,
+                                      isVerified: true,
+                                    },
+                                  }));
 
-                                    // Navigate directly to checkout
-                                    navigate("/checkout", { 
-                                      state: { fromBuyAgain: true } 
-                                    });
-                                  }}
-                                  size="sm"
-                                  className="bg-[#FF5722] hover:bg-[#E64A19] text-white shadow-md shadow-orange-500/20"
-                                >
-                                  <ShoppingBag className="w-4 h-4 mr-1" />
-                                  Buy Again
-                                </Button>
+                                  // Set items in store before navigating
+                                  const { setBuyAgainItems } = useBuyerStore.getState();
+                                  setBuyAgainItems(buyAgainItems);
+
+                                  // Navigate directly to checkout
+                                  navigate("/checkout", {
+                                    state: { fromBuyAgain: true }
+                                  });
+                                }}
+                                size="sm"
+                                className="bg-[#FF5722] hover:bg-[#E64A19] text-white shadow-md shadow-orange-500/20"
+                              >
+                                Buy Again
+                              </Button>
                             </>
                           ) : order.status === "cancelled" ? (
                             /* Canceled - View Details */

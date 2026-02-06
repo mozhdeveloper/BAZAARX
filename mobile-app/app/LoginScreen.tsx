@@ -24,16 +24,12 @@ import { supabase } from '../src/lib/supabase';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Login'>;
 
-// Test accounts with conversations - All have password: Buyer123!
+// Test accounts with BazCoins - All have password: Test@123456
 const TEST_ACCOUNTS = [
-  { email: 'anna.cruz@gmail.com', password: 'Buyer123!', name: 'Anna Marie Cruz', note: '2 conversations' },
-  { email: 'miguel.santos@gmail.com', password: 'Buyer123!', name: 'Miguel Antonio Santos', note: '3 conversations' },
-  { email: 'sofia.reyes@gmail.com', password: 'Buyer123!', name: 'Sofia Gabrielle Reyes', note: '3 conversations' },
-  { email: 'carlos.garcia@gmail.com', password: 'Buyer123!', name: 'Carlos Miguel Garcia', note: '3 conversations' },
-  { email: 'isabella.fernandez@gmail.com', password: 'Buyer123!', name: 'Isabella Rose Fernandez', note: '3 conversations' },
-  { email: 'rafael.mendoza@gmail.com', password: 'Buyer123!', name: 'Rafael Jose Mendoza', note: '2 conversations' },
-  { email: 'gabriela.torres@gmail.com', password: 'Buyer123!', name: 'Gabriela Maria Torres', note: '3 conversations' },
-  { email: 'daniel.villanueva@gmail.com', password: 'Buyer123!', name: 'Daniel James Villanueva', note: '2 conversations' },
+  { email: 'buyer1@gmail.com', password: 'Test@123456', name: 'Angela Cruz', note: '⭐ 1500 BazCoins' },
+  { email: 'buyer2@gmail.com', password: 'Test@123456', name: 'John Mendoza', note: '💰 2300 BazCoins' },
+  { email: 'buyer3@gmail.com', password: 'Test@123456', name: 'Sofia Reyes', note: '💰 800 BazCoins' },
+  { email: 'buyer4@gmail.com', password: 'Test@123456', name: 'Carlos Garcia', note: '💰 450 BazCoins' },
 ];
 
 
