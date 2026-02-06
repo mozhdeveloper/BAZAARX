@@ -30,7 +30,7 @@ export function BazaarFooter() {
           <div className="space-y-4">
             <h4 className="font-semibold">Customer Service</h4>
             <ul className="space-y-2 text-sm text-gray-300">
-              <li><a href="/help" className="hover:text-orange-400 transition-colors">Help Center</a></li>
+              <li><a href="/buyer-support" className="hover:text-orange-400 transition-colors">Help Center</a></li>
               <li><a href="/contact" className="hover:text-orange-400 transition-colors">Contact Us</a></li>
               <li><a href="/returns" className="hover:text-orange-400 transition-colors">Returns</a></li>
               <li><a href="/shipping" className="hover:text-orange-400 transition-colors">Shipping Info</a></li>

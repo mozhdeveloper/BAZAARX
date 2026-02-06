@@ -40,9 +40,9 @@ export default function MyTickets() {
 
     const getStatusColor = (status: TicketStatus) => {
         switch (status) {
-            case 'Open': return 'bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] border-[var(--brand-primary)]/20';
-            case 'In Review': return 'bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] border-[var(--brand-primary)]/20';
-            case 'Resolved': return 'bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] border-[var(--brand-primary)]/20';
+            case 'Open': return 'bg-orange-100 text-orange-600 border-orange-200';
+            case 'In Review': return 'bg-blue-100 text-blue-600 border-blue-200';
+            case 'Resolved': return 'bg-green-100 text-green-600 border-green-200';
             case 'Closed': return 'bg-gray-100 text-gray-500 border-gray-200';
             default: return 'bg-gray-100 text-gray-800';
         }

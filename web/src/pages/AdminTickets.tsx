@@ -221,6 +221,29 @@ export default function AdminTickets() {
                                                     </div>
                                                 </div>
 
+
+                                                {/* Write Response Section */}
+                                                <div className="pt-4 border-t border-gray-50">
+                                                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-3">Write a Response</label>
+                                                    <div className="relative">
+                                                        <textarea
+                                                            placeholder={selectedTicket.status === 'Resolved' ? 'Ticket is resolved' : 'Write a response...'}
+                                                            className="w-full pl-4 pr-12 py-3 bg-white border border-[var(--brand-primary)]/20 rounded-lg text-sm shadow-sm focus:ring-2 focus:border-[var(--brand-primary)] transition-all outline-none resize-none h-24 disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-400"
+                                                            value={replyText}
+                                                            onChange={(e) => setReplyText(e.target.value)}
+                                                            disabled={selectedTicket.status === 'Resolved'}
+                                                        />
+                                                        <Button
+                                                            size="icon"
+                                                            className="absolute right-3 bottom-3 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white shadow-sm h-8 w-8 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                            disabled={!replyText || selectedTicket.status === 'Resolved'}
+                                                        >
+                                                            <Send size={16} />
+                                                        </Button>
+                                                    </div>
+                                                </div>
+
+                                                {/* Status Update Section */}
                                                 <div className="pt-4 border-t border-gray-50">
                                                     <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-3">Internal Status Update</label>
                                                     <div className="grid grid-cols-2 gap-2">
@@ -238,28 +261,12 @@ export default function AdminTickets() {
                                                             onClick={() => {
                                                                 updateTicketStatus(selectedTicket.id, 'Resolved');
                                                                 setSelectedTicket({ ...selectedTicket, status: 'Resolved' });
+                                                                alert(`Notification sent to ${selectedTicket.buyerName}: Your ticket #${selectedTicket.id} has been resolved!`);
                                                             }}
                                                         />
                                                     </div>
                                                 </div>
                                             </CardContent>
-                                            <div className="p-4 border-t border-gray-50 bg-gray-50/50 rounded-b-xl">
-                                                <div className="relative">
-                                                    <textarea
-                                                        placeholder="Write a response..."
-                                                        className="w-full pl-4 pr-12 py-3 bg-white border border-[var(--brand-primary)]/20 rounded-lg text-sm shadow-sm focus:ring-2 focus:border-[var(--brand-primary)] transition-all outline-none resize-none h-24"
-                                                        value={replyText}
-                                                        onChange={(e) => setReplyText(e.target.value)}
-                                                    />
-                                                    <Button
-                                                        size="icon"
-                                                        className="absolute right-3 bottom-3 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white shadow-sm h-8 w-8"
-                                                        disabled={!replyText}
-                                                    >
-                                                        <Send size={16} />
-                                                    </Button>
-                                                </div>
-                                            </div>
                                         </Card>
                                     </motion.div>
                                 ) : (
