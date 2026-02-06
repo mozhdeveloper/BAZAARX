@@ -31,7 +31,7 @@ import BuyerSignupPage from "./pages/BuyerSignupPage";
 import { BuyerSupport } from "./pages/BuyerSupport";
 import BuyerOnboardingPage from "@/pages/BuyerOnboardingPage";
 import MessagesPage from "./pages/MessagesPage";
-import { ProtectedBuyerRoute } from "./components/ProtectedBuyerRoute";
+// import { ProtectedBuyerRoute } from "./components/ProtectedBuyerRoute";
 import TrackingForm from "./components/TrackingForm";
 
 // Seller Pages
@@ -54,7 +54,7 @@ import SellerDiscounts from "./pages/SellerDiscounts";
 import SellerMessages from "./pages/SellerMessages";
 import SellerProductStatus from "./pages/SellerProductStatus";
 import SellerPOS from "./pages/SellerPOS";
-import { ProtectedSellerRoute } from "./components/ProtectedSellerRoute";
+// import { ProtectedSellerRoute } from "./components/ProtectedSellerRoute";
 
 // Admin Pages
 import AdminAuth from "./pages/AdminAuth";
@@ -89,9 +89,9 @@ function App() {
           <Route path="/signup" element={<BuyerSignupPage />} />
           <Route path="/buyer-onboarding"
             element={
-              <ProtectedBuyerRoute>
+              // <ProtectedBuyerRoute>
                 <BuyerOnboardingPage />
-              </ProtectedBuyerRoute>
+              // </ProtectedBuyerRoute>
             }
           />
           <Route path="/shop" element={<ShopPage />} />
@@ -103,91 +103,91 @@ function App() {
           <Route path="/registry/:id" element={<SharedRegistryPage />} />
           <Route path="/enhanced-cart"
             element={
-              <ProtectedBuyerRoute>
+              // <ProtectedBuyerRoute>
                 <EnhancedCartPage />
-              </ProtectedBuyerRoute>
+              // </ProtectedBuyerRoute>
             }
           />
           <Route path="/checkout"
             element={
-              <ProtectedBuyerRoute>
+              // <ProtectedBuyerRoute>
                 <CheckoutPage />
-              </ProtectedBuyerRoute>
+              // </ProtectedBuyerRoute>
             }
           />
           <Route
             path="/order-confirmation/:orderId"
             element={
-              <ProtectedBuyerRoute>
+              // <ProtectedBuyerRoute>
                 <OrderConfirmationPage />
-              </ProtectedBuyerRoute>
+              // </ProtectedBuyerRoute>
             }
           />
           <Route
             path="/delivery-tracking/:orderId"
             element={
-              <ProtectedBuyerRoute>
+              // <ProtectedBuyerRoute>
                 <DeliveryTrackingPage />
-              </ProtectedBuyerRoute>
+              // </ProtectedBuyerRoute>
             }
           />
           <Route path="/orders"
             element={
-              <ProtectedBuyerRoute>
+              // <ProtectedBuyerRoute>
                 <OrdersPage />
-              </ProtectedBuyerRoute>
+              // </ProtectedBuyerRoute>
             }
           />
           <Route path="/order/:orderId"
             element={
-              <ProtectedBuyerRoute>
+              // <ProtectedBuyerRoute>
                 <OrderDetailPage />
-              </ProtectedBuyerRoute>
+              // </ProtectedBuyerRoute>
             }
           />
 
           <Route path="/profile"
             element={
-              <ProtectedBuyerRoute>
+              // <ProtectedBuyerRoute>
                 <BuyerProfilePage />
-              </ProtectedBuyerRoute>
+              // </ProtectedBuyerRoute>
             }
           />
           <Route path="/seller/:sellerId" element={<SellerStorefrontPage />} />
           <Route path="/messages"
             element={
-              <ProtectedBuyerRoute>
+              // <ProtectedBuyerRoute>
                 <MessagesPage />
-              </ProtectedBuyerRoute>
+              // </ProtectedBuyerRoute>
             }
           />
           <Route path="/reviews" element={<ReviewsPage />} />
           <Route path="/my-reviews"
             element={
-              <ProtectedBuyerRoute>
+              // <ProtectedBuyerRoute>
                 <BuyerReviewsPage />
-              </ProtectedBuyerRoute>
+              // </ProtectedBuyerRoute>
             }
           />
           <Route path="/following"
             element={
-              <ProtectedBuyerRoute>
+              // <ProtectedBuyerRoute>
                 <BuyerFollowingPage />
-              </ProtectedBuyerRoute>
+              // </ProtectedBuyerRoute>
             }
           />
           <Route path="/settings"
             element={
-              <ProtectedBuyerRoute>
+              //<ProtectedBuyerRoute>
                 <BuyerSettingsPage />
-              </ProtectedBuyerRoute>
+              //</ProtectedBuyerRoute>
             }
           />
           <Route path="/buyer-support"
             element={
-              <ProtectedBuyerRoute>
+              //<ProtectedBuyerRoute>
                 <BuyerSupport />
-              </ProtectedBuyerRoute>
+              //</ProtectedBuyerRoute>
             }
           />
           <Route path="/track-delivery" element={<TrackingForm />} />
@@ -203,137 +203,137 @@ function App() {
           <Route
             path="/seller"
             element={
-              <ProtectedSellerRoute>
+              //<ProtectedSellerRoute>
                 <SellerDashboard />
-              </ProtectedSellerRoute>
+              //</ProtectedSellerRoute>
             }
           />
           <Route
             path="/seller/profile"
             element={
-              <ProtectedSellerRoute>
+              //<ProtectedSellerRoute>
                 <SellerStoreProfile />
-              </ProtectedSellerRoute>
+              //</ProtectedSellerRoute>
             }
           />
           <Route
             path="/seller/store-profile"
             element={
-              <ProtectedSellerRoute>
+              //<ProtectedSellerRoute>
                 <SellerStoreProfile />
-              </ProtectedSellerRoute>
+              //</ProtectedSellerRoute>
             }
           />
           <Route
             path="/seller/earnings"
             element={
-              <ProtectedSellerRoute>
+              //<ProtectedSellerRoute>
                 <SellerEarnings />
-              </ProtectedSellerRoute>
+              //</ProtectedSellerRoute>
             }
           />
           <Route
             path="/seller/products"
             element={
-              <ProtectedSellerRoute>
+              //<ProtectedSellerRoute>
                 <SellerProducts />
-              </ProtectedSellerRoute>
+              //</ProtectedSellerRoute>
             }
           />
           <Route
             path="/seller/products/add"
             element={
-              <ProtectedSellerRoute>
+              //<ProtectedSellerRoute>
                 <AddProduct />
-              </ProtectedSellerRoute>
+              //</ProtectedSellerRoute>
             }
           />
           <Route
             path="/seller/product-status-qa"
             element={
-              <ProtectedSellerRoute>
+              //<ProtectedSellerRoute>
                 <SellerProductStatus />
-              </ProtectedSellerRoute>
+              //</ProtectedSellerRoute>
             }
           />
           <Route
             path="/seller/orders"
             element={
-              <ProtectedSellerRoute>
+              //<ProtectedSellerRoute>
                 <SellerOrders />
-              </ProtectedSellerRoute>
+              //</ProtectedSellerRoute>
             }
           />
           <Route
             path="/seller/notifications"
             element={
-              <ProtectedSellerRoute>
+              //<ProtectedSellerRoute>
                 <SellerNotifications />
-              </ProtectedSellerRoute>
+              //</ProtectedSellerRoute>
             }
           />
           <Route
             path="/seller/returns"
             element={
-              <ProtectedSellerRoute>
+              //<ProtectedSellerRoute>
                 <SellerReturns />
-              </ProtectedSellerRoute>
+              //</ProtectedSellerRoute>
             }
           />
           <Route
             path="/seller/pos"
             element={
-              <ProtectedSellerRoute>
+              //<ProtectedSellerRoute>
                 <SellerPOS />
-              </ProtectedSellerRoute>
+              //</ProtectedSellerRoute>
             }
           />
           <Route
             path="/seller/flash-sales"
             element={
-              <ProtectedSellerRoute>
+              //<ProtectedSellerRoute>
                 <SellerFlashSales />
-              </ProtectedSellerRoute>
+              //</ProtectedSellerRoute>
             }
           />
           <Route
             path="/seller/discounts"
             element={
-              <ProtectedSellerRoute>
+              //<ProtectedSellerRoute>
                 <SellerDiscounts />
-              </ProtectedSellerRoute>
+              //</ProtectedSellerRoute>
             }
           />
           <Route
             path="/seller/messages"
             element={
-              <ProtectedSellerRoute>
+              //<ProtectedSellerRoute>
                 <SellerMessages />
-              </ProtectedSellerRoute>
+              //</ProtectedSellerRoute>
             }
           />
           <Route
             path="/seller/reviews"
             element={
-              <ProtectedSellerRoute>
+              //<ProtectedSellerRoute>
                 <SellerReviews />
-              </ProtectedSellerRoute>
+              //</ProtectedSellerRoute>
             }
           />
           <Route
             path="/seller/analytics"
             element={
-              <ProtectedSellerRoute>
+              //<ProtectedSellerRoute>
                 <SellerAnalytics />
-              </ProtectedSellerRoute>
+              //</ProtectedSellerRoute>
             }
           />
           <Route
             path="/seller/settings"
             element={
-              <ProtectedSellerRoute>
+              //<ProtectedSellerRoute>
                 <SellerSettings />
-              </ProtectedSellerRoute>
+              //</ProtectedSellerRoute>
             }
           />
 
