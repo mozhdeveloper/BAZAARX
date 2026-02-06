@@ -17,7 +17,7 @@ const CollectionsPage: React.FC = () => {
   });
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-orange-50/30 to-white">
+    <div className="min-h-screen bg-gray-50">
       <Header />
 
       {/* Hero Section - Glass-like Gradient */}

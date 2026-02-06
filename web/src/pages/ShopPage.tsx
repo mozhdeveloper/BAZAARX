@@ -112,7 +112,7 @@ export default function ShopPage() {
   const [isToolbarSticky, setIsToolbarSticky] = useState(true);
   const [showBuyNowModal, setShowBuyNowModal] = useState(false);
   const [buyNowProduct, setBuyNowProduct] = useState<any>(null);
-  
+
   // Variant Selection Modal state (for Add to Cart)
   const [showVariantModal, setShowVariantModal] = useState(false);
   const [variantProduct, setVariantProduct] = useState<any>(null);
@@ -684,7 +684,7 @@ export default function ShopPage() {
                             const hasVariants = (product as any).variants && (product as any).variants.length > 0;
                             const hasColors = product.colors && product.colors.length > 0;
                             const hasSizes = product.sizes && product.sizes.length > 0;
-                            
+
                             if (hasVariants || hasColors || hasSizes) {
                               // Show variant selection modal
                               setVariantProduct({
@@ -802,7 +802,7 @@ export default function ShopPage() {
                             });
                             setShowBuyNowModal(true);
                           }}
-                          className="w-full bg-[#FF5722] hover:bg-[#271e1b] text-white rounded-xl transition-all active:scale-95"
+                          className="w-full bg-[#FF5722] hover:bg-[#E64A19] text-white rounded-xl transition-all active:scale-95"
                         >
                           Buy Now
                         </Button>
@@ -970,10 +970,10 @@ export default function ShopPage() {
             };
 
             addToCart(cartItem, quantity, variant);
-            
+
             setShowVariantModal(false);
             setVariantProduct(null);
-            
+
             // Show cart confirmation modal
             setAddedProduct({
               name: variantProduct.name,

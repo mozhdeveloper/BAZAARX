@@ -815,7 +815,7 @@ const reviewsData: Record<string, any[]> = {
 export default function ProductDetailPage({ }: ProductDetailPageProps) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { addToCart, setQuickOrder, profile, registries, addToRegistry } = useBuyerStore();
+  const { addToCart, setQuickOrder, profile, registries, addToRegistry, cartItems } = useBuyerStore();
   const { products: sellerProducts } = useProductStore();
 
   const [showRegistryModal, setShowRegistryModal] = useState(false);
@@ -829,7 +829,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
   const [activeTab, setActiveTab] = useState("description");
   const [dbProduct, setDbProduct] = useState<ProductWithSeller | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  
+
   // Modal states for Add to Cart and Buy Now
   const [showCartModal, setShowCartModal] = useState(false);
   const [showBuyNowModal, setShowBuyNowModal] = useState(false);
@@ -879,7 +879,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
   const extractedVariants = (sellerProduct as any)?.variants || [];
   const extractedSizes = [...new Set(extractedVariants.map((v: any) => v.size).filter(Boolean))] as string[];
   const extractedColors = [...new Set(extractedVariants.map((v: any) => v.color).filter(Boolean))] as string[];
-  
+
   const normalizedProduct = sellerProduct
     ? {
       id: (sellerProduct as any).id,
@@ -895,7 +895,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
         (sellerProduct as any).primary_image_url ||
         (sellerProduct as any).image ||
         "https://placehold.co/400?text=Product",
-      images: ((sellerProduct as any).images || []).map((img: any) => 
+      images: ((sellerProduct as any).images || []).map((img: any) =>
         typeof img === 'string' ? img : img.image_url
       ).filter(Boolean),
       category: (sellerProduct as any).category,
@@ -952,7 +952,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
   const productId = normalizedProduct?.id || id?.split("-")[0] || "1";
   // Get variants from normalized product for proper price/stock management
   const dbVariants = (normalizedProduct as any)?.variants || [];
-  
+
   // Helper to get the selected variant based on size and color
   const getSelectedVariant = () => {
     if (dbVariants.length === 0) return null;
@@ -961,13 +961,13 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
     // Find variant matching selected size and/or color
     return dbVariants.find((v: any) => {
       const sizeMatch = !selectedSize || v.size === selectedSize;
-      const colorMatch = !productData.colors.length || 
+      const colorMatch = !productData.colors.length ||
         productData.colors[selectedColor]?.name === v.color ||
         (selectedColor === 0 && !v.color);
       return sizeMatch && colorMatch;
     }) || dbVariants[0];
   };
-  
+
   const productData = enhancedProductData[productId] || {
     name: normalizedProduct?.name || "",
     description:
@@ -1041,7 +1041,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
       // Start in mini mode (just the bubble)
       useChatStore.getState().setMiniMode(true);
     }
-    
+
     // Cleanup - clear chat target when leaving page
     return () => {
       useChatStore.getState().closeChat();
@@ -1052,7 +1052,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
 
   if (!normalizedProduct) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50">
         <div className="text-center">
           <h2 className="text-2xl font-semibold text-gray-900 mb-2">
             Product not found
@@ -1187,13 +1187,13 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
 
   const handleBuyNow = () => {
     if (!normalizedProduct) return;
-    
+
     // Show the buy now modal for variant selection
     setShowBuyNowModal(true);
   };
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-gray-50">
       <Header />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 md:py-6">
@@ -1504,7 +1504,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
         {/* Tabs / Reviews / Full Desc Section */}
         <div className="mt-4 border-t border-gray-100 pt-4">
           {/* Tab Navigation */}
-          <div className="flex justify-center mb-4 sticky top-20 z-50 bg-white/80 backdrop-blur-md py-4">
+          <div className="flex justify-center mb-4 sticky top-20 z-50 bg-gray-50/95 backdrop-blur-md py-4">
             <nav className="inline-flex bg-gray-100/50 p-1 rounded-full">
               {["description", "reviews", "support"].map((tab) => (
                 <button
@@ -1676,7 +1676,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
           });
         }}
       />
-      
+
       {/* Cart Modal */}
       {addedProductInfo && (
         <CartModal
@@ -1687,7 +1687,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
           cartItemCount={cartItems.length}
         />
       )}
-      
+
       {/* Buy Now Modal */}
       {normalizedProduct && (
         <BuyNowModal
@@ -1711,7 +1711,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
             const productLocation = "location" in normalizedProduct ? normalizedProduct.location : "Metro Manila";
             const soldCount = "sold" in normalizedProduct ? normalizedProduct.sold : 0;
             const freeShipping = "isFreeShipping" in normalizedProduct ? normalizedProduct.isFreeShipping : true;
-            
+
             const productForQuickOrder = {
               id: normalizedProduct.id,
               name: productData.name,
@@ -1746,7 +1746,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
               specifications: {},
               variants: dbVariants,
             };
-            
+
             setQuickOrder(productForQuickOrder as any, qty, variant);
             navigate("/checkout");
           }}

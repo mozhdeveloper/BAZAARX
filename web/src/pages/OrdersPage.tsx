@@ -45,7 +45,7 @@ export default function OrdersPage() {
 
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState("");
-  
+
   const statusFilter = searchParams.get("status") || "pending";
   const setStatusFilter = (status: string) => {
     setSearchParams(prev => {
@@ -102,8 +102,8 @@ export default function OrdersPage() {
     const dateReference = order.deliveryDate
       ? parseDate(order.deliveryDate)
       : order.createdAt
-      ? parseDate(order.createdAt)
-      : null;
+        ? parseDate(order.createdAt)
+        : null;
 
     if (!dateReference) return false; // If no date reference, assume window closed to be safe
 
@@ -534,7 +534,7 @@ export default function OrdersPage() {
   // Always show orders page with sample orders - users should see this immediately
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-gray-50">
       <Header />
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
@@ -596,7 +596,7 @@ export default function OrdersPage() {
           {/* Status Navigation Container */}
           <div className="flex-1 relative min-w-0">
             <div className="overflow-x-auto scrollbar-hide pb-0.5">
-              <div className="inline-flex items-center p-1 bg-gray-50/80 rounded-full border border-gray-100 shadow-sm min-w-full md:min-w-max">
+              <div className="inline-flex items-center p-1 bg-white rounded-full border border-gray-100 shadow-sm min-w-full md:min-w-max">
                 {statusOptions.map((option) => (
                   <button
                     key={option.value}
@@ -893,7 +893,7 @@ export default function OrdersPage() {
                               }}
                               size="sm"
                               variant="outline"
-                              className="border-red-500 text-red-500 hover:bg-red-500 hover:text-white text-xs font-semibold"
+                              className="border-red-500 text-red-500 hover:bg-red-500 hover:text-white"
                             >
                               Cancel Order
                             </Button>
@@ -918,57 +918,55 @@ export default function OrdersPage() {
                                   variant="outline"
                                   className="border-[#FF5722] text-[#FF5722] hover:bg-[#FF5722] hover:text-white hover:border-[#FF5722]"
                                 >
-                                  <Star className="w-4 h-4 mr-1" />
                                   Write Review
                                 </Button>
                               )}
 
-                                { /* Buy Again - Primary Action */ }
-                                <Button
-                                  onClick={() => {
-                                    if (!order.items || order.items.length === 0) {
-                                      toast({
-                                        title: "Cannot buy again",
-                                        description: "No items found in this order.",
-                                        variant: "destructive"
-                                      });
-                                      return;
-                                    }
-                                    
+                              { /* Buy Again - Primary Action */}
+                              <Button
+                                onClick={() => {
+                                  if (!order.items || order.items.length === 0) {
                                     toast({
-                                      title: "Redirecting to Checkout",
-                                      description: "Preparing your items for repurchase...",
+                                      title: "Cannot buy again",
+                                      description: "No items found in this order.",
+                                      variant: "destructive"
                                     });
+                                    return;
+                                  }
 
-                                    // Map order items to CartItem structure for direct checkout
-                                    const buyAgainItems = (order.items as any[]).map(item => ({
-                                      ...item,
-                                      id: item.id, // Product ID
-                                      selected: true,
-                                      seller: {
-                                        id: item.sellerId || "unknown",
-                                        name: item.seller || "Verified Seller",
-                                        avatar: "",
-                                        rating: 5,
-                                        isVerified: true,
-                                      },
-                                    }));
+                                  toast({
+                                    title: "Redirecting to Checkout",
+                                    description: "Preparing your items for repurchase...",
+                                  });
 
-                                    // Set items in store before navigating
-                                    const { setBuyAgainItems } = useBuyerStore.getState();
-                                    setBuyAgainItems(buyAgainItems);
+                                  // Map order items to CartItem structure for direct checkout
+                                  const buyAgainItems = (order.items as any[]).map(item => ({
+                                    ...item,
+                                    id: item.id, // Product ID
+                                    selected: true,
+                                    seller: {
+                                      id: item.sellerId || "unknown",
+                                      name: item.seller || "Verified Seller",
+                                      avatar: "",
+                                      rating: 5,
+                                      isVerified: true,
+                                    },
+                                  }));
 
-                                    // Navigate directly to checkout
-                                    navigate("/checkout", { 
-                                      state: { fromBuyAgain: true } 
-                                    });
-                                  }}
-                                  size="sm"
-                                  className="bg-[#FF5722] hover:bg-[#E64A19] text-white shadow-md shadow-orange-500/20"
-                                >
-                                  <ShoppingBag className="w-4 h-4 mr-1" />
-                                  Buy Again
-                                </Button>
+                                  // Set items in store before navigating
+                                  const { setBuyAgainItems } = useBuyerStore.getState();
+                                  setBuyAgainItems(buyAgainItems);
+
+                                  // Navigate directly to checkout
+                                  navigate("/checkout", {
+                                    state: { fromBuyAgain: true }
+                                  });
+                                }}
+                                size="sm"
+                                className="bg-[#FF5722] hover:bg-[#E64A19] text-white shadow-md shadow-orange-500/20"
+                              >
+                                Buy Again
+                              </Button>
                             </>
                           ) : order.status === "cancelled" ? (
                             /* Canceled - View Details */
