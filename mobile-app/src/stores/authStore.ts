@@ -80,21 +80,31 @@ export const useAuthStore = create<AuthState>()(
           const result = await authService.signIn(email, password);
           if (result?.user) {
             const profile = await authService.getUserProfile(result.user.id);
+            // Get user roles from user_roles table
+            const roles = await authService.getUserRoles(result.user.id);
+            // Use first_name + last_name (new schema, no full_name)
+            const firstName = profile?.first_name || '';
+            const lastName = profile?.last_name || '';
+            const fullName = `${firstName} ${lastName}`.trim() || result.user.email?.split('@')[0] || 'User';
+            // Get avatar from buyer record if available
+            const buyer = await authService.getBuyerProfile(result.user.id).catch(() => null);
             const user: User = {
               id: result.user.id,
               email: result.user.email || email,
-              name: profile?.full_name || result.user.email?.split('@')[0] || 'User',
+              name: fullName,
               phone: profile?.phone || '',
-              avatar: profile?.avatar_url || undefined,
-              roles: profile?.user_type ? [profile.user_type] : ['buyer'],
+              avatar: buyer?.avatar_url || undefined,
+              roles: roles.length > 0 ? roles : ['buyer'],
               savedCards: [],
             };
+            // Determine active role from roles
+            const isSeller = roles.includes('seller');
             set({
               user,
               profile,
               isAuthenticated: true,
               isGuest: false,
-              activeRole: profile?.user_type === 'seller' ? 'seller' : 'buyer',
+              activeRole: isSeller ? 'seller' : 'buyer',
               loading: false,
             });
             return true;

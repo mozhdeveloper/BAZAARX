@@ -326,28 +326,30 @@ export function SellerStoreProfile() {
       if (!seller?.id) return;
 
       try {
-        const { data, error } = await supabase
+        // Fetch seller approval status
+        const { data: sellerData, error: sellerError } = await supabase
           .from("sellers")
-          .select(
-            "business_permit_url, valid_id_url, proof_of_address_url, dti_registration_url, tax_id_url, is_verified, approval_status",
-          )
+          .select("approval_status")
           .eq("id", seller.id)
           .single();
 
-        if (error) {
-          console.error("Error fetching seller data:", error);
-          return;
+        if (sellerError) {
+          console.error("Error fetching seller status:", sellerError);
+        } else if (sellerData) {
+          setApprovalStatus(sellerData.approval_status || "pending");
+          setIsVerified(sellerData.approval_status === "verified");
         }
 
-        if (data) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const docData: any = data;
+        // Fetch verification documents from separate table
+        const { data: docData, error: docError } = await supabase
+          .from("seller_verification_documents")
+          .select("business_permit_url, valid_id_url, proof_of_address_url, dti_registration_url, tax_id_url")
+          .eq("seller_id", seller.id)
+          .single();
 
-          // Update verification status
-          setIsVerified(docData.is_verified || false);
-          setApprovalStatus(docData.approval_status || "pending");
-
-          // Update documents
+        if (docError && docError.code !== 'PGRST116') { // PGRST116 = no rows
+          console.error("Error fetching seller documents:", docError);
+        } else if (docData) {
           setDocuments({
             businessPermitUrl: docData.business_permit_url || undefined,
             validIdUrl: docData.valid_id_url || undefined,
@@ -389,47 +391,36 @@ export function SellerStoreProfile() {
         throw new Error("Upload failed");
       }
 
-      // Update Supabase database based on document type
-      // Using type casting due to Supabase typed client limitations with dynamic column updates
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const supabaseClient: any = supabase;
-      let updateQuery;
-      switch (columnName) {
-        case "business_permit_url":
-          updateQuery = supabaseClient
-            .from("sellers")
-            .update({ business_permit_url: documentUrl })
-            .eq("id", seller.id);
-          break;
-        case "valid_id_url":
-          updateQuery = supabaseClient
-            .from("sellers")
-            .update({ valid_id_url: documentUrl })
-            .eq("id", seller.id);
-          break;
-        case "proof_of_address_url":
-          updateQuery = supabaseClient
-            .from("sellers")
-            .update({ proof_of_address_url: documentUrl })
-            .eq("id", seller.id);
-          break;
-        case "dti_registration_url":
-          updateQuery = supabaseClient
-            .from("sellers")
-            .update({ dti_registration_url: documentUrl })
-            .eq("id", seller.id);
-          break;
-        case "tax_id_url":
-          updateQuery = supabaseClient
-            .from("sellers")
-            .update({ tax_id_url: documentUrl })
-            .eq("id", seller.id);
-          break;
-        default:
-          throw new Error("Invalid document type");
-      }
+      // Update seller_verification_documents table
+      // First check if record exists
+      const { data: existingDoc } = await supabase
+        .from("seller_verification_documents")
+        .select("seller_id")
+        .eq("seller_id", seller.id)
+        .single();
 
-      const { error } = await updateQuery;
+      const updateData: Record<string, string> = {
+        [columnName]: documentUrl,
+      };
+
+      let error;
+      if (existingDoc) {
+        // Update existing record
+        const result = await supabase
+          .from("seller_verification_documents")
+          .update(updateData)
+          .eq("seller_id", seller.id);
+        error = result.error;
+      } else {
+        // Insert new record
+        const result = await supabase
+          .from("seller_verification_documents")
+          .insert({
+            seller_id: seller.id,
+            ...updateData,
+          });
+        error = result.error;
+      }
 
       if (error) {
         throw error;

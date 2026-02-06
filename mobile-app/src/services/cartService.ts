@@ -1,314 +1,311 @@
 /**
- * CartService
- * Mobile App Port of web/src/services/cartService.ts
- * Handles all cart-related operations between client and Supabase
- * Following the Service Layer Architecture pattern
+ * Cart Service
+ * Handles all cart-related database operations
+ * 
+ * Updated for new normalized schema (February 2026):
+ * - Simplified carts table: id, buyer_id, created_at, updated_at
+ * - cart_items: product_id, variant_id (FK), quantity, personalized_options, notes
  */
 
-import { supabase, isSupabaseConfigured } from '../lib/supabase';
-import { CartItem, Product } from '../types';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import type { Cart, CartItem } from '@/types/database.types';
 
 export class CartService {
-    private static instance: CartService;
+  private static instance: CartService;
 
-    private constructor() { }
+  private constructor() { }
 
-    public static getInstance(): CartService {
-        if (!CartService.instance) {
-            CartService.instance = new CartService();
-        }
-        return CartService.instance;
+  public static getInstance(): CartService {
+    if (!CartService.instance) {
+      CartService.instance = new CartService();
+    }
+    return CartService.instance;
+  }
+
+  /**
+   * Get existing cart for a buyer
+   * New schema: carts table only has id, buyer_id, created_at, updated_at
+   */
+  async getCart(buyerId: string): Promise<Cart | null> {
+    if (!isSupabaseConfigured()) {
+      console.warn('Supabase not configured - cannot fetch cart');
+      return null;
     }
 
-    /**
-     * Get or create cart for a buyer
-     */
-    async getOrCreateCart(buyerId: string): Promise<string> {
-        if (!isSupabaseConfigured()) {
-            throw new Error('Supabase not configured');
-        }
+    try {
+      const { data: cart, error } = await supabase
+        .from('carts')
+        .select('*')
+        .eq('buyer_id', buyerId)
+        .maybeSingle();
 
-        try {
-            const { data: existingCart } = await supabase
-                .from('carts')
-                .select('id')
-                .eq('buyer_id', buyerId)
-                .is('expires_at', null)
-                .maybeSingle();
+      if (error) throw error;
+      return cart;
+    } catch (error) {
+      console.error('Error getting cart:', error);
+      throw new Error('Failed to retrieve cart.');
+    }
+  }
 
-            if (existingCart) {
-                return existingCart.id;
-            }
-
-            const { data: newCart, error: createErr } = await supabase
-                .from('carts')
-                .insert({
-                    buyer_id: buyerId,
-                    discount_amount: 0,
-                    shipping_cost: 0,
-                    tax_amount: 0,
-                    total_amount: 0,
-                })
-                .select()
-                .single();
-
-            if (createErr) throw createErr;
-            if (!newCart) throw new Error('Failed to create cart');
-
-            return newCart.id;
-        } catch (error) {
-            console.error('[CartService] Error in getOrCreateCart:', error);
-            throw error;
-        }
+  /**
+   * Get or create cart for a buyer
+   * New schema: simplified cart creation
+   */
+  async getOrCreateCart(buyerId: string): Promise<Cart> {
+    if (!isSupabaseConfigured()) {
+      throw new Error('Supabase not configured - cannot get or create cart');
     }
 
-    /**
-     * Get cart items for a cart ID
-     */
-    async getCartItems(cartId: string): Promise<CartItem[]> {
-        if (!isSupabaseConfigured()) return [];
+    try {
+      // Try to get existing cart
+      const cart = await this.getCart(buyerId);
 
-        try {
-            const { data, error } = await supabase
-                .from('cart_items')
-                .select(`
+      // If no cart exists, create one
+      if (!cart) {
+        const { data: newCart, error: createError } = await supabase
+          .from('carts')
+          .insert({
+            buyer_id: buyerId,
+          })
+          .select()
+          .single();
+
+        if (createError) throw createError;
+        if (!newCart) throw new Error('Failed to create new cart');
+
+        return newCart;
+      }
+
+      return cart;
+    } catch (error) {
+      console.error('Error getting/creating cart:', error);
+      throw new Error(error instanceof Error ? error.message : 'Failed to manage cart.');
+    }
+  }
+
+  /**
+   * Get cart items with product and variant details
+   * Updated for new normalized schema
+   */
+  async getCartItems(cartId: string): Promise<CartItem[]> {
+    if (!isSupabaseConfigured()) {
+      console.warn('Supabase not configured - cannot fetch cart items');
+      return [];
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('cart_items')
+        .select(`
           *,
           product:products (
-            *,
-            seller:sellers!products_seller_id_fkey (
-              business_name,
-              store_name,
-              business_address,
-              rating,
-              is_verified,
-              id
-            )
+            id,
+            name,
+            description,
+            price,
+            category_id,
+            category:categories (name),
+            images:product_images (image_url, is_primary, sort_order)
+          ),
+          variant:product_variants (
+            id,
+            sku,
+            variant_name,
+            size,
+            color,
+            price,
+            stock,
+            thumbnail_url
           )
         `)
-                .eq('cart_id', cartId);
+        .eq('cart_id', cartId);
 
-            if (error) throw error;
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching cart items:', error);
+      throw new Error('Failed to fetch cart items.');
+    }
+  }
 
-            return (data || []).map((row: any) => {
-                const p = row.product || {};
-                const image = p.primary_image || (Array.isArray(p.images) && p.images.length > 0 ? p.images[0] : '');
-                const sellerObj = p.seller || {};
-                return {
-                    id: p.id || row.product_id,
-                    name: p.name || 'Product',
-                    price: typeof p.price === 'number' ? p.price : parseFloat(p.price || '0'),
-                    originalPrice: typeof p.original_price === 'number' ? p.original_price : parseFloat(p.original_price || '0') || undefined,
-                    images: Array.isArray(p.images) ? p.images : [],
-                    rating: typeof p.rating === 'number' ? p.rating : 0,
-                    sold: typeof p.sales_count === 'number' ? p.sales_count : 0,
-                    seller: sellerObj.store_name || sellerObj.business_name || 'Official Store',
-                    sellerId: p.seller_id || sellerObj.id,
-                    seller_id: p.seller_id || sellerObj.id,
-                    sellerRating: typeof sellerObj.rating === 'number' ? sellerObj.rating : 4.8,
-                    sellerVerified: !!sellerObj.is_verified,
-                    isFreeShipping: !!p.is_free_shipping,
-                    isVerified: !!p.is_verified,
-                    location: sellerObj.business_address || 'Philippines',
-                    description: p.description || '',
-                    category: p.category || 'general',
-                    stock: typeof p.stock === 'number' ? p.stock : 0,
-                    quantity: row.quantity || 1,
-                    selectedVariant: row.selected_variant || null,
-                };
-            });
-        } catch (error) {
-            console.error('[CartService] Error in getCartItems:', error);
-            throw error;
-        }
+  /**
+   * Add item to cart
+   * Updated for new schema with variant_id
+   */
+  async addToCart(
+    cartId: string,
+    productId: string,
+    quantity: number,
+    variantId?: string,
+    personalizedOptions?: Record<string, unknown>,
+    notes?: string
+  ): Promise<CartItem> {
+    if (!isSupabaseConfigured()) {
+      throw new Error('Supabase not configured - cannot add to cart');
     }
 
-    /**
-     * Add item to cart or increment quantity
-     * @param cartId - Cart ID
-     * @param productId - Product ID
-     * @param unitPrice - Unit price
-     * @param quantity - Quantity to add (default 1)
-     * @param selectedVariant - Selected variant (color, size)
-     */
-    async addItem(
-        cartId: string, 
-        productId: string, 
-        unitPrice: number, 
-        quantity: number = 1,
-        selectedVariant?: { color?: string; size?: string } | null
-    ): Promise<void> {
-        if (!isSupabaseConfigured()) return;
+    try {
+      // Check if item already exists with the same variant
+      let query = supabase
+        .from('cart_items')
+        .select('*')
+        .eq('cart_id', cartId)
+        .eq('product_id', productId);
 
-        try {
-            console.log('[CartService] Adding item:', { cartId, productId, unitPrice, quantity, selectedVariant });
+      // If variant specified, filter by variant_id
+      if (variantId) {
+        query = query.eq('variant_id', variantId);
+      } else {
+        query = query.is('variant_id', null);
+      }
 
-            // Build query to find existing item with same variant
-            let query = supabase
-                .from('cart_items')
-                .select('*')
-                .eq('cart_id', cartId)
-                .eq('product_id', productId);
-            
-            // For items with same variant, we increment quantity
-            // For items with different variant, we add a new row
-            const { data: existingItems, error: fetchError } = await query;
-            
-            if (fetchError) {
-                console.error('[CartService] Error fetching existing items:', fetchError);
-                throw fetchError;
-            }
+      const { data: existing, error: findError } = await query.maybeSingle();
+      if (findError) throw findError;
 
-            const matchingItem = (existingItems || []).find((item: any) => {
-                let itemVariant = item.selected_variant || null;
-                
-                // Handle stringified JSON from DB if necessary
-                if (typeof itemVariant === 'string') {
-                    try {
-                        itemVariant = JSON.parse(itemVariant);
-                    } catch (e) {
-                        // ignore error, keep as string or null
-                    }
-                }
-                
-                const newVariant = selectedVariant || null;
-                
-                // Both null = match
-                if (!itemVariant && !newVariant) return true;
-                
-                // One null = no match
-                if (!itemVariant || !newVariant) return false;
-                
-                // Compare variants (normalization for safety)
-                const itemColor = itemVariant.color?.toString().trim() || '';
-                const itemSize = itemVariant.size?.toString().trim() || '';
-                const newColor = newVariant.color?.toString().trim() || '';
-                const newSize = newVariant.size?.toString().trim() || ''; // Ensure 'toString' to avoid type errors
+      let result;
+      if (existing) {
+        // Update quantity
+        const newQuantity = (existing as any).quantity + quantity;
+        const { data, error } = await supabase
+          .from('cart_items')
+          .update({
+            quantity: newQuantity,
+            personalized_options: personalizedOptions || (existing as any).personalized_options,
+            notes: notes || (existing as any).notes,
+          })
+          .eq('id', (existing as any).id)
+          .select()
+          .single();
 
-                return itemColor === newColor && itemSize === newSize;
-            });
+        if (error) throw error;
+        result = data;
+      } else {
+        // Insert new item
+        const { data, error } = await supabase
+          .from('cart_items')
+          .insert({
+            cart_id: cartId,
+            product_id: productId,
+            quantity,
+            variant_id: variantId || null,
+            personalized_options: personalizedOptions || null,
+            notes: notes || null,
+          })
+          .select()
+          .single();
 
-            if (matchingItem) {
-                console.log('[CartService] Updating quantity for existing item:', matchingItem.id);
-                const newQty = (matchingItem as any).quantity + quantity;
-                await supabase
-                    .from('cart_items')
-                    .update({ quantity: newQty, subtotal: newQty * unitPrice })
-                    .eq('id', (matchingItem as any).id);
-            } else {
-                console.log('[CartService] Inserting new item');
-                const { error: insertError } = await supabase
-                    .from('cart_items')
-                    .insert({
-                        cart_id: cartId,
-                        product_id: productId,
-                        quantity: quantity,
-                        subtotal: quantity * unitPrice,
-                        selected_variant: selectedVariant || null,
-                    });
-                
-                if (insertError) {
-                    console.error('[CartService] Error inserting item:', insertError);
-                    throw insertError;
-                }
-            }
+        if (error) throw error;
+        result = data;
+      }
 
-            await this.syncCartTotal(cartId);
-        } catch (error) {
-            console.error('[CartService] Error in addItem:', error);
-            throw error;
-        }
+      if (!result) throw new Error('Failed to add or update cart item');
+      return result;
+    } catch (error) {
+      console.error('Error adding to cart:', error);
+      throw new Error(error instanceof Error ? error.message : 'Failed to add item to cart.');
+    }
+  }
+
+  /**
+   * Update cart item quantity
+   * New schema: no subtotal on cart_items
+   */
+  async updateCartItemQuantity(
+    itemId: string,
+    quantity: number
+  ): Promise<void> {
+    if (!isSupabaseConfigured()) {
+      throw new Error('Supabase not configured - cannot update cart item');
     }
 
-    /**
-     * Update item quantity
-     */
-    async updateQuantity(cartId: string, productId: string, quantity: number, unitPrice: number): Promise<void> {
-        if (!isSupabaseConfigured()) return;
+    try {
+      const { error } = await supabase
+        .from('cart_items')
+        .update({ quantity })
+        .eq('id', itemId);
 
-        try {
-            if (quantity <= 0) {
-                await this.removeItem(cartId, productId);
-                return;
-            }
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error updating cart item:', error);
+      throw new Error(error instanceof Error ? error.message : 'Failed to update item quantity.');
+    }
+  }
 
-            await supabase
-                .from('cart_items')
-                .update({
-                    quantity,
-                    subtotal: quantity * unitPrice,
-                })
-                .eq('cart_id', cartId)
-                .eq('product_id', productId);
-
-            await this.syncCartTotal(cartId);
-        } catch (error) {
-            console.error('[CartService] Error in updateQuantity:', error);
-            throw error;
-        }
+  /**
+   * Remove item from cart
+   */
+  async removeFromCart(itemId: string): Promise<void> {
+    if (!isSupabaseConfigured()) {
+      throw new Error('Supabase not configured - cannot remove from cart');
     }
 
-    /**
-     * Remove item from cart
-     */
-    async removeItem(cartId: string, productId: string): Promise<void> {
-        if (!isSupabaseConfigured()) return;
+    try {
+      const { error: deleteError } = await supabase
+        .from('cart_items')
+        .delete()
+        .eq('id', itemId);
 
-        try {
-            await supabase
-                .from('cart_items')
-                .delete()
-                .eq('cart_id', cartId)
-                .eq('product_id', productId);
+      if (deleteError) throw deleteError;
+    } catch (error) {
+      console.error('Error removing from cart:', error);
+      throw new Error('Failed to remove item from cart.');
+    }
+  }
 
-            await this.syncCartTotal(cartId);
-        } catch (error) {
-            console.error('[CartService] Error in removeItem:', error);
-            throw error;
-        }
+  /**
+   * Clear cart (delete all items and the cart itself)
+   */
+  async clearCart(cartId: string): Promise<void> {
+    if (!isSupabaseConfigured()) {
+      throw new Error('Supabase not configured - cannot clear cart');
     }
 
-    /**
-     * Clear all items in cart
-     */
-    async clearCart(cartId: string): Promise<void> {
-        if (!isSupabaseConfigured()) return;
+    try {
+      // Delete all items first
+      const { error: deleteItemsError } = await supabase
+        .from('cart_items')
+        .delete()
+        .eq('cart_id', cartId);
 
-        try {
-            await supabase.from('cart_items').delete().eq('cart_id', cartId);
-            await supabase.from('carts').update({ total_amount: 0 }).eq('id', cartId);
-        } catch (error) {
-            console.error('[CartService] Error in clearCart:', error);
-            throw error;
-        }
+      if (deleteItemsError) throw deleteItemsError;
+
+      // Then delete the cart itself
+      const { error: deleteCartError } = await supabase
+        .from('carts')
+        .delete()
+        .eq('id', cartId);
+
+      if (deleteCartError) throw deleteCartError;
+    } catch (error) {
+      console.error('Error clearing cart:', error);
+      throw new Error('Failed to clear cart.');
+    }
+  }
+
+  /**
+   * Calculate cart totals from items
+   * In new schema, totals are computed not stored on carts table
+   */
+  async calculateCartTotals(cartId: string): Promise<{
+    subtotal: number;
+    itemCount: number;
+    items: CartItem[];
+  }> {
+    const items = await this.getCartItems(cartId);
+
+    let subtotal = 0;
+    let itemCount = 0;
+
+    for (const item of items) {
+      const qty = (item as any).quantity || 0;
+      // Get price from variant if available, otherwise from product
+      const price = (item as any).variant?.price || (item as any).product?.price || 0;
+      subtotal += qty * price;
+      itemCount += qty;
     }
 
-    /**
-     * Sync the parent cart total amount
-     */
-    async syncCartTotal(cartId: string): Promise<number> {
-        if (!isSupabaseConfigured()) return 0;
-
-        try {
-            const { data: items, error: fetchErr } = await supabase
-                .from('cart_items')
-                .select('subtotal')
-                .eq('cart_id', cartId);
-
-            if (fetchErr) throw fetchErr;
-
-            const newTotal = (items || []).reduce((sum, item) => sum + (item.subtotal || 0), 0);
-
-            await supabase
-                .from('carts')
-                .update({ total_amount: newTotal })
-                .eq('id', cartId);
-
-            return newTotal;
-        } catch (error) {
-            console.error('[CartService] Error in syncCartTotal:', error);
-            throw error;
-        }
-    }
+    return { subtotal, itemCount, items };
+  }
 }
 
 export const cartService = CartService.getInstance();

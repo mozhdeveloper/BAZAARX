@@ -1,534 +1,1004 @@
+/**
+ * Order Service
+ * Handles all order-related database operations
+ * 
+ * Updated for new normalized schema (February 2026):
+ * - Uses payment_status + shipment_status instead of single status
+ * - Uses recipient_id FK to order_recipients instead of inline buyer info
+ * - Uses address_id FK to shipping_addresses instead of inline address
+ * - No seller_id on orders - determined via order_items
+ */
+
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import { Order } from '@/types';
+import type { Order, OrderItem, PaymentStatus, ShipmentStatus, Database } from '@/types/database.types';
+import { reviewService } from './reviewService';
 import { orderNotificationService } from './orderNotificationService';
 import { notificationService } from './notificationService';
 
+export type OrderInsert = Database['public']['Tables']['orders']['Insert'];
+export type OrderItemInsert = Database['public']['Tables']['order_items']['Insert'];
+
+// Legacy status mapping to new payment_status + shipment_status
+const LEGACY_STATUS_MAP: Record<string, { payment_status: PaymentStatus; shipment_status: ShipmentStatus }> = {
+  'pending_payment': { payment_status: 'pending_payment', shipment_status: 'waiting_for_seller' },
+  'payment_failed': { payment_status: 'pending_payment', shipment_status: 'waiting_for_seller' },
+  'paid': { payment_status: 'paid', shipment_status: 'processing' },
+  'processing': { payment_status: 'paid', shipment_status: 'processing' },
+  'ready_to_ship': { payment_status: 'paid', shipment_status: 'ready_to_ship' },
+  'shipped': { payment_status: 'paid', shipment_status: 'shipped' },
+  'out_for_delivery': { payment_status: 'paid', shipment_status: 'out_for_delivery' },
+  'delivered': { payment_status: 'paid', shipment_status: 'delivered' },
+  'failed_delivery': { payment_status: 'paid', shipment_status: 'failed_to_deliver' },
+  'cancelled': { payment_status: 'refunded', shipment_status: 'returned' },
+  'refunded': { payment_status: 'refunded', shipment_status: 'returned' },
+  'completed': { payment_status: 'paid', shipment_status: 'received' },
+};
+
+// Reverse mapping for legacy compatibility
+const getStatusFromNew = (paymentStatus: PaymentStatus, shipmentStatus: ShipmentStatus): string => {
+  if (shipmentStatus === 'delivered' || shipmentStatus === 'received') return 'delivered';
+  if (shipmentStatus === 'shipped') return 'shipped';
+  if (shipmentStatus === 'out_for_delivery') return 'out_for_delivery';
+  if (shipmentStatus === 'ready_to_ship') return 'ready_to_ship';
+  if (shipmentStatus === 'processing') return paymentStatus === 'paid' ? 'processing' : 'pending_payment';
+  if (paymentStatus === 'refunded') return 'cancelled';
+  return 'pending_payment';
+};
+
 export class OrderService {
-    private static instance: OrderService;
+  private mockOrders: Order[] = [];
 
-    private constructor() { }
+  /**
+   * Create a POS (Point of Sale) offline order
+   * Updated for new normalized schema - uses payment_status/shipment_status
+   * @param buyerEmail - Optional buyer email to link order for BazCoins points
+   */
+  async createPOSOrder(
+    sellerId: string,
+    sellerName: string,
+    items: {
+      productId: string;
+      productName: string;
+      quantity: number;
+      price: number;
+      image: string;
+      selectedColor?: string;
+      selectedSize?: string;
+    }[],
+    total: number,
+    note?: string,
+    buyerEmail?: string
+  ): Promise<{ orderId: string; orderNumber: string; buyerLinked?: boolean } | null> {
+    // Generate order number
+    const orderNumber = `POS-${Date.now().toString().slice(-8)}`;
+    const orderId = crypto.randomUUID();
 
-    public static getInstance(): OrderService {
-        if (!OrderService.instance) {
-            OrderService.instance = new OrderService();
+    // Try to find buyer by email if provided (for BazCoins points)
+    let buyerId: string | null = null;
+    let buyerLinked = false;
+
+    if (buyerEmail && isSupabaseConfigured()) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id, user_type')
+        .eq('email', buyerEmail.toLowerCase().trim())
+        .single();
+      
+      if (profile?.user_type === 'buyer') {
+        buyerId = profile.id;
+        buyerLinked = true;
+        console.log('📧 Buyer found by email, will receive BazCoins:', buyerEmail);
+      }
+    }
+
+    // If no buyer found, we need a placeholder buyer_id due to NOT NULL constraint
+    const finalBuyerId = buyerId;
+
+    // Create order data for new schema
+    const orderData = {
+      id: orderId,
+      order_number: orderNumber,
+      buyer_id: finalBuyerId, // Will be buyer's ID if email matched, null otherwise
+      order_type: 'OFFLINE' as const,
+      pos_note: note || (buyerEmail ? `POS Sale - ${buyerEmail}` : 'POS Walk-in Sale'),
+      recipient_id: null, // No recipient for walk-in
+      address_id: null, // No shipping address for in-store
+      payment_status: 'paid' as PaymentStatus,
+      shipment_status: 'delivered' as ShipmentStatus, // POS items delivered immediately
+      paid_at: new Date().toISOString(),
+      notes: buyerEmail && !buyerLinked ? `Customer email (not registered): ${buyerEmail}` : (note || null),
+    };
+
+    // Create order items with new schema structure
+    const orderItems = items.map((item) => ({
+      id: crypto.randomUUID(),
+      order_id: orderId,
+      product_id: item.productId,
+      product_name: item.productName,
+      primary_image_url: item.image || null,
+      price: item.price,
+      price_discount: 0,
+      shipping_price: 0,
+      shipping_discount: 0,
+      quantity: item.quantity,
+      variant_id: null,
+      personalized_options: item.selectedColor || item.selectedSize ? {
+        color: item.selectedColor,
+        size: item.selectedSize
+      } : null,
+      rating: null,
+    }));
+
+    if (!isSupabaseConfigured()) {
+      // Mock mode
+      const mockOrder = {
+        ...orderData,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        // Legacy compatibility
+        status: 'delivered',
+        seller_id: sellerId,
+        subtotal: total,
+        total_amount: total,
+      } as unknown as Order;
+      this.mockOrders.push(mockOrder);
+      console.log('📝 Mock POS order created:', orderNumber);
+      return { orderId, orderNumber, buyerLinked };
+    }
+
+    try {
+      // If no buyer linked and DB has NOT NULL constraint, we need to handle it
+      const insertData = finalBuyerId 
+        ? orderData 
+        : { ...orderData, buyer_id: undefined };
+
+      // Insert order
+      let { error: orderError } = await supabase
+        .from('orders')
+        .insert(insertData);
+
+      // If buyer_id constraint fails, notify user
+      if (orderError?.code === '23502' && orderError.message?.includes('buyer_id')) {
+        console.warn('⚠️ buyer_id NOT NULL constraint - POS order requires registered customer email');
+        throw new Error(
+          'Walk-in sales require a valid customer email with a BazaarPH account. ' +
+          'Please ask the customer for their registered email, or they can sign up at bazaarph.com'
+        );
+      }
+
+      if (orderError) {
+        console.error('Error creating POS order:', orderError);
+        throw orderError;
+      }
+
+      // Insert order items
+      const { error: itemsError } = await supabase
+        .from('order_items')
+        .insert(orderItems);
+
+      if (itemsError) {
+        console.error('Error creating order items:', itemsError);
+        await supabase.from('orders').delete().eq('id', orderId);
+        throw itemsError;
+      }
+
+      // Deduct stock for each item
+      for (const item of items) {
+        // Deduct from the first variant of the product (POS uses simple stock tracking)
+        const { data: variants } = await supabase
+          .from('product_variants')
+          .select('id, stock')
+          .eq('product_id', item.productId)
+          .order('created_at', { ascending: true })
+          .limit(1);
+
+        if (variants && variants.length > 0) {
+          const variant = variants[0];
+          const newStock = Math.max(0, (variant.stock || 0) - item.quantity);
+          
+          const { error: stockError } = await supabase
+            .from('product_variants')
+            .update({ stock: newStock })
+            .eq('id', variant.id);
+
+          if (stockError) {
+            console.warn('Stock deduction failed for:', item.productName, stockError);
+          }
         }
-        return OrderService.instance;
-    }
+      }
 
-    /**
-     * Identifies if a string is a valid UUID or an Order Number (ORD-...)
-     */
-    private isUUID(id: string): boolean {
-        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-        return uuidRegex.test(id);
-    }
-
-    async getOrders(userId: string): Promise<Order[]> {
-        if (!isSupabaseConfigured()) return [];
-
-        try {
-            const { data, error } = await supabase
-                .from('orders')
-                .select(`
-            *,
-            items:order_items (
-              *,
-              product:products (
-                *,
-                seller:sellers!products_seller_id_fkey (
-                  business_name,
-                  store_name,
-                  business_address,
-                  rating,
-                  is_verified
-                )
-              )
-            )
-          `)
-                .eq('buyer_id', userId)
-                .order('created_at', { ascending: false });
-
-            if (error) throw error;
-            return (data || []).map(this.mapFromDB.bind(this));
-        } catch (error) {
-            console.error('Error fetching orders:', error);
-            throw new Error('Failed to load your orders.');
+      // Award BazCoins if buyer is linked
+      if (buyerLinked && finalBuyerId) {
+        const coinsEarned = Math.floor(total / 100); // 1 coin per ₱100 spent
+        if (coinsEarned > 0) {
+          // Get current BazCoins and add new ones
+          const { data: buyerData } = await supabase
+            .from('buyers')
+            .select('bazcoins')
+            .eq('id', finalBuyerId)
+            .single();
+          
+          const currentCoins = buyerData?.bazcoins || 0;
+          const { error: coinError } = await supabase
+            .from('buyers')
+            .update({ bazcoins: currentCoins + coinsEarned })
+            .eq('id', finalBuyerId);
+          
+          if (coinError) {
+            console.warn('BazCoins award failed:', coinError);
+          } else {
+            console.log(`🪙 Awarded ${coinsEarned} BazCoins to customer (${currentCoins} → ${currentCoins + coinsEarned})`);
+          }
         }
+      }
+
+      console.log('✅ POS order saved to Supabase:', orderNumber, buyerLinked ? '(buyer linked)' : '(walk-in)');
+      return { orderId, orderNumber, buyerLinked };
+    } catch (error) {
+      console.error('Failed to create POS order:', error);
+      throw error instanceof Error ? error : new Error('Failed to create POS order. Please try again.');
+    }
+  }
+
+  /**
+   * Create a new order with items
+   */
+  async createOrder(
+    orderData: OrderInsert,
+    items: OrderItemInsert[]
+  ): Promise<Order | null> {
+    if (!isSupabaseConfigured()) {
+      const newOrder = {
+        ...orderData,
+        id: crypto.randomUUID(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      } as Order;
+      this.mockOrders.push(newOrder);
+      return newOrder;
     }
 
-    async getOrderById(orderId: string): Promise<Order | null> {
-        if (!isSupabaseConfigured()) return null;
+    try {
+      // Call database function to create order with items atomically
+      const { data, error } = await supabase.rpc('create_order_with_items', {
+        p_buyer_id: orderData.buyer_id,
+        p_seller_id: orderData.seller_id,
+        p_order_data: orderData,
+        p_items: items,
+      });
 
-        try {
-            let query = supabase
-                .from('orders')
-                .select(`
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Error creating order:', error);
+      throw new Error('Failed to create order. Please try again.');
+    }
+  }
+
+  /**
+   * Get orders for a buyer
+   */
+  async getBuyerOrders(buyerId: string): Promise<Order[]> {
+    if (!isSupabaseConfigured()) {
+      return this.mockOrders.filter(o => o.buyer_id === buyerId);
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('*, order_items(*)')
+        .eq('buyer_id', buyerId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching buyer orders:', error);
+      throw new Error('Failed to fetch orders');
+    }
+  }
+
+  /**
+   * Get orders for a buyer with proper status mapping for UI
+   * Maps shipment_status from database to the status format expected by the frontend
+   */
+  async getOrders(buyerId: string): Promise<any[]> {
+    if (!isSupabaseConfigured()) {
+      return this.mockOrders.filter(o => o.buyer_id === buyerId);
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select(`
           *,
-          items:order_items (
-              *,
-              product:products (
-                *,
-                seller:sellers!products_seller_id_fkey (
-                  business_name,
-                  store_name,
-                  business_address,
-                  rating,
-                  is_verified
-                )
-              )
+          order_items(
+            *,
+            variant:product_variants(id, variant_name, size, color, price, thumbnail_url)
+          )
+        `)
+        .eq('buyer_id', buyerId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      // Map shipment_status to frontend status format
+      const statusMap: Record<string, 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled'> = {
+        'pending': 'pending',
+        'waiting_for_seller': 'pending',
+        'processing': 'processing',
+        'ready_to_ship': 'processing',
+        'shipped': 'shipped',
+        'out_for_delivery': 'shipped',
+        'delivered': 'delivered',
+        'received': 'delivered',
+        'cancelled': 'cancelled',
+        'returned': 'cancelled',
+        'failed_to_deliver': 'shipped',
+      };
+
+      return (data || []).map(order => ({
+        id: order.id,
+        transactionId: order.order_number,
+        items: (order.order_items || []).map((item: any) => ({
+          id: item.id,
+          name: item.product_name,
+          price: item.variant?.price || item.price,
+          quantity: item.quantity,
+          image: item.variant?.thumbnail_url || item.primary_image_url || 'https://placehold.co/100?text=Product',
+        })),
+        total: (order.order_items || []).reduce((sum: number, item: any) => {
+          return sum + ((item.variant?.price || item.price || 0) * item.quantity);
+        }, 0),
+        shippingFee: 0,
+        status: statusMap[order.shipment_status || 'pending'] || 'pending',
+        isPaid: order.payment_status === 'paid',
+        scheduledDate: order.estimated_delivery_date || new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+        shippingAddress: {
+          name: '',
+          email: '',
+          phone: '',
+          address: '',
+          city: '',
+          region: '',
+          postalCode: '',
+        },
+        paymentMethod: order.payment_method || 'Cash on Delivery',
+        createdAt: order.created_at,
+      }));
+    } catch (error) {
+      console.error('Error fetching orders:', error);
+      throw new Error('Failed to fetch orders');
+    }
+  }
+
+  /**
+   * Get orders for a seller
+   */
+  async getSellerOrders(sellerId: string): Promise<Order[]> {
+    if (!isSupabaseConfigured()) {
+      return this.mockOrders.filter(o => o.seller_id === sellerId);
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select(`
+          *,
+          order_items(*)
+        `)
+        .eq('seller_id', sellerId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching seller orders:', error);
+      throw new Error('Failed to fetch orders');
+    }
+  }
+
+  /**
+   * Get a single order by ID or order number
+   */
+  async getOrderById(orderId: string): Promise<Order | null> {
+    if (!isSupabaseConfigured()) {
+      return this.mockOrders.find(o => o.id === orderId) || null;
+    }
+
+    try {
+      // Check if orderId is a UUID or order_number
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(orderId);
+
+      const { data, error } = await supabase
+        .from('orders')
+        .select('*, order_items(*)')
+        .eq(isUuid ? 'id' : 'order_number', orderId)
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Error fetching order:', error);
+      throw new Error('Failed to fetch order details');
+    }
+  }
+
+  /**
+   * Update order details (buyer name, email, notes)
+   */
+  async updateOrderDetails(
+    orderId: string,
+    details: {
+      buyer_name?: string;
+      buyer_email?: string;
+      notes?: string;
+    }
+  ): Promise<boolean> {
+    if (!isSupabaseConfigured()) {
+      const order = this.mockOrders.find(o => o.id === orderId);
+      if (order) {
+        if (details.buyer_name) order.buyer_name = details.buyer_name;
+        if (details.buyer_email) order.buyer_email = details.buyer_email;
+        if (details.notes !== undefined) (order as any).notes = details.notes;
+        order.updated_at = new Date().toISOString();
+        return true;
+      }
+      return false;
+    }
+
+    try {
+      const updateData: any = {
+        updated_at: new Date().toISOString(),
+      };
+
+      if (details.buyer_name !== undefined) updateData.buyer_name = details.buyer_name;
+      if (details.buyer_email !== undefined) updateData.buyer_email = details.buyer_email;
+      if (details.notes !== undefined) updateData.notes = details.notes;
+
+      const { error } = await supabase
+        .from('orders')
+        .update(updateData)
+        .eq('id', orderId);
+
+      if (error) throw error;
+      
+      console.log(`[OrderService] ✅ Order details updated: ${orderId}`);
+      return true;
+    } catch (error) {
+      console.error('Error updating order details:', error);
+      throw new Error('Failed to update order details');
+    }
+  }
+
+  /**
+   * Update order status
+   * New schema: Uses payment_status + shipment_status instead of single status field
+   */
+  async updateOrderStatus(
+    orderId: string,
+    status: string,
+    note?: string,
+    userId?: string,
+    userRole?: string
+  ): Promise<boolean> {
+    if (!isSupabaseConfigured()) {
+      const order = this.mockOrders.find(o => o.id === orderId);
+      if (order) {
+        order.status = status as any;
+        order.updated_at = new Date().toISOString();
+        return true;
+      }
+      return false;
+    }
+
+    try {
+      // Get order first to get buyer info
+      const order = await this.getOrderById(orderId);
+      if (!order) {
+        throw new Error('Order not found');
+      }
+
+      // Map legacy status to new payment_status + shipment_status
+      const newStatuses = LEGACY_STATUS_MAP[status] || LEGACY_STATUS_MAP['pending_payment'];
+
+      // Update order with new schema fields
+      const { error: orderError } = await supabase
+        .from('orders')
+        .update({ 
+          payment_status: newStatuses.payment_status,
+          shipment_status: newStatuses.shipment_status,
+          updated_at: new Date().toISOString() 
+        })
+        .eq('id', orderId);
+
+      if (orderError) throw orderError;
+
+      // Create status history entry
+      const { error: historyError } = await supabase
+        .from('order_status_history')
+        .insert({
+          order_id: orderId,
+          status,
+          note: note || null,
+          changed_by: userId || null,
+          changed_by_role: userRole as any || null,
+          metadata: null,
+        });
+
+      if (historyError) throw historyError;
+
+      // Get seller ID from order items for notification
+      let sellerId: string | undefined;
+      if (order.items && order.items.length > 0) {
+        const { data: product } = await supabase
+          .from('products')
+          .select('seller_id')
+          .eq('id', order.items[0].product_id)
+          .single();
+        sellerId = product?.seller_id;
+      }
+
+      // Send notification to buyer if seller made the update
+      if (userRole === 'seller' && order.buyer_id && sellerId) {
+        // Send chat message
+        await orderNotificationService.sendStatusUpdateNotification(
+          orderId,
+          status,
+          sellerId,
+          order.buyer_id
+        );
+
+        // Send proper notification (shows in notification bell)
+        const statusMessages: Record<string, string> = {
+          confirmed: `Your order #${order.order_number || orderId.substring(0, 8)} has been confirmed by the seller.`,
+          processing: `Your order #${order.order_number || orderId.substring(0, 8)} is now being prepared.`,
+          shipped: `Your order #${order.order_number || orderId.substring(0, 8)} has been shipped!`,
+          delivered: `Your order #${order.order_number || orderId.substring(0, 8)} has been delivered!`,
+          cancelled: `Your order #${order.order_number || orderId.substring(0, 8)} has been cancelled.`,
+        };
+
+        const message = statusMessages[status] || `Your order status has been updated to ${status}.`;
+
+        await notificationService.notifyBuyerOrderStatus({
+          buyerId: order.buyer_id,
+          orderId: orderId,
+          orderNumber: order.order_number || orderId.substring(0, 8),
+          status: status,
+          message: message,
+        }).catch(err => {
+          console.error('Failed to send buyer notification:', err);
+        });
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error updating order status:', error);
+      throw new Error('Failed to update order status');
+    }
+  }
+
+  /**
+   * Mark order as shipped with tracking number
+   * Updated for new schema: uses shipment_status + order_shipments table
+   */
+  async markOrderAsShipped(
+    orderId: string,
+    trackingNumber: string,
+    sellerId: string
+  ): Promise<boolean> {
+    if (!trackingNumber?.trim()) {
+      throw new Error('Tracking number is required');
+    }
+
+    if (!isSupabaseConfigured()) {
+      const order = this.mockOrders.find(o => o.id === orderId);
+      if (order) {
+        order.status = 'shipped';
+        order.tracking_number = trackingNumber;
+        order.updated_at = new Date().toISOString();
+        return true;
+      }
+      return false;
+    }
+
+    try {
+      // Get order with items to verify seller owns products in this order
+      const { data: order, error: fetchError } = await supabase
+        .from('orders')
+        .select(`
+          *,
+          order_items (
+            id,
+            product_id,
+            product:products!order_items_product_id_fkey (
+              seller_id
             )
-        `);
+          )
+        `)
+        .eq('id', orderId)
+        .single();
 
-            if (this.isUUID(orderId)) {
-                query = query.eq('id', orderId);
-            } else {
-                query = query.eq('order_number', orderId);
-            }
+      if (fetchError || !order) {
+        throw new Error('Order not found');
+      }
 
-            const { data, error } = await query.single();
+      // Verify seller owns at least one product in this order
+      const hasSellerProduct = order.order_items?.some(
+        (item: any) => item.product?.seller_id === sellerId
+      );
 
-            if (error) throw error;
-            return data ? this.mapFromDB(data) : null;
-        } catch (error) {
-            console.error('Error fetching order by ID:', error);
-            throw new Error('Could not find order details.');
-        }
-    }
+      if (!hasSellerProduct) {
+        throw new Error('Access denied: You do not own products in this order');
+      }
 
-    async updateOrderStatus(orderId: string, status: string, trackingNumber?: string): Promise<void> {
-        if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
+      // Check current status allows shipping
+      const allowedStatuses = ['pending', 'waiting_for_seller', 'processing', 'ready_to_ship'];
+      if (!allowedStatuses.includes(order.shipment_status)) {
+        throw new Error(`Cannot ship order with status: ${order.shipment_status}`);
+      }
 
-        try {
-            // First fetch order to get buyer_id and seller_id for notification
-            const { data: orderData, error: fetchError } = await supabase
-                .from('orders')
-                .select('id, order_number, buyer_id, seller_id, status')
-                .eq('id', orderId)
-                .single();
+      // Update order shipment_status
+      const { error: updateError } = await supabase
+        .from('orders')
+        .update({
+          shipment_status: 'shipped',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', orderId);
 
-            if (fetchError) throw fetchError;
+      if (updateError) throw updateError;
 
-            const { error } = await supabase
-                .from('orders')
-                .update({ status, updated_at: new Date().toISOString() })
-                .eq('id', orderId);
+      // Create or update shipment record
+      const { data: existingShipment } = await supabase
+        .from('order_shipments')
+        .select('id')
+        .eq('order_id', orderId)
+        .single();
 
-            if (error) throw error;
-
-            // Send notifications to buyer about status change
-            if (orderData) {
-                // 💬 Send chat message notification
-                orderNotificationService.sendStatusUpdateNotification(
-                    orderId,
-                    status,
-                    orderData.seller_id,
-                    orderData.buyer_id,
-                    trackingNumber
-                ).catch(err => {
-                    console.error('[OrderService] ❌ Failed to send status notification:', err);
-                });
-
-                // 🔔 Send bell notification based on status
-                const statusMessages: Record<string, string> = {
-                    confirmed: `Your order #${orderData.order_number} has been confirmed by the seller.`,
-                    processing: `Your order #${orderData.order_number} is now being prepared.`,
-                    shipped: `Your order #${orderData.order_number} has been shipped!${trackingNumber ? ` Tracking: ${trackingNumber}` : ''}`,
-                    delivered: `Your order #${orderData.order_number} has been delivered! Enjoy your purchase!`,
-                    cancelled: `Your order #${orderData.order_number} has been cancelled.`
-                };
-
-                if (statusMessages[status]) {
-                    notificationService.notifyBuyerOrderStatus({
-                        buyerId: orderData.buyer_id,
-                        orderId: orderData.id,
-                        orderNumber: orderData.order_number,
-                        status: status,
-                        message: statusMessages[status]
-                    }).catch(err => {
-                        console.error('[OrderService] ❌ Failed to send bell notification:', err);
-                    });
-                }
-            }
-        } catch (error) {
-            console.error('Error updating order status:', error);
-            throw new Error('Failed to update order status.');
-        }
-    }
-
-    async cancelOrder(orderId: string): Promise<void> {
-        return this.updateOrderStatus(orderId, 'cancelled');
-    }
-
-    async createOrder(orderData: any): Promise<any> {
-        if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
-        const { data, error } = await supabase.from('orders').insert(orderData).select().single();
-        if (error) throw error;
-        return data;
-    }
-
-    async createOrderItems(items: any[]): Promise<void> {
-        if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
-        const { error } = await supabase.from('order_items').insert(items);
-        if (error) throw error;
-    }
-
-    /**
-     * Create a POS (Point of Sale) offline order
-     * This saves directly to Supabase and is used for walk-in customers
-     * 
-     * IMPORTANT: Run this SQL in Supabase to allow POS orders:
-     * ALTER TABLE orders ALTER COLUMN buyer_id DROP NOT NULL;
-     */
-    async createPOSOrder(
-        sellerId: string,
-        sellerName: string,
-        items: {
-            productId: string;
-            productName: string;
-            quantity: number;
-            price: number;
-            image: string;
-            selectedColor?: string;
-            selectedSize?: string;
-        }[],
-        total: number,
-        note?: string
-    ): Promise<{ orderId: string; orderNumber: string } | null> {
-        // Generate order number
-        const orderNumber = `POS-${Date.now().toString().slice(-8)}`;
-        const orderId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-            const r = Math.random() * 16 | 0;
-            const v = c === 'x' ? r : (r & 0x3 | 0x8);
-            return v.toString(16);
-        });
-
-        // Create order data for Supabase
-        // buyer_id is NULL for walk-in customers (requires DB to allow NULL)
-        const orderData = {
-            id: orderId,
-            order_number: orderNumber,
-            buyer_id: null, // Walk-in customers - NULL for POS orders
-            seller_id: sellerId,
-            buyer_name: 'Walk-in Customer',
-            buyer_email: 'pos@walkin.local',
-            buyer_phone: null,
-            order_type: 'OFFLINE' as const,
-            pos_note: note || 'POS Sale',
-            subtotal: total,
-            discount_amount: 0,
-            shipping_cost: 0,
-            tax_amount: 0,
-            total_amount: total,
-            currency: 'PHP',
-            status: 'delivered',
-            payment_status: 'paid',
-            shipping_address: {
-                fullName: 'Walk-in Customer',
-                street: 'In-Store Purchase',
-                city: sellerName,
-                province: 'POS',
-                postalCode: '0000',
-                phone: 'N/A'
-            },
-            shipping_method: null,
-            tracking_number: null,
-            estimated_delivery_date: null,
-            actual_delivery_date: new Date().toISOString(),
-            delivery_instructions: null,
-            payment_method: { type: 'cash', details: 'POS Cash Payment' },
-            payment_reference: `CASH-${Date.now()}`,
-            payment_date: new Date().toISOString(),
-            promo_code: null,
-            voucher_id: null,
-            notes: note || null,
-        };
-
-        // Create order items
-        const orderItems = items.map((item) => ({
-            id: 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-                const r = Math.random() * 16 | 0;
-                const v = c === 'x' ? r : (r & 0x3 | 0x8);
-                return v.toString(16);
-            }),
+      if (existingShipment) {
+        await supabase
+          .from('order_shipments')
+          .update({
+            status: 'shipped',
+            tracking_number: trackingNumber,
+            shipped_at: new Date().toISOString(),
+          })
+          .eq('id', existingShipment.id);
+      } else {
+        await supabase
+          .from('order_shipments')
+          .insert({
             order_id: orderId,
-            product_id: item.productId,
-            product_name: item.productName,
-            product_images: [item.image],
-            price: item.price,
-            quantity: item.quantity,
-            subtotal: item.price * item.quantity,
-            selected_variant: item.selectedColor || item.selectedSize ? {
-                color: item.selectedColor,
-                size: item.selectedSize
-            } : null,
-        }));
+            status: 'shipped',
+            tracking_number: trackingNumber,
+            shipped_at: new Date().toISOString(),
+          });
+      }
 
-        if (!isSupabaseConfigured()) {
-            console.log('📝 Mock POS order created:', orderNumber);
-            return { orderId, orderNumber };
-        }
-
-        try {
-            // Insert order (buyer_id is NULL for walk-in customers)
-            const { error: orderError } = await supabase
-                .from('orders')
-                .insert(orderData);
-
-            if (orderError) {
-                console.error('Error creating POS order:', orderError);
-                
-                // If error is about buyer_id constraint, provide helpful message
-                if (orderError.message?.includes('buyer_id') || orderError.code === '23503') {
-                    throw new Error(
-                        'Database requires buyer_id. Please run this SQL in Supabase:\n' +
-                        'ALTER TABLE orders ALTER COLUMN buyer_id DROP NOT NULL;'
-                    );
-                }
-                throw orderError;
-            }
-
-            // Insert order items
-            const { error: itemsError } = await supabase
-                .from('order_items')
-                .insert(orderItems);
-
-            if (itemsError) {
-                console.error('Error creating order items:', itemsError);
-                // Rollback: delete the order
-                await supabase.from('orders').delete().eq('id', orderId);
-                throw itemsError;
-            }
-
-            // Deduct stock for each item
-            for (const item of items) {
-                const { error: stockError } = await supabase.rpc('decrement_product_stock', {
-                    p_product_id: item.productId,
-                    p_quantity: item.quantity
-                });
-
-                if (stockError) {
-                    console.warn('Stock deduction failed for product:', item.productId, stockError);
-                    // Don't throw - order is already created, just log the warning
-                }
-            }
-
-            console.log('✅ POS order created:', orderNumber);
-            return { orderId, orderNumber };
-        } catch (error) {
-            console.error('Failed to create POS order:', error);
-            return null;
-        }
-    }
-
-    private mapFromDB(order: any): Order {
-        const statusMap: Record<string, Order['status']> = {
-            pending_payment: 'pending',
-            paid: 'processing',
-            processing: 'processing',
-            ready_to_ship: 'processing',
-            shipped: 'shipped',
-            out_for_delivery: 'shipped',
-            delivered: 'delivered',
-            completed: 'delivered',
-            cancelled: 'cancelled',
-            canceled: 'cancelled',
-            returned: 'delivered',
-            refunded: 'delivered',
-        };
-
-        const items = (order.items || []).map((it: any) => {
-            const p = it.product || {};
-            const image = p.primary_image || (Array.isArray(p.images) && p.images.length > 0 ? p.images[0] : '');
-            const sellerObj = p.seller || {};
-
-            // Extract variant info from selected_variant
-            const variant = it.selected_variant ? {
-                size: it.selected_variant.size,
-                color: it.selected_variant.color,
-            } : undefined;
-
-            return {
-                id: p.id || it.product_id,
-                name: it.product_name || p.name || 'Product',
-                price: it.price || it.unit_price || p.price || 0,
-                originalPrice: p.original_price,
-                image: it.product_images?.[0] || image || '',
-                images: it.product_images || (Array.isArray(p.images) ? p.images : []),
-                rating: p.rating || 0,
-                sold: p.sold || 0,
-                seller: sellerObj.store_name || sellerObj.business_name || 'Official Store',
-                sellerId: p.seller_id || sellerObj.id,
-                sellerRating: sellerObj.rating || 0,
-                sellerVerified: !!sellerObj.is_verified,
-                isFreeShipping: !!p.is_free_shipping,
-                isVerified: !!p.is_verified,
-                location: sellerObj.business_address || 'Philippines',
-                description: p.description || '',
-                category: p.category || 'general',
-                stock: p.stock,
-                reviews: p.reviews || [],
-                quantity: it.quantity || 1,
-                variant: variant,
-                selectedVariant: variant, // Also set selectedVariant for compatibility
-            };
+      const { error: historyError } = await supabase
+        .from('order_status_history')
+        .insert({
+          order_id: orderId,
+          status: 'shipped',
+          note: `Order shipped with tracking number: ${trackingNumber}`,
+          changed_by: sellerId,
+          changed_by_role: 'seller',
+          metadata: { tracking_number: trackingNumber },
         });
 
-        const shippingFee = typeof order.shipping_cost === 'number' ? order.shipping_cost : parseFloat(order.shipping_cost || '0') || 0;
-        const totalNum = typeof order.total_amount === 'number' ? order.total_amount : parseFloat(order.total_amount || '0') || 0;
+      if (historyError) {
+        console.warn('Failed to create status history:', historyError);
+      }
 
-        return {
-            id: order.id,
-            transactionId: order.order_number || order.id,
-            items: items as any, // Cast to any if item structure doesn't match perfectly
-            total: totalNum,
-            shippingFee,
-            status: statusMap[order.status] || 'pending',
-            isPaid: ['paid', 'processing', 'shipped', 'delivered'].includes(order.status),
-            scheduledDate: new Date(order.created_at).toLocaleDateString(),
-            deliveryDate: order.estimated_delivery_date || undefined,
-            shippingAddress: typeof order.shipping_address === 'string' ? JSON.parse(order.shipping_address) : order.shipping_address,
-            paymentMethod: typeof order.payment_method === 'string' ? order.payment_method : (order.payment_method?.type || 'Payment'),
-            createdAt: order.created_at,
-            isGift: order.is_gift || false,
-            isAnonymous: order.is_anonymous || false,
-            recipientId: order.recipient_id,
+      // Send notification to buyer with tracking number
+      if (order.buyer_id) {
+        // Send chat message
+        await orderNotificationService.sendStatusUpdateNotification(
+          orderId,
+          'shipped',
+          sellerId,
+          order.buyer_id,
+          trackingNumber
+        );
+
+        // Send proper notification (shows in notification bell)
+        await notificationService.notifyBuyerOrderStatus({
+          buyerId: order.buyer_id,
+          orderId: orderId,
+          orderNumber: order.order_number || orderId.substring(0, 8),
+          status: 'shipped',
+          message: `Your order #${order.order_number || orderId.substring(0, 8)} has been shipped! Tracking: ${trackingNumber}`,
+        }).catch(err => {
+          console.error('Failed to send shipped notification:', err);
+        });
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error marking order as shipped:', error);
+      throw new Error('Failed to mark order as shipped');
+    }
+  }
+
+  /**
+   * Mark order as delivered and release payout
+   * Updated for new schema: uses shipment_status + order_shipments table
+   */
+  async markOrderAsDelivered(
+    orderId: string,
+    sellerId: string
+  ): Promise<boolean> {
+    if (!isSupabaseConfigured()) {
+      const order = this.mockOrders.find(o => o.id === orderId);
+      if (order) {
+        order.status = 'delivered';
+        order.completed_at = new Date().toISOString();
+        order.updated_at = new Date().toISOString();
+        return true;
+      }
+      return false;
+    }
+
+    try {
+      // Get order with items to verify seller owns products in this order
+      const { data: order, error: fetchError } = await supabase
+        .from('orders')
+        .select(`
+          *,
+          order_items (
+            id,
+            product_id,
+            product:products!order_items_product_id_fkey (
+              seller_id
+            )
+          )
+        `)
+        .eq('id', orderId)
+        .single();
+
+      if (fetchError || !order) {
+        throw new Error('Order not found');
+      }
+
+      // Verify seller owns at least one product in this order
+      const hasSellerProduct = order.order_items?.some(
+        (item: any) => item.product?.seller_id === sellerId
+      );
+
+      if (!hasSellerProduct) {
+        throw new Error('Access denied: You do not own products in this order');
+      }
+
+      if (order.shipment_status !== 'shipped') {
+        throw new Error(`Cannot mark as delivered. Current status: ${order.shipment_status}`);
+      }
+
+      // Update order shipment_status
+      const { error: updateError } = await supabase
+        .from('orders')
+        .update({
+          shipment_status: 'delivered',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', orderId);
+
+      if (updateError) throw updateError;
+
+      // Update shipment record
+      await supabase
+        .from('order_shipments')
+        .update({
+          status: 'delivered',
+          delivered_at: new Date().toISOString(),
+        })
+        .eq('order_id', orderId);
+
+      const { error: historyError } = await supabase
+        .from('order_status_history')
+        .insert({
+          order_id: orderId,
+          status: 'delivered',
+          note: 'Order delivered and completed',
+          changed_by: sellerId,
+          changed_by_role: 'seller',
+          metadata: { completed_at: new Date().toISOString() },
+        });
+
+      if (historyError) {
+        console.warn('Failed to create status history:', historyError);
+      }
+
+      // Send delivery notification to buyer
+      if (order.buyer_id) {
+        // Send chat message
+        await orderNotificationService.sendStatusUpdateNotification(
+          orderId,
+          'delivered',
+          sellerId,
+          order.buyer_id
+        );
+
+        // Send proper notification (shows in notification bell)
+        await notificationService.notifyBuyerOrderStatus({
+          buyerId: order.buyer_id,
+          orderId: orderId,
+          orderNumber: order.order_number || orderId.substring(0, 8),
+          status: 'delivered',
+          message: `Your order #${order.order_number || orderId.substring(0, 8)} has been delivered! Enjoy your purchase!`,
+        }).catch(err => {
+          console.error('Failed to send delivered notification:', err);
+        });
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error marking order as delivered:', error);
+      throw new Error('Failed to mark order as delivered');
+    }
+  }
+
+  /**
+   * Cancel an order
+   */
+  async cancelOrder(orderId: string, reason?: string): Promise<boolean> {
+    if (!isSupabaseConfigured()) {
+      const order = this.mockOrders.find(o => o.id === orderId);
+      if (order) {
+        order.status = 'cancelled';
+        order.cancelled_at = new Date().toISOString();
+        return true;
+      }
+      return false;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({
+          status: 'cancelled',
+          cancelled_at: new Date().toISOString(),
+          notes: reason,
+        })
+        .eq('id', orderId);
+
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error('Error cancelling order:', error);
+      throw new Error('Failed to cancel order');
+    }
+  }
+
+  /**
+   * Submit order review and rating
+   */
+  async submitOrderReview(
+    orderId: string,
+    buyerId: string,
+    rating: number,
+    comment: string,
+    images?: string[]
+  ): Promise<boolean> {
+    if (!orderId || !buyerId) {
+      throw new Error('Order ID and Buyer ID are required');
+    }
+
+    if (rating < 1 || rating > 5) {
+      throw new Error('Rating must be between 1 and 5');
+    }
+
+    if (!comment?.trim()) {
+      throw new Error('Review comment is required');
+    }
+
+    if (!isSupabaseConfigured()) {
+      const order = this.mockOrders.find(o => o.id === orderId && o.buyer_id === buyerId);
+      if (order) {
+        order.is_reviewed = true;
+        order.rating = rating;
+        order.review_comment = comment;
+        order.review_images = images || [];
+        order.review_date = new Date().toISOString();
+        return true;
+      }
+      return false;
+    }
+
+    try {
+      const { data: order, error: orderError } = await supabase
+        .from('orders')
+        .select(`
+          *,
+          order_items (
+            product_id
+          )
+        `)
+        .eq('id', orderId)
+        .eq('buyer_id', buyerId)
+        .maybeSingle();
+
+      if (orderError || !order) {
+        throw new Error('Order not found or access denied');
+      }
+
+      if (order.status !== 'delivered' && order.status !== 'completed') {
+        throw new Error('Cannot review order that is not delivered or completed');
+      }
+
+      const orderItems = order.order_items || [];
+      let successCount = 0;
+
+      for (const item of orderItems) {
+        const exists = await reviewService.hasReviewForProduct(orderId, item.product_id);
+        if (exists) continue;
+
+        const reviewPayload = {
+          order_id: orderId,
+          product_id: item.product_id,
+          buyer_id: buyerId,
+          seller_id: order.seller_id,
+          rating: rating,
+          comment: comment.trim(),
+          images: images || [],
+          is_verified_purchase: true,
+          helpful_count: 0,
+          seller_reply: null,
+          is_hidden: false,
+          is_edited: false
         };
+
+        const review = await reviewService.createReview(reviewPayload);
+        if (review) successCount++;
+      }
+
+      if (successCount === 0) {
+        return false;
+      }
+
+      const { error: updateError } = await supabase
+        .from('orders')
+        .update({
+          is_reviewed: true,
+          rating,
+          review_comment: comment.trim(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', orderId);
+
+      if (updateError) throw updateError;
+      return true;
+    } catch (error) {
+      console.error('Error submitting review:', error);
+      throw new Error('Failed to submit review');
+    }
+  }
+
+  /**
+   * Get order statistics for seller dashboard
+   */
+  async getSellerOrderStats(sellerId: string) {
+    if (!isSupabaseConfigured()) {
+      return {
+        total: this.mockOrders.filter(o => o.seller_id === sellerId).length,
+        pending: this.mockOrders.filter(o => o.seller_id === sellerId && o.status === 'pending_payment').length,
+        processing: this.mockOrders.filter(o => o.seller_id === sellerId && o.status === 'processing').length,
+        completed: this.mockOrders.filter(o => o.seller_id === sellerId && o.status === 'completed').length,
+      };
     }
 
-    /**
-     * Get orders for a specific seller (orders containing their products)
-     */
-    async getSellerOrders(sellerId: string): Promise<any[]> {
-        if (!isSupabaseConfigured()) return [];
+    try {
+      const { data, error } = await supabase.rpc('get_seller_order_stats', {
+        p_seller_id: sellerId,
+      });
 
-        try {
-            const { data, error } = await supabase
-                .from('orders')
-                .select(`
-                    *,
-                    items:order_items (
-                        *,
-                        product:products (
-                            *,
-                            seller:sellers!products_seller_id_fkey (
-                                business_name,
-                                store_name,
-                                business_address,
-                                rating,
-                                is_verified,
-                                id
-                            )
-                        )
-                    )
-                `)
-                .eq('seller_id', sellerId)
-                .order('created_at', { ascending: false });
-
-            if (error) throw error;
-
-            // Map to SellerOrder format used by sellerStore
-            return (data || []).map((order: any) => {
-                const items = (order.items || []).map((item: any) => {
-                    const p = item.product || {};
-                    const image = p.primary_image || (Array.isArray(p.images) && p.images.length > 0 ? p.images[0] : '');
-                    return {
-                        productId: p.id || item.product_id,
-                        productName: p.name || item.product_name || 'Product',
-                        image,
-                        quantity: item.quantity || 1,
-                        price: item.price || p.price || 0,
-                    };
-                });
-
-                // Map status from DB format to UI format
-                const statusMap: Record<string, string> = {
-                    pending_payment: 'pending',
-                    pending: 'pending',
-                    paid: 'pending',
-                    processing: 'to-ship',
-                    ready_to_ship: 'to-ship',
-                    shipped: 'to-ship',
-                    out_for_delivery: 'to-ship',
-                    delivered: 'completed',
-                    completed: 'completed',
-                    cancelled: 'cancelled',
-                    canceled: 'cancelled',
-                };
-
-                // Format shipping address as a single string
-                const formatShippingAddress = (addr: any): string | undefined => {
-                    if (!addr) return undefined;
-                    if (typeof addr === 'string') {
-                        try {
-                            addr = JSON.parse(addr);
-                        } catch {
-                            return addr;
-                        }
-                    }
-                    const parts = [
-                        addr.street || addr.address,
-                        addr.city,
-                        addr.province || addr.region,
-                        addr.postalCode
-                    ].filter(Boolean);
-                    return parts.length > 0 ? parts.join(', ') : undefined;
-                };
-
-                return {
-                    id: order.id,
-                    orderId: order.order_number || order.id,
-                    customerName: order.buyer_name || order.shipping_address?.name || 'Walk-in Customer',
-                    customerEmail: order.buyer_email || '',
-                    customerPhone: order.buyer_phone || order.shipping_address?.phone,
-                    shippingAddress: formatShippingAddress(order.shipping_address),
-                    items,
-                    total: order.total_amount || 0,
-                    status: statusMap[order.status] || 'pending',
-                    paymentStatus: order.payment_status || 'pending',
-                    trackingNumber: order.tracking_number,
-                    createdAt: order.created_at,
-                    type: order.order_type || 'ONLINE', // Use order_type from database (OFFLINE for POS, ONLINE for app)
-                    posNote: order.order_type === 'OFFLINE' ? order.notes : undefined,
-                };
-            });
-        } catch (error) {
-            console.error('Error fetching seller orders:', error);
-            throw new Error('Failed to load seller orders.');
-        }
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Error fetching order stats:', error);
+      throw new Error('Failed to fetch order statistics');
     }
-
-    /**
-     * Subscribe to real-time order updates for a seller
-     */
-    subscribeToSellerOrders(sellerId: string, callback: (orders: any[]) => void) {
-        if (!isSupabaseConfigured()) {
-            return { unsubscribe: () => {} };
-        }
-
-        const channel = supabase
-            .channel(`seller_orders_${sellerId}`)
-            .on('postgres_changes', {
-                event: '*',
-                schema: 'public',
-                table: 'orders',
-                filter: `seller_id=eq.${sellerId}`,
-            }, async () => {
-                // Fetch updated orders when any change happens
-                try {
-                    const orders = await this.getSellerOrders(sellerId);
-                    callback(orders);
-                } catch (e) {
-                    console.error('[OrderService] Error in subscription callback:', e);
-                }
-            })
-            .subscribe();
-
-        return {
-            unsubscribe: () => {
-                supabase.removeChannel(channel);
-            }
-        };
-    }
+  }
 }
 
-export const orderService = OrderService.getInstance();
+export const orderService = new OrderService();

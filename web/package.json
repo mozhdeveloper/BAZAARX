@@ -28,7 +28,8 @@
     "test:buyer": "tsx scripts/test-buyer-process.ts",
     "test:seller-flow": "tsx scripts/test-seller-complete-flow.ts",
     "test:e2e": "tsx scripts/test-e2e-buyer-seller.ts",
-    "test:address": "tsx scripts/test-address-system.ts"
+    "test:address": "tsx scripts/test-address-system.ts",
+    "seed:database": "tsx scripts/seed-complete-database.ts"
   },
   "dependencies": {
     "@lottiefiles/react-lottie-player": "^3.6.0",

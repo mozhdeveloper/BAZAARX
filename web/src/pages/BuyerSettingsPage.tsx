@@ -219,18 +219,16 @@ export default function BuyerSettingsPage() {
       const addressPayload: any = {
         user_id: profile.id,
         label: newAddress.label,
-        first_name: newAddress.firstName,
-        last_name: newAddress.lastName,
-        phone: newAddress.phone,
-        street: newAddress.street,
+        address_line_1: `${newAddress.firstName} ${newAddress.lastName}, ${newAddress.phone}, ${newAddress.street}`,
+        address_line_2: newAddress.landmark || null,
         barangay: newAddress.barangay,
         city: newAddress.city,
         province: newAddress.province,
         region: newAddress.region,
-        zip_code: newAddress.postalCode,
+        postal_code: newAddress.postalCode,
         is_default: newAddress.isDefault,
-        landmark: newAddress.landmark || null,
         delivery_instructions: newAddress.deliveryInstructions || null,
+        address_type: 'residential',
       };
 
       // Include coordinates if available

@@ -37,6 +37,10 @@ export default function AddProductScreen() {
   const [variants, setVariants] = useState<Variant[]>([]);
   const [showVariants, setShowVariants] = useState(false);
   
+  // Variations and Colors inputs
+  const [variationInput, setVariationInput] = useState('');
+  const [colorInput, setColorInput] = useState('');
+  
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -45,7 +49,33 @@ export default function AddProductScreen() {
     stock: '',
     category: '',
     images: [''],
+    sizes: [] as string[],
+    colors: [] as string[],
   });
+  
+  const addVariation = () => {
+    const val = variationInput.trim();
+    if (val && !formData.sizes.includes(val)) {
+      setFormData({ ...formData, sizes: [...formData.sizes, val] });
+      setVariationInput('');
+    }
+  };
+  
+  const removeVariation = (val: string) => {
+    setFormData({ ...formData, sizes: formData.sizes.filter(s => s !== val) });
+  };
+  
+  const addColor = () => {
+    const val = colorInput.trim();
+    if (val && !formData.colors.includes(val)) {
+      setFormData({ ...formData, colors: [...formData.colors, val] });
+      setColorInput('');
+    }
+  };
+  
+  const removeColor = (val: string) => {
+    setFormData({ ...formData, colors: formData.colors.filter(c => c !== val) });
+  };
 
   const categories = [
     'Electronics', 'Fashion', 'Beauty', 'Food', 'Home & Living', 
@@ -229,7 +259,8 @@ export default function AddProductScreen() {
 
              <View style={styles.row}>
                 <View style={{ flex: 1 }}>
-                   <Text style={styles.label}>Price (₱)</Text>
+                   <Text style={styles.label}>Display Price (₱)</Text>
+                   <Text style={styles.hint}>Shown on product card</Text>
                    <TextInput 
                       style={styles.input} 
                       keyboardType="numeric"
@@ -240,6 +271,7 @@ export default function AddProductScreen() {
                 </View>
                 <View style={{ flex: 1 }}>
                    <Text style={styles.label}>Original Price</Text>
+                   <Text style={styles.hint}>Strikethrough price</Text>
                    <TextInput 
                       style={styles.input} 
                       keyboardType="numeric"
@@ -249,6 +281,15 @@ export default function AddProductScreen() {
                    />
                 </View>
              </View>
+
+             {/* Variant Pricing Info */}
+             {showVariants && variants.length > 0 && (
+                <View style={styles.priceInfoBox}>
+                   <Text style={styles.priceInfoText}>
+                      💡 Buyers pay the variant price when they select a variant.
+                   </Text>
+                </View>
+             )}
 
              {/* STOCK INPUT: Show ONLY if variants are NOT active */}
              {!showVariants && (
@@ -263,6 +304,65 @@ export default function AddProductScreen() {
                     />
                  </View>
              )}
+             
+             {/* VARIATIONS INPUT */}
+             <View style={{ marginTop: 12 }}>
+                <Text style={styles.label}>Variations (optional)</Text>
+                <Text style={styles.hint}>Sizes, models, flavors, etc.</Text>
+                <View style={styles.row}>
+                   <TextInput 
+                      style={[styles.input, { flex: 1 }]} 
+                      placeholder="e.g. Small, Large, 500ml"
+                      value={variationInput}
+                      onChangeText={setVariationInput}
+                      onSubmitEditing={addVariation}
+                   />
+                   <TouchableOpacity style={styles.addTagBtn} onPress={addVariation}>
+                      <Text style={styles.addTagText}>+ Add</Text>
+                   </TouchableOpacity>
+                </View>
+                {formData.sizes.length > 0 && (
+                   <View style={styles.tagContainer}>
+                      {formData.sizes.map(size => (
+                         <View key={size} style={styles.tag}>
+                            <Text style={styles.tagText}>{size}</Text>
+                            <TouchableOpacity onPress={() => removeVariation(size)}>
+                               <X size={14} color="#FF5722" />
+                            </TouchableOpacity>
+                         </View>
+                      ))}
+                   </View>
+                )}
+             </View>
+             
+             {/* COLORS INPUT */}
+             <View style={{ marginTop: 12 }}>
+                <Text style={styles.label}>Colors (optional)</Text>
+                <View style={styles.row}>
+                   <TextInput 
+                      style={[styles.input, { flex: 1 }]} 
+                      placeholder="e.g. Red, Blue, Green"
+                      value={colorInput}
+                      onChangeText={setColorInput}
+                      onSubmitEditing={addColor}
+                   />
+                   <TouchableOpacity style={styles.addTagBtn} onPress={addColor}>
+                      <Text style={styles.addTagText}>+ Add</Text>
+                   </TouchableOpacity>
+                </View>
+                {formData.colors.length > 0 && (
+                   <View style={styles.tagContainer}>
+                      {formData.colors.map(color => (
+                         <View key={color} style={[styles.tag, styles.colorTag]}>
+                            <Text style={[styles.tagText, styles.colorTagText]}>{color}</Text>
+                            <TouchableOpacity onPress={() => removeColor(color)}>
+                               <X size={14} color="#3B82F6" />
+                            </TouchableOpacity>
+                         </View>
+                      ))}
+                   </View>
+                )}
+             </View>
           </View>
 
           {/* 4. VARIANTS TOGGLE */}
@@ -273,7 +373,7 @@ export default function AddProductScreen() {
                 activeOpacity={0.8}
             >
                 <Layers size={20} color="#FF5722" />
-                <Text style={styles.addVariantsText}>+ Add Variants (Size, Color)</Text>
+                <Text style={styles.addVariantsText}>+ Manage Variants</Text>
             </TouchableOpacity>
           ) : (
             <View style={{ position: 'relative' }}>
@@ -281,13 +381,14 @@ export default function AddProductScreen() {
                 <VariantManager 
                     productName={formData.name}
                     basePrice={formData.price}
+                    availableSizes={formData.sizes}
+                    availableColors={formData.colors}
                     onVariantsChange={(newVariants, labels) => {
-                        // Map back to what your database expects
-                        // Default Option 1 -> Color, Option 2 -> Size
+                        // Map correctly: option1 = Color, option2 = Size
                         const mappedVariants = newVariants.map(v => ({
                             ...v,
-                            color: v.option1, 
-                            size: v.option2,  
+                            color: v.option1 === '-' ? '' : v.option1, 
+                            size: v.option2 === '-' ? '' : v.option2,  
                         }));
                         
                         setVariants(mappedVariants);
@@ -368,6 +469,16 @@ const styles = StyleSheet.create({
   catTextActive: { color: '#FFF' },
 
   row: { flexDirection: 'row', gap: 12 },
+  
+  // Tag input styles
+  hint: { fontSize: 11, color: '#9CA3AF', marginBottom: 8 },
+  addTagBtn: { backgroundColor: '#FFF', borderWidth: 1, borderColor: '#FF5722', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12, alignItems: 'center', justifyContent: 'center' },
+  addTagText: { fontSize: 14, fontWeight: '600', color: '#FF5722' },
+  tagContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
+  tag: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#FFF7ED', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: '#FFEDD5' },
+  tagText: { fontSize: 13, color: '#EA580C', fontWeight: '500' },
+  colorTag: { backgroundColor: '#EFF6FF', borderColor: '#DBEAFE' },
+  colorTagText: { color: '#2563EB' },
 
   // Buttons for Variants
   addVariantsBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#FFF', paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB', borderStyle: 'dashed', marginBottom: 16 },
@@ -378,6 +489,9 @@ const styles = StyleSheet.create({
 
   qaNote: { flexDirection: 'row', gap: 8, backgroundColor: '#FFF7ED', padding: 12, borderRadius: 8, marginTop: 8 },
   qaNoteText: { fontSize: 12, color: '#EA580C', flex: 1 },
+
+  priceInfoBox: { backgroundColor: '#FFF7ED', padding: 12, borderRadius: 8, marginTop: 12, borderWidth: 1, borderColor: '#FFEDD5' },
+  priceInfoText: { fontSize: 12, color: '#EA580C' },
 
   footer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#FFF', padding: 16, borderTopWidth: 1, borderTopColor: '#F3F4F6' },
   submitBtn: { backgroundColor: '#FF5722', paddingVertical: 16, borderRadius: 14, alignItems: 'center' },

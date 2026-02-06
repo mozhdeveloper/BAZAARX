@@ -216,10 +216,10 @@ interface BuyerStore {
   // Address Book
   addresses: Address[];
   setAddresses: (addresses: Address[]) => void;
-  addAddress: (address: Address) => void;
-  updateAddress: (id: string, updates: Partial<Address>) => void;
-  deleteAddress: (id: string) => void;
-  setDefaultAddress: (id: string) => void;
+  addAddress: (address: Address) => Promise<void>;
+  updateAddress: (id: string, updates: Partial<Address>) => Promise<void>;
+  deleteAddress: (id: string) => Promise<void>;
+  setDefaultAddress: (id: string) => Promise<void>;
 
 
   // Following Shops
@@ -320,13 +320,27 @@ const mapDbItemToCartItem = (item: any): CartItem | null => {
   if (!dbProduct) return null;
 
   const sellerData = dbProduct.seller;
+  
+  // Map the variant from DB (returned as "variant" from the join)
+  const dbVariant = item.variant;
+  const selectedVariant: ProductVariant | undefined = dbVariant ? {
+    id: dbVariant.id,
+    name: dbVariant.variant_name || dbVariant.name || [dbVariant.size, dbVariant.color].filter(Boolean).join(' / ') || 'Standard',
+    price: dbVariant.price,
+    stock: dbVariant.stock,
+    image: dbVariant.thumbnail_url,
+    // Additional fields for display
+    size: dbVariant.size,
+    color: dbVariant.color,
+    sku: dbVariant.sku,
+  } as ProductVariant : undefined;
 
   return {
     id: dbProduct.id,
     name: dbProduct.name,
-    price: dbProduct.price,
+    price: selectedVariant?.price || dbProduct.price,
     originalPrice: dbProduct.original_price,
-    image: dbProduct.primary_image || (dbProduct.images && dbProduct.images[0]) || "",
+    image: selectedVariant?.image || dbProduct.primary_image || (dbProduct.images && dbProduct.images[0]) || "",
     images: dbProduct.images || [],
     seller: {
       id: dbProduct.seller_id,
@@ -355,7 +369,7 @@ const mapDbItemToCartItem = (item: any): CartItem | null => {
     specifications: dbProduct.specifications || {},
     variants: dbProduct.variants || [],
     quantity: item.quantity,
-    selectedVariant: item.selected_variant,
+    selectedVariant,
     notes: item.notes,
     selected: true // Default to selected so they appear in checkout
   } as CartItem;
@@ -367,13 +381,8 @@ export const useBuyerStore = create<BuyerStore>()(persist(
     profile: null,
 
     setProfile: (profile) => {
-      // Mock payment methods for demo
-      if (!profile.paymentMethods) {
-        profile.paymentMethods = [
-          { id: 'card_demo_1', type: 'card', last4: '1111', brand: 'Visa', expiry: '05/30', isDefault: true },
-          { id: 'wallet_demo_1', type: 'wallet', brand: 'GCash', accountNumber: '09*******12', isDefault: false },
-        ];
-      }
+      // Removed: Mock payment methods - COD is the default payment method
+      // Users can add their own payment methods if needed
       set({ profile });
     },
 
@@ -408,46 +417,160 @@ export const useBuyerStore = create<BuyerStore>()(persist(
 
     setAddresses: (addresses) => set({ addresses }),
 
-    addAddress: (address) => set((state) => {
+    addAddress: async (address) => {
+      const state = get();
+      const userId = state.profile?.id;
+      
       // If the new address is default, unset default for all existing addresses
       const updatedAddresses = address.isDefault
         ? state.addresses.map(addr => ({ ...addr, isDefault: false }))
         : state.addresses;
 
-      return {
-        addresses: [...updatedAddresses, address]
-      };
-    }),
+      // Save to database if user is logged in
+      if (userId) {
+        try {
+          // If setting as default, unset others first
+          if (address.isDefault) {
+            await supabase
+              .from('shipping_addresses')
+              .update({ is_default: false })
+              .eq('user_id', userId);
+          }
+          
+          // Insert new address
+          const { data: newAddr, error } = await supabase
+            .from('shipping_addresses')
+            .insert({
+              user_id: userId,
+              label: address.fullName || address.label || 'Home',
+              address_line_1: address.street,
+              address_line_2: '',
+              barangay: address.barangay || '',
+              city: address.city,
+              province: address.province,
+              region: address.region || 'Metro Manila',
+              postal_code: address.postalCode,
+              landmark: address.landmark || '',
+              delivery_instructions: address.deliveryInstructions || '',
+              is_default: address.isDefault || false,
+            })
+            .select()
+            .single();
+          
+          if (!error && newAddr) {
+            // Use the DB-generated ID
+            address.id = newAddr.id;
+          }
+        } catch (err) {
+          console.error('Error saving address to database:', err);
+        }
+      }
 
-    updateAddress: (id, updatedAddress) => set((state) => {
+      set({
+        addresses: [...updatedAddresses, address]
+      });
+    },
+
+    updateAddress: async (id, updatedAddress) => {
+      const state = get();
+      const userId = state.profile?.id;
+      
       // If we are setting this address as default, unset others
-      // Note: check explicitly if isDefault is present and true in updates
       const isSettingDefault = updatedAddress.isDefault === true;
 
-      return {
+      // Update in database
+      if (userId) {
+        try {
+          if (isSettingDefault) {
+            await supabase
+              .from('shipping_addresses')
+              .update({ is_default: false })
+              .eq('user_id', userId);
+          }
+          
+          const dbUpdate: Record<string, any> = {};
+          if (updatedAddress.street) dbUpdate.address_line_1 = updatedAddress.street;
+          if (updatedAddress.city) dbUpdate.city = updatedAddress.city;
+          if (updatedAddress.province) dbUpdate.province = updatedAddress.province;
+          if (updatedAddress.postalCode) dbUpdate.postal_code = updatedAddress.postalCode;
+          if (updatedAddress.fullName || updatedAddress.label) dbUpdate.label = updatedAddress.fullName || updatedAddress.label;
+          if (typeof updatedAddress.isDefault === 'boolean') dbUpdate.is_default = updatedAddress.isDefault;
+          if (updatedAddress.barangay) dbUpdate.barangay = updatedAddress.barangay;
+          if (updatedAddress.region) dbUpdate.region = updatedAddress.region;
+          
+          await supabase
+            .from('shipping_addresses')
+            .update(dbUpdate)
+            .eq('id', id);
+        } catch (err) {
+          console.error('Error updating address in database:', err);
+        }
+      }
+
+      set({
         addresses: state.addresses.map(addr => {
           if (addr.id === id) {
             return { ...addr, ...updatedAddress };
           }
-          // If we are setting the target as default, unset others
           if (isSettingDefault) {
             return { ...addr, isDefault: false };
           }
           return addr;
         })
-      };
-    }),
+      });
+    },
 
-    deleteAddress: (id) => set((state) => ({
-      addresses: state.addresses.filter(addr => addr.id !== id)
-    })),
+    deleteAddress: async (id) => {
+      const state = get();
+      const userId = state.profile?.id;
+      
+      // Delete from database
+      if (userId) {
+        try {
+          await supabase
+            .from('shipping_addresses')
+            .delete()
+            .eq('id', id);
+        } catch (err) {
+          console.error('Error deleting address from database:', err);
+        }
+      }
+      
+      set({
+        addresses: state.addresses.filter(addr => addr.id !== id)
+      });
+    },
 
-    setDefaultAddress: (id) => set((state) => ({
-      addresses: state.addresses.map(addr => ({
-        ...addr,
-        isDefault: addr.id === id
-      }))
-    })),
+    setDefaultAddress: async (id) => {
+      const state = get();
+      const userId = state.profile?.id;
+      
+      // Update in database
+      if (userId) {
+        try {
+          // Unset all defaults
+          await supabase
+            .from('shipping_addresses')
+            .update({ is_default: false })
+            .eq('user_id', userId);
+          
+          // Set new default
+          await supabase
+            .from('shipping_addresses')
+            .update({ is_default: true })
+            .eq('id', id);
+        } catch (err) {
+          console.error('Error setting default address in database:', err);
+        }
+      }
+      
+      set({
+        addresses: state.addresses.map(addr => ({
+          ...addr,
+          isDefault: addr.id === id
+        }))
+      });
+    },
 
     addCard: (card) => set((state) => ({
       profile: state.profile ? {
@@ -524,12 +647,12 @@ export const useBuyerStore = create<BuyerStore>()(persist(
         try {
           const cart = await cartService.getOrCreateCart(user.id);
           if (cart) {
-            // Add to database - this already handles duplicates correctly
+            // Add to database - pass variant ID, not the whole object
             await cartService.addToCart(
               cart.id,
               product.id,
               quantity,
-              variant
+              variant?.id  // Pass variant ID, not the whole object
             );
 
             // Refetch cart items from database to sync state
@@ -1119,6 +1242,14 @@ export const useBuyerStore = create<BuyerStore>()(persist(
           throw buyerError;
         }
 
+        // Fetch shipping addresses from the separate table
+        const { data: shippingAddresses } = await supabase
+          .from('shipping_addresses')
+          .select('*')
+          .eq('user_id', userId)
+          .order('is_default', { ascending: false })
+          .order('created_at', { ascending: false });
+
         // Extract profile info from the joined data
         const profileInfo = buyerData.profile;
         const buyerInfo = {
@@ -1137,8 +1268,47 @@ export const useBuyerStore = create<BuyerStore>()(persist(
         // Set the profile in the store
         set({ profile: buyerInfo as BuyerProfile });
 
-        // Initialize addresses
-        set({ addresses: buyerData.shipping_addresses || [] });
+        // Initialize addresses from the shipping_addresses table (map to expected format)
+        // Note: address_line_1 may contain "Name, Phone, Street" format
+        const mappedAddresses = (shippingAddresses || []).map((addr: any) => {
+          // Parse address_line_1 which may be in format: "Name, Phone, Street"
+          const addressLine1 = addr.address_line_1 || '';
+          const parts = addressLine1.split(', ');
+          
+          // Try to extract name and phone if they were concatenated
+          let fullName = '';
+          let phone = '';
+          let street = addressLine1;
+          
+          if (parts.length >= 3) {
+            // Format: "Name, Phone, Street..."
+            const possiblePhone = parts[1];
+            if (/^\d{10,11}$/.test(possiblePhone?.replace(/\D/g, ''))) {
+              fullName = parts[0];
+              phone = possiblePhone;
+              street = parts.slice(2).join(', ');
+            }
+          }
+          
+          return {
+            id: addr.id,
+            fullName: fullName || addr.label,
+            firstName: fullName ? fullName.split(' ')[0] : '',
+            lastName: fullName ? fullName.split(' ').slice(1).join(' ') : '',
+            street: street + (addr.address_line_2 ? ', ' + addr.address_line_2 : ''),
+            city: addr.city,
+            province: addr.province,
+            postalCode: addr.postal_code,
+            phone: phone,
+            isDefault: addr.is_default,
+            label: addr.label,
+            barangay: addr.barangay,
+            region: addr.region,
+            landmark: addr.landmark,
+            deliveryInstructions: addr.delivery_instructions,
+          };
+        });
+        set({ addresses: mappedAddresses });
 
         return buyerInfo;
       } catch (error) {
