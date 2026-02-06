@@ -30,10 +30,9 @@ import MapView, { Marker, Region, PROVIDER_GOOGLE, PROVIDER_DEFAULT } from 'reac
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../App';
 import { addressService, type Address } from '../../src/services/addressService';
+import { authService } from '../../src/services/authService';
 import { useAuthStore } from '../../src/stores/authStore';
 import { regions, provinces, cities, barangays } from 'select-philippines-address';
-
-import { supabase } from '../../src/lib/supabase';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'AddressSetup'>;
 
@@ -207,25 +206,24 @@ export default function AddressSetupScreen({ navigation, route }: Props) {
     try {
         let userId = '';
 
-        // 1. Perform Deferred Signup
+        // 1. Perform Deferred Signup (using authService for proper profile/buyer/roles creation)
         if (signupData) {
-            const { data, error } = await supabase.auth.signUp({
-                email: signupData.email,
-                password: signupData.password,
-                options: {
-                    data: {
-                        first_name: signupData.firstName,
-                        last_name: signupData.lastName,
-                        phone: signupData.phone,
-                        role: 'buyer',
-                    },
-                },
-            });
+            const result = await authService.signUp(
+                signupData.email,
+                signupData.password,
+                {
+                    first_name: signupData.firstName,
+                    last_name: signupData.lastName,
+                    phone: signupData.phone,
+                    user_type: 'buyer',
+                    email: signupData.email,
+                    password: signupData.password,
+                }
+            );
 
-            if (error) throw new Error(error.message);
-            if (!data.user) throw new Error('Signup failed. Please try again.');
+            if (!result || !result.user) throw new Error('Signup failed. Please try again.');
             
-            userId = data.user.id;
+            userId = result.user.id;
         } else {
             // Fallback for testing or if auth state is somehow different
              const { user } = useAuthStore.getState();

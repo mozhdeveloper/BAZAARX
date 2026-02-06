@@ -28,6 +28,7 @@ import {
 } from "../components/ui/select";
 import { CartModal } from "../components/ui/cart-modal";
 import { BuyNowModal } from "../components/ui/buy-now-modal";
+import { VariantSelectionModal } from "../components/ui/variant-selection-modal";
 import ProductRequestModal from "../components/ProductRequestModal";
 import VisualSearchModal from "../components/VisualSearchModal";
 import { useToast } from "../hooks/use-toast";
@@ -62,6 +63,15 @@ type ShopProduct = {
   colors?: string[];
   sizes?: string[];
   stock?: number;
+  variants?: {
+    id: string;
+    name?: string;
+    size?: string;
+    color?: string;
+    price: number;
+    stock: number;
+    image?: string;
+  }[];
 };
 
 // Flash sale products are now derived from real products in the component
@@ -102,6 +112,10 @@ export default function ShopPage() {
   const [isToolbarSticky, setIsToolbarSticky] = useState(true);
   const [showBuyNowModal, setShowBuyNowModal] = useState(false);
   const [buyNowProduct, setBuyNowProduct] = useState<any>(null);
+
+  // Variant Selection Modal state (for Add to Cart)
+  const [showVariantModal, setShowVariantModal] = useState(false);
+  const [variantProduct, setVariantProduct] = useState<any>(null);
 
   // Flash Sale Countdown
   const [timeLeft, setTimeLeft] = useState({
@@ -186,7 +200,7 @@ export default function ShopPage() {
         image: p.images?.[0] || "https://placehold.co/400?text=Product",
         images: p.images || [],
         rating: p.rating || 0,
-        sold: p.sales || 0,
+        sold: p.reviews || 0, // Use reviews count as "sold" for display
         category: p.category,
         seller: p.sellerName || "Verified Seller",
         sellerId: p.sellerId,
@@ -198,6 +212,7 @@ export default function ShopPage() {
         colors: p.colors || [],
         sizes: p.sizes || [],
         stock: p.stock || 99,
+        variants: p.variants || [],
       }));
 
     return dbProducts;
@@ -670,6 +685,38 @@ export default function ShopPage() {
                               return;
                             }
 
+                            // Check if product has variants/colors/sizes - show modal if so
+                            const hasVariants = (product as any).variants && (product as any).variants.length > 0;
+                            const hasColors = product.colors && product.colors.length > 0;
+                            const hasSizes = product.sizes && product.sizes.length > 0;
+
+                            if (hasVariants || hasColors || hasSizes) {
+                              // Show variant selection modal
+                              setVariantProduct({
+                                id: product.id,
+                                name: product.name,
+                                price: product.price,
+                                image: product.image,
+                                variants: (product as any).variants || [],
+                                sizes: product.sizes || [],
+                                colors: product.colors || [],
+                                sellerId: product.sellerId,
+                                seller: product.seller,
+                                sellerRating: product.sellerRating,
+                                sellerVerified: product.sellerVerified,
+                                rating: product.rating,
+                                category: product.category,
+                                sold: product.sold,
+                                isFreeShipping: product.isFreeShipping,
+                                location: product.location,
+                                description: product.description,
+                                originalPrice: product.originalPrice,
+                              });
+                              setShowVariantModal(true);
+                              return;
+                            }
+
+                            // No variants - add directly to cart
                             const sellerLocation = product.location || "Metro Manila";
                             const cartItem: any = {
                               id: product.id,
@@ -753,7 +800,7 @@ export default function ShopPage() {
                               isFreeShipping: product.isFreeShipping ?? true,
                               location: product.location || "Metro Manila",
                               description: product.description || "",
-                              variants: [],
+                              variants: product.variants || [],
                               colors: product.colors || [],
                               sizes: product.sizes || [],
                               stock: product.stock || 99,
@@ -880,6 +927,67 @@ export default function ShopPage() {
           />
         )
       }
+
+      {/* Variant Selection Modal (for Add to Cart with variants) */}
+      {variantProduct && (
+        <VariantSelectionModal
+          isOpen={showVariantModal}
+          onClose={() => {
+            setShowVariantModal(false);
+            setVariantProduct(null);
+          }}
+          product={variantProduct}
+          onConfirm={(variant, quantity) => {
+            const sellerLocation = variantProduct.location || "Metro Manila";
+            const cartItem: any = {
+              id: variantProduct.id,
+              name: variantProduct.name,
+              price: variant?.price || variantProduct.price,
+              originalPrice: variantProduct.originalPrice,
+              image: variant?.image || variantProduct.image,
+              images: [variantProduct.image],
+              seller: {
+                id: variantProduct.sellerId,
+                name: variantProduct.seller,
+                avatar: "",
+                rating: variantProduct.sellerRating || 0,
+                totalReviews: 100,
+                followers: 1000,
+                isVerified: variantProduct.sellerVerified || false,
+                description: "",
+                location: sellerLocation,
+                established: "2020",
+                products: [],
+                badges: [],
+                responseTime: "1 hour",
+                categories: [variantProduct.category],
+              },
+              sellerId: variantProduct.sellerId,
+              rating: variantProduct.rating,
+              totalReviews: 100,
+              category: variantProduct.category,
+              sold: variantProduct.sold,
+              isFreeShipping: variantProduct.isFreeShipping ?? true,
+              location: sellerLocation,
+              description: variantProduct.description || "",
+              specifications: {},
+              variants: variantProduct.variants || [],
+            };
+
+            addToCart(cartItem, quantity, variant);
+
+            setShowVariantModal(false);
+            setVariantProduct(null);
+
+            // Show cart confirmation modal
+            setAddedProduct({
+              name: variantProduct.name,
+              image: variant?.image || variantProduct.image,
+            });
+            setShowCartModal(true);
+          }}
+        />
+      )}
     </div >
   );
 }

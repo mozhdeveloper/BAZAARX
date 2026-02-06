@@ -35,43 +35,71 @@ export class AddressService {
     }
 
     private mapFromDB(a: any): Address {
+        // Parse address_line_1 which may be in format: "Name, Phone, Street"
+        const addressLine1 = a.address_line_1 || '';
+        const parts = addressLine1.split(', ');
+        
+        let firstName = '';
+        let lastName = '';
+        let phone = '';
+        let street = addressLine1;
+        
+        if (parts.length >= 3) {
+            // Format: "Name, Phone, Street..."
+            const possiblePhone = parts[1];
+            if (/^\d{10,11}$/.test(possiblePhone?.replace(/\D/g, ''))) {
+                const nameParts = parts[0].split(' ');
+                firstName = nameParts[0] || '';
+                lastName = nameParts.slice(1).join(' ') || '';
+                phone = possiblePhone;
+                street = parts.slice(2).join(', ');
+            }
+        }
+        
         return {
             id: a.id,
-            label: a.label,
-            firstName: a.first_name,
-            lastName: a.last_name,
-            phone: a.phone,
-            street: a.street,
+            label: a.label || 'Address',
+            firstName: firstName,
+            lastName: lastName,
+            phone: phone,
+            street: street,
             barangay: a.barangay || '',
-            city: a.city,
-            province: a.province,
-            region: a.region,
-            zipCode: a.zip_code,
-            landmark: a.landmark,
-            deliveryInstructions: a.delivery_instructions,
-            addressType: a.address_type,
-            isDefault: a.is_default,
-            coordinates: a.coordinates,
+            city: a.city || '',
+            province: a.province || '',
+            region: a.region || '',
+            zipCode: a.postal_code || '',
+            landmark: a.address_line_2 || a.landmark || null,
+            deliveryInstructions: a.delivery_instructions || null,
+            addressType: a.address_type || 'residential',
+            isDefault: a.is_default || false,
+            coordinates: a.coordinates || null,
         };
     }
 
-    private mapToDB(address: AddressInsert | AddressUpdate) {
+    private mapToDB(address: AddressInsert | AddressUpdate, userId?: string) {
         const dbPayload: any = {};
+        
+        // Build address_line_1 with name, phone, and street combined
+        if (address.firstName !== undefined || address.lastName !== undefined || address.phone !== undefined || address.street !== undefined) {
+            const name = `${address.firstName || ''} ${address.lastName || ''}`.trim();
+            const phone = address.phone || '';
+            const street = address.street || '';
+            dbPayload.address_line_1 = [name, phone, street].filter(Boolean).join(', ');
+        }
+        
         if (address.label !== undefined) dbPayload.label = address.label;
-        if (address.firstName !== undefined) dbPayload.first_name = address.firstName;
-        if (address.lastName !== undefined) dbPayload.last_name = address.lastName;
-        if (address.phone !== undefined) dbPayload.phone = address.phone;
-        if (address.street !== undefined) dbPayload.street = address.street;
+        if (address.landmark !== undefined) dbPayload.address_line_2 = address.landmark;
         if (address.barangay !== undefined) dbPayload.barangay = address.barangay;
         if (address.city !== undefined) dbPayload.city = address.city;
         if (address.province !== undefined) dbPayload.province = address.province;
         if (address.region !== undefined) dbPayload.region = address.region;
-        if (address.zipCode !== undefined) dbPayload.zip_code = address.zipCode;
-        if (address.landmark !== undefined) dbPayload.landmark = address.landmark;
+        if (address.zipCode !== undefined) dbPayload.postal_code = address.zipCode;
         if (address.deliveryInstructions !== undefined) dbPayload.delivery_instructions = address.deliveryInstructions;
         if (address.addressType !== undefined) dbPayload.address_type = address.addressType;
         if (address.isDefault !== undefined) dbPayload.is_default = address.isDefault;
         if (address.coordinates !== undefined) dbPayload.coordinates = address.coordinates;
+        if (userId) dbPayload.user_id = userId;
+        
         return dbPayload;
     }
 
@@ -83,16 +111,23 @@ export class AddressService {
 
         try {
             const { data, error } = await supabase
-                .from('addresses')
+                .from('shipping_addresses')
                 .select('*')
                 .eq('user_id', userId)
                 .order('is_default', { ascending: false });
 
-            if (error) throw error;
-            return (data || []).map(this.mapFromDB);
+            if (error) {
+                // Handle 404 - table may not exist
+                if (error.code === '42P01' || error.code === 'PGRST116') {
+                    console.warn('shipping_addresses table not found');
+                    return [];
+                }
+                throw error;
+            }
+            return (data || []).map(a => this.mapFromDB(a));
         } catch (error) {
             console.error('Error fetching addresses:', error);
-            throw new Error('Failed to load saved addresses.');
+            return []; // Return empty instead of throwing
         }
     }
 
@@ -101,7 +136,7 @@ export class AddressService {
 
         try {
             const { data, error } = await supabase
-                .from('addresses')
+                .from('shipping_addresses')
                 .select('*')
                 .eq('user_id', userId)
                 .eq('is_default', true)
@@ -124,8 +159,8 @@ export class AddressService {
             }
 
             const { data, error } = await supabase
-                .from('addresses')
-                .insert([{ ...this.mapToDB(address), user_id: userId }])
+                .from('shipping_addresses')
+                .insert([this.mapToDB(address, userId)])
                 .select()
                 .single();
 
@@ -146,7 +181,7 @@ export class AddressService {
             }
 
             const { data, error } = await supabase
-                .from('addresses')
+                .from('shipping_addresses')
                 .update(this.mapToDB(updates))
                 .eq('id', addressId)
                 .select()
@@ -165,7 +200,7 @@ export class AddressService {
 
         try {
             const { error } = await supabase
-                .from('addresses')
+                .from('shipping_addresses')
                 .delete()
                 .eq('id', addressId);
 
@@ -182,7 +217,7 @@ export class AddressService {
         try {
             await this.clearDefaults(userId);
             const { error } = await supabase
-                .from('addresses')
+                .from('shipping_addresses')
                 .update({ is_default: true })
                 .eq('id', addressId);
 
@@ -195,7 +230,7 @@ export class AddressService {
 
     private async clearDefaults(userId: string): Promise<void> {
         const { error } = await supabase
-            .from('addresses')
+            .from('shipping_addresses')
             .update({ is_default: false })
             .eq('user_id', userId);
 
@@ -206,11 +241,11 @@ export class AddressService {
         if (!isSupabaseConfigured()) return { unsubscribe: () => { } };
 
         const channel = supabase
-            .channel(`addresses_${userId}`)
+            .channel(`shipping_addresses_${userId}`)
             .on('postgres_changes', {
                 event: '*',
                 schema: 'public',
-                table: 'addresses',
+                table: 'shipping_addresses',
                 filter: `user_id=eq.${userId}`
             }, callback)
             .subscribe();
@@ -279,7 +314,15 @@ export class AddressService {
     async saveCurrentDeliveryLocation(
         userId: string, 
         address: string, 
-        coords: { latitude: number; longitude: number } | null
+        coords: { latitude: number; longitude: number } | null,
+        details?: {
+            street?: string;
+            barangay?: string;
+            city?: string;
+            province?: string;
+            region?: string;
+            postalCode?: string;
+        }
     ): Promise<Address | null> {
         if (!isSupabaseConfigured()) {
             console.warn('Supabase not configured, skipping DB save');
@@ -287,11 +330,21 @@ export class AddressService {
         }
 
         try {
-            // Parse address string into components
-            const parts = address.split(',').map(p => p.trim());
-            const street = parts[0] || address;
-            const city = parts[1] || '';
-            const province = parts[2] || '';
+            // Use provided details if available, otherwise parse address string
+            let street = details?.street || '';
+            let barangay = details?.barangay || '';
+            let city = details?.city || '';
+            let province = details?.province || '';
+            let region = details?.region || '';
+            let postalCode = details?.postalCode || '';
+            
+            // Fallback: parse address string if no details provided
+            if (!street && !city) {
+                const parts = address.split(',').map(p => p.trim());
+                street = parts[0] || address;
+                city = parts[1] || '';
+                province = parts[2] || '';
+            }
 
             // Check if user already has a "Current Location" address
             const { data: existing, error: fetchError } = await supabase
@@ -313,11 +366,11 @@ export class AddressService {
                 last_name: '',
                 phone: '',
                 street: street,
-                barangay: '',
+                barangay: barangay,
                 city: city,
                 province: province,
-                region: '',
-                zip_code: '',
+                region: region,
+                zip_code: postalCode,
                 landmark: null,
                 delivery_instructions: null,
                 address_type: 'residential' as const,

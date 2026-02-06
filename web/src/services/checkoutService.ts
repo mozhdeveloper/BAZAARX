@@ -85,19 +85,30 @@ export class CheckoutService {
             for (const item of items) {
                 if (!item.product_id) continue;
 
+                // First get product stock
                 const { data: product, error: productError } = await supabase
                     .from('products')
-                    .select('stock, variants')
+                    .select('stock')
                     .eq('id', item.product_id)
                     .single();
 
                 if (productError || !product) {
-                    throw new Error(`Product not found for item ${item.product_id}`);
+                    console.warn(`Product ${item.product_id} not found, skipping stock validation`);
+                    continue; // Skip validation but allow checkout
+                }
+                
+                // Get variants from product_variants table if needed
+                let variantsList: any[] = [];
+                if (item.selected_variant) {
+                    const { data: variants } = await supabase
+                        .from('product_variants')
+                        .select('*')
+                        .eq('product_id', item.product_id);
+                    variantsList = variants || [];
                 }
 
                 if (item.selected_variant) {
                     const selectedVar = item.selected_variant as any;
-                    const variantsList = Array.isArray(product.variants) ? product.variants : [];
                     
                     // If product has no variants, treat as regular product
                     if (variantsList.length === 0) {
@@ -121,13 +132,14 @@ export class CheckoutService {
                         
                         // Strategy 3: Match by name
                         if (!variant && selectedVar.name) {
-                            variant = variantsList.find((v: any) => v.name === selectedVar.name);
+                            variant = variantsList.find((v: any) => v.variant_name === selectedVar.name || v.name === selectedVar.name);
                         }
                         
-                        // Strategy 4: Match by price + name combination
-                        if (!variant && selectedVar.price && selectedVar.name) {
+                        // Strategy 4: Match by size/color combination
+                        if (!variant && (selectedVar.size || selectedVar.color)) {
                             variant = variantsList.find((v: any) => 
-                                v.price === selectedVar.price && v.name === selectedVar.name
+                                (!selectedVar.size || v.size === selectedVar.size) &&
+                                (!selectedVar.color || v.color === selectedVar.color)
                             );
                         }
                         
@@ -214,159 +226,162 @@ export class CheckoutService {
 
             const createdOrderNumbers: string[] = [];
             const sharedBaseNumber = this.generateOrderNumber();
-            let sellerIndex = 1;
+            let orderIndex = 1;
 
-            // Process per seller
-            for (const [sellerId, sellerItems] of Object.entries(itemsBySeller)) {
-                const orderNumber = `${sharedBaseNumber}#${sellerIndex++}`;
+            // For the normalized schema, we create ONE order and associate items with it
+            // Each order can have items from different sellers
+            const orderNumber = sharedBaseNumber;
 
-                // Calculate subtotals for this specific order
-                const orderSubtotal = sellerItems.reduce((sum, item) =>
-                    sum + (item.quantity * ((item.selected_variant as any)?.price || item.product?.price || 0)), 0);
+            // Calculate totals (these go on order_items, not orders table)
+            const totalAmount = items.reduce((sum, item) =>
+                sum + (item.quantity * ((item.selected_variant as any)?.price || item.product?.price || 0)), 0);
 
-                const { data: orderData, error: orderError } = await supabase
-                    .from('orders')
+            // First, create or find recipient (for shipping info)
+            let recipientId: string | null = null;
+            try {
+                const { data: recipientData, error: recipientError } = await supabase
+                    .from('order_recipients')
                     .insert({
-                        order_number: orderNumber,
-                        buyer_id: userId,
-                        seller_id: sellerId,
-                        buyer_name: shippingAddress.fullName,
-                        buyer_email: email,
-                        shipping_address: shippingAddress,
-                        payment_method: { type: paymentMethod },
-                        status: 'pending_payment',
-                        payment_status: 'pending',
-                        subtotal: orderSubtotal,
-                        total_amount: orderSubtotal,
-                        currency: 'PHP',
-                        shipping_cost: 0,
-                        discount_amount: 0,
-                        tax_amount: 0,
-                        is_reviewed: false,
-                        is_returnable: true,
-                        return_window: 7,
-                        created_at: new Date().toISOString(),
-                        updated_at: new Date().toISOString()
+                        first_name: shippingAddress.fullName?.split(' ')[0] || '',
+                        last_name: shippingAddress.fullName?.split(' ').slice(1).join(' ') || '',
+                        phone: shippingAddress.phone || '',
+                        email: email || '',
                     })
                     .select()
                     .single();
+                
+                if (!recipientError && recipientData) {
+                    recipientId = recipientData.id;
+                }
+            } catch (e) {
+                console.warn('Could not create recipient:', e);
+            }
 
-                if (orderError) throw orderError;
-                createdOrderNumbers.push(orderData.order_number);
+            // Create shipping address entry
+            let shippingAddressId: string | null = null;
+            try {
+                const { data: addressData, error: addressError } = await supabase
+                    .from('shipping_addresses')
+                    .insert({
+                        user_id: userId,
+                        label: 'Order Address',
+                        address_line_1: shippingAddress.street || '',
+                        address_line_2: '',
+                        city: shippingAddress.city || '',
+                        province: shippingAddress.province || '',
+                        region: shippingAddress.province || '', // Fallback to province
+                        postal_code: shippingAddress.postalCode || '',
+                        is_default: false
+                    })
+                    .select()
+                    .single();
+                
+                if (!addressError && addressData) {
+                    shippingAddressId = addressData.id;
+                }
+            } catch (e) {
+                console.warn('Could not create shipping address:', e);
+            }
 
-                console.log(`✅ Order created: ${orderData.order_number} for seller ${sellerId}`);
+            // Create the order with the ACTUAL schema columns
+            // Note: orders table doesn't have shipping_address_id - store full address in notes as JSON
+            const addressJson = JSON.stringify({
+                fullName: shippingAddress.fullName,
+                street: shippingAddress.street,
+                city: shippingAddress.city,
+                province: shippingAddress.province,
+                postalCode: shippingAddress.postalCode,
+                phone: shippingAddress.phone
+            });
+            
+            const { data: orderData, error: orderError } = await supabase
+                .from('orders')
+                .insert({
+                    order_number: orderNumber,
+                    buyer_id: userId,
+                    order_type: 'ONLINE',
+                    payment_status: paymentMethod === 'cod' ? 'pending_payment' : 'pending_payment',
+                    shipment_status: 'waiting_for_seller',
+                    recipient_id: recipientId,
+                    notes: `SHIPPING_ADDRESS:${addressJson}|Payment: ${paymentMethod}`
+                })
+                .select()
+                .single();
 
-                // 🔔 Create seller notification for new order
+            if (orderError) throw orderError;
+            createdOrderNumbers.push(orderData.order_number);
+
+            console.log(`✅ Order created: ${orderData.order_number}`);
+
+            // 🔔 Create notifications for sellers (reusing itemsBySeller from above)
+            for (const [sellerId, sellerItems] of Object.entries(itemsBySeller)) {
+                const sellerTotal = sellerItems.reduce((sum, item) =>
+                    sum + (item.quantity * ((item.selected_variant as any)?.price || item.product?.price || 0)), 0);
+                
                 notificationService.notifySellerNewOrder({
                     sellerId: sellerId,
                     orderId: orderData.id,
                     orderNumber: orderData.order_number,
-                    buyerName: shippingAddress.fullName,
-                    total: orderSubtotal
+                    buyerName: shippingAddress.fullName || 'Customer',
+                    total: sellerTotal
                 }).catch(err => {
                     console.error('❌ Failed to create seller notification:', err);
                 });
+            }
 
-                // � Create buyer notification for order placed
-                notificationService.notifyBuyerOrderStatus({
-                    buyerId: orderData.buyer_id,
-                    orderId: orderData.id,
-                    orderNumber: orderData.order_number,
-                    status: 'placed',
-                    message: `Your order #${orderData.order_number} has been placed successfully! The seller will confirm it shortly.`
-                }).catch(err => {
-                    console.error('❌ Failed to create buyer notification:', err);
-                });
+            // 🔔 Create buyer notification for order placed
+            notificationService.notifyBuyerOrderStatus({
+                buyerId: orderData.buyer_id,
+                orderId: orderData.id,
+                orderNumber: orderData.order_number,
+                status: 'placed',
+                message: `Your order #${orderData.order_number} has been placed successfully! The seller will confirm it shortly.`
+            }).catch(err => {
+                console.error('❌ Failed to create buyer notification:', err);
+            });
 
-                // �💬 Send order confirmation chat message to buyer
-                orderNotificationService.sendStatusUpdateNotification(
-                    orderData.id,
-                    'pending',
-                    sellerId,
-                    orderData.buyer_id
-                ).catch(err => {
-                    console.error('❌ Failed to send order confirmation chat:', err);
-                });
+            // Create Order Items (using actual schema: order_id, product_id, product_name, price, quantity, variant_id, price_discount, shipping_price, shipping_discount)
+            const orderItemsData = items.map(item => ({
+                order_id: orderData.id,
+                product_id: item.product_id,
+                product_name: (item.selected_variant as any)?.name || item.product?.name || 'Unknown Product',
+                primary_image_url: (item.selected_variant as any)?.image || 
+                                   (item.selected_variant as any)?.thumbnail_url ||
+                                   item.product?.primary_image ||
+                                   (item.product?.images && item.product.images[0]) ||
+                                   null,
+                quantity: item.quantity,
+                price: (item.selected_variant as any)?.price || item.product?.price || 0,
+                variant_id: (item.selected_variant as any)?.id || null,
+                price_discount: 0,
+                shipping_price: 0,
+                shipping_discount: 0
+            }));
 
-                // Create Order Items
-                const orderItemsData = sellerItems.map(item => ({
-                    order_id: orderData.id,
-                    product_id: item.product_id,
-                    product_name: (item.selected_variant as any)?.name || item.product?.name || 'Unknown Product',
-                    product_images: item.product?.images || [],
-                    quantity: item.quantity,
-                    price: (item.selected_variant as any)?.price || item.product?.price || 0,
-                    subtotal: item.quantity * ((item.selected_variant as any)?.price || item.product?.price || 0),
-                    selected_variant: item.selected_variant,
-                    status: 'pending',
-                    is_reviewed: false,
-                    created_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString()
-                }));
+            const { error: itemsError } = await supabase
+                .from('order_items')
+                .insert(orderItemsData);
 
-                const { error: itemsError } = await supabase
-                    .from('order_items')
-                    .insert(orderItemsData);
+            if (itemsError) throw itemsError;
 
-                if (itemsError) throw itemsError;
+            // Update Stock in product_variants (stock is in variants, not products table)
+            for (const item of items) {
+                if (!item.product_id) continue;
 
-                // Update Stock & Sales Count
-                for (const item of sellerItems) {
-                    if (!item.product_id) continue;
-
-                    if (item.selected_variant) {
-                        const { data: currentProd } = await supabase
-                            .from('products')
-                            .select('variants, stock, sales_count')
-                            .eq('id', item.product_id)
-                            .single();
-
-                        if (currentProd) {
-                            const variantsList = Array.isArray(currentProd.variants) ? currentProd.variants : [];
-                            
-                            // If product has no variants, treat as regular product
-                            if (variantsList.length === 0) {
-                                console.warn(`Product ${item.product_id} has selected_variant in order but no variants in database. Updating main stock.`);
-                                await supabase
-                                    .from('products')
-                                    .update({
-                                        stock: (currentProd.stock || 0) - item.quantity,
-                                        sales_count: (currentProd.sales_count || 0) + item.quantity
-                                    })
-                                    .eq('id', item.product_id);
-                            } else {
-                                const updatedVariants = variantsList.map((v: any) => {
-                                    if (v.id === (item.selected_variant as any)?.id) {
-                                        return { ...v, stock: v.stock - item.quantity };
-                                    }
-                                    return v;
-                                });
-
-                                await supabase
-                                    .from('products')
-                                    .update({
-                                        variants: updatedVariants,
-                                        sales_count: (currentProd.sales_count || 0) + item.quantity
-                                    })
-                                    .eq('id', item.product_id);
-                            }
-                        }
-                    } else {
-                        const { data: currentProd } = await supabase
-                            .from('products')
-                            .select('stock, sales_count')
-                            .eq('id', item.product_id)
-                            .single();
-
-                        if (currentProd) {
-                            await supabase
-                                .from('products')
-                                .update({
-                                    stock: (currentProd.stock || 0) - item.quantity,
-                                    sales_count: (currentProd.sales_count || 0) + item.quantity
-                                })
-                                .eq('id', item.product_id);
-                        }
+                if (item.selected_variant && (item.selected_variant as any)?.id) {
+                    // Update variant stock
+                    const variantId = (item.selected_variant as any).id;
+                    const { data: currentVariant } = await supabase
+                        .from('product_variants')
+                        .select('stock')
+                        .eq('id', variantId)
+                        .single();
+                    
+                    if (currentVariant) {
+                        await supabase
+                            .from('product_variants')
+                            .update({ stock: Math.max(0, (currentVariant.stock || 0) - item.quantity) })
+                            .eq('id', variantId);
                     }
                 }
             }

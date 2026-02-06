@@ -22,13 +22,11 @@ import { LinearGradient } from 'expo-linear-gradient';
 
 const { width } = Dimensions.get('window');
 
-// Test seller accounts - All have password: Seller123!
+// Test seller accounts - All have password: Test@123456
 const TEST_SELLER_ACCOUNTS = [
-  { email: 'maria.santos@bazaarph.com', password: 'Seller123!', name: "Maria's Fashion House" },
-  { email: 'juan.tech@bazaarph.com', password: 'Seller123!', name: 'TechHub Philippines' },
-  { email: 'wellness.haven@bazaarph.com', password: 'Seller123!', name: 'Wellness Haven PH' },
-  { email: 'home.essentials@bazaarph.com', password: 'Seller123!', name: 'Home Essentials' },
-  { email: 'active.sports@bazaarph.com', password: 'Seller123!', name: "Active Sports PH" },
+  { email: 'seller1@bazaarph.com', password: 'Test@123456', name: "Maria's Fashion Boutique 👗" },
+  { email: 'seller2@bazaarph.com', password: 'Test@123456', name: 'TechHub Electronics 📱' },
+  { email: 'seller3@bazaarph.com', password: 'Test@123456', name: 'Beauty Essentials PH 💄' },
 ];
 
 export default function SellerLoginScreen() {

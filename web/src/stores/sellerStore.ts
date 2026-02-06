@@ -79,6 +79,16 @@ export interface SellerProduct {
   sellerName?: string;
   sellerRating?: number;
   sellerLocation?: string;
+  variants?: {
+    id: string;
+    name?: string;
+    size?: string;
+    color?: string;
+    price: number;
+    stock: number;
+    image?: string;
+    sku?: string;
+  }[];
 }
 
 interface SellerOrder {
@@ -266,113 +276,144 @@ type ProductUpdate = Database['public']['Tables']['products']['Update'];
 // Optional fallback seller ID for Supabase inserts (set VITE_SUPABASE_SELLER_ID in .env for testing)
 const fallbackSellerId = (import.meta as { env?: { VITE_SUPABASE_SELLER_ID?: string } }).env?.VITE_SUPABASE_SELLER_ID;
 
-const mapDbSellerToSeller = (s: DBSeller): Seller => ({
-  id: s.id,
-  name: s.business_name || s.store_name || 'Seller',
-  ownerName: s.business_name || s.store_name || 'Seller',
-  email: '',
-  phone: s.business_address || '',
-  businessName: s.business_name || '',
-  storeName: s.store_name || '',
-  storeDescription: s.store_description || '',
-  storeCategory: s.store_category || [],
-  businessType: s.business_type || '',
-  businessRegistrationNumber: s.business_registration_number || '',
-  taxIdNumber: s.tax_id_number || '',
-  businessAddress: s.business_address || '',
-  city: s.city || '',
-  province: s.province || '',
-  postalCode: s.postal_code || '',
-  storeAddress: s.business_address || '',
-  bankName: s.bank_name || '',
-  accountName: s.account_name || '',
-  accountNumber: s.account_number || '',
-  isVerified: Boolean(s.is_verified),
-  approvalStatus: (s.approval_status as Seller['approvalStatus']) || 'pending',
-  rating: s.rating ?? 0,
-  totalSales: s.total_sales ?? 0,
-  joinDate: s.join_date || new Date().toISOString().split('T')[0],
-  avatar: undefined,
-});
+/**
+ * Map database seller to Seller interface
+ * Note: Actual schema has seller data split across:
+ * - sellers: id, store_name, store_description, avatar_url, owner_name, approval_status
+ * - seller_business_profiles: business_type, city, province, postal_code, business_address
+ * - seller_payout_accounts: bank_name, account_name, account_number
+ */
+const mapDbSellerToSeller = (s: any): Seller => {
+  const bp = s.business_profile || s.seller_business_profiles || {};
+  const pa = s.payout_account || s.seller_payout_accounts || {};
+  
+  return {
+    id: s.id,
+    name: s.owner_name || s.store_name || 'Seller',
+    ownerName: s.owner_name || s.store_name || 'Seller',
+    email: '',
+    phone: '',
+    businessName: s.owner_name || '',
+    storeName: s.store_name || '',
+    storeDescription: s.store_description || '',
+    storeCategory: [],
+    businessType: bp.business_type || '',
+    businessRegistrationNumber: bp.business_registration_number || '',
+    taxIdNumber: bp.tax_id_number || '',
+    businessAddress: bp.business_address || '',
+    city: bp.city || '',
+    province: bp.province || '',
+    postalCode: bp.postal_code || '',
+    storeAddress: bp.business_address || '',
+    bankName: pa.bank_name || '',
+    accountName: pa.account_name || '',
+    accountNumber: pa.account_number || '',
+    isVerified: s.approval_status === 'verified',
+    approvalStatus: (s.approval_status as Seller['approvalStatus']) || 'pending',
+    rating: 0, // Computed from reviews
+    totalSales: 0, // Computed from orders
+    joinDate: s.verified_at || s.created_at || new Date().toISOString().split('T')[0],
+    avatar: s.avatar_url,
+  };
+};
 
-const mapDbProductToSellerProduct = (p: any): SellerProduct => ({
-  id: p.id,
-  name: p.name || '',
-  description: p.description || '',
-  price: Number(p.price ?? 0),
-  originalPrice: p.original_price ?? undefined,
-  stock: p.stock ?? 0,
-  category: p.category || '',
-  images: p.images || [],
-  sizes: p.sizes || [],
-  colors: p.colors || [],
-  isActive: Boolean(p.is_active),
-  sellerId: p.seller_id || '',
-  createdAt: p.created_at || '',
-  updatedAt: p.updated_at || '',
-  sales: p.sales_count ?? 0,
-  rating: Number(p.rating ?? 0),
-  reviews: p.review_count ?? 0,
-  approvalStatus: (p.approval_status as SellerProduct['approvalStatus']) || 'pending',
-  rejectionReason: p.rejection_reason || undefined,
-  vendorSubmittedCategory: p.vendor_submitted_category || undefined,
-  adminReclassifiedCategory: p.admin_reclassified_category || undefined,
-  sellerName: p.seller?.store_name || p.seller?.business_name,
-  sellerRating: p.seller?.rating,
-  sellerLocation: p.seller?.business_address
-});
+/**
+ * Map database product to SellerProduct interface
+ * Note: Actual schema has product data split across:
+ * - products: id, name, description, price, category_id, brand, sku, specifications, approval_status
+ * - product_images: image_url, is_primary
+ * - product_variants: size, color, stock, price
+ */
+const mapDbProductToSellerProduct = (p: any): SellerProduct => {
+  // Handle images from product_images relation
+  const images = Array.isArray(p.images) 
+    ? p.images.map((img: any) => typeof img === 'string' ? img : img.image_url) 
+    : [];
+  
+  // Handle variants to get colors, sizes, and stock
+  const variants = Array.isArray(p.variants) ? p.variants : [];
+  const colors = [...new Set(variants.map((v: any) => v.color).filter(Boolean))];
+  const sizes = [...new Set(variants.map((v: any) => v.size).filter(Boolean))];
+  const totalStock = variants.reduce((sum: number, v: any) => sum + (v.stock || 0), 0);
+  
+  // Get category name from relation
+  const categoryName = typeof p.category === 'string' 
+    ? p.category 
+    : (p.category?.name || p.categories?.name || '');
 
-const buildProductInsert = (product: Omit<SellerProduct, 'id' | 'createdAt' | 'updatedAt' | 'sales' | 'rating' | 'reviews'>, sellerId: string): ProductInsert => ({
+  return {
+    id: p.id,
+    name: p.name || '',
+    description: p.description || '',
+    price: Number(p.price ?? 0),
+    originalPrice: undefined,
+    stock: totalStock || p.stock || 0,
+    category: categoryName,
+    images: images,
+    sizes: sizes,
+    colors: colors,
+    isActive: !p.disabled_at,
+    sellerId: p.seller_id || '',
+    createdAt: p.created_at || '',
+    updatedAt: p.updated_at || '',
+    sales: 0,
+    rating: p.rating || 0,
+    reviews: p.reviewCount || 0,
+    approvalStatus: (p.approval_status as SellerProduct['approvalStatus']) || 'pending',
+    rejectionReason: undefined,
+    vendorSubmittedCategory: undefined,
+    adminReclassifiedCategory: undefined,
+    sellerName: p.sellerName || p.seller?.store_name,
+    sellerRating: 0,
+    sellerLocation: p.sellerLocation || p.seller?.business_profile?.city,
+    variants: variants.map((v: any) => ({
+      id: v.id,
+      name: v.variant_name || v.name,
+      size: v.size,
+      color: v.color,
+      price: v.price || 0,
+      stock: v.stock || 0,
+      image: v.thumbnail_url || v.image,
+      sku: v.sku
+    })),
+  };
+};
+
+/**
+ * Build product insert for database
+ * Note: Products table structure:
+ * - Required: name, price, category_id
+ * - Optional: description, brand, sku, specifications, weight, etc.
+ * - Images and variants go to separate tables
+ */
+const buildProductInsert = (product: Omit<SellerProduct, 'id' | 'createdAt' | 'updatedAt' | 'sales' | 'rating' | 'reviews'>, sellerId: string, categoryId: string): any => ({
   name: product.name,
   description: product.description,
   price: product.price,
-  original_price: product.originalPrice !== undefined ? product.originalPrice : null,
-  stock: product.stock,
-  category: product.category,
-  images: product.images,
-  sizes: product.sizes || [],
-  colors: product.colors || [],
-  is_active: product.isActive ?? true,
-  seller_id: sellerId,
-  approval_status: 'pending',
-  vendor_submitted_category: product.vendorSubmittedCategory || product.category,
-  // Optional fields with defaults
-  category_id: null,
+  category_id: categoryId,
   brand: null,
   sku: null,
+  seller_id: sellerId,
+  approval_status: 'pending',
   low_stock_threshold: 10,
-  primary_image: product.images[0] || null,
-  variants: [],
   specifications: {},
-  rejection_reason: null,
-  admin_reclassified_category: null,
-  rating: 0,
-  review_count: 0,
-  sales_count: 0,
-  view_count: 0,
   weight: null,
   dimensions: null,
   is_free_shipping: false,
-  tags: [],
 });
 
-const mapSellerUpdatesToDb = (updates: Partial<SellerProduct>): ProductUpdate => {
-  const dbUpdates: ProductUpdate = {};
+/**
+ * Map seller product updates to database updates
+ * Note: Many fields (images, variants) go to separate tables
+ */
+const mapSellerUpdatesToDb = (updates: Partial<SellerProduct>): any => {
+  const dbUpdates: any = {};
 
   if (updates.name !== undefined) dbUpdates.name = updates.name;
   if (updates.description !== undefined) dbUpdates.description = updates.description;
   if (updates.price !== undefined) dbUpdates.price = updates.price;
-  if (updates.originalPrice !== undefined) dbUpdates.original_price = updates.originalPrice;
-  if (updates.stock !== undefined) dbUpdates.stock = updates.stock;
-  if (updates.category !== undefined) dbUpdates.category = updates.category;
-  if (updates.images !== undefined) dbUpdates.images = updates.images;
-  if (updates.sizes !== undefined) dbUpdates.sizes = updates.sizes;
-  if (updates.colors !== undefined) dbUpdates.colors = updates.colors;
-  if (updates.isActive !== undefined) dbUpdates.is_active = updates.isActive;
+  if (updates.isActive !== undefined) dbUpdates.disabled_at = updates.isActive ? null : new Date().toISOString();
   if (updates.approvalStatus !== undefined) dbUpdates.approval_status = updates.approvalStatus;
-  if (updates.rejectionReason !== undefined) dbUpdates.rejection_reason = updates.rejectionReason;
-  if (updates.vendorSubmittedCategory !== undefined) dbUpdates.vendor_submitted_category = updates.vendorSubmittedCategory;
-  if (updates.adminReclassifiedCategory !== undefined) dbUpdates.admin_reclassified_category = updates.adminReclassifiedCategory;
 
   return dbUpdates;
 };
@@ -818,12 +859,73 @@ export const useProductStore = create<ProductStore>()(
 
           // Use Supabase if configured
           if (isSupabaseConfigured()) {
-            const insertData = buildProductInsert(product, resolvedSellerId);
+            // Resolve category name to category_id
+            const categoryId = await productService.getOrCreateCategoryByName(product.category);
+            if (!categoryId) {
+              throw new Error('Failed to resolve category. Please try again.');
+            }
+            
+            const insertData = buildProductInsert(product, resolvedSellerId, categoryId);
             const created = await productService.createProduct(insertData);
             if (!created) {
               throw new Error('Failed to create product in database');
             }
             newProduct = mapDbProductToSellerProduct(created);
+
+            // Save product images
+            if (product.images && product.images.length > 0) {
+              const validImages = product.images.filter(url => url && url.trim().length > 0);
+              if (validImages.length > 0) {
+                try {
+                  await productService.addProductImages(newProduct.id, validImages.map((url, idx) => ({
+                    product_id: newProduct.id,
+                    image_url: url,
+                    sort_order: idx,
+                    is_primary: idx === 0,
+                  })));
+                  console.log(`✅ Created ${validImages.length} images for product ${newProduct.id}`);
+                } catch (imageError) {
+                  console.error('Failed to create product images:', imageError);
+                }
+              }
+            }
+
+            // Create product variants if provided
+            const variants = (product as any).variants;
+            if (variants && Array.isArray(variants) && variants.length > 0) {
+              const variantInserts = variants.map((v: any, index: number) => ({
+                variant_name: [v.size, v.color].filter(Boolean).join(' - ') || 'Default',
+                size: v.size || null,
+                color: v.color || null,
+                stock: v.stock || 0,
+                price: v.price || product.price,
+                sku: v.sku || `${newProduct.id.substring(0, 8)}-${index}`,
+                thumbnail_url: v.image || null,
+              }));
+
+              try {
+                await productService.addProductVariants(newProduct.id, variantInserts);
+                console.log(`✅ Created ${variantInserts.length} variants for product ${newProduct.id}`);
+              } catch (variantError) {
+                console.error('Failed to create variants:', variantError);
+                // Don't fail the whole product creation, just log the error
+              }
+            } else {
+              // Create a default variant with the product's base stock/price
+              try {
+                await productService.addProductVariants(newProduct.id, [{
+                  variant_name: 'Default',
+                  size: null,
+                  color: null,
+                  stock: product.stock,
+                  price: product.price,
+                  sku: `${newProduct.id.substring(0, 8)}-default`,
+                  thumbnail_url: null,
+                }]);
+              } catch (variantError) {
+                console.error('Failed to create default variant:', variantError);
+              }
+            }
           } else {
             // Fallback to local state
             newProduct = {
@@ -905,18 +1007,28 @@ export const useProductStore = create<ProductStore>()(
           let addedProducts: SellerProduct[] = [];
 
           if (isSupabaseConfigured()) {
-            const productsToInsert = bulkProducts.map(p => buildProductInsert({
-              name: p.name,
-              description: p.description,
-              price: p.price,
-              originalPrice: p.originalPrice,
-              stock: p.stock,
-              category: p.category,
-              images: [p.imageUrl],
-              isActive: true,
-              sellerId: resolvedSellerId,
-              vendorSubmittedCategory: p.category
-            } as any, resolvedSellerId));
+            // Resolve all unique categories first
+            const uniqueCategories = [...new Set(bulkProducts.map(p => p.category))];
+            const categoryMap: Record<string, string> = {};
+            for (const catName of uniqueCategories) {
+              const catId = await productService.getOrCreateCategoryByName(catName);
+              if (catId) categoryMap[catName] = catId;
+            }
+
+            const productsToInsert = bulkProducts
+              .filter(p => categoryMap[p.category]) // Only products with valid categories
+              .map(p => buildProductInsert({
+                name: p.name,
+                description: p.description,
+                price: p.price,
+                originalPrice: p.originalPrice,
+                stock: p.stock,
+                category: p.category,
+                images: [p.imageUrl],
+                isActive: true,
+                sellerId: resolvedSellerId,
+                vendorSubmittedCategory: p.category
+              } as any, resolvedSellerId, categoryMap[p.category]));
 
             const dbProducts = await productService.createProducts(productsToInsert);
             if (!dbProducts) throw new Error('Failed to create products in database');

@@ -1,11 +1,22 @@
 /**
  * QA Service
- * Handles all product QA workflow database operations
+ * Handles all product assessment workflow database operations
+ * 
+ * Updated for new normalized schema (February 2026):
+ * - Table renamed from product_qa to product_assessments
+ * - Status values are lowercase: pending_digital_review, waiting_for_sample, etc.
+ * - Separate tables for approvals, rejections, revisions
+ * - Uses category_id and product_images joins
  */
 
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { notificationService } from './notificationService';
+import type { ProductAssessmentStatus } from '@/types/database.types';
 
+// New normalized status values (lowercase)
+export type ProductAssessmentStatusType = ProductAssessmentStatus;
+
+// Legacy status type for backwards compatibility
 export type ProductQAStatus = 
   | 'PENDING_DIGITAL_REVIEW'
   | 'WAITING_FOR_SAMPLE'
@@ -14,6 +25,68 @@ export type ProductQAStatus =
   | 'FOR_REVISION'
   | 'REJECTED';
 
+// Status mapping from legacy to new
+const LEGACY_TO_NEW_STATUS: Record<ProductQAStatus, ProductAssessmentStatusType> = {
+  'PENDING_DIGITAL_REVIEW': 'pending_digital_review',
+  'WAITING_FOR_SAMPLE': 'waiting_for_sample',
+  'IN_QUALITY_REVIEW': 'pending_physical_review',
+  'ACTIVE_VERIFIED': 'verified',
+  'FOR_REVISION': 'for_revision',
+  'REJECTED': 'rejected',
+};
+
+// Status mapping from new to legacy
+const NEW_TO_LEGACY_STATUS: Record<ProductAssessmentStatusType, ProductQAStatus> = {
+  'pending_digital_review': 'PENDING_DIGITAL_REVIEW',
+  'waiting_for_sample': 'WAITING_FOR_SAMPLE',
+  'pending_physical_review': 'IN_QUALITY_REVIEW',
+  'verified': 'ACTIVE_VERIFIED',
+  'for_revision': 'FOR_REVISION',
+  'rejected': 'REJECTED',
+};
+
+// New normalized assessment structure
+// Variant structure
+export interface ProductVariant {
+  id: string;
+  variant_name: string;
+  sku: string;
+  size?: string | null;
+  color?: string | null;
+  price: number;
+  stock: number;
+  thumbnail_url?: string | null;
+}
+
+export interface ProductAssessment {
+  id: string;
+  product_id: string;
+  status: ProductAssessmentStatusType;
+  submitted_at: string;
+  verified_at: string | null;
+  revision_requested_at: string | null;
+  created_at: string;
+  // Joined data
+  product?: {
+    id: string;
+    name: string;
+    description?: string;
+    price: number;
+    category_id: string;
+    seller_id?: string;
+    variant_label_1?: string | null;
+    variant_label_2?: string | null;
+    category?: { name: string };
+    images?: { image_url: string; is_primary: boolean }[];
+    variants?: ProductVariant[];
+  };
+  // Computed from related tables
+  logistics?: string;
+  rejection_reason?: string;
+  rejection_stage?: 'digital' | 'physical';
+}
+
+// Legacy interface for backwards compatibility
 export interface QAProductDB {
   id: string;
   product_id: string;
@@ -29,6 +102,8 @@ export interface QAProductDB {
   revision_requested_at: string | null;
   created_at: string;
   updated_at: string;
+  // Extended fields
+  product?: any;
 }
 
 export class QAService {
@@ -48,7 +123,214 @@ export class QAService {
   }
 
   /**
-   * Create QA entry when product is first created
+   * Transform new assessment to legacy format
+   */
+  private async transformToLegacy(assessment: ProductAssessment): Promise<QAProductDB> {
+    // Get logistics from assessment_logistics
+    const { data: logistics } = await supabase
+      .from('product_assessment_logistics')
+      .select('details')
+      .eq('assessment_id', assessment.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    // Get rejection info from product_rejections
+    const { data: rejection } = await supabase
+      .from('product_rejections')
+      .select('description, vendor_submitted_category, admin_reclassified_category')
+      .eq('assessment_id', assessment.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    // Get revision info
+    const { data: revision } = await supabase
+      .from('product_revisions')
+      .select('description')
+      .eq('assessment_id', assessment.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    const legacyStatus = NEW_TO_LEGACY_STATUS[assessment.status] || 'PENDING_DIGITAL_REVIEW';
+    
+    return {
+      id: assessment.id,
+      product_id: assessment.product_id,
+      vendor: assessment.product?.name || 'Unknown',
+      status: legacyStatus,
+      logistics: logistics?.details || null,
+      rejection_reason: rejection?.description || revision?.description || null,
+      rejection_stage: assessment.status === 'rejected' ? 'digital' : null,
+      submitted_at: assessment.submitted_at,
+      approved_at: assessment.status === 'waiting_for_sample' ? assessment.submitted_at : null,
+      verified_at: assessment.verified_at,
+      rejected_at: assessment.status === 'rejected' ? assessment.created_at : null,
+      revision_requested_at: assessment.revision_requested_at,
+      created_at: assessment.created_at,
+      updated_at: assessment.created_at,
+      product: assessment.product,
+    };
+  }
+
+  /**
+   * Get all assessments (for admin view)
+   */
+  async getAllAssessments(): Promise<ProductAssessment[]> {
+    if (!isSupabaseConfigured()) {
+      console.warn('Supabase not configured - cannot fetch assessments');
+      return [];
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('product_assessments')
+        .select(`
+          *,
+          product:products (
+            id,
+            name,
+            description,
+            price,
+            category_id,
+            seller_id,
+            variant_label_1,
+            variant_label_2,
+            category:categories (name),
+            images:product_images (image_url, is_primary),
+            variants:product_variants (id, variant_name, sku, size, color, price, stock, thumbnail_url)
+          )
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching all assessments:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get pending assessments (for QA queue)
+   */
+  async getPendingAssessments(): Promise<ProductAssessment[]> {
+    if (!isSupabaseConfigured()) {
+      console.warn('Supabase not configured - cannot fetch pending assessments');
+      return [];
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('product_assessments')
+        .select(`
+          *,
+          product:products (
+            id,
+            name,
+            description,
+            price,
+            category_id,
+            seller_id,
+            variant_label_1,
+            variant_label_2,
+            category:categories (name),
+            images:product_images (image_url, is_primary),
+            variants:product_variants (id, variant_name, sku, size, color, price, stock, thumbnail_url)
+          )
+        `)
+        .in('status', ['pending_digital_review', 'waiting_for_sample', 'pending_physical_review'])
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching pending assessments:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get assessments by status
+   */
+  async getAssessmentsByStatus(status: ProductAssessmentStatusType): Promise<ProductAssessment[]> {
+    if (!isSupabaseConfigured()) {
+      console.warn('Supabase not configured - cannot fetch assessments');
+      return [];
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('product_assessments')
+        .select(`
+          *,
+          product:products (
+            id,
+            name,
+            description,
+            price,
+            category_id,
+            seller_id,
+            variant_label_1,
+            variant_label_2,
+            category:categories (name),
+            images:product_images (image_url, is_primary),
+            variants:product_variants (id, variant_name, sku, size, color, price, stock, thumbnail_url)
+          )
+        `)
+        .eq('status', status)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching assessments by status:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get assessment by product ID
+   */
+  async getAssessmentByProductId(productId: string): Promise<ProductAssessment | null> {
+    if (!isSupabaseConfigured()) {
+      console.warn('Supabase not configured - cannot fetch assessment');
+      return null;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('product_assessments')
+        .select(`
+          *,
+          product:products (
+            id,
+            name,
+            description,
+            price,
+            category_id,
+            seller_id,
+            variant_label_1,
+            variant_label_2,
+            category:categories (name),
+            images:product_images (image_url, is_primary),
+            variants:product_variants (id, variant_name, sku, size, color, price, stock, thumbnail_url)
+          )
+        `)
+        .eq('product_id', productId)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Error fetching assessment:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Create assessment entry when product is first created
    */
   async createQAEntry(
     productId: string,
@@ -62,18 +344,18 @@ export class QAService {
 
     try {
       const { data, error } = await supabase
-        .from('product_qa')
+        .from('product_assessments')
         .insert({
           product_id: productId,
-          vendor: vendorName,
-          status: 'PENDING_DIGITAL_REVIEW',
+          status: 'pending_digital_review',
           submitted_at: new Date().toISOString(),
         })
         .select()
         .single();
 
       if (error) throw error;
-      return data;
+      
+      return this.transformToLegacy({ ...data, product: { name: vendorName } });
     } catch (error) {
       console.error('Error creating QA entry:', error);
       throw new Error('Failed to create QA entry');
@@ -81,7 +363,7 @@ export class QAService {
   }
 
   /**
-   * Get QA entries by seller ID (via product relationship)
+   * Get assessment entries by seller ID (via product relationship)
    */
   async getQAEntriesBySeller(sellerId: string): Promise<QAProductDB[]> {
     if (!isSupabaseConfigured()) {
@@ -91,22 +373,30 @@ export class QAService {
 
     try {
       const { data, error } = await supabase
-        .from('product_qa')
+        .from('product_assessments')
         .select(`
           *,
-          product:products!product_qa_product_id_fkey (
-            seller_id,
+          product:products (
+            id,
             name,
+            description,
             price,
-            category,
-            images
+            category_id,
+            seller_id,
+            variant_label_1,
+            variant_label_2,
+            category:categories (name),
+            images:product_images (image_url, is_primary),
+            variants:product_variants (id, variant_name, sku, size, color, price, stock, thumbnail_url)
           )
         `)
         .eq('product.seller_id', sellerId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data || [];
+      
+      const assessments = data || [];
+      return Promise.all(assessments.map(a => this.transformToLegacy(a)));
     } catch (error) {
       console.error('Error fetching QA entries by seller:', error);
       return [];
@@ -114,7 +404,7 @@ export class QAService {
   }
 
   /**
-   * Get all QA entries (for admin)
+   * Get all assessment entries (for admin)
    */
   async getAllQAEntries(): Promise<QAProductDB[]> {
     if (!isSupabaseConfigured()) {
@@ -124,22 +414,29 @@ export class QAService {
 
     try {
       const { data, error } = await supabase
-        .from('product_qa')
+        .from('product_assessments')
         .select(`
           *,
-          product:products!product_qa_product_id_fkey (
+          product:products (
             id,
             name,
+            description,
             price,
-            category,
-            images,
-            seller_id
+            category_id,
+            seller_id,
+            variant_label_1,
+            variant_label_2,
+            category:categories (name),
+            images:product_images (image_url, is_primary),
+            variants:product_variants (id, variant_name, sku, size, color, price, stock, thumbnail_url)
           )
         `)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data || [];
+      
+      const assessments = data || [];
+      return Promise.all(assessments.map(a => this.transformToLegacy(a)));
     } catch (error) {
       console.error('Error fetching all QA entries:', error);
       return [];
@@ -147,7 +444,8 @@ export class QAService {
   }
 
   /**
-   * Update QA status and sync to products table
+   * Update assessment status and sync to products table
+   * New schema: Uses product_assessments + separate tables for approvals/rejections/revisions
    */
   async updateQAStatus(
     productId: string,
@@ -156,6 +454,7 @@ export class QAService {
       logistics?: string;
       rejectionReason?: string;
       rejectionStage?: 'digital' | 'physical';
+      adminId?: string;
     }
   ): Promise<void> {
     if (!isSupabaseConfigured()) {
@@ -164,61 +463,99 @@ export class QAService {
     }
 
     try {
-      // First get product details for notification
+      // First get product details and assessment for notification
       const { data: product } = await supabase
         .from('products')
         .select('id, name, seller_id')
         .eq('id', productId)
         .single();
 
-      // Update product_qa table
-      const qaUpdate: any = {
-        status,
-        updated_at: new Date().toISOString(),
-      };
+      const { data: assessment } = await supabase
+        .from('product_assessments')
+        .select('id')
+        .eq('product_id', productId)
+        .single();
 
-      if (status === 'WAITING_FOR_SAMPLE') {
-        qaUpdate.approved_at = new Date().toISOString();
-      } else if (status === 'ACTIVE_VERIFIED') {
-        qaUpdate.verified_at = new Date().toISOString();
-      } else if (status === 'REJECTED') {
-        qaUpdate.rejected_at = new Date().toISOString();
-        qaUpdate.rejection_reason = metadata?.rejectionReason || null;
-        qaUpdate.rejection_stage = metadata?.rejectionStage || null;
-      } else if (status === 'FOR_REVISION') {
-        qaUpdate.revision_requested_at = new Date().toISOString();
-        qaUpdate.rejection_reason = metadata?.rejectionReason || null;
-        qaUpdate.rejection_stage = metadata?.rejectionStage || null;
-      } else if (status === 'IN_QUALITY_REVIEW') {
-        qaUpdate.logistics = metadata?.logistics || null;
+      if (!assessment) {
+        throw new Error('Assessment not found for product');
       }
 
-      const { error: qaError } = await supabase
-        .from('product_qa')
-        .update(qaUpdate)
+      // Map legacy status to new status
+      const newStatus = LEGACY_TO_NEW_STATUS[status];
+
+      // Update product_assessments table
+      const assessmentUpdate: any = {
+        status: newStatus,
+      };
+
+      if (newStatus === 'verified') {
+        assessmentUpdate.verified_at = new Date().toISOString();
+      } else if (newStatus === 'for_revision') {
+        assessmentUpdate.revision_requested_at = new Date().toISOString();
+      }
+
+      const { error: assessmentError } = await supabase
+        .from('product_assessments')
+        .update(assessmentUpdate)
         .eq('product_id', productId);
 
-      if (qaError) throw qaError;
+      if (assessmentError) throw assessmentError;
 
-      // Map QA status to product approval_status
-      const approvalStatusMap: Record<ProductQAStatus, string> = {
-        'PENDING_DIGITAL_REVIEW': 'pending',
-        'WAITING_FOR_SAMPLE': 'pending',
-        'IN_QUALITY_REVIEW': 'pending',
-        'ACTIVE_VERIFIED': 'approved',
-        'FOR_REVISION': 'pending',
-        'REJECTED': 'rejected',
+      // Create related records based on status
+      if (newStatus === 'waiting_for_sample' || newStatus === 'verified') {
+        // Create approval record
+        await supabase
+          .from('product_approvals')
+          .insert({
+            assessment_id: assessment.id,
+            description: newStatus === 'verified' ? 'Product verified and approved' : 'Digital review passed, awaiting sample',
+            created_by: metadata?.adminId || null,
+          });
+      } else if (newStatus === 'rejected') {
+        // Create rejection record
+        await supabase
+          .from('product_rejections')
+          .insert({
+            assessment_id: assessment.id,
+            product_id: productId,
+            description: metadata?.rejectionReason || null,
+            created_by: metadata?.adminId || null,
+          });
+      } else if (newStatus === 'for_revision') {
+        // Create revision record
+        await supabase
+          .from('product_revisions')
+          .insert({
+            assessment_id: assessment.id,
+            description: metadata?.rejectionReason || null,
+            created_by: metadata?.adminId || null,
+          });
+      } else if (newStatus === 'pending_physical_review' && metadata?.logistics) {
+        // Create logistics record
+        await supabase
+          .from('product_assessment_logistics')
+          .insert({
+            assessment_id: assessment.id,
+            details: metadata.logistics,
+            created_by: metadata?.adminId || null,
+          });
+      }
+
+      // Map assessment status to product approval_status
+      const approvalStatusMap: Record<ProductAssessmentStatusType, string> = {
+        'pending_digital_review': 'pending',
+        'waiting_for_sample': 'pending',
+        'pending_physical_review': 'pending',
+        'verified': 'approved',
+        'for_revision': 'pending',
+        'rejected': 'rejected',
       };
 
       // Update products table
       const productUpdate: any = {
-        approval_status: approvalStatusMap[status],
+        approval_status: approvalStatusMap[newStatus],
         updated_at: new Date().toISOString(),
       };
-
-      if (status === 'REJECTED' || status === 'FOR_REVISION') {
-        productUpdate.rejection_reason = metadata?.rejectionReason || null;
-      }
 
       const { error: productError } = await supabase
         .from('products')
@@ -227,7 +564,7 @@ export class QAService {
 
       if (productError) throw productError;
 
-      console.log(`✅ QA Status updated: ${productId} → ${status}`);
+      console.log(`✅ Assessment status updated: ${productId} → ${newStatus}`);
 
       // Send notifications to seller based on status change
       if (product?.seller_id) {
@@ -323,7 +660,7 @@ export class QAService {
   }
 
   /**
-   * Get QA entry by product ID
+   * Get assessment entry by product ID
    */
   async getQAEntryByProductId(productId: string): Promise<QAProductDB | null> {
     if (!isSupabaseConfigured()) {
@@ -332,8 +669,17 @@ export class QAService {
 
     try {
       const { data, error } = await supabase
-        .from('product_qa')
-        .select('*')
+        .from('product_assessments')
+        .select(`
+          *,
+          product:products (
+            id,
+            name,
+            price,
+            category_id,
+            seller_id
+          )
+        `)
         .eq('product_id', productId)
         .single();
 
@@ -341,7 +687,7 @@ export class QAService {
         if (error.code === 'PGRST116') return null; // Not found
         throw error;
       }
-      return data;
+      return data ? this.transformToLegacy(data) : null;
     } catch (error) {
       console.error('Error fetching QA entry:', error);
       return null;

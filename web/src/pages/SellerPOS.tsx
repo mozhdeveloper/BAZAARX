@@ -85,6 +85,7 @@ export function SellerPOS() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [successOrderId, setSuccessOrderId] = useState('');
   const [note, setNote] = useState('');
+  const [buyerEmail, setBuyerEmail] = useState(''); // Optional buyer email for points
   const [isProcessing, setIsProcessing] = useState(false);
   const [flashingProduct, setFlashingProduct] = useState<string | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<typeof products[0] | null>(null);
@@ -205,6 +206,7 @@ export function SellerPOS() {
   const clearCart = () => {
     setCart([]);
     setNote('');
+    setBuyerEmail('');
   };
 
   // Complete sale
@@ -228,7 +230,7 @@ export function SellerPOS() {
       // Save to Supabase using orderService
       const result = await orderService.createPOSOrder(
         seller.id,
-        seller.store_name || seller.business_name || 'Store',
+        seller.storeName || seller.businessName || 'Store',
         cart.map(item => ({
           productId: item.productId,
           productName: item.productName,
@@ -239,7 +241,8 @@ export function SellerPOS() {
           selectedSize: item.selectedSize
         })),
         total,
-        receiptNote
+        receiptNote,
+        buyerEmail.trim() || undefined // Pass optional buyer email for points
       );
 
       if (!result) {
@@ -259,8 +262,8 @@ export function SellerPOS() {
         total,
         note: receiptNote,
         date: new Date(),
-        sellerName: seller.store_name || seller.business_name || 'BazaarPH Store',
-        cashier: seller.owner_name || 'Staff'
+        sellerName: seller.storeName || seller.businessName || 'BazaarPH Store',
+        cashier: seller.ownerName || 'Staff'
       });
       
       // Show success
@@ -831,6 +834,21 @@ export function SellerPOS() {
                           <h4 className="font-medium text-xs line-clamp-1 text-gray-900">
                             {item.productName}
                           </h4>
+                          {/* Show variant info (color/size) if available */}
+                          {(item.selectedColor || item.selectedSize) && (
+                            <div className="flex items-center gap-1 mt-0.5">
+                              {item.selectedColor && (
+                                <span className="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">
+                                  {item.selectedColor}
+                                </span>
+                              )}
+                              {item.selectedSize && (
+                                <span className="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">
+                                  Size: {item.selectedSize}
+                                </span>
+                              )}
+                            </div>
+                          )}
                           <p className="text-xs text-gray-500 mt-0.5">
                             ₱{item.price.toLocaleString()} each
                           </p>
@@ -893,6 +911,18 @@ export function SellerPOS() {
           {/* Sticky Footer - Payment Section */}
           {cart.length > 0 && (
             <div className="border-t border-gray-200 bg-white flex-shrink-0">
+              {/* Buyer Email Input - Optional for points */}
+              <div className="px-5 py-3 border-b border-gray-100">
+                <label className="text-xs font-medium text-gray-500 mb-1 block">Customer Email (optional - for BazCoins)</label>
+                <Input
+                  type="email"
+                  placeholder="customer@email.com"
+                  value={buyerEmail}
+                  onChange={(e) => setBuyerEmail(e.target.value)}
+                  className="border-gray-300 h-9 text-sm"
+                />
+              </div>
+
               {/* Note Input */}
               <div className="px-5 py-3 border-b border-gray-100">
                 <Input

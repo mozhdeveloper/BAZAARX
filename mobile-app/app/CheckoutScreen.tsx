@@ -338,12 +338,69 @@ export default function CheckoutScreen({ navigation, route }: Props) {
     setProvinceList([]);
     setCityList([]);
     setBarangayList([]);
+    
+    // Try to get location details for autofill
+    let prefillData: Partial<Omit<Address, 'id'>> = {};
+    try {
+      const storedDetails = await AsyncStorage.getItem('currentLocationDetails');
+      if (storedDetails) {
+        const details = JSON.parse(storedDetails);
+        console.log('[Checkout] Autofilling new address form with location details:', details);
+        prefillData = {
+          street: details.street || '',
+          barangay: details.barangay || '',
+          city: details.city || '',
+          province: details.province || '',
+          region: details.region || '',
+          postal_code: details.postalCode || '',
+        };
+        
+        // Pre-load dropdowns based on autofilled region/province/city
+        if (details.region) {
+          const allRegions = await regions();
+          const matchedRegion = allRegions.find((r: any) => 
+            r.region_name?.toLowerCase().includes(details.region?.toLowerCase()) ||
+            details.region?.toLowerCase().includes(r.region_name?.toLowerCase())
+          );
+          if (matchedRegion) {
+            const provList = await provinces(matchedRegion.region_code);
+            setProvinceList(provList);
+            
+            if (details.province) {
+              const matchedProv = provList.find((p: any) => 
+                p.province_name?.toLowerCase().includes(details.province?.toLowerCase()) ||
+                details.province?.toLowerCase().includes(p.province_name?.toLowerCase())
+              );
+              if (matchedProv) {
+                const cList = await cities(matchedProv.province_code);
+                setCityList(cList);
+                
+                if (details.city) {
+                  const matchedCity = cList.find((c: any) => 
+                    c.city_name?.toLowerCase().includes(details.city?.toLowerCase()) ||
+                    details.city?.toLowerCase().includes(c.city_name?.toLowerCase())
+                  );
+                  if (matchedCity) {
+                    const bList = await barangays(matchedCity.city_code);
+                    setBarangayList(bList);
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.log('[Checkout] Error loading location details for autofill:', err);
+    }
+    
     setNewAddress({
       ...initialAddressState,
       first_name: user?.name?.split(' ')[0] || '',
       last_name: user?.name?.split(' ').slice(1).join(' ') || '',
       phone: user?.phone || '',
       is_default: addresses.length === 0,
+      ...prefillData,
     });
     setMapRegion(DEFAULT_REGION);
     setIsAddressModalOpen(true);
@@ -495,6 +552,26 @@ export default function CheckoutScreen({ navigation, route }: Props) {
             console.log('[Checkout] Error reading stored address:', storageError);
           }
         }
+        
+        // Also try to get location details for autofill
+        let locationDetails: {
+          street?: string;
+          barangay?: string;
+          city?: string;
+          province?: string;
+          region?: string;
+          postalCode?: string;
+        } | null = null;
+        
+        try {
+          const storedDetails = await AsyncStorage.getItem('currentLocationDetails');
+          if (storedDetails) {
+            locationDetails = JSON.parse(storedDetails);
+            console.log('[Checkout] Found location details from HomeScreen:', locationDetails);
+          }
+        } catch (detailsError) {
+          console.log('[Checkout] Error reading location details:', detailsError);
+        }
 
         if (homeScreenAddress && homeScreenAddress !== 'Select Location') {
           console.log('[Checkout] Using address from HomeScreen:', homeScreenAddress);
@@ -513,6 +590,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
             setTempSelectedAddress(matchingAddress);
           } else {
             // Create a temporary address object from HomeScreen's location
+            // Use parsed details from map if available, otherwise parse the address string
             console.log('[Checkout] Creating temporary address from HomeScreen location');
             const tempAddr: Address = {
               id: 'temp-' + Date.now(),
@@ -521,15 +599,22 @@ export default function CheckoutScreen({ navigation, route }: Props) {
               first_name: user.name?.split(' ')[0] || 'User',
               last_name: user.name?.split(' ').slice(1).join(' ') || '',
               phone: user.phone || '',
-              street: homeScreenAddress.split(',')[0].trim(),
-              barangay: '',
-              city: homeScreenAddress.split(',')[1]?.trim() || '',
-              province: homeScreenAddress.split(',')[2]?.trim() || '',
-              region: '',
-              postal_code: '',
+              street: locationDetails?.street || homeScreenAddress.split(',')[0].trim(),
+              barangay: locationDetails?.barangay || '',
+              city: locationDetails?.city || homeScreenAddress.split(',')[1]?.trim() || '',
+              province: locationDetails?.province || homeScreenAddress.split(',')[2]?.trim() || '',
+              region: locationDetails?.region || '',
+              postal_code: locationDetails?.postalCode || '',
               is_default: false,
               coordinates: homeScreenCoords || null,
             };
+            console.log('[Checkout] Temp address with autofill:', {
+              street: tempAddr.street,
+              barangay: tempAddr.barangay,
+              city: tempAddr.city,
+              province: tempAddr.province,
+              region: tempAddr.region,
+            });
             setSelectedAddress(tempAddr);
             setTempSelectedAddress(tempAddr);
           }

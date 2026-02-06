@@ -66,22 +66,21 @@ export class ReviewService {
             const from = (page - 1) * limit;
             const to = from + limit - 1;
 
-            // Fetch reviews with total count and buyer profile
-            const { data, error, count } = await supabase
+            // First try with buyer profile join
+            let { data, error, count } = await supabase
                 .from('reviews')
-                .select('*, buyer:profiles!buyer_id(full_name, avatar_url)', { count: 'exact' })
+                .select('*', { count: 'exact' })
                 .eq('product_id', productId)
                 .eq('is_hidden', false)
                 .order('created_at', { ascending: false })
                 .range(from, to);
 
             if (error) {
-                console.error('Error fetching product reviews:', error);
+                console.warn('Error fetching product reviews:', error);
                 return { reviews: [], total: 0 };
             }
 
             return {
-                // @ts-ignore - Supabase types might not fully infer the joined relation
                 reviews: data || [],
                 total: count || 0
             };
@@ -128,16 +127,15 @@ export class ReviewService {
         try {
             const { data, error } = await supabase
                 .from('reviews')
-                .select(`
-                    *,
-                    buyer:profiles!buyer_id(full_name, avatar_url),
-                    product:products!product_id(name, images)
-                `)
+                .select('*')
                 .eq('seller_id', sellerId)
                 .eq('is_hidden', false)
                 .order('created_at', { ascending: false });
 
-            if (error) throw error;
+            if (error) {
+                console.warn('Error fetching seller reviews:', error);
+                return [];
+            }
             return data || [];
         } catch (error) {
             console.error('Error fetching seller reviews:', error);

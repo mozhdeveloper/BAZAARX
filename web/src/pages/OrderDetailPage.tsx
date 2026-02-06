@@ -93,10 +93,28 @@ export default function OrderDetailPage() {
             orderId,
           );
 
+        // Query orders without seller join (orders table no longer has seller_id)
         let query = supabase.from("orders").select(`
             *,
-            order_items (*),
-            seller:sellers!orders_seller_id_fkey(id, store_name)
+            order_items (
+              *,
+              variant:product_variants(id, variant_name, size, color, price, thumbnail_url)
+            ),
+            recipient:order_recipients (
+              first_name,
+              last_name,
+              phone,
+              email
+            ),
+            address:shipping_addresses (
+              label,
+              address_line_1,
+              address_line_2,
+              city,
+              province,
+              region,
+              postal_code
+            )
           `);
 
         if (isUuid) {
@@ -116,39 +134,58 @@ export default function OrderDetailPage() {
         }
 
         if (orderData) {
-          // Extract seller info
-          const sellerInfo = (orderData as any).seller;
-          if (sellerInfo) {
-            setSellerId(sellerInfo.id);
-            setStoreName(sellerInfo.store_name || "Seller");
-          } else if (orderData.seller_id) {
-            setSellerId(orderData.seller_id);
-            // Fetch store name separately
-            const { data: sellerData } = await supabase
-              .from('sellers')
-              .select('store_name')
-              .eq('id', orderData.seller_id)
+          // Get seller info from the first order item's product
+          const firstItem = orderData.order_items?.[0];
+          if (firstItem?.product_id) {
+            const { data: productData } = await supabase
+              .from('products')
+              .select('seller_id, seller:sellers(id, store_name)')
+              .eq('id', firstItem.product_id)
               .single();
-            if (sellerData) {
-              setStoreName(sellerData.store_name || "Seller");
+            
+            if (productData?.seller) {
+              setSellerId((productData.seller as any).id);
+              setStoreName((productData.seller as any).store_name || "Seller");
+            } else if (productData?.seller_id) {
+              setSellerId(productData.seller_id);
+              // Fetch store name separately
+              const { data: sellerData } = await supabase
+                .from('sellers')
+                .select('store_name')
+                .eq('id', productData.seller_id)
+                .single();
+              if (sellerData) {
+                setStoreName(sellerData.store_name || "Seller");
+              }
             }
           }
 
-          const statusMap = {
-            pending_payment: "pending",
-            paid: "confirmed",
+          // Map shipment_status from database to frontend status
+          const shipmentStatusMap: Record<string, Order["status"]> = {
+            pending: "pending",
             processing: "confirmed",
             shipped: "shipped",
             delivered: "delivered",
             cancelled: "cancelled",
+            returned: "cancelled",
           };
+
+          // Use shipment_status as the primary status indicator
+          const dbShipmentStatus = orderData.shipment_status || 'pending';
+          const mappedStatus = shipmentStatusMap[dbShipmentStatus] || "pending";
+
+          // Compute total from order items (orders table doesn't have total_amount)
+          const items = orderData.order_items || [];
+          const computedTotal = items.reduce((sum: number, item: any) => {
+            const itemPrice = (item.variant?.price || item.price || 0);
+            return sum + (item.quantity * itemPrice);
+          }, 0);
 
           const mappedOrder: Order = {
             id: orderData.id,
             orderNumber: orderData.order_number,
-            total: orderData.total_amount,
-            status: (statusMap[orderData.status as keyof typeof statusMap] ||
-              "pending") as Order["status"],
+            total: computedTotal || orderData.total_amount || 0,
+            status: mappedStatus,
             isPaid: orderData.payment_status === "paid",
             createdAt: new Date(orderData.created_at),
             date: new Date(orderData.created_at).toLocaleDateString("en-PH", {
@@ -160,36 +197,61 @@ export default function OrderDetailPage() {
               orderData.estimated_delivery_date ||
               Date.now() + 3 * 24 * 60 * 60 * 1000,
             ),
-            items: (orderData.order_items || []).map((item: any) => ({
-              id: item.id,
-              name: item.product_name,
-              price: item.price,
-              quantity: item.quantity,
-              image:
-                item.product_images?.[0] ||
-                "https://placehold.co/100?text=Product",
-              seller: item.seller_name || "Bazaar Merchant",
-              variant: item.selected_variant ? {
-                id: (item.selected_variant as any)?.id,
-                name: (item.selected_variant as any)?.name,
-                size: (item.selected_variant as any)?.size,
-                color: (item.selected_variant as any)?.color,
-                sku: (item.selected_variant as any)?.sku,
-              } : undefined,
-            })),
-            shippingAddress: {
-              fullName:
-                (orderData.shipping_address as any)?.fullName ||
-                orderData.buyer_name,
-              street: (orderData.shipping_address as any)?.street || "",
-              city: (orderData.shipping_address as any)?.city || "",
-              province: (orderData.shipping_address as any)?.province || "",
-              postalCode: (orderData.shipping_address as any)?.postalCode || "",
-              phone:
-                (orderData.shipping_address as any)?.phone ||
-                orderData.buyer_phone ||
-                "",
-            },
+            items: items.map((item: any) => {
+              // Get variant from joined data or from legacy selected_variant field
+              const variantData = item.variant || item.selected_variant;
+              return {
+                id: item.id,
+                name: item.product_name,
+                price: variantData?.price || item.price,
+                quantity: item.quantity,
+                image:
+                  variantData?.thumbnail_url ||
+                  item.primary_image_url ||
+                  item.product_images?.[0] ||
+                  "https://placehold.co/100?text=Product",
+                seller: item.seller_name || storeName || "Bazaar Merchant",
+                variant: variantData ? {
+                  id: variantData.id,
+                  name: variantData.variant_name || variantData.name,
+                  size: variantData.size,
+                  color: variantData.color,
+                  sku: variantData.sku,
+                } : undefined,
+              };
+            }),
+            shippingAddress: (() => {
+              // Try to parse shipping address from notes (JSON embedded)
+              let notesAddress: any = null;
+              if (orderData.notes && orderData.notes.includes('SHIPPING_ADDRESS:')) {
+                try {
+                  const jsonPart = orderData.notes.split('SHIPPING_ADDRESS:')[1]?.split('|')[0];
+                  if (jsonPart) {
+                    notesAddress = JSON.parse(jsonPart);
+                  }
+                } catch (e) {
+                  console.warn('Could not parse shipping address from notes');
+                }
+              }
+              
+              return {
+                fullName:
+                  notesAddress?.fullName ||
+                  (orderData.recipient
+                    ? `${orderData.recipient.first_name || ''} ${orderData.recipient.last_name || ''}`.trim()
+                    : (orderData.shipping_address as any)?.fullName || orderData.buyer_name || 'Customer'),
+                street: notesAddress?.street || orderData.address?.address_line_1 || (orderData.shipping_address as any)?.street || "",
+                city: notesAddress?.city || orderData.address?.city || (orderData.shipping_address as any)?.city || "",
+                province: notesAddress?.province || orderData.address?.province || (orderData.shipping_address as any)?.province || "",
+                postalCode: notesAddress?.postalCode || orderData.address?.postal_code || (orderData.shipping_address as any)?.postalCode || "",
+                phone:
+                  notesAddress?.phone ||
+                  orderData.recipient?.phone ||
+                  (orderData.shipping_address as any)?.phone ||
+                  orderData.buyer_phone ||
+                  "",
+              };
+            })(),
             paymentMethod: {
               type: typeof orderData.payment_method === 'string'
                 ? orderData.payment_method
@@ -1200,7 +1262,7 @@ export default function OrderDetailPage() {
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Subtotal</span>
                   <span className="font-medium">
-                    ₱{order.total.toLocaleString()}
+                    ₱{(order.total || 0).toLocaleString()}
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
@@ -1211,7 +1273,7 @@ export default function OrderDetailPage() {
                   <div className="flex justify-between">
                     <span className="font-semibold text-gray-900">Total</span>
                     <span className="font-bold text-lg text-orange-600">
-                      ₱{order.total.toLocaleString()}
+                      ₱{(order.total || 0).toLocaleString()}
                     </span>
                   </div>
                 </div>

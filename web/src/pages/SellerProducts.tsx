@@ -17,6 +17,8 @@ import {
   BadgeCheck,
   X,
   Upload,
+  Edit,
+  Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
@@ -40,6 +42,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { BulkUploadModal, BulkProductData } from "@/components/BulkUploadModal";
+import { productService } from "@/services/productService";
 
 const Logo = () => (
   <Link
@@ -88,6 +91,14 @@ export function SellerProducts() {
     price: 0,
     stock: 0,
   });
+  const [editVariants, setEditVariants] = useState<Array<{
+    id: string;
+    name?: string;
+    size?: string;
+    color?: string;
+    price: number;
+    stock: number;
+  }>>([]);
 
   const { seller, logout } = useAuthStore();
   const { products, updateProduct, deleteProduct, bulkAddProducts } =
@@ -170,26 +181,54 @@ export function SellerProducts() {
       price: product.price,
       stock: product.stock,
     });
+    // Copy variants for editing
+    setEditVariants(
+      (product.variants || []).map(v => ({
+        id: v.id,
+        name: v.name,
+        size: v.size,
+        color: v.color,
+        price: v.price,
+        stock: v.stock,
+      }))
+    );
     setIsEditDialogOpen(true);
   };
 
   const handleSaveEdit = async () => {
     if (editingProduct) {
       try {
-        // Call the store function which now updates Supabase
+        // If there are variants, update them via productService
+        if (editVariants.length > 0) {
+          const { productService } = await import('@/services/productService');
+          await productService.updateVariants(
+            editVariants.map(v => ({ id: v.id, price: v.price, stock: v.stock }))
+          );
+        }
+
+        // Call the store function to update product name/price
         await updateProduct(editingProduct.id, {
           name: editFormData.name,
           price: editFormData.price,
-          stock: editFormData.stock,
+          // Only update stock if no variants (otherwise stock is from variants)
+          stock: editVariants.length > 0 
+            ? editVariants.reduce((sum, v) => sum + v.stock, 0)
+            : editFormData.stock,
         });
+
+        // Refetch products to get updated data
+        if (seller?.id) {
+          await fetchProducts({ sellerId: seller.id });
+        }
 
         toast({
           title: "Product Updated",
-          description: `${editFormData.name} has been successfully updated in the database.`,
+          description: `${editFormData.name} has been successfully updated.`,
         });
 
         setIsEditDialogOpen(false);
         setEditingProduct(null);
+        setEditVariants([]);
       } catch (error) {
         console.error("Error updating product.", error);
         toast({
@@ -469,16 +508,17 @@ export function SellerProducts() {
 
       {/* Edit Product Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className={editVariants.length > 0 ? "sm:max-w-[600px]" : "sm:max-w-[425px]"}>
           <DialogHeader>
             <DialogTitle>Edit Product</DialogTitle>
             <DialogDescription>
-              Update product name, price, and stock quantity. Other details
-              cannot be changed.
+              {editVariants.length > 0 
+                ? "Update product details and manage variant stock/prices."
+                : "Update product name, price, and stock quantity."}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="py-4 space-y-4">
+          <div className="py-4 space-y-4 max-h-[60vh] overflow-y-auto">
             <div>
               <Label htmlFor="edit-name" className="mb-2 block">
                 Product Name
@@ -496,7 +536,7 @@ export function SellerProducts() {
 
             <div>
               <Label htmlFor="edit-price" className="mb-2 block">
-                Price (₱)
+                Base Price (₱)
               </Label>
               <Input
                 id="edit-price"
@@ -515,25 +555,82 @@ export function SellerProducts() {
               />
             </div>
 
-            <div>
-              <Label htmlFor="edit-stock" className="mb-2 block">
-                Stock Quantity
-              </Label>
-              <Input
-                id="edit-stock"
-                type="number"
-                min="0"
-                value={editFormData.stock}
-                onChange={(e) =>
-                  setEditFormData({
-                    ...editFormData,
-                    stock: parseInt(e.target.value) || 0,
-                  })
-                }
-                className="w-full"
-                placeholder="Enter stock quantity"
-              />
-            </div>
+            {/* Show variants or simple stock field */}
+            {editVariants.length > 0 ? (
+              <div className="border rounded-lg p-3 bg-gray-50">
+                <Label className="mb-2 block font-medium">
+                  Variants ({editVariants.length})
+                </Label>
+                <p className="text-xs text-gray-500 mb-3">
+                  Total Stock: {editVariants.reduce((sum, v) => sum + v.stock, 0)}
+                </p>
+                <div className="space-y-3 max-h-48 overflow-y-auto">
+                  {editVariants.map((variant, index) => (
+                    <div key={variant.id} className="flex items-center gap-3 p-2 bg-white rounded border">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm truncate">
+                          {variant.name || [variant.size, variant.color].filter(Boolean).join(' - ') || `Variant ${index + 1}`}
+                        </p>
+                        <div className="flex gap-1 text-xs text-gray-500">
+                          {variant.size && <span className="bg-blue-100 text-blue-700 px-1 rounded">{variant.size}</span>}
+                          {variant.color && <span className="bg-purple-100 text-purple-700 px-1 rounded">{variant.color}</span>}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div>
+                          <Label className="text-xs text-gray-500">Price</Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            value={variant.price}
+                            onChange={(e) => {
+                              const newVariants = [...editVariants];
+                              newVariants[index] = { ...variant, price: parseFloat(e.target.value) || 0 };
+                              setEditVariants(newVariants);
+                            }}
+                            className="w-20 h-8 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs text-gray-500">Stock</Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            value={variant.stock}
+                            onChange={(e) => {
+                              const newVariants = [...editVariants];
+                              newVariants[index] = { ...variant, stock: parseInt(e.target.value) || 0 };
+                              setEditVariants(newVariants);
+                            }}
+                            className="w-20 h-8 text-sm"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div>
+                <Label htmlFor="edit-stock" className="mb-2 block">
+                  Stock Quantity
+                </Label>
+                <Input
+                  id="edit-stock"
+                  type="number"
+                  min="0"
+                  value={editFormData.stock}
+                  onChange={(e) =>
+                    setEditFormData({
+                      ...editFormData,
+                      stock: parseInt(e.target.value) || 0,
+                    })
+                  }
+                  className="w-full"
+                  placeholder="Enter stock quantity"
+                />
+              </div>
+            )}
           </div>
 
           <DialogFooter>
@@ -542,6 +639,7 @@ export function SellerProducts() {
               onClick={() => {
                 setIsEditDialogOpen(false);
                 setEditingProduct(null);
+                setEditVariants([]);
               }}
             >
               Cancel
@@ -552,7 +650,8 @@ export function SellerProducts() {
               disabled={
                 !editFormData.name.trim() ||
                 editFormData.price <= 0 ||
-                editFormData.stock < 0
+                (editVariants.length === 0 && editFormData.stock < 0) ||
+                (editVariants.length > 0 && editVariants.some(v => v.stock < 0 || v.price < 0))
               }
             >
               Save Changes
@@ -577,6 +676,17 @@ export function AddProduct() {
   const { seller } = useAuthStore();
   const { toast } = useToast();
 
+  // Variant configuration interface
+  interface VariantConfig {
+    id: string;
+    size: string;
+    color: string;
+    stock: number;
+    price: number;
+    sku: string;
+    image: string;
+  }
+
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -592,19 +702,145 @@ export function AddProduct() {
   const [colorInput, setColorInput] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  
+  // Variant stock configuration - CRUD approach
+  const [variantConfigs, setVariantConfigs] = useState<VariantConfig[]>([]);
+  const [useVariantStock, setUseVariantStock] = useState(false);
+  const [showAddVariantForm, setShowAddVariantForm] = useState(false);
+  
+  // Categories fetched from database
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
+  const [loadingCategories, setLoadingCategories] = useState(true);
+  
+  // Fetch categories on mount
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const dbCategories = await productService.getCategories();
+        if (dbCategories.length > 0) {
+          setCategories(dbCategories.map(c => ({ id: c.id, name: c.name })));
+        } else {
+          // Fallback to default categories if none in DB
+          setCategories([
+            { id: 'electronics', name: 'Electronics' },
+            { id: 'fashion', name: 'Fashion' },
+            { id: 'home-garden', name: 'Home & Garden' },
+            { id: 'sports', name: 'Sports' },
+            { id: 'books', name: 'Books' },
+            { id: 'beauty', name: 'Beauty' },
+            { id: 'automotive', name: 'Automotive' },
+            { id: 'toys', name: 'Toys' },
+            { id: 'health', name: 'Health' },
+            { id: 'food-beverage', name: 'Food & Beverage' },
+          ]);
+        }
+      } catch (error) {
+        console.error('Failed to fetch categories:', error);
+      } finally {
+        setLoadingCategories(false);
+      }
+    };
+    fetchCategories();
+  }, []);
+  const [newVariant, setNewVariant] = useState<Partial<VariantConfig>>({
+    size: '',
+    color: '',
+    stock: 0,
+    price: 0,
+    sku: '',
+    image: '',
+  });
+  const [editingVariantId, setEditingVariantId] = useState<string | null>(null);
 
-  const categories = [
-    "Electronics",
-    "Fashion",
-    "Home & Garden",
-    "Sports",
-    "Books",
-    "Beauty",
-    "Automotive",
-    "Toys",
-    "Health",
-    "Food & Beverage",
-  ];
+  // Generate unique ID for variants
+  const generateVariantId = () => `var-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+  // Add a new variant
+  const addVariant = () => {
+    if (!newVariant.size && !newVariant.color) {
+      setErrors(prev => ({ ...prev, variant: "At least one of Size or Color is required" }));
+      return;
+    }
+    
+    // Check for duplicates
+    const isDuplicate = variantConfigs.some(
+      v => v.size === (newVariant.size || '') && v.color === (newVariant.color || '')
+    );
+    if (isDuplicate) {
+      setErrors(prev => ({ ...prev, variant: "This variant combination already exists" }));
+      return;
+    }
+
+    const basePrice = parseInt(formData.price) || 0;
+    const variant: VariantConfig = {
+      id: generateVariantId(),
+      size: newVariant.size || '',
+      color: newVariant.color || '',
+      stock: newVariant.stock || 0,
+      // Use variant's price if set (even if 0), otherwise use base price
+      price: newVariant.price !== undefined && newVariant.price > 0 ? newVariant.price : basePrice,
+      sku: newVariant.sku || `${formData.name.substring(0, 3).toUpperCase()}-${newVariant.size || 'DEF'}-${newVariant.color || 'DEF'}`.replace(/\s+/g, '-'),
+      image: newVariant.image || '',
+    };
+
+    setVariantConfigs(prev => [...prev, variant]);
+    setNewVariant({ size: '', color: '', stock: 0, price: 0, sku: '', image: '' });
+    setShowAddVariantForm(false);
+    setErrors(prev => ({ ...prev, variant: '' }));
+    setUseVariantStock(true);
+  };
+
+  // Update an existing variant
+  const updateVariantConfig = (id: string, field: keyof VariantConfig, value: string | number) => {
+    setVariantConfigs(prev => prev.map(v => 
+      v.id === id ? { ...v, [field]: value } : v
+    ));
+  };
+
+  // Delete a variant
+  const deleteVariant = (id: string) => {
+    setVariantConfigs(prev => {
+      const updated = prev.filter(v => v.id !== id);
+      if (updated.length === 0) {
+        setUseVariantStock(false);
+      }
+      return updated;
+    });
+  };
+
+  // Start editing a variant
+  const startEditVariant = (variant: VariantConfig) => {
+    setEditingVariantId(variant.id);
+  };
+
+  // Cancel editing
+  const cancelEditVariant = () => {
+    setEditingVariantId(null);
+  };
+
+  // Calculate total stock from variants
+  const getTotalVariantStock = () => {
+    return variantConfigs.reduce((sum, v) => sum + (v.stock || 0), 0);
+  };
+
+  // Toggle variant mode
+  const toggleVariantMode = () => {
+    if (useVariantStock) {
+      // Turning off - confirm if there are variants
+      if (variantConfigs.length > 0) {
+        if (!confirm("This will remove all variants. Continue?")) {
+          return;
+        }
+        setVariantConfigs([]);
+      }
+      setUseVariantStock(false);
+    } else {
+      setUseVariantStock(true);
+      setShowAddVariantForm(true);
+    }
+  };
+
+  // Categories now fetched from database via useEffect above
 
   const handleChange = (
     e: React.ChangeEvent<
@@ -690,9 +926,17 @@ export function AddProduct() {
     if (!formData.price || parseInt(formData.price) <= 0) {
       newErrors.price = "Price must be greater than 0";
     }
-    if (!formData.stock || parseInt(formData.stock) < 0) {
+    
+    // If using variant stock, check that at least one variant has stock
+    if (useVariantStock && variantConfigs.length > 0) {
+      const totalVariantStock = getTotalVariantStock();
+      if (totalVariantStock <= 0) {
+        newErrors.variants = "At least one variant must have stock";
+      }
+    } else if (!formData.stock || parseInt(formData.stock) < 0) {
       newErrors.stock = "Stock cannot be negative";
     }
+    
     if (!formData.category) {
       newErrors.category = "Please select a category";
     }
@@ -715,6 +959,11 @@ export function AddProduct() {
     setIsSubmitting(true);
 
     try {
+      // Calculate total stock - from variants if using variant stock, else from form
+      const totalStock = useVariantStock && variantConfigs.length > 0
+        ? getTotalVariantStock()
+        : parseInt(formData.stock);
+
       const productData = {
         name: formData.name.trim(),
         description: formData.description.trim(),
@@ -722,13 +971,15 @@ export function AddProduct() {
         originalPrice: formData.originalPrice
           ? parseInt(formData.originalPrice)
           : undefined,
-        stock: parseInt(formData.stock),
+        stock: totalStock,
         category: formData.category,
         images: formData.images.filter((img) => img.trim() !== ""),
         sizes: formData.sizes,
         colors: formData.colors,
         isActive: true,
         sellerId: seller?.id || "",
+        // Pass variant configurations for database creation
+        variants: useVariantStock && variantConfigs.length > 0 ? variantConfigs : undefined,
       };
 
       await addProduct(productData);
@@ -955,7 +1206,10 @@ export function AddProduct() {
                     htmlFor="price"
                     className="block text-sm font-semibold text-gray-800 mb-1"
                   >
-                    Price (₱) *
+                    Display Price (₱) *
+                    <span className="text-xs font-normal text-gray-500 ml-1">
+                      (shown on product card)
+                    </span>
                   </label>
                   <input
                     type="number"
@@ -967,6 +1221,11 @@ export function AddProduct() {
                     placeholder="0"
                     required
                   />
+                  {useVariantStock && variantConfigs.length > 0 && (
+                    <p className="text-xs text-orange-600 mt-1">
+                      ⓘ Actual prices are set per variant below. This is the thumbnail/display price.
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label
@@ -974,6 +1233,9 @@ export function AddProduct() {
                     className="block text-sm font-semibold text-gray-800 mb-1"
                   >
                     Original Price (₱)
+                    <span className="text-xs font-normal text-gray-500 ml-1">
+                      (for strikethrough display)
+                    </span>
                   </label>
                   <input
                     type="number"
@@ -994,18 +1256,29 @@ export function AddProduct() {
                     htmlFor="stock"
                     className="block text-sm font-semibold text-gray-800 mb-1"
                   >
-                    Stock Quantity *
+                    Stock Quantity {!useVariantStock && '*'}
                   </label>
-                  <input
-                    type="number"
-                    id="stock"
-                    name="stock"
-                    value={formData.stock}
-                    onChange={handleChange}
-                    className="w-full rounded-xl border border-gray-200 px-3 py-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                    placeholder="0"
-                    required
-                  />
+                  {useVariantStock && variantConfigs.length > 0 ? (
+                    <div className="w-full rounded-xl border border-green-200 bg-green-50 px-3 py-3 text-sm">
+                      <span className="text-green-700 font-medium">
+                        Using variant stock: {getTotalVariantStock()} total
+                      </span>
+                      <p className="text-xs text-green-600 mt-1">
+                        Set individual stock levels in the variant matrix below
+                      </p>
+                    </div>
+                  ) : (
+                    <input
+                      type="number"
+                      id="stock"
+                      name="stock"
+                      value={formData.stock}
+                      onChange={handleChange}
+                      className="w-full rounded-xl border border-gray-200 px-3 py-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                      placeholder="0"
+                      required={!useVariantStock}
+                    />
+                  )}
                 </div>
                 <div>
                   <label
@@ -1021,11 +1294,12 @@ export function AddProduct() {
                     onChange={handleChange}
                     className="w-full rounded-xl border border-gray-200 px-3 py-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                     required
+                    disabled={loadingCategories}
                   >
-                    <option value="">Select a category</option>
+                    <option value="">{loadingCategories ? 'Loading...' : 'Select a category'}</option>
                     {categories.map((cat) => (
-                      <option key={cat} value={cat}>
-                        {cat}
+                      <option key={cat.id} value={cat.name}>
+                        {cat.name}
                       </option>
                     ))}
                   </select>
@@ -1139,6 +1413,398 @@ export function AddProduct() {
                       </span>
                     ))}
                   </div>
+                )}
+              </div>
+
+              {/* Variant Stock CRUD Manager */}
+              <div className="space-y-4 p-4 bg-gradient-to-r from-orange-50 to-blue-50 rounded-xl border border-orange-100">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={useVariantStock}
+                        onChange={toggleVariantMode}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-orange-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500"></div>
+                    </label>
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-800">
+                        Manage Variants
+                      </h3>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        Create size, color, or custom variants with individual stock
+                      </p>
+                    </div>
+                  </div>
+                  {variantConfigs.length > 0 && (
+                    <div className="text-right">
+                      <p className="text-sm font-medium text-gray-700">
+                        Total Stock: <span className="text-orange-600 font-bold">{getTotalVariantStock()}</span>
+                      </p>
+                      <p className="text-xs text-gray-500">{variantConfigs.length} variant(s)</p>
+                      <p className="text-xs text-orange-600 font-medium">
+                        Price Range: ₱{Math.min(...variantConfigs.map(v => v.price)).toLocaleString()} - ₱{Math.max(...variantConfigs.map(v => v.price)).toLocaleString()}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {useVariantStock && (
+                  <>
+                    {/* Important Notice */}
+                    <div className="bg-orange-100 border border-orange-300 rounded-lg p-3 text-sm">
+                      <p className="font-medium text-orange-800 flex items-center gap-2">
+                        💡 Variant Pricing
+                      </p>
+                      <p className="text-orange-700 text-xs mt-1">
+                        Each variant has its own price. When a buyer selects a variant, they will be charged <strong>that variant's price</strong>, not the display price above.
+                      </p>
+                    </div>
+
+                    {/* Existing Variants List */}
+                    {variantConfigs.length > 0 && (
+                      <div className="space-y-2">
+                        {variantConfigs.map((variant) => (
+                          <div 
+                            key={variant.id} 
+                            className="bg-white rounded-lg border border-gray-200 p-3 shadow-sm"
+                          >
+                            {editingVariantId === variant.id ? (
+                              // Edit Mode
+                              <div className="space-y-3">
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div>
+                                    <label className="text-xs font-medium text-gray-500">Size/Variation</label>
+                                    {formData.sizes.length > 0 ? (
+                                      <select
+                                        value={variant.size}
+                                        onChange={(e) => updateVariantConfig(variant.id, 'size', e.target.value)}
+                                        className="w-full mt-1 rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
+                                      >
+                                        <option value="">-- No size --</option>
+                                        {formData.sizes.map((size) => (
+                                          <option key={size} value={size}>{size}</option>
+                                        ))}
+                                      </select>
+                                    ) : (
+                                      <input
+                                        type="text"
+                                        value={variant.size}
+                                        onChange={(e) => updateVariantConfig(variant.id, 'size', e.target.value)}
+                                        className="w-full mt-1 rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                        placeholder="e.g., Small, Large, XL"
+                                      />
+                                    )}
+                                  </div>
+                                  <div>
+                                    <label className="text-xs font-medium text-gray-500">Color</label>
+                                    {formData.colors.length > 0 ? (
+                                      <select
+                                        value={variant.color}
+                                        onChange={(e) => updateVariantConfig(variant.id, 'color', e.target.value)}
+                                        className="w-full mt-1 rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
+                                      >
+                                        <option value="">-- No color --</option>
+                                        {formData.colors.map((color) => (
+                                          <option key={color} value={color}>{color}</option>
+                                        ))}
+                                      </select>
+                                    ) : (
+                                      <input
+                                        type="text"
+                                        value={variant.color}
+                                        onChange={(e) => updateVariantConfig(variant.id, 'color', e.target.value)}
+                                        className="w-full mt-1 rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                        placeholder="e.g., Red, Blue"
+                                      />
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="grid grid-cols-3 gap-3">
+                                  <div>
+                                    <label className="text-xs font-medium text-gray-500">Stock *</label>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      value={variant.stock}
+                                      onChange={(e) => updateVariantConfig(variant.id, 'stock', parseInt(e.target.value) || 0)}
+                                      className="w-full mt-1 rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-xs font-medium text-orange-600 flex items-center gap-1">
+                                      Variant Price (₱) *
+                                      <span className="text-[10px] text-gray-400 font-normal">(buyer pays)</span>
+                                    </label>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      value={variant.price}
+                                      onChange={(e) => updateVariantConfig(variant.id, 'price', parseInt(e.target.value) || 0)}
+                                      className="w-full mt-1 rounded-lg border-2 border-orange-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-orange-50"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-xs font-medium text-gray-500">SKU</label>
+                                    <input
+                                      type="text"
+                                      value={variant.sku}
+                                      onChange={(e) => updateVariantConfig(variant.id, 'sku', e.target.value)}
+                                      className="w-full mt-1 rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                    />
+                                  </div>
+                                </div>
+                                {/* Variant Image */}
+                                <div>
+                                  <label className="text-xs font-medium text-gray-500">Variant Image (URL)</label>
+                                  <div className="flex gap-2 mt-1">
+                                    <div className="h-10 w-10 rounded-lg border border-gray-200 bg-gray-50 overflow-hidden flex items-center justify-center text-xs text-gray-400 flex-shrink-0">
+                                      {variant.image ? (
+                                        <img src={variant.image} alt="Variant" className="h-full w-full object-cover" />
+                                      ) : (
+                                        <Upload className="h-4 w-4 text-gray-300" />
+                                      )}
+                                    </div>
+                                    <input
+                                      type="url"
+                                      value={variant.image}
+                                      onChange={(e) => updateVariantConfig(variant.id, 'image', e.target.value)}
+                                      className="flex-1 rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                      placeholder="https://... (optional)"
+                                    />
+                                  </div>
+                                </div>
+                                <div className="flex justify-end">
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    onClick={cancelEditVariant}
+                                    className="bg-green-500 hover:bg-green-600 text-white"
+                                  >
+                                    <Check className="h-4 w-4 mr-1" />
+                                    Done
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              // View Mode
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                  {/* Variant Image Thumbnail */}
+                                  <div className="h-10 w-10 rounded-lg border border-gray-200 bg-gray-50 overflow-hidden flex items-center justify-center flex-shrink-0">
+                                    {variant.image ? (
+                                      <img src={variant.image} alt={`${variant.size} ${variant.color}`} className="h-full w-full object-cover" />
+                                    ) : (
+                                      <Package className="h-4 w-4 text-gray-300" />
+                                    )}
+                                  </div>
+                                  {variant.size && (
+                                    <span className="inline-flex items-center rounded-full bg-orange-50 text-orange-700 px-2 py-0.5 text-xs font-medium border border-orange-200">
+                                      {variant.size}
+                                    </span>
+                                  )}
+                                  {variant.color && (
+                                    <span className="inline-flex items-center rounded-full bg-blue-50 text-blue-700 px-2 py-0.5 text-xs font-medium border border-blue-200">
+                                      {variant.color}
+                                    </span>
+                                  )}
+                                  <span className="text-sm text-gray-600">
+                                    Stock: <span className="font-medium">{variant.stock}</span>
+                                  </span>
+                                  <span className="text-sm font-semibold text-orange-600 bg-orange-50 px-2 py-0.5 rounded">
+                                    ₱{variant.price.toLocaleString()}
+                                  </span>
+                                  {variant.sku && (
+                                    <span className="text-xs text-gray-400">SKU: {variant.sku}</span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => startEditVariant(variant)}
+                                    className="px-2 py-1"
+                                  >
+                                    <Edit className="h-3.5 w-3.5" />
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => deleteVariant(variant.id)}
+                                    className="px-2 py-1 text-red-500 hover:text-red-700 hover:border-red-300"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Add New Variant Form */}
+                    {showAddVariantForm ? (
+                      <div className="bg-white rounded-lg border-2 border-dashed border-orange-300 p-4 space-y-3">
+                        <h4 className="text-sm font-medium text-gray-700">Add New Variant</h4>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-xs font-medium text-gray-500">Size/Variation {formData.sizes.length === 0 ? '(optional)' : ''}</label>
+                            {formData.sizes.length > 0 ? (
+                              <select
+                                value={newVariant.size || ''}
+                                onChange={(e) => setNewVariant(prev => ({ ...prev, size: e.target.value }))}
+                                className="w-full mt-1 rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
+                              >
+                                <option value="">-- Select variation --</option>
+                                {formData.sizes.map((size) => (
+                                  <option key={size} value={size}>{size}</option>
+                                ))}
+                              </select>
+                            ) : (
+                              <input
+                                type="text"
+                                value={newVariant.size || ''}
+                                onChange={(e) => setNewVariant(prev => ({ ...prev, size: e.target.value }))}
+                                className="w-full mt-1 rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                placeholder="e.g., Small, Large, 500ml"
+                              />
+                            )}
+                          </div>
+                          <div>
+                            <label className="text-xs font-medium text-gray-500">Color {formData.colors.length === 0 ? '(optional)' : ''}</label>
+                            {formData.colors.length > 0 ? (
+                              <select
+                                value={newVariant.color || ''}
+                                onChange={(e) => setNewVariant(prev => ({ ...prev, color: e.target.value }))}
+                                className="w-full mt-1 rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
+                              >
+                                <option value="">-- Select color --</option>
+                                {formData.colors.map((color) => (
+                                  <option key={color} value={color}>{color}</option>
+                                ))}
+                              </select>
+                            ) : (
+                              <input
+                                type="text"
+                                value={newVariant.color || ''}
+                                onChange={(e) => setNewVariant(prev => ({ ...prev, color: e.target.value }))}
+                                className="w-full mt-1 rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                placeholder="e.g., Red, Blue, Green"
+                              />
+                            )}
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-3 gap-3">
+                          <div>
+                            <label className="text-xs font-medium text-gray-500">Stock *</label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={newVariant.stock || 0}
+                              onChange={(e) => setNewVariant(prev => ({ ...prev, stock: parseInt(e.target.value) || 0 }))}
+                              className="w-full mt-1 rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                              placeholder="0"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs font-medium text-orange-600 flex items-center gap-1">
+                              Variant Price (₱) *
+                              <span className="text-[10px] text-gray-400 font-normal">(buyer pays this)</span>
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={newVariant.price !== undefined && newVariant.price > 0 ? newVariant.price : parseInt(formData.price) || 0}
+                              onChange={(e) => setNewVariant(prev => ({ ...prev, price: parseInt(e.target.value) || 0 }))}
+                              className="w-full mt-1 rounded-lg border-2 border-orange-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-orange-50"
+                              placeholder={formData.price || "0"}
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs font-medium text-gray-500">SKU</label>
+                            <input
+                              type="text"
+                              value={newVariant.sku || ''}
+                              onChange={(e) => setNewVariant(prev => ({ ...prev, sku: e.target.value }))}
+                              className="w-full mt-1 rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                              placeholder="Auto-generated if empty"
+                            />
+                          </div>
+                        </div>
+                        {/* Variant Image */}
+                        <div>
+                          <label className="text-xs font-medium text-gray-500">Variant Image URL (optional)</label>
+                          <div className="flex gap-2 mt-1">
+                            <div className="h-10 w-10 rounded-lg border border-gray-200 bg-gray-50 overflow-hidden flex items-center justify-center text-xs text-gray-400 flex-shrink-0">
+                              {newVariant.image ? (
+                                <img src={newVariant.image} alt="Preview" className="h-full w-full object-cover" />
+                              ) : (
+                                <Upload className="h-4 w-4 text-gray-300" />
+                              )}
+                            </div>
+                            <input
+                              type="url"
+                              value={newVariant.image || ''}
+                              onChange={(e) => setNewVariant(prev => ({ ...prev, image: e.target.value }))}
+                              className="flex-1 rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                              placeholder="https://..."
+                            />
+                          </div>
+                        </div>
+                        {errors.variant && (
+                          <p className="text-sm text-red-600 flex items-center gap-1">
+                            <AlertTriangle className="h-4 w-4" />
+                            {errors.variant}
+                          </p>
+                        )}
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setShowAddVariantForm(false);
+                              setNewVariant({ size: '', color: '', stock: 0, price: 0, sku: '', image: '' });
+                              setErrors(prev => ({ ...prev, variant: '' }));
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={addVariant}
+                            className="bg-orange-500 hover:bg-orange-600 text-white"
+                          >
+                            <Plus className="h-4 w-4 mr-1" />
+                            Add Variant
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setShowAddVariantForm(true)}
+                        className="w-full border-dashed border-2 hover:border-orange-400 hover:text-orange-600"
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Variant
+                      </Button>
+                    )}
+
+                    {errors.variants && (
+                      <p className="text-sm text-red-600 flex items-center gap-1">
+                        <AlertTriangle className="h-4 w-4" />
+                        {errors.variants}
+                      </p>
+                    )}
+                  </>
                 )}
               </div>
 

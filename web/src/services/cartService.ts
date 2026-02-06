@@ -1,7 +1,10 @@
 /**
  * Cart Service
  * Handles all cart-related database operations
- * Adheres to the Class-based Service Layer Architecture
+ * 
+ * Updated for new normalized schema (February 2026):
+ * - Simplified carts table: id, buyer_id, created_at, updated_at
+ * - cart_items: product_id, variant_id (FK), quantity, personalized_options, notes
  */
 
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
@@ -21,6 +24,7 @@ export class CartService {
 
   /**
    * Get existing cart for a buyer
+   * New schema: carts table only has id, buyer_id, created_at, updated_at
    */
   async getCart(buyerId: string): Promise<Cart | null> {
     if (!isSupabaseConfigured()) {
@@ -33,7 +37,6 @@ export class CartService {
         .from('carts')
         .select('*')
         .eq('buyer_id', buyerId)
-        .is('expires_at', null)
         .maybeSingle();
 
       if (error) throw error;
@@ -46,6 +49,7 @@ export class CartService {
 
   /**
    * Get or create cart for a buyer
+   * New schema: simplified cart creation
    */
   async getOrCreateCart(buyerId: string): Promise<Cart> {
     if (!isSupabaseConfigured()) {
@@ -62,10 +66,6 @@ export class CartService {
           .from('carts')
           .insert({
             buyer_id: buyerId,
-            discount_amount: 0,
-            shipping_cost: 0,
-            tax_amount: 0,
-            total_amount: 0,
           })
           .select()
           .single();
@@ -84,7 +84,8 @@ export class CartService {
   }
 
   /**
-   * Get cart items
+   * Get cart items with product and variant details
+   * Updated for new normalized schema
    */
   async getCartItems(cartId: string): Promise<CartItem[]> {
     if (!isSupabaseConfigured()) {
@@ -98,14 +99,23 @@ export class CartService {
         .select(`
           *,
           product:products (
-            *,
-            seller:sellers!products_seller_id_fkey (
-              business_name,
-              store_name,
-              business_address,
-              rating,
-              is_verified
-            )
+            id,
+            name,
+            description,
+            price,
+            category_id,
+            category:categories (name),
+            images:product_images (image_url, is_primary, sort_order)
+          ),
+          variant:product_variants (
+            id,
+            sku,
+            variant_name,
+            size,
+            color,
+            price,
+            stock,
+            thumbnail_url
           )
         `)
         .eq('cart_id', cartId);
@@ -120,12 +130,14 @@ export class CartService {
 
   /**
    * Add item to cart
+   * Updated for new schema with variant_id
    */
   async addToCart(
     cartId: string,
     productId: string,
     quantity: number,
-    selectedVariant?: any,
+    variantId?: string,
+    personalizedOptions?: Record<string, unknown>,
     notes?: string
   ): Promise<CartItem> {
     if (!isSupabaseConfigured()) {
@@ -133,17 +145,6 @@ export class CartService {
     }
 
     try {
-      // Get product price
-      const { data: product, error: productError } = await supabase
-        .from('products')
-        .select('price')
-        .eq('id', productId)
-        .single();
-
-      if (productError) throw productError;
-
-      const unitPrice = selectedVariant?.price || (product as any)?.price || 0;
-
       // Check if item already exists with the same variant
       let query = supabase
         .from('cart_items')
@@ -151,34 +152,26 @@ export class CartService {
         .eq('cart_id', cartId)
         .eq('product_id', productId);
 
-      // For variant comparison, we can't use .eq() on JSON objects
-      // Instead, we'll fetch all items and filter in JavaScript
-      const { data: allItems, error: findError } = await query;
-      if (findError) throw findError;
+      // If variant specified, filter by variant_id
+      if (variantId) {
+        query = query.eq('variant_id', variantId);
+      } else {
+        query = query.is('variant_id', null);
+      }
 
-      // Find matching item based on variant
-      const existing = allItems?.find((item: any) => {
-        if (!selectedVariant && !item.selected_variant) {
-          return true; // Both null
-        }
-        if (selectedVariant && item.selected_variant) {
-          // Compare by variant ID or other unique fields
-          const itemVariantId = item.selected_variant?.id;
-          const newVariantId = selectedVariant?.id;
-          return itemVariantId && newVariantId && itemVariantId === newVariantId;
-        }
-        return false;
-      });
+      const { data: existing, error: findError } = await query.maybeSingle();
+      if (findError) throw findError;
 
       let result;
       if (existing) {
-        // Update quantity and subtotal
+        // Update quantity
         const newQuantity = (existing as any).quantity + quantity;
         const { data, error } = await supabase
           .from('cart_items')
           .update({
             quantity: newQuantity,
-            subtotal: newQuantity * unitPrice
+            personalized_options: personalizedOptions || (existing as any).personalized_options,
+            notes: notes || (existing as any).notes,
           })
           .eq('id', (existing as any).id)
           .select()
@@ -187,16 +180,15 @@ export class CartService {
         if (error) throw error;
         result = data;
       } else {
-        // Insert new item with subtotal
+        // Insert new item
         const { data, error } = await supabase
           .from('cart_items')
           .insert({
             cart_id: cartId,
             product_id: productId,
             quantity,
-            subtotal: quantity * unitPrice,
-            selected_variant: selectedVariant || null,
-            personalized_options: null,
+            variant_id: variantId || null,
+            personalized_options: personalizedOptions || null,
             notes: notes || null,
           })
           .select()
@@ -207,9 +199,6 @@ export class CartService {
       }
 
       if (!result) throw new Error('Failed to add or update cart item');
-
-      // Recalculate cart totals
-      await this.recalculateCartTotals(cartId);
       return result;
     } catch (error) {
       console.error('Error adding to cart:', error);
@@ -219,6 +208,7 @@ export class CartService {
 
   /**
    * Update cart item quantity
+   * New schema: no subtotal on cart_items
    */
   async updateCartItemQuantity(
     itemId: string,
@@ -229,30 +219,12 @@ export class CartService {
     }
 
     try {
-      // Fetch item to get product price
-      const { data: item, error: fetchError } = await supabase
-        .from('cart_items')
-        .select('*, product:products(price)')
-        .eq('id', itemId)
-        .single();
-
-      if (fetchError) throw fetchError;
-      if (!item) throw new Error('Cart item not found');
-
-      const unitPrice = (item as any).selected_variant?.price || (item as any).product?.price || 0;
-
       const { error } = await supabase
         .from('cart_items')
-        .update({
-          quantity,
-          subtotal: quantity * unitPrice
-        })
+        .update({ quantity })
         .eq('id', itemId);
 
       if (error) throw error;
-
-      // Recalculate cart totals
-      await this.recalculateCartTotals((item as any).cart_id);
     } catch (error) {
       console.error('Error updating cart item:', error);
       throw new Error(error instanceof Error ? error.message : 'Failed to update item quantity.');
@@ -268,25 +240,12 @@ export class CartService {
     }
 
     try {
-      // Fetch item to get cartId before deletion
-      const { data: item, error: fetchError } = await supabase
-        .from('cart_items')
-        .select('cart_id')
-        .eq('id', itemId)
-        .single();
-
-      if (fetchError) throw fetchError;
-
       const { error: deleteError } = await supabase
         .from('cart_items')
         .delete()
         .eq('id', itemId);
 
       if (deleteError) throw deleteError;
-
-      if (item) {
-        await this.recalculateCartTotals((item as any).cart_id);
-      }
     } catch (error) {
       console.error('Error removing from cart:', error);
       throw new Error('Failed to remove item from cart.');
@@ -294,7 +253,7 @@ export class CartService {
   }
 
   /**
-   * Clear cart
+   * Clear cart (delete all items and the cart itself)
    */
   async clearCart(cartId: string): Promise<void> {
     if (!isSupabaseConfigured()) {
@@ -310,7 +269,7 @@ export class CartService {
 
       if (deleteItemsError) throw deleteItemsError;
 
-      // Then delete the cart itself (since it's now empty)
+      // Then delete the cart itself
       const { error: deleteCartError } = await supabase
         .from('carts')
         .delete()
@@ -324,73 +283,28 @@ export class CartService {
   }
 
   /**
-   * Update cart totals
+   * Calculate cart totals from items
+   * In new schema, totals are computed not stored on carts table
    */
-  async updateCartTotals(
-    cartId: string,
-    totals: {
-      subtotal: number;
-      discount_amount?: number;
-      shipping_cost?: number;
-      tax_amount?: number;
-      total_amount: number;
-    }
-  ): Promise<void> {
-    if (!isSupabaseConfigured()) {
-      throw new Error('Supabase not configured - cannot update totals');
-    }
+  async calculateCartTotals(cartId: string): Promise<{
+    subtotal: number;
+    itemCount: number;
+    items: CartItem[];
+  }> {
+    const items = await this.getCartItems(cartId);
 
-    try {
-      // Remove subtotal from the update payload as it doesn't exist in the carts table
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { subtotal, ...updatePayload } = totals;
+    let subtotal = 0;
+    let itemCount = 0;
 
-      const { error } = await supabase
-        .from('carts')
-        .update(updatePayload)
-        .eq('id', cartId);
-
-      if (error) throw error;
-    } catch (error) {
-      console.error('Error updating cart totals:', error);
-      throw new Error('Failed to update cart totals.');
-    }
-  }
-
-  /**
-   * Recalculate cart totals
-   */
-  async recalculateCartTotals(cartId: string): Promise<void> {
-    if (!isSupabaseConfigured()) {
-      console.warn('Supabase not configured - skipping totals recalculation');
-      return;
+    for (const item of items) {
+      const qty = (item as any).quantity || 0;
+      // Get price from variant if available, otherwise from product
+      const price = (item as any).variant?.price || (item as any).product?.price || 0;
+      subtotal += qty * price;
+      itemCount += qty;
     }
 
-    try {
-      const items = await this.getCartItems(cartId);
-
-      // If no items left, delete the cart
-      if (items.length === 0) {
-        const { error } = await supabase
-          .from('carts')
-          .delete()
-          .eq('id', cartId);
-
-        if (error) throw error;
-        return;
-      }
-
-      const subtotal = items.reduce((acc, item) => acc + ((item as any).subtotal || 0), 0);
-
-      // For now: total_amount = subtotal (can add shipping/tax/discount later)
-      await this.updateCartTotals(cartId, {
-        subtotal,
-        total_amount: subtotal
-      });
-    } catch (error) {
-      console.error('Error recalculating cart totals:', error);
-      throw new Error('Failed to recalculate cart totals.');
-    }
+    return { subtotal, itemCount, items };
   }
 }
 

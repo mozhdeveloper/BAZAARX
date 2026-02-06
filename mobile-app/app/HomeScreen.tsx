@@ -342,7 +342,20 @@ export default function HomeScreen({ navigation }: Props) {
   }, [user]);
 
   // Handle address selection from modal
-  const handleSelectLocation = async (address: string, coords?: { latitude: number; longitude: number }) => {
+  const handleSelectLocation = async (
+    address: string, 
+    coords?: { latitude: number; longitude: number },
+    details?: {
+      address: string;
+      coordinates: { latitude: number; longitude: number };
+      street?: string;
+      barangay?: string;
+      city?: string;
+      province?: string;
+      region?: string;
+      postalCode?: string;
+    }
+  ) => {
     setDeliveryAddress(address);
     if (coords) setDeliveryCoordinates(coords);
 
@@ -352,12 +365,24 @@ export default function HomeScreen({ navigation }: Props) {
       if (coords) {
         await AsyncStorage.setItem('currentDeliveryCoordinates', JSON.stringify(coords));
       }
+      
+      // Store full location details for checkout autofill
+      if (details) {
+        await AsyncStorage.setItem('currentLocationDetails', JSON.stringify(details));
+        console.log('[HomeScreen] Saved location details for autofill:', {
+          city: details.city,
+          province: details.province,
+          barangay: details.barangay,
+          street: details.street,
+        });
+      }
+      
       console.log('[HomeScreen] Saved delivery address to AsyncStorage:', address);
 
       // Also save to database if user is logged in
       if (user?.id) {
         try {
-          await addressService.saveCurrentDeliveryLocation(user.id, address, coords || null);
+          await addressService.saveCurrentDeliveryLocation(user.id, address, coords || null, details);
           console.log('[HomeScreen] Saved delivery location to database');
         } catch (dbError) {
           console.error('[HomeScreen] Error saving to database (non-critical):', dbError);
