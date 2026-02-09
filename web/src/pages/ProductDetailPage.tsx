@@ -871,8 +871,6 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
 
   // For seller products, create a product-like object
   const sellerAuth = useAuthStore.getState().seller;
-  // Only use auth store fallback if we are looking at a local product (not from DB)
-  // This prevents viewing a DB product (with missing seller info) from defaulting to the current user's name
   const sellerNameFallback = !dbProduct && sellerAuth
     ? (sellerAuth.businessName || sellerAuth.storeName || "Verified Seller")
     : "Verified Seller";
@@ -1101,6 +1099,17 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
   }
 
   const handleAddToCart = () => {
+    // Check if user is logged in
+    if (!profile) {
+      toast({
+        title: "Please Login",
+        description: "You need to be logged in to add items to your cart.",
+        variant: "destructive",
+      });
+      navigate("/login");
+      return;
+    }
+
     if (!normalizedProduct) return;
 
     const productImage =
@@ -1212,6 +1221,17 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
   };
 
   const handleBuyNow = () => {
+    // Check if user is logged in
+    if (!profile) {
+      toast({
+        title: "Please Login",
+        description: "You need to be logged in to buy items.",
+        variant: "destructive",
+      });
+      navigate("/login");
+      return;
+    }
+
     if (!normalizedProduct) return;
 
     // Show the buy now modal for variant selection
