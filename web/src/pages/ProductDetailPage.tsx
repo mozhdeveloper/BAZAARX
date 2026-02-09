@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { toast } from "../hooks/use-toast";
@@ -871,8 +871,11 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
 
   // For seller products, create a product-like object
   const sellerAuth = useAuthStore.getState().seller;
-  const sellerNameFallback =
-    sellerAuth?.businessName || sellerAuth?.storeName || "Verified Seller";
+  // Only use auth store fallback if we are looking at a local product (not from DB)
+  // This prevents viewing a DB product (with missing seller info) from defaulting to the current user's name
+  const sellerNameFallback = !dbProduct && sellerAuth
+    ? (sellerAuth.businessName || sellerAuth.storeName || "Verified Seller")
+    : "Verified Seller";
 
   // Handle both camelCase (from store) and snake_case (from DB)
   // Extract unique sizes and colors from variants if available
@@ -908,7 +911,9 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
         (sellerProduct as any).seller?.store_name ||
         (sellerProduct as any).sellerName ||
         sellerNameFallback,
+      sellerAvatar: (sellerProduct as any).seller?.avatar_url,
       location:
+        (sellerProduct as any).seller?.business_profile?.city ||
         (sellerProduct as any).seller?.business_address ||
         (sellerProduct as any).sellerLocation ||
         "Metro Manila",
@@ -944,10 +949,31 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
       }
       : null;
 
-  const currentSeller =
-    demoSellers.find(
-      (s) => s.id === (normalizedProduct?.sellerId || "seller-001"),
-    ) || demoSellers[0];
+  const currentSeller = useMemo(() => {
+    if (!normalizedProduct) return demoSellers[0];
+
+    // 1. Try to find in demo sellers (for consistency with hardcoded data)
+    const demoSeller = demoSellers.find(s => s.id === normalizedProduct.sellerId);
+    if (demoSeller) return demoSeller;
+
+    // 2. If not a demo seller, construct a seller object from normalizedProduct details
+    return {
+      id: normalizedProduct.sellerId,
+      name: normalizedProduct.seller || "Official Store",
+      avatar: (normalizedProduct as any).sellerAvatar || `https://api.dicebear.com/7.x/initials/svg?seed=${normalizedProduct.seller}`,
+      rating: (normalizedProduct as any).sellerRating || 5.0,
+      totalReviews: (normalizedProduct as any).reviews || 0,
+      followers: 0,
+      isVerified: true,
+      description: "Verified Seller on BazaarX",
+      location: normalizedProduct.location || "Metro Manila",
+      established: "2024",
+      products: [],
+      badges: ["Verified"],
+      responseTime: "Within 24 hours",
+      categories: [normalizedProduct.category || "General"]
+    };
+  }, [normalizedProduct]);
 
   const productId = normalizedProduct?.id || id?.split("-")[0] || "1";
   // Get variants from normalized product for proper price/stock management
@@ -1274,7 +1300,9 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                 </div>
                 <div>
                   <h3 className="font-bold text-gray-900 text-base leading-tight">
-                    {normalizedProduct?.seller || "Official Store"}
+                    {(normalizedProduct?.seller && normalizedProduct.seller !== "Verified Seller")
+                      ? normalizedProduct.seller
+                      : (currentSeller.name || "Official Store")}
                   </h3>
                   <div className="flex items-center gap-3 text-xs text-gray-500 mt-0">
                     <span className="flex items-center gap-1">
