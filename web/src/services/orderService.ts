@@ -593,7 +593,7 @@ export class OrderService {
       const order = this.mockOrders.find(o => o.id === orderId);
       if (order) {
         order.status = 'shipped';
-        order.tracking_number = trackingNumber;
+        (order as any).tracking_number = trackingNumber;
         order.updated_at = new Date().toISOString();
         return true;
       }
@@ -739,13 +739,13 @@ export class OrderService {
     sellerId: string
   ): Promise<boolean> {
     if (!isSupabaseConfigured()) {
-      const order = this.mockOrders.find(o => o.id === orderId && o.seller_id === sellerId);
+      const order = this.mockOrders.find(o => o.id === orderId);
       if (order) {
         if (order.status !== 'shipped') {
           return false;
         }
         order.status = 'delivered';
-        order.completed_at = new Date().toISOString();
+        (order as any).completed_at = new Date().toISOString();
         order.updated_at = new Date().toISOString();
         return true;
       }
@@ -753,24 +753,48 @@ export class OrderService {
     }
 
     try {
-      const order = await this.getOrderById(orderId);
-      if (!order || order.seller_id !== sellerId) {
-        throw new Error('Order not found or access denied');
+      // Get order with items to verify seller owns products in this order
+      const { data: order, error: fetchError } = await supabase
+        .from('orders')
+        .select(`
+          *,
+          order_items (
+            id,
+            product_id,
+            product:products!order_items_product_id_fkey (
+              seller_id
+            )
+          )
+        `)
+        .eq('id', orderId)
+        .single();
+
+      if (fetchError || !order) {
+        throw new Error('Order not found');
       }
 
-      if (order.status !== 'shipped') {
-        throw new Error(`Cannot mark as delivered. Current status: ${order.status}`);
+      // Verify seller owns at least one product in this order
+      const hasSellerProduct = (order as any).order_items?.some(
+        (item: any) => item.product?.seller_id === sellerId
+      );
+      if (!hasSellerProduct) {
+        throw new Error('Access denied: You do not own products in this order');
       }
 
+      // Check current status allows delivery
+      const allowedStatuses = ['shipped', 'out_for_delivery'];
+      if (!allowedStatuses.includes((order as any).shipment_status)) {
+        throw new Error(`Cannot mark as delivered. Current shipment_status: ${(order as any).shipment_status}`);
+      }
+
+      // Update order shipment_status
       const { error: updateError } = await supabase
         .from('orders')
         .update({
-          status: 'delivered',
-          completed_at: new Date().toISOString(),
+          shipment_status: 'delivered',
           updated_at: new Date().toISOString(),
         })
-        .eq('id', orderId)
-        .eq('seller_id', sellerId);
+        .eq('id', orderId);
 
       if (updateError) throw updateError;
 
@@ -790,22 +814,22 @@ export class OrderService {
       }
 
       // Send delivery notification to buyer
-      if (order.buyer_id) {
+      if ((order as any).buyer_id) {
         // Send chat message
         await orderNotificationService.sendStatusUpdateNotification(
           orderId,
           'delivered',
           sellerId,
-          order.buyer_id
+          (order as any).buyer_id
         );
 
         // Send proper notification (shows in notification bell)
         await notificationService.notifyBuyerOrderStatus({
-          buyerId: order.buyer_id,
+          buyerId: (order as any).buyer_id,
           orderId: orderId,
-          orderNumber: (order as any).order_number || orderId.substring(0, 8),
+          orderNumber: (order as any).order_number,
           status: 'delivered',
-          message: `Your order #${(order as any).order_number || orderId.substring(0, 8)} has been delivered! Enjoy your purchase!`,
+          message: `Your order #${(order as any).order_number} has been delivered! Enjoy your purchase!`,
         }).catch(err => {
           console.error('Failed to send delivered notification:', err);
         });
@@ -826,7 +850,7 @@ export class OrderService {
       const order = this.mockOrders.find(o => o.id === orderId);
       if (order) {
         order.status = 'cancelled';
-        order.cancelled_at = new Date().toISOString();
+        (order as any).cancelled_at = new Date().toISOString();
         return true;
       }
       return false;
@@ -875,11 +899,11 @@ export class OrderService {
     if (!isSupabaseConfigured()) {
       const order = this.mockOrders.find(o => o.id === orderId && o.buyer_id === buyerId);
       if (order) {
-        order.is_reviewed = true;
-        order.rating = rating;
-        order.review_comment = comment;
-        order.review_images = images || [];
-        order.review_date = new Date().toISOString();
+        (order as any).is_reviewed = true;
+        (order as any).rating = rating;
+        (order as any).review_comment = comment;
+        (order as any).review_images = images || [];
+        (order as any).review_date = new Date().toISOString();
         return true;
       }
       return false;
@@ -920,7 +944,10 @@ export class OrderService {
           seller_id: order.seller_id,
           rating: rating,
           comment: comment.trim(),
-          images: images || [],
+          images: (images || []).map((url, idx) => ({
+            image_url: url,
+            sort_order: idx
+          })) as any,
           is_verified_purchase: true,
           helpful_count: 0,
           seller_reply: null,

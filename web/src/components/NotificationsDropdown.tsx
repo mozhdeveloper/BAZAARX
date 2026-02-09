@@ -270,7 +270,9 @@ export function NotificationsDropdown() {
     if (n.type.startsWith("order_")) {
       navigate(`/order/${(n.action_data as any)?.orderId ?? ""}`);
     } else if (n.type === "seller_new_order") {
-      navigate(`/seller/orders/${(n.action_data as any)?.orderId ?? ""}`);
+      const actionData = n.action_data as any;
+      const param = actionData?.orderNumber ?? actionData?.orderId ?? "";
+      navigate(`/seller/orders/${param}`);
     }
   };
 
