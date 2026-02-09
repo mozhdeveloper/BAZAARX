@@ -12,6 +12,8 @@ interface VariantConfig {
 }
 
 interface VariantManagerProps {
+  firstAttributeName: string;
+  secondAttributeName: string;
   useVariantStock: boolean;
   variantConfigs: VariantConfig[];
   formData: {
@@ -39,6 +41,8 @@ interface VariantManagerProps {
 }
 
 export function VariantManager({
+  firstAttributeName,
+  secondAttributeName,
   useVariantStock,
   variantConfigs,
   formData,
@@ -117,7 +121,7 @@ export function VariantManager({
                     <div className="space-y-3">
                       <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <label className="text-xs font-medium text-gray-500">Size/Variation</label>
+                          <label className="text-xs font-medium text-gray-500">{firstAttributeName || 'Size/Variation'}</label>
                           {formData.sizes.length > 0 ? (
                             <select
                               value={variant.size}
@@ -140,7 +144,7 @@ export function VariantManager({
                           )}
                         </div>
                         <div>
-                          <label className="text-xs font-medium text-gray-500">Color</label>
+                          <label className="text-xs font-medium text-gray-500">{secondAttributeName || 'Color'}</label>
                           {formData.colors.length > 0 ? (
                             <select
                               value={variant.color}
@@ -294,7 +298,7 @@ export function VariantManager({
               <h4 className="text-sm font-medium text-gray-700">Add New Variant</h4>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-medium text-gray-500">Size/Variation {formData.sizes.length === 0 ? '(optional)' : ''}</label>
+                  <label className="text-xs font-medium text-gray-500">{firstAttributeName || 'Size/Variation'} {formData.sizes.length === 0 ? '(optional)' : ''}</label>
                   {formData.sizes.length > 0 ? (
                     <select
                       value={newVariant.size || ''}
@@ -317,7 +321,7 @@ export function VariantManager({
                   )}
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-gray-500">Color {formData.colors.length === 0 ? '(optional)' : ''}</label>
+                  <label className="text-xs font-medium text-gray-500">{secondAttributeName || 'Color'} {formData.colors.length === 0 ? '(optional)' : ''}</label>
                   {formData.colors.length > 0 ? (
                     <select
                       value={newVariant.color || ''}

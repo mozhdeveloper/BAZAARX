@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import {Plus, X } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import { VariantManager } from "@/components/seller/products/VariantManager";
 
 interface VariantConfig {
@@ -26,6 +26,16 @@ interface AttributesTabProps {
   removeVariation: (variation: string) => void;
   addColor: () => void;
   removeColor: (color: string) => void;
+  
+  // Custom attribute names
+  firstAttributeName: string;
+  setFirstAttributeName: (value: string) => void;
+  secondAttributeName: string;
+  setSecondAttributeName: (value: string) => void;
+  editingFirstAttributeName: boolean;
+  setEditingFirstAttributeName: (value: boolean) => void;
+  editingSecondAttributeName: boolean;
+  setEditingSecondAttributeName: (value: boolean) => void;
   
   // Variant Manager props
   useVariantStock: boolean;
@@ -59,6 +69,14 @@ export function AttributesTab({
   removeVariation,
   addColor,
   removeColor,
+  firstAttributeName,
+  setFirstAttributeName,
+  secondAttributeName,
+  setSecondAttributeName,
+  editingFirstAttributeName,
+  setEditingFirstAttributeName,
+  editingSecondAttributeName,
+  setEditingSecondAttributeName,
   useVariantStock,
   variantConfigs,
   editingVariantId,
@@ -78,12 +96,50 @@ export function AttributesTab({
 }: AttributesTabProps) {
   return (
     <div className="space-y-8">
-      {/* Variations */}
+      {/* First Attribute (Variations) */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <label className="block text-sm font-semibold text-gray-800">
-            Variations (optional)
-          </label>
+          <div className="flex items-center gap-2">
+            {editingFirstAttributeName ? (
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={firstAttributeName}
+                  onChange={(e) => setFirstAttributeName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      setEditingFirstAttributeName(false);
+                    }
+                  }}
+                  className="rounded-lg border border-orange-300 px-2 py-1 text-sm font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  onClick={() => setEditingFirstAttributeName(false)}
+                  className="text-green-600 hover:text-green-700 p-1"
+                  title="Done"
+                >
+                  <span className="text-xs">Save changes</span>
+                </button>
+              </div>
+            ) : (
+              <>
+                <label className="block text-sm font-semibold text-gray-800">
+                  {firstAttributeName}
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setEditingFirstAttributeName(true)}
+                  className="text-gray-400 hover:text-orange-600 transition-colors p-1"
+                  title="Edit attribute"
+                >
+                  <span className="text-xs">Edit attribute</span>
+                </button>
+              </>
+            )}
+          </div>
           <span className="text-xs text-gray-500">
             Sizes, models, flavors, etc.
           </span>
@@ -133,12 +189,50 @@ export function AttributesTab({
         )}
       </div>
 
-      {/* Colors */}
+      {/* Second Attribute (Colors) */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <label className="block text-sm font-semibold text-gray-800">
-            Colors (optional)
-          </label>
+          <div className="flex items-center gap-2">
+            {editingSecondAttributeName ? (
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={secondAttributeName}
+                  onChange={(e) => setSecondAttributeName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      setEditingSecondAttributeName(false);
+                    }
+                  }}
+                  className="rounded-lg border border-blue-300 px-2 py-1 text-sm font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  onClick={() => setEditingSecondAttributeName(false)}
+                  className="text-green-600 hover:text-green-700 p-1"
+                  title="Done"
+                >
+                  <span className="text-xs">Save changes</span>
+                </button>
+              </div>
+            ) : (
+              <>
+                <label className="block text-sm font-semibold text-gray-800">
+                  {secondAttributeName}
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setEditingSecondAttributeName(true)}
+                  className="text-gray-400 hover:text-blue-600 transition-colors p-1"
+                  title="Edit attribute"
+                >
+                  <span className="text-xs">Edit attribute</span>
+                </button>
+              </>
+            )}
+          </div>
           <span className="text-xs text-gray-500">
             For products with color options
           </span>
@@ -190,6 +284,8 @@ export function AttributesTab({
 
       {/* Variant Manager */}
       <VariantManager
+        firstAttributeName={firstAttributeName}
+        secondAttributeName={secondAttributeName}
         useVariantStock={useVariantStock}
         variantConfigs={variantConfigs}
         formData={formData}

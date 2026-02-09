@@ -699,6 +699,13 @@ export function AddProduct() {
   });
   const [variationInput, setVariationInput] = useState("");
   const [colorInput, setColorInput] = useState("");
+  
+  // Custom attribute names state
+  const [firstAttributeName, setFirstAttributeName] = useState("Variations");
+  const [secondAttributeName, setSecondAttributeName] = useState("Colors");
+  const [editingFirstAttributeName, setEditingFirstAttributeName] = useState(false);
+  const [editingSecondAttributeName, setEditingSecondAttributeName] = useState(false);
+  
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [activeTab, setActiveTab] = useState<'general' | 'attributes'>('general');
@@ -1175,6 +1182,14 @@ export function AddProduct() {
                   removeVariation={removeVariation}
                   addColor={addColor}
                   removeColor={removeColor}
+                  firstAttributeName={firstAttributeName}
+                  setFirstAttributeName={setFirstAttributeName}
+                  secondAttributeName={secondAttributeName}
+                  setSecondAttributeName={setSecondAttributeName}
+                  editingFirstAttributeName={editingFirstAttributeName}
+                  setEditingFirstAttributeName={setEditingFirstAttributeName}
+                  editingSecondAttributeName={editingSecondAttributeName}
+                  setEditingSecondAttributeName={setEditingSecondAttributeName}
                   useVariantStock={useVariantStock}
                   variantConfigs={variantConfigs}
                   editingVariantId={editingVariantId}
