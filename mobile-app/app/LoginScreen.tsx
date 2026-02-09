@@ -56,7 +56,7 @@ export default function LoginScreen({ navigation }: Props) {
     setIsLoading(true);
 
     try {
-      // 2. Sign in with Supabase
+      // Sign in with Supabase
       const { data, error } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password: password,
@@ -69,47 +69,58 @@ export default function LoginScreen({ navigation }: Props) {
       }
 
       if (data.user) {
-        // 3. Fetch the profile to check user_type (buyer/seller)
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('user_type')
+        // Verify buyer role exists
+        const { data: buyerData, error: buyerError } = await supabase
+          .from('buyers')
+          .select('*')
           .eq('id', data.user.id)
           .single();
 
-        if (profileError) {
-          Alert.alert('Profile Error', 'Could not fetch user profile.');
-        } else {
-          // Allow both buyers and sellers to login
-          // SYNC USER TO GLOBAL STORE
-          const { data: profileDetails } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', data.user.id)
-            .single();
-
-          if (profileDetails) {
-            useAuthStore.getState().setUser({
-              id: data.user.id,
-              name: profileDetails.full_name || 'BazaarX User',
-              email: data.user.email || '',
-              phone: profileDetails.phone || '',
-              avatar: profileDetails.avatar_url || ''
-            });
-
-            // If user is a seller, we might want to ensure they have the role in the store
-            if (profile.user_type === 'seller') {
-              useAuthStore.getState().addRole('seller');
-            }
-
-            // Fetch orders to replace dummy data in OrderStore
-            const { useOrderStore } = await import('../src/stores/orderStore');
-            useOrderStore.getState().fetchOrders(data.user.id);
-          }
-
-          navigation.replace('MainTabs', { screen: 'Home' });
+        if (buyerError || !buyerData) {
+          Alert.alert('Access Denied', 'This account is not registered as a buyer.');
+          await supabase.auth.signOut();
+          setIsLoading(false);
+          return;
         }
+
+        // Get profile data
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', data.user.id)
+          .single();
+
+        const firstName = (profileData as any)?.first_name || '';
+        const lastName = (profileData as any)?.last_name || '';
+        const fullName = `${firstName} ${lastName}`.trim() || 'BazaarX User';
+        const bazcoins = (buyerData as any)?.bazcoins ?? 0;
+
+        // Sync user to global store
+        useAuthStore.getState().setUser({
+          id: data.user.id,
+          name: fullName,
+          email: data.user.email || '',
+          phone: (profileData as any)?.phone || '',
+          avatar: (buyerData as any)?.avatar_url || 
+                  (profileData as any)?.avatar_url ||
+                  `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=FF6B35&color=fff`,
+          bazcoins: bazcoins
+        });
+
+        // Update last login
+        await supabase
+          .from('profiles')
+          .update({ last_login_at: new Date().toISOString() })
+          .eq('id', data.user.id);
+
+        // Fetch orders
+        const { useOrderStore } = await import('../src/stores/orderStore');
+        useOrderStore.getState().fetchOrders(data.user.id);
+
+        navigation.replace('MainTabs', { screen: 'Home' });
       }
     } catch (err) {
+      console.error('Login error:', err);
       Alert.alert('Error', 'An unexpected error occurred');
     } finally {
       setIsLoading(false);

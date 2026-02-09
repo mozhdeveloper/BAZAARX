@@ -8,12 +8,11 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Store, Phone, CheckCircle2, XCircle, ArrowLeft } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../../src/lib/supabase';
-import { useSellerStore } from '../../src/stores/sellerStore';
-import { useAuthStore } from '../../src/stores/authStore';
+import { useSellerStore, useAuthStore } from '../../src/stores/sellerStore';
 
 export default function BecomeSellerScreen() {
     const navigation = useNavigation<any>();
-    const { user } = useAuthStore();
+    const { user, updateSellerInfo, addRole, switchRole } = useSellerStore();
     const [loading, setLoading] = useState(false);
 
     const [formData, setFormData] = useState({
@@ -76,55 +75,57 @@ export default function BecomeSellerScreen() {
         setError("");
 
         try {
-            // 1. Update Profile (Upgrade user_type)
-            // Note: We are keeping the existing name logic or we can update it?
-            // Existing signup updates full_name to storeName. 
-            // Let's UPDATE user_type to 'seller' but maybe keep full_name if user wants?
-            // The prompt says "input their store information just like in the seller create account".
-            // So we should collect it.
+            // 1. Add seller role to user_roles table (new normalized schema)
+            const { error: roleError } = await supabase
+                .from('user_roles')
+                .insert({
+                    user_id: user.id,
+                    role: 'seller'
+                })
+                .select()
+                .single();
 
-            const updates: any = {
-                user_type: 'seller',
-                phone: formData.phone,
-            };
-            // Only update full_name if it was a placeholder or requested? 
-            // Existing logic enforced full_name = storeName. Let's follow that pattern for consistency 
-            // unless we want to separate "Owner Name" from "Store Name".
-            // Implementation Plan: Update full_name to owner name? 
-            // The existing signup used `full_name: formData.storeName`. That seems weird (Store Name as Person Name).
-            // But let's assume `store_name` in `sellers` table is what matters for display.
-            // I will NOT overwrite `full_name` in profiles unless explicitly needed, 
-            // but I will ensure `sellers.store_name` is set.
+            // Ignore duplicate key errors (user already has seller role)
+            if (roleError && !roleError.message?.includes('duplicate key')) {
+                throw roleError;
+            }
 
-            const { error: profileError } = await supabase.from('profiles').update(updates).eq('id', user.id);
-            if (profileError) throw profileError;
+            // 2. Update profile phone if provided
+            if (formData.phone) {
+                const { error: profileError } = await supabase
+                    .from('profiles')
+                    .update({ phone: formData.phone })
+                    .eq('id', user.id);
+                if (profileError) throw profileError;
+            }
 
-            // 2. Insert into sellers table (idempotent upsert just in case)
+            // 3. Insert into sellers table
             const { error: sellerError } = await supabase.from('sellers').upsert({
                 id: user.id,
                 store_name: formData.storeName,
-                business_name: formData.storeName,
                 store_description: formData.storeDescription,
-                business_address: formData.storeAddress,
-                approval_status: 'pending' // Default to pending
+                owner_name: user.name || null,
+                approval_status: 'pending'
             });
 
             if (sellerError) throw sellerError;
 
             // 3. Sync data to local stores
-            useSellerStore.getState().updateSellerInfo({
+            updateSellerInfo({
                 id: user.id,
-                storeName: formData.storeName,
+                store_name: formData.storeName,
                 email: user.email,
                 approval_status: 'pending',
-                storeDescription: formData.storeDescription,
-                businessAddress: formData.storeAddress,
-                phone: formData.phone
+                store_description: formData.storeDescription,
+                phone: formData.phone,
+                business_profile: {
+                  address_line_1: formData.storeAddress,
+                },
             });
 
             // 4. Sync roles to AuthStore
-            useAuthStore.getState().addRole('seller');
-            useAuthStore.getState().switchRole('seller');
+            addRole('seller');
+            switchRole('seller');
 
             Alert.alert(
                 'Success',

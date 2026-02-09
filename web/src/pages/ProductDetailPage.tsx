@@ -857,11 +857,20 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
     fetchProduct();
   }, [id]);
 
-  // Check seller products first (verified products)
-  const sellerProduct = dbProduct || sellerProducts.find((p) => p.id === id);
+  // Initialize first size when product loads
+  useEffect(() => {
+    if (dbProduct && !selectedSize) {
+      const variants = (dbProduct as any)?.variants || [];
+      const sizes = [...new Set(variants.map((v: any) => v.size).filter(Boolean))];
+      if (sizes.length > 0) {
+        setSelectedSize(sizes[0]);
+      }
+    }
+  }, [dbProduct]);
 
-  const baseProduct =
-    sellerProduct ||
+  // Initial product from lists (optimistic data)
+  const initialProduct =
+    sellerProducts.find((p) => p.id === id) ||
     trendingProducts.find((p) => p.id === id) ||
     trendingProducts.find((p) => p.id === id?.split("-")[0]) ||
     bestSellerProducts.find((p) => p.id === id) ||
@@ -869,10 +878,15 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
     newArrivals.find((p) => p.id === id) ||
     newArrivals.find((p) => p.id === id?.split("-")[0]);
 
+  // Check seller products first (verified products)
+  const sellerProduct = dbProduct || initialProduct;
+
+  const baseProduct = sellerProduct; 
+  // Note: baseProduct definition was redundant if we use sellerProduct like this, 
+  // but keeping structure similar to avoid large diffs.
+
   // For seller products, create a product-like object
   const sellerAuth = useAuthStore.getState().seller;
-  // Only use auth store fallback if we are looking at a local product (not from DB)
-  // This prevents viewing a DB product (with missing seller info) from defaulting to the current user's name
   const sellerNameFallback = !dbProduct && sellerAuth
     ? (sellerAuth.businessName || sellerAuth.storeName || "Verified Seller")
     : "Verified Seller";
@@ -882,6 +896,16 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
   const extractedVariants = (sellerProduct as any)?.variants || [];
   const extractedSizes = [...new Set(extractedVariants.map((v: any) => v.size).filter(Boolean))] as string[];
   const extractedColors = [...new Set(extractedVariants.map((v: any) => v.color).filter(Boolean))] as string[];
+  
+  // Create color objects with thumbnail images from variants
+  const colorObjects = extractedColors.map(colorName => {
+    const variantWithColor = extractedVariants.find((v: any) => v.color === colorName);
+    return {
+      name: colorName,
+      value: colorName,
+      image: variantWithColor?.thumbnail_url || (sellerProduct as any)?.images?.[0]?.image_url || (sellerProduct as any)?.images?.[0] || (sellerProduct as any)?.image || ""
+    };
+  });
 
   const normalizedProduct = sellerProduct
     ? {
@@ -921,7 +945,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
       isVerified: true,
       description: (sellerProduct as any).description,
       sizes: extractedSizes.length > 0 ? extractedSizes : ((sellerProduct as any).sizes || []),
-      colors: extractedColors.length > 0 ? extractedColors : ((sellerProduct as any).colors || []),
+      colors: colorObjects.length > 0 ? colorObjects : ((sellerProduct as any).colors || []),
       stock: (sellerProduct as any).stock || 0,
       sellerId:
         (sellerProduct as any).seller_id ||
@@ -984,14 +1008,18 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
     if (dbVariants.length === 0) return null;
     // If only one variant, return it
     if (dbVariants.length === 1) return dbVariants[0];
+    
+    // Get the selected color name
+    const selectedColorName = productData.colors[selectedColor]?.name || productData.colors[selectedColor]?.value;
+    
     // Find variant matching selected size and/or color
-    return dbVariants.find((v: any) => {
-      const sizeMatch = !selectedSize || v.size === selectedSize;
-      const colorMatch = !productData.colors.length ||
-        productData.colors[selectedColor]?.name === v.color ||
-        (selectedColor === 0 && !v.color);
+    const matchedVariant = dbVariants.find((v: any) => {
+      const sizeMatch = !selectedSize || !v.size || v.size === selectedSize;
+      const colorMatch = !selectedColorName || !v.color || v.color === selectedColorName;
       return sizeMatch && colorMatch;
-    }) || dbVariants[0];
+    });
+    
+    return matchedVariant || dbVariants[0];
   };
 
   const productData = enhancedProductData[productId] || {
@@ -1211,11 +1239,98 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
     setShowCartModal(true);
   };
 
+  // Helper to proceed to checkout
+  const proceedToCheckout = (qty: number, variant?: any) => {
+    // Create the product for quick order
+    const productImage = productData.images?.[0] || normalizedProduct?.image || '';
+    const sellerName = normalizedProduct && "seller" in normalizedProduct ? normalizedProduct.seller : "Verified Seller";
+    const productLocation = normalizedProduct && "location" in normalizedProduct ? normalizedProduct.location : "Metro Manila";
+    const soldCount = normalizedProduct && "sold" in normalizedProduct ? normalizedProduct.sold : 0;
+    const freeShipping = normalizedProduct && "isFreeShipping" in normalizedProduct ? normalizedProduct.isFreeShipping : true;
+
+    const productForQuickOrder = {
+      id: normalizedProduct!.id,
+      name: productData.name,
+      price: variant?.price || productData.price,
+      originalPrice: productData.originalPrice,
+      image: variant?.image || productImage,
+      images: productData.images || [productImage],
+      seller: {
+        id: normalizedProduct!.sellerId,
+        name: sellerName,
+        avatar: "https://api.dicebear.com/7.x/initials/svg?seed=" + sellerName,
+        rating: 4.8,
+        totalReviews: 234,
+        followers: 1523,
+        isVerified: true,
+        description: "Trusted seller on BazaarPH",
+        location: productLocation,
+        established: "2020",
+        products: [],
+        badges: ["Verified", "Fast Shipper"],
+        responseTime: "< 1 hour",
+        categories: [normalizedProduct!.category],
+      },
+      sellerId: normalizedProduct!.sellerId,
+      rating: normalizedProduct!.rating,
+      totalReviews: 234,
+      category: normalizedProduct!.category,
+      sold: soldCount,
+      isFreeShipping: freeShipping,
+      location: productLocation,
+      description: productData.description || "",
+      specifications: {},
+      variants: dbVariants,
+    };
+
+    setQuickOrder(productForQuickOrder as any, qty, variant);
+    navigate("/checkout");
+  };
+
   const handleBuyNow = () => {
     if (!normalizedProduct) return;
 
-    // Show the buy now modal for variant selection
-    setShowBuyNowModal(true);
+    // Check if we still need to make a selection
+    // Size is required if sizes array exists and no size selected
+    const needsSize = productData.sizes && productData.sizes.length > 0 && !selectedSize;
+    
+    // If selections are incomplete, show modal
+    if (needsSize) {
+      setShowBuyNowModal(true);
+      return;
+    }
+
+    // Construct the variant object (Logic matched with handleAddToCart)
+    const dbVariant = getSelectedVariant();
+    const colorName = productData.colors?.[selectedColor]?.name || dbVariant?.color || "Default";
+    const variantName = dbVariant?.variant_name ||
+      [
+        selectedSize ? `Size: ${selectedSize}` : null,
+        colorName !== "Default" ? `Color: ${colorName}` : null,
+      ]
+        .filter(Boolean)
+        .join(", ") || "Standard";
+
+    const hasVariations =
+      dbVariant ||
+      selectedSize ||
+      colorName !== "Default" ||
+      productData.sizes?.length > 0 ||
+      productData.colors?.length > 0;
+
+    const variantToCheckout = hasVariations
+      ? {
+        id: dbVariant?.id || `var-${normalizedProduct.id}-${selectedSize || "default"}-${colorName}`,
+        name: variantName,
+        size: dbVariant?.size || selectedSize || undefined,
+        color: dbVariant?.color || (colorName !== "Default" ? colorName : undefined),
+        price: dbVariant?.price || productData.price,
+        stock: dbVariant?.stock || normalizedProduct.stock || 100,
+        image: dbVariant?.thumbnail_url || productData.colors?.[selectedColor]?.image || productData.images?.[0] || normalizedProduct.image,
+      }
+      : undefined;
+
+      proceedToCheckout(quantity, variantToCheckout);
   };
 
   return (
@@ -1353,9 +1468,15 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
             {/* Price & Rating */}
             <div className="flex items-center gap-4 mb-6">
               <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-bold text-[#ff6a00]">
-                  ₱{productData.price.toLocaleString()}
-                </span>
+                {(() => {
+                  const currentVariant = getSelectedVariant();
+                  const displayPrice = currentVariant?.price || productData.price;
+                  return (
+                    <span className="text-3xl font-bold text-[#ff6a00]">
+                      ₱{displayPrice.toLocaleString()}
+                    </span>
+                  );
+                })()}
                 {productData.originalPrice && (
                   <span className="text-lg text-gray-400 line-through decoration-gray-400/50">
                     ₱{productData.originalPrice.toLocaleString()}
@@ -1730,53 +1851,11 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
             images: productData.images,
             colors: productData.colors?.map((c: any) => c.name || c) || [],
             sizes: productData.sizes || [],
+            variants: productData.variants || [],
             stock: normalizedProduct.stock || 100,
           }}
           onConfirm={(qty, variant) => {
-            // Create the product for quick order
-            const productImage = productData.images?.[0] || normalizedProduct.image || '';
-            const sellerName = "seller" in normalizedProduct ? normalizedProduct.seller : "Verified Seller";
-            const productLocation = "location" in normalizedProduct ? normalizedProduct.location : "Metro Manila";
-            const soldCount = "sold" in normalizedProduct ? normalizedProduct.sold : 0;
-            const freeShipping = "isFreeShipping" in normalizedProduct ? normalizedProduct.isFreeShipping : true;
-
-            const productForQuickOrder = {
-              id: normalizedProduct.id,
-              name: productData.name,
-              price: variant?.price || productData.price,
-              originalPrice: productData.originalPrice,
-              image: variant?.image || productImage,
-              images: productData.images || [productImage],
-              seller: {
-                id: normalizedProduct.sellerId,
-                name: sellerName,
-                avatar: "https://api.dicebear.com/7.x/initials/svg?seed=" + sellerName,
-                rating: 4.8,
-                totalReviews: 234,
-                followers: 1523,
-                isVerified: true,
-                description: "Trusted seller on BazaarPH",
-                location: productLocation,
-                established: "2020",
-                products: [],
-                badges: ["Verified", "Fast Shipper"],
-                responseTime: "< 1 hour",
-                categories: [normalizedProduct.category],
-              },
-              sellerId: normalizedProduct.sellerId,
-              rating: normalizedProduct.rating,
-              totalReviews: 234,
-              category: normalizedProduct.category,
-              sold: soldCount,
-              isFreeShipping: freeShipping,
-              location: productLocation,
-              description: productData.description || "",
-              specifications: {},
-              variants: dbVariants,
-            };
-
-            setQuickOrder(productForQuickOrder as any, qty, variant);
-            navigate("/checkout");
+            proceedToCheckout(qty, variant);
           }}
         />
       )}

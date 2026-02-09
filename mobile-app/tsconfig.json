@@ -7,15 +7,22 @@
         "./src/*"
       ]
     },
+    "typeRoots": [
+      "./node_modules/@types",
+      "./src/types"
+    ],
     "types": [
-      "jest"
+      "jest",
+      "node"
     ]
   },
   "include": [
     "**/*.ts",
-    "**/*.tsx"
+    "**/*.tsx",
+    "src/types/*.d.ts"
   ],
   "exclude": [
-    "supabase/functions"
+    "supabase/functions",
+    "src/tests/**/*"
   ]
 }

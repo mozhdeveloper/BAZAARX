@@ -1,0 +1,167 @@
+﻿
+src/services/checkoutS
+ervice.ts(300,35): 
+error TS2339: 
+Property 
+'syncCartTotal' does 
+not exist on type 
+'CartService'.
+src/services/orderServ
+ice.ts(441,39): error 
+TS2339: Property 
+'buyer_name' does not 
+exist on type 'Order'.
+src/services/orderServ
+ice.ts(442,40): error 
+TS2339: Property 
+'buyer_email' does 
+not exist on type 
+'Order'.
+src/services/orderServ
+ice.ts(598,15): error 
+TS2339: Property 
+'tracking_number' 
+does not exist on 
+type 'Order'.
+src/services/orderServ
+ice.ts(736,15): error 
+TS2339: Property 
+'completed_at' does 
+not exist on type 
+'Order'.
+src/services/orderServ
+ice.ts(849,15): error 
+TS2339: Property 
+'cancelled_at' does 
+not exist on type 
+'Order'.
+src/services/orderServ
+ice.ts(898,15): error 
+TS2339: Property 
+'is_reviewed' does 
+not exist on type 
+'Order'.
+src/services/orderServ
+ice.ts(899,15): error 
+TS2339: Property 
+'rating' does not 
+exist on type 'Order'.
+src/services/orderServ
+ice.ts(900,15): error 
+TS2339: Property 
+'review_comment' does 
+not exist on type 
+'Order'.
+src/services/orderServ
+ice.ts(901,15): error 
+TS2339: Property 
+'review_images' does 
+not exist on type 
+'Order'.
+src/services/orderServ
+ice.ts(902,15): error 
+TS2339: Property 
+'review_date' does 
+not exist on type 
+'Order'.
+src/services/productSe
+rvice.ts(183,9): 
+error TS2393: 
+Duplicate function 
+implementation.
+src/services/productSe
+rvice.ts(190,9): 
+error TS2393: 
+Duplicate function 
+implementation.
+src/services/productSe
+rvice.ts(585,9): 
+error TS2393: 
+Duplicate function 
+implementation.
+src/services/productSe
+rvice.ts(592,9): 
+error TS2393: 
+Duplicate function 
+implementation.
+src/stores/authStore.t
+s(128,68): error 
+TS2345: Argument of 
+type '{ full_name?: 
+string | undefined; 
+phone?: string | 
+undefined; user_type: 
+"seller" | "buyer"; 
+}' is not assignable 
+to parameter of type 
+'SignUpData | 
+LegacySignUpData'.
+src/stores/authStore.t
+s(179,45): error 
+TS2339: Property 
+'getSession' does not 
+exist on type 
+'AuthService'.
+src/stores/cartStore.t
+s(43,29): error 
+TS2339: Property 
+'syncCartTotal' does 
+not exist on type 
+'CartService'.
+src/stores/cartStore.t
+s(55,17): error 
+TS2322: Type 'Cart' 
+is not assignable to 
+type 'string'.
+src/stores/cartStore.t
+s(58,58): error 
+TS2345: Argument of 
+type 'Cart' is not 
+assignable to 
+parameter of type 
+'string'.
+src/stores/cartStore.t
+s(84,31): error 
+TS2339: Property 
+'addItem' does not 
+exist on type 
+'CartService'.
+src/stores/cartStore.t
+s(99,31): error 
+TS2339: Property 
+'removeItem' does not 
+exist on type 
+'CartService'.
+src/stores/cartStore.t
+s(121,31): error 
+TS2339: Property 
+'updateQuantity' does 
+not exist on type 
+'CartService'.
+src/stores/orderStore.
+ts(527,45): error 
+TS2339: Property 
+'getSession' does not 
+exist on type 
+'AuthService'.
+src/stores/orderStore.
+ts(546,31): error 
+TS2352: Conversion of 
+type 'Order[]' to 
+type 'SellerOrder[]' 
+may be a mistake 
+because neither type 
+sufficiently overlaps 
+with the other. If 
+this was intentional, 
+convert the 
+expression to 
+'unknown' first.
+src/stores/orderStore.
+ts(617,43): error 
+TS2339: Property 
+'getSession' does not 
+exist on type 
+'AuthService'.
+
+

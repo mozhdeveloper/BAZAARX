@@ -29,6 +29,7 @@ import BuyerSettingsPage from "./pages/BuyerSettingsPage";
 import BuyerLoginPage from "./pages/BuyerLoginPage";
 import BuyerSignupPage from "./pages/BuyerSignupPage";
 import { BuyerSupport } from "./pages/BuyerSupport";
+import MyTickets from "./pages/MyTickets";
 import BuyerOnboardingPage from "@/pages/BuyerOnboardingPage";
 import MessagesPage from "./pages/MessagesPage";
 // import { ProtectedBuyerRoute } from "./components/ProtectedBuyerRoute";
@@ -73,6 +74,7 @@ import AdminFlashSales from "./pages/AdminFlashSales";
 import AdminPayouts from "./pages/AdminPayouts";
 import AdminProfile from "./pages/AdminProfile";
 import AdminProductApprovals from "./pages/AdminProductApprovals";
+import AdminTickets from "./pages/AdminTickets";
 import { ChatBubble } from "./components/ChatBubbleAI";
 
 function App() {
@@ -90,7 +92,7 @@ function App() {
           <Route path="/buyer-onboarding"
             element={
               // <ProtectedBuyerRoute>
-                <BuyerOnboardingPage />
+              <BuyerOnboardingPage />
               // </ProtectedBuyerRoute>
             }
           />
@@ -104,14 +106,14 @@ function App() {
           <Route path="/enhanced-cart"
             element={
               // <ProtectedBuyerRoute>
-                <EnhancedCartPage />
+              <EnhancedCartPage />
               // </ProtectedBuyerRoute>
             }
           />
           <Route path="/checkout"
             element={
               // <ProtectedBuyerRoute>
-                <CheckoutPage />
+              <CheckoutPage />
               // </ProtectedBuyerRoute>
             }
           />
@@ -119,7 +121,7 @@ function App() {
             path="/order-confirmation/:orderId"
             element={
               // <ProtectedBuyerRoute>
-                <OrderConfirmationPage />
+              <OrderConfirmationPage />
               // </ProtectedBuyerRoute>
             }
           />
@@ -127,21 +129,21 @@ function App() {
             path="/delivery-tracking/:orderId"
             element={
               // <ProtectedBuyerRoute>
-                <DeliveryTrackingPage />
+              <DeliveryTrackingPage />
               // </ProtectedBuyerRoute>
             }
           />
           <Route path="/orders"
             element={
               // <ProtectedBuyerRoute>
-                <OrdersPage />
+              <OrdersPage />
               // </ProtectedBuyerRoute>
             }
           />
           <Route path="/order/:orderId"
             element={
               // <ProtectedBuyerRoute>
-                <OrderDetailPage />
+              <OrderDetailPage />
               // </ProtectedBuyerRoute>
             }
           />
@@ -149,7 +151,7 @@ function App() {
           <Route path="/profile"
             element={
               // <ProtectedBuyerRoute>
-                <BuyerProfilePage />
+              <BuyerProfilePage />
               // </ProtectedBuyerRoute>
             }
           />
@@ -157,7 +159,7 @@ function App() {
           <Route path="/messages"
             element={
               // <ProtectedBuyerRoute>
-                <MessagesPage />
+              <MessagesPage />
               // </ProtectedBuyerRoute>
             }
           />
@@ -165,28 +167,35 @@ function App() {
           <Route path="/my-reviews"
             element={
               // <ProtectedBuyerRoute>
-                <BuyerReviewsPage />
+              <BuyerReviewsPage />
               // </ProtectedBuyerRoute>
             }
           />
           <Route path="/following"
             element={
               // <ProtectedBuyerRoute>
-                <BuyerFollowingPage />
+              <BuyerFollowingPage />
               // </ProtectedBuyerRoute>
             }
           />
           <Route path="/settings"
             element={
               //<ProtectedBuyerRoute>
-                <BuyerSettingsPage />
+              <BuyerSettingsPage />
               //</ProtectedBuyerRoute>
             }
           />
           <Route path="/buyer-support"
             element={
               //<ProtectedBuyerRoute>
-                <BuyerSupport />
+              <BuyerSupport />
+              //</ProtectedBuyerRoute>
+            }
+          />
+          <Route path="/my-tickets"
+            element={
+              //<ProtectedBuyerRoute>
+              <MyTickets />
               //</ProtectedBuyerRoute>
             }
           />
@@ -204,7 +213,7 @@ function App() {
             path="/seller"
             element={
               //<ProtectedSellerRoute>
-                <SellerDashboard />
+              <SellerDashboard />
               //</ProtectedSellerRoute>
             }
           />
@@ -212,7 +221,7 @@ function App() {
             path="/seller/profile"
             element={
               //<ProtectedSellerRoute>
-                <SellerStoreProfile />
+              <SellerStoreProfile />
               //</ProtectedSellerRoute>
             }
           />
@@ -220,7 +229,7 @@ function App() {
             path="/seller/store-profile"
             element={
               //<ProtectedSellerRoute>
-                <SellerStoreProfile />
+              <SellerStoreProfile />
               //</ProtectedSellerRoute>
             }
           />
@@ -228,7 +237,7 @@ function App() {
             path="/seller/earnings"
             element={
               //<ProtectedSellerRoute>
-                <SellerEarnings />
+              <SellerEarnings />
               //</ProtectedSellerRoute>
             }
           />
@@ -236,7 +245,7 @@ function App() {
             path="/seller/products"
             element={
               //<ProtectedSellerRoute>
-                <SellerProducts />
+              <SellerProducts />
               //</ProtectedSellerRoute>
             }
           />
@@ -244,7 +253,7 @@ function App() {
             path="/seller/products/add"
             element={
               //<ProtectedSellerRoute>
-                <AddProduct />
+              <AddProduct />
               //</ProtectedSellerRoute>
             }
           />
@@ -252,7 +261,7 @@ function App() {
             path="/seller/product-status-qa"
             element={
               //<ProtectedSellerRoute>
-                <SellerProductStatus />
+              <SellerProductStatus />
               //</ProtectedSellerRoute>
             }
           />
@@ -260,7 +269,7 @@ function App() {
             path="/seller/orders"
             element={
               //<ProtectedSellerRoute>
-                <SellerOrders />
+              <SellerOrders />
               //</ProtectedSellerRoute>
             }
           />
@@ -268,7 +277,7 @@ function App() {
             path="/seller/notifications"
             element={
               //<ProtectedSellerRoute>
-                <SellerNotifications />
+              <SellerNotifications />
               //</ProtectedSellerRoute>
             }
           />
@@ -276,7 +285,7 @@ function App() {
             path="/seller/returns"
             element={
               //<ProtectedSellerRoute>
-                <SellerReturns />
+              <SellerReturns />
               //</ProtectedSellerRoute>
             }
           />
@@ -284,7 +293,7 @@ function App() {
             path="/seller/pos"
             element={
               //<ProtectedSellerRoute>
-                <SellerPOS />
+              <SellerPOS />
               //</ProtectedSellerRoute>
             }
           />
@@ -292,7 +301,7 @@ function App() {
             path="/seller/flash-sales"
             element={
               //<ProtectedSellerRoute>
-                <SellerFlashSales />
+              <SellerFlashSales />
               //</ProtectedSellerRoute>
             }
           />
@@ -300,7 +309,7 @@ function App() {
             path="/seller/discounts"
             element={
               //<ProtectedSellerRoute>
-                <SellerDiscounts />
+              <SellerDiscounts />
               //</ProtectedSellerRoute>
             }
           />
@@ -308,7 +317,7 @@ function App() {
             path="/seller/messages"
             element={
               //<ProtectedSellerRoute>
-                <SellerMessages />
+              <SellerMessages />
               //</ProtectedSellerRoute>
             }
           />
@@ -316,7 +325,7 @@ function App() {
             path="/seller/reviews"
             element={
               //<ProtectedSellerRoute>
-                <SellerReviews />
+              <SellerReviews />
               //</ProtectedSellerRoute>
             }
           />
@@ -324,7 +333,7 @@ function App() {
             path="/seller/analytics"
             element={
               //<ProtectedSellerRoute>
-                <SellerAnalytics />
+              <SellerAnalytics />
               //</ProtectedSellerRoute>
             }
           />
@@ -332,7 +341,7 @@ function App() {
             path="/seller/settings"
             element={
               //<ProtectedSellerRoute>
-                <SellerSettings />
+              <SellerSettings />
               //</ProtectedSellerRoute>
             }
           />
@@ -359,6 +368,7 @@ function App() {
           <Route path="/admin/payouts" element={<AdminPayouts />} />
           <Route path="/admin/profile" element={<AdminProfile />} />
           <Route path="/admin/analytics" element={<AdminAnalytics />} />
+          <Route path="/admin/tickets" element={<AdminTickets />} />
           <Route path="/admin/settings" element={<AdminSettings />} />
         </Routes>
 

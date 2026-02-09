@@ -87,7 +87,7 @@ export default function MessagesScreen() {
 
   const filteredConversations = conversations.filter(conv =>
     (conv.seller_store_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-    conv.last_message.toLowerCase().includes(searchQuery.toLowerCase())
+    (conv.last_message || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const formatTime = (dateString: string) => {
@@ -208,23 +208,23 @@ export default function MessagesScreen() {
                     {conv.seller_store_name || 'Store'}
                   </Text>
                   <Text style={styles.conversationTime}>
-                    {formatTime(conv.last_message_at)}
+                    {formatTime(conv.last_message_at || new Date().toISOString())}
                   </Text>
                 </View>
                 <View style={styles.conversationFooter}>
                   <Text
                     style={[
                       styles.lastMessage,
-                      conv.buyer_unread_count > 0 && styles.unreadMessage,
+                      (conv.buyer_unread_count || 0) > 0 && styles.unreadMessage,
                     ]}
                     numberOfLines={1}
                   >
                     {conv.last_message || 'Start a conversation'}
                   </Text>
-                  {conv.buyer_unread_count > 0 && (
+                  {(conv.buyer_unread_count || 0) > 0 && (
                     <View style={styles.unreadBadge}>
                       <Text style={styles.unreadCount}>
-                        {conv.buyer_unread_count > 99 ? '99+' : conv.buyer_unread_count}
+                        {(conv.buyer_unread_count || 0) > 99 ? '99+' : (conv.buyer_unread_count || 0)}
                       </Text>
                     </View>
                   )}

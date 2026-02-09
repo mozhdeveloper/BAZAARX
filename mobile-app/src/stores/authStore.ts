@@ -25,6 +25,7 @@ interface User {
   avatar?: string;
   savedCards?: SavedCard[];
   roles?: string[];
+  bazcoins?: number;
 }
 
 interface AuthState {
@@ -96,6 +97,7 @@ export const useAuthStore = create<AuthState>()(
               avatar: buyer?.avatar_url || undefined,
               roles: roles.length > 0 ? roles : ['buyer'],
               savedCards: [],
+              bazcoins: buyer?.bazcoins || 0
             };
             // Determine active role from roles
             const isSeller = roles.includes('seller');
@@ -123,7 +125,8 @@ export const useAuthStore = create<AuthState>()(
       signUp: async (email, password, userData) => {
         set({ loading: true, error: null });
         try {
-          const result = await authService.signUp(email, password, userData);
+          const signUpData: any = { ...userData, email, password };
+          const result = await authService.signUp(email, password, signUpData);
           if (result?.user) {
             const user: User = {
               id: result.user.id,
@@ -174,22 +177,28 @@ export const useAuthStore = create<AuthState>()(
 
       checkSession: async () => {
         try {
-          const session = await authService.getSession();
-          if (session?.user) {
-            const profile = await authService.getUserProfile(session.user.id);
+          const sessionResult = await authService.getSession();
+          if (sessionResult?.user) {
+            const profile = await authService.getUserProfile(sessionResult.user.id);
+            const roles = await authService.getUserRoles(sessionResult.user.id);
+            const firstName = profile?.first_name || '';
+            const lastName = profile?.last_name || '';
+            const fullName = `${firstName} ${lastName}`.trim() || sessionResult.user.email?.split('@')[0] || 'User';
+            const buyer = await authService.getBuyerProfile(sessionResult.user.id).catch(() => null);
             const user: User = {
-              id: session.user.id,
-              email: session.user.email || '',
-              name: profile?.full_name || session.user.email?.split('@')[0] || 'User',
+              id: sessionResult.user.id,
+              email: sessionResult.user.email || '',
+              name: fullName,
               phone: profile?.phone || '',
-              avatar: profile?.avatar_url || undefined,
-              roles: profile?.user_type ? [profile.user_type] : ['buyer'],
+              avatar: buyer?.avatar_url || undefined,
+              roles: roles.length > 0 ? roles : ['buyer'],
+              bazcoins: buyer?.bazcoins || 0
             };
             set({
               user,
               profile,
               isAuthenticated: true,
-              activeRole: profile?.user_type === 'seller' ? 'seller' : 'buyer',
+              activeRole: roles.includes('seller') ? 'seller' : 'buyer',
             });
           } else {
             // No valid session, clear auth state

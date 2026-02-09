@@ -137,6 +137,24 @@ export default function AddProductScreen() {
         ? variants.reduce((acc, v) => acc + (parseInt(v.stock) || 0), 0)
         : parseInt(formData.stock);
 
+      // Determine variant labels based on what's being used
+      let variantLabel1 = null;
+      let variantLabel2 = null;
+      
+      if (showVariants && variants.length > 0) {
+        // Check if variants use colors (option1)
+        const hasColors = variants.some(v => v.option1 && v.option1 !== '-');
+        // Check if variants use sizes (option2)
+        const hasSizes = variants.some(v => v.option2 && v.option2 !== '-');
+        
+        if (hasColors) variantLabel1 = 'Color';
+        if (hasSizes) variantLabel2 = 'Size';
+      } else if (formData.colors.length > 0 || formData.sizes.length > 0) {
+        // Legacy mode without VariantManager
+        if (formData.colors.length > 0) variantLabel1 = 'Color';
+        if (formData.sizes.length > 0) variantLabel2 = 'Size';
+      }
+
       const newProduct: SellerProduct = {
         sellerId: seller?.id,
         id: generateUUID(),
@@ -151,14 +169,17 @@ export default function AddProductScreen() {
         sales: 0,
         rating: 0,
         reviews: 0,
-        approvalStatus: 'pending',
+        approval_status: 'pending',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        variants: showVariants && variants.length > 0 ? variants : [],
-      };
+        // Pass variant labels and variants to addProduct
+        variant_label_1: variantLabel1,
+        variant_label_2: variantLabel2,
+        variants: showVariants && variants.length > 0 ? variants : undefined,
+      } as any;
 
       const dbProductId = await addProduct(newProduct);
-      await addProductToQA(dbProductId, seller?.storeName || 'Store');
+      await addProductToQA(dbProductId, seller?.store_name || 'Store');
 
       Alert.alert('Success', 'Product submitted for review.', [{ text: 'OK', onPress: () => navigation.goBack() }]);
 

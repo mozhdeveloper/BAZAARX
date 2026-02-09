@@ -38,10 +38,8 @@ import {
 } from 'lucide-react-native';
 import { useSellerStore } from '../../src/stores/sellerStore';
 import { useOrderStore } from '../../src/stores/orderStore';
-import { OrderService } from '../../src/services/orderService';
+import { orderService } from '../../src/services/orderService';
 import SellerDrawer from '../../src/components/SellerDrawer';
-
-const orderService = OrderService.getInstance();
 
 interface CartItem {
   productId: string;
@@ -70,7 +68,7 @@ interface ReceiptData {
 export default function POSScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<SellerStackParamList>>();
   const insets = useSafeAreaInsets();
-  const { seller, products, fetchProducts, loading } = useSellerStore();
+  const { seller, products = [], fetchProducts, loading } = useSellerStore();
   const { addOfflineOrder, fetchSellerOrders } = useOrderStore();
   const [drawerVisible, setDrawerVisible] = useState(false);
 
@@ -78,7 +76,7 @@ export default function POSScreen() {
   useEffect(() => {
     if (seller?.id) {
       console.log('[POS] Fetching products for seller:', seller.id);
-      fetchProducts(seller.id);
+      fetchProducts({ sellerId: seller.id });
     }
   }, [seller?.id, fetchProducts]);
 
@@ -252,7 +250,7 @@ export default function POSScreen() {
       // Save to Supabase using orderService
       const result = await orderService.createPOSOrder(
         seller.id,
-        seller.storeName || seller.businessName || 'Store',
+        seller.store_name || 'Store',
         cart.map(item => ({
           productId: item.productId,
           productName: item.productName,
@@ -283,7 +281,7 @@ export default function POSScreen() {
         total,
         note: receiptNote,
         date: new Date(),
-        sellerName: seller.storeName || seller.businessName || 'BazaarPH Store'
+        sellerName: seller.store_name || 'BazaarPH Store'
       });
 
       // Show success

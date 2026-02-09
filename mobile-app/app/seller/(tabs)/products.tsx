@@ -37,13 +37,13 @@ const generateUUID = (): string => {
 };
 
 export default function SellerProductsScreen() {
-  const { products, loading, error, fetchProducts, toggleProductStatus, deleteProduct, seller, updateProduct } = useSellerStore();
+  const { products = [], loading, error, fetchProducts, toggleProductStatus, deleteProduct, seller, updateProduct, addProduct } = useSellerStore();
   const { addProductToQA } = useProductQAStore();
   const navigation = useNavigation();
   // Fetch products on mount
   useEffect(() => {
     if (seller?.id) {
-      fetchProducts(seller.id);
+      fetchProducts({ sellerId: seller.id });
     } else {
       fetchProducts();
     }
@@ -255,7 +255,7 @@ export default function SellerProductsScreen() {
         sales: 0,
         rating: 0,
         reviews: 0,
-        approvalStatus: 'pending',
+        approval_status: 'pending',
         rejectionReason: undefined,
         vendorSubmittedCategory: undefined,
         adminReclassifiedCategory: undefined,
@@ -264,11 +264,10 @@ export default function SellerProductsScreen() {
       };
 
       // Add to seller store first - this inserts into Supabase and returns the DB ID
-      const { addProduct } = useSellerStore.getState();
       const dbProductId = await addProduct(newProduct);
 
       // Add to product QA flow using the database product ID
-      await addProductToQA(dbProductId, seller?.storeName || 'Tech Shop PH');
+      await addProductToQA(dbProductId, seller?.store_name || 'Tech Shop PH');
 
       Alert.alert(
         'Product Submitted',
@@ -387,7 +386,7 @@ export default function SellerProductsScreen() {
           sales: 0,
           rating: 0,
           reviews: 0,
-          approvalStatus: 'pending',
+          approval_status: 'pending',
           rejectionReason: undefined,
           vendorSubmittedCategory: undefined,
           adminReclassifiedCategory: undefined,
@@ -409,8 +408,6 @@ export default function SellerProductsScreen() {
   };
 
   const confirmBulkUpload = async () => {
-    const { addProduct } = useSellerStore.getState();
-    
     for (const product of bulkPreviewProducts) {
       // Convert preview ID to actual UUID for database compatibility
       const finalProduct = { ...product, id: generateUUID() };
@@ -418,7 +415,7 @@ export default function SellerProductsScreen() {
       // Add to seller store - this inserts into Supabase and returns the DB ID
       const dbProductId = await addProduct(finalProduct);
       // Add to product QA flow using the database product ID
-      await addProductToQA(dbProductId, seller?.storeName || 'Tech Shop PH');
+      await addProductToQA(dbProductId, seller?.store_name || 'Tech Shop PH');
     }
 
     Alert.alert('Success', `${bulkPreviewProducts.length} products added to inventory.`);
@@ -637,7 +634,7 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
           <Text style={styles.emptySubtitle}>{error}</Text>
           <TouchableOpacity
             style={[styles.addButton, { marginTop: 16, paddingHorizontal: 24 }]}
-            onPress={() => fetchProducts(seller?.id)}
+            onPress={() => fetchProducts(seller?.id ? { sellerId: seller.id } : undefined)}
             activeOpacity={0.8}
           >
             <Text style={styles.addButtonText}>Retry</Text>
