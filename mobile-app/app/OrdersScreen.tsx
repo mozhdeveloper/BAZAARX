@@ -77,21 +77,36 @@ export default function OrdersScreen({ navigation, route }: Props) {
         .from('orders')
         .select(`
           *,
-          seller:sellers!seller_id (
-            business_name,
-            store_name,
-            business_address,
-            rating,
-            is_verified,
-            id
+          address:shipping_addresses!address_id (
+            id,
+            label,
+            address_line_1,
+            address_line_2,
+            city,
+            province,
+            region,
+            postal_code
           ),
           items:order_items (
             *,
             product:products (
-              *,
+              id,
+              name,
+              description,
+              price,
+              brand,
+              is_free_shipping,
+              seller_id,
               seller:sellers!products_seller_id_fkey (
-                business_name,
-                store_name
+                id,
+                store_name,
+                store_description,
+                avatar_url
+              ),
+              images:product_images (
+                image_url,
+                is_primary,
+                sort_order
               )
             )
           )
@@ -108,42 +123,53 @@ export default function OrdersScreen({ navigation, route }: Props) {
       console.log('[OrdersScreen] Loaded orders:', data?.length);
 
       const mapped: Order[] = (data || []).map((order: any) => {
-        const rawStatus = (order.status || 'pending').toLowerCase();
+        // Use shipment_status for order status (orders table uses shipment_status, not status)
+        const rawStatus = (order.shipment_status || 'waiting_for_seller').toLowerCase();
         const statusMap: Record<string, Order['status']> = {
+          waiting_for_seller: 'pending',
           pending: 'pending',
           pending_payment: 'pending',
-          unpaid: 'pending',
-          paid: 'processing',
           processing: 'processing',
           ready_to_ship: 'processing',
-          confirmed: 'processing',
           shipped: 'shipped',
           out_for_delivery: 'shipped',
           delivered: 'delivered',
-          completed: 'delivered',
           received: 'delivered',
           cancelled: 'cancelled',
-          canceled: 'cancelled',
           returned: 'delivered',
-          refunded: 'delivered',
+          failed_to_deliver: 'shipped',
         };
 
         const mappedStatus = statusMap[rawStatus] || 'pending';
 
-        // Get seller from order level first (more reliable)
-        const orderSeller = order.seller || {};
-        const sellerName = orderSeller.store_name || orderSeller.business_name || 'Unknown Shop';
-        const sellerId = orderSeller.id || order.seller_id;
+        // Get seller from first order item's product (orders don't have direct seller_id)
+        const firstItem = order.items?.[0];
+        const firstProduct = firstItem?.product || {};
+        const productSeller = firstProduct.seller || {};
+        const sellerName = productSeller.store_name || 'Shop';
+        const sellerId = productSeller.id || firstProduct.seller_id;
+
+        // Get address from the linked shipping_address
+        const linkedAddress = order.address || {};
 
         const items = (order.items || []).map((it: any) => {
           const p = it.product || {};
           const productName = p.name || it.product_name || 'Product Unavailable';
-          const image = it.primary_image_url || p.primary_image || (Array.isArray(p.images) && p.images.length > 0 ? p.images[0] : '') ||
-            (Array.isArray(it.product_images) && it.product_images.length > 0 ? it.product_images[0] : null) || '';
+          
+          // Get primary image from product_images
+          const productImages = p.images || [];
+          const primaryImg = productImages.find((img: any) => img.is_primary);
+          const firstImg = productImages.sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0))[0];
+          const image = it.primary_image_url || primaryImg?.image_url || firstImg?.image_url || '';
 
           const priceNum = typeof it.price === 'number' ? it.price :
             (typeof it.unit_price === 'number' ? it.unit_price :
               (typeof p.price === 'number' ? p.price : 0));
+
+          // Get seller info from product
+          const itemSeller = p.seller || productSeller;
+          const itemSellerName = itemSeller.store_name || sellerName;
+          const itemSellerId = itemSeller.id || sellerId;
 
           // Map personalized_options to selectedVariant format
           const personalizedOptions = it.personalized_options || {};
@@ -163,17 +189,17 @@ export default function OrdersScreen({ navigation, route }: Props) {
             price: priceNum,
             originalPrice: typeof p.original_price === 'number' ? p.original_price : undefined,
             image: image,
-            images: [],
+            images: productImages.map((img: any) => img.image_url),
             rating: typeof p.rating === 'number' ? p.rating : 0,
             sold: typeof p.sold === 'number' ? p.sold : 0,
-            seller: sellerName,
-            sellerId: sellerId,
-            sellerInfo: orderSeller,
-            sellerRating: orderSeller.rating || 0,
-            sellerVerified: !!orderSeller.is_verified,
+            seller: itemSellerName,
+            sellerId: itemSellerId,
+            sellerInfo: itemSeller,
+            sellerRating: itemSeller.rating || 0,
+            sellerVerified: !!itemSeller.is_verified,
             isFreeShipping: !!p.is_free_shipping,
             isVerified: !!p.is_verified,
-            location: orderSeller.business_address || 'Philippines',
+            location: 'Philippines',
             description: p.description || '',
             category: p.category || 'general',
             stock: typeof p.stock === 'number' ? p.stock : 0,
@@ -190,25 +216,43 @@ export default function OrdersScreen({ navigation, route }: Props) {
           typeof order.total_amount === 'number'
             ? order.total_amount
             : parseFloat(order.total_amount || '0') || items.reduce((sum: number, i: any) => sum + (i.price * i.quantity), 0) + shippingFee;
+        
+        // Parse name and phone from address_line_1 which stores "Name, Phone, Street"
+        const addressLine1 = linkedAddress.address_line_1 || '';
+        const addressParts = addressLine1.split(', ');
+        let addressName = user.name || 'User';
+        let addressPhone = '';
+        let addressStreet = addressLine1;
+        
+        if (addressParts.length >= 2) {
+          // Check if second part looks like a phone number
+          const possiblePhone = addressParts[1];
+          if (/^\d{10,11}$/.test(possiblePhone?.replace(/\D/g, ''))) {
+            addressName = addressParts[0] || user.name || 'User';
+            addressPhone = possiblePhone;
+            addressStreet = addressParts.slice(2).join(', ');
+          }
+        }
+        
         return {
           id: order.id,
           transactionId: order.order_number || order.id,
           items,
-          sellerInfo: orderSeller,
+          sellerInfo: productSeller,
           total: totalNum,
           shippingFee,
           status: mappedStatus,
-          isPaid: ['paid', 'processing', 'shipped', 'delivered', 'completed'].includes(rawStatus),
+          isPaid: order.payment_status === 'paid',
           scheduledDate: new Date(order.created_at).toLocaleDateString(),
           deliveryDate: order.estimated_delivery_date || undefined,
           shippingAddress: {
-            name: (order.shipping_address as any)?.fullName || order.buyer_name || user.name || 'BazaarX User',
-            email: order.buyer_email || user.email || '',
-            phone: (order.shipping_address as any)?.phone || user.phone || '',
-            address: (order.shipping_address as any)?.street || (order.shipping_address as any)?.address || '',
-            city: (order.shipping_address as any)?.city || '',
-            region: (order.shipping_address as any)?.province || (order.shipping_address as any)?.region || '',
-            postalCode: (order.shipping_address as any)?.postalCode || (order.shipping_address as any)?.zip_code || '',
+            name: addressName,
+            email: user.email || '',
+            phone: addressPhone,
+            address: addressStreet,
+            city: linkedAddress.city || '',
+            region: linkedAddress.province || linkedAddress.region || '',
+            postalCode: linkedAddress.postal_code || '',
           },
           paymentMethod: typeof order.payment_method === 'string'
             ? order.payment_method
@@ -220,7 +264,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
                   ? 'Card'
                   : (order.payment_method as any)?.type === 'paymongo'
                     ? 'PayMongo'
-                    : (order.payment_method as any)?.type || 'Pay on Delivery'),
+                    : (order.payment_method as any)?.type || 'Cash on Delivery'),
           createdAt: order.created_at,
         } as Order;
       });
