@@ -207,157 +207,167 @@ export default function EnhancedCartPage() {
             </div>
 
             <AnimatePresence>
-              {Object.entries(groupedCart).map(
-                ([sellerId, group], sellerIndex) => (
-                  <motion.div
-                    key={sellerId}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -20 }}
-                    transition={{ delay: sellerIndex * 0.1 }}
-                    className="bg-white border border-gray-200 rounded-xl p-3 sm:p-4 hover:shadow-lg transition-shadow"
-                  >
-                    {/* Seller Header */}
-                    <div className="border-b border-gray-100 pb-2 mb-0 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                      <div className="flex items-center justify-between gap-4 w-full">
-                        <div className="flex items-center gap-3">
-                          <Checkbox
-                            checked={group.items.every(item => item.selected)}
-                            onCheckedChange={(checked) => toggleSellerSelection(sellerId, checked === true)}
-                          />
-                          <img
-                            src={group.seller.avatar}
-                            alt=""
-                            className="w-8 h-8 rounded-full object-cover"
-                          />
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-bold text-gray-900">
-                                {group.seller.name}
-                              </span>
-                              {group.seller.isVerified && (
-                                <Badge variant="outline" className="text-[10px] h-4 px-1">
-                                  Verified
-                                </Badge>
-                              )}
-                              <button
-                                onClick={() => navigate(`/seller/${sellerId}`)}
-                                className="text-xs text-gray-400 hover:text-[#ff6a00] flex items-center transition-colors ml-2"
-                              >
-                                Visit Shop <ChevronRight className="h-3 w-3 ml-0.5" />
-                              </button>
+              {Object.entries(groupedCart)
+                .sort(([, groupA], [, groupB]) => {
+                  const latestA = Math.max(...groupA.items.map(i => i.createdAt ? new Date(i.createdAt).getTime() : 0));
+                  const latestB = Math.max(...groupB.items.map(i => i.createdAt ? new Date(i.createdAt).getTime() : 0));
+                  return latestB - latestA;
+                })
+                .map(
+                  ([sellerId, group], sellerIndex) => (
+                    <motion.div
+                      key={sellerId}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -20 }}
+                      transition={{ delay: sellerIndex * 0.1 }}
+                      className="bg-white border border-gray-200 rounded-xl p-3 sm:p-4 hover:shadow-lg transition-shadow"
+                    >
+                      {/* Seller Header */}
+                      <div className="border-b border-gray-100 pb-2 mb-0 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div className="flex items-center justify-between gap-4 w-full">
+                          <div className="flex items-center gap-3">
+                            <Checkbox
+                              checked={group.items.every(item => item.selected)}
+                              onCheckedChange={(checked) => toggleSellerSelection(sellerId, checked === true)}
+                            />
+                            <div
+                              className="flex items-center gap-2 cursor-pointer group/seller"
+                              onClick={() => navigate(`/seller/${sellerId}`)}
+                            >
+                              <img
+                                src={group.seller.avatar}
+                                alt=""
+                                className="w-8 h-8 rounded-full object-cover group-hover/seller:opacity-80 transition-opacity"
+                              />
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-bold text-gray-900 group-hover/seller:text-[#ff6a00] transition-colors">
+                                    {group.seller.name}
+                                  </span>
+                                  {group.seller.isVerified && (
+                                    <Badge variant="outline" className="text-[10px] h-4 px-1">
+                                      Verified
+                                    </Badge>
+                                  )}
+                                  <span className="text-gray-400 group-hover/seller:text-[#ff6a00] transition-colors">
+                                    <ChevronRight className="h-4 w-4" />
+                                  </span>
+                                </div>
+                              </div>
                             </div>
                           </div>
                         </div>
                       </div>
-                    </div>
 
-                    {/* Product Items */}
-                    <div className="space-y-0">
-                      {group.items.map((item, itemIndex) => (
-                        <motion.div
-                          key={item.id}
-                          initial={{ opacity: 0, x: -20 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{
-                            delay: sellerIndex * 0.1 + itemIndex * 0.05,
-                          }}
-                          className="flex items-center justify-between gap-3 w-full border-b border-gray-50 pb-4 pt-4 last:border-0 last:pb-0"
-                        >
-                          <div className="flex items-center gap-3 flex-1 min-w-0">
-                            <Checkbox
-                              checked={item.selected || false}
-                              onCheckedChange={() => toggleItemSelection(item.id, item.selectedVariant?.id)}
-                            />
+                      {/* Product Items */}
+                      <div className="space-y-0">
+                        {group.items.map((item, itemIndex) => (
+                          <motion.div
+                            key={item.id}
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{
+                              delay: sellerIndex * 0.1 + itemIndex * 0.05,
+                            }}
+                            className="flex items-center justify-between gap-3 w-full border-b border-gray-50 pb-4 pt-4 last:border-0 last:pb-0"
+                          >
+                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                              <Checkbox
+                                checked={item.selected || false}
+                                onCheckedChange={() => toggleItemSelection(item.id, item.selectedVariant?.id)}
+                              />
 
-                            {/* Product Image */}
-                            <img
-                              src={item.image}
-                              alt=""
-                              className="w-16 h-16 object-cover rounded-md border border-gray-100 cursor-pointer hover:opacity-80 transition-opacity"
-                              onClick={() => navigate(`/product/${item.id}`)}
-                            />
-
-                            {/* Product Details */}
-                            <div className="flex-1 min-w-0">
-                              <h4
-                                className="font-medium text-gray-900 text-sm mb-1 truncate cursor-pointer hover:text-[#ff6a00] transition-colors"
+                              {/* Product Image */}
+                              <img
+                                src={item.image}
+                                alt=""
+                                className="w-16 h-16 object-cover rounded-md border border-gray-100 cursor-pointer hover:opacity-80 transition-opacity"
                                 onClick={() => navigate(`/product/${item.id}`)}
-                              >
-                                {item.name}
-                              </h4>
+                              />
 
-                              {/* Quantity Controls */}
-                              <div className="flex items-center gap-4 mt-2">
-                                <span className="text-sm font-bold text-[#FF5722]">
-                                  ₱{(item.price * item.quantity).toLocaleString()}
-                                </span>
-                                {item.originalPrice && (
-                                  <span className="text-xs text-gray-400 line-through">
-                                    ₱{(item.originalPrice * item.quantity).toLocaleString()}
-                                  </span>
-                                )}
-
-                                <div className="flex items-center gap-2 border border-gray-200 rounded-md bg-white">
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() =>
-                                      updateCartQuantity(
-                                        item.id,
-                                        item.quantity - 1
-                                      )
-                                    }
-                                    className="h-6 w-6 p-0 hover:bg-base hover:text-red-500"
-                                    disabled={item.quantity <= 1}
-                                  >
-                                    <Minus className="h-3 w-3" />
-                                  </Button>
-                                  <span className="w-8 text-center font-medium text-xs">
-                                    {item.quantity}
-                                  </span>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() =>
-                                      updateCartQuantity(
-                                        item.id,
-                                        item.quantity + 1
-                                      )
-                                    }
-                                    className="h-6 w-6 p-0 hover:bg-base hover:text-green-500"
-                                  >
-                                    <Plus className="h-3 w-3" />
-                                  </Button>
-                                </div>
-                                <button
-                                  onClick={() => removeFromCart(item.id)}
-                                  className="text-gray-400 hover:text-red-500 transition-colors"
+                              {/* Product Details */}
+                              <div className="flex-1 min-w-0">
+                                <h4
+                                  className="font-medium text-gray-900 text-sm mb-1 truncate cursor-pointer hover:text-[#ff6a00] transition-colors"
+                                  onClick={() => navigate(`/product/${item.id}`)}
                                 >
-                                  <Trash2 className="h-4 w-4" />
-                                </button>
+                                  {item.name}
+                                </h4>
+
+                                {/* Quantity Controls */}
+                                <div className="flex items-center gap-4 mt-2">
+                                  <span className="text-sm font-bold text-[#FF5722]">
+                                    ₱{(item.price * item.quantity).toLocaleString()}
+                                  </span>
+                                  {item.originalPrice && (
+                                    <span className="text-xs text-gray-400 line-through">
+                                      ₱{(item.originalPrice * item.quantity).toLocaleString()}
+                                    </span>
+                                  )}
+
+                                  <div className="flex items-center gap-2 border border-gray-200 rounded-md bg-white">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() =>
+                                        updateCartQuantity(
+                                          item.id,
+                                          item.quantity - 1,
+                                          item.selectedVariant?.id
+                                        )
+                                      }
+                                      className="h-6 w-6 p-0 hover:bg-base hover:text-red-500"
+                                      disabled={item.quantity <= 1}
+                                    >
+                                      <Minus className="h-3 w-3" />
+                                    </Button>
+                                    <span className="w-8 text-center font-medium text-xs">
+                                      {item.quantity}
+                                    </span>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() =>
+                                        updateCartQuantity(
+                                          item.id,
+                                          item.quantity + 1,
+                                          item.selectedVariant?.id
+                                        )
+                                      }
+                                      className="h-6 w-6 p-0 hover:bg-base hover:text-green-500"
+                                    >
+                                      <Plus className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                  <button
+                                    onClick={() => removeFromCart(item.id, item.selectedVariant?.id)}
+                                    className="text-gray-400 hover:text-red-500 transition-colors"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </button>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        </motion.div>
-                      ))}
-                    </div>
+                          </motion.div>
+                        ))}
+                      </div>
 
-                    {/* Seller Total */}
-                    <div className="flex justify-end items-center pt-2 border-t border-gray-50 mt-2">
-                      <span className="text-sm text-gray-500 mr-2">
-                        Seller Total:
-                      </span>
-                      <span className="text-lg font-bold text-[#FF5722]">
-                        ₱
-                        {(
-                          group.subtotal + group.shippingFee
-                        ).toLocaleString()}
-                      </span>
-                    </div>
-                  </motion.div>
-                )
-              )}
+                      {/* Seller Total */}
+                      <div className="flex justify-end items-center pt-2 border-t border-gray-50 mt-2">
+                        <span className="text-sm text-gray-500 mr-2">
+                          Seller Total:
+                        </span>
+                        <span className="text-lg font-bold text-[#FF5722]">
+                          ₱
+                          {(
+                            group.subtotal + group.shippingFee
+                          ).toLocaleString()}
+                        </span>
+                      </div>
+                    </motion.div>
+                  )
+                )}
             </AnimatePresence>
           </div>
 

@@ -91,13 +91,15 @@ export interface SellerProduct {
   }[];
 }
 
-interface SellerOrder {
+export interface SellerOrder {
   id: string;
   order_number?: string; // Display-friendly order number (ORD-2026724737)
   seller_id?: string; // UUID of the seller for database updates
   buyer_id?: string; // UUID of the buyer for notifications
+  orderNumber?: string;
   buyerName: string;
   buyerEmail: string;
+  buyerProfileImage?: string;
   items: {
     productId: string;
     productName: string;
@@ -126,6 +128,7 @@ interface SellerOrder {
   reviewDate?: string;
   type?: 'ONLINE' | 'OFFLINE'; // POS-Lite: Track order source
   posNote?: string; // POS-Lite: Optional note for offline sales
+  notes?: string; // Unified notes field
 }
 
 // Inventory Ledger - Immutable audit trail for all stock changes
@@ -287,7 +290,7 @@ const fallbackSellerId = (import.meta as { env?: { VITE_SUPABASE_SELLER_ID?: str
 const mapDbSellerToSeller = (s: any): Seller => {
   const bp = s.business_profile || s.seller_business_profiles || {};
   const pa = s.payout_account || s.seller_payout_accounts || {};
-  
+
   return {
     id: s.id,
     name: s.owner_name || s.store_name || 'Seller',
@@ -330,16 +333,16 @@ const mapDbProductToSellerProduct = (p: any): SellerProduct => {
   const images: string[] = Array.isArray(p.images) 
     ? (p.images.map((img: any) => typeof img === 'string' ? img : img.image_url) as string[]) 
     : [];
-  
+
   // Handle variants to get colors, sizes, and stock
   const variants = Array.isArray(p.variants) ? p.variants : [];
   const colors: string[] = [...new Set(variants.map((v: any) => v.color).filter(Boolean))] as string[];
   const sizes: string[] = [...new Set(variants.map((v: any) => v.size).filter(Boolean))] as string[];
   const totalStock = variants.reduce((sum: number, v: any) => sum + (v.stock || 0), 0);
-  
+
   // Get category name from relation
-  const categoryName = typeof p.category === 'string' 
-    ? p.category 
+  const categoryName = typeof p.category === 'string'
+    ? p.category
     : (p.category?.name || p.categories?.name || '');
 
   return {
@@ -351,8 +354,8 @@ const mapDbProductToSellerProduct = (p: any): SellerProduct => {
     stock: totalStock || p.stock || 0,
     category: categoryName,
     images: images,
-    sizes: sizes,
-    colors: colors,
+    sizes: sizes as string[],
+    colors: colors as string[],
     isActive: !p.disabled_at,
     sellerId: p.seller_id || '',
     createdAt: p.created_at || '',
@@ -463,6 +466,7 @@ const mapOrderToSellerOrder = (order: any): SellerOrder => {
     order_number: order.order_number || order.id.slice(0, 8), // Fallback to UUID slice if no order_number
     seller_id: order.seller_id,
     buyer_id: order.buyer_id,
+    orderNumber: order.order_number,
     buyerName: order.buyer_name || 'Unknown',
     buyerEmail: order.buyer_email || 'unknown@example.com',
     items,
@@ -471,12 +475,12 @@ const mapOrderToSellerOrder = (order: any): SellerOrder => {
     paymentStatus: paymentStatusMap[order.payment_status] || 'pending',
     orderDate: order.created_at,
     shippingAddress: {
-      fullName: shippingAddr.fullName || order.buyer_name || 'Unknown',
-      street: shippingAddr.street || '',
-      city: shippingAddr.city || '',
-      province: shippingAddr.province || '',
-      postalCode: shippingAddr.postalCode || '',
-      phone: shippingAddr.phone || order.buyer_phone || ''
+      fullName: order.buyer_name || 'Unknown',
+      street: order.shipping_street || shippingAddr.street_address || '',
+      city: order.shipping_city || shippingAddr.city || '',
+      province: order.shipping_province || shippingAddr.province || '',
+      postalCode: order.shipping_postal_code || shippingAddr.postal_code || '',
+      phone: order.buyer_phone || shippingAddr.phone || ''
     },
     trackingNumber: order.tracking_number || undefined,
     rating: order.rating || undefined,
@@ -484,7 +488,8 @@ const mapOrderToSellerOrder = (order: any): SellerOrder => {
     reviewImages: order.review_images || undefined,
     reviewDate: order.review_date || undefined,
     type: order.order_type === 'OFFLINE' ? 'OFFLINE' : 'ONLINE',
-    posNote: order.pos_note || undefined
+    posNote: order.pos_note || undefined,
+    notes: order.notes || undefined
   };
 };
 
@@ -617,9 +622,9 @@ export const useAuthStore = create<AuthStore>()(
             } catch (signUpError: any) {
               // If signup fails because user already exists, try to sign in again
               if (signUpError?.isAlreadyRegistered ||
-                  signUpError?.message?.includes('User already registered') ||
-                  signUpError?.message?.includes('already exists') ||
-                  signUpError?.status === 422) {
+                signUpError?.message?.includes('User already registered') ||
+                signUpError?.message?.includes('already exists') ||
+                signUpError?.status === 422) {
                 // User exists, sign in and continue with upgrade process
                 const signInResult = await authService.signIn(sellerData.email!, sellerData.password!);
                 if (signInResult && signInResult.user) {
@@ -866,7 +871,7 @@ export const useProductStore = create<ProductStore>()(
             if (!categoryId) {
               throw new Error('Failed to resolve category. Please try again.');
             }
-            
+
             const insertData = buildProductInsert(product, resolvedSellerId, categoryId);
             const created = await productService.createProduct(insertData);
             if (!created) {
@@ -885,6 +890,7 @@ export const useProductStore = create<ProductStore>()(
                     alt_text: null,
                     sort_order: idx,
                     is_primary: idx === 0,
+                    alt_text: product.name || 'Product image',
                   })));
                   console.log(`✅ Created ${validImages.length} images for product ${newProduct.id}`);
                 } catch (imageError) {

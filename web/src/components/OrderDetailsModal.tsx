@@ -1,0 +1,418 @@
+import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+    Package,
+    X,
+    Loader2,
+    XCircle,
+    Clock,
+    Mail,
+    Phone,
+    Truck,
+    CheckCircle,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import {
+    Accordion,
+    AccordionContent,
+    AccordionItem,
+    AccordionTrigger,
+} from "@/components/ui/accordion";
+import { useAuthStore, useOrderStore, SellerOrder } from "@/stores/sellerStore";
+import { orderService } from "@/services/orderService";
+
+interface OrderDetailsModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    order: SellerOrder | null;
+}
+
+export function OrderDetailsModal({ isOpen, onClose, order }: OrderDetailsModalProps) {
+    const { seller } = useAuthStore();
+    const { fetchOrders, updateOrderStatus, addTrackingNumber } = useOrderStore();
+
+    const [trackingModal, setTrackingModal] = useState<{
+        isOpen: boolean;
+        orderId: string | null;
+        trackingNumber: string;
+        isLoading: boolean;
+    }>({
+        isOpen: false,
+        orderId: null,
+        trackingNumber: "",
+        isLoading: false,
+    });
+
+    if (!isOpen || !order) return null;
+
+    // Debug: Log order data to check shipping address
+    console.log('Order Details Modal - Full Order:', order);
+    console.log('Order Details Modal - Shipping Address:', order.shippingAddress);
+
+    const handleStatusUpdate = (status: SellerOrder['status']) => {
+        updateOrderStatus(order.id, status);
+
+        if (status === "confirmed") {
+            import("@/stores/cartStore")
+                .then(({ useCartStore }) => {
+                    const cartStore = useCartStore.getState();
+                    cartStore.updateOrderStatus(order.id, "confirmed");
+                    cartStore.addNotification(
+                        order.id,
+                        "seller_confirmed",
+                        "Your order has been confirmed by the seller! Track your delivery now."
+                    );
+                })
+                .catch(console.error);
+        }
+    };
+
+    const handleMarkAsShipped = async () => {
+        if (!trackingModal.trackingNumber.trim()) {
+            alert("Please enter a tracking number");
+            return;
+        }
+
+        setTrackingModal((prev) => ({ ...prev, isLoading: true }));
+
+        try {
+            const success = await orderService.markOrderAsShipped(
+                order.id,
+                trackingModal.trackingNumber,
+                seller!.id,
+            );
+
+            if (success) {
+                addTrackingNumber(order.id, trackingModal.trackingNumber);
+                updateOrderStatus(order.id, "shipped");
+                await fetchOrders(seller!.id);
+
+                import("@/stores/cartStore")
+                    .then(({ useCartStore }) => {
+                        const cartStore = useCartStore.getState();
+                        cartStore.updateOrderStatus(order.id, "shipped");
+                        cartStore.addNotification(
+                            order.id,
+                            "shipped",
+                            `Your order is on the way! Tracking: ${trackingModal.trackingNumber}`,
+                        );
+                    })
+                    .catch(console.error);
+
+                setTrackingModal(prev => ({ ...prev, isOpen: false, trackingNumber: "" }));
+            } else {
+                alert("Failed to mark order as shipped.");
+            }
+        } catch (error) {
+            console.error("Error marking order as shipped:", error);
+            alert("An error occurred.");
+        } finally {
+            setTrackingModal((prev) => ({ ...prev, isLoading: false }));
+        }
+    };
+
+    const handleMarkAsDelivered = async () => {
+        if (!window.confirm("Mark this order as delivered?")) return;
+
+        try {
+            const success = await orderService.markOrderAsDelivered(order.id, seller!.id);
+            if (success) {
+                updateOrderStatus(order.id, "delivered");
+                await fetchOrders(seller!.id);
+            } else {
+                alert("Failed to mark as delivered.");
+            }
+        } catch (error) {
+            console.error("Error marking delivered:", error);
+        }
+    };
+
+    const getStatusBadge = (status: string) => {
+        switch (status) {
+            case 'delivered':
+                return <div className="inline-flex items-center bg-blue-50 text-blue-700 gap-1 rounded-full px-3 py-1 text-xs font-normal"><CheckCircle className="w-3 h-3" /> Delivered</div>;
+            case 'shipped':
+                return <div className="inline-flex items-center bg-purple-50 text-purple-700 gap-1 rounded-full px-3 py-1 text-xs font-normal"><Truck className="w-3 h-3" /> Shipped</div>;
+            case 'cancelled':
+                return <div className="inline-flex items-center bg-red-50 text-red-700 gap-1 rounded-full px-3 py-1 text-xs font-normal"><XCircle className="w-3 h-3" /> Cancelled</div>;
+            case 'confirmed':
+                return <div className="inline-flex items-center bg-green-50 text-green-700 gap-1 rounded-full px-3 py-1 text-xs font-normal"><CheckCircle className="w-3 h-3" /> Confirmed</div>;
+            default:
+                return <div className="inline-flex items-center bg-orange-50 text-orange-700 gap-1 rounded-full px-3 py-1 text-xs font-normal"><Clock className="w-3 h-3" /> Pending</div>;
+        }
+    };
+
+    return (
+        <AnimatePresence>
+            {isOpen && (
+                <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-[99999] p-4 backdrop-blur-sm">
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                        className="bg-[#fbfcff] rounded-2xl shadow-2xl w-full max-w-xl max-h-[90vh] overflow-hidden flex flex-col border border-gray-100"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        {/* Header */}
+                        <div className="px-6 py-5 bg-white border-b border-gray-100 sticky top-0 z-10 flex items-start justify-between">
+                            <div className="space-y-1">
+                                <h2 className="text-xl font-bold text-gray-900 tracking-tight">
+                                    Order #{order.orderNumber || order.id.slice(0, 8).toUpperCase()}
+                                </h2>
+                                <div className="flex flex-wrap items-center gap-4 text-xs">
+                                    <div className="flex items-center gap-2">
+                                        {getStatusBadge(order.status)}
+                                    </div>
+                                    <div className="flex items-center gap-2 text-gray-500">
+                                        <span className="font-medium text-gray-400">Order date:</span>
+                                        <span className="font-medium text-gray-900">{new Date(order.orderDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={onClose}
+                                className="rounded-full h-8 w-8 hover:bg-gray-100 -mr-2 -mt-2"
+                            >
+                                <X className="h-5 w-5 text-gray-500" />
+                            </Button>
+                        </div>
+
+                        {/* Scrollable Content */}
+                        <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 space-y-4 bg-[#f9fafb] pb-24">
+
+                            <Accordion type="multiple" defaultValue={['summary', 'customer', 'delivery']} className="space-y-4">
+
+                                {/* Order Summary */}
+                                <AccordionItem value="summary" className="bg-white rounded-xl border border-gray-100 shadow-sm px-1 overflow-hidden">
+                                    <AccordionTrigger className="px-4 hover:no-underline py-4">
+                                        <span className="font-semibold text-gray-900 text-sm">Order Summary</span>
+                                    </AccordionTrigger>
+                                    <AccordionContent className="px-4 pb-4">
+                                        <div className="space-y-6">
+                                            {order.items.map((item, idx) => (
+                                                <div key={idx} className="flex gap-4">
+                                                    <div className="h-14 w-14 rounded-md bg-gray-50 border border-gray-100 overflow-hidden flex-shrink-0">
+                                                        <img src={item.image} alt={item.productName} className="h-full w-full object-cover" />
+                                                    </div>
+                                                    <div className="flex-1 min-w-0 flex flex-col justify-center">
+                                                        <h4 className="font-medium text-gray-900 text-sm truncate">{item.productName}</h4>
+                                                        {(item.selectedSize || item.selectedColor) && (
+                                                            <p className="text-xs text-gray-500 mt-0.5 truncate">
+                                                                {item.selectedColor} {item.selectedSize ? `• ${item.selectedSize}` : ''}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                    <div className="text-right flex flex-col justify-center">
+                                                        <p className="text-sm font-medium text-gray-900">{item.quantity} item{item.quantity > 1 ? 's' : ''}</p>
+                                                        <p className="text-sm text-gray-500">₱{item.price.toLocaleString()}</p>
+                                                    </div>
+                                                </div>
+                                            ))}
+
+                                            <div className="pt-4 border-t border-gray-100 space-y-2">
+                                                <div className="flex justify-between text-sm">
+                                                    <span className="text-gray-500">Subtotal</span>
+                                                    <span className="font-medium text-gray-900">₱{order.total.toLocaleString()}</span>
+                                                </div>
+                                                <div className="flex justify-between text-sm">
+                                                    <span className="text-gray-500">Tax (0%)</span>
+                                                    <span className="font-medium text-gray-900">₱0.00</span>
+                                                </div>
+                                                <div className="flex justify-between text-base pt-2 font-semibold border-t border-gray-50 mt-2">
+                                                    <span className="text-gray-900">Total amount</span>
+                                                    <span className="text-gray-900">₱{order.total.toLocaleString()}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+
+                                {/* Customer */}
+                                <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-4">
+                                    <span className="font-semibold text-gray-900 text-sm block mb-3">Customer</span>
+                                    <div>
+                                        <p className="text-sm font-semibold text-gray-900">{order.buyerName}</p>
+                                        <p className="text-xs text-gray-500 mt-0.5">{order.shippingAddress?.city || 'Unknown Location'}, {order.shippingAddress?.province || 'PH'}</p>
+                                    </div>
+                                </div>
+
+                                {/* Delivery Information */}
+                                <AccordionItem value="delivery" className="bg-white rounded-xl border border-gray-100 shadow-sm px-1 overflow-hidden">
+                                    <AccordionTrigger className="px-4 hover:no-underline py-4">
+                                        <span className="font-semibold text-gray-900 text-sm">Delivery information</span>
+                                    </AccordionTrigger>
+                                    <AccordionContent className="px-4 pb-4">
+                                        <div className="space-y-6">
+                                            <div className="flex items-start gap-4">
+                                                <div className="p-2 bg-white border border-gray-100 rounded-lg text-gray-500 mt-0.5 shadow-sm">
+                                                    <Package className="w-4 h-4" />
+                                                </div>
+                                                <div className="flex-1">
+                                                    <span className="block text-sm font-semibold text-gray-900 mb-1">Ship to</span>
+                                                    <span className="block text-xs text-gray-600 leading-relaxed">
+                                                        {order.shippingAddress?.street || 'No street provided'}, {order.shippingAddress?.city} {order.shippingAddress?.postalCode}<br />
+                                                        {order.shippingAddress?.province}, Philippines
+                                                    </span>
+                                                    {order.shippingAddress?.phone && (
+                                                        <div className="flex items-center gap-1.5 mt-2">
+                                                            <Phone className="w-3 h-3 text-gray-400" />
+                                                            <span className="text-xs text-gray-600 font-medium">{order.shippingAddress.phone}</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Tracking Info Block */}
+                                            {order.trackingNumber ? (
+                                                <div className="pt-4 border-t border-gray-50">
+                                                    <div className="flex items-start gap-4">
+                                                        <div className="p-2 bg-white border border-gray-100 rounded-lg text-gray-500 mt-0.5 shadow-sm">
+                                                            <Truck className="w-4 h-4" />
+                                                        </div>
+                                                        <div className="flex-1 space-y-2">
+                                                            <div>
+                                                                <span className="block text-sm font-semibold text-gray-900">Shipped with Standard Delivery</span>
+                                                                <div className="flex items-center gap-2 mt-1">
+                                                                    <span className="text-xs text-gray-500">Status:</span>
+                                                                    <span className="text-xs text-purple-600 font-medium bg-purple-50 px-1.5 py-0.5 rounded">{order.status}</span>
+                                                                </div>
+                                                                <div className="flex items-center gap-2 mt-1">
+                                                                    <span className="text-xs text-gray-500">Tracking number:</span>
+                                                                    <span className="text-xs font-medium text-gray-900 underline decoration-gray-300 decoration-dotted cursor-pointer">{order.trackingNumber}</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="flex items-start gap-4 pt-4 border-t border-gray-50">
+                                                    <div className="p-2 bg-white border border-gray-100 rounded-lg text-gray-400 mt-0.5 shadow-sm">
+                                                        <Truck className="w-4 h-4" />
+                                                    </div>
+                                                    <div>
+                                                        <span className="block text-sm font-semibold text-gray-400 mb-0.5">Shipment Pending</span>
+                                                        <span className="block text-xs text-gray-400 leading-relaxed">
+                                                            Details will appear here once the order is shipped.
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                            </Accordion>
+                        </div>
+
+                        {/* Sticky Action Buttons at Bottom */}
+                        <div className="sticky bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-6 py-4 shadow-lg z-20">
+                            <div className="flex flex-col sm:flex-row gap-3">
+                                {order.status === "pending" && (
+                                    <>
+                                        <Button
+                                            size="lg"
+                                            className="bg-orange-500 hover:bg-orange-600 text-white flex-1 font-semibold shadow-md hover:shadow-lg transition-all"
+                                            onClick={() => handleStatusUpdate('confirmed')}
+                                        >
+                                            Confirm Order
+                                        </Button>
+                                        <Button
+                                            size="lg"
+                                            variant="ghost"
+                                            className="flex-1 text-red-600 hover:text-red-700 hover:bg-red-50 font-medium"
+                                            onClick={() => handleStatusUpdate('cancelled')}
+                                        >
+                                            Cancel Order
+                                        </Button>
+                                    </>
+                                )}
+                                {order.status === "confirmed" && (
+                                    <>
+                                        <Button
+                                            size="lg"
+                                            className="bg-orange-500 hover:bg-orange-600 text-white flex-1 font-semibold shadow-md hover:shadow-lg transition-all"
+                                            onClick={() => setTrackingModal(prev => ({ ...prev, isOpen: true }))}
+                                        >
+                                            Ship Order
+                                        </Button>
+                                        <Button
+                                            size="lg"
+                                            variant="ghost"
+                                            className="flex-1 text-red-600 hover:text-red-700 hover:bg-red-50 font-medium"
+                                            onClick={() => handleStatusUpdate('cancelled')}
+                                        >
+                                            Cancel Order
+                                        </Button>
+                                    </>
+                                )}
+                                {order.status === "shipped" && (
+                                    <Button
+                                        size="lg"
+                                        className="bg-green-600 hover:bg-green-700 text-white w-full font-semibold shadow-md hover:shadow-lg transition-all"
+                                        onClick={handleMarkAsDelivered}
+                                    >
+                                        Mark as Delivered
+                                    </Button>
+                                )}
+                                {(order.status === "delivered" || order.status === "cancelled") && (
+                                    <div className="w-full text-center text-sm text-gray-400 italic py-3 bg-gray-50 rounded-lg border border-gray-100">
+                                        No further actions required.
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                    </motion.div>
+                </div>
+            )}
+
+            {/* Nested Tracking Modal */}
+            {trackingModal.isOpen && (
+                <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[10000] p-4 backdrop-blur-sm">
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm"
+                    >
+                        <h3 className="font-bold text-gray-900 mb-4 text-lg">Shipment Details</h3>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="text-sm font-medium text-gray-700 mb-2 block">Tracking Number</label>
+                                <Input
+                                    value={trackingModal.trackingNumber}
+                                    onChange={(e) => setTrackingModal(prev => ({ ...prev, trackingNumber: e.target.value }))}
+                                    placeholder="Enter tracking ID"
+                                    className="text-sm"
+                                />
+                            </div>
+                            <div className="flex gap-3 pt-2">
+                                <Button
+                                    variant="outline"
+                                    size="lg"
+                                    className="flex-1"
+                                    onClick={() => setTrackingModal(prev => ({ ...prev, isOpen: false }))}
+                                >
+                                    Cancel
+                                </Button>
+                                <Button
+                                    size="lg"
+                                    className="flex-1 bg-orange-500 hover:bg-orange-600 text-white font-semibold"
+                                    onClick={handleMarkAsShipped}
+                                    disabled={trackingModal.isLoading || !trackingModal.trackingNumber}
+                                >
+                                    {trackingModal.isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Confirm"}
+                                </Button>
+                            </div>
+                        </div>
+                    </motion.div>
+                </div>
+            )}
+        </AnimatePresence>
+    );
+}

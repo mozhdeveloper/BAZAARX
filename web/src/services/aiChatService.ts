@@ -13,8 +13,8 @@ import { supabase } from '../lib/supabase';
 
 // API Key - try environment variable first, fallback to hardcoded for development
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || '';
-// Using gemini-1.5-flash for better availability (2.0-flash-lite may have access issues)
-const GEMINI_MODEL = 'gemini-1.5-flash';
+// Using gemini-2.5-flash (stable release June 2025) for better performance and availability
+const GEMINI_MODEL = 'gemini-2.5-flash';
 const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 // Check if AI is available

@@ -1,0 +1,31 @@
+export type ShopProduct = {
+    id: string;
+    name: string;
+    price: number;
+    originalPrice?: number;
+    image: string;
+    images?: string[];
+    rating: number;
+    sold: number;
+    category: string;
+    seller: string;
+    sellerId: string;
+    isVerified: boolean;
+    isFreeShipping?: boolean;
+    location?: string;
+    description?: string;
+    sellerRating?: number;
+    sellerVerified?: boolean;
+    colors?: string[];
+    sizes?: string[];
+    stock?: number;
+    variants?: {
+        id: string;
+        name?: string;
+        size?: string;
+        color?: string;
+        price: number;
+        stock: number;
+        image?: string;
+    }[];
+};
