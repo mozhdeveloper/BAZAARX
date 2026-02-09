@@ -615,7 +615,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       const state = get();
       const userId = state.profile?.id;
       const paymentMethods = state.profile?.paymentMethods || [];
-      
+
       if (!userId) return;
 
       try {
