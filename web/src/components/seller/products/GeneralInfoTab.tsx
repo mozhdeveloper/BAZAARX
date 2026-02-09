@@ -15,7 +15,6 @@ interface GeneralInfoTabProps {
   errors: {
     name?: string;
   };
-  useVariantStock: boolean;
   variantConfigs: Array<{ stock: number; price: number }>;
   categories: Array<{ id: string; name: string }>;
   loadingCategories: boolean;
@@ -29,7 +28,6 @@ interface GeneralInfoTabProps {
 export function GeneralInfoTab({
   formData,
   errors,
-  useVariantStock,
   variantConfigs,
   categories,
   loadingCategories,
@@ -119,7 +117,7 @@ export function GeneralInfoTab({
             placeholder="0"
             required
           />
-          {useVariantStock && variantConfigs.length > 0 && (
+          {variantConfigs.length > 0 && (
             <p className="text-xs text-orange-600 mt-1">
               ⓘ Actual prices are set per variant below. This is the thumbnail/display price.
             </p>
@@ -154,9 +152,9 @@ export function GeneralInfoTab({
             htmlFor="stock"
             className="block text-sm font-semibold text-gray-800 mb-1"
           >
-            Stock Quantity {!useVariantStock && '*'}
+            Stock Quantity {variantConfigs.length === 0 && '*'}
           </label>
-          {useVariantStock && variantConfigs.length > 0 ? (
+          {variantConfigs.length > 0 ? (
             <div className="w-full rounded-xl border border-green-200 bg-green-50 px-3 py-3 text-sm">
               <span className="text-green-700 font-medium">
                 Using variant stock: {getTotalVariantStock()} total
@@ -174,7 +172,7 @@ export function GeneralInfoTab({
               onChange={handleChange}
               className="w-full rounded-xl border border-gray-200 px-3 py-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
               placeholder="0"
-              required={!useVariantStock}
+              required={variantConfigs.length === 0}
             />
           )}
         </div>

@@ -1,16 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Plus, X } from "lucide-react";
 import { VariantManager } from "@/components/seller/products/VariantManager";
-
-interface VariantConfig {
-  id: string;
-  size: string;
-  color: string;
-  stock: number;
-  price: number;
-  sku: string;
-  image: string;
-}
+import { VariantConfig } from "@/types";
 
 interface AttributesTabProps {
   formData: {
@@ -38,7 +29,6 @@ interface AttributesTabProps {
   setEditingSecondAttributeName: (value: boolean) => void;
   
   // Variant Manager props
-  useVariantStock: boolean;
   variantConfigs: VariantConfig[];
   editingVariantId: string | null;
   showAddVariantForm: boolean;
@@ -47,7 +37,6 @@ interface AttributesTabProps {
     variant?: string;
     variants?: string;
   };
-  toggleVariantMode: () => void;
   getTotalVariantStock: () => number;
   updateVariantConfig: (id: string, field: keyof VariantConfig, value: string | number) => void;
   cancelEditVariant: () => void;
@@ -77,13 +66,11 @@ export function AttributesTab({
   setEditingFirstAttributeName,
   editingSecondAttributeName,
   setEditingSecondAttributeName,
-  useVariantStock,
   variantConfigs,
   editingVariantId,
   showAddVariantForm,
   newVariant,
   errors,
-  toggleVariantMode,
   getTotalVariantStock,
   updateVariantConfig,
   cancelEditVariant,
@@ -95,8 +82,10 @@ export function AttributesTab({
   addVariant,
 }: AttributesTabProps) {
   return (
-    <div className="space-y-8">
-      {/* First Attribute (Variations) */}
+    <>
+      {/* Attributes Section */}
+      <div className="space-y-6">
+        {/* First Attribute (Variations) */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -140,9 +129,6 @@ export function AttributesTab({
               </>
             )}
           </div>
-          <span className="text-xs text-gray-500">
-            Sizes, models, flavors, etc.
-          </span>
         </div>
         <div className="flex gap-2">
           <input
@@ -233,9 +219,6 @@ export function AttributesTab({
               </>
             )}
           </div>
-          <span className="text-xs text-gray-500">
-            For products with color options
-          </span>
         </div>
         <div className="flex gap-2">
           <input
@@ -281,19 +264,18 @@ export function AttributesTab({
           </div>
         )}
       </div>
+      </div>
 
-      {/* Variant Manager */}
-      <VariantManager
+      {/* Variant Manager Section */}
+        <VariantManager
         firstAttributeName={firstAttributeName}
         secondAttributeName={secondAttributeName}
-        useVariantStock={useVariantStock}
         variantConfigs={variantConfigs}
         formData={formData}
         editingVariantId={editingVariantId}
         showAddVariantForm={showAddVariantForm}
         newVariant={newVariant}
         errors={errors}
-        toggleVariantMode={toggleVariantMode}
         getTotalVariantStock={getTotalVariantStock}
         updateVariantConfig={updateVariantConfig}
         cancelEditVariant={cancelEditVariant}
@@ -303,7 +285,7 @@ export function AttributesTab({
         setNewVariant={setNewVariant}
         setErrors={setErrors}
         addVariant={addVariant}
-      />
-    </div>
+        />
+    </>
   );
 }

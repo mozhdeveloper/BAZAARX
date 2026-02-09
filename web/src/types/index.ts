@@ -92,3 +92,13 @@ export interface Collection {
   rating: number;
   badge?: 'trending' | 'new' | 'popular';
 }
+
+export interface VariantConfig {
+  id: string;
+  size: string;
+  color: string;
+  stock: number;
+  price: number;
+  sku: string;
+  image: string;
+}

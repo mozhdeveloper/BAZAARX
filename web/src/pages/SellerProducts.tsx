@@ -15,6 +15,7 @@ import {
   AlertTriangle,
   Clock,
   BadgeCheck,
+  Upload,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
@@ -712,7 +713,6 @@ export function AddProduct() {
   
   // Variant stock configuration - CRUD approach
   const [variantConfigs, setVariantConfigs] = useState<VariantConfig[]>([]);
-  const [useVariantStock, setUseVariantStock] = useState(false);
   const [showAddVariantForm, setShowAddVariantForm] = useState(false);
   
   // Categories fetched from database
@@ -794,7 +794,6 @@ export function AddProduct() {
     setNewVariant({ size: '', color: '', stock: 0, price: 0, sku: '', image: '' });
     setShowAddVariantForm(false);
     setErrors(prev => ({ ...prev, variant: '' }));
-    setUseVariantStock(true);
   };
 
   // Update an existing variant
@@ -808,9 +807,6 @@ export function AddProduct() {
   const deleteVariant = (id: string) => {
     setVariantConfigs(prev => {
       const updated = prev.filter(v => v.id !== id);
-      if (updated.length === 0) {
-        setUseVariantStock(false);
-      }
       return updated;
     });
   };
@@ -830,22 +826,7 @@ export function AddProduct() {
     return variantConfigs.reduce((sum, v) => sum + (v.stock || 0), 0);
   };
 
-  // Toggle variant mode
-  const toggleVariantMode = () => {
-    if (useVariantStock) {
-      // Turning off - confirm if there are variants
-      if (variantConfigs.length > 0) {
-        if (!confirm("This will remove all variants. Continue?")) {
-          return;
-        }
-        setVariantConfigs([]);
-      }
-      setUseVariantStock(false);
-    } else {
-      setUseVariantStock(true);
-      setShowAddVariantForm(true);
-    }
-  };
+
 
   // Categories now fetched from database via useEffect above
 
@@ -935,7 +916,7 @@ export function AddProduct() {
     }
     
     // If using variant stock, check that at least one variant has stock
-    if (useVariantStock && variantConfigs.length > 0) {
+    if (variantConfigs.length > 0) {
       const totalVariantStock = getTotalVariantStock();
       if (totalVariantStock <= 0) {
         newErrors.variants = "At least one variant must have stock";
@@ -967,7 +948,7 @@ export function AddProduct() {
 
     try {
       // Calculate total stock - from variants if using variant stock, else from form
-      const totalStock = useVariantStock && variantConfigs.length > 0
+      const totalStock = variantConfigs.length > 0
         ? getTotalVariantStock()
         : parseInt(formData.stock);
 
@@ -986,7 +967,7 @@ export function AddProduct() {
         isActive: true,
         sellerId: seller?.id || "",
         // Pass variant configurations for database creation
-        variants: useVariantStock && variantConfigs.length > 0 ? variantConfigs : undefined,
+        variants: variantConfigs.length > 0 ? variantConfigs : undefined,
       };
 
       await addProduct(productData);
@@ -1158,7 +1139,6 @@ export function AddProduct() {
                 <GeneralInfoTab
                   formData={formData}
                   errors={errors}
-                  useVariantStock={useVariantStock}
                   variantConfigs={variantConfigs}
                   categories={categories}
                   loadingCategories={loadingCategories}
@@ -1190,13 +1170,11 @@ export function AddProduct() {
                   setEditingFirstAttributeName={setEditingFirstAttributeName}
                   editingSecondAttributeName={editingSecondAttributeName}
                   setEditingSecondAttributeName={setEditingSecondAttributeName}
-                  useVariantStock={useVariantStock}
                   variantConfigs={variantConfigs}
                   editingVariantId={editingVariantId}
                   showAddVariantForm={showAddVariantForm}
                   newVariant={newVariant}
                   errors={errors}
-                  toggleVariantMode={toggleVariantMode}
                   getTotalVariantStock={getTotalVariantStock}
                   updateVariantConfig={updateVariantConfig}
                   cancelEditVariant={cancelEditVariant}
