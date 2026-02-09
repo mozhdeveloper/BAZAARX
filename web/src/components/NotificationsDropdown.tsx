@@ -13,7 +13,7 @@ import {
   XCircle,
   ShoppingBag,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useCartStore } from "@/stores/cartStore";
 import { OrderNotification } from "@/stores/cartStore";
 import { useAuthStore } from "@/stores/sellerStore";
@@ -98,15 +98,19 @@ export function NotificationsDropdown() {
   const [dbNotifications, setDbNotifications] = useState<DbNotification[]>([]);
   const [dbLoading, setDbLoading] = useState(false);
   const [buyerId, setBuyerId] = useState<string | null>(null);
+  const location = useLocation();
 
   // Determine current user context: seller (from auth store) or buyer (from supabase auth)
+  // Only use seller context if we're actually on a seller route
   const userContext = useMemo(() => {
-    if (seller?.id) {
+    const isSellerRoute = location.pathname.startsWith('/seller');
+    if (seller?.id && isSellerRoute) {
       console.log("[Notifications] Seller context detected:", seller.id);
       return { userId: seller.id, userType: "seller" as const };
     }
+    console.log("[Notifications] Buyer context (seller route:", isSellerRoute, ")");
     return null; // Fallback to buyer via supabase below
-  }, [seller?.id]);
+  }, [seller?.id, location.pathname]);
 
   // Initialize buyer ID on mount
   useEffect(() => {
@@ -240,7 +244,7 @@ export function NotificationsDropdown() {
     if (notification.type === "shipped" || notification.type === "delivered") {
       navigate(`/delivery-tracking/${notification.orderId}`);
     } else {
-      navigate(`/orders/${notification.orderId}`);
+      navigate(`/order/${notification.orderId}`);
     }
   };
 
@@ -264,7 +268,7 @@ export function NotificationsDropdown() {
     }
     // Fallback navigation based on type
     if (n.type.startsWith("order_")) {
-      navigate(`/orders/${(n.action_data as any)?.orderId ?? ""}`);
+      navigate(`/order/${(n.action_data as any)?.orderId ?? ""}`);
     } else if (n.type === "seller_new_order") {
       navigate(`/seller/orders/${(n.action_data as any)?.orderId ?? ""}`);
     }

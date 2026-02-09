@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   Search,
@@ -123,6 +123,7 @@ export function SellerOrders() {
   const { orders, loading, fetchOrders, updateOrderStatus, addTrackingNumber } =
     useOrderStore();
   const navigate = useNavigate();
+  const { orderId } = useParams<{ orderId?: string }>();
 
   // Fetch orders when component mounts or seller changes
   useEffect(() => {
@@ -130,6 +131,19 @@ export function SellerOrders() {
       fetchOrders(seller.id);
     }
   }, [seller?.id, fetchOrders]);
+
+  // Auto-select order from URL parameter (for notification navigation)
+  useEffect(() => {
+    if (orderId && orders.length > 0) {
+      // Check if order exists in the list
+      const orderExists = orders.find(o => o.id === orderId);
+      if (orderExists) {
+        setSelectedOrder(orderId);
+        // Clean up URL by navigating to base orders page (optional)
+        // navigate('/seller/orders', { replace: true });
+      }
+    }
+  }, [orderId, orders]);
 
   // Initialize edit fields when order is selected
   useEffect(() => {

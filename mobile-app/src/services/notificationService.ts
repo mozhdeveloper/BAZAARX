@@ -45,12 +45,8 @@ function getNotificationTable(userType: 'buyer' | 'seller' | 'admin'): string {
 function getUserIdColumn(userType: 'buyer' | 'seller' | 'admin'): string {
   switch (userType) {
     case 'buyer': return 'buyer_id';
+    case 'seller': return 'seller_id';
     case 'admin': return 'admin_id';
-    case 'seller': 
-      // WARNING: seller_notifications table is missing seller_id column in schema!
-      // For now, we'll skip seller_id filtering which means all sellers see all notifications
-      // TODO: Fix database schema to add seller_id to seller_notifications table
-      return 'id'; // Fallback - will cause issues
     default: return 'buyer_id';
   }
 }
@@ -89,10 +85,8 @@ class NotificationService {
         priority: params.priority || 'normal'
       };
       
-      // Only add user ID column if it's not seller (seller_notifications missing seller_id)
-      if (params.userType !== 'seller') {
-        insertData[userIdColumn] = params.userId;
-      }
+      // Add user ID column for all user types
+      insertData[userIdColumn] = params.userId;
       
       const { data, error } = await supabase
         .from(table)
@@ -147,10 +141,8 @@ class NotificationService {
         .order('created_at', { ascending: false })
         .limit(limit);
       
-      // Only filter by user ID if not seller (seller_notifications missing seller_id)
-      if (userType !== 'seller') {
-        query = query.eq(userIdColumn, userId);
-      }
+      // Filter by user ID for all user types
+      query = query.eq(userIdColumn, userId);
       
       const { data, error } = await query;
 
@@ -212,10 +204,8 @@ class NotificationService {
         .update({ read_at: new Date().toISOString() })
         .is('read_at', null);
       
-      // Only filter by user ID if not seller (seller_notifications missing seller_id)
-      if (userType !== 'seller') {
-        query = query.eq(userIdColumn, userId);
-      }
+      // Filter by user ID for all user types
+      query = query.eq(userIdColumn, userId);
       
       await query;
     } catch (error) {
@@ -238,10 +228,8 @@ class NotificationService {
         .select('*', { count: 'exact', head: true })
         .is('read_at', null);
       
-      // Only filter by user ID if not seller (seller_notifications missing seller_id)
-      if (userType !== 'seller') {
-        query = query.eq(userIdColumn, userId);
-      }
+      // Filter by user ID for all user types
+      query = query.eq(userIdColumn, userId);
       
       const { count, error } = await query;
 
