@@ -104,6 +104,13 @@ export class CartService {
             description,
             price,
             category_id,
+            seller_id,
+            seller:sellers (
+              id,
+              store_name,
+              avatar_url,
+              approval_status
+            ),
             category:categories (name),
             images:product_images (image_url, is_primary, sort_order)
           ),
