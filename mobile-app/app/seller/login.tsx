@@ -93,8 +93,8 @@ export default function SellerLoginScreen() {
         const lastName = (profile as any)?.last_name || '';
         const fullName = `${firstName} ${lastName}`.trim() || sellerData.store_name || 'BazaarX Seller';
 
-        const { setUser, updateSellerInfo, addRole, switchRole } = useSellerStore();
-        setUser({
+        // FIXED: Use .getState() pattern for Zustand stores in async functions (same as buyer login)
+        useSellerStore.getState().setUser({
           id: authData.user.id,
           name: fullName,
           email: authData.user.email || '',
@@ -103,7 +103,7 @@ export default function SellerLoginScreen() {
         });
 
         // Sync with SellerStore
-        updateSellerInfo({
+        useSellerStore.getState().updateSellerInfo({
           id: authData.user.id,
           store_name: sellerData.store_name,
           email: authData.user.email,
@@ -118,8 +118,8 @@ export default function SellerLoginScreen() {
         });
 
         // Set roles and switch to seller role
-        addRole('seller');
-        switchRole('seller');
+        useSellerStore.getState().addRole('seller');
+        useSellerStore.getState().switchRole('seller');
 
         // Fetch orders to replace dummy data in OrderStore
         const { useOrderStore } = await import('../../src/stores/orderStore');
