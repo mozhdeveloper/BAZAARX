@@ -16,8 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Mail, Lock, Eye, EyeOff, ArrowRight, Zap, CheckCircle2, ChevronDown, X } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../../src/lib/supabase';
-import { useSellerStore } from '../../src/stores/sellerStore';
-import { useAuthStore } from '../../src/stores/authStore';
+import { useSellerStore, useAuthStore } from '../../src/stores/sellerStore';
 import { LinearGradient } from 'expo-linear-gradient';
 
 const { width } = Dimensions.get('window');
@@ -63,6 +62,20 @@ export default function SellerLoginScreen() {
       if (authError) throw authError;
 
       if (authData.user) {
+        // Verify seller exists in sellers table
+        const { data: sellerData, error: sellerError } = await supabase
+          .from('sellers')
+          .select('*')
+          .eq('id', authData.user.id)
+          .single();
+
+        if (sellerError || !sellerData) {
+          await supabase.auth.signOut();
+          Alert.alert('Access Denied', 'This account is not registered as a seller.');
+          return;
+        }
+
+        // Get profile data
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('*')
@@ -75,51 +88,42 @@ export default function SellerLoginScreen() {
           return;
         }
 
-        if (profile.user_type !== 'seller') {
-          await supabase.auth.signOut();
-          Alert.alert('Access Denied', 'This account is not a registered seller.');
-          return;
-        }
+        // Sync with AuthStore (using new schema: first_name + last_name)
+        const firstName = (profile as any)?.first_name || '';
+        const lastName = (profile as any)?.last_name || '';
+        const fullName = `${firstName} ${lastName}`.trim() || sellerData.store_name || 'BazaarX Seller';
 
-        const { data: sellerData, error: sellerError } = await supabase
-          .from('sellers')
-          .select('*')
-          .eq('id', authData.user.id)
-          .single();
+        const { setUser, updateSellerInfo, addRole, switchRole } = useSellerStore();
+        setUser({
+          id: authData.user.id,
+          name: fullName,
+          email: authData.user.email || '',
+          phone: (profile as any)?.phone || '',
+          avatar: (profile as any)?.avatar_url || ''
+        });
 
-        if (sellerError || !sellerData) {
-          Alert.alert('Error', 'Seller record not found.');
-        } else {
-          // Sync with AuthStore (Buyer Profile)
-          useAuthStore.getState().setUser({
-            id: authData.user.id,
-            name: profile.full_name || 'BazaarX User',
-            email: authData.user.email || '',
-            phone: profile.phone || '',
-            avatar: profile.avatar_url || ''
-          });
+        // Sync with SellerStore
+        updateSellerInfo({
+          id: authData.user.id,
+          store_name: sellerData.store_name,
+          email: authData.user.email,
+          approval_status: sellerData.approval_status,
+          verification_documents: {
+            business_permit_url: sellerData.business_permit_url || '',
+            valid_id_url: sellerData.valid_id_url || '',
+            proof_of_address_url: sellerData.proof_of_address_url || '',
+            dti_registration_url: sellerData.dti_registration_url || '',
+            tax_id_url: sellerData.tax_id_url || '',
+          },
+        });
 
-          // Sync with SellerStore
-          useSellerStore.getState().updateSellerInfo({
-            id: authData.user.id,
-            storeName: sellerData.store_name,
-            email: authData.user.email,
-            approval_status: sellerData.approval_status,
-            business_permit_url: sellerData.business_permit_url,
-            valid_id_url: sellerData.valid_id_url,
-            proof_of_address_url: sellerData.proof_of_address_url,
-            dti_registration_url: sellerData.dti_registration_url,
-            tax_id_url: sellerData.tax_id_url,
-          });
+        // Set roles and switch to seller role
+        addRole('seller');
+        switchRole('seller');
 
-          // Set roles and switch to seller role
-          useAuthStore.getState().addRole('seller');
-          useAuthStore.getState().switchRole('seller');
-
-          // Fetch orders to replace dummy data in OrderStore
-          const { useOrderStore } = await import('../../src/stores/orderStore');
-          useOrderStore.getState().fetchOrders(authData.user.id);
-        }
+        // Fetch orders to replace dummy data in OrderStore
+        const { useOrderStore } = await import('../../src/stores/orderStore');
+        useOrderStore.getState().fetchOrders(authData.user.id);
 
         navigation.replace('SellerStack');
       }

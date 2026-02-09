@@ -140,7 +140,7 @@ export class ProductService {
       const { data, error } = await query;
 
       if (error) throw error;
-      
+
       // Transform to add legacy compatibility fields
       return (data || []).map((p) => this.transformProduct(p));
     } catch (error) {
@@ -155,14 +155,14 @@ export class ProductService {
   private transformProduct(product: any): ProductWithSeller {
     const primaryImage = product.images?.find((img: ProductImage) => img.is_primary) || product.images?.[0];
     const totalStock = product.variants?.reduce((sum: number, v: ProductVariant) => sum + (v.stock || 0), 0) || 0;
-    
+
     // Calculate average rating from reviews
     const reviews = product.reviews || [];
     const totalRatings = reviews.length;
-    const averageRating = totalRatings > 0 
-      ? reviews.reduce((sum: number, r: any) => sum + (r.rating || 0), 0) / totalRatings 
+    const averageRating = totalRatings > 0
+      ? reviews.reduce((sum: number, r: any) => sum + (r.rating || 0), 0) / totalRatings
       : 0;
-    
+
     return {
       ...product,
       // Legacy compatibility fields
@@ -257,6 +257,15 @@ export class ProductService {
             price,
             stock,
             thumbnail_url
+          ),
+          seller:sellers!products_seller_id_fkey (
+            id,
+            store_name,
+            approval_status,
+            avatar_url,
+            business_profile:seller_business_profiles (
+              city
+            )
           )
         `)
         .eq('id', id)
@@ -560,7 +569,7 @@ export class ProductService {
           .limit(1);
 
         if (fetchError) throw fetchError;
-        
+
         if (variants && variants.length > 0) {
           const variant = variants[0];
           const newStock = Math.max(0, (variant.stock || 0) - quantity);
@@ -624,7 +633,7 @@ export class ProductService {
           .limit(1);
 
         if (fetchError) throw fetchError;
-        
+
         if (variants && variants.length > 0) {
           const variant = variants[0];
           const newStock = (variant.stock || 0) + quantity;

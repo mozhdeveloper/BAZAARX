@@ -133,14 +133,29 @@ export const OrderCard: React.FC<OrderCardProps> = ({
             <Text style={styles.productTitle} numberOfLines={1}>
             {firstItem.name}
           </Text>
-          {firstItem.selectedVariant && (firstItem.selectedVariant.size || firstItem.selectedVariant.color) && (
-            <View style={{ flexDirection: 'row', gap: 8, marginTop: 4, marginBottom: 4 }}>
-              {firstItem.selectedVariant.size && (
+          {/* Display variant information with dynamic labels */}
+          {firstItem.selectedVariant && (firstItem.selectedVariant.option1Value || firstItem.selectedVariant.option2Value || firstItem.selectedVariant.size || firstItem.selectedVariant.color) && (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4, marginBottom: 4 }}>
+              {/* Dynamic option 1 */}
+              {firstItem.selectedVariant.option1Value && (
+                <Text style={{ fontSize: 11, color: '#6b7280', backgroundColor: '#f3f4f6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' }}>
+                  {firstItem.selectedVariant.option1Label || 'Option'}: {firstItem.selectedVariant.option1Value}
+                </Text>
+              )}
+              {/* Dynamic option 2 */}
+              {firstItem.selectedVariant.option2Value && (
+                <Text style={{ fontSize: 11, color: '#6b7280', backgroundColor: '#f3f4f6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' }}>
+                  {firstItem.selectedVariant.option2Label || 'Option'}: {firstItem.selectedVariant.option2Value}
+                </Text>
+              )}
+              {/* Legacy size fallback */}
+              {!firstItem.selectedVariant.option1Value && !firstItem.selectedVariant.option2Value && firstItem.selectedVariant.size && (
                 <Text style={{ fontSize: 11, color: '#6b7280', backgroundColor: '#f3f4f6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' }}>
                   {firstItem.selectedVariant.size}
                 </Text>
               )}
-              {firstItem.selectedVariant.color && (
+              {/* Legacy color fallback */}
+              {!firstItem.selectedVariant.option1Value && !firstItem.selectedVariant.option2Value && firstItem.selectedVariant.color && (
                 <Text style={{ fontSize: 11, color: '#6b7280', backgroundColor: '#f3f4f6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' }}>
                   {firstItem.selectedVariant.color}
                 </Text>

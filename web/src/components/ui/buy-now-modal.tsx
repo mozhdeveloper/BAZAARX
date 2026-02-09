@@ -40,7 +40,7 @@ export function BuyNowModal({ isOpen, onClose, product, onConfirm }: BuyNowModal
   const hasSizes = product.sizes && product.sizes.length > 0;
 
   const currentPrice = selectedVariant?.price || product.price;
-  const maxStock = selectedVariant?.stock || product.stock || 99;
+  const maxStock = selectedVariant ? (selectedVariant.stock ?? 0) : (product.stock || 99);
 
   const handleConfirm = () => {
     onConfirm(quantity, selectedVariant || undefined);
@@ -61,7 +61,7 @@ export function BuyNowModal({ isOpen, onClose, product, onConfirm }: BuyNowModal
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-md p-0 overflow-hidden rounded-3xl" aria-describedby={undefined}>
+      <DialogContent className="max-w-md p-0 overflow-hidden rounded-3xl top-[55%]" aria-describedby={undefined}>
         {/* Visually hidden title for accessibility */}
         <DialogTitle className="sr-only">Buy Now - {product.name}</DialogTitle>
         <div className="relative">
@@ -78,14 +78,6 @@ export function BuyNowModal({ isOpen, onClose, product, onConfirm }: BuyNowModal
               </div>
             )}
           </div>
-
-          {/* Close Button */}
-          <button
-            onClick={onClose}
-            className="absolute top-3 right-3 w-8 h-8 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-lg hover:bg-white transition-colors"
-          >
-            <X className="w-4 h-4 text-gray-600" />
-          </button>
         </div>
 
         <div className="p-5 space-y-5">

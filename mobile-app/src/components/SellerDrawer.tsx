@@ -183,8 +183,8 @@ export default function SellerDrawer({ visible, onClose }: SellerDrawerProps) {
                 <User size={28} color="#FF5722" strokeWidth={2} />
               </View>
               <View style={styles.profileInfo}>
-                <Text style={styles.storeName} numberOfLines={1} ellipsizeMode="tail">{seller.storeName}</Text>
-                <Text style={styles.sellerName} numberOfLines={1} ellipsizeMode="tail">{seller.ownerName}</Text>
+                <Text style={styles.storeName} numberOfLines={1} ellipsizeMode="tail">{seller?.store_name || 'Store'}</Text>
+                <Text style={styles.sellerName} numberOfLines={1} ellipsizeMode="tail">{seller?.owner_name || 'Seller'}</Text>
               </View>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => closeWithAnimation()} style={styles.closeButton}>
@@ -204,10 +204,10 @@ export default function SellerDrawer({ visible, onClose }: SellerDrawerProps) {
                       key={itemIndex}
                       style={[
                         styles.menuItem,
-                        (seller.approval_status === 'pending' && item.route !== 'StoreProfile') && styles.disabledMenuItem
+                        (seller?.approval_status === 'pending' && item.route !== 'StoreProfile') && styles.disabledMenuItem
                       ]}
                       onPress={() => {
-                        if (seller.approval_status === 'pending' && item.route !== 'StoreProfile') return;
+                        if (seller?.approval_status === 'pending' && item.route !== 'StoreProfile') return;
                         handleNavigation(item.route);
                       }}
                       activeOpacity={0.7}

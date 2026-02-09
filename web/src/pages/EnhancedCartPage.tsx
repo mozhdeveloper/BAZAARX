@@ -274,12 +274,16 @@ export default function EnhancedCartPage() {
                             <img
                               src={item.image}
                               alt=""
-                              className="w-16 h-16 object-cover rounded-md border border-gray-100"
+                              className="w-16 h-16 object-cover rounded-md border border-gray-100 cursor-pointer hover:opacity-80 transition-opacity"
+                              onClick={() => navigate(`/product/${item.id}`)}
                             />
 
                             {/* Product Details */}
                             <div className="flex-1 min-w-0">
-                              <h4 className="font-medium text-gray-900 text-sm mb-1 truncate">
+                              <h4
+                                className="font-medium text-gray-900 text-sm mb-1 truncate cursor-pointer hover:text-[#ff6a00] transition-colors"
+                                onClick={() => navigate(`/product/${item.id}`)}
+                              >
                                 {item.name}
                               </h4>
 

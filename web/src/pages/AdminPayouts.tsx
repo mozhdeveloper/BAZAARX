@@ -3,9 +3,9 @@ import { motion } from 'framer-motion';
 import { Navigate } from 'react-router-dom';
 import { useAdminAuth, useAdminPayouts, Payout } from '../stores/adminStore';
 import AdminSidebar from '../components/AdminSidebar';
-import { 
-  Search, 
-  Filter, 
+import {
+  Search,
+  Filter,
   Download,
   CheckCircle,
   Clock,
@@ -44,7 +44,7 @@ const AdminPayouts: React.FC = () => {
 
   const filteredPayouts = payouts.filter(payout => {
     const matchesSearch = payout.sellerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         payout.referenceNumber.toLowerCase().includes(searchTerm.toLowerCase());
+      payout.referenceNumber.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || payout.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -96,9 +96,9 @@ const AdminPayouts: React.FC = () => {
   return (
     <div className="flex h-screen bg-gray-50">
       <AdminSidebar />
-      
+
       <div className="flex-1 overflow-auto">
-        <div className="p-8">
+        <div className="max-w-7xl mx-auto px-8 py-8">
           <div className="flex justify-between items-center mb-8">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Payout Management</h1>
@@ -128,7 +128,7 @@ const AdminPayouts: React.FC = () => {
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            
+
             <div className="flex items-center gap-2 w-full sm:w-auto">
               <Filter className="text-gray-400 h-5 w-5" />
               <select
@@ -177,15 +177,15 @@ const AdminPayouts: React.FC = () => {
                     </tr>
                   ) : (
                     filteredPayouts.map((payout) => (
-                      <motion.tr 
+                      <motion.tr
                         key={payout.id}
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         className="hover:bg-gray-50 transition-colors"
                       >
                         <td className="px-6 py-4">
-                          <input 
-                            type="checkbox" 
+                          <input
+                            type="checkbox"
                             className="rounded border-gray-300"
                             checked={selectedPayoutIds.includes(payout.id)}
                             onChange={() => toggleSelectPayout(payout.id)}
@@ -215,8 +215,8 @@ const AdminPayouts: React.FC = () => {
                         </td>
                         <td className="px-6 py-4 text-right">
                           {payout.status !== 'paid' && (
-                            <Button 
-                              size="sm" 
+                            <Button
+                              size="sm"
                               variant="outline"
                               onClick={() => handleMarkPaidClick(payout)}
                               className="text-xs"
@@ -244,7 +244,7 @@ const AdminPayouts: React.FC = () => {
               Enter the transaction reference number to mark this payout as paid.
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="py-4 space-y-4">
             <div className="bg-gray-50 p-3 rounded-md text-sm">
               <div className="flex justify-between mb-1">
@@ -274,7 +274,7 @@ const AdminPayouts: React.FC = () => {
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsMarkPaidDialogOpen(false)}>Cancel</Button>
-            <Button 
+            <Button
               className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)]"
               onClick={handleConfirmMarkPaid}
               disabled={!referenceNumber}

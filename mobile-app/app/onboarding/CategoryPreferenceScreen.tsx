@@ -8,22 +8,20 @@ import {
   Dimensions,
   TextInput,
   ImageBackground,
+  Alert,
+  ActivityIndicator
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Check, Search, ArrowLeft } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../App';
+import { authService } from '../../src/services/authService';
+
+// IMPORT THE NEW DATA FILE HERE
+import { categories, type Category } from '../../src/data/categories';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'CategoryPreference'>;
-
-const CATEGORIES = [
-  { id: 'electronics', name: 'Electronics', image: 'https://images.unsplash.com/photo-1498049794561-7780e7231661?w=300' },
-  { id: 'fashion', name: 'Fashion', image: 'https://images.unsplash.com/photo-1445205170230-053b83016050?w=300' },
-  { id: 'home-garden', name: 'Home & Living', image: 'https://images.unsplash.com/photo-1556911220-bff31c812dba?w=300' },
-  { id: 'beauty', name: 'Beauty', image: 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=300' },
-  { id: 'sports', name: 'Sports', image: 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=300' },
-];
 
 const { width } = Dimensions.get('window');
 const COLUMN_count = 2;
@@ -35,26 +33,75 @@ export default function CategoryPreferenceScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Get signup data passed from previous screens
+  const { signupData } = route.params || {};
 
   const toggleCategory = (id: string) => {
     if (selectedCategories.includes(id)) {
       setSelectedCategories(prev => prev.filter(catId => catId !== id));
     } else {
-      if (selectedCategories.length < 3) {
-        setSelectedCategories(prev => [...prev, id]);
-      }
+      setSelectedCategories(prev => [...prev, id]);
     }
   };
 
-  const handleContinue = () => {
-    navigation.navigate('AddressSetup', { signupData: route.params.signupData });
+  const handleFinishOnboarding = async () => {
+    // Validation: Ensure at least 3 categories are selected
+    if (selectedCategories.length < 3) {
+      Alert.alert("Selection Required", "Please select at least 3 interests to continue.");
+      return;
+    }
+
+    if (!signupData) {
+      Alert.alert("Error", "Missing signup information.");
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
+      const result = await authService.signUp(
+        signupData.email,
+        signupData.password,
+        {
+          first_name: signupData.firstName,
+          last_name: signupData.lastName,
+          phone: signupData.phone,
+          user_type: 'buyer',
+          email: signupData.email,
+          password: signupData.password,
+          // metadata: { interestedCategories: selectedCategories }
+        }
+      );
+
+      if (!result || !result.user) throw new Error('Signup failed. Please try again.');
+
+      Alert.alert('Success', 'Welcome to BazaarX!', [
+        {
+          text: 'Get Started',
+          onPress: () => {
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'MainTabs' }],
+            });
+          }
+        }
+      ]);
+
+    } catch (error: any) {
+      console.error('Signup Error:', error);
+      Alert.alert('Error', error.message || 'Failed to create account.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const filteredCategories = CATEGORIES.filter(cat => 
+  const filteredCategories = categories.filter(cat =>
     cat.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const renderItem = ({ item }: { item: typeof CATEGORIES[0] }) => {
+  const renderItem = ({ item }: { item: Category }) => {
     const isSelected = selectedCategories.includes(item.id);
     return (
       <Pressable
@@ -62,22 +109,22 @@ export default function CategoryPreferenceScreen({ navigation, route }: Props) {
         onPress={() => toggleCategory(item.id)}
       >
         <ImageBackground
-            source={{ uri: item.image }}
-            style={styles.imageBackground}
-            imageStyle={{ borderRadius: 12 }}
+          source={{ uri: item.image }}
+          style={styles.imageBackground}
+          imageStyle={{ borderRadius: 12 }}
         >
-            <LinearGradient
-                colors={['transparent', 'rgba(0,0,0,0.8)']}
-                style={styles.gradientOverlay}
-            >
-                <Text style={styles.itemText}>{item.name}</Text>
-            </LinearGradient>
-            
-            {isSelected && (
-                <View style={styles.checkIcon}>
-                    <Check size={14} color="#FFFFFF" strokeWidth={3} />
-                </View>
-            )}
+          <LinearGradient
+            colors={['transparent', 'rgba(0,0,0,0.8)']}
+            style={styles.gradientOverlay}
+          >
+            <Text style={styles.itemText}>{item.name}</Text>
+          </LinearGradient>
+
+          {isSelected && (
+            <View style={styles.checkIcon}>
+              <Check size={14} color="#FFFFFF" strokeWidth={3} />
+            </View>
+          )}
         </ImageBackground>
       </Pressable>
     );
@@ -85,27 +132,27 @@ export default function CategoryPreferenceScreen({ navigation, route }: Props) {
 
   return (
     <View style={styles.container}>
-      {/* STANDARD HEADER */}
+      {/* HEADER */}
       <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <View style={styles.headerTop}>
-             <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
-                <ArrowLeft size={24} color="#111827" />
-             </Pressable>
-             <Text style={styles.headerTitle}>Interests</Text>
-             <View style={{ width: 24 }} />
+          <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
+            <ArrowLeft size={24} color="#111827" />
+          </Pressable>
+          <Text style={styles.headerTitle}>Interests</Text>
+          <View style={{ width: 24 }} />
         </View>
-        <Text style={styles.headerSubtitle}>Pick up to 3 categories to start</Text>
-        
+        <Text style={styles.headerSubtitle}>Select at least 3 categories</Text>
+
         {/* Search Bar */}
         <View style={styles.searchContainer}>
-            <Search size={20} color="#9CA3AF" />
-            <TextInput
-                style={styles.searchInput}
-                placeholder="Search categories..."
-                placeholderTextColor="#9CA3AF"
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-            />
+          <Search size={20} color="#9CA3AF" />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search categories..."
+            placeholderTextColor="#9CA3AF"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
         </View>
       </View>
 
@@ -121,22 +168,21 @@ export default function CategoryPreferenceScreen({ navigation, route }: Props) {
 
       <View style={styles.footer}>
         <View style={styles.progressContainer}>
-            <Text style={styles.progressText}>
-                {selectedCategories.length}/3 <Text style={{fontWeight: '400'}}>Selected</Text>
-            </Text>
+          <Text style={styles.progressText}>
+            {selectedCategories.length} <Text style={{ fontWeight: '400' }}>Selected</Text>
+          </Text>
         </View>
+
         <Pressable
-          style={[styles.button, selectedCategories.length === 0 && styles.buttonDisabled]}
-          onPress={handleContinue}
-          disabled={selectedCategories.length === 0}
+          style={[styles.button, selectedCategories.length < 3 && styles.buttonDisabled]}
+          onPress={handleFinishOnboarding}
+          disabled={selectedCategories.length < 3 || isSaving}
         >
-          <Text style={styles.buttonText}>Continue</Text>
-        </Pressable>
-        <Pressable 
-            style={styles.skipButton}
-            onPress={() => navigation.navigate('AddressSetup', { signupData: route.params.signupData })}
-        >
-            <Text style={styles.skipText}>Skip for now</Text>
+          {isSaving ? (
+            <ActivityIndicator color="#FFF" />
+          ) : (
+            <Text style={styles.buttonText}>Finish Setup</Text>
+          )}
         </Pressable>
       </View>
     </View>
@@ -157,13 +203,13 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   headerTop: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
   },
   backButton: {
-      padding: 4,
+    padding: 4,
   },
   headerTitle: {
     fontSize: 20,
@@ -177,20 +223,20 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   searchContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: '#F9FAFB',
-      borderRadius: 12,
-      paddingHorizontal: 12,
-      height: 44,
-      borderWidth: 1,
-      borderColor: '#E5E7EB',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 44,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
   searchInput: {
-      flex: 1,
-      marginLeft: 8,
-      fontSize: 14,
-      color: '#111827',
+    flex: 1,
+    marginLeft: 8,
+    fontSize: 14,
+    color: '#111827',
   },
   listContent: {
     padding: PADDING,
@@ -201,7 +247,7 @@ const styles = StyleSheet.create({
   },
   itemContainer: {
     width: ITEM_WIDTH,
-    height: ITEM_WIDTH, // Square
+    height: ITEM_WIDTH,
     borderRadius: 16,
     marginBottom: GAP,
     shadowColor: '#000',
@@ -212,19 +258,19 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFF',
   },
   itemSelectedBorder: {
-      borderWidth: 3,
-      borderColor: '#FF6A00',
+    borderWidth: 3,
+    borderColor: '#FF6A00',
   },
   imageBackground: {
-      flex: 1,
-      justifyContent: 'flex-end',
-      borderRadius: 12,
-      overflow: 'hidden',
+    flex: 1,
+    justifyContent: 'flex-end',
+    borderRadius: 12,
+    overflow: 'hidden',
   },
   gradientOverlay: {
-      height: '50%',
-      justifyContent: 'flex-end',
-      padding: 12,
+    height: '50%',
+    justifyContent: 'flex-end',
+    padding: 12,
   },
   itemText: {
     fontSize: 15,
@@ -254,13 +300,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   progressContainer: {
-      alignItems: 'center',
-      marginBottom: 16
+    alignItems: 'center',
+    marginBottom: 16
   },
   progressText: {
-      color: '#111827',
-      fontSize: 14,
-      fontWeight: '700'
+    color: '#111827',
+    fontSize: 14,
+    fontWeight: '700'
   },
   button: {
     backgroundColor: '#FF6A00',
@@ -284,13 +330,4 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
   },
-  skipButton: {
-      alignItems: 'center',
-      padding: 8
-  },
-  skipText: {
-      fontSize: 14,
-      color: '#6B7280',
-      fontWeight: '600'
-  }
 });

@@ -59,7 +59,7 @@ export default function StoreDetailScreen() {
                         ...store,
                         ...seller,
                         name: seller.store_name || seller.business_name || store.name,
-                        location: seller.city ? `${seller.city}, ${seller.province}` : (seller.business_address || store.location),
+                        location: seller.city ? `${seller.city}, ${seller.province}` : (seller.business_profile?.address_line_1 || store.location),
                         description: seller.store_description || store.description,
                         rating: seller.rating || store.rating || 0,
                         logo: seller.store_name?.substring(0, 2).toUpperCase() || store.logo
@@ -102,12 +102,12 @@ export default function StoreDetailScreen() {
                         id: p.id,
                         name: p.name,
                         price: p.price,
-                        originalPrice: p.original_price || p.price,
-                        image: p.primary_image || p.images?.[0] || 'https://images.unsplash.com/photo-1560393464-5c69a73c5770?w=400&h=400&fit=crop',
-                        rating: p.rating || 5.0,
-                        sold: p.sales_count || 0,
-                        category: p.category || 'General',
-                        sellerId: p.seller_id,
+                        originalPrice: (p as any).original_price || p.price,
+                        image: (p as any).images?.[0]?.image_url || (p as any).images?.[0] || 'https://images.unsplash.com/photo-1560393464-5c69a73c5770?w=400&h=400&fit=crop',
+                        rating: (p as any).rating || 5.0,
+                        sold: (p as any).sales_count || 0,
+                        category: (p as any).category || 'General',
+                        sellerId: (p as any).seller_id,
                         sellerName: storeData.name,
                         sellerLocation: storeData.location
                     }));

@@ -12,8 +12,10 @@ export interface CheckoutPayload {
     shippingAddress: {
         fullName: string;
         street: string;
+        barangay: string;
         city: string;
         province: string;
+        region: string;
         postalCode: string;
         phone: string;
         country?: string;
@@ -131,28 +133,39 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                 0
             );
 
+            // First, create a shipping address record
+            const { data: addressData, error: addressError } = await supabase
+                .from('shipping_addresses')
+                .insert({
+                    user_id: userId,
+                    label: 'Checkout Address',
+                    address_line_1: `${shippingAddress.fullName}, ${shippingAddress.phone}, ${shippingAddress.street}`,
+                    barangay: shippingAddress.barangay || '',
+                    city: shippingAddress.city || 'Manila',
+                    province: shippingAddress.province || 'Metro Manila',
+                    region: shippingAddress.region || 'NCR',
+                    postal_code: shippingAddress.postalCode || '0000',
+                    is_default: false,
+                    address_type: 'residential',
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                })
+                .select()
+                .single();
+
+            if (addressError) throw addressError;
+
             // Create order
             const { data: orderData, error: orderError } = await supabase
                 .from('orders')
                 .insert({
                     order_number: orderNumber,
                     buyer_id: userId,
-                    seller_id: sellerId,
-                    buyer_name: shippingAddress.fullName,
-                    buyer_email: email,
-                    shipping_address: shippingAddress,
-                    payment_method: { type: paymentMethod },
-                    status: 'pending_payment',
-                    payment_status: 'pending',
-                    subtotal: orderSubtotal,
-                    total_amount: orderSubtotal,
-                    currency: 'PHP',
-                    shipping_cost: 0,
-                    discount_amount: 0,
-                    tax_amount: 0,
-                    is_reviewed: false,
-                    is_returnable: true,
-                    return_window: 7,
+                    order_type: 'ONLINE',
+                    address_id: addressData.id, // Link to the shipping address
+                    payment_status: 'pending_payment',
+                    shipment_status: 'waiting_for_seller',
+                    notes: `Order from ${shippingAddress.fullName}`,
                     created_at: new Date().toISOString(),
                     updated_at: new Date().toISOString()
                 })
@@ -197,33 +210,90 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
             });
 
             // Create order items
-            const orderItemsData = sellerItems.map(item => ({
-                order_id: orderData.id,
-                product_id: item.id,
-                product_name: item.name,
-                product_images: item.images || [item.image],
-                quantity: item.quantity,
-                price: item.price || 0,
-                subtotal: item.quantity * (item.price || 0),
-                selected_variant: item.selectedVariant ? {
-                    size: item.selectedVariant.size,
-                    color: item.selectedVariant.color,
-                    name: [
-                        item.selectedVariant.size ? `Size: ${item.selectedVariant.size}` : null,
-                        item.selectedVariant.color ? `Color: ${item.selectedVariant.color}` : null
-                    ].filter(Boolean).join(', ') || undefined
-                } : null,
-                status: 'pending',
-                is_reviewed: false,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
-            }));
+            const orderItemsData = sellerItems.map(item => {
+                // Build personalized options with dynamic labels and legacy support
+                let personalizedOptions: Record<string, any> | null = null;
+                
+                if (item.selectedVariant) {
+                    personalizedOptions = {};
+                    
+                    // Store dynamic variant labels and values
+                    if (item.selectedVariant.option1Value) {
+                        personalizedOptions.option1Label = item.selectedVariant.option1Label || 'Option 1';
+                        personalizedOptions.option1Value = item.selectedVariant.option1Value;
+                    }
+                    if (item.selectedVariant.option2Value) {
+                        personalizedOptions.option2Label = item.selectedVariant.option2Label || 'Option 2';
+                        personalizedOptions.option2Value = item.selectedVariant.option2Value;
+                    }
+                    
+                    // Legacy support for color/size
+                    if (item.selectedVariant.size) {
+                        personalizedOptions.size = item.selectedVariant.size;
+                    }
+                    if (item.selectedVariant.color) {
+                        personalizedOptions.color = item.selectedVariant.color;
+                    }
+                    
+                    // Store variant ID if available
+                    if (item.selectedVariant.variantId) {
+                        personalizedOptions.variantId = item.selectedVariant.variantId;
+                    }
+                    
+                    // Build display name
+                    const displayParts: string[] = [];
+                    if (personalizedOptions.option1Value) {
+                        displayParts.push(`${personalizedOptions.option1Label}: ${personalizedOptions.option1Value}`);
+                    }
+                    if (personalizedOptions.option2Value) {
+                        displayParts.push(`${personalizedOptions.option2Label}: ${personalizedOptions.option2Value}`);
+                    }
+                    // Fallback to legacy
+                    if (displayParts.length === 0) {
+                        if (personalizedOptions.size) displayParts.push(`Size: ${personalizedOptions.size}`);
+                        if (personalizedOptions.color) displayParts.push(`Color: ${personalizedOptions.color}`);
+                    }
+                    
+                    if (displayParts.length > 0) {
+                        personalizedOptions.name = displayParts.join(', ');
+                    }
+                }
+                
+                return {
+                    order_id: orderData.id,
+                    product_id: item.id,
+                    product_name: item.name,
+                    primary_image_url: item.image, // Use primary image URL field
+                    price: item.price || 0,
+                    price_discount: 0, // No discount initially
+                    shipping_price: 0, // No shipping price initially
+                    shipping_discount: 0, // No shipping discount initially
+                    quantity: item.quantity,
+                    variant_id: item.selectedVariant?.variantId || null,
+                    personalized_options: personalizedOptions,
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                };
+            });
 
             const { error: itemsError } = await supabase
                 .from('order_items')
                 .insert(orderItemsData);
 
             if (itemsError) throw itemsError;
+
+            // Create payment record
+            const { error: paymentError } = await supabase
+                .from('order_payments')
+                .insert({
+                    order_id: orderData.id,
+                    payment_method: { type: paymentMethod }, // Store payment method as JSON
+                    amount: orderSubtotal,
+                    status: 'pending', // Payment status
+                    created_at: new Date().toISOString()
+                });
+
+            if (paymentError) throw paymentError;
 
             // Update stock & sales count
             for (const item of sellerItems) {

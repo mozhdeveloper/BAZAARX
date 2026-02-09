@@ -1654,7 +1654,10 @@ export default function CheckoutPage() {
                   {/* Region Select */}
                   <div className="space-y-1">
                     <Label className="text-xs">Region</Label>
-                    <Select onValueChange={onRegionChange}>
+                    <Select 
+                      value={regionList.find(r => r.region_name === newAddr.region)?.region_code} 
+                      onValueChange={onRegionChange}
+                    >
                       <SelectTrigger className="w-full">
                         <SelectValue placeholder="Select Region" />
                       </SelectTrigger>
@@ -1669,7 +1672,11 @@ export default function CheckoutPage() {
                   {/* Province Select */}
                   <div className="space-y-1">
                     <Label className="text-xs">Province</Label>
-                    <Select onValueChange={onProvinceChange} disabled={!newAddr.region}>
+                    <Select 
+                      value={provinceList.find(p => p.province_name === newAddr.province)?.province_code}
+                      onValueChange={onProvinceChange} 
+                      disabled={!newAddr.region}
+                    >
                       <SelectTrigger className="w-full">
                         <SelectValue placeholder="Select Province" />
                       </SelectTrigger>
@@ -1685,7 +1692,11 @@ export default function CheckoutPage() {
                     {/* City Select */}
                     <div className="space-y-1">
                       <Label className="text-xs">City / Municipality</Label>
-                      <Select onValueChange={onCityChange} disabled={!newAddr.province}>
+                      <Select 
+                        value={cityList.find(c => c.city_name === newAddr.city)?.city_code}
+                        onValueChange={onCityChange} 
+                        disabled={!newAddr.province}
+                      >
                         <SelectTrigger className="w-full">
                           <SelectValue placeholder="Select City" />
                         </SelectTrigger>
@@ -1700,7 +1711,11 @@ export default function CheckoutPage() {
                     {/* Barangay Select */}
                     <div className="space-y-1">
                       <Label className="text-xs">Barangay</Label>
-                      <Select onValueChange={(v) => setNewAddr({ ...newAddr, barangay: barangayList.find(b => b.brgy_code === v)?.brgy_name })} disabled={!newAddr.city}>
+                      <Select 
+                        value={barangayList.find(b => b.brgy_name === newAddr.barangay)?.brgy_code}
+                        onValueChange={(v) => setNewAddr({ ...newAddr, barangay: barangayList.find(b => b.brgy_code === v)?.brgy_name })} 
+                        disabled={!newAddr.city}
+                      >
                         <SelectTrigger className="w-full">
                           <SelectValue placeholder="Select Barangay" />
                         </SelectTrigger>

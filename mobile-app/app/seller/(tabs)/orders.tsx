@@ -22,7 +22,7 @@ type OrderStatus = 'all' | 'pending' | 'to-ship' | 'completed' | 'cancelled' | '
 type ChannelFilter = 'all' | 'online' | 'pos';
 
 export default function SellerOrdersScreen() {
-  const { orders, updateOrderStatus, seller, fetchOrders, ordersLoading } = useSellerStore();
+  const { orders = [], updateOrderStatus, seller, fetchOrders, ordersLoading } = useSellerStore();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const [drawerVisible, setDrawerVisible] = useState(false);
@@ -154,7 +154,7 @@ export default function SellerOrdersScreen() {
   };
 
   const getReturnRequestsBySeller = useReturnStore((state) => state.getReturnRequestsBySeller);
-  const returnRequests = getReturnRequestsBySeller(seller.storeName);
+  const returnRequests = seller ? getReturnRequestsBySeller(seller.store_name) : [];
   const pendingReturnRequests = returnRequests.filter(
     (req) => req.status === 'pending_review' || req.status === 'seller_response_required'
   );
@@ -244,6 +244,15 @@ export default function SellerOrdersScreen() {
         return '#F3F4F6';
     }
   };
+
+  // Null guard for seller
+  if (!seller) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={{ fontSize: 16, color: '#9CA3AF' }}>Loading seller information...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>

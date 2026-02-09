@@ -22,7 +22,7 @@ const footerLinks = [
   {
     title: "Customer Care",
     links: [
-      { href: "#", label: "Help Center" },
+      { href: "/buyer-support", label: "Help Center" },
       { href: "#", label: "Track Order" },
       { href: "#", label: "Shipping Info" },
       { href: "#", label: "Returns & Refunds" },

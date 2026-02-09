@@ -306,6 +306,34 @@ export class CartService {
 
     return { subtotal, itemCount, items };
   }
+
+  // Convenience wrapper methods for cart store compatibility
+  async addItem(cartId: string, productId: string, unitPrice: number, quantity: number, variantId?: string | null): Promise<CartItem> {
+    return this.addToCart(cartId, productId, quantity, variantId || undefined);
+  }
+
+  async removeItem(cartId: string, productId: string): Promise<void> {
+    // Find item by product ID and  cart ID, then delete
+    const items = await this.getCartItems(cartId);
+    const item = items.find(i => (i as any).product_id === productId);
+    if (item) {
+      await this.removeFromCart((item as any).id);
+    }
+  }
+
+  async updateQuantity(cartId: string, productId: string, quantity: number, unitPrice: number): Promise<void> {
+    const items = await this.getCartItems(cartId);
+    const item = items.find(i => (i as any).product_id === productId);
+    if (item) {
+      await this.updateCartItemQuantity((item as any).id, quantity);
+    }
+  }
+
+  async syncCartTotal(cartId: string): Promise<void> {
+    // In new schema, totals are computed on the fly, not stored
+    // This method is a no-op for compatibility
+    return Promise.resolve();
+  }
 }
 
 export const cartService = CartService.getInstance();

@@ -320,7 +320,7 @@ const mapDbItemToCartItem = (item: any): CartItem | null => {
   if (!dbProduct) return null;
 
   const sellerData = dbProduct.seller;
-  
+
   // Map the variant from DB (returned as "variant" from the join)
   const dbVariant = item.variant;
   const selectedVariant: ProductVariant | undefined = dbVariant ? {
@@ -344,12 +344,12 @@ const mapDbItemToCartItem = (item: any): CartItem | null => {
     images: dbProduct.images || [],
     seller: {
       id: dbProduct.seller_id,
-      name: sellerData?.store_name || sellerData?.business_name || "Verified Seller",
-      avatar: "",
+      name: sellerData?.store_name || "Verified Seller",
+      avatar: sellerData?.avatar_url || "",
       rating: sellerData?.rating || 0,
       totalReviews: 0,
       followers: 0,
-      isVerified: sellerData?.is_verified ?? true,
+      isVerified: sellerData?.approval_status === 'verified',
       description: "",
       location: sellerData?.business_address || "Metro Manila",
       established: "",
@@ -420,7 +420,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
     addAddress: async (address) => {
       const state = get();
       const userId = state.profile?.id;
-      
+
       // If the new address is default, unset default for all existing addresses
       const updatedAddresses = address.isDefault
         ? state.addresses.map(addr => ({ ...addr, isDefault: false }))
@@ -436,7 +436,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
               .update({ is_default: false })
               .eq('user_id', userId);
           }
-          
+
           // Insert new address
           const { data: newAddr, error } = await supabase
             .from('shipping_addresses')
@@ -456,7 +456,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
             })
             .select()
             .single();
-          
+
           if (!error && newAddr) {
             // Use the DB-generated ID
             address.id = newAddr.id;
@@ -474,7 +474,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
     updateAddress: async (id, updatedAddress) => {
       const state = get();
       const userId = state.profile?.id;
-      
+
       // If we are setting this address as default, unset others
       const isSettingDefault = updatedAddress.isDefault === true;
 
@@ -487,7 +487,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
               .update({ is_default: false })
               .eq('user_id', userId);
           }
-          
+
           const dbUpdate: Record<string, any> = {};
           if (updatedAddress.street) dbUpdate.address_line_1 = updatedAddress.street;
           if (updatedAddress.city) dbUpdate.city = updatedAddress.city;
@@ -497,7 +497,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
           if (typeof updatedAddress.isDefault === 'boolean') dbUpdate.is_default = updatedAddress.isDefault;
           if (updatedAddress.barangay) dbUpdate.barangay = updatedAddress.barangay;
           if (updatedAddress.region) dbUpdate.region = updatedAddress.region;
-          
+
           await supabase
             .from('shipping_addresses')
             .update(dbUpdate)
@@ -523,7 +523,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
     deleteAddress: async (id) => {
       const state = get();
       const userId = state.profile?.id;
-      
+
       // Delete from database
       if (userId) {
         try {
@@ -535,7 +535,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
           console.error('Error deleting address from database:', err);
         }
       }
-      
+
       set({
         addresses: state.addresses.filter(addr => addr.id !== id)
       });
@@ -544,7 +544,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
     setDefaultAddress: async (id) => {
       const state = get();
       const userId = state.profile?.id;
-      
+
       // Update in database
       if (userId) {
         try {
@@ -553,7 +553,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
             .from('shipping_addresses')
             .update({ is_default: false })
             .eq('user_id', userId);
-          
+
           // Set new default
           await supabase
             .from('shipping_addresses')
@@ -563,7 +563,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
           console.error('Error setting default address in database:', err);
         }
       }
-      
+
       set({
         addresses: state.addresses.map(addr => ({
           ...addr,
@@ -989,7 +989,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
             // Match selected items with DB items to delete
             // Ideally we should have the DB ID in cartItems, leveraging product_id matching for now
             for (const item of selectedItems) {
-              const dbItem = dbItems.find(i => i.product_id === item.id && i.selected_variant?.id === item.selectedVariant?.id);
+              const dbItem = dbItems.find(i => i.product_id === item.id && i.variant?.id === item.selectedVariant?.id);
               if (dbItem) {
                 await cartService.removeFromCart(dbItem.id);
               }
@@ -1274,12 +1274,12 @@ export const useBuyerStore = create<BuyerStore>()(persist(
           // Parse address_line_1 which may be in format: "Name, Phone, Street"
           const addressLine1 = addr.address_line_1 || '';
           const parts = addressLine1.split(', ');
-          
+
           // Try to extract name and phone if they were concatenated
           let fullName = '';
           let phone = '';
           let street = addressLine1;
-          
+
           if (parts.length >= 3) {
             // Format: "Name, Phone, Street..."
             const possiblePhone = parts[1];
@@ -1289,7 +1289,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
               street = parts.slice(2).join(', ');
             }
           }
-          
+
           return {
             id: addr.id,
             fullName: fullName || addr.label,
