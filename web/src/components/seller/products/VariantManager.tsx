@@ -1,6 +1,7 @@
 import { VariantList } from "./VariantList";
 import { VariantForm } from "./VariantForm";
 import { VariantConfig } from "@/types";
+import { AlertTriangle } from "lucide-react";
 
 interface VariantManagerProps {
     firstAttributeName: string;
@@ -10,6 +11,7 @@ interface VariantManagerProps {
         sizes: string[];
         colors: string[];
         price: string;
+        stock: string;
     };
     editingVariantId: string | null;
     showAddVariantForm: boolean;
@@ -53,6 +55,14 @@ export function VariantManager({
     setErrors,
     addVariant,
 }: VariantManagerProps) {
+    // Calculate stock allocation status
+    const totalStock = parseInt(formData.stock) || 0;
+    const allocatedStock = variantConfigs.reduce(
+        (sum, variant) => sum + (variant.stock || 0),
+        0,
+    );
+    const remainingStock = totalStock - allocatedStock;
+
     return (
         <div className="space-y-4">
             {/* Header Section */}
@@ -97,6 +107,49 @@ export function VariantManager({
                     </div>
                 )}
             </div>
+
+            {/* Stock Allocation Warning */}
+            {variantConfigs.length > 0 && remainingStock !== 0 && (
+                <div
+                    className={`rounded-lg border p-4 flex items-start gap-3 ${
+                        remainingStock > 0
+                            ? "bg-yellow-50 border-yellow-200"
+                            : "bg-red-50 border-red-200"
+                    }`}
+                >
+                    <AlertTriangle
+                        className={`h-5 w-5 flex-shrink-0 ${
+                            remainingStock > 0
+                                ? "text-yellow-600"
+                                : "text-red-600"
+                        }`}
+                    />
+                    <div className="flex-1">
+                        <h4
+                            className={`text-sm font-semibold ${
+                                remainingStock > 0
+                                    ? "text-yellow-800"
+                                    : "text-red-800"
+                            }`}
+                        >
+                            {remainingStock > 0
+                                ? "Stock Not Fully Allocated"
+                                : "Stock Over-Allocated"}
+                        </h4>
+                        <p
+                            className={`text-sm mt-1 ${
+                                remainingStock > 0
+                                    ? "text-yellow-700"
+                                    : "text-red-700"
+                            }`}
+                        >
+                            {remainingStock > 0
+                                ? `You have ${remainingStock} unit(s) of stock not allocated to any variant. Please allocate all stock to variants before submitting.`
+                                : `You have over-allocated stock by ${Math.abs(remainingStock)} unit(s). Total variant stock cannot exceed the total product stock.`}
+                        </p>
+                    </div>
+                </div>
+            )}
 
             {/* Variants List & Unsaved Preview */}
             <VariantList

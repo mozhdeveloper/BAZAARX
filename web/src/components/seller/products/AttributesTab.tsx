@@ -8,6 +8,7 @@ interface AttributesTabProps {
         sizes: string[];
         colors: string[];
         price: string;
+        stock: string;
     };
     variationInput: string;
     setVariationInput: (value: string) => void;

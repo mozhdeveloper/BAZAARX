@@ -1061,6 +1061,20 @@ export function AddProduct() {
             if (totalVariantStock <= 0) {
                 newErrors.variants = "At least one variant must have stock";
             }
+
+            // Check that all stock is allocated to variants
+            const totalStock = parseInt(formData.stock) || 0;
+            const allocatedStock = variantConfigs.reduce(
+                (sum, variant) => sum + (variant.stock || 0),
+                0,
+            );
+            const remainingStock = totalStock - allocatedStock;
+
+            if (remainingStock > 0) {
+                newErrors.variants = `You have ${remainingStock} unit(s) of stock not allocated to any variant. Please allocate all stock to variants or reduce the total stock quantity.`;
+            } else if (remainingStock < 0) {
+                newErrors.variants = `You have over-allocated stock by ${Math.abs(remainingStock)} unit(s). Total variant stock cannot exceed the total product stock.`;
+            }
         } else if (!formData.stock || parseInt(formData.stock) < 0) {
             newErrors.stock = "Stock cannot be negative";
         }
