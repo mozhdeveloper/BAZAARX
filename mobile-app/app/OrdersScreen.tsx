@@ -138,12 +138,24 @@ export default function OrdersScreen({ navigation, route }: Props) {
         const items = (order.items || []).map((it: any) => {
           const p = it.product || {};
           const productName = p.name || it.product_name || 'Product Unavailable';
-          const image = p.primary_image || (Array.isArray(p.images) && p.images.length > 0 ? p.images[0] : '') ||
+          const image = it.primary_image_url || p.primary_image || (Array.isArray(p.images) && p.images.length > 0 ? p.images[0] : '') ||
             (Array.isArray(it.product_images) && it.product_images.length > 0 ? it.product_images[0] : null) || '';
 
           const priceNum = typeof it.price === 'number' ? it.price :
             (typeof it.unit_price === 'number' ? it.unit_price :
               (typeof p.price === 'number' ? p.price : 0));
+
+          // Map personalized_options to selectedVariant format
+          const personalizedOptions = it.personalized_options || {};
+          const selectedVariant = Object.keys(personalizedOptions).length > 0 ? {
+            option1Label: personalizedOptions.option1Label,
+            option1Value: personalizedOptions.option1Value,
+            option2Label: personalizedOptions.option2Label,
+            option2Value: personalizedOptions.option2Value,
+            color: personalizedOptions.color,
+            size: personalizedOptions.size,
+            variantId: personalizedOptions.variantId || it.variant_id,
+          } : it.selected_variant || null;
 
           return {
             id: p.id || it.product_id,
@@ -167,7 +179,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
             stock: typeof p.stock === 'number' ? p.stock : 0,
             reviews: p.reviews || [],
             quantity: it.quantity || 1,
-            selectedVariant: it.selected_variant,
+            selectedVariant: selectedVariant,
           };
         });
         const shippingFee =

@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { toast } from "../hooks/use-toast";
@@ -857,6 +857,17 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
     fetchProduct();
   }, [id]);
 
+  // Initialize first size when product loads
+  useEffect(() => {
+    if (dbProduct && !selectedSize) {
+      const variants = (dbProduct as any)?.variants || [];
+      const sizes = [...new Set(variants.map((v: any) => v.size).filter(Boolean))];
+      if (sizes.length > 0) {
+        setSelectedSize(sizes[0]);
+      }
+    }
+  }, [dbProduct]);
+
   // Initial product from lists (optimistic data)
   const initialProduct =
     sellerProducts.find((p) => p.id === id) ||
@@ -876,19 +887,25 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
 
   // For seller products, create a product-like object
   const sellerAuth = useAuthStore.getState().seller;
-  const sellerNameFallback =
-    (initialProduct as any)?.seller?.store_name ||
-    (initialProduct as any)?.sellerName ||
-    (typeof (initialProduct as any)?.seller === 'string' ? (initialProduct as any)?.seller : null) ||
-    sellerAuth?.businessName || 
-    sellerAuth?.storeName || 
-    "Verified Seller";
+  const sellerNameFallback = !dbProduct && sellerAuth
+    ? (sellerAuth.businessName || sellerAuth.storeName || "Verified Seller")
+    : "Verified Seller";
 
   // Handle both camelCase (from store) and snake_case (from DB)
   // Extract unique sizes and colors from variants if available
   const extractedVariants = (sellerProduct as any)?.variants || [];
   const extractedSizes = [...new Set(extractedVariants.map((v: any) => v.size).filter(Boolean))] as string[];
   const extractedColors = [...new Set(extractedVariants.map((v: any) => v.color).filter(Boolean))] as string[];
+  
+  // Create color objects with thumbnail images from variants
+  const colorObjects = extractedColors.map(colorName => {
+    const variantWithColor = extractedVariants.find((v: any) => v.color === colorName);
+    return {
+      name: colorName,
+      value: colorName,
+      image: variantWithColor?.thumbnail_url || (sellerProduct as any)?.images?.[0]?.image_url || (sellerProduct as any)?.images?.[0] || (sellerProduct as any)?.image || ""
+    };
+  });
 
   const normalizedProduct = sellerProduct
     ? {
@@ -918,7 +935,9 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
         (sellerProduct as any).seller?.store_name ||
         (sellerProduct as any).sellerName ||
         sellerNameFallback,
+      sellerAvatar: (sellerProduct as any).seller?.avatar_url,
       location:
+        (sellerProduct as any).seller?.business_profile?.city ||
         (sellerProduct as any).seller?.business_address ||
         (sellerProduct as any).sellerLocation ||
         "Metro Manila",
@@ -926,7 +945,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
       isVerified: true,
       description: (sellerProduct as any).description,
       sizes: extractedSizes.length > 0 ? extractedSizes : ((sellerProduct as any).sizes || []),
-      colors: extractedColors.length > 0 ? extractedColors : ((sellerProduct as any).colors || []),
+      colors: colorObjects.length > 0 ? colorObjects : ((sellerProduct as any).colors || []),
       stock: (sellerProduct as any).stock || 0,
       sellerId:
         (sellerProduct as any).seller_id ||
@@ -954,10 +973,31 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
       }
       : null;
 
-  const currentSeller =
-    demoSellers.find(
-      (s) => s.id === (normalizedProduct?.sellerId || "seller-001"),
-    ) || demoSellers[0];
+  const currentSeller = useMemo(() => {
+    if (!normalizedProduct) return demoSellers[0];
+
+    // 1. Try to find in demo sellers (for consistency with hardcoded data)
+    const demoSeller = demoSellers.find(s => s.id === normalizedProduct.sellerId);
+    if (demoSeller) return demoSeller;
+
+    // 2. If not a demo seller, construct a seller object from normalizedProduct details
+    return {
+      id: normalizedProduct.sellerId,
+      name: normalizedProduct.seller || "Official Store",
+      avatar: (normalizedProduct as any).sellerAvatar || `https://api.dicebear.com/7.x/initials/svg?seed=${normalizedProduct.seller}`,
+      rating: (normalizedProduct as any).sellerRating || 5.0,
+      totalReviews: (normalizedProduct as any).reviews || 0,
+      followers: 0,
+      isVerified: true,
+      description: "Verified Seller on BazaarX",
+      location: normalizedProduct.location || "Metro Manila",
+      established: "2024",
+      products: [],
+      badges: ["Verified"],
+      responseTime: "Within 24 hours",
+      categories: [normalizedProduct.category || "General"]
+    };
+  }, [normalizedProduct]);
 
   const productId = normalizedProduct?.id || id?.split("-")[0] || "1";
   // Get variants from normalized product for proper price/stock management
@@ -968,14 +1008,18 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
     if (dbVariants.length === 0) return null;
     // If only one variant, return it
     if (dbVariants.length === 1) return dbVariants[0];
+    
+    // Get the selected color name
+    const selectedColorName = productData.colors[selectedColor]?.name || productData.colors[selectedColor]?.value;
+    
     // Find variant matching selected size and/or color
-    return dbVariants.find((v: any) => {
-      const sizeMatch = !selectedSize || v.size === selectedSize;
-      const colorMatch = !productData.colors.length ||
-        productData.colors[selectedColor]?.name === v.color ||
-        (selectedColor === 0 && !v.color);
+    const matchedVariant = dbVariants.find((v: any) => {
+      const sizeMatch = !selectedSize || !v.size || v.size === selectedSize;
+      const colorMatch = !selectedColorName || !v.color || v.color === selectedColorName;
       return sizeMatch && colorMatch;
-    }) || dbVariants[0];
+    });
+    
+    return matchedVariant || dbVariants[0];
   };
 
   const productData = enhancedProductData[productId] || {
@@ -1371,7 +1415,9 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                 </div>
                 <div>
                   <h3 className="font-bold text-gray-900 text-base leading-tight">
-                    {normalizedProduct?.seller || "Official Store"}
+                    {(normalizedProduct?.seller && normalizedProduct.seller !== "Verified Seller")
+                      ? normalizedProduct.seller
+                      : (currentSeller.name || "Official Store")}
                   </h3>
                   <div className="flex items-center gap-3 text-xs text-gray-500 mt-0">
                     <span className="flex items-center gap-1">
@@ -1422,9 +1468,15 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
             {/* Price & Rating */}
             <div className="flex items-center gap-4 mb-6">
               <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-bold text-[#ff6a00]">
-                  ₱{productData.price.toLocaleString()}
-                </span>
+                {(() => {
+                  const currentVariant = getSelectedVariant();
+                  const displayPrice = currentVariant?.price || productData.price;
+                  return (
+                    <span className="text-3xl font-bold text-[#ff6a00]">
+                      ₱{displayPrice.toLocaleString()}
+                    </span>
+                  );
+                })()}
                 {productData.originalPrice && (
                   <span className="text-lg text-gray-400 line-through decoration-gray-400/50">
                     ₱{productData.originalPrice.toLocaleString()}

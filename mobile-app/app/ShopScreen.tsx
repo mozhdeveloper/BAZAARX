@@ -92,22 +92,64 @@ export default function ShopScreen({ navigation, route }: Props) {
           .order('rating', { ascending: false });
 
         if (productsData) {
-          const mapped: Product[] = productsData.map((row: any) => ({
-            id: row.id,
-            name: row.name ?? 'Unknown Product',
-            price: typeof row.price === 'number' ? row.price : parseFloat(row.price || '0'),
-            originalPrice: row.original_price,
-            image: row.primary_image || (Array.isArray(row.images) ? row.images[0] : null) || 'https://via.placeholder.com/300',
-            rating: row.rating ?? 4.5,
-            sold: row.sales_count ?? 0,
-            seller: row.seller?.store_name || row.seller?.business_name || 'Verified Seller',
-            seller_id: row.seller_id,
-            sellerVerified: !!row.seller?.is_verified,
-            category: row.category ?? '',
-            created_at: row.created_at,
-            colors: Array.isArray(row.colors) ? row.colors : [],
-            sizes: Array.isArray(row.sizes) ? row.sizes : [],
-          }));
+          const mapped: Product[] = productsData.map((row: any) => {
+            // Extract images from product_images relation
+            const images = row.images?.map((img: any) => img.image_url).filter(Boolean) || [];
+            const primaryImage = row.images?.find((img: any) => img.is_primary)?.image_url 
+              || images[0] 
+              || 'https://via.placeholder.com/300';
+            
+            // Extract variants from product_variants relation
+            const variants = row.variants?.map((v: any) => ({
+              id: v.id,
+              product_id: row.id,
+              sku: v.sku,
+              variant_name: v.variant_name || `${v.color || ''} ${v.size || ''}`.trim(),
+              size: v.size,
+              color: v.color,
+              option_1_value: v.option_1_value,
+              option_2_value: v.option_2_value,
+              price: v.price,
+              stock: v.stock,
+              thumbnail_url: v.thumbnail_url,
+            })) || [];
+            
+            // Extract unique colors and sizes for legacy support
+            const colors = [...new Set(variants.map((v: any) => v.color).filter(Boolean))] as string[];
+            const sizes = [...new Set(variants.map((v: any) => v.size).filter(Boolean))] as string[];
+            
+            // Extract option values for dynamic variant support
+            const option1Values = [...new Set(variants.map((v: any) => v.option_1_value).filter(Boolean))] as string[];
+            const option2Values = [...new Set(variants.map((v: any) => v.option_2_value).filter(Boolean))] as string[];
+            
+            return {
+              id: row.id,
+              name: row.name ?? 'Unknown Product',
+              price: typeof row.price === 'number' ? row.price : parseFloat(row.price || '0'),
+              originalPrice: row.original_price,
+              image: primaryImage,
+              images: images.length > 0 ? images : [primaryImage],
+              rating: row.rating ?? 4.5,
+              sold: row.sales_count ?? 0,
+              seller: row.seller?.store_name || 'Verified Seller',
+              seller_id: row.seller_id,
+              sellerId: row.seller_id,
+              sellerVerified: !!row.seller?.verified_at,
+              sellerRating: row.seller?.rating || 4.8,
+              category: row.category?.name ?? '',
+              description: row.description,
+              created_at: row.created_at,
+              variants: variants,
+              colors: colors,
+              sizes: sizes,
+              // Dynamic variant labels from database
+              variant_label_1: row.variant_label_1,
+              variant_label_2: row.variant_label_2,
+              option1Values: option1Values,
+              option2Values: option2Values,
+              stock: row.stock ?? variants.reduce((sum: number, v: any) => sum + (v.stock || 0), 0),
+            };
+          });
           // Deduplicate by ID to prevent key errors
           const uniqueMapped = Array.from(new Map(mapped.map(item => [item.id, item])).values());
           setDbProducts(uniqueMapped);
@@ -164,10 +206,10 @@ export default function ShopScreen({ navigation, route }: Props) {
     return (sellers || [])
       .map(s => ({
         id: s.id,
-        name: s.store_name || s.business_name || 'Store',
-        verified: !!s.is_verified,
+        name: s.store_name || 'Store',
+        verified: !!s.verified_at,
         rating: s.rating || 4.8,
-        products: dbProducts.filter(p => p.seller_id === s.id).slice(0, 2).map(p => p.image),
+        products: dbProducts.filter(p => p.seller_id === s.id || p.sellerId === s.id).slice(0, 2).map(p => p.image),
       }))
       .filter(s => s.products.length > 0);
   }, [sellers, dbProducts]);

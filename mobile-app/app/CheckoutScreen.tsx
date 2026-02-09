@@ -422,8 +422,8 @@ export default function CheckoutScreen({ navigation, route }: Props) {
     setIsSaving(true);
 
     // Validate required fields
-    if (!newAddress.first_name || !newAddress.phone || !newAddress.street || !newAddress.city) {
-      Alert.alert('Incomplete Form', 'Please fill in required fields.');
+    if (!newAddress.first_name || !newAddress.phone || !newAddress.street || !newAddress.city || !newAddress.province || !newAddress.region) {
+      Alert.alert('Incomplete Form', 'Please fill in all required fields: Name, Phone, Street, Region, Province, and City.');
       setIsSaving(false);
       return;
     }
@@ -666,6 +666,13 @@ export default function CheckoutScreen({ navigation, route }: Props) {
       return;
     }
 
+    // Validate required address fields
+    if (!selectedAddress.city || !selectedAddress.province || !selectedAddress.region) {
+      Alert.alert('Incomplete Address', 'Your address is missing required fields (City, Province, or Region). Please update your address.');
+      setShowAddressModal(true);
+      return;
+    }
+
     // Check if cart is empty
     if (!checkoutItems || checkoutItems.length === 0) {
       Alert.alert('Error', 'Your cart is empty');
@@ -688,11 +695,13 @@ export default function CheckoutScreen({ navigation, route }: Props) {
         totalAmount: total,
         shippingAddress: {
           fullName: `${selectedAddress.first_name} ${selectedAddress.last_name}`,
-          street: `${selectedAddress.street}, ${selectedAddress.barangay}`,
-          city: selectedAddress.city,
-          province: selectedAddress.province,
-          postalCode: selectedAddress.postal_code,
-          phone: selectedAddress.phone,
+          street: selectedAddress.street || '',
+          barangay: selectedAddress.barangay || '',
+          city: selectedAddress.city || 'Manila',
+          province: selectedAddress.province || 'Metro Manila',
+          region: selectedAddress.region || 'NCR',
+          postalCode: selectedAddress.postal_code || '0000',
+          phone: selectedAddress.phone || '',
           country: 'Philippines'
         },
         paymentMethod,
@@ -875,19 +884,35 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                 <View style={styles.compactOrderInfo}>
                   <Text style={styles.compactProductName} numberOfLines={1}>{item.name}</Text>
                   <View style={styles.compactDetailsRow}>
-                    {/* Show selected variant (color/size) if available */}
-                    {item.selectedVariant?.color && (
+                    {/* Show selected variant using dynamic labels if available */}
+                    {item.selectedVariant?.option1Value && (
+                      <View style={styles.compactVariantTag}>
+                        <Text style={styles.compactVariantText}>
+                          {item.selectedVariant.option1Label || 'Color'}: {item.selectedVariant.option1Value}
+                        </Text>
+                      </View>
+                    )}
+                    {item.selectedVariant?.option2Value && (
+                      <View style={styles.compactVariantTag}>
+                        <Text style={styles.compactVariantText}>
+                          {item.selectedVariant.option2Label || 'Size'}: {item.selectedVariant.option2Value}
+                        </Text>
+                      </View>
+                    )}
+                    {/* Legacy support for color/size fields */}
+                    {!item.selectedVariant?.option1Value && item.selectedVariant?.color && (
                       <View style={styles.compactVariantTag}>
                         <Text style={styles.compactVariantText}>{item.selectedVariant.color}</Text>
                       </View>
                     )}
-                    {item.selectedVariant?.size && (
+                    {!item.selectedVariant?.option2Value && item.selectedVariant?.size && (
                       <View style={styles.compactVariantTag}>
                         <Text style={styles.compactVariantText}>{item.selectedVariant.size}</Text>
                       </View>
                     )}
                     {/* Fallback if no variant selected */}
-                    {!item.selectedVariant?.color && !item.selectedVariant?.size && (
+                    {!item.selectedVariant?.option1Value && !item.selectedVariant?.option2Value && 
+                     !item.selectedVariant?.color && !item.selectedVariant?.size && (
                       <Text style={styles.compactVariantText}>Standard</Text>
                     )}
                     <Text style={styles.compactQuantity}>x{item.quantity}</Text>

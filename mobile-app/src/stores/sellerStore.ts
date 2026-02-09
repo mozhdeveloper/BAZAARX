@@ -416,6 +416,8 @@ const buildProductInsert = (product: Omit<SellerProduct, 'id' | 'createdAt' | 'u
   weight: null,
   dimensions: null,
   is_free_shipping: false,
+  variant_label_1: (product as any).variant_label_1 || null,
+  variant_label_2: (product as any).variant_label_2 || null,
 });
 
 /**

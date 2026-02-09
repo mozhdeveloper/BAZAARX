@@ -30,6 +30,11 @@ export interface Product {
   colors?: string[];
   variants?: ProductVariant[];
   specifications?: Record<string, unknown>;
+  // Dynamic variant labels (from database schema)
+  variant_label_1?: string | null;  // e.g., "Color", "Size", "Material"
+  variant_label_2?: string | null;  // e.g., "Size", "Style"
+  option1Values?: string[];  // Unique values for variant_label_1
+  option2Values?: string[];  // Unique values for variant_label_2
   // Status
   is_active?: boolean;
   approval_status?: ApprovalStatus;
@@ -69,17 +74,32 @@ export interface Product {
   selectedVariant?: {
     color?: string;
     size?: string;
+    variantId?: string;
+    // Dynamic variant labels and values
+    option1Label?: string;
+    option1Value?: string;
+    option2Label?: string;
+    option2Value?: string;
   } | null;
   quantity?: number;
 }
 
 export interface ProductVariant {
   id: string;
-  name: string;
+  product_id?: string;
+  sku?: string;
+  barcode?: string | null;
+  variant_name: string;
+  size?: string | null;
+  color?: string | null;
+  option_1_value?: string | null;
+  option_2_value?: string | null;
   price: number;
   stock: number;
+  thumbnail_url?: string | null;
+  // Legacy alias
+  name?: string;
   image?: string;
-  sku?: string;
 }
 
 export interface CartItem extends Product {
@@ -87,6 +107,12 @@ export interface CartItem extends Product {
   selectedVariant?: {
     color?: string;
     size?: string;
+    variantId?: string;
+    // Dynamic variant labels and values
+    option1Label?: string;
+    option1Value?: string;
+    option2Label?: string;
+    option2Value?: string;
   } | null;
 }
 
