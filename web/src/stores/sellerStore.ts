@@ -93,7 +93,6 @@ export interface SellerProduct {
 
 export interface SellerOrder {
   id: string;
-  order_number?: string; // Display-friendly order number (ORD-2026724737)
   seller_id?: string; // UUID of the seller for database updates
   buyer_id?: string; // UUID of the buyer for notifications
   orderNumber?: string;
@@ -330,14 +329,14 @@ const mapDbSellerToSeller = (s: any): Seller => {
  */
 const mapDbProductToSellerProduct = (p: any): SellerProduct => {
   // Handle images from product_images relation
-  const images: string[] = Array.isArray(p.images) 
-    ? (p.images.map((img: any) => typeof img === 'string' ? img : img.image_url) as string[]) 
+  const images = Array.isArray(p.images)
+    ? p.images.map((img: any) => typeof img === 'string' ? img : img.image_url)
     : [];
 
   // Handle variants to get colors, sizes, and stock
   const variants = Array.isArray(p.variants) ? p.variants : [];
-  const colors: string[] = [...new Set(variants.map((v: any) => v.color).filter(Boolean))] as string[];
-  const sizes: string[] = [...new Set(variants.map((v: any) => v.size).filter(Boolean))] as string[];
+  const colors: string[] = Array.from(new Set(variants.map((v: any) => v.color).filter((c): c is string => typeof c === 'string' && c.length > 0)));
+  const sizes: string[] = Array.from(new Set(variants.map((v: any) => v.size).filter((s): s is string => typeof s === 'string' && s.length > 0)));
   const totalStock = variants.reduce((sum: number, v: any) => sum + (v.stock || 0), 0);
 
   // Get category name from relation
@@ -463,7 +462,6 @@ const mapOrderToSellerOrder = (order: any): SellerOrder => {
 
   return {
     id: order.id,
-    order_number: order.order_number || order.id.slice(0, 8), // Fallback to UUID slice if no order_number
     seller_id: order.seller_id,
     buyer_id: order.buyer_id,
     orderNumber: order.order_number,
@@ -887,7 +885,6 @@ export const useProductStore = create<ProductStore>()(
                   await productService.addProductImages(newProduct.id, validImages.map((url, idx) => ({
                     product_id: newProduct.id,
                     image_url: url,
-                    alt_text: null,
                     sort_order: idx,
                     is_primary: idx === 0,
                     alt_text: product.name || 'Product image',
@@ -907,13 +904,13 @@ export const useProductStore = create<ProductStore>()(
                 variant_name: [v.size, v.color].filter(Boolean).join(' - ') || 'Default',
                 size: v.size || null,
                 color: v.color || null,
-                option_1_value: v.size || null,
-                option_2_value: v.color || null,
                 stock: v.stock || 0,
                 price: v.price || product.price,
                 sku: v.sku || `${newProduct.id.substring(0, 8)}-${index}`,
-                barcode: null,
                 thumbnail_url: v.image || null,
+                barcode: null,
+                option_1_value: v.size || null,
+                option_2_value: v.color || null,
                 embedding: null,
               }));
 
@@ -932,13 +929,13 @@ export const useProductStore = create<ProductStore>()(
                   variant_name: 'Default',
                   size: null,
                   color: null,
-                  option_1_value: null,
-                  option_2_value: null,
                   stock: product.stock,
                   price: product.price,
                   sku: `${newProduct.id.substring(0, 8)}-default`,
-                  barcode: null,
                   thumbnail_url: null,
+                  barcode: null,
+                  option_1_value: null,
+                  option_2_value: null,
                   embedding: null,
                 }]);
               } catch (variantError) {
@@ -1701,15 +1698,14 @@ export const useOrderStore = create<OrderStore>()(
           console.log(`🆔 Order buyer_id:`, order.buyer_id);
 
           if (order.buyer_id) {
-            const orderNum = (order as any).order_number as string;
             const statusMessages: Record<string, string> = {
-              'confirmed': `Your order #${orderNum} has been confirmed and is being prepared.`,
-              'shipped': `Your order #${orderNum} has been shipped and is on its way!`,
-              'delivered': `Your order #${orderNum} has been delivered. Enjoy your purchase!`,
-              'cancelled': `Your order #${orderNum} has been cancelled.`
+              'confirmed': `Your order #${id.slice(-8)} has been confirmed and is being prepared.`,
+              'shipped': `Your order #${id.slice(-8)} has been shipped and is on its way!`,
+              'delivered': `Your order #${id.slice(-8)} has been delivered. Enjoy your purchase!`,
+              'cancelled': `Your order #${id.slice(-8)} has been cancelled.`
             };
 
-            const message = statusMessages[status] || `Your order #${orderNum} status was updated to ${status}`;
+            const message = statusMessages[status] || `Order #${id.slice(-8)} status updated to ${status}`;
 
             console.log(`🚀 Creating buyer notification for order ${id}`);
 
@@ -1718,7 +1714,7 @@ export const useOrderStore = create<OrderStore>()(
               notificationService.notifyBuyerOrderStatus({
                 buyerId: order.buyer_id!,
                 orderId: id,
-                orderNumber: orderNum,
+                orderNumber: id.slice(-8),
                 status,
                 message
               }).catch(err => {

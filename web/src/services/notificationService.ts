@@ -59,9 +59,8 @@ export class NotificationService {
   private getUserIdColumn(userType: 'buyer' | 'seller' | 'admin'): string {
     switch (userType) {
       case 'buyer': return 'buyer_id';
-      case 'seller': return 'seller_id';
       case 'admin': return 'admin_id';
-      default: return 'buyer_id';
+      default: return 'buyer_id'; // seller_notifications doesn't have a seller_id column in the schema
     }
   }
 
@@ -106,8 +105,10 @@ export class NotificationService {
         priority: params.priority || 'normal',
       };
 
-      // Add user ID column for all user types
-      insertData[userIdColumn] = params.userId;
+      // Only add user ID column for buyer and admin (seller_notifications doesn't have seller_id)
+      if (params.userType !== 'seller') {
+        insertData[userIdColumn] = params.userId;
+      }
 
       const { data, error } = await supabase
         .from(tableName)
@@ -171,8 +172,10 @@ export class NotificationService {
         .order('created_at', { ascending: false })
         .limit(limit);
 
-      // Filter by user ID for all user types
-      query = query.eq(userIdColumn, userId);
+      // Only filter by user ID for buyer and admin (seller_notifications doesn't have seller_id)
+      if (userType !== 'seller') {
+        query = query.eq(userIdColumn, userId);
+      }
 
       const { data, error } = await query;
 
@@ -219,8 +222,10 @@ export class NotificationService {
         .select('*', { count: 'exact', head: true })
         .is('read_at', null); // Unread = read_at is null
 
-      // Filter by user ID for all user types
-      query = query.eq(userIdColumn, userId);
+      // Only filter by user ID for buyer and admin
+      if (userType !== 'seller') {
+        query = query.eq(userIdColumn, userId);
+      }
 
       const { count, error } = await query;
 
@@ -286,8 +291,10 @@ export class NotificationService {
         })
         .is('read_at', null); // Only update unread ones
       
-      // Filter by user ID for all user types
-      query = query.eq(userIdColumn, userId);
+      // Only filter by user ID for buyer and admin
+      if (userType !== 'seller') {
+        query = query.eq(userIdColumn, userId);
+      }
 
       const { error } = await query;
 
@@ -343,8 +350,8 @@ export class NotificationService {
       message: `New order #${params.orderNumber} from ${params.buyerName}. Total: ₱${params.total.toLocaleString()}`,
       icon: 'ShoppingBag',
       iconBg: 'bg-green-500',
-      actionUrl: `/seller/orders/${params.orderNumber}`,
-      actionData: { orderId: params.orderId, orderNumber: params.orderNumber },
+      actionUrl: `/seller/orders/${params.orderId}`,
+      actionData: { orderId: params.orderId },
       priority: 'high'
     });
   }

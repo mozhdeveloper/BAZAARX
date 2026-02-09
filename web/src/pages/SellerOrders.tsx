@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   Search,
@@ -115,13 +115,11 @@ export function SellerOrders() {
     trackingNumber: "",
     isLoading: false,
   });
-  const [accessDenied, setAccessDenied] = useState<string | null>(null);
 
   const { seller, logout } = useAuthStore();
   const { orders, loading, fetchOrders, updateOrderStatus, addTrackingNumber } =
     useOrderStore();
   const navigate = useNavigate();
-  const { orderId: orderParam } = useParams<{ orderId?: string }>();
 
   // Fetch orders when component mounts or seller changes
   useEffect(() => {
@@ -130,87 +128,11 @@ export function SellerOrders() {
     }
   }, [seller?.id, fetchOrders]);
 
-  // Auto-select order from URL parameter (for notification navigation)
-  // orderParam can be either order_number (ORD-xxx) or UUID
-  useEffect(() => {
-    console.log('[SellerOrders] URL param:', orderParam, 'Orders loaded:', orders.length);
-    if (orderParam && orders.length > 0) {
-      // Try to find order by order_number first, then by id
-      const orderExists = orders.find(o =>
-        o.order_number === orderParam || o.id === orderParam
-      );
-      console.log('[SellerOrders] Found order:', orderExists?.id, 'order_number:', orderExists?.order_number);
-      if (orderExists) {
-        if (orderExists.seller_id && seller?.id && orderExists.seller_id !== seller.id) {
-          setAccessDenied('Access denied: This order belongs to another seller');
-          setSelectedOrder(null);
-          navigate('/seller/orders', { replace: true });
-          console.warn('[SellerOrders] Access denied for order:', orderExists.id, 'seller_id:', orderExists.seller_id, 'current seller:', seller?.id);
-        } else {
-          setAccessDenied(null);
-          setSelectedOrder(orderExists.id);
-          console.log('[SellerOrders] Set selectedOrder to:', orderExists.id);
-        }
-      } else {
-        console.log('[SellerOrders] Order not found for param:', orderParam);
-        setAccessDenied('Order not found or access denied');
-        setSelectedOrder(null);
-        navigate('/seller/orders', { replace: true });
-      }
-    }
-  }, [orderParam, orders]);
 
-  // Initialize edit fields when order is selected
-  useEffect(() => {
-    if (selectedOrder) {
-      const order = orders.find((o) => o.id === selectedOrder);
-      if (order) {
-        setEditedBuyerName(order.buyerName || "");
-        setEditedBuyerEmail(order.buyerEmail || "");
-        setEditedNote((order as any).notes || "");
-      }
-    }
-  }, [selectedOrder, orders]);
 
   const handleLogout = () => {
     logout();
     navigate("/seller/auth");
-  };
-
-  // Toggle edit mode
-  const toggleEditMode = () => {
-    if (isEditing) {
-      // Reset fields on cancel
-      const order = orders.find((o) => o.id === selectedOrder);
-      if (order) {
-        setEditedBuyerName(order.buyerName || "");
-        setEditedBuyerEmail(order.buyerEmail || "");
-        setEditedNote((order as any).notes || "");
-      }
-    }
-    setIsEditing(!isEditing);
-  };
-
-  // Save edited order details
-  const handleSaveOrderDetails = async () => {
-    if (!selectedOrder) return;
-
-    setIsSaving(true);
-    try {
-      await orderService.updateOrderDetails(selectedOrder, { notes: editedNote });
-
-      // Refresh orders
-      if (seller?.id) {
-        await fetchOrders(seller.id);
-      }
-      setIsEditing(false);
-      alert("Order details saved successfully!");
-    } catch (error) {
-      console.error("Failed to save order details:", error);
-      alert("Failed to save changes. Please try again.");
-    } finally {
-      setIsSaving(false);
-    }
   };
 
   const handleMarkAsShipped = async () => {
@@ -594,18 +516,11 @@ export function SellerOrders() {
                   <TableRow
                     key={order.id}
                     className="hover:bg-gray-50 transition-colors cursor-pointer"
-                    onClick={() => {
-                      const newOrderId = selectedOrder === order.id ? null : order.id;
-                      setSelectedOrder(newOrderId);
-                      // Update URL to match modal state (use order_number for clean URLs)
-                      if (newOrderId) {
-                        const targetOrder = orders.find(o => o.id === newOrderId);
-                        const urlParam = targetOrder?.order_number || newOrderId;
-                        navigate(`/seller/orders/${urlParam}`, { replace: true });
-                      } else {
-                        navigate('/seller/orders', { replace: true });
-                      }
-                    }}
+                    onClick={() =>
+                      setSelectedOrder(
+                        selectedOrder === order.id ? null : order.id,
+                      )
+                    }
                   >
                     {/* Order ID & Source */}
                     <TableCell>
@@ -621,7 +536,7 @@ export function SellerOrders() {
                         )}
                         <div>
                           <p className="font-semibold text-gray-900 text-sm">
-                            {order.order_number || `#${order.id.slice(0, 8)}`}
+                            #{order.id.slice(0, 8)}
                           </p>
                           <p className="text-xs text-gray-500">
                             {new Date(order.orderDate).toLocaleDateString(
@@ -748,9 +663,7 @@ export function SellerOrders() {
                           <DropdownMenuItem
                             onClick={(e) => {
                               e.stopPropagation();
-                              const urlParam = order.order_number || order.id;
                               setSelectedOrder(order.id);
-                              navigate(`/seller/orders/${urlParam}`, { replace: true });
                             }}
                           >
                             <Eye className="h-4 w-4 mr-2" />
@@ -841,12 +754,6 @@ export function SellerOrders() {
               </div>
             )}
           </Card>
-
-          {accessDenied && (
-            <div className="mt-4 p-4 bg-red-100 border border-red-200 text-red-700 rounded-lg">
-              {accessDenied}
-            </div>
-          )}
 
           {/* Order Details Modal */}
           <OrderDetailsModal
