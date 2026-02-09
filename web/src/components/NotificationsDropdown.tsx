@@ -13,7 +13,7 @@ import {
   XCircle,
   ShoppingBag,
 } from "lucide-react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useCartStore } from "@/stores/cartStore";
 import { OrderNotification } from "@/stores/cartStore";
 import { useAuthStore } from "@/stores/sellerStore";
@@ -98,19 +98,15 @@ export function NotificationsDropdown() {
   const [dbNotifications, setDbNotifications] = useState<DbNotification[]>([]);
   const [dbLoading, setDbLoading] = useState(false);
   const [buyerId, setBuyerId] = useState<string | null>(null);
-  const location = useLocation();
 
   // Determine current user context: seller (from auth store) or buyer (from supabase auth)
-  // Only use seller context if we're actually on a seller route
   const userContext = useMemo(() => {
-    const isSellerRoute = location.pathname.startsWith('/seller');
-    if (seller?.id && isSellerRoute) {
+    if (seller?.id) {
       console.log("[Notifications] Seller context detected:", seller.id);
       return { userId: seller.id, userType: "seller" as const };
     }
-    console.log("[Notifications] Buyer context (seller route:", isSellerRoute, ")");
     return null; // Fallback to buyer via supabase below
-  }, [seller?.id, location.pathname]);
+  }, [seller?.id]);
 
   // Initialize buyer ID on mount
   useEffect(() => {
@@ -244,7 +240,7 @@ export function NotificationsDropdown() {
     if (notification.type === "shipped" || notification.type === "delivered") {
       navigate(`/delivery-tracking/${notification.orderId}`);
     } else {
-      navigate(`/order/${notification.orderId}`);
+      navigate(`/orders/${notification.orderId}`);
     }
   };
 
@@ -268,11 +264,9 @@ export function NotificationsDropdown() {
     }
     // Fallback navigation based on type
     if (n.type.startsWith("order_")) {
-      navigate(`/order/${(n.action_data as any)?.orderId ?? ""}`);
+      navigate(`/orders/${(n.action_data as any)?.orderId ?? ""}`);
     } else if (n.type === "seller_new_order") {
-      const actionData = n.action_data as any;
-      const param = actionData?.orderNumber ?? actionData?.orderId ?? "";
-      navigate(`/seller/orders/${param}`);
+      navigate(`/seller/orders/${(n.action_data as any)?.orderId ?? ""}`);
     }
   };
 
