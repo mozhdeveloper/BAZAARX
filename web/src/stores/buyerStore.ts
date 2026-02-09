@@ -92,6 +92,7 @@ export interface CartItem extends Product {
   notes?: string;
   selected?: boolean;
   registryId?: string;
+  createdAt?: string;
 }
 
 export interface GroupedCart {
@@ -232,8 +233,8 @@ interface BuyerStore {
   cartItems: CartItem[];
   groupedCart: GroupedCart;
   addToCart: (product: Product, quantity?: number, variant?: ProductVariant) => void;
-  removeFromCart: (productId: string) => void;
-  updateCartQuantity: (productId: string, quantity: number) => void;
+  removeFromCart: (productId: string, variantId?: string) => void;
+  updateCartQuantity: (productId: string, quantity: number, variantId?: string) => void;
   updateCartNotes: (productId: string, notes: string) => void;
   clearCart: () => void;
   getCartTotal: () => number;
@@ -371,6 +372,7 @@ const mapDbItemToCartItem = (item: any): CartItem | null => {
     quantity: item.quantity,
     selectedVariant,
     notes: item.notes,
+    createdAt: item.created_at,
     selected: true // Default to selected so they appear in checkout
   } as CartItem;
 };
@@ -689,7 +691,8 @@ export const useBuyerStore = create<BuyerStore>()(persist(
             ...product,
             quantity,
             selectedVariant: variant,
-            selected: true // Default to selected
+            selected: true, // Default to selected
+            createdAt: new Date().toISOString(),
           }, ...state.cartItems];
         }
 
@@ -698,75 +701,98 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       get().groupCartBySeller();
     },
 
-    removeFromCart: async (productId) => {
+    removeFromCart: async (productId, variantId) => {
+      // 1. Optimistic Update: Remove item immediately from local state
+      const previousCartItems = get().cartItems; // Capture state for rollback
+      set((state) => ({
+        cartItems: state.cartItems.filter(item =>
+          !(item.id === productId && item.selectedVariant?.id === variantId)
+        )
+      }));
+      get().groupCartBySeller(); // Update UI groupings immediately
+
+      // 2. Background DB Sync
       const user = await getCurrentUser();
       if (user) {
         try {
           const cart = await cartService.getOrCreateCart(user.id);
           if (cart) {
             const items = await cartService.getCartItems(cart.id);
-            const itemToDelete = items.find(i => i.product_id === productId);
+            // Find specific variant item
+            const itemToDelete = items.find(i =>
+              i.product_id === productId &&
+              (variantId ? i.variant_id === variantId : !i.variant_id)
+            );
+
             if (itemToDelete) {
               await cartService.removeFromCart(itemToDelete.id);
 
-              // Refetch cart items from database to sync state
+              // Silent Refetch to ensure consistency (e.g., if multiple variants existed)
               const dbItems = await cartService.getCartItems(cart.id);
               const mappedItems: CartItem[] = dbItems.map(mapDbItemToCartItem).filter(Boolean) as CartItem[];
 
+              // Update state with actual DB truth (prevents drift)
               set({ cartItems: mappedItems });
               get().groupCartBySeller();
-              return;
             }
           }
         } catch (error) {
           console.error('Error removing from database cart:', error);
+          // 3. Rollback on Error
+          set({ cartItems: previousCartItems });
+          get().groupCartBySeller();
+          // Optional: You could trigger a toast here
         }
       }
-
-      // Fallback to local state
-      set((state) => ({
-        cartItems: state.cartItems.filter(item => item.id !== productId)
-      }));
-      get().groupCartBySeller();
     },
 
-    updateCartQuantity: async (productId, quantity) => {
+    updateCartQuantity: async (productId, quantity, variantId) => {
       if (quantity <= 0) {
-        get().removeFromCart(productId);
+        get().removeFromCart(productId, variantId);
         return;
       }
 
+      // 1. Optimistic Update
+      const previousCartItems = get().cartItems; // Capture state for rollback
+      set((state) => ({
+        cartItems: state.cartItems.map(item =>
+          (item.id === productId && item.selectedVariant?.id === variantId)
+            ? { ...item, quantity }
+            : item
+        )
+      }));
+      get().groupCartBySeller(); // Update UI immediately
+
+      // 2. Background DB Sync
       const user = await getCurrentUser();
       if (user) {
         try {
           const cart = await cartService.getOrCreateCart(user.id);
           if (cart) {
             const items = await cartService.getCartItems(cart.id);
-            const itemToUpdate = items.find(i => i.product_id === productId);
+            const itemToUpdate = items.find(i =>
+              i.product_id === productId &&
+              (variantId ? i.variant_id === variantId : !i.variant_id)
+            );
+
             if (itemToUpdate) {
               await cartService.updateCartItemQuantity(itemToUpdate.id, quantity);
 
-              // Refetch cart items from database to sync state
+              // Silent Refetch
               const dbItems = await cartService.getCartItems(cart.id);
               const mappedItems: CartItem[] = dbItems.map(mapDbItemToCartItem).filter(Boolean) as CartItem[];
 
               set({ cartItems: mappedItems });
               get().groupCartBySeller();
-              return;
             }
           }
         } catch (error) {
           console.error('Error updating database cart quantity:', error);
+          // 3. Rollback on Error
+          set({ cartItems: previousCartItems });
+          get().groupCartBySeller();
         }
       }
-
-      // Fallback to local state
-      set((state) => ({
-        cartItems: state.cartItems.map(item =>
-          item.id === productId ? { ...item, quantity } : item
-        )
-      }));
-      get().groupCartBySeller();
     },
 
     updateCartNotes: (productId, notes) => {
