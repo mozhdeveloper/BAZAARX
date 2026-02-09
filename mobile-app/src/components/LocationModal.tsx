@@ -15,7 +15,8 @@ import {
   FlatList,
   Keyboard,
 } from 'react-native';
-import { X, Search, MapPin, Home, Briefcase, Target, Check } from 'lucide-react-native';
+import { X, Search, MapPin, Home, Briefcase, Target, Check, ChevronDown, ChevronUp, ArrowLeft } from 'lucide-react-native';
+import { regions, provinces, cities, barangays } from 'select-philippines-address';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MapView, { Marker, PROVIDER_GOOGLE, PROVIDER_DEFAULT, Region } from 'react-native-maps';
 import * as Location from 'expo-location';
@@ -77,9 +78,34 @@ export default function LocationModal({
     longitudeDelta: 0.005,
   });
 
+  // --- STEP NAVIGATION: 'map' or 'form' ---
+  const [currentStep, setCurrentStep] = useState<'map' | 'form'>('map');
+
+  // --- ADDRESS FORM FIELDS ---
+  const [formAddress, setFormAddress] = useState({
+    street: '',
+    barangay: '',
+    city: '',
+    province: '',
+    region: '',
+    postalCode: '',
+    label: 'Home',
+  });
+
+  // --- PHILIPPINES ADDRESS DROPDOWN LISTS ---
+  const [regionList, setRegionList] = useState<any[]>([]);
+  const [provinceList, setProvinceList] = useState<any[]>([]);
+  const [cityList, setCityList] = useState<any[]>([]);
+  const [barangayList, setBarangayList] = useState<any[]>([]);
+  const [openDropdown, setOpenDropdown] = useState<'region' | 'province' | 'city' | 'barangay' | null>(null);
+
   // --- INITIALIZATION ---
   useEffect(() => {
     if (visible) {
+      // Reset to map step when modal opens
+      setCurrentStep('map');
+      setOpenDropdown(null);
+      
       if (initialCoordinates) {
         const newRegion = {
           latitude: initialCoordinates.latitude,
@@ -95,15 +121,43 @@ export default function LocationModal({
         setSearchQuery(currentAddress);
       }
       setSuggestions([]); // Clear previous suggestions
+      
+      // Load regions for dropdown
+      regions().then((data: any[]) => setRegionList(data));
     }
   }, [visible, initialCoordinates, currentAddress]);
 
   // Fetch saved addresses
   useEffect(() => {
-    if (!user) return;
+    if (!user || !visible) return;
     const fetchSavedAddresses = async () => {
-      const { data } = await supabase.from('addresses').select('*').eq('user_id', user.id);
-      if (data) setAddresses(data);
+      try {
+        const { data } = await supabase.from('shipping_addresses').select('*').eq('user_id', user.id);
+        if (data) {
+          // Map from DB schema to component format
+          const mapped = data.map(a => ({
+            id: a.id,
+            label: a.label || 'Address',
+            street: a.address_line_1 || '',
+            barangay: a.barangay || '',
+            city: a.city || '',
+            province: a.province || '',
+            region: a.region || '',
+            postalCode: a.postal_code || '',
+            coordinates: a.coordinates || null,
+            is_default: a.is_default || false,
+          }));
+          
+          // Ensure unique IDs (defensive programming)
+          const uniqueAddresses = mapped.filter((addr, index, self) => 
+            index === self.findIndex(a => a.id === addr.id)
+          );
+          
+          setAddresses(uniqueAddresses);
+        }
+      } catch (error) {
+        console.error('[LocationModal] Error fetching addresses:', error);
+      }
     };
     fetchSavedAddresses();
   }, [user, visible]);
@@ -262,16 +316,58 @@ export default function LocationModal({
     }
   };
 
-  // --- 5. CONFIRM SELECTION ---
+  // --- 5. PROCEED TO ADDRESS FORM ---
+  const handleProceedToForm = () => {
+    // Pre-fill the form with geocoded data
+    setFormAddress({
+      street: locationDetails?.street || '',
+      barangay: locationDetails?.barangay || '',
+      city: locationDetails?.city || '',
+      province: locationDetails?.province || '',
+      region: locationDetails?.region || '',
+      postalCode: locationDetails?.postalCode || '',
+      label: 'Home',
+    });
+    setCurrentStep('form');
+  };
+
+  // --- 6. FINAL CONFIRM (from form) ---
+  const handleFinalConfirm = () => {
+    // Validate required fields
+    if (!formAddress.street || !formAddress.city || !formAddress.province || !formAddress.region) {
+      Alert.alert('Incomplete Address', 'Please fill in Street, City, Province, and Region.');
+      return;
+    }
+
+    const finalAddress = `${formAddress.street}, ${formAddress.barangay ? formAddress.barangay + ', ' : ''}${formAddress.city}, ${formAddress.province}`;
+    const coords = {
+      latitude: region.latitude,
+      longitude: region.longitude
+    };
+    
+    const finalDetails: LocationDetails = {
+      address: finalAddress,
+      coordinates: coords,
+      street: formAddress.street,
+      barangay: formAddress.barangay,
+      city: formAddress.city,
+      province: formAddress.province,
+      region: formAddress.region,
+      postalCode: formAddress.postalCode,
+    };
+    
+    onSelectLocation(finalAddress, coords, finalDetails);
+    onClose();
+  };
+
+  // --- LEGACY: Quick confirm without form (for saved addresses) ---
   const handleConfirm = () => {
-    // Send back the current search text AND the exact map coordinates AND location details
     const finalAddress = searchQuery || "Pinned Location";
     const coords = {
       latitude: region.latitude,
       longitude: region.longitude
     };
     
-    // Build final location details
     const finalDetails: LocationDetails = locationDetails ? {
       ...locationDetails,
       address: finalAddress,
@@ -283,6 +379,42 @@ export default function LocationModal({
     
     onSelectLocation(finalAddress, coords, finalDetails);
     onClose();
+  };
+
+  // --- ADDRESS FORM: Region Selection ---
+  const handleRegionSelect = async (regionItem: any) => {
+    setFormAddress(prev => ({ ...prev, region: regionItem.region_name, province: '', city: '', barangay: '' }));
+    setOpenDropdown(null);
+    // Load provinces for this region
+    const provList = await provinces(regionItem.region_code);
+    setProvinceList(provList);
+    setCityList([]);
+    setBarangayList([]);
+  };
+
+  // --- ADDRESS FORM: Province Selection ---
+  const handleProvinceSelect = async (provinceItem: any) => {
+    setFormAddress(prev => ({ ...prev, province: provinceItem.province_name, city: '', barangay: '' }));
+    setOpenDropdown(null);
+    // Load cities for this province
+    const cityListData = await cities(provinceItem.province_code);
+    setCityList(cityListData);
+    setBarangayList([]);
+  };
+
+  // --- ADDRESS FORM: City Selection ---
+  const handleCitySelect = async (cityItem: any) => {
+    setFormAddress(prev => ({ ...prev, city: cityItem.city_name, barangay: '' }));
+    setOpenDropdown(null);
+    // Load barangays for this city
+    const brgyList = await barangays(cityItem.city_code);
+    setBarangayList(brgyList);
+  };
+
+  // --- ADDRESS FORM: Barangay Selection ---
+  const handleBarangaySelect = (barangayItem: any) => {
+    setFormAddress(prev => ({ ...prev, barangay: barangayItem.brgy_name }));
+    setOpenDropdown(null);
   };
 
   // When dragging the map manually, reverse geocode the new location
@@ -338,22 +470,34 @@ export default function LocationModal({
       <View style={styles.container}>
         {/* Header */}
         <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-          <Text style={styles.headerTitle}>Select Delivery Location</Text>
+          {currentStep === 'form' ? (
+            <Pressable onPress={() => setCurrentStep('map')} style={styles.backButton}>
+              <ArrowLeft size={22} color="#1F2937" strokeWidth={2.5} />
+            </Pressable>
+          ) : (
+            <View style={{ width: 36 }} />
+          )}
+          <Text style={styles.headerTitle}>
+            {currentStep === 'map' ? 'Select Delivery Location' : 'Complete Address'}
+          </Text>
           <Pressable onPress={onClose} style={styles.closeButton}>
             <X size={22} color="#1F2937" strokeWidth={2.5} />
           </Pressable>
         </View>
 
-        <KeyboardAvoidingView 
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={{ flex: 1 }}
-        >
-          <ScrollView 
-            style={styles.scrollContainer} 
-            showsVerticalScrollIndicator={false} 
-            contentContainerStyle={{ paddingBottom: 100 }}
-            keyboardShouldPersistTaps="handled"
-          >
+        {currentStep === 'map' ? (
+          /* ========== MAP STEP ========== */
+          <>
+            <KeyboardAvoidingView 
+              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+              style={{ flex: 1 }}
+            >
+              <ScrollView 
+                style={styles.scrollContainer} 
+                showsVerticalScrollIndicator={false} 
+                contentContainerStyle={{ paddingBottom: 100 }}
+                keyboardShouldPersistTaps="handled"
+              >
             
             {/* REAL MAP VIEW */}
             <View style={styles.mapContainer}>
@@ -388,7 +532,7 @@ export default function LocationModal({
                   <View style={styles.suggestionsList}>
                     <FlatList
                       data={suggestions}
-                      keyExtractor={(item, index) => index.toString()}
+                      keyExtractor={(item, index) => item.place_id?.toString() || item.osm_id?.toString() || `suggestion-${index}`}
                       keyboardShouldPersistTaps="handled"
                       scrollEnabled={false} // Let parent ScrollView handle scrolling if needed
                       renderItem={({ item }) => (
@@ -433,11 +577,11 @@ export default function LocationModal({
             <View style={styles.savedSection}>
               <Text style={styles.savedTitle}>Saved Addresses</Text>
               
-              {addresses.map((address) => {
+              {addresses.map((address, idx) => {
                 const isSelected = selectedAddressId === address.id;
                 return (
                   <Pressable
-                    key={address.id}
+                    key={address.id || `address-${idx}`}
                     style={[styles.addressCard, isSelected && styles.addressCardSelected]}
                     onPress={() => handleSelectAddress(address)}
                   >
@@ -464,12 +608,179 @@ export default function LocationModal({
           </ScrollView>
         </KeyboardAvoidingView>
 
-        {/* Confirm Button */}
+        {/* Map Step: Confirm Button */}
         <View style={[styles.confirmContainer, { paddingBottom: insets.bottom + 16 }]}>
-          <Pressable style={styles.confirmButton} onPress={handleConfirm}>
-            <Text style={styles.confirmButtonText}>Confirm Location</Text>
+          <Pressable style={styles.confirmButton} onPress={selectedAddressId ? handleConfirm : handleProceedToForm}>
+            <Text style={styles.confirmButtonText}>
+              {selectedAddressId ? 'Use This Address' : 'Continue to Address Details'}
+            </Text>
           </Pressable>
         </View>
+          </>
+        ) : (
+          /* ========== FORM STEP ========== */
+          <>
+            <KeyboardAvoidingView 
+              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+              style={{ flex: 1 }}
+            >
+              <ScrollView 
+                style={styles.scrollContainer} 
+                showsVerticalScrollIndicator={false} 
+                contentContainerStyle={{ paddingBottom: 120, paddingHorizontal: 20 }}
+                keyboardShouldPersistTaps="handled"
+              >
+                {/* Address Type Selector */}
+                <Text style={styles.formSectionTitle}>Address Label</Text>
+                <View style={styles.typeSelectorContainer}>
+                  {['Home', 'Office', 'Other'].map((type) => (
+                    <Pressable
+                      key={type}
+                      style={[styles.typeOption, formAddress.label === type && styles.typeOptionActive]}
+                      onPress={() => setFormAddress(prev => ({ ...prev, label: type }))}
+                    >
+                      {type === 'Home' && <Home size={16} color={formAddress.label === 'Home' ? '#FF5722' : '#6B7280'} />}
+                      {type === 'Office' && <Briefcase size={16} color={formAddress.label === 'Office' ? '#FF5722' : '#6B7280'} />}
+                      {type === 'Other' && <MapPin size={16} color={formAddress.label === 'Other' ? '#FF5722' : '#6B7280'} />}
+                      <Text style={[styles.typeOptionText, formAddress.label === type && styles.typeOptionTextActive]}>{type}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+
+                {/* Region Dropdown */}
+                <Text style={styles.formSectionTitle}>Region *</Text>
+                <Pressable 
+                  style={styles.dropdownButton}
+                  onPress={() => setOpenDropdown(openDropdown === 'region' ? null : 'region')}
+                >
+                  <Text style={formAddress.region ? styles.dropdownText : styles.dropdownPlaceholder}>
+                    {formAddress.region || 'Select Region'}
+                  </Text>
+                  {openDropdown === 'region' ? <ChevronUp size={20} color="#6B7280" /> : <ChevronDown size={20} color="#6B7280" />}
+                </Pressable>
+                {openDropdown === 'region' && (
+                  <View style={styles.dropdownList}>
+                    <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled>
+                      {regionList.map((r, idx) => (
+                        <Pressable key={r.region_code || `region-${idx}`} style={styles.dropdownItem} onPress={() => handleRegionSelect(r)}>
+                          <Text style={styles.dropdownItemText}>{r.region_name}</Text>
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
+
+                {/* Province Dropdown */}
+                <Text style={styles.formSectionTitle}>Province *</Text>
+                <Pressable 
+                  style={[styles.dropdownButton, !formAddress.region && styles.dropdownDisabled]}
+                  onPress={() => formAddress.region && setOpenDropdown(openDropdown === 'province' ? null : 'province')}
+                  disabled={!formAddress.region}
+                >
+                  <Text style={formAddress.province ? styles.dropdownText : styles.dropdownPlaceholder}>
+                    {formAddress.province || 'Select Province'}
+                  </Text>
+                  {openDropdown === 'province' ? <ChevronUp size={20} color="#6B7280" /> : <ChevronDown size={20} color="#6B7280" />}
+                </Pressable>
+                {openDropdown === 'province' && (
+                  <View style={styles.dropdownList}>
+                    <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled>
+                      {provinceList.map((p, idx) => (
+                        <Pressable key={p.province_code || `province-${idx}`} style={styles.dropdownItem} onPress={() => handleProvinceSelect(p)}>
+                          <Text style={styles.dropdownItemText}>{p.province_name}</Text>
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
+
+                {/* City Dropdown */}
+                <Text style={styles.formSectionTitle}>City / Municipality *</Text>
+                <Pressable 
+                  style={[styles.dropdownButton, !formAddress.province && styles.dropdownDisabled]}
+                  onPress={() => formAddress.province && setOpenDropdown(openDropdown === 'city' ? null : 'city')}
+                  disabled={!formAddress.province}
+                >
+                  <Text style={formAddress.city ? styles.dropdownText : styles.dropdownPlaceholder}>
+                    {formAddress.city || 'Select City'}
+                  </Text>
+                  {openDropdown === 'city' ? <ChevronUp size={20} color="#6B7280" /> : <ChevronDown size={20} color="#6B7280" />}
+                </Pressable>
+                {openDropdown === 'city' && (
+                  <View style={styles.dropdownList}>
+                    <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled>
+                      {cityList.map((c, idx) => (
+                        <Pressable key={c.city_code || `city-${idx}`} style={styles.dropdownItem} onPress={() => handleCitySelect(c)}>
+                          <Text style={styles.dropdownItemText}>{c.city_name}</Text>
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
+
+                {/* Barangay Dropdown */}
+                <Text style={styles.formSectionTitle}>Barangay</Text>
+                <Pressable 
+                  style={[styles.dropdownButton, !formAddress.city && styles.dropdownDisabled]}
+                  onPress={() => formAddress.city && setOpenDropdown(openDropdown === 'barangay' ? null : 'barangay')}
+                  disabled={!formAddress.city}
+                >
+                  <Text style={formAddress.barangay ? styles.dropdownText : styles.dropdownPlaceholder}>
+                    {formAddress.barangay || 'Select Barangay (Optional)'}
+                  </Text>
+                  {openDropdown === 'barangay' ? <ChevronUp size={20} color="#6B7280" /> : <ChevronDown size={20} color="#6B7280" />}
+                </Pressable>
+                {openDropdown === 'barangay' && (
+                  <View style={styles.dropdownList}>
+                    <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled>
+                      {barangayList.map((b, idx) => (
+                        <Pressable key={b.brgy_code || `barangay-${idx}`} style={styles.dropdownItem} onPress={() => handleBarangaySelect(b)}>
+                          <Text style={styles.dropdownItemText}>{b.brgy_name}</Text>
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
+
+                {/* Street / House No. */}
+                <Text style={styles.formSectionTitle}>Street / House No. *</Text>
+                <TextInput
+                  style={styles.formInput}
+                  placeholder="e.g., 123 Rizal Street"
+                  placeholderTextColor="#9CA3AF"
+                  value={formAddress.street}
+                  onChangeText={(t) => setFormAddress(prev => ({ ...prev, street: t }))}
+                />
+
+                {/* Postal Code */}
+                <Text style={styles.formSectionTitle}>Postal Code</Text>
+                <TextInput
+                  style={styles.formInput}
+                  placeholder="e.g., 1000"
+                  placeholderTextColor="#9CA3AF"
+                  keyboardType="number-pad"
+                  value={formAddress.postalCode}
+                  onChangeText={(t) => setFormAddress(prev => ({ ...prev, postalCode: t }))}
+                />
+
+                {/* Location Preview */}
+                <View style={styles.locationPreview}>
+                  <MapPin size={18} color="#FF5722" />
+                  <Text style={styles.locationPreviewText}>
+                    {searchQuery || 'Pin location selected on map'}
+                  </Text>
+                </View>
+              </ScrollView>
+            </KeyboardAvoidingView>
+
+            {/* Form Step: Save Button */}
+            <View style={[styles.confirmContainer, { paddingBottom: insets.bottom + 16 }]}>
+              <Pressable style={styles.confirmButton} onPress={handleFinalConfirm}>
+                <Text style={styles.confirmButtonText}>Save Address</Text>
+              </Pressable>
+            </View>
+          </>
+        )}
       </View>
     </Modal>
   );
@@ -477,8 +788,8 @@ export default function LocationModal({
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFFFFF' },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: '#1F2937' },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#F3F4F6', gap: 12 },
+  headerTitle: { flex: 1, fontSize: 20, fontWeight: '800', color: '#1F2937', textAlign: 'center' },
   closeButton: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#F5F5F7', justifyContent: 'center', alignItems: 'center' },
   
   scrollContainer: { flex: 1 },
@@ -538,4 +849,31 @@ const styles = StyleSheet.create({
   confirmContainer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#FFFFFF', paddingHorizontal: 20, paddingTop: 16, elevation: 12, shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.08, shadowRadius: 12 },
   confirmButton: { backgroundColor: '#FF5722', borderRadius: 999, paddingVertical: 18, alignItems: 'center' },
   confirmButtonText: { fontSize: 17, fontWeight: '800', color: '#FFFFFF' },
+
+  // Back button for form step
+  backButton: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#F5F5F7', justifyContent: 'center', alignItems: 'center' },
+
+  // Form Styles
+  formSectionTitle: { fontSize: 14, fontWeight: '700', color: '#374151', marginTop: 16, marginBottom: 8 },
+  formInput: { backgroundColor: '#F9FAFB', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, fontSize: 15, color: '#1F2937', borderWidth: 1, borderColor: '#E5E7EB' },
+  
+  // Type Selector
+  typeSelectorContainer: { flexDirection: 'row', gap: 12, marginBottom: 8 },
+  typeOption: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 999, backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#E5E7EB' },
+  typeOptionActive: { backgroundColor: '#FFF5F0', borderColor: '#FF5722' },
+  typeOptionText: { fontSize: 14, color: '#6B7280', fontWeight: '600' },
+  typeOptionTextActive: { color: '#FF5722' },
+
+  // Dropdown Styles
+  dropdownButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#F9FAFB', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, borderWidth: 1, borderColor: '#E5E7EB' },
+  dropdownDisabled: { opacity: 0.5 },
+  dropdownText: { fontSize: 15, color: '#1F2937' },
+  dropdownPlaceholder: { fontSize: 15, color: '#9CA3AF' },
+  dropdownList: { backgroundColor: '#FFFFFF', borderRadius: 12, marginTop: 4, marginBottom: 8, borderWidth: 1, borderColor: '#E5E7EB', elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 8 },
+  dropdownItem: { paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
+  dropdownItemText: { fontSize: 14, color: '#374151' },
+
+  // Location Preview
+  locationPreview: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#FFF5F0', borderRadius: 12, padding: 14, marginTop: 16 },
+  locationPreviewText: { flex: 1, fontSize: 13, color: '#6B7280' },
 });

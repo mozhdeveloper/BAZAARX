@@ -340,7 +340,7 @@ export default function OrdersPage() {
                 if (variantData.color) parts.push(`Color: ${variantData.color}`);
                 if (parts.length > 0) variantDisplay = parts.join(' / ');
               }
-              
+
               return {
                 id: item.product_id,
                 orderItemId: item.id,
@@ -374,7 +374,7 @@ export default function OrdersPage() {
                   console.warn('Could not parse shipping address from notes');
                 }
               }
-              
+
               return {
                 fullName: notesAddress?.fullName || (recipient
                   ? `${recipient.first_name || ""} ${recipient.last_name || ""}`.trim()
@@ -675,10 +675,8 @@ export default function OrdersPage() {
                         e.stopPropagation();
                         navigate(`/seller/${(order as any).sellerId}`);
                       }}>
-                        <span className="font-bold text-gray-900 group-hover/store:text-[#FF5722]">{(order as any).storeName}</span>
-                        <button className="text-[10px] sm:text-xs text-gray-400 flex items-center gap-1 hover:text-[#FF5722] transition-colors">
-                          View Store <ChevronRight className="w-3 h-3" />
-                        </button>
+                        <span className="font-bold text-gray-900 group-hover/store:text-[#FF5722] transition-colors">{(order as any).storeName}</span>
+                        <ChevronRight className="w-4 h-4 text-gray-400 group-hover/store:text-[#FF5722] transition-colors" />
                       </div>
 
                       <div className="flex items-center gap-2 sm:gap-3 self-end sm:self-auto">
@@ -786,10 +784,8 @@ export default function OrdersPage() {
                         e.stopPropagation();
                         navigate(`/seller/${(order as any).sellerId}`);
                       }}>
-                        <span className="font-bold text-gray-900 group-hover/store:text-[#FF5722]">{(order as any).storeName}</span>
-                        <button className="text-[10px] sm:text-xs text-gray-400 flex items-center gap-1 hover:text-[#FF5722] transition-colors">
-                          View Store <ChevronRight className="w-3 h-3" />
-                        </button>
+                        <span className="font-bold text-gray-900 group-hover/store:text-[#FF5722] transition-colors">{(order as any).storeName}</span>
+                        <ChevronRight className="w-4 h-4 text-gray-400 group-hover/store:text-[#FF5722] transition-colors" />
                       </div>
 
                       <div className="flex items-center gap-2 sm:gap-3 self-end sm:self-auto">
