@@ -343,8 +343,8 @@ export class NotificationService {
       message: `New order #${params.orderNumber} from ${params.buyerName}. Total: ₱${params.total.toLocaleString()}`,
       icon: 'ShoppingBag',
       iconBg: 'bg-green-500',
-      actionUrl: `/seller/orders/${params.orderId}`,
-      actionData: { orderId: params.orderId },
+      actionUrl: `/seller/orders/${params.orderNumber}`,
+      actionData: { orderId: params.orderId, orderNumber: params.orderNumber },
       priority: 'high'
     });
   }

@@ -118,12 +118,13 @@ export function SellerOrders() {
     trackingNumber: "",
     isLoading: false,
   });
+  const [accessDenied, setAccessDenied] = useState<string | null>(null);
 
   const { seller, logout } = useAuthStore();
   const { orders, loading, fetchOrders, updateOrderStatus, addTrackingNumber } =
     useOrderStore();
   const navigate = useNavigate();
-  const { orderId } = useParams<{ orderId?: string }>();
+  const { orderId: orderParam } = useParams<{ orderId?: string }>();
 
   // Fetch orders when component mounts or seller changes
   useEffect(() => {
@@ -133,17 +134,34 @@ export function SellerOrders() {
   }, [seller?.id, fetchOrders]);
 
   // Auto-select order from URL parameter (for notification navigation)
+  // orderParam can be either order_number (ORD-xxx) or UUID
   useEffect(() => {
-    if (orderId && orders.length > 0) {
-      // Check if order exists in the list
-      const orderExists = orders.find(o => o.id === orderId);
+    console.log('[SellerOrders] URL param:', orderParam, 'Orders loaded:', orders.length);
+    if (orderParam && orders.length > 0) {
+      // Try to find order by order_number first, then by id
+      const orderExists = orders.find(o =>
+        o.order_number === orderParam || o.id === orderParam
+      );
+      console.log('[SellerOrders] Found order:', orderExists?.id, 'order_number:', orderExists?.order_number);
       if (orderExists) {
-        setSelectedOrder(orderId);
-        // Clean up URL by navigating to base orders page (optional)
-        // navigate('/seller/orders', { replace: true });
+        if (orderExists.seller_id && seller?.id && orderExists.seller_id !== seller.id) {
+          setAccessDenied('Access denied: This order belongs to another seller');
+          setSelectedOrder(null);
+          navigate('/seller/orders', { replace: true });
+          console.warn('[SellerOrders] Access denied for order:', orderExists.id, 'seller_id:', orderExists.seller_id, 'current seller:', seller?.id);
+        } else {
+          setAccessDenied(null);
+          setSelectedOrder(orderExists.id);
+          console.log('[SellerOrders] Set selectedOrder to:', orderExists.id);
+        }
+      } else {
+        console.log('[SellerOrders] Order not found for param:', orderParam);
+        setAccessDenied('Order not found or access denied');
+        setSelectedOrder(null);
+        navigate('/seller/orders', { replace: true });
       }
     }
-  }, [orderId, orders]);
+  }, [orderParam, orders]);
 
   // Initialize edit fields when order is selected
   useEffect(() => {
@@ -182,11 +200,7 @@ export function SellerOrders() {
 
     setIsSaving(true);
     try {
-      await orderService.updateOrderDetails(selectedOrder, {
-        buyer_name: editedBuyerName,
-        buyer_email: editedBuyerEmail,
-        notes: editedNote,
-      });
+      await orderService.updateOrderDetails(selectedOrder, { notes: editedNote });
 
       // Refresh orders
       if (seller?.id) {
@@ -583,11 +597,18 @@ export function SellerOrders() {
                   <TableRow
                     key={order.id}
                     className="hover:bg-gray-50 transition-colors cursor-pointer"
-                    onClick={() =>
-                      setSelectedOrder(
-                        selectedOrder === order.id ? null : order.id,
-                      )
-                    }
+                    onClick={() => {
+                      const newOrderId = selectedOrder === order.id ? null : order.id;
+                      setSelectedOrder(newOrderId);
+                      // Update URL to match modal state (use order_number for clean URLs)
+                      if (newOrderId) {
+                        const targetOrder = orders.find(o => o.id === newOrderId);
+                        const urlParam = targetOrder?.order_number || newOrderId;
+                        navigate(`/seller/orders/${urlParam}`, { replace: true });
+                      } else {
+                        navigate('/seller/orders', { replace: true });
+                      }
+                    }}
                   >
                     {/* Order ID & Source */}
                     <TableCell>
@@ -603,7 +624,7 @@ export function SellerOrders() {
                         )}
                         <div>
                           <p className="font-semibold text-gray-900 text-sm">
-                            #{order.id.slice(0, 8)}
+                            {order.order_number || `#${order.id.slice(0, 8)}`}
                           </p>
                           <p className="text-xs text-gray-500">
                             {new Date(order.orderDate).toLocaleDateString(
@@ -730,7 +751,9 @@ export function SellerOrders() {
                           <DropdownMenuItem
                             onClick={(e) => {
                               e.stopPropagation();
+                              const urlParam = order.order_number || order.id;
                               setSelectedOrder(order.id);
+                              navigate(`/seller/orders/${urlParam}`, { replace: true });
                             }}
                           >
                             <Eye className="h-4 w-4 mr-2" />
@@ -822,16 +845,35 @@ export function SellerOrders() {
             )}
           </Card>
 
+          {accessDenied && (
+            <div className="mt-4 p-4 bg-red-100 border border-red-200 text-red-700 rounded-lg">
+              {accessDenied}
+            </div>
+          )}
+
           {/* Order Details Modal */}
-          {selectedOrder && orders.find((o) => o.id === selectedOrder) && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          {(() => {
+            console.log('[SellerOrders Modal] selectedOrder:', selectedOrder,
+              'Order exists:', !!orders.find((o) => o.id === selectedOrder),
+              'Total orders:', orders.length);
+            return null;
+          })()}
+          {selectedOrder && orders.find((o) => o.id === selectedOrder && (!o.seller_id || o.seller_id === seller?.id)) && (
+            <div
+              className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+              onClick={() => {
+                setSelectedOrder(null);
+                navigate('/seller/orders', { replace: true });
+              }}
+            >
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col"
+                onClick={(e) => e.stopPropagation()}
               >
                 {(() => {
-                  const order: Order = orders.find((o) => o.id === selectedOrder)!;
+                  const order = orders.find((o) => o.id === selectedOrder)!;
                   return (
                     <>
                       {/* Modal Header */}
@@ -845,7 +887,7 @@ export function SellerOrders() {
                               {isEditing ? "Edit Order" : "Order Details"}
                             </h2>
                             <p className="text-orange-100 text-sm">
-                              #{order.orderNumber || order.id.slice(0, 8)}
+                              {order.order_number || `#${order.id.slice(0, 8)}`}
                             </p>
                           </div>
                         </div>
@@ -916,7 +958,7 @@ export function SellerOrders() {
                               <div className="grid grid-cols-2 gap-4 text-sm">
                                 <div>
                                   <span className="text-gray-500">Order ID</span>
-                                  <p className="font-medium text-gray-900">#{order.orderNumber || order.id.slice(0, 8)}</p>
+                                  <p className="font-medium text-gray-900">#{order.order_number || order.id.slice(0, 8)}</p>
                                 </div>
                                 <div>
                                   <span className="text-gray-500">Date</span>
@@ -928,11 +970,13 @@ export function SellerOrders() {
                                 </div>
                                 <div>
                                   <span className="text-gray-500">Channel</span>
-                                  <Badge className={cn(
-                                    "mt-1",
-                                    order.channel === "pos" ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"
-                                  )}>
-                                    {order.channel === "pos" ? "POS / Offline" : "Online App"}
+                                  <Badge
+                                    className={cn(
+                                      "mt-1",
+                                      order.type === "OFFLINE" ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"
+                                    )}
+                                  >
+                                    {order.type === "OFFLINE" ? "POS / Offline" : "Online App"}
                                   </Badge>
                                 </div>
                                 <div>
