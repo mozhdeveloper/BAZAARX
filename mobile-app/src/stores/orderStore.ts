@@ -543,7 +543,7 @@ export const useOrderStore = create<OrderStore>()(
         set({ sellerOrdersLoading: true });
         try {
           const orders = await orderService.getSellerOrders(actualSellerId);
-          set({ sellerOrders: orders as SellerOrder[], sellerOrdersLoading: false });
+          set({ sellerOrders: orders as unknown as SellerOrder[], sellerOrdersLoading: false });
           console.log(`[OrderStore] Fetched ${orders.length} seller orders from database`);
         } catch (error) {
           console.error('[OrderStore] Error fetching seller orders:', error);

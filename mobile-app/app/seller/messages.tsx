@@ -35,7 +35,7 @@ export default function MessagesScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<SellerStackParamList>>();
   const insets = useSafeAreaInsets();
   const { user } = useAuthStore();
-  const seller = useSellerStore((state) => state.seller);
+  const { seller } = useSellerStore();
   
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState('');

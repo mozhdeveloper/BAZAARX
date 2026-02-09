@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef, useEffect } from 'react';
+﻿import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -113,26 +113,51 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   // State
   const [activeTab, setActiveTab] = useState<'details' | 'support' | 'ratings'>('details');
   
-  // Dynamic variants from product database
-  const rawColors = product.colors || (product as any).colors || [];
-  const rawSizes = product.sizes || (product as any).sizes || [];
+  // Structured variants from product_variants table
+  const productVariants = product.variants || [];
+  const hasStructuredVariants = productVariants.length > 0;
+  
+  // Dynamic variant labels from database schema
+  // Falls back to "Color"/"Size" for legacy support
+  const variantLabel1 = product.variant_label_1 || 'Color';
+  const variantLabel2 = product.variant_label_2 || 'Size';
+  
+  // Dynamic variants - extract from structured variants
+  // Supports both legacy (color/size) and dynamic (option_1_value/option_2_value)
+  const rawOptions1 = hasStructuredVariants 
+    ? [...new Set(productVariants.map((v: any) => v.option_1_value || v.color).filter(Boolean))]
+    : (product.option1Values || product.colors || []);
+  const rawOptions2 = hasStructuredVariants 
+    ? [...new Set(productVariants.map((v: any) => v.option_2_value || v.size).filter(Boolean))]
+    : (product.option2Values || product.sizes || []);
 
-  const parsedColors = typeof rawColors === 'string' ? JSON.parse(rawColors) : rawColors;
-  const parsedSizes = typeof rawSizes === 'string' ? JSON.parse(rawSizes) : rawSizes;
+  const parsedOptions1 = typeof rawOptions1 === 'string' ? JSON.parse(rawOptions1) : rawOptions1;
+  const parsedOptions2 = typeof rawOptions2 === 'string' ? JSON.parse(rawOptions2) : rawOptions2;
   
-  const productColors = Array.isArray(parsedColors) ? parsedColors.filter((c: string) => c && typeof c === 'string' && c.trim() !== '') : [];
-  const productSizes = Array.isArray(parsedSizes) ? parsedSizes.filter((s: string) => s && typeof s === 'string' && s.trim() !== '') : [];
+  const option1Values = Array.isArray(parsedOptions1) ? parsedOptions1.filter((c: string) => c && typeof c === 'string' && c.trim() !== '') : [];
+  const option2Values = Array.isArray(parsedOptions2) ? parsedOptions2.filter((s: string) => s && typeof s === 'string' && s.trim() !== '') : [];
   
-  const hasColors = productColors.length > 0;
-  const hasSizes = productSizes.length > 0;
-  const hasVariants = hasColors || hasSizes;
+  // Legacy aliases for compatibility
+  const productColors = option1Values;
+  const productSizes = option2Values;
+  
+  const hasOption1 = option1Values.length > 0;
+  const hasOption2 = option2Values.length > 0;
+  const hasColors = hasOption1;  // Legacy alias
+  const hasSizes = hasOption2;   // Legacy alias
+  const hasVariants = hasOption1 || hasOption2 || hasStructuredVariants;
 
   // Debug log for variants
-  console.log('[ProductDetail] Product:', product.name, '| colors:', productColors, '| sizes:', productSizes, '| hasVariants:', hasVariants);
+  console.log('[ProductDetail] Product:', product.name, '| label1:', variantLabel1, '| options1:', option1Values, '| label2:', variantLabel2, '| options2:', option2Values);
   
   // Variant selections
-  const [selectedColor, setSelectedColor] = useState(hasColors ? productColors[0] : null);
-  const [selectedSize, setSelectedSize] = useState(hasSizes ? productSizes[0] : null);
+  const [selectedOption1, setSelectedOption1] = useState(hasOption1 ? option1Values[0] : null);
+  const [selectedOption2, setSelectedOption2] = useState(hasOption2 ? option2Values[0] : null);
+  // Legacy aliases
+  const selectedColor = selectedOption1;
+  const selectedSize = selectedOption2;
+  const setSelectedColor = setSelectedOption1;
+  const setSelectedSize = setSelectedOption2;
   const [quantity, setQuantity] = useState(1);
   const [showCameraSearch, setShowCameraSearch] = useState(false);
   const [showChat, setShowChat] = useState(false);
@@ -145,9 +170,35 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   // Variant Modal State
   const [showVariantModal, setShowVariantModal] = useState(false);
   const [variantModalAction, setVariantModalAction] = useState<'cart' | 'buy'>('cart');
-  const [modalSelectedColor, setModalSelectedColor] = useState(hasColors ? productColors[0] : null);
-  const [modalSelectedSize, setModalSelectedSize] = useState(hasSizes ? productSizes[0] : null);
+  const [modalSelectedOption1, setModalSelectedOption1] = useState(hasOption1 ? option1Values[0] : null);
+  const [modalSelectedOption2, setModalSelectedOption2] = useState(hasOption2 ? option2Values[0] : null);
+  // Legacy aliases for modal
+  const modalSelectedColor = modalSelectedOption1;
+  const modalSelectedSize = modalSelectedOption2;
+  const setModalSelectedColor = setModalSelectedOption1;
+  const setModalSelectedSize = setModalSelectedOption2;
   const [modalQuantity, setModalQuantity] = useState(1);
+  
+  // Computed modal variant price, stock, and image
+  const modalVariantInfo = useMemo(() => {
+    if (!hasStructuredVariants) {
+      return { price: product.price, stock: product.stock, image: null };
+    }
+    
+    const matchedVariant = productVariants.find((v: any) => {
+      // Match by option values OR legacy color/size
+      const option1Match = !modalSelectedOption1 || v.option_1_value === modalSelectedOption1 || v.color === modalSelectedOption1;
+      const option2Match = !modalSelectedOption2 || v.option_2_value === modalSelectedOption2 || v.size === modalSelectedOption2;
+      return option1Match && option2Match;
+    });
+    
+    return {
+      price: matchedVariant?.price ?? product.price,
+      stock: matchedVariant?.stock ?? product.stock,
+      variantId: matchedVariant?.id,
+      image: matchedVariant?.thumbnail_url || matchedVariant?.image || null,
+    };
+  }, [hasStructuredVariants, productVariants, modalSelectedOption1, modalSelectedOption2, product.price, product.stock]);
   
   // Reviews State
   const [reviews, setReviews] = useState<(Review & { buyer?: { full_name: string | null; avatar_url: string | null } })[]>([]);
@@ -207,14 +258,33 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     console.log('[ProductDetail] showVariantModal changed to:', showVariantModal);
   }, [showVariantModal]);
 
-  // Build selected variant object
-  const buildSelectedVariant = (color?: string | null, size?: string | null) => {
-    const variant: { color?: string; size?: string } = {};
-    if (hasColors && color) {
-      variant.color = color;
+  // Build selected variant object with dynamic labels
+  const buildSelectedVariant = (option1?: string | null, option2?: string | null) => {
+    const variant: { 
+      color?: string; 
+      size?: string; 
+      option1Label?: string;
+      option1Value?: string;
+      option2Label?: string;
+      option2Value?: string;
+    } = {};
+    
+    if (hasOption1 && option1) {
+      // Store both the value and the label for display
+      variant.option1Label = variantLabel1;
+      variant.option1Value = option1;
+      // Legacy support: if label is Color, also set color field
+      if (variantLabel1.toLowerCase() === 'color') {
+        variant.color = option1;
+      }
     }
-    if (hasSizes && size) {
-      variant.size = size;
+    if (hasOption2 && option2) {
+      variant.option2Label = variantLabel2;
+      variant.option2Value = option2;
+      // Legacy support: if label is Size, also set size field
+      if (variantLabel2.toLowerCase() === 'size') {
+        variant.size = option2;
+      }
     }
     return Object.keys(variant).length > 0 ? variant : null;
   };
@@ -230,11 +300,11 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       return;
     }
     
-    console.log('[ProductDetail] Opening variant modal | selectedColor:', selectedColor, '| selectedSize:', selectedSize);
+    console.log('[ProductDetail] Opening variant modal | option1:', selectedOption1, '| option2:', selectedOption2);
     
     // Reset modal selections to current selections
-    setModalSelectedColor(selectedColor);
-    setModalSelectedSize(selectedSize);
+    setModalSelectedOption1(selectedOption1);
+    setModalSelectedOption2(selectedOption2);
     setModalQuantity(quantity);
     setVariantModalAction(action);
     setShowVariantModal(true);
@@ -245,40 +315,72 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   // Handle variant modal confirm
   const handleVariantModalConfirm = () => {
     // Validate that required variants are selected
-    if (hasColors && !modalSelectedColor) {
-      Alert.alert('Select Color', 'Please select a color before continuing');
+    if (hasOption1 && !modalSelectedOption1) {
+      Alert.alert(`Select ${variantLabel1}`, `Please select a ${variantLabel1.toLowerCase()} before continuing`);
       return;
     }
     
-    if (hasSizes && !modalSelectedSize) {
-      Alert.alert('Select Size', 'Please select a size before continuing');
+    if (hasOption2 && !modalSelectedOption2) {
+      Alert.alert(`Select ${variantLabel2}`, `Please select a ${variantLabel2.toLowerCase()} before continuing`);
       return;
     }
     
-    const selectedVariant = buildSelectedVariant(modalSelectedColor, modalSelectedSize);
+    const selectedVariant = buildSelectedVariant(modalSelectedOption1, modalSelectedOption2);
     
-    console.log('[ProductDetail] Adding to cart with variant:', selectedVariant);
+    // Find matching structured variant to get its price/stock
+    let variantPrice = product.price;
+    let matchedVariant: any = null;
+    
+    if (hasStructuredVariants) {
+      matchedVariant = productVariants.find((v: any) => {
+        const option1Match = !modalSelectedOption1 || v.option_1_value === modalSelectedOption1 || v.color === modalSelectedOption1;
+        const option2Match = !modalSelectedOption2 || v.option_2_value === modalSelectedOption2 || v.size === modalSelectedOption2;
+        return option1Match && option2Match;
+      });
+      
+      if (matchedVariant?.price) {
+        variantPrice = matchedVariant.price;
+      }
+    }
+    
+    console.log('[ProductDetail] Adding to cart with variant:', selectedVariant, '| price:', variantPrice);
     
     if (variantModalAction === 'cart') {
       addItem({ 
         ...product, 
-        price: product.price,
-        selectedVariant,
+        price: variantPrice,
+        selectedVariant: {
+          ...selectedVariant,
+          variantId: matchedVariant?.id,
+        },
         quantity: modalQuantity 
       });
       
-      const variantText = selectedVariant 
-        ? ` (${[selectedVariant.color, selectedVariant.size].filter(Boolean).join(', ')})`
-        : '';
+      // Build variant text for display using dynamic labels
+      const variantParts: string[] = [];
+      if (selectedVariant?.option1Value) {
+        variantParts.push(`${variantLabel1}: ${selectedVariant.option1Value}`);
+      }
+      if (selectedVariant?.option2Value) {
+        variantParts.push(`${variantLabel2}: ${selectedVariant.option2Value}`);
+      }
+      const variantText = variantParts.length > 0 ? ` (${variantParts.join(', ')})` : '';
       Alert.alert('Added to Cart', `${product.name}${variantText} has been added to your cart.`);
     } else {
-      setQuickOrder({ ...product, selectedVariant }, modalQuantity);
+      setQuickOrder({ 
+        ...product, 
+        price: variantPrice,
+        selectedVariant: {
+          ...selectedVariant,
+          variantId: matchedVariant?.id,
+        },
+      }, modalQuantity);
       navigation.navigate('Checkout', {});
     }
     
     // Update main selections
-    setSelectedColor(modalSelectedColor);
-    setSelectedSize(modalSelectedSize);
+    setSelectedOption1(modalSelectedOption1);
+    setSelectedOption2(modalSelectedOption2);
     setQuantity(modalQuantity);
     setShowVariantModal(false);
   };
@@ -348,7 +450,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   };
 
   const handleShare = async () => {
-    await Share.share({ message: `Check out ${product.name} on BazaarX! Γé▒${product.price}` });
+    await Share.share({ message: `Check out ${product.name} on BazaarX! ₱${product.price}` });
   };
 
   const handleChat = () => {
@@ -551,12 +653,12 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
           </View>
 
           <Text style={styles.productName}>{product.name}</Text>
-          <Text style={styles.subInfo}>{product.sold} sold this month ΓÇó Free Shipping Available</Text>
+          <Text style={styles.subInfo}>{product.sold} sold this month • Free Shipping Available</Text>
 
           {/* Price */}
           <View style={styles.priceRow}>
-            <Text style={styles.currentPrice}>Γé▒{(product.price ?? 0).toLocaleString()}</Text>
-            <Text style={styles.originalPrice}>Γé▒{originalPrice.toLocaleString()}</Text>
+            <Text style={styles.currentPrice}>₱{(product.price ?? 0).toLocaleString()}</Text>
+            <Text style={styles.originalPrice}>₱{originalPrice.toLocaleString()}</Text>
           </View>
 
           {/* Stock & Ratings */}
@@ -580,24 +682,27 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
               <Text style={styles.questionsLink}>14 Questions</Text>
            </View>
            
-           {/* --- COLOR SELECTION --- */}
-           {hasColors && (
+           {/* --- OPTION 1 SELECTION (Dynamic - e.g., Color, Material) --- */}
+           {hasOption1 && (
              <View style={styles.variantSection}>
-               <Text style={styles.variantLabel}>Color: <Text style={styles.variantSelected}>{selectedColor}</Text></Text>
+               <Text style={styles.variantLabel}>{variantLabel1}: <Text style={styles.variantSelected}>{selectedOption1}</Text></Text>
                <View style={styles.colorOptions}>
-                 {productColors.filter((c: string) => c.trim() !== '').map((color: string, index: number) => (
+                 {option1Values.filter((c: string) => c.trim() !== '').map((value: string, index: number) => (
                    <Pressable
-                     key={`${color}-${index}`}
+                     key={`${value}-${index}`}
                      style={[
                        styles.colorOption,
-                       { backgroundColor: getColorHex(color) },
-                       selectedColor === color && styles.colorOptionSelected,
+                       { backgroundColor: variantLabel1.toLowerCase() === 'color' ? getColorHex(value) : '#F3F4F6' },
+                       selectedOption1 === value && styles.colorOptionSelected,
                      ]}
-                     onPress={() => setSelectedColor(color)}
+                     onPress={() => setSelectedOption1(value)}
                    >
-                     {selectedColor === color && (
+                     {variantLabel1.toLowerCase() !== 'color' && (
+                       <Text style={[styles.optionText, selectedOption1 === value && { color: '#FFF' }]}>{value}</Text>
+                     )}
+                     {selectedOption1 === value && variantLabel1.toLowerCase() === 'color' && (
                        <View style={styles.colorCheckmark}>
-                         <Text style={{ color: '#FFF', fontSize: 10, fontWeight: 'bold' }}>Γ£ô</Text>
+                         <Text style={{ color: '#FFF', fontSize: 10, fontWeight: 'bold' }}>✓</Text>
                        </View>
                      )}
                    </Pressable>
@@ -606,24 +711,24 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
              </View>
            )}
            
-           {/* --- SIZE SELECTION --- */}
-           {hasSizes && (
+           {/* --- OPTION 2 SELECTION (Dynamic - e.g., Size, Style) --- */}
+           {hasOption2 && (
              <View style={styles.variantSection}>
-               <Text style={styles.variantLabel}>Size: <Text style={styles.variantSelected}>{selectedSize}</Text></Text>
+               <Text style={styles.variantLabel}>{variantLabel2}: <Text style={styles.variantSelected}>{selectedOption2}</Text></Text>
                <View style={styles.sizeOptions}>
-                 {productSizes.filter((s: string) => s.trim() !== '').map((size: string, index: number) => (
+                 {option2Values.filter((s: string) => s.trim() !== '').map((value: string, index: number) => (
                    <Pressable
-                     key={`${size}-${index}`}
+                     key={`${value}-${index}`}
                      style={[
                        styles.sizeOption,
-                       selectedSize === size && styles.sizeOptionSelected,
+                       selectedOption2 === value && styles.sizeOptionSelected,
                      ]}
-                     onPress={() => setSelectedSize(size)}
+                     onPress={() => setSelectedOption2(value)}
                    >
                      <Text style={[
                        styles.sizeOptionText,
-                       selectedSize === size && styles.sizeOptionTextSelected,
-                     ]}>{size}</Text>
+                       selectedOption2 === value && styles.sizeOptionTextSelected,
+                     ]}>{value}</Text>
                    </Pressable>
                  ))}
                </View>
@@ -747,9 +852,9 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                    {product.description || 'High-fidelity sound with detailed staging. Ergonomic design for long-listening comfort.'}
                    {'\n\n'}
                    Features:
-                   {'\n'}ΓÇó Active Noise Cancellation
-                   {'\n'}ΓÇó 24-Hour Battery Life
-                   {'\n'}ΓÇó Water Resistant (IPX4)
+                   {'\n'}• Active Noise Cancellation
+                   {'\n'}• 24-Hour Battery Life
+                   {'\n'}• Water Resistant (IPX4)
                  </Text>
               )}
               {activeTab === 'support' && (
@@ -809,16 +914,16 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                 {/* Modal Header */}
                 <View style={styles.variantModalHeader}>
                   <Image 
-                    source={{ uri: productImages[0] }} 
+                    source={{ uri: modalVariantInfo.image || productImages[0] }} 
                     style={styles.variantModalImage} 
                   />
                   <View style={styles.variantModalInfo}>
-                    <Text style={styles.variantModalPrice}>₱{(product.price ?? 0).toLocaleString()}</Text>
+                    <Text style={styles.variantModalPrice}>₱{(modalVariantInfo.price ?? 0).toLocaleString()}</Text>
                     <Text style={[
                       styles.variantModalStock,
-                      { color: (product.stock || 0) <= 5 ? '#F97316' : (product.stock || 0) === 0 ? '#EF4444' : '#10B981' }
+                      { color: (modalVariantInfo.stock || 0) <= 5 ? '#F97316' : (modalVariantInfo.stock || 0) === 0 ? '#EF4444' : '#10B981' }
                     ]}>
-                      {(product.stock || 0) === 0 ? 'Out of Stock' : `Stock: ${product.stock || 0}`}
+                      {(modalVariantInfo.stock || 0) === 0 ? 'Out of Stock' : `Stock: ${modalVariantInfo.stock || 0}`}
                     </Text>
                     <Text style={styles.variantModalSelected}>
                       {[modalSelectedColor, modalSelectedSize].filter(Boolean).join(', ') || 'Select options'}
@@ -830,49 +935,54 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                 </View>
 
                 <ScrollView style={styles.variantModalContent} showsVerticalScrollIndicator={false}>
-                  {/* Color Selection */}
-                  {hasColors && (
+                  {/* Option 1 Selection (Dynamic - e.g., Color, Material) */}
+                  {hasOption1 && (
                     <View style={styles.variantModalSection}>
-                      <Text style={styles.variantModalLabel}>Color</Text>
+                      <Text style={styles.variantModalLabel}>{variantLabel1}</Text>
                       <View style={styles.variantModalOptions}>
-                        {productColors.filter((c: string) => c.trim() !== '').map((color: string, index: number) => (
+                        {option1Values.filter((c: string) => c.trim() !== '').map((value: string, index: number) => (
                           <Pressable
-                            key={`modal-color-${color}-${index}`}
+                            key={`modal-option1-${value}-${index}`}
                             style={[
                               styles.variantModalColorOption,
-                              { backgroundColor: getColorHex(color) },
-                              modalSelectedColor === color && styles.variantModalColorSelected,
+                              { backgroundColor: variantLabel1.toLowerCase() === 'color' ? getColorHex(value) : '#F3F4F6' },
+                              modalSelectedOption1 === value && styles.variantModalColorSelected,
                             ]}
-                            onPress={() => setModalSelectedColor(color)}
+                            onPress={() => setModalSelectedOption1(value)}
                           >
-                            {modalSelectedColor === color && (
-                              <Text style={{ color: '#FFF', fontSize: 12, fontWeight: 'bold' }}>Γ£ô</Text>
+                            {variantLabel1.toLowerCase() !== 'color' && (
+                              <Text style={[styles.variantModalOptionText, modalSelectedOption1 === value && { color: '#FFF' }]}>{value}</Text>
+                            )}
+                            {modalSelectedOption1 === value && variantLabel1.toLowerCase() === 'color' && (
+                              <Text style={{ color: '#FFF', fontSize: 12, fontWeight: 'bold' }}>✓</Text>
                             )}
                           </Pressable>
                         ))}
                       </View>
-                      <Text style={styles.variantModalSelectedText}>{modalSelectedColor}</Text>
+                      {variantLabel1.toLowerCase() === 'color' && (
+                        <Text style={styles.variantModalSelectedText}>{modalSelectedOption1}</Text>
+                      )}
                     </View>
                   )}
 
-                  {/* Size Selection */}
-                  {hasSizes && (
+                  {/* Option 2 Selection (Dynamic - e.g., Size, Style) */}
+                  {hasOption2 && (
                     <View style={styles.variantModalSection}>
-                      <Text style={styles.variantModalLabel}>Size</Text>
+                      <Text style={styles.variantModalLabel}>{variantLabel2}</Text>
                       <View style={styles.variantModalSizeOptions}>
-                        {productSizes.filter((s: string) => s.trim() !== '').map((size: string, index: number) => (
+                        {option2Values.filter((s: string) => s.trim() !== '').map((value: string, index: number) => (
                           <Pressable
-                            key={`modal-size-${size}-${index}`}
+                            key={`modal-option2-${value}-${index}`}
                             style={[
                               styles.variantModalSizeOption,
-                              modalSelectedSize === size && styles.variantModalSizeSelected,
+                              modalSelectedOption2 === value && styles.variantModalSizeSelected,
                             ]}
-                            onPress={() => setModalSelectedSize(size)}
+                            onPress={() => setModalSelectedOption2(value)}
                           >
                             <Text style={[
                               styles.variantModalSizeText,
-                              modalSelectedSize === size && styles.variantModalSizeTextSelected,
-                            ]}>{size}</Text>
+                              modalSelectedOption2 === value && styles.variantModalSizeTextSelected,
+                            ]}>{value}</Text>
                           </Pressable>
                         ))}
                       </View>
@@ -906,15 +1016,15 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                     styles.variantModalConfirmBtn,
                     variantModalAction === 'buy' && styles.variantModalBuyBtn,
                     // Disable button if required variants not selected
-                    ((hasColors && !modalSelectedColor) || (hasSizes && !modalSelectedSize)) && styles.variantModalConfirmBtnDisabled
+                    ((hasOption1 && !modalSelectedOption1) || (hasOption2 && !modalSelectedOption2)) && styles.variantModalConfirmBtnDisabled
                   ]} 
                   onPress={handleVariantModalConfirm}
-                  disabled={(hasColors && !modalSelectedColor) || (hasSizes && !modalSelectedSize)}
+                  disabled={(hasOption1 && !modalSelectedOption1) || (hasOption2 && !modalSelectedOption2)}
                 >
                   <Text style={[
                     styles.variantModalConfirmText,
                     variantModalAction === 'buy' && { color: '#FFF' },
-                    ((hasColors && !modalSelectedColor) || (hasSizes && !modalSelectedSize)) && styles.variantModalConfirmTextDisabled
+                    ((hasOption1 && !modalSelectedOption1) || (hasOption2 && !modalSelectedOption2)) && styles.variantModalConfirmTextDisabled
                   ]}>
                     {variantModalAction === 'cart' ? 'Add to Cart' : 'Buy Now'}
                   </Text>
@@ -946,18 +1056,19 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       <AIChatBubble
         product={{
           id: product.id,
-          name: product.name,
+          name: product.name || 'Product',
           description: product.description || '',
-          price: product.price,
+          price: product.price || 0,
           category: product.category,
           colors: productColors,
           sizes: productSizes,
-          stock: product.stock,
+          stock: product.stock || 0,
           rating: averageRating || product.rating,
           reviewCount: reviewsTotal,
         }}
         store={{
-          storeName: product.seller || 'Store',
+          id: product.sellerId || '',
+          store_name: product.seller || 'Store',
         }}
         onTalkToSeller={() => setShowChat(true)}
       />
@@ -1192,6 +1303,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  optionText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#374151',
+    textAlign: 'center',
+  },
   sizeOptions: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   sizeOption: {
     paddingHorizontal: 16,
@@ -1302,6 +1419,12 @@ const styles = StyleSheet.create({
   variantModalColorSelected: {
     borderColor: BRAND_COLOR,
     borderWidth: 3,
+  },
+  variantModalOptionText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#374151',
+    textAlign: 'center',
   },
   variantModalSelectedText: {
     fontSize: 13,

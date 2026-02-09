@@ -11,7 +11,8 @@
 
 import { supabase } from '../lib/supabase';
 
-const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+// React Native uses process.env, not import.meta
+const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
 // Using gemini-1.5-flash for reliable availability
 // Free tier: 1500 requests/day, 1M tokens/minute
 const GEMINI_MODEL = 'gemini-1.5-flash';
@@ -46,20 +47,40 @@ export interface ProductContext {
 
 export interface StoreContext {
   id: string;
-  storeName: string;
-  businessName?: string;
-  storeDescription?: string;
-  storeCategory?: string[];
-  businessType?: string;
+  store_name: string;
+  store_description?: string;
+  owner_name?: string;
+  approval_status?: string;
+  avatar_url?: string;
   rating?: number;
   totalSales?: number;
-  isVerified?: boolean;
-  approvalStatus?: string;
-  city?: string;
-  province?: string;
-  postalCode?: string;
-  businessAddress?: string;
-  joinDate?: string;
+  verified_at?: string;
+  created_at?: string;
+  // Nested objects from related tables
+  business_profile?: {
+    business_type?: string;
+    business_registration_number?: string;
+    tax_id_number?: string;
+    address_line_1?: string;
+    address_line_2?: string;
+    city?: string;
+    province?: string;
+    postal_code?: string;
+  };
+  payout_account?: {
+    bank_name?: string;
+    account_name?: string;
+    account_number?: string;
+  };
+  verification_documents?: {
+    business_permit_url?: string;
+    valid_id_url?: string;
+    proof_of_address_url?: string;
+    dti_registration_url?: string;
+    tax_id_url?: string;
+  };
+  // Legacy/computed fields
+  storeCategory?: string[];
   productCount?: number;
   followerCount?: number;
 }
@@ -314,8 +335,8 @@ class AIChatService {
       const { data: seller, error: sellerError } = await supabase
         .from('sellers')
         .select(`
-          id, store_name, store_description, avatar_url, owner_name, approval_status, verified_at,
-          business_profile:seller_business_profiles(business_type, city, province, postal_code, business_address)
+          id, store_name, store_description, avatar_url, owner_name, approval_status, verified_at, created_at,
+          business_profile:seller_business_profiles(business_type, business_registration_number, tax_id_number, address_line_1, address_line_2, city, province, postal_code)
         `)
         .eq('id', sellerId)
         .single();
@@ -335,28 +356,27 @@ class AIChatService {
 
       // Fetch follower count
       const { count: followerCount } = await supabase
-        .from('shop_followers')
+        .from('store_followers')
         .select('id', { count: 'exact', head: true })
         .eq('seller_id', sellerId);
 
-      const bp = seller.business_profile as any;
+      // Extract business_profile (Supabase returns it as an array for one-to-one)
+      const bp = Array.isArray(seller.business_profile) && seller.business_profile.length > 0 
+        ? seller.business_profile[0] 
+        : null;
 
       return {
         id: seller.id,
-        storeName: seller.store_name,
-        businessName: seller.owner_name,
-        storeDescription: seller.store_description,
+        store_name: seller.store_name,
+        store_description: seller.store_description,
+        owner_name: seller.owner_name,
+        approval_status: seller.approval_status,
+        business_profile: bp || undefined,
         storeCategory: [],
-        businessType: bp?.business_type || '',
         rating: 0,
         totalSales: 0,
-        isVerified: seller.approval_status === 'verified',
-        approvalStatus: seller.approval_status,
-        city: bp?.city || '',
-        province: bp?.province || '',
-        postalCode: bp?.postal_code || '',
-        businessAddress: bp?.business_address || '',
-        joinDate: seller.verified_at,
+        verified_at: seller.verified_at,
+        created_at: seller.created_at,
         productCount: productCount || 0,
         followerCount: followerCount || 0,
       };
@@ -544,7 +564,7 @@ ${p.tags.join(', ')}` : ''}
     // Add comprehensive store context
     if (context.store) {
       const s = context.store;
-      const memberSince = s.joinDate ? new Date(s.joinDate).toLocaleDateString('en-PH', { year: 'numeric', month: 'long' }) : 'Unknown';
+      const memberSince = s.created_at ? new Date(s.created_at).toLocaleDateString('en-PH', { year: 'numeric', month: 'long' }) : 'Unknown';
       
       let sellerBadge = '';
       if (s.rating && s.rating >= 4.8) sellerBadge = '🏆 Premium Seller';
@@ -557,12 +577,12 @@ ${p.tags.join(', ')}` : ''}
 ## 🏪 STORE/SELLER INFORMATION
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-**Store Name**: ${s.storeName}
-**Business Name**: ${s.businessName || s.storeName}
+**Store Name**: ${s.store_name}
+**Business Name**: ${s.business_profile?.business_type || s.store_name}
 **Seller Badge**: ${sellerBadge}
 
 ### Trust Indicators
-- **Verified Seller**: ${s.isVerified ? '✅ Yes - Business documents verified' : '❌ Not yet verified'}
+- **Verified Seller**: ${s.approval_status === 'verified' ? '✅ Yes - Business documents verified' : '❌ Not yet verified'}
 - **Seller Rating**: ${s.rating ? `⭐ ${s.rating}/5` : 'No rating yet'}
 - **Total Sales**: ${s.totalSales?.toLocaleString() || 0} successful orders
 - **Products Listed**: ${s.productCount || 0} active products
@@ -573,11 +593,11 @@ ${p.tags.join(', ')}` : ''}
 ${s.storeCategory?.length ? s.storeCategory.join(', ') : 'Various products'}
 
 ### Location
-${s.city && s.province ? `📍 ${s.city}, ${s.province}` : 'Location not specified'}
-${s.businessAddress ? `\n📮 ${s.businessAddress}` : ''}
+${s.business_profile?.city && s.business_profile?.province ? `📍 ${s.business_profile.city}, ${s.business_profile.province}` : 'Location not specified'}
+${s.business_profile?.address_line_1 ? `\n📮 ${s.business_profile.address_line_1}` : ''}
 
 ### About This Store
-${s.storeDescription || 'No store description available.'}
+${s.store_description || 'No store description available.'}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 `;
@@ -840,9 +860,9 @@ ${r.recentReviews.slice(0, 3).map(rev => `- **${rev.buyerName}** (⭐${rev.ratin
    */
   getWelcomeMessage(context: ChatContext): string {
     if (context.product && context.store) {
-      return `👋 Hi there! I'm BazBot, your AI shopping assistant.\n\nI see you're looking at **"${context.product.name}"** from **${context.store.storeName}**. I have all the details about this product and store ready for you!\n\nFeel free to ask me anything, or tap 'Talk to Seller' if you need to speak directly with the seller.`;
+      return `👋 Hi there! I'm BazBot, your AI shopping assistant.\n\nI see you're looking at **"${context.product.name}"** from **${context.store.store_name}**. I have all the details about this product and store ready for you!\n\nFeel free to ask me anything, or tap 'Talk to Seller' if you need to speak directly with the seller.`;
     } else if (context.store) {
-      return `👋 Welcome! I'm BazBot, your AI shopping assistant.\n\nI can help you with any questions about **${context.store.storeName}** and their products.\n\nWhat would you like to know?`;
+      return `👋 Welcome! I'm BazBot, your AI shopping assistant.\n\nI can help you with any questions about **${context.store.store_name}** and their products.\n\nWhat would you like to know?`;
     } else {
       return `👋 Hello! I'm BazBot, your AI shopping assistant for BazaarX.\n\nI can help you with product information, store details, shipping policies, returns, and more.\n\nHow may I assist you today?`;
     }

@@ -342,9 +342,10 @@ const Header: React.FC<HeaderProps> = ({ transparentOnTop = false, hideSearch = 
                           Settings
                         </button>
 
+
                         <button
                           onClick={() => {
-                            setShowSupportModal(true);
+                            navigate('/buyer-support');
                             setShowProfileMenu(false);
                           }}
                           className="w-full flex items-center gap-3 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-orange-50 hover:text-[#ff6a00] rounded-lg transition-all"

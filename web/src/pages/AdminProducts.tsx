@@ -4,9 +4,9 @@ import { Navigate } from 'react-router-dom';
 import { useAdminAuth, useAdminProducts, AdminProduct } from '../stores/adminStore';
 import { useProductQAStore } from '../stores/productQAStore';
 import AdminSidebar from '../components/AdminSidebar';
-import { 
-  Search, 
-  Filter, 
+import {
+  Search,
+  Filter,
   CheckCircle,
   Eye,
   Ban,
@@ -79,7 +79,7 @@ const AdminProducts: React.FC = () => {
 
   const filteredProducts = combinedProducts.filter(product => {
     const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         product.sellerName.toLowerCase().includes(searchTerm.toLowerCase());
+      product.sellerName.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || product.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -137,9 +137,9 @@ const AdminProducts: React.FC = () => {
   return (
     <div className="flex h-screen bg-gray-50">
       <AdminSidebar />
-      
+
       <div className="flex-1 overflow-auto">
-        <div className="p-8">
+        <div className="max-w-7xl mx-auto px-8 py-8">
           <div className="flex justify-between items-center mb-8">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Products Management</h1>
@@ -159,7 +159,7 @@ const AdminProducts: React.FC = () => {
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            
+
             <div className="flex items-center gap-2 w-full sm:w-auto">
               <Filter className="text-gray-400 h-5 w-5" />
               <select
@@ -203,7 +203,7 @@ const AdminProducts: React.FC = () => {
                     </tr>
                   ) : (
                     filteredProducts.map((product) => (
-                      <motion.tr 
+                      <motion.tr
                         key={product.id}
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
@@ -211,9 +211,9 @@ const AdminProducts: React.FC = () => {
                       >
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
-                            <img 
-                              src={product.images[0]} 
-                              alt={product.name} 
+                            <img
+                              src={product.images[0]}
+                              alt={product.name}
                               className="w-10 h-10 rounded-lg object-cover bg-gray-100"
                             />
                             <div>
@@ -249,7 +249,7 @@ const AdminProducts: React.FC = () => {
                         </td>
                         <td className="px-6 py-4 text-right">
                           <div className="flex items-center justify-end gap-2">
-                            <button 
+                            <button
                               onClick={() => handleEditClick(product)}
                               className="p-1 text-blue-600 hover:text-blue-700 transition-colors"
                               title="Edit Product"
@@ -260,7 +260,7 @@ const AdminProducts: React.FC = () => {
                               <Eye className="w-4 h-4" />
                             </button>
                             {product.status === 'banned' ? (
-                              <button 
+                              <button
                                 onClick={() => handleActivateClick(product)}
                                 className="p-1 text-green-600 hover:text-green-700 transition-colors"
                                 title="Reactivate Product"
@@ -268,7 +268,7 @@ const AdminProducts: React.FC = () => {
                                 <CheckCircle className="w-4 h-4" />
                               </button>
                             ) : (
-                              <button 
+                              <button
                                 onClick={() => handleDeactivateClick(product)}
                                 className="p-1 text-red-600 hover:text-red-700 transition-colors"
                                 title="Deactivate Product"
@@ -297,7 +297,7 @@ const AdminProducts: React.FC = () => {
               Are you sure you want to deactivate "{selectedProduct?.name}"? This will hide the product from the marketplace.
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="py-4">
             <Label htmlFor="reason" className="mb-2 block">Reason for Deactivation</Label>
             <Textarea
@@ -311,8 +311,8 @@ const AdminProducts: React.FC = () => {
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDeactivateDialogOpen(false)}>Cancel</Button>
-            <Button 
-              variant="destructive" 
+            <Button
+              variant="destructive"
               onClick={handleConfirmDeactivate}
               disabled={!deactivateReason}
             >
@@ -331,7 +331,7 @@ const AdminProducts: React.FC = () => {
               Update the details for "{selectedProduct?.name}"
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="py-4 space-y-4">
             <div>
               <Label htmlFor="edit-name" className="mb-2 block">Product Name</Label>
@@ -381,7 +381,7 @@ const AdminProducts: React.FC = () => {
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
-            <Button 
+            <Button
               onClick={handleSaveEdit}
               className="bg-orange-500 hover:bg-orange-600"
             >

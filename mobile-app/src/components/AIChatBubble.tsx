@@ -97,15 +97,16 @@ export function AIChatBubble({ product, store, onTalkToSeller }: AIChatBubblePro
 
   // Initialize quick replies and welcome message
   useEffect(() => {
-    if (isOpen && messages.length === 0) {
+    if (isOpen && messages.length === 0 && (product || store)) {
+      const context = { product, store };
       const welcomeMessage: ChatMessage = {
         id: 'welcome',
         sender: 'ai',
-        message: aiChatService.getWelcomeMessage(product?.name, store?.storeName),
+        message: aiChatService.getWelcomeMessage(context),
         timestamp: new Date(),
       };
       setMessages([welcomeMessage]);
-      setQuickReplies(aiChatService.getQuickReplies(product));
+      setQuickReplies(aiChatService.getQuickReplies(context));
     }
   }, [isOpen, product, store]);
 
@@ -152,8 +153,7 @@ export function AIChatBubble({ product, store, onTalkToSeller }: AIChatBubblePro
     try {
       const { response, suggestTalkToSeller } = await aiChatService.sendMessage(
         messageText,
-        product,
-        store
+        { product, store }
       );
 
       // Remove typing indicator and add AI response
@@ -201,14 +201,15 @@ export function AIChatBubble({ product, store, onTalkToSeller }: AIChatBubblePro
     aiChatService.resetConversation();
     setMessages([]);
     setShowTalkToSeller(false);
+    const context = { product, store };
     const welcomeMessage: ChatMessage = {
       id: 'welcome',
       sender: 'ai',
-      message: aiChatService.getWelcomeMessage(product?.name, store?.storeName),
+      message: aiChatService.getWelcomeMessage(context),
       timestamp: new Date(),
     };
     setMessages([welcomeMessage]);
-    setQuickReplies(aiChatService.getQuickReplies(product));
+    setQuickReplies(aiChatService.getQuickReplies(context));
   };
 
   return (

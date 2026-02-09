@@ -38,27 +38,23 @@ export default function SplashScreen({ navigation }: Props) {
       await new Promise(resolve => setTimeout(resolve, 2500));
 
       try {
-        // Validate the actual Supabase session
-        const { data, error } = await supabase.auth.getSession();
+        // PERMANENT FIX: Use the store's checkSession which fetches fresh Profile/Roles from DB
+        // This ensures local state is perfectly synced with Supabase on every launch.
+        await useAuthStore.getState().checkSession();
+        
+        // Get fresh state after checkSession finishes (it updates the store internally)
+        const { isAuthenticated: isAuth, hasCompletedOnboarding: hasOnboarding } = useAuthStore.getState();
 
-        if (error || (!data.session && isAuthenticated)) {
-          // Invalid session or mismatch
-          console.log('Session refresh failed or expired', error);
-          logout();
-          navigation.replace('Login');
-          return;
-        }
-
-        // Proceed based on store (which should be in sync now or valid)
-        if (isAuthenticated) {
+        if (isAuth) {
           navigation.replace('MainTabs', { screen: 'Home' });
-        } else if (hasCompletedOnboarding) {
+        } else if (hasOnboarding) {
           navigation.replace('Login');
         } else {
           navigation.replace('Onboarding');
         }
       } catch (e) {
         console.error('Splash checks failed', e);
+        // If checkSession throws (e.g. strict validation), ensure we clean up
         logout();
         navigation.replace('Login');
       }

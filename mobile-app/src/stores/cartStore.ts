@@ -51,9 +51,10 @@ export const useCartStore = create<CartStore>()(
         if (!userId || userId === 'guest') return;
         set({ isLoading: true, error: null });
         try {
-          const cartId = await cartService.getOrCreateCart(userId);
-          set({ cartId });
+          const cart = await cartService.getOrCreateCart(userId);
+          set({ cartId: cart.id }); // Extract ID from Cart object
 
+          const cartId = get().cartId;
           if (cartId) {
             const items = await cartService.getCartItems(cartId);
             set({ items });
@@ -146,12 +147,12 @@ export const useCartStore = create<CartStore>()(
 
       setQuickOrder: (product, quantity = 1) => {
         const selectedVariant = (product as any).selectedVariant || null;
-        set({ 
-          quickOrder: { 
-            ...product, 
+        set({
+          quickOrder: {
+            ...product,
             quantity,
-            selectedVariant 
-          } as CartItem 
+            selectedVariant
+          } as CartItem
         });
       },
       clearQuickOrder: () => set({ quickOrder: null }),

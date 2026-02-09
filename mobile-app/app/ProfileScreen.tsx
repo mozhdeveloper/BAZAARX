@@ -21,12 +21,12 @@ type Props = CompositeScreenProps<
 
 export default function ProfileScreen({ navigation }: Props) {
   const { user, logout, updateProfile, isGuest } = useAuthStore();
-  const seller = useSellerStore(state => state.seller);
+  const { seller } = useSellerStore();
   const wishlistItems = useWishlistStore(state => state.items);
   const insets = useSafeAreaInsets();
   const BRAND_COLOR = COLORS.primary;
 
-  const isSeller = user?.roles?.includes('seller') || (seller && !!seller.storeName);
+  const isSeller = user?.roles?.includes('seller') || (seller && !!seller.store_name);
 
   // Guest Modal State
   const [showGuestModal, setShowGuestModal] = React.useState(false);
@@ -154,7 +154,8 @@ export default function ProfileScreen({ navigation }: Props) {
       }
 
       const updates = {
-        full_name: `${editFirstName} ${editLastName}`.trim(),
+        first_name: editFirstName,
+        last_name: editLastName,
         phone: editPhone,
         avatar_url: avatarUrl,
         updated_at: new Date(),
@@ -167,8 +168,9 @@ export default function ProfileScreen({ navigation }: Props) {
 
       if (error) throw error;
 
+      const fullName = `${editFirstName} ${editLastName}`.trim();
       updateProfile({
-        name: updates.full_name,
+        name: fullName,
         phone: updates.phone,
         email: editEmail, // Email usually doesn't change here without re-auth, but keep it
         avatar: avatarUrl

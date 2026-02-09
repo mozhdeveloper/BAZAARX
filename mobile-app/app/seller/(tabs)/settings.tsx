@@ -48,29 +48,29 @@ export default function SellerSettingsScreen() {
   const [isEditingStore, setIsEditingStore] = useState(false);
   const [isEditingPayments, setIsEditingPayments] = useState(false);
 
-  // Profile
-  const [ownerName, setOwnerName] = useState(seller.ownerName);
-  const [email, setEmail] = useState(seller.email);
-  const [phone, setPhone] = useState(seller.phone);
+  // Profile - matches database schema (sellers table)
+  const [ownerName, setOwnerName] = useState(seller?.owner_name || '');
+  const [email, setEmail] = useState(seller?.email || '');
+  const [phone, setPhone] = useState(seller?.phone || '');
 
-  // Store & Business
-  const [storeName, setStoreName] = useState(seller.storeName);
-  const [businessName, setBusinessName] = useState(seller.businessName);
-  const [storeDescription, setStoreDescription] = useState(seller.storeDescription);
-  const [businessType, setBusinessType] = useState(seller.businessType);
-  const [businessRegistrationNumber, setBusinessRegistrationNumber] = useState(seller.businessRegistrationNumber);
-  const [taxIdNumber, setTaxIdNumber] = useState(seller.taxIdNumber);
+  // Store & Business - matches database schema (sellers + business_profiles tables)
+  const [storeName, setStoreName] = useState(seller?.store_name || '');
+  const [businessName, setBusinessName] = useState(seller?.store_name || ''); // Using store_name as business name
+  const [storeDescription, setStoreDescription] = useState(seller?.store_description || '');
+  const [businessType, setBusinessType] = useState(seller?.business_profile?.business_type || '');
+  const [businessRegistrationNumber, setBusinessRegistrationNumber] = useState(seller?.business_profile?.business_registration_number || '');
+  const [taxIdNumber, setTaxIdNumber] = useState(seller?.business_profile?.tax_id_number || '');
 
-  // Address
-  const [address, setAddress] = useState(seller.businessAddress);
-  const [city, setCity] = useState(seller.city);
-  const [province, setProvince] = useState(seller.province);
-  const [postalCode, setPostalCode] = useState(seller.postalCode);
+  // Address - matches database schema (business_profiles table)
+  const [address, setAddress] = useState(seller?.business_profile?.address_line_1 || '');
+  const [city, setCity] = useState(seller?.business_profile?.city || '');
+  const [province, setProvince] = useState(seller?.business_profile?.province || '');
+  const [postalCode, setPostalCode] = useState(seller?.business_profile?.postal_code || '');
 
-  // Payments
-  const [bankName, setBankName] = useState(seller.bankName);
-  const [accountName, setAccountName] = useState(seller.accountName);
-  const [accountNumber, setAccountNumber] = useState(seller.accountNumber);
+  // Payments - matches database schema (payout_accounts table)
+  const [bankName, setBankName] = useState(seller?.payout_account?.bank_name || '');
+  const [accountName, setAccountName] = useState(seller?.payout_account?.account_name || '');
+  const [accountNumber, setAccountNumber] = useState(seller?.payout_account?.account_number || '');
   const [gcashNumber, setGcashNumber] = useState(''); // Assuming distinct from phone
 
   const [notifications, setNotifications] = useState({
@@ -82,24 +82,36 @@ export default function SellerSettingsScreen() {
     lowStock: true,
   });
 
+  // Early return if seller is null
+  if (!seller) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <Text>Loading seller data...</Text>
+      </View>
+    );
+  }
+
   const handleSave = () => {
     updateSellerInfo({
-      ownerName,
+      owner_name: ownerName,
       email,
       phone,
-      storeName,
-      businessName,
-      storeDescription,
-      businessType,
-      businessRegistrationNumber,
-      taxIdNumber,
-      businessAddress: address,
-      city,
-      province,
-      postalCode,
-      bankName,
-      accountName,
-      accountNumber,
+      store_name: storeName,
+      store_description: storeDescription,
+      business_profile: {
+        business_type: businessType,
+        business_registration_number: businessRegistrationNumber,
+        tax_id_number: taxIdNumber,
+        address_line_1: address,
+        city,
+        province,
+        postal_code: postalCode,
+      },
+      payout_account: {
+        bank_name: bankName,
+        account_name: accountName,
+        account_number: accountNumber,
+      },
     });
     // Reset edit modes
     setIsEditingProfile(false);
@@ -356,25 +368,35 @@ export default function SellerSettingsScreen() {
                 Documents submitted for business verification.
               </Text>
 
-              {seller.documents.map((doc) => (
-                <View key={doc.id} style={styles.documentItem}>
+              {/* Document URLs from verification_documents table */}
+              {seller.verification_documents?.business_permit_url && (
+                <View style={styles.documentItem}>
                   <View style={styles.documentIcon}>
                     <FileText size={24} color="#FF5722" strokeWidth={2} />
                   </View>
                   <View style={styles.documentInfo}>
-                    <Text style={styles.documentName}>{doc.type.replace('_', ' ').toUpperCase()}</Text>
-                    <Text style={styles.documentFile}>{doc.fileName}</Text>
-                    <Text style={styles.documentDate}>Uploaded on {doc.uploadDate}</Text>
+                    <Text style={styles.documentName}>BUSINESS PERMIT</Text>
+                    <Text style={styles.documentFile}>business_permit.pdf</Text>
                   </View>
                   <View style={styles.documentStatus}>
-                    {doc.isVerified ? (
-                      <CheckCircle size={20} color="#10B981" strokeWidth={2.5} />
-                    ) : (
-                      <Clock size={20} color="#F59E0B" strokeWidth={2.5} />
-                    )}
+                    <CheckCircle size={20} color="#10B981" strokeWidth={2.5} />
                   </View>
                 </View>
-              ))}
+              )}
+              {seller.verification_documents?.valid_id_url && (
+                <View style={styles.documentItem}>
+                  <View style={styles.documentIcon}>
+                    <FileText size={24} color="#FF5722" strokeWidth={2} />
+                  </View>
+                  <View style={styles.documentInfo}>
+                    <Text style={styles.documentName}>VALID ID</Text>
+                    <Text style={styles.documentFile}>valid_id.pdf</Text>
+                  </View>
+                  <View style={styles.documentStatus}>
+                    <CheckCircle size={20} color="#10B981" strokeWidth={2.5} />
+                  </View>
+                </View>
+              )}
             </View>
           </View>
         );
@@ -619,6 +641,15 @@ export default function SellerSettingsScreen() {
     }
   };
 
+  // Null guard for seller
+  if (!seller) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={{ fontSize: 16, color: '#9CA3AF' }}>Loading seller information...</Text>
+      </View>
+    );
+  }
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -665,7 +696,7 @@ export default function SellerSettingsScreen() {
             {/* Avatar with Camera Badge */}
             <View style={styles.avatarContainer}>
               <View style={styles.avatar}>
-                <Text style={styles.avatarText}>{seller.storeLogo}</Text>
+                <Text style={styles.avatarText}>{seller.store_name?.[0]?.toUpperCase() || 'S'}</Text>
               </View>
               <Pressable style={styles.cameraBadge} onPress={handleCameraPress}>
                 <Camera size={14} color="#FFFFFF" strokeWidth={2.5} />
@@ -674,7 +705,7 @@ export default function SellerSettingsScreen() {
 
             {/* Store Info */}
             <View style={styles.storeInfo}>
-              <Text style={styles.storeName}>{seller.storeName}</Text>
+              <Text style={styles.storeName}>{seller.store_name}</Text>
               <Text style={styles.storeEmail}>{seller.email}</Text>
             </View>
 

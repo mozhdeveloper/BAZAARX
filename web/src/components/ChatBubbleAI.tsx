@@ -489,7 +489,7 @@ export function ChatBubble() {
           <div className={cn(
             "px-4 py-3 flex items-center justify-between",
             chatMode === 'ai' 
-              ? "bg-gradient-to-r from-purple-600 to-indigo-600" 
+              ? "bg-gradient-to-r from-orange-500 to-orange-600" 
               : "bg-gradient-to-r from-orange-500 to-orange-600"
           )}>
             <div className="flex items-center gap-3">
@@ -521,7 +521,7 @@ export function ChatBubble() {
                 </h3>
                 <p className={cn(
                   "text-xs",
-                  chatMode === 'ai' ? "text-purple-100" : "text-orange-100"
+                  chatMode === 'ai' ? "text-orange-100" : "text-orange-100"
                 )}>
                   {chatMode === 'ai' 
                     ? 'Your AI shopping assistant' 
@@ -577,7 +577,7 @@ export function ChatBubble() {
               className={cn(
                 "flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2",
                 chatMode === 'ai'
-                  ? "bg-purple-600 text-white shadow-md"
+                  ? "bg-orange-500 text-white shadow-md"
                   : "bg-white text-gray-600 hover:bg-gray-50"
               )}
             >
@@ -629,10 +629,10 @@ export function ChatBubble() {
               <div className="flex flex-col items-center justify-center h-full text-center">
                 <div className={cn(
                   "w-16 h-16 rounded-full flex items-center justify-center mb-3",
-                  chatMode === 'ai' ? "bg-purple-100" : "bg-orange-100"
+                  chatMode === 'ai' ? "bg-orange-100" : "bg-orange-100"
                 )}>
                   {chatMode === 'ai' ? (
-                    <Bot className="w-8 h-8 text-purple-500" />
+                    <Bot className="w-8 h-8 text-orange-500" />
                   ) : (
                     <MessageCircle className="w-8 h-8 text-orange-500" />
                   )}
@@ -661,9 +661,9 @@ export function ChatBubble() {
                     ) : msg.isTyping ? (
                       <div className="bg-white text-gray-900 rounded-2xl rounded-bl-md shadow-sm border border-gray-100 px-4 py-3">
                         <div className="flex items-center gap-1">
-                          <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                          <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                          <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                          <div className="w-2 h-2 bg-orange-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                          <div className="w-2 h-2 bg-orange-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                          <div className="w-2 h-2 bg-orange-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                         </div>
                       </div>
                     ) : (
@@ -671,10 +671,10 @@ export function ChatBubble() {
                         {(msg.sender === 'ai' || msg.sender === 'seller') && (
                           <div className={cn(
                             "w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0",
-                            msg.sender === 'ai' ? "bg-purple-100" : "bg-orange-100"
+                            msg.sender === 'ai' ? "bg-orange-100" : "bg-orange-100"
                           )}>
                             {msg.sender === 'ai' ? (
-                              <Bot className="w-3 h-3 text-purple-600" />
+                              <Bot className="w-3 h-3 text-orange-600" />
                             ) : (
                               <Store className="w-3 h-3 text-orange-600" />
                             )}
@@ -686,7 +686,7 @@ export function ChatBubble() {
                             msg.sender === 'buyer'
                               ? 'bg-orange-500 text-white rounded-br-md'
                               : msg.sender === 'ai'
-                              ? 'bg-white text-gray-900 rounded-bl-md shadow-sm border border-purple-100'
+                              ? 'bg-white text-gray-900 rounded-bl-md shadow-sm border border-orange-100'
                               : 'bg-white text-gray-900 rounded-bl-md shadow-sm border border-gray-100'
                           )}
                         >
@@ -716,7 +716,7 @@ export function ChatBubble() {
                   <button
                     key={index}
                     onClick={() => handleQuickReply(reply)}
-                    className="text-xs bg-white border border-gray-200 px-3 py-1.5 rounded-full hover:bg-purple-50 hover:border-purple-200 hover:text-purple-600 transition-all"
+                    className="text-xs bg-white border border-gray-200 px-3 py-1.5 rounded-full hover:bg-orange-50 hover:border-orange-200 hover:text-orange-600 transition-all"
                   >
                     {reply}
                   </button>
@@ -795,7 +795,7 @@ export function ChatBubble() {
                     "h-10 w-10 rounded-full transition-all",
                     newMessage.trim()
                       ? chatMode === 'ai' 
-                        ? "bg-purple-600 hover:bg-purple-700"
+                        ? "bg-orange-500 hover:bg-orange-600"
                         : "bg-orange-500 hover:bg-orange-600"
                       : "bg-gray-200 text-gray-400"
                   )}

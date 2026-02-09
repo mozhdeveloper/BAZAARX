@@ -65,6 +65,12 @@ export interface StoreContext {
   joinDate?: string;
   productCount?: number;
   followerCount?: number;
+  responseTime?: string;
+  policies?: {
+    shipping?: string;
+    returns?: string;
+    warranty?: string;
+  };
 }
 
 export interface ReviewSummary {

@@ -9,13 +9,13 @@ import { Mail, Lock, Store, Phone, Eye, EyeOff, ArrowRight, Check, XCircle, Chev
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../../src/lib/supabase';
 import { authService } from '../../src/services/authService';
-import { useSellerStore } from '../../src/stores/sellerStore';
-import { useAuthStore } from '../../src/stores/authStore';
+import { useSellerStore, useAuthStore } from '../../src/stores/sellerStore';
 
 const { width } = Dimensions.get('window');
 
 export default function SellerSignupScreen() {
     const navigation = useNavigation<any>();
+    const { updateSellerInfo, addRole, switchRole } = useSellerStore();
     const [step, setStep] = useState(1);
     const [loading, setLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
@@ -158,16 +158,16 @@ export default function SellerSignupScreen() {
             if (sellerError) throw sellerError;
 
             // Sync data to store - IMPORTANT: Include the seller ID
-            useSellerStore.getState().updateSellerInfo({
+            updateSellerInfo({
                 id: userId,
-                storeName: formData.storeName,
+                store_name: formData.storeName,
                 email: formData.email,
                 approval_status: 'pending'
             });
 
             // Sync roles to AuthStore
-            useAuthStore.getState().addRole('seller');
-            useAuthStore.getState().switchRole('seller');
+            addRole('seller');
+            switchRole('seller');
 
             Alert.alert(
                 'Success',
