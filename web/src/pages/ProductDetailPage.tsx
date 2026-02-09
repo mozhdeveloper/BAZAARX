@@ -857,6 +857,17 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
     fetchProduct();
   }, [id]);
 
+  // Initialize first size when product loads
+  useEffect(() => {
+    if (dbProduct && !selectedSize) {
+      const variants = (dbProduct as any)?.variants || [];
+      const sizes = [...new Set(variants.map((v: any) => v.size).filter(Boolean))];
+      if (sizes.length > 0) {
+        setSelectedSize(sizes[0]);
+      }
+    }
+  }, [dbProduct]);
+
   // Initial product from lists (optimistic data)
   const initialProduct =
     sellerProducts.find((p) => p.id === id) ||
@@ -889,6 +900,16 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
   const extractedVariants = (sellerProduct as any)?.variants || [];
   const extractedSizes = [...new Set(extractedVariants.map((v: any) => v.size).filter(Boolean))] as string[];
   const extractedColors = [...new Set(extractedVariants.map((v: any) => v.color).filter(Boolean))] as string[];
+  
+  // Create color objects with thumbnail images from variants
+  const colorObjects = extractedColors.map(colorName => {
+    const variantWithColor = extractedVariants.find((v: any) => v.color === colorName);
+    return {
+      name: colorName,
+      value: colorName,
+      image: variantWithColor?.thumbnail_url || (sellerProduct as any)?.images?.[0]?.image_url || (sellerProduct as any)?.images?.[0] || (sellerProduct as any)?.image || ""
+    };
+  });
 
   const normalizedProduct = sellerProduct
     ? {
@@ -926,7 +947,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
       isVerified: true,
       description: (sellerProduct as any).description,
       sizes: extractedSizes.length > 0 ? extractedSizes : ((sellerProduct as any).sizes || []),
-      colors: extractedColors.length > 0 ? extractedColors : ((sellerProduct as any).colors || []),
+      colors: colorObjects.length > 0 ? colorObjects : ((sellerProduct as any).colors || []),
       stock: (sellerProduct as any).stock || 0,
       sellerId:
         (sellerProduct as any).seller_id ||
@@ -968,14 +989,18 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
     if (dbVariants.length === 0) return null;
     // If only one variant, return it
     if (dbVariants.length === 1) return dbVariants[0];
+    
+    // Get the selected color name
+    const selectedColorName = productData.colors[selectedColor]?.name || productData.colors[selectedColor]?.value;
+    
     // Find variant matching selected size and/or color
-    return dbVariants.find((v: any) => {
-      const sizeMatch = !selectedSize || v.size === selectedSize;
-      const colorMatch = !productData.colors.length ||
-        productData.colors[selectedColor]?.name === v.color ||
-        (selectedColor === 0 && !v.color);
+    const matchedVariant = dbVariants.find((v: any) => {
+      const sizeMatch = !selectedSize || !v.size || v.size === selectedSize;
+      const colorMatch = !selectedColorName || !v.color || v.color === selectedColorName;
       return sizeMatch && colorMatch;
-    }) || dbVariants[0];
+    });
+    
+    return matchedVariant || dbVariants[0];
   };
 
   const productData = enhancedProductData[productId] || {
@@ -1422,9 +1447,15 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
             {/* Price & Rating */}
             <div className="flex items-center gap-4 mb-6">
               <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-bold text-[#ff6a00]">
-                  ₱{productData.price.toLocaleString()}
-                </span>
+                {(() => {
+                  const currentVariant = getSelectedVariant();
+                  const displayPrice = currentVariant?.price || productData.price;
+                  return (
+                    <span className="text-3xl font-bold text-[#ff6a00]">
+                      ₱{displayPrice.toLocaleString()}
+                    </span>
+                  );
+                })()}
                 {productData.originalPrice && (
                   <span className="text-lg text-gray-400 line-through decoration-gray-400/50">
                     ₱{productData.originalPrice.toLocaleString()}

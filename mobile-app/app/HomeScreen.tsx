@@ -204,42 +204,80 @@ export default function HomeScreen({ navigation }: Props) {
         });
 
         const mapped: Product[] = (data || []).map((row: any) => {
-          const imageUrl =
-            row.primary_image ||
-            (Array.isArray(row.images) && row.images.length > 0 ? row.images[0] : '');
+          // Extract images from product_images relation
+          const images = row.images?.map((img: any) => 
+            typeof img === 'string' ? img : img.image_url
+          ).filter(Boolean) || [];
+          const primaryImage = row.images?.find((img: any) => img.is_primary)?.image_url 
+            || images[0] 
+            || row.primary_image
+            || '';
+          
+          // Extract variants from product_variants relation
+          const variants = row.variants?.map((v: any) => ({
+            id: v.id,
+            product_id: row.id,
+            sku: v.sku,
+            variant_name: v.variant_name || `${v.color || ''} ${v.size || ''}`.trim(),
+            size: v.size,
+            color: v.color,
+            option_1_value: v.option_1_value,
+            option_2_value: v.option_2_value,
+            price: v.price,
+            stock: v.stock,
+            thumbnail_url: v.thumbnail_url,
+          })) || [];
+          
+          // Extract unique colors and sizes for legacy support
+          const colors = [...new Set(variants.map((v: any) => v.color).filter(Boolean))] as string[];
+          const sizes = [...new Set(variants.map((v: any) => v.size).filter(Boolean))] as string[];
+          
+          // Extract option values for dynamic variant support
+          const option1Values = [...new Set(variants.map((v: any) => v.option_1_value).filter(Boolean))] as string[];
+          const option2Values = [...new Set(variants.map((v: any) => v.option_2_value).filter(Boolean))] as string[];
+
           const priceNum = typeof row.price === 'number' ? row.price : parseFloat(row.price || '0');
           const originalNum = row.original_price != null
             ? (typeof row.original_price === 'number' ? row.original_price : parseFloat(row.original_price))
             : undefined;
           const ratingNum = typeof row.rating === 'number' ? row.rating : parseFloat(row.rating || '4.5') || 4.5;
-          const sellerName = row.seller?.store_name || row.seller?.business_name || 'Verified Seller';
+          const sellerName = row.seller?.store_name || 'Verified Seller';
           const sellerRating = typeof row.seller?.rating === 'number'
             ? row.seller.rating
             : parseFloat(row.seller?.rating || '4.8') || 4.8;
-          const sellerVerified = !!row.seller?.is_verified;
-          const location = row.seller?.business_address || 'Philippines';
+          const sellerVerified = !!row.seller?.verified_at;
+          const location = row.seller?.business_profile?.city 
+            ? `${row.seller.business_profile.city}, ${row.seller.business_profile.province || 'Philippines'}`
+            : 'Philippines';
           return {
             id: row.id,
             name: row.name,
             price: priceNum,
             originalPrice: originalNum,
-            image: imageUrl || '',
-            images: Array.isArray(row.images) ? row.images : undefined,
+            image: primaryImage,
+            images: images.length > 0 ? images : [primaryImage],
             rating: ratingNum,
             sold: row.sales_count || 0,
             seller: sellerName,
-            sellerId: row.seller?.id || undefined,
+            sellerId: row.seller_id || row.seller?.id,
+            seller_id: row.seller_id || row.seller?.id,
             sellerRating,
             sellerVerified,
             isFreeShipping: !!row.is_free_shipping,
             isVerified: true,
             location,
             description: row.description || '',
-            category: row.category || '',
-            stock: row.stock,
+            category: row.category?.name || row.category || '',
+            stock: row.stock ?? variants.reduce((sum: number, v: any) => sum + (v.stock || 0), 0),
             // Include variant data for ProductDetailScreen
-            colors: Array.isArray(row.colors) ? row.colors : [],
-            sizes: Array.isArray(row.sizes) ? row.sizes : [],
+            variants: variants,
+            colors: colors,
+            sizes: sizes,
+            // Dynamic variant labels from database
+            variant_label_1: row.variant_label_1,
+            variant_label_2: row.variant_label_2,
+            option1Values: option1Values,
+            option2Values: option2Values,
           } as Product;
         });
         // Deduplicate

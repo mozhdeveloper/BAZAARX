@@ -116,6 +116,7 @@ export default function ShopPage() {
   // Variant Selection Modal state (for Add to Cart)
   const [showVariantModal, setShowVariantModal] = useState(false);
   const [variantProduct, setVariantProduct] = useState<any>(null);
+  const [isBuyNowAction, setIsBuyNowAction] = useState(false);
 
   // Flash Sale Countdown
   const [timeLeft, setTimeLeft] = useState({
@@ -712,6 +713,7 @@ export default function ShopPage() {
                                 description: product.description,
                                 originalPrice: product.originalPrice,
                               });
+                              setIsBuyNowAction(false);
                               setShowVariantModal(true);
                               return;
                             }
@@ -782,30 +784,70 @@ export default function ShopPage() {
                               return;
                             }
 
-                            // Set the product for buy now modal
-                            setBuyNowProduct({
-                              id: product.id,
-                              name: product.name,
-                              price: product.price,
-                              originalPrice: product.originalPrice,
-                              image: product.image,
-                              images: product.images || [product.image],
-                              sellerId: product.sellerId,
-                              seller: product.seller,
-                              sellerRating: product.sellerRating || 0,
-                              sellerVerified: product.sellerVerified || false,
-                              rating: product.rating,
-                              category: product.category,
-                              sold: product.sold,
-                              isFreeShipping: product.isFreeShipping ?? true,
-                              location: product.location || "Metro Manila",
-                              description: product.description || "",
-                              variants: product.variants || [],
-                              colors: product.colors || [],
-                              sizes: product.sizes || [],
-                              stock: product.stock || 99,
+                            // Check if product has variants
+                            const hasVariants = product.variants && product.variants.length > 0;
+                            const hasColors = product.colors && product.colors.length > 0;
+                            const hasSizes = product.sizes && product.sizes.length > 0;
+
+                            console.log('🛒 BUY NOW clicked:', {
+                              product: product.name,
+                              hasVariants,
+                              hasColors,
+                              hasSizes,
+                              variants: product.variants
                             });
-                            setShowBuyNowModal(true);
+
+                            if (hasVariants || hasColors || hasSizes) {
+                              console.log('✅ Using VariantSelectionModal for Buy Now');
+                              // Show variant selection modal for Buy Now
+                              setVariantProduct({
+                                id: product.id,
+                                name: product.name,
+                                price: product.price,
+                                image: product.image,
+                                variants: (product as any).variants || [],
+                                sizes: product.sizes || [],
+                                colors: product.colors || [],
+                                sellerId: product.sellerId,
+                                seller: product.seller,
+                                sellerRating: product.sellerRating,
+                                sellerVerified: product.sellerVerified,
+                                rating: product.rating,
+                                category: product.category,
+                                sold: product.sold,
+                                isFreeShipping: product.isFreeShipping,
+                                location: product.location,
+                                description: product.description,
+                                originalPrice: product.originalPrice,
+                              });
+                              setIsBuyNowAction(true);
+                              setShowVariantModal(true);
+                            } else {
+                              // No variants - use old Buy Now modal
+                              setBuyNowProduct({
+                                id: product.id,
+                                name: product.name,
+                                price: product.price,
+                                originalPrice: product.originalPrice,
+                                image: product.image,
+                                images: product.images || [product.image],
+                                sellerId: product.sellerId,
+                                seller: product.seller,
+                                sellerRating: product.sellerRating || 0,
+                                sellerVerified: product.sellerVerified || false,
+                                rating: product.rating,
+                                category: product.category,
+                                sold: product.sold,
+                                isFreeShipping: product.isFreeShipping ?? true,
+                                location: product.location || "Metro Manila",
+                                description: product.description || "",
+                                variants: product.variants || [],
+                                colors: product.colors || [],
+                                sizes: product.sizes || [],
+                                stock: product.stock || 99,
+                              });
+                              setShowBuyNowModal(true);
+                            }
                           }}
                           className="w-full bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white rounded-xl transition-all active:scale-95"
                         >
@@ -935,9 +977,59 @@ export default function ShopPage() {
           onClose={() => {
             setShowVariantModal(false);
             setVariantProduct(null);
+            setIsBuyNowAction(false);
           }}
           product={variantProduct}
+          buttonText={isBuyNowAction ? '🛒 Proceed to Checkout' : '🛒 Add to Cart'}
           onConfirm={(variant, quantity) => {
+            // Check if this is a Buy Now action
+            if (isBuyNowAction) {
+              const sellerLocation = variantProduct.location || "Metro Manila";
+              const quickOrderItem: any = {
+                id: variantProduct.id,
+                name: variantProduct.name,
+                price: variant?.price || variantProduct.price,
+                originalPrice: variantProduct.originalPrice,
+                image: variant?.thumbnail_url || variant?.image || variantProduct.image,
+                images: variantProduct.images || [variantProduct.image],
+                seller: {
+                  id: variantProduct.sellerId,
+                  name: variantProduct.seller,
+                  avatar: "",
+                  rating: variantProduct.sellerRating || 0,
+                  totalReviews: 100,
+                  followers: 1000,
+                  isVerified: variantProduct.sellerVerified || false,
+                  description: "",
+                  location: sellerLocation,
+                  established: "2020",
+                  products: [],
+                  badges: [],
+                  responseTime: "1 hour",
+                  categories: [variantProduct.category],
+                },
+                sellerId: variantProduct.sellerId,
+                rating: variantProduct.rating,
+                totalReviews: 100,
+                category: variantProduct.category,
+                sold: variantProduct.sold,
+                isFreeShipping: variantProduct.isFreeShipping ?? true,
+                location: sellerLocation,
+                description: variantProduct.description || "",
+                specifications: {},
+                variants: variantProduct.variants || [],
+                selectedVariant: variant,
+              };
+
+              setQuickOrder(quickOrderItem, quantity, variant);
+              setShowVariantModal(false);
+              setVariantProduct(null);
+              setIsBuyNowAction(false);
+              navigate("/checkout");
+              return;
+            }
+
+            // Regular Add to Cart action
             const sellerLocation = variantProduct.location || "Metro Manila";
             const cartItem: any = {
               id: variantProduct.id,

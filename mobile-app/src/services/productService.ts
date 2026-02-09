@@ -53,6 +53,7 @@ export class ProductService {
 
     try {
       // New normalized query with proper joins
+      // Includes variant_label_1/2 for dynamic variant labels
       let query = supabase
         .from('products')
         .select(`
@@ -73,12 +74,29 @@ export class ProductService {
           variants:product_variants (
             id,
             sku,
+            barcode,
             variant_name,
             size,
             color,
+            option_1_value,
+            option_2_value,
             price,
             stock,
             thumbnail_url
+          ),
+          seller:sellers!products_seller_id_fkey (
+            id,
+            store_name,
+            store_description,
+            avatar_url,
+            owner_name,
+            approval_status,
+            verified_at,
+            business_profile:seller_business_profiles (
+              business_type,
+              city,
+              province
+            )
           )
         `)
         .is('deleted_at', null)  // Only non-deleted products
@@ -139,10 +157,25 @@ export class ProductService {
 
   /**
    * Transform product from DB to include legacy fields
+   * Also handles dynamic variant labels (variant_label_1, variant_label_2)
    */
   private transformProduct(product: any): ProductWithSeller {
     const primaryImage = product.images?.find((img: ProductImage) => img.is_primary) || product.images?.[0];
-    const totalStock = product.variants?.reduce((sum: number, v: ProductVariant) => sum + (v.stock || 0), 0) || 0;
+    const images = product.images?.map((img: ProductImage) => img.image_url).filter(Boolean) || [];
+    const totalStock = product.variants?.reduce((sum: number, v: ProductVariant) => sum + (v.stock || 0), 0) || product.stock || 0;
+    
+    // Extract colors and sizes from variants for legacy support
+    const colors = [...new Set(product.variants?.map((v: ProductVariant) => v.color).filter(Boolean) || [])] as string[];
+    const sizes = [...new Set(product.variants?.map((v: ProductVariant) => v.size).filter(Boolean) || [])] as string[];
+    
+    // Extract option_1 and option_2 values for dynamic variant support
+    const option1Values = [...new Set(product.variants?.map((v: ProductVariant) => (v as any).option_1_value).filter(Boolean) || [])] as string[];
+    const option2Values = [...new Set(product.variants?.map((v: ProductVariant) => (v as any).option_2_value).filter(Boolean) || [])] as string[];
+    
+    // Extract seller info
+    const businessProfile = Array.isArray(product.seller?.business_profile) 
+      ? product.seller.business_profile[0] 
+      : product.seller?.business_profile;
 
     return {
       ...product,
@@ -151,8 +184,24 @@ export class ProductService {
       stock: totalStock,
       // Primary image as main image
       primary_image_url: primaryImage?.image_url,
+      primary_image: primaryImage?.image_url,
+      // Images array
+      images: images,
       // Category name for legacy code
       category: product.category?.name,
+      // Extracted variants data for legacy compatibility
+      colors: colors,
+      sizes: sizes,
+      // Dynamic variant labels and values
+      variant_label_1: product.variant_label_1,
+      variant_label_2: product.variant_label_2,
+      option1Values: option1Values,
+      option2Values: option2Values,
+      // Seller info for legacy code
+      seller: product.seller ? {
+        ...product.seller,
+        business_profile: businessProfile,
+      } : undefined,
     };
   }
 
@@ -211,6 +260,20 @@ export class ProductService {
             price,
             stock,
             thumbnail_url
+          ),
+          seller:sellers!products_seller_id_fkey (
+            id,
+            store_name,
+            store_description,
+            avatar_url,
+            owner_name,
+            approval_status,
+            verified_at,
+            business_profile:seller_business_profiles (
+              business_type,
+              city,
+              province
+            )
           )
         `)
         .eq('id', id)
