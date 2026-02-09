@@ -91,12 +91,14 @@ export interface SellerProduct {
   }[];
 }
 
-interface SellerOrder {
+export interface SellerOrder {
   id: string;
   seller_id?: string; // UUID of the seller for database updates
   buyer_id?: string; // UUID of the buyer for notifications
+  orderNumber?: string;
   buyerName: string;
   buyerEmail: string;
+  buyerProfileImage?: string;
   items: {
     productId: string;
     productName: string;
@@ -125,6 +127,7 @@ interface SellerOrder {
   reviewDate?: string;
   type?: 'ONLINE' | 'OFFLINE'; // POS-Lite: Track order source
   posNote?: string; // POS-Lite: Optional note for offline sales
+  notes?: string; // Unified notes field
 }
 
 // Inventory Ledger - Immutable audit trail for all stock changes
@@ -286,7 +289,7 @@ const fallbackSellerId = (import.meta as { env?: { VITE_SUPABASE_SELLER_ID?: str
 const mapDbSellerToSeller = (s: any): Seller => {
   const bp = s.business_profile || s.seller_business_profiles || {};
   const pa = s.payout_account || s.seller_payout_accounts || {};
-  
+
   return {
     id: s.id,
     name: s.owner_name || s.store_name || 'Seller',
@@ -326,19 +329,19 @@ const mapDbSellerToSeller = (s: any): Seller => {
  */
 const mapDbProductToSellerProduct = (p: any): SellerProduct => {
   // Handle images from product_images relation
-  const images = Array.isArray(p.images) 
-    ? p.images.map((img: any) => typeof img === 'string' ? img : img.image_url) 
+  const images = Array.isArray(p.images)
+    ? p.images.map((img: any) => typeof img === 'string' ? img : img.image_url)
     : [];
-  
+
   // Handle variants to get colors, sizes, and stock
   const variants = Array.isArray(p.variants) ? p.variants : [];
-  const colors = [...new Set(variants.map((v: any) => v.color).filter(Boolean))];
-  const sizes = [...new Set(variants.map((v: any) => v.size).filter(Boolean))];
+  const colors: string[] = Array.from(new Set(variants.map((v: any) => v.color).filter((c): c is string => typeof c === 'string' && c.length > 0)));
+  const sizes: string[] = Array.from(new Set(variants.map((v: any) => v.size).filter((s): s is string => typeof s === 'string' && s.length > 0)));
   const totalStock = variants.reduce((sum: number, v: any) => sum + (v.stock || 0), 0);
-  
+
   // Get category name from relation
-  const categoryName = typeof p.category === 'string' 
-    ? p.category 
+  const categoryName = typeof p.category === 'string'
+    ? p.category
     : (p.category?.name || p.categories?.name || '');
 
   return {
@@ -350,8 +353,8 @@ const mapDbProductToSellerProduct = (p: any): SellerProduct => {
     stock: totalStock || p.stock || 0,
     category: categoryName,
     images: images,
-    sizes: sizes,
-    colors: colors,
+    sizes: sizes as string[],
+    colors: colors as string[],
     isActive: !p.disabled_at,
     sellerId: p.seller_id || '',
     createdAt: p.created_at || '',
@@ -461,6 +464,7 @@ const mapOrderToSellerOrder = (order: any): SellerOrder => {
     id: order.id,
     seller_id: order.seller_id,
     buyer_id: order.buyer_id,
+    orderNumber: order.order_number,
     buyerName: order.buyer_name || 'Unknown',
     buyerEmail: order.buyer_email || 'unknown@example.com',
     items,
@@ -469,12 +473,12 @@ const mapOrderToSellerOrder = (order: any): SellerOrder => {
     paymentStatus: paymentStatusMap[order.payment_status] || 'pending',
     orderDate: order.created_at,
     shippingAddress: {
-      fullName: shippingAddr.fullName || order.buyer_name || 'Unknown',
-      street: shippingAddr.street || '',
-      city: shippingAddr.city || '',
-      province: shippingAddr.province || '',
-      postalCode: shippingAddr.postalCode || '',
-      phone: shippingAddr.phone || order.buyer_phone || ''
+      fullName: order.buyer_name || 'Unknown',
+      street: order.shipping_street || shippingAddr.street_address || '',
+      city: order.shipping_city || shippingAddr.city || '',
+      province: order.shipping_province || shippingAddr.province || '',
+      postalCode: order.shipping_postal_code || shippingAddr.postal_code || '',
+      phone: order.buyer_phone || shippingAddr.phone || ''
     },
     trackingNumber: order.tracking_number || undefined,
     rating: order.rating || undefined,
@@ -482,7 +486,8 @@ const mapOrderToSellerOrder = (order: any): SellerOrder => {
     reviewImages: order.review_images || undefined,
     reviewDate: order.review_date || undefined,
     type: order.order_type === 'OFFLINE' ? 'OFFLINE' : 'ONLINE',
-    posNote: order.pos_note || undefined
+    posNote: order.pos_note || undefined,
+    notes: order.notes || undefined
   };
 };
 
@@ -615,9 +620,9 @@ export const useAuthStore = create<AuthStore>()(
             } catch (signUpError: any) {
               // If signup fails because user already exists, try to sign in again
               if (signUpError?.isAlreadyRegistered ||
-                  signUpError?.message?.includes('User already registered') ||
-                  signUpError?.message?.includes('already exists') ||
-                  signUpError?.status === 422) {
+                signUpError?.message?.includes('User already registered') ||
+                signUpError?.message?.includes('already exists') ||
+                signUpError?.status === 422) {
                 // User exists, sign in and continue with upgrade process
                 const signInResult = await authService.signIn(sellerData.email!, sellerData.password!);
                 if (signInResult && signInResult.user) {
@@ -864,7 +869,7 @@ export const useProductStore = create<ProductStore>()(
             if (!categoryId) {
               throw new Error('Failed to resolve category. Please try again.');
             }
-            
+
             const insertData = buildProductInsert(product, resolvedSellerId, categoryId);
             const created = await productService.createProduct(insertData);
             if (!created) {
@@ -882,6 +887,7 @@ export const useProductStore = create<ProductStore>()(
                     image_url: url,
                     sort_order: idx,
                     is_primary: idx === 0,
+                    alt_text: product.name || 'Product image',
                   })));
                   console.log(`✅ Created ${validImages.length} images for product ${newProduct.id}`);
                 } catch (imageError) {
@@ -894,6 +900,7 @@ export const useProductStore = create<ProductStore>()(
             const variants = (product as any).variants;
             if (variants && Array.isArray(variants) && variants.length > 0) {
               const variantInserts = variants.map((v: any, index: number) => ({
+                product_id: newProduct.id,
                 variant_name: [v.size, v.color].filter(Boolean).join(' - ') || 'Default',
                 size: v.size || null,
                 color: v.color || null,
@@ -901,6 +908,10 @@ export const useProductStore = create<ProductStore>()(
                 price: v.price || product.price,
                 sku: v.sku || `${newProduct.id.substring(0, 8)}-${index}`,
                 thumbnail_url: v.image || null,
+                barcode: null,
+                option_1_value: v.size || null,
+                option_2_value: v.color || null,
+                embedding: null,
               }));
 
               try {
@@ -914,6 +925,7 @@ export const useProductStore = create<ProductStore>()(
               // Create a default variant with the product's base stock/price
               try {
                 await productService.addProductVariants(newProduct.id, [{
+                  product_id: newProduct.id,
                   variant_name: 'Default',
                   size: null,
                   color: null,
@@ -921,6 +933,10 @@ export const useProductStore = create<ProductStore>()(
                   price: product.price,
                   sku: `${newProduct.id.substring(0, 8)}-default`,
                   thumbnail_url: null,
+                  barcode: null,
+                  option_1_value: null,
+                  option_2_value: null,
+                  embedding: null,
                 }]);
               } catch (variantError) {
                 console.error('Failed to create default variant:', variantError);

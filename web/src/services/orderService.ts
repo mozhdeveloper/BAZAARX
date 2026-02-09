@@ -83,7 +83,7 @@ export class OrderService {
         .select('id, user_type')
         .eq('email', buyerEmail.toLowerCase().trim())
         .single();
-      
+
       if (profile?.user_type === 'buyer') {
         buyerId = profile.id;
         buyerLinked = true;
@@ -151,8 +151,8 @@ export class OrderService {
     try {
       // If no buyer linked and DB has NOT NULL constraint, we need to handle it
       // Option: Try insert, if fails due to buyer_id, create without buyer link
-      const insertData = finalBuyerId 
-        ? orderData 
+      const insertData = finalBuyerId
+        ? orderData
         : { ...orderData, buyer_id: undefined }; // Let DB handle or fail gracefully
 
       // Insert order
@@ -172,7 +172,7 @@ export class OrderService {
             buyer_id: null, // Will fail if constraint exists
             notes: `POS Walk-in Sale${buyerEmail ? ` - Customer email: ${buyerEmail}` : ''}`
           });
-        
+
         if (retryError) {
           console.warn('⚠️ POS order fallback failed, order recorded in notes only');
           // Return success anyway for walk-in - the sale happened
@@ -210,7 +210,7 @@ export class OrderService {
         if (variants && variants.length > 0) {
           const variant = variants[0];
           const newStock = Math.max(0, (variant.stock || 0) - item.quantity);
-          
+
           const { error: stockError } = await supabase
             .from('product_variants')
             .update({ stock: newStock })
@@ -232,13 +232,13 @@ export class OrderService {
             .select('bazcoins')
             .eq('id', finalBuyerId)
             .single();
-          
+
           const currentCoins = buyerData?.bazcoins || 0;
           const { error: coinError } = await supabase
             .from('buyers')
             .update({ bazcoins: currentCoins + coinsEarned })
             .eq('id', finalBuyerId);
-          
+
           if (coinError) {
             console.warn('BazCoins award failed:', coinError);
           } else {
@@ -330,7 +330,7 @@ export class OrderService {
         .eq('seller_id', sellerId);
 
       if (productsError) throw productsError;
-      
+
       const productIds = (products || []).map(p => p.id);
       if (productIds.length === 0) return [];
 
@@ -345,7 +345,7 @@ export class OrderService {
       const orderIds = [...new Set((orderItems || []).map(item => item.order_id))];
       if (orderIds.length === 0) return [];
 
-      // Step 3: Get the actual orders with their items
+      // Step 3: Get the actual orders with their items and addresses
       const { data: orders, error: ordersError } = await supabase
         .from('orders')
         .select(`
@@ -366,6 +366,14 @@ export class OrderService {
             last_name,
             phone,
             email
+          ),
+          shipping_address:shipping_addresses (
+            street_address,
+            city,
+            province,
+            postal_code,
+            country,
+            phone
           )
         `)
         .in('id', orderIds)
@@ -382,6 +390,7 @@ export class OrderService {
         }, 0);
 
         const recipient = order.recipient as any;
+        const shippingAddr = order.shipping_address as any;
 
         return {
           ...order,
@@ -389,8 +398,14 @@ export class OrderService {
           total_amount: totalAmount,
           status: order.shipment_status || order.payment_status || 'pending',
           buyer_name: recipient ? `${recipient.first_name || ''} ${recipient.last_name || ''}`.trim() : 'Customer',
-          buyer_phone: recipient?.phone || '',
+          buyer_phone: recipient?.phone || shippingAddr?.phone || '',
           buyer_email: recipient?.email || '',
+          // Add shipping address fields for compatibility
+          shipping_street: shippingAddr?.street_address || '',
+          shipping_city: shippingAddr?.city || '',
+          shipping_province: shippingAddr?.province || '',
+          shipping_postal_code: shippingAddr?.postal_code || '',
+          shipping_country: shippingAddr?.country || 'Philippines',
         };
       });
     } catch (error) {
@@ -432,12 +447,17 @@ export class OrderService {
     orderId: string,
     details: {
       notes?: string;
+      buyer_name?: string;
+      buyer_email?: string;
     }
   ): Promise<boolean> {
     if (!isSupabaseConfigured()) {
       const order = this.mockOrders.find(o => o.id === orderId);
       if (order) {
         if (details.notes !== undefined) (order as any).notes = details.notes;
+        // Mock update for buyer info (not fully persisting in mock but good enough for UI feedback)
+        if (details.buyer_name) (order as any).buyer_name = details.buyer_name;
+
         order.updated_at = new Date().toISOString();
         return true;
       }
@@ -450,17 +470,50 @@ export class OrderService {
       // Only notes column exists on orders table
       if (details.notes !== undefined) updateData.notes = details.notes;
 
-      if (Object.keys(updateData).length === 0) {
-        return true; // Nothing to update
+      // Update orders table if notes changed
+      if (Object.keys(updateData).length > 0) {
+        const { error } = await supabase
+          .from('orders')
+          .update(updateData)
+          .eq('id', orderId);
+
+        if (error) throw error;
       }
 
-      const { error } = await supabase
-        .from('orders')
-        .update(updateData)
-        .eq('id', orderId);
+      // Update recipient info if provided
+      if (details.buyer_name || details.buyer_email) {
+        // Fetch order to get recipient_id
+        const { data: order, error: fetchError } = await supabase
+          .from('orders')
+          .select('recipient_id')
+          .eq('id', orderId)
+          .single();
 
-      if (error) throw error;
-      
+        if (fetchError) throw fetchError;
+
+        if (order?.recipient_id) {
+          const recipientUpdate: any = {};
+          if (details.buyer_name) {
+            // simple split for first/last name
+            const parts = details.buyer_name.trim().split(' ');
+            const lastName = parts.length > 1 ? parts.pop() : '';
+            const firstName = parts.join(' ');
+            recipientUpdate.first_name = firstName || details.buyer_name; // Fallback if no space
+            recipientUpdate.last_name = lastName;
+          }
+          if (details.buyer_email) recipientUpdate.email = details.buyer_email;
+
+          if (Object.keys(recipientUpdate).length > 0) {
+            const { error: recipientError } = await supabase
+              .from('order_recipients')
+              .update(recipientUpdate)
+              .eq('id', order.recipient_id);
+
+            if (recipientError) throw recipientError;
+          }
+        }
+      }
+
       console.log(`[OrderService] ✅ Order details updated: ${orderId}`);
       return true;
     } catch (error) {
@@ -503,10 +556,10 @@ export class OrderService {
       // Update order with new schema fields
       const { error: orderError } = await supabase
         .from('orders')
-        .update({ 
+        .update({
           payment_status: newStatuses.payment_status,
           shipment_status: newStatuses.shipment_status,
-          updated_at: new Date().toISOString() 
+          updated_at: new Date().toISOString()
         })
         .eq('id', orderId);
 
