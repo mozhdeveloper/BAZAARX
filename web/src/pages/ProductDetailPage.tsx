@@ -4,17 +4,18 @@ import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { toast } from "../hooks/use-toast";
 import {
-    Minus,
-    Plus,
-    ShoppingCart,
-    Star,
-    ChevronRight,
-    ChevronLeft,
-    MessageCircle,
-    MapPin,
-    ShieldCheck,
-    Gift,
-    Ruler,
+  Minus,
+  Plus,
+  ShoppingCart,
+  Star,
+  ChevronRight,
+  ChevronLeft,
+  MessageCircle,
+  MapPin,
+  ShieldCheck,
+  Gift,
+  Ruler,
+  X,
 } from "lucide-react";
 import { Badge } from "../components/ui/badge";
 import {
@@ -965,22 +966,20 @@ export default function ProductDetailPage({}: ProductDetailPageProps) {
                 </div>
             </main>
 
-            <BazaarFooter />
-            {/* Registry Selection Modal */}
-            {showRegistryModal && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl scale-100 opacity-100 animate-in zoom-in-95 duration-200">
-                        <div className="flex items-center justify-between mb-6">
-                            <h2 className="text-xl font-bold text-gray-900">
-                                Add to Registry
-                            </h2>
-                            <button
-                                onClick={() => setShowRegistryModal(false)}
-                                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-                            >
-                                <Minus className="w-5 h-5 rotate-45" />
-                            </button>
-                        </div>
+      <BazaarFooter />
+      {/* Registry Selection Modal */}
+      {showRegistryModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl scale-100 opacity-100 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-gray-900">Add to Registry</h2>
+              <button
+                onClick={() => setShowRegistryModal(false)}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
 
                         <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent">
                             {registries.map((registry) => (
@@ -1028,62 +1027,47 @@ export default function ProductDetailPage({}: ProductDetailPageProps) {
                             ))}
                         </div>
 
-                        <div className="mt-6 pt-4 border-t border-gray-100">
-                            <button
-                                onClick={() => {
-                                    setShowRegistryModal(false);
-                                    setIsCreateRegistryModalOpen(true);
-                                }}
-                                className="w-full py-3 px-4 rounded-xl border border-dashed border-gray-300 text-gray-600 font-medium hover:border-orange-400 hover:text-orange-600 hover:bg-orange-50 transition-all flex items-center justify-center gap-2"
-                            >
-                                <Plus className="w-4 h-4" />
-                                Create New Registry
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-            {/* Create Registry Modal */}
-            <CreateRegistryModal
-                isOpen={isCreateRegistryModalOpen}
-                onClose={() => setIsCreateRegistryModalOpen(false)}
-                hideBrowseLink={true}
-                onCreate={(name, category) => {
-                    const newRegistry = {
-                        id: `reg-${Date.now()}`,
-                        title: name,
-                        sharedDate: new Date().toLocaleDateString("en-US", {
-                            month: "short",
-                            day: "numeric",
-                            year: "numeric",
-                        }),
-                        imageUrl:
-                            "https://images.unsplash.com/photo-1513201099705-a9746e1e201f?w=400&h=400&fit=crop",
-                        category: category,
-                        products: [],
-                    };
-                    createRegistry(newRegistry);
-
-                    // Auto-add the current product to the new registry
-                    if (normalizedProduct) {
-                        const productToAdd = mapNormalizedToBuyerProduct(
-                            normalizedProduct,
-                            currentSeller,
-                        );
-
-                        addToRegistry(newRegistry.id, productToAdd);
-                    }
-
-                    setIsCreateRegistryModalOpen(false);
-                    // showRegistryModal is not needed anymore as we auto-added
-                    setShowRegistryModal(false);
-
-                    toast({
-                        title: "Registry Created & Item Added",
-                        description: `${name} created and ${normalizedProduct?.name} has been added.`,
-                    });
+            <div className="mt-6 pt-4 border-t border-gray-100">
+              <button
+                onClick={() => {
+                  setShowRegistryModal(false);
+                  setIsCreateRegistryModalOpen(true);
                 }}
-            />
+                className="w-full py-3 px-4 rounded-xl border border-dashed border-gray-300 text-gray-600 font-medium hover:border-orange-400 hover:text-orange-600 hover:bg-orange-50 transition-all flex items-center justify-center gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                Create New Registry
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Create Registry Modal */}
+      <CreateRegistryModal
+        isOpen={isCreateRegistryModalOpen}
+        onClose={() => setIsCreateRegistryModalOpen(false)}
+        hideBrowseLink={true}
+        onCreate={(name, category) => {
+          const newRegistry = {
+            id: `reg-${Date.now()}`,
+            title: name,
+            sharedDate: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+            imageUrl: "https://images.unsplash.com/photo-1513201099705-a9746e1e201f?w=400&h=400&fit=crop",
+            category: category,
+            products: []
+          };
+          createRegistry(newRegistry);
+
+          // Close create modal and reopen registry selection modal
+          setIsCreateRegistryModalOpen(false);
+          setShowRegistryModal(true);
+
+          toast({
+            title: "Registry Created",
+            description: `${name} has been created successfully.`,
+          });
+        }}
+      />
 
             {/* Cart Modal */}
             {addedProductInfo && (
