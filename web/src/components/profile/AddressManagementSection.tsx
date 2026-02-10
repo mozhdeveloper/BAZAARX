@@ -1,34 +1,33 @@
-import { useState } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Edit2, Trash2, Plus } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
-import type { Address } from '@/stores/buyerStore';
-import { AddressModal } from './AddressModal';
+import { useState } from "react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Edit2, Trash2, Plus } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import type { Address } from "@/stores/buyerStore";
+import { useAddressManager } from "@/hooks/profile/useAddressManager";
+import { AddressModal } from "./AddressModal";
 
 interface AddressManagementSectionProps {
-  addresses: Address[];
   userId: string;
-  loading: boolean;
-  onAddressAdded: (address: Address) => void;
-  onAddressUpdated: (id: string, address: Partial<Address>) => void;
-  onAddressDeleted: (id: string) => void;
-  onSetDefault: (id: string) => void;
 }
 
 export const AddressManagementSection = ({
-  addresses,
   userId,
-  loading,
-  onAddressAdded,
-  onAddressUpdated,
-  onAddressDeleted,
-  onSetDefault
 }: AddressManagementSectionProps) => {
+  const {
+    addresses,
+    loading,
+    addAddress,
+    updateAddress,
+    deleteAddress,
+    setDefaultAddress,
+  } = useAddressManager(userId);
   const { toast } = useToast();
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingAddress, setEditingAddress] = useState<Address | undefined>(undefined);
+  const [editingAddress, setEditingAddress] = useState<Address | undefined>(
+    undefined,
+  );
 
   const handleOpenModal = (address?: Address) => {
     setEditingAddress(address);
@@ -42,17 +41,17 @@ export const AddressManagementSection = ({
 
   const handleDeleteAddress = async (addressId: string) => {
     if (!confirm("Are you sure you want to delete this address?")) return;
-    
-    try {
-      onAddressDeleted(addressId);
+
+    const result = await deleteAddress(addressId);
+    if (result) {
       toast({
         title: "Address deleted",
         description: "The address has been removed from your profile.",
       });
-    } catch (error) {
+    } else {
       toast({
         title: "Error deleting address",
-        description: error.message,
+        description: "Could not delete the address. Please try again.",
         variant: "destructive",
       });
     }
@@ -70,17 +69,24 @@ export const AddressManagementSection = ({
             <div className="flex justify-between items-start">
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
-                  <h3 className="font-bold text-[#ff6a00] text-lg">{address.label}</h3>
+                  <h3 className="font-bold text-[#ff6a00] text-lg">
+                    {address.label}
+                  </h3>
                   {address.isDefault && (
-                    <Badge className="bg-orange-50 text-[#ff6a00] border-none text-[10px] font-bold">DEFAULT</Badge>
+                    <Badge className="bg-orange-50 text-[#ff6a00] border-none text-[10px] font-bold">
+                      DEFAULT
+                    </Badge>
                   )}
                 </div>
 
                 <div className="text-sm space-y-1 text-gray-600">
-                  <p className="font-bold text-gray-900">{address.firstName} {address.lastName}</p>
+                  <p className="font-bold text-gray-900">
+                    {address.firstName} {address.lastName}
+                  </p>
                   <p className="font-medium text-gray-500">{address.phone}</p>
                   <p className="text-gray-500 line-clamp-2">
-                    {address.street}, {address.barangay}, {address.city}, {address.province} {address.postalCode}
+                    {address.street}, {address.barangay}, {address.city},{" "}
+                    {address.province} {address.postalCode}
                   </p>
                 </div>
               </div>
@@ -110,7 +116,7 @@ export const AddressManagementSection = ({
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => onSetDefault(address.id)}
+                  onClick={() => setDefaultAddress(address.id)}
                   className="text-gray-400 hover:text-[#ff6a00] p-0 h-auto text-[10px] font-bold uppercase tracking-wider hover:bg-transparent transition-colors"
                 >
                   Set as default
@@ -133,10 +139,9 @@ export const AddressManagementSection = ({
       <AddressModal
         isOpen={isModalOpen}
         onClose={handleCloseModal}
-        userId={userId}
         address={editingAddress}
-        onAddressAdded={onAddressAdded}
-        onAddressUpdated={onAddressUpdated}
+        onAddressAdded={addAddress}
+        onAddressUpdated={updateAddress}
       />
     </div>
   );

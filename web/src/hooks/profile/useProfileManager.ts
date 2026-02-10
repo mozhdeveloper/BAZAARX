@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useBuyerStore } from '@/stores/buyerStore';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
@@ -7,8 +7,9 @@ export const useProfileManager = (userId: string) => {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const { profile, updateProfile, initializeBuyerProfile } = useBuyerStore();
+    const { profile, setProfile, updateProfile, initializeBuyerProfile } = useBuyerStore();
     const { toast } = useToast();
+    const sellerStatusCache = useRef<{ checkedAt: number; value: boolean } | null>(null);
 
     // Initialize buyer profile if not already loaded
     useEffect(() => {
@@ -46,22 +47,31 @@ export const useProfileManager = (userId: string) => {
 
         try {
             // Update Supabase
+            const profileUpdates: Record<string, unknown> = {
+                updated_at: new Date().toISOString()
+            };
+
+            if (updates.firstName !== undefined) {
+                profileUpdates.first_name = updates.firstName;
+            }
+
+            if (updates.lastName !== undefined) {
+                profileUpdates.last_name = updates.lastName;
+            }
+
+            if (updates.phone !== undefined) {
+                profileUpdates.phone = updates.phone;
+            }
+
             const { error: supabaseError } = await supabase
                 .from('profiles')
-                .update({
-                    full_name: updates.firstName && updates.lastName
-                        ? `${updates.firstName} ${updates.lastName}`
-                        : undefined,
-                    phone: updates.phone,
-                    avatar_url: updates.avatar,
-                    updated_at: new Date().toISOString()
-                })
+                .update(profileUpdates)
                 .eq('id', profile.id);
 
             if (supabaseError) throw supabaseError;
 
             // Update local store
-            updateProfile(updates);
+            setProfile({ ...profile, ...updates });
 
             toast({
                 title: "Profile Updated",
@@ -112,8 +122,9 @@ export const useProfileManager = (userId: string) => {
 
             const publicUrl = data.publicUrl;
 
-            // Update profile with new avatar
-            await updateProfileData({ avatar: publicUrl });
+            // Update buyer avatar
+            await updateProfile({ avatar_url: publicUrl } as any);
+            setProfile({ ...profile, avatar: publicUrl });
 
             return publicUrl;
         } catch (err) {
@@ -130,25 +141,30 @@ export const useProfileManager = (userId: string) => {
         }
     };
 
-    const checkSellerStatus = async (): Promise<boolean> => {
-        if (!profile?.email) return false;
+    const checkSellerStatus = async (options?: { force?: boolean }): Promise<boolean> => {
+        if (!profile?.id) return false;
+
+        const cacheTtlMs = 5 * 60 * 1000;
+        const cached = sellerStatusCache.current;
+        const now = Date.now();
+
+        if (!options?.force && cached && now - cached.checkedAt < cacheTtlMs) {
+            return cached.value;
+        }
 
         try {
             const { data, error } = await supabase
-                .from('profiles')
-                .select('id, user_type')
-                .eq('email', profile.email)
-                .single();
+                .from('user_roles')
+                .select('id')
+                .eq('user_id', profile.id)
+                .eq('role', 'seller')
+                .maybeSingle();
 
-            if (error) {
-                // If error is due to no rows found, that's fine - user is not registered as seller
-                if (error.code === 'PGRST116') {
-                    return false;
-                }
-                throw error;
-            }
+            if (error) throw error;
 
-            return data?.user_type === 'seller';
+            const isSeller = Boolean(data?.id);
+            sellerStatusCache.current = { checkedAt: now, value: isSeller };
+            return isSeller;
         } catch (err) {
             console.error('Error checking seller status:', err);
             return false;
