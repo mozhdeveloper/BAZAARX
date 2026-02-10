@@ -345,7 +345,8 @@ export class OrderService {
       const orderIds = [...new Set((orderItems || []).map(item => item.order_id))];
       if (orderIds.length === 0) return [];
 
-      // Step 3: Get the actual orders with their items and addresses
+      // Step 3: Get the actual orders
+      // REMOVED 'phone' from shipping_addresses selection
       const { data: orders, error: ordersError } = await supabase
         .from('orders')
         .select(`
@@ -361,19 +362,17 @@ export class OrderService {
             shipping_discount,
             variant_id
           ),
-          recipient:order_recipients (
+          recipient:order_recipients!orders_recipient_id_fkey (
             first_name,
             last_name,
             phone,
             email
           ),
-          shipping_address:shipping_addresses (
-            street_address,
+          shipping_address:shipping_addresses!orders_address_id_fkey (
+            address_line_1,
             city,
             province,
-            postal_code,
-            country,
-            phone
+            postal_code
           )
         `)
         .in('id', orderIds)
@@ -383,8 +382,12 @@ export class OrderService {
 
       // Map to Order format with computed totals
       return (orders || []).map(order => {
-        const items = order.order_items || [];
-        const totalAmount = items.reduce((sum: number, item: any) => {
+        // Compute total only for items belonging to this seller
+        const sellerItems = (order.order_items || []).filter((item: any) => 
+          productIds.includes(item.product_id)
+        );
+
+        const totalAmount = sellerItems.reduce((sum: number, item: any) => {
           const itemPrice = (item.price || 0) - (item.price_discount || 0);
           return sum + (item.quantity * itemPrice);
         }, 0);
@@ -394,18 +397,18 @@ export class OrderService {
 
         return {
           ...order,
-          seller_id: sellerId, // Add for compatibility
+          seller_id: sellerId,
           total_amount: totalAmount,
           status: order.shipment_status || order.payment_status || 'pending',
           buyer_name: recipient ? `${recipient.first_name || ''} ${recipient.last_name || ''}`.trim() : 'Customer',
-          buyer_phone: recipient?.phone || shippingAddr?.phone || '',
+          // Phone now comes exclusively from recipient since it was removed from address
+          buyer_phone: recipient?.phone || '',
           buyer_email: recipient?.email || '',
-          // Add shipping address fields for compatibility
-          shipping_street: shippingAddr?.street_address || '',
+          shipping_street: shippingAddr?.address_line_1 || '',
           shipping_city: shippingAddr?.city || '',
           shipping_province: shippingAddr?.province || '',
           shipping_postal_code: shippingAddr?.postal_code || '',
-          shipping_country: shippingAddr?.country || 'Philippines',
+          shipping_country: 'Philippines',
         };
       });
     } catch (error) {
@@ -981,7 +984,7 @@ export class OrderService {
           is_edited: false
         };
 
-        const review = await reviewService.createReview(reviewPayload);
+        const review = await reviewService.createReview(reviewPayload as any);
         if (review) successCount++;
       }
 

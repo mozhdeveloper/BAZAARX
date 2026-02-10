@@ -26,6 +26,7 @@ import {
   Save,
   X,
   Loader2,
+  RefreshCw
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
@@ -124,11 +125,19 @@ export function SellerOrders() {
   // Fetch orders when component mounts or seller changes
   useEffect(() => {
     if (seller?.id) {
+      console.log(`🛒 SellerOrders: Fetching orders for seller: ${seller.id}`);
       fetchOrders(seller.id);
+    } else {
+      console.log("⏳ SellerOrders: No seller ID found yet, waiting...");
     }
   }, [seller?.id, fetchOrders]);
 
-
+  // Add manual refresh handler
+  const handleRefresh = () => {
+    if (seller?.id) {
+      fetchOrders(seller.id);
+    }
+  };
 
   const handleLogout = () => {
     logout();
@@ -325,6 +334,17 @@ export function SellerOrders() {
                 Manage all your customer orders from App and POS
               </p>
             </div>
+            {/* Added Refresh Button */}
+            <Button
+              onClick={handleRefresh}
+              variant="outline"
+              size="sm"
+              disabled={loading}
+              className="gap-2"
+            >
+              <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+              {loading ? "Refreshing..." : "Refresh Orders"}
+            </Button>
           </div>
 
           {/* Modern Stats Cards */}
