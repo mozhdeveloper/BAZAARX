@@ -55,17 +55,17 @@ The `WishlistItem` extends the base `Product` type with specific metadata:
 
 - **Persistence**: Uses `zustand` with `persist` middleware backed by `AsyncStorage`.
 - **Actions**:
-  - `addItem`, `removeItem`, `updateItem`
-  - `createCategory`, `deleteCategory`, `updateCategory`
-  - `shareWishlist` (generates deep link)
+    - `addItem`, `removeItem`, `updateItem`
+    - `createCategory`, `deleteCategory`, `updateCategory`
+    - `shareWishlist` (generates deep link)
 
 ### UI Components (`WishlistScreen.tsx`)
 
 - **Layout**: Uses a categorized view where users first see their lists, then drill down into items.
 - **Modals**:
-  - `CreateListModal`: For adding new categories.
-  - `ItemEditModal`: For adjusting quantity and privacy.
-  - `EditCategoryModal`: For renaming or changing privacy of a list.
+    - `CreateListModal`: For adding new categories.
+    - `ItemEditModal`: For adjusting quantity and privacy.
+    - `EditCategoryModal`: For renaming or changing privacy of a list.
 - **Navigation**: Accessible via the main tab bar or profile menu.
 
 ### Registry Integration
@@ -91,8 +91,8 @@ The `WishlistItem` extends the base `Product` type with specific metadata:
 1. User browses Product Detail Page.
 2. User taps **Gift Icon** (Add to Wishlist).
 3. **Decision**:
-   - If User has multiple lists: modal appears to select list (default is 'General Favorites').
-   - If User has only default list: toast appears "Added to General Favorites".
+    - If User has multiple lists: modal appears to select list (default is 'General Favorites').
+    - If User has only default list: toast appears "Added to General Favorites".
 
 ### 2. Manage Lists
 
@@ -106,8 +106,8 @@ The `WishlistItem` extends the base `Product` type with specific metadata:
 2. User taps an Item.
 3. User selects **Edit** option.
 4. User adjusts:
-   - **Desired Quantity** (for registry).
-   - **Privacy** (hide from shared view).
+    - **Desired Quantity** (for registry).
+    - **Privacy** (hide from shared view).
 5. User saves changes.
 
 ### 4. Share Registry
