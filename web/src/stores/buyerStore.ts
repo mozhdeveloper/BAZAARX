@@ -326,6 +326,7 @@ interface BuyerStore {
   // Registry & Gifting
   registries: RegistryItem[];
   createRegistry: (registry: RegistryItem) => void;
+  deleteRegistry: (registryId: string) => void;
   addToRegistry: (registryId: string, product: Product) => void;
   updateRegistryItem: (registryId: string, productId: string, updates: Partial<RegistryProduct>) => void;
   removeRegistryItem: (registryId: string, productId: string) => void;
@@ -715,6 +716,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
     syncPaymentMethodsWithService: async () => {
       const state = get();
       const userId = state.profile?.id;
+      const paymentMethods = state.profile?.paymentMethods || [];
 
       if (!userId) return;
 
@@ -1507,6 +1509,11 @@ export const useBuyerStore = create<BuyerStore>()(persist(
     createRegistry: (registry) => {
       set((state) => ({
         registries: [...state.registries, registry]
+      }));
+    },
+    deleteRegistry: (registryId) => {
+      set((state) => ({
+        registries: state.registries.filter(r => r.id !== registryId)
       }));
     },
     addToRegistry: (registryId, product) => {
