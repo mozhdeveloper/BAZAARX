@@ -148,7 +148,10 @@ export function OrderDetailsModal({ isOpen, onClose, order }: OrderDetailsModalP
     return (
         <AnimatePresence>
             {isOpen && (
-                <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-[99999] p-4 backdrop-blur-sm">
+                <div
+                    className="fixed inset-0 bg-black/30 flex items-center justify-center z-[99999] p-4 backdrop-blur-sm"
+                    onClick={onClose}
+                >
                     <motion.div
                         initial={{ opacity: 0, scale: 0.95, y: 20 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
