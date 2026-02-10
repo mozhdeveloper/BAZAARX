@@ -34,10 +34,106 @@ export default function BuyerProfilePage() {
   const userId = profile?.id || "";
   const { checkSellerStatus } = useProfileManager(userId);
 
-  const [activeTab, setActiveTab] = useState("personal");
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [isSeller, setIsSeller] = useState(false);
-  const [isSellerLoading, setIsSellerLoading] = useState(true);
+  // 1. Load regions on mount
+  useEffect(() => {
+    regions().then((res) => setRegionList(res));
+  }, []);
+
+  // Check if user is also a seller
+  useEffect(() => {
+    const checkSellerStatus = async () => {
+      if (profile?.id) {
+        // Check if the user exists in the sellers table
+        const { data, error } = await supabase
+          .from('sellers')
+          .select('id')
+          .eq('user_id', profile.id)
+          .maybeSingle();
+
+        if (error) {
+          console.error('Error checking seller status:', error);
+          setIsSeller(false);
+        } else {
+          setIsSeller(!!data);
+        }
+      }
+    };
+    checkSellerStatus();
+  }, [profile?.id]);
+
+  // 2. Handle Region Selection
+  const onRegionChange = (regionCode: string) => {
+    const name = regionList.find(i => i.region_code === regionCode)?.region_name;
+    setNewAddress({ ...newAddress, region: name, province: '', city: '', barangay: '' });
+    provinces(regionCode).then(res => setProvinceList(res));
+    setCityList([]);
+    setBarangayList([]);
+  };
+
+  // 3. Handle Province Selection
+  const onProvinceChange = (provinceCode: string) => {
+    const name = provinceList.find(i => i.province_code === provinceCode)?.province_name;
+    setNewAddress({ ...newAddress, province: name, city: '', barangay: '' });
+    cities(provinceCode).then(res => setCityList(res));
+    setBarangayList([]);
+  };
+
+  // 4. Handle City Selection
+  const onCityChange = (cityCode: string) => {
+    const name = cityList.find(i => i.city_code === cityCode)?.city_name;
+    setNewAddress({ ...newAddress, city: name, barangay: '' });
+    barangays(cityCode).then(res => setBarangayList(res));
+  };
+
+  useEffect(() => {
+    const loadAddresses = async () => {
+      if (!profile?.id) return;
+      const { supabase } = await import('../lib/supabase');
+      const { data, error } = await supabase
+        .from('shipping_addresses')
+        .select('*')
+        .eq('user_id', profile.id);
+
+      if (data && !error) {
+        setAddresses(data.map(addr => ({
+          id: addr.id,
+          label: addr.label,
+          firstName: addr.first_name,
+          lastName: addr.last_name,
+          fullName: `${addr.first_name || ''} ${addr.last_name || ''}`.trim(),
+          phone: addr.phone,
+          street: addr.address_line_1 || addr.street || '',
+          barangay: addr.barangay || '',
+          city: addr.city,
+          region: addr.region,
+          province: addr.province,
+          postalCode: addr.postal_code || addr.zip_code || '',
+          isDefault: addr.is_default
+        })));
+      }
+    };
+    loadAddresses();
+  }, [profile?.id]);
+
+  // Profile Edit State
+  const [editData, setEditData] = useState(profile || {
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    avatar: ''
+  });
+
+  const handleOpenEdit = () => {
+    if (profile) {
+      setEditData({ ...profile });
+    }
+    setIsEditOpen(true);
+  };
+
+  const handleSave = async () => {
+    if (!profile) return;
+    setIsSaving(true);
 
   const handleUpdatePreferences = async (
     preferences: BuyerProfile["preferences"],
@@ -46,8 +142,181 @@ export default function BuyerProfilePage() {
       await updateProfile({ preferences } as Partial<BuyerProfile>);
     } catch (error) {
       toast({
-        title: "Unable to update preferences",
-        description: "Please try again in a moment.",
+        title: "Upload Failed",
+        description: error.message || "Could not upload image.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Address
+  const [newAddress, setNewAddress] = useState({
+    label: 'Home',
+    firstName: profile?.firstName || '',
+    lastName: profile?.lastName || '',
+    phone: profile?.phone || '',
+    street: '',
+    barangay: '',
+    city: '',
+    province: '',
+    region: 'NCR',
+    postalCode: '',
+    isDefault: false
+  });
+
+  const handleOpenAddressModal = async (address?: Address) => {
+    if (address) {
+      setEditingId(address.id);
+      setNewAddress({ ...address });
+
+      // 1. Re-populate the lists based on existing names
+      try {
+        // Find Region Code by Name
+        const allRegions = await regions();
+        const regionMatch = allRegions.find(r => r.region_name === address.region);
+
+        if (regionMatch) {
+          // Load Provinces for this region
+          const provs = await provinces(regionMatch.region_code);
+          setProvinceList(provs);
+          const provinceMatch = provs.find(p => p.province_name === address.province);
+
+          if (provinceMatch) {
+            // Load Cities for this province
+            const cts = await cities(provinceMatch.province_code);
+            setCityList(cts);
+            const cityMatch = cts.find(c => c.city_name === address.city);
+
+            if (cityMatch) {
+              // Load Barangays for this city
+              const brgys = await barangays(cityMatch.city_code);
+              setBarangayList(brgys);
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error re-hydrating address lists:", error);
+      }
+    } else {
+      // Reset for New Address
+      setEditingId(null);
+      setProvinceList([]);
+      setCityList([]);
+      setBarangayList([]);
+      setNewAddress({
+        label: 'Home', firstName: profile?.firstName || '', lastName: profile?.lastName || '',
+        phone: profile?.phone || '', street: '', barangay: '', city: '',
+        province: '', region: '', postalCode: '', isDefault: addresses.length === 0
+      });
+    }
+    setIsAddressOpen(true);
+  };
+
+  const handleSaveAddress = async () => {
+    if (!profile) return;
+    setIsSaving(true);
+
+    try {
+      const { supabase } = await import('../lib/supabase');
+
+      // 1. Handle Default logic in DB
+      if (newAddress.isDefault) {
+        await supabase
+          .from('shipping_addresses')
+          .update({ is_default: false })
+          .eq('user_id', profile.id);
+
+        const updatedLocalAddresses = addresses.map(addr => ({ ...addr, isDefault: false }));
+        setAddresses(updatedLocalAddresses);
+      }
+
+      const dbPayload = {
+        user_id: profile.id,
+        label: newAddress.label,
+        first_name: newAddress.firstName,
+        last_name: newAddress.lastName,
+        phone: newAddress.phone,
+        street: newAddress.street,
+        region: newAddress.region,
+        province: newAddress.province,
+        city: newAddress.city,
+        barangay: newAddress.barangay,
+        zip_code: newAddress.postalCode,
+        is_default: newAddress.isDefault,
+      };
+
+      if (editingId) {
+        // UPDATING EXISTING ROW
+        const { error } = await supabase
+          .from('shipping_addresses')
+          .update(dbPayload)
+          .eq('id', editingId); // Ensure this ID matches the DB primary key
+
+        if (error) throw error;
+
+        // Update local Zustand store
+        updateAddress(editingId, {
+          ...newAddress,
+          id: editingId,
+          fullName: `${newAddress.firstName} ${newAddress.lastName}`
+        } as any);
+
+        toast({ title: "Address updated" });
+      } else {
+        // ADDING NEW ROW
+        const { data, error } = await supabase
+          .from('shipping_addresses')
+          .insert([dbPayload])
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        // Add to local Zustand store
+        addAddress({
+          ...newAddress,
+          id: data.id,
+          fullName: `${data.first_name} ${data.last_name}`
+        } as any);
+
+        toast({ title: "Address added" });
+      }
+
+      setIsAddressOpen(false);
+      setEditingId(null); // Reset the state for the next use
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeleteAddress = async (addressId: string) => {
+    // Optional: Add a confirmation dialog here
+    if (!confirm("Are you sure you want to delete this address?")) return;
+
+    try {
+      const { supabase } = await import('../lib/supabase');
+
+      // 1. Delete from Supabase Database
+      const { error } = await supabase
+        .from('shipping_addresses')
+        .delete()
+        .eq('id', addressId);
+
+      if (error) throw error;
+
+      // 2. Delete from Local Zustand Store
+      deleteAddress(addressId);
+
+      toast({
+        title: "Address deleted",
+        description: "The address has been removed from your profile.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error deleting address",
+        description: error.message,
         variant: "destructive",
       });
       console.error(error);
@@ -60,7 +329,26 @@ export default function BuyerProfilePage() {
     setProfile({ ...profile, avatar: avatarUrl });
 
     try {
-      await updateProfile({ avatar_url: avatarUrl } as any);
+      const { supabase } = await import('../lib/supabase');
+
+      // 2. Unset all defaults for this user
+      await supabase
+        .from('shipping_addresses')
+        .update({ is_default: false })
+        .eq('user_id', profile.id);
+
+      // 3. Set new default
+      const { error } = await supabase
+        .from('shipping_addresses')
+        .update({ is_default: true })
+        .eq('id', addressId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Default Address Updated",
+        description: "Your primary shipping address has been updated.",
+      });
     } catch (error) {
       toast({
         title: "Unable to update avatar",
