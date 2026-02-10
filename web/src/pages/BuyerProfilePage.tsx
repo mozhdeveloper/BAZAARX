@@ -101,31 +101,24 @@ export default function BuyerProfilePage() {
   // Check if user is also a seller
   useEffect(() => {
     const checkSellerStatus = async () => {
-      if (profile?.email) {
-        // Check if the user exists in the profiles table with user_type = 'seller'
+      if (profile?.id) {
+        // Check if the user exists in the sellers table
         const { data, error } = await supabase
-          .from('profiles')
-          .select('id, user_type')
-          .eq('email', profile.email)
-          .single();
+          .from('sellers')
+          .select('id')
+          .eq('user_id', profile.id)
+          .maybeSingle();
 
         if (error) {
-          // If error is due to no rows found, that's fine - user is not registered
-          if (error.code === 'PGRST116') { // Row not found
-            setIsSeller(false);
-          } else {
-            console.error('Error checking seller status:', error);
-            setIsSeller(false);
-          }
-        } else if (data && data.user_type === 'seller') {
-          setIsSeller(true);
-        } else {
+          console.error('Error checking seller status:', error);
           setIsSeller(false);
+        } else {
+          setIsSeller(!!data);
         }
       }
     };
     checkSellerStatus();
-  }, [profile?.email]);
+  }, [profile?.id]);
 
   // 2. Handle Region Selection
   const onRegionChange = (regionCode: string) => {
@@ -156,7 +149,7 @@ export default function BuyerProfilePage() {
       if (!profile?.id) return;
       const { supabase } = await import('../lib/supabase');
       const { data, error } = await supabase
-        .from('addresses')
+        .from('shipping_addresses')
         .select('*')
         .eq('user_id', profile.id);
 
@@ -166,14 +159,14 @@ export default function BuyerProfilePage() {
           label: addr.label,
           firstName: addr.first_name,
           lastName: addr.last_name,
-          fullName: `${addr.first_name} ${addr.last_name}`,
+          fullName: `${addr.first_name || ''} ${addr.last_name || ''}`.trim(),
           phone: addr.phone,
-          street: addr.street,
-          barangay: addr.barangay,
+          street: addr.address_line_1 || addr.street || '',
+          barangay: addr.barangay || '',
           city: addr.city,
           region: addr.region,
           province: addr.province,
-          postalCode: addr.zip_code,
+          postalCode: addr.postal_code || addr.zip_code || '',
           isDefault: addr.is_default
         })));
       }
@@ -390,7 +383,7 @@ export default function BuyerProfilePage() {
       // 1. Handle Default logic in DB
       if (newAddress.isDefault) {
         await supabase
-          .from('addresses')
+          .from('shipping_addresses')
           .update({ is_default: false })
           .eq('user_id', profile.id);
 
@@ -416,7 +409,7 @@ export default function BuyerProfilePage() {
       if (editingId) {
         // UPDATING EXISTING ROW
         const { error } = await supabase
-          .from('addresses')
+          .from('shipping_addresses')
           .update(dbPayload)
           .eq('id', editingId); // Ensure this ID matches the DB primary key
 
@@ -433,7 +426,7 @@ export default function BuyerProfilePage() {
       } else {
         // ADDING NEW ROW
         const { data, error } = await supabase
-          .from('addresses')
+          .from('shipping_addresses')
           .insert([dbPayload])
           .select()
           .single();
@@ -468,7 +461,7 @@ export default function BuyerProfilePage() {
 
       // 1. Delete from Supabase Database
       const { error } = await supabase
-        .from('addresses')
+        .from('shipping_addresses')
         .delete()
         .eq('id', addressId);
 
@@ -501,13 +494,13 @@ export default function BuyerProfilePage() {
 
       // 2. Unset all defaults for this user
       await supabase
-        .from('addresses')
+        .from('shipping_addresses')
         .update({ is_default: false })
         .eq('user_id', profile.id);
 
       // 3. Set new default
       const { error } = await supabase
-        .from('addresses')
+        .from('shipping_addresses')
         .update({ is_default: true })
         .eq('id', addressId);
 

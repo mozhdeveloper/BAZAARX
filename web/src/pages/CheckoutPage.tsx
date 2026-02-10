@@ -248,6 +248,12 @@ export default function CheckoutPage() {
     postalCode: "",
     phone: profile?.phone || "",
     paymentMethod: "cod", // COD is default
+    cardNumber: "",
+    cardName: "",
+    expiryDate: "",
+    cvv: "",
+    gcashNumber: "",
+    paymayaNumber: "",
   });
 
   // Force non-COD payment for registry orders if COD is selected

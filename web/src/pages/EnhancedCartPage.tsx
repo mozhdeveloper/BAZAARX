@@ -235,11 +235,17 @@ export default function EnhancedCartPage() {
                               className="flex items-center gap-2 cursor-pointer group/seller"
                               onClick={() => navigate(`/seller/${sellerId}`)}
                             >
-                              <img
-                                src={group.seller.avatar}
-                                alt=""
-                                className="w-8 h-8 rounded-full object-cover group-hover/seller:opacity-80 transition-opacity"
-                              />
+                              {group.seller.avatar ? (
+                                <img
+                                  src={group.seller.avatar}
+                                  alt=""
+                                  className="w-8 h-8 rounded-full object-cover group-hover/seller:opacity-80 transition-opacity"
+                                />
+                              ) : (
+                                <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center group-hover/seller:opacity-80 transition-opacity">
+                                  <Store className="w-4 h-4 text-orange-500" />
+                                </div>
+                              )}
                               <div>
                                 <div className="flex items-center gap-2">
                                   <span className="font-bold text-gray-900 group-hover/seller:text-[#ff6a00] transition-colors">
@@ -279,12 +285,21 @@ export default function EnhancedCartPage() {
                               />
 
                               {/* Product Image */}
-                              <img
-                                src={item.image}
-                                alt=""
-                                className="w-16 h-16 object-cover rounded-md border border-gray-100 cursor-pointer hover:opacity-80 transition-opacity"
-                                onClick={() => navigate(`/product/${item.id}`)}
-                              />
+                              {item.image ? (
+                                <img
+                                  src={item.image}
+                                  alt=""
+                                  className="w-16 h-16 object-cover rounded-md border border-gray-100 cursor-pointer hover:opacity-80 transition-opacity"
+                                  onClick={() => navigate(`/product/${item.id}`)}
+                                />
+                              ) : (
+                                <div
+                                  className="w-16 h-16 rounded-md border border-gray-100 bg-gray-50 flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity"
+                                  onClick={() => navigate(`/product/${item.id}`)}
+                                >
+                                  <ShoppingBag className="w-6 h-6 text-gray-300" />
+                                </div>
+                              )}
 
                               {/* Product Details */}
                               <div className="flex-1 min-w-0">
