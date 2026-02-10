@@ -46,16 +46,52 @@ export function VariantSelectionModal({
     const [currentPrice, setCurrentPrice] = useState<number>(product.price);
     const [currentStock, setCurrentStock] = useState<number>(0);
 
+    const isNonEmptyString = (value: unknown): value is string =>
+        typeof value === "string" && value.length > 0;
+
+    const getVariantLabel1 = (variant: any): string | null => {
+        const label =
+            variant?.option_1_value ??
+            variant?.variantLabel1Value ??
+            variant?.size ??
+            null;
+        return isNonEmptyString(label) ? label : null;
+    };
+
+    const getVariantLabel2 = (variant: any): string | null => {
+        const label =
+            variant?.option_2_value ??
+            variant?.variantLabel2Value ??
+            variant?.color ??
+            null;
+        return isNonEmptyString(label) ? label : null;
+    };
+
     // Extract unique colors and sizes from variants
     const hasVariants = product.variants && product.variants.length > 0;
-    
+
     const uniqueColors = hasVariants
-        ? Array.from(new Set(product.variants.map(v => v.color).filter(Boolean)))
+        ? Array.from(
+            new Set(
+                product.variants
+                    .map((v) => getVariantLabel2(v))
+                    .filter(isNonEmptyString),
+            ),
+        )
         : [];
-    
+
     const uniqueSizes = hasVariants
-        ? Array.from(new Set(product.variants.map(v => v.size).filter(Boolean)))
+        ? Array.from(
+            new Set(
+                product.variants
+                    .map((v) => getVariantLabel1(v))
+                    .filter(isNonEmptyString),
+            ),
+        )
         : [];
+
+    const hasColorOptions = uniqueColors.length > 0;
+    const hasSizeOptions = uniqueSizes.length > 0;
 
     console.log('📊 Modal Data:', {
         hasVariants,
@@ -86,11 +122,18 @@ export function VariantSelectionModal({
 
     // Update variant info when selection changes
     useEffect(() => {
-        if (!hasVariants || !selectedColor || !selectedSize) return;
+        if (!hasVariants) return;
+        if (hasColorOptions && !selectedColor) return;
+        if (hasSizeOptions && !selectedSize) return;
 
-        const matchedVariant = product.variants.find(
-            v => v.color === selectedColor && v.size === selectedSize
-        );
+        const matchedVariant =
+            product.variants.find((v) => {
+                const label1 = getVariantLabel1(v);
+                const label2 = getVariantLabel2(v);
+                const colorMatch = !hasColorOptions || label2 === selectedColor;
+                const sizeMatch = !hasSizeOptions || label1 === selectedSize;
+                return colorMatch && sizeMatch;
+            }) || product.variants[0];
 
         console.log('🔄 Selection changed:', {
             selectedColor,
@@ -113,7 +156,14 @@ export function VariantSelectionModal({
                 setQuantity(Math.min(1, matchedVariant.stock));
             }
         }
-    }, [selectedColor, selectedSize, product.variants, hasVariants]);
+    }, [
+        selectedColor,
+        selectedSize,
+        product.variants,
+        hasVariants,
+        hasColorOptions,
+        hasSizeOptions,
+    ]);
 
     const handleColorSelect = (color: string) => {
         setSelectedColor(color);
@@ -138,9 +188,14 @@ export function VariantSelectionModal({
             return;
         }
 
-        const selectedVariant = product.variants.find(
-            v => v.color === selectedColor && v.size === selectedSize
-        );
+        const selectedVariant =
+            product.variants.find((v) => {
+                const label1 = getVariantLabel1(v);
+                const label2 = getVariantLabel2(v);
+                const colorMatch = !hasColorOptions || label2 === selectedColor;
+                const sizeMatch = !hasSizeOptions || label1 === selectedSize;
+                return colorMatch && sizeMatch;
+            }) || product.variants[0];
 
         if (selectedVariant) {
             onConfirm(selectedVariant, quantity);
@@ -148,11 +203,18 @@ export function VariantSelectionModal({
         }
     };
 
-    const isDisabled = hasVariants && (!selectedColor || !selectedSize || currentStock === 0);
+    const isDisabled =
+        hasVariants &&
+        ((hasColorOptions && !selectedColor) ||
+            (hasSizeOptions && !selectedSize) ||
+            currentStock === 0);
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent className="sm:max-w-lg bg-white p-0 overflow-hidden max-h-[90vh] flex flex-col">
+                <DialogTitle className="sr-only">
+                    {buttonText} - {product.name}
+                </DialogTitle>
                 {/* Product Image - Compact at top */}
                 <div className="w-full h-64 bg-gray-50 relative flex-shrink-0">
                     {/* DEBUG VERSION INDICATOR */}
@@ -206,7 +268,9 @@ export function VariantSelectionModal({
                             <div className="flex flex-wrap gap-2">
                                 {uniqueColors.map((color) => {
                                     // Get variant with this color to show its image
-                                    const colorVariant = product.variants.find(v => v.color === color);
+                                    const colorVariant = product.variants.find(
+                                        (v) => getVariantLabel2(v) === color,
+                                    );
                                     const isSelected = selectedColor === color;
                                     
                                     return (
@@ -308,4 +372,3 @@ export function VariantSelectionModal({
         </Dialog>
     );
 }
-
