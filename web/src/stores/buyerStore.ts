@@ -1,8 +1,30 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { cartService } from '@/services/cartService';
+import { addressService } from '@/services/addressService';
+import { paymentService } from '@/services/paymentService';
 import { getCurrentUser, supabase } from '@/lib/supabase';
 import { ReactNode } from 'react';
+
+const buildAddressLine1 = (address: Address) => {
+  const fullName = address.fullName?.trim();
+  const phone = address.phone?.trim();
+  const street = address.street?.trim();
+
+  if (fullName && phone) {
+    return `${fullName}, ${phone}, ${street}`;
+  }
+
+  if (fullName) {
+    return `${fullName}, ${street}`;
+  }
+
+  if (phone) {
+    return `${phone}, ${street}`;
+  }
+
+  return street || '';
+};
 
 export interface Message {
   id: string;
@@ -395,13 +417,22 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       if (!currentProfile) return;
 
       try {
-        // 1. Update Supabase database
-        const { error } = await supabase
-          .from('buyers')
-          .update(updates) // This will update the 'bazcoins' column if included in updates
-          .eq('id', currentProfile.id);
+        // Map local field names to DB column names for the buyers table
+        const dbUpdates: Record<string, any> = {};
+        if (updates.avatar !== undefined) dbUpdates.avatar_url = updates.avatar;
+        if (updates.bazcoins !== undefined) dbUpdates.bazcoins = updates.bazcoins;
+        if (updates.preferences !== undefined) dbUpdates.preferences = updates.preferences;
 
-        if (error) throw error;
+        // Only update buyers table if there are relevant fields
+        if (Object.keys(dbUpdates).length > 0) {
+          dbUpdates.updated_at = new Date().toISOString();
+          const { error } = await supabase
+            .from('buyers')
+            .update(dbUpdates)
+            .eq('id', currentProfile.id);
+
+          if (error) throw error;
+        }
 
         // 2. Update local Zustand state only if DB update succeeds
         set((state) => ({
@@ -424,54 +455,43 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       const state = get();
       const userId = state.profile?.id;
 
-      // If the new address is default, unset default for all existing addresses
-      const updatedAddresses = address.isDefault
-        ? state.addresses.map(addr => ({ ...addr, isDefault: false }))
-        : state.addresses;
-
-      // Save to database if user is logged in
-      if (userId) {
-        try {
-          // If setting as default, unset others first
-          if (address.isDefault) {
-            await supabase
-              .from('shipping_addresses')
-              .update({ is_default: false })
-              .eq('user_id', userId);
-          }
-
-          // Insert new address
-          const { data: newAddr, error } = await supabase
-            .from('shipping_addresses')
-            .insert({
-              user_id: userId,
-              label: address.fullName || address.label || 'Home',
-              address_line_1: address.street,
-              address_line_2: '',
-              barangay: address.barangay || '',
-              city: address.city,
-              province: address.province,
-              region: address.region || 'Metro Manila',
-              postal_code: address.postalCode,
-              landmark: address.landmark || '',
-              delivery_instructions: address.deliveryInstructions || '',
-              is_default: address.isDefault || false,
-            })
-            .select()
-            .single();
-
-          if (!error && newAddr) {
-            // Use the DB-generated ID
-            address.id = newAddr.id;
-          }
-        } catch (err) {
-          console.error('Error saving address to database:', err);
-        }
+      if (!userId) {
+        set({
+          addresses: [...state.addresses, address]
+        });
+        return;
       }
 
-      set({
-        addresses: [...updatedAddresses, address]
-      });
+      try {
+        // Use service layer to create address
+        const addressToInsert = {
+          user_id: userId,
+          label: address.label || 'Home',
+          address_line_1: buildAddressLine1(address),
+          address_line_2: '',
+          barangay: address.barangay || '',
+          city: address.city,
+          province: address.province,
+          region: address.region || 'Metro Manila',
+          postal_code: address.postalCode,
+          landmark: address.landmark || '',
+          delivery_instructions: address.deliveryInstructions || '',
+          is_default: address.isDefault || false,
+        };
+
+        const createdAddress = await addressService.createAddress(addressToInsert);
+        
+        // Update local state with the created address
+        set({
+          addresses: [...state.addresses, createdAddress]
+        });
+      } catch (err) {
+        console.error('Error saving address to database:', err);
+        // Fallback to local state if service fails
+        set({
+          addresses: [...state.addresses, address]
+        });
+      }
     },
 
     updateAddress: async (id, updatedAddress) => {
@@ -481,30 +501,42 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       // If we are setting this address as default, unset others
       const isSettingDefault = updatedAddress.isDefault === true;
 
-      // Update in database
+      // Update in database using service layer
       if (userId) {
         try {
-          if (isSettingDefault) {
-            await supabase
-              .from('shipping_addresses')
-              .update({ is_default: false })
-              .eq('user_id', userId);
+          // Prepare update data
+          const currentAddress = state.addresses.find(addr => addr.id === id);
+          const mergedAddress = { ...currentAddress, ...updatedAddress };
+          const addressUpdate: Partial<AddressInsert> = {};
+          const shouldUpdateLine1 = Boolean(
+            updatedAddress.street ||
+            updatedAddress.firstName ||
+            updatedAddress.lastName ||
+            updatedAddress.phone ||
+            updatedAddress.fullName
+          );
+          if (shouldUpdateLine1 && currentAddress) {
+            addressUpdate.address_line_1 = buildAddressLine1(mergedAddress as Address);
+          }
+          if (updatedAddress.city) addressUpdate.city = updatedAddress.city;
+          if (updatedAddress.province) addressUpdate.province = updatedAddress.province;
+          if (updatedAddress.postalCode) addressUpdate.postal_code = updatedAddress.postalCode;
+          if (updatedAddress.label) addressUpdate.label = updatedAddress.label;
+          if (typeof updatedAddress.isDefault === 'boolean') addressUpdate.is_default = updatedAddress.isDefault;
+          if (updatedAddress.barangay) addressUpdate.barangay = updatedAddress.barangay;
+          if (updatedAddress.region) addressUpdate.region = updatedAddress.region;
+          if (updatedAddress.landmark !== undefined) addressUpdate.landmark = updatedAddress.landmark;
+          if (updatedAddress.deliveryInstructions !== undefined) {
+            addressUpdate.delivery_instructions = updatedAddress.deliveryInstructions;
           }
 
-          const dbUpdate: Record<string, any> = {};
-          if (updatedAddress.street) dbUpdate.address_line_1 = updatedAddress.street;
-          if (updatedAddress.city) dbUpdate.city = updatedAddress.city;
-          if (updatedAddress.province) dbUpdate.province = updatedAddress.province;
-          if (updatedAddress.postalCode) dbUpdate.postal_code = updatedAddress.postalCode;
-          if (updatedAddress.fullName || updatedAddress.label) dbUpdate.label = updatedAddress.fullName || updatedAddress.label;
-          if (typeof updatedAddress.isDefault === 'boolean') dbUpdate.is_default = updatedAddress.isDefault;
-          if (updatedAddress.barangay) dbUpdate.barangay = updatedAddress.barangay;
-          if (updatedAddress.region) dbUpdate.region = updatedAddress.region;
+          // Update the specific address
+          await addressService.updateAddress(id, addressUpdate);
 
-          await supabase
-            .from('shipping_addresses')
-            .update(dbUpdate)
-            .eq('id', id);
+          // If setting as default, handle default logic separately
+          if (isSettingDefault) {
+            await addressService.setDefaultAddress(userId, id);
+          }
         } catch (err) {
           console.error('Error updating address in database:', err);
         }
@@ -527,13 +559,10 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       const state = get();
       const userId = state.profile?.id;
 
-      // Delete from database
+      // Delete from database using service layer
       if (userId) {
         try {
-          await supabase
-            .from('shipping_addresses')
-            .delete()
-            .eq('id', id);
+          await addressService.deleteAddress(id);
         } catch (err) {
           console.error('Error deleting address from database:', err);
         }
@@ -548,20 +577,10 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       const state = get();
       const userId = state.profile?.id;
 
-      // Update in database
+      // Update in database using service layer
       if (userId) {
         try {
-          // Unset all defaults
-          await supabase
-            .from('shipping_addresses')
-            .update({ is_default: false })
-            .eq('user_id', userId);
-
-          // Set new default
-          await supabase
-            .from('shipping_addresses')
-            .update({ is_default: true })
-            .eq('id', id);
+          await addressService.setDefaultAddress(userId, id);
         } catch (err) {
           console.error('Error setting default address in database:', err);
         }
@@ -575,29 +594,107 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       });
     },
 
-    addCard: (card) => set((state) => ({
-      profile: state.profile ? {
-        ...state.profile,
-        paymentMethods: [...(state.profile.paymentMethods || []), card]
-      } : null
-    })),
+    addCard: async (card) => {
+      const state = get();
+      const userId = state.profile?.id;
 
-    deleteCard: (id) => set((state) => ({
-      profile: state.profile ? {
-        ...state.profile,
-        paymentMethods: (state.profile.paymentMethods || []).filter(c => c.id !== id)
-      } : null
-    })),
+      if (userId) {
+        try {
+          // Use service layer to add payment method
+          await paymentService.addPaymentMethod(userId, card);
+          
+          // Sync payment methods from service
+          await get().syncPaymentMethodsWithService();
+        } catch (error) {
+          console.error('Error adding payment method via service:', error);
+          // Fallback to local state update
+          set((currentState) => ({
+            profile: currentState.profile ? {
+              ...currentState.profile,
+              paymentMethods: [...(currentState.profile.paymentMethods || []), card]
+            } : null
+          }));
+        }
+      } else {
+        // If no user ID, update local state only
+        set((currentState) => ({
+          profile: currentState.profile ? {
+            ...currentState.profile,
+            paymentMethods: [...(currentState.profile.paymentMethods || []), card]
+          } : null
+        }));
+      }
+    },
 
-    setDefaultPaymentMethod: (id) => set((state) => ({
-      profile: state.profile ? {
-        ...state.profile,
-        paymentMethods: (state.profile.paymentMethods || []).map(m => ({
-          ...m,
-          isDefault: m.id === id
-        }))
-      } : null
-    })),
+    deleteCard: async (id) => {
+      const state = get();
+      const userId = state.profile?.id;
+
+      if (userId) {
+        try {
+          // Use service layer to delete payment method
+          await paymentService.deletePaymentMethod(userId, id);
+          
+          // Sync payment methods from service
+          await get().syncPaymentMethodsWithService();
+        } catch (error) {
+          console.error('Error deleting payment method via service:', error);
+          // Fallback to local state update
+          set((currentState) => ({
+            profile: currentState.profile ? {
+              ...currentState.profile,
+              paymentMethods: (currentState.profile.paymentMethods || []).filter(c => c.id !== id)
+            } : null
+          }));
+        }
+      } else {
+        // If no user ID, update local state only
+        set((currentState) => ({
+          profile: currentState.profile ? {
+            ...currentState.profile,
+            paymentMethods: (currentState.profile.paymentMethods || []).filter(c => c.id !== id)
+          } : null
+        }));
+      }
+    },
+
+    setDefaultPaymentMethod: async (id) => {
+      const state = get();
+      const userId = state.profile?.id;
+
+      if (userId) {
+        try {
+          // Use service layer to set default payment method
+          await paymentService.setDefaultPaymentMethod(userId, id);
+          
+          // Sync payment methods from service
+          await get().syncPaymentMethodsWithService();
+        } catch (error) {
+          console.error('Error setting default payment method via service:', error);
+          // Fallback to local state update
+          set((currentState) => ({
+            profile: currentState.profile ? {
+              ...currentState.profile,
+              paymentMethods: (currentState.profile.paymentMethods || []).map(m => ({
+                ...m,
+                isDefault: m.id === id
+              }))
+            } : null
+          }));
+        }
+      } else {
+        // If no user ID, update local state only
+        set((currentState) => ({
+          profile: currentState.profile ? {
+            ...currentState.profile,
+            paymentMethods: (currentState.profile.paymentMethods || []).map(m => ({
+              ...m,
+              isDefault: m.id === id
+            }))
+          } : null
+        }));
+      }
+    },
 
     // Service Layer Integration Methods
     syncAddressesWithService: async () => {
@@ -606,9 +703,11 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       if (!userId) return;
 
       try {
-        // This would integrate with addressService when fully implemented
-        // For now, we'll keep the existing functionality
-        console.log('Syncing addresses with service layer for user:', userId);
+        // Fetch addresses from service layer
+        const addressesFromService = await addressService.getUserAddresses(userId);
+        
+        // Update local store with service data
+        set({ addresses: addressesFromService });
       } catch (error) {
         console.error('Error syncing addresses with service:', error);
       }
@@ -622,9 +721,16 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       if (!userId) return;
 
       try {
-        // This would integrate with paymentService when fully implemented
-        // For now, we'll keep the existing functionality
-        console.log('Syncing payment methods with service layer for user:', userId);
+        // Fetch payment methods from service layer
+        const paymentMethodsFromService = await paymentService.getUserPaymentMethods(userId);
+        
+        // Update profile with service data
+        set((currentState) => ({
+          profile: currentState.profile ? {
+            ...currentState.profile,
+            paymentMethods: paymentMethodsFromService
+          } : null
+        }));
       } catch (error) {
         console.error('Error syncing payment methods with service:', error);
       }
@@ -1256,8 +1362,6 @@ export const useBuyerStore = create<BuyerStore>()(persist(
             .from('buyers')
             .insert([{
               id: userId,
-              shipping_addresses: [],
-              payment_methods: [],
               preferences: {
                 language: 'en',
                 currency: 'PHP',
@@ -1272,8 +1376,6 @@ export const useBuyerStore = create<BuyerStore>()(persist(
                   showFollowing: true,
                 },
               },
-              followed_shops: [],
-              total_spent: 0,
               bazcoins: 0,
             }]);
 
@@ -1289,7 +1391,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
           .select(`
             *,
             profile:profiles!id (
-              id, email, full_name, phone, avatar_url, user_type, created_at
+              id, email, first_name, last_name, phone, created_at
             )
           `)
           .eq('id', userId)
@@ -1300,23 +1402,17 @@ export const useBuyerStore = create<BuyerStore>()(persist(
           throw buyerError;
         }
 
-        // Fetch shipping addresses from the separate table
-        const { data: shippingAddresses } = await supabase
-          .from('shipping_addresses')
-          .select('*')
-          .eq('user_id', userId)
-          .order('is_default', { ascending: false })
-          .order('created_at', { ascending: false });
+        const addressesFromService = await addressService.getUserAddresses(userId);
 
         // Extract profile info from the joined data
         const profileInfo = buyerData.profile;
         const buyerInfo = {
           ...buyerData,
-          firstName: profileInfo.full_name?.split(' ')[0] || '',
-          lastName: profileInfo.full_name?.split(' ').slice(1).join(' ') || '',
+          firstName: profileInfo.first_name || '',
+          lastName: profileInfo.last_name || '',
           email: profileInfo.email,
           phone: profileInfo.phone || '',
-          avatar: profileInfo.avatar_url || '/placeholder-avatar.jpg',
+          avatar: buyerData.avatar_url || '/placeholder-avatar.jpg',
           memberSince: new Date(profileInfo.created_at),
           totalSpent: buyerData.total_spent || 0,
           bazcoins: buyerData.bazcoins || 0,
@@ -1326,47 +1422,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
         // Set the profile in the store
         set({ profile: buyerInfo as BuyerProfile });
 
-        // Initialize addresses from the shipping_addresses table (map to expected format)
-        // Note: address_line_1 may contain "Name, Phone, Street" format
-        const mappedAddresses = (shippingAddresses || []).map((addr: any) => {
-          // Parse address_line_1 which may be in format: "Name, Phone, Street"
-          const addressLine1 = addr.address_line_1 || '';
-          const parts = addressLine1.split(', ');
-
-          // Try to extract name and phone if they were concatenated
-          let fullName = '';
-          let phone = '';
-          let street = addressLine1;
-
-          if (parts.length >= 3) {
-            // Format: "Name, Phone, Street..."
-            const possiblePhone = parts[1];
-            if (/^\d{10,11}$/.test(possiblePhone?.replace(/\D/g, ''))) {
-              fullName = parts[0];
-              phone = possiblePhone;
-              street = parts.slice(2).join(', ');
-            }
-          }
-
-          return {
-            id: addr.id,
-            fullName: fullName || addr.label,
-            firstName: fullName ? fullName.split(' ')[0] : '',
-            lastName: fullName ? fullName.split(' ').slice(1).join(' ') : '',
-            street: street + (addr.address_line_2 ? ', ' + addr.address_line_2 : ''),
-            city: addr.city,
-            province: addr.province,
-            postalCode: addr.postal_code,
-            phone: phone,
-            isDefault: addr.is_default,
-            label: addr.label,
-            barangay: addr.barangay,
-            region: addr.region,
-            landmark: addr.landmark,
-            deliveryInstructions: addr.delivery_instructions,
-          };
-        });
-        set({ addresses: mappedAddresses });
+        set({ addresses: addressesFromService });
 
         return buyerInfo;
       } catch (error) {

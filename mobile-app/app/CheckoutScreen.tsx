@@ -222,7 +222,20 @@ export default function CheckoutScreen({ navigation, route }: Props) {
     }
   }
 
-  const total = Math.max(0, subtotal + shippingFee - discount - bazcoinDiscount);
+  // VAT calculation (12%)
+  const tax = Math.round(subtotal * 0.12);
+
+  // Item-level savings (Original price vs Current price)
+  const itemSavings = checkoutItems.reduce((sum, item) => {
+    const original = item.original_price || item.originalPrice || item.price || 0;
+    const current = item.price || 0;
+    return sum + (Math.max(0, original - current) * (item.quantity || 1));
+  }, 0);
+
+  const couponSavings = discount + bazcoinDiscount;
+  const grandTotalSavings = itemSavings + couponSavings;
+
+  const total = Math.max(0, subtotal + shippingFee + tax - couponSavings);
 
   useEffect(() => {
     regions().then(res => setRegionList(res));
@@ -1215,17 +1228,15 @@ export default function CheckoutScreen({ navigation, route }: Props) {
               <Text style={styles.summaryValue}>₱{shippingFee.toLocaleString()}</Text>
             </View>
 
-            {discount > 0 && (
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Voucher Discount</Text>
-                <Text style={[styles.summaryValue, { color: '#10B981' }]}>-₱{discount.toLocaleString()}</Text>
-              </View>
-            )}
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Tax (12% VAT)</Text>
+              <Text style={styles.summaryValue}>₱{tax.toLocaleString()}</Text>
+            </View>
 
-            {useBazcoins && bazcoinDiscount > 0 && (
+            {couponSavings > 0 && (
               <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Bazcoins Redeemed</Text>
-                <Text style={[styles.summaryValue, { color: '#EAB308' }]}>-₱{bazcoinDiscount.toLocaleString()}</Text>
+                <Text style={styles.summaryLabel}>Discounts & Rewards</Text>
+                <Text style={[styles.summaryValue, { color: '#10B981' }]}>-₱{couponSavings.toLocaleString()}</Text>
               </View>
             )}
 
@@ -1235,6 +1246,14 @@ export default function CheckoutScreen({ navigation, route }: Props) {
               <Text style={styles.totalLabelLarge}>Total Payment</Text>
               <Text style={styles.totalAmountLarge}>₱{total.toLocaleString()}</Text>
             </View>
+
+            {grandTotalSavings > 0 && (
+              <View style={{ marginTop: 8, alignItems: 'flex-end' }}>
+                <Text style={{ fontSize: 12, color: '#10B981', fontWeight: '700' }}>
+                  You're saving ₱{grandTotalSavings.toLocaleString()} on this order!
+                </Text>
+              </View>
+            )}
 
             <View style={{ marginTop: 16, backgroundColor: '#FEFCE8', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#FEF08A', flexDirection: 'row', gap: 12, alignItems: 'center' }}>
               <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: '#EAB308', alignItems: 'center', justifyContent: 'center' }}>
