@@ -4,18 +4,18 @@ import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { toast } from "../hooks/use-toast";
 import {
-  Minus,
-  Plus,
-  ShoppingCart,
-  Star,
-  ChevronRight,
-  ChevronLeft,
-  MessageCircle,
-  MapPin,
-  ShieldCheck,
-  Gift,
-  Ruler,
-  X,
+    Minus,
+    Plus,
+    ShoppingCart,
+    Star,
+    ChevronRight,
+    ChevronLeft,
+    MessageCircle,
+    MapPin,
+    ShieldCheck,
+    Gift,
+    Ruler,
+    X,
 } from "lucide-react";
 import { Badge } from "../components/ui/badge";
 import {
@@ -49,7 +49,7 @@ import {
     reviewsData,
 } from "../data/dummy/productDetailData";
 
-interface ProductDetailPageProps {}
+interface ProductDetailPageProps { }
 
 interface EnhancedReview {
     id: number;
@@ -62,7 +62,7 @@ interface EnhancedReview {
     replies: any[];
 }
 
-export default function ProductDetailPage({}: ProductDetailPageProps) {
+export default function ProductDetailPage({ }: ProductDetailPageProps) {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const {
@@ -137,7 +137,7 @@ export default function ProductDetailPage({}: ProductDetailPageProps) {
     const normalizedProduct: NormalizedProductDetail | null = useMemo(() => {
         if (dbProduct) return mapDbProductToNormalizedLegacy(dbProduct);
         if (storeProduct) return mapSellerProductToNormalized(storeProduct);
-        if (demoProduct) return mapBuyerProductToNormalized(demoProduct);
+        if (demoProduct) return mapBuyerProductToNormalized(demoProduct as any);
         return null;
     }, [dbProduct, storeProduct, demoProduct]);
 
@@ -296,23 +296,23 @@ export default function ProductDetailPage({}: ProductDetailPageProps) {
 
         const selectedVariant = hasVariations
             ? {
-                  id:
-                      dbVariant?.id ||
-                      `var-${normalizedProduct.id}-${selectedVariantLabel1 || "default"}-${label2Name}`,
-                  name: variantName,
-                  size: dbVariant?.size || selectedVariantLabel1 || undefined,
-                  color:
-                      dbVariant?.color ||
-                      (label2Name !== "Default" ? label2Name : undefined),
-                  price: dbVariant?.price || normalizedProduct.price,
-                  stock: dbVariant?.stock || normalizedProduct.stock || 100,
-                  image:
-                      dbVariant?.thumbnail_url ||
-                      normalizedProduct.label2Options[
-                          selectedVariantLabel2Index
-                      ]?.image ||
-                      productImage,
-              }
+                id:
+                    dbVariant?.id ||
+                    `var-${normalizedProduct.id}-${selectedVariantLabel1 || "default"}-${label2Name}`,
+                name: variantName,
+                size: dbVariant?.size || selectedVariantLabel1 || undefined,
+                color:
+                    dbVariant?.color ||
+                    (label2Name !== "Default" ? label2Name : undefined),
+                price: dbVariant?.price || normalizedProduct.price,
+                stock: dbVariant?.stock || normalizedProduct.stock || 100,
+                image:
+                    dbVariant?.thumbnail_url ||
+                    normalizedProduct.label2Options[
+                        selectedVariantLabel2Index
+                    ]?.image ||
+                    productImage,
+            }
             : undefined;
 
         // Use variant price if available
@@ -465,24 +465,24 @@ export default function ProductDetailPage({}: ProductDetailPageProps) {
 
         const variantToCheckout = hasVariations
             ? {
-                  id:
-                      dbVariant?.id ||
-                      `var-${normalizedProduct.id}-${selectedVariantLabel1 || "default"}-${label2Name}`,
-                  name: variantName,
-                  size: dbVariant?.size || selectedVariantLabel1 || undefined,
-                  color:
-                      dbVariant?.color ||
-                      (label2Name !== "Default" ? label2Name : undefined),
-                  price: dbVariant?.price || normalizedProduct.price,
-                  stock: dbVariant?.stock || normalizedProduct.stock || 100,
-                  image:
-                      dbVariant?.thumbnail_url ||
-                      normalizedProduct.label2Options?.[
-                          selectedVariantLabel2Index
-                      ]?.image ||
-                      normalizedProduct.images?.[0] ||
-                      normalizedProduct.image,
-              }
+                id:
+                    dbVariant?.id ||
+                    `var-${normalizedProduct.id}-${selectedVariantLabel1 || "default"}-${label2Name}`,
+                name: variantName,
+                size: dbVariant?.size || selectedVariantLabel1 || undefined,
+                color:
+                    dbVariant?.color ||
+                    (label2Name !== "Default" ? label2Name : undefined),
+                price: dbVariant?.price || normalizedProduct.price,
+                stock: dbVariant?.stock || normalizedProduct.stock || 100,
+                image:
+                    dbVariant?.thumbnail_url ||
+                    normalizedProduct.label2Options?.[
+                        selectedVariantLabel2Index
+                    ]?.image ||
+                    normalizedProduct.images?.[0] ||
+                    normalizedProduct.image,
+            }
             : undefined;
 
         proceedToCheckout(quantity, variantToCheckout);
@@ -548,7 +548,7 @@ export default function ProductDetailPage({}: ProductDetailPageProps) {
                                         ((productData.originalPrice -
                                             productData.price) /
                                             productData.originalPrice) *
-                                            100,
+                                        100,
                                     )}
                                     % OFF
                                 </Badge>
@@ -578,11 +578,11 @@ export default function ProductDetailPage({}: ProductDetailPageProps) {
                                 <div>
                                     <h3 className="font-bold text-gray-900 text-base leading-tight">
                                         {normalizedProduct?.seller &&
-                                        normalizedProduct.seller !==
+                                            normalizedProduct.seller !==
                                             "Verified Seller"
                                             ? normalizedProduct.seller
                                             : currentSeller.name ||
-                                              "Official Store"}
+                                            "Official Store"}
                                     </h3>
                                     <div className="flex items-center gap-3 text-xs text-gray-500 mt-0">
                                         <span className="flex items-center gap-1">
@@ -722,8 +722,8 @@ export default function ProductDetailPage({}: ProductDetailPageProps) {
                                                     />
                                                     {selectedVariantLabel2Index ===
                                                         index && (
-                                                        <div className="absolute inset-0 bg-[#ff6a00]/10" />
-                                                    )}
+                                                            <div className="absolute inset-0 bg-[#ff6a00]/10" />
+                                                        )}
                                                 </button>
                                             ),
                                         )}
@@ -743,11 +743,11 @@ export default function ProductDetailPage({}: ProductDetailPageProps) {
                                         {/* If variantLabel1 is "Size", show size guide */}
                                         {productData.variantLabel1 ===
                                             "Size" && (
-                                            <button className="text-xs text-gray-500 hover:text-[#ff6a00] hover:underline flex items-center gap-1">
-                                                <Ruler className="w-3 h-3" />{" "}
-                                                Size Guide
-                                            </button>
-                                        )}
+                                                <button className="text-xs text-gray-500 hover:text-[#ff6a00] hover:underline flex items-center gap-1">
+                                                    <Ruler className="w-3 h-3" />{" "}
+                                                    Size Guide
+                                                </button>
+                                            )}
                                     </div>
                                     <div className="flex flex-wrap gap-2">
                                         {productData.label1Options.map(
@@ -859,9 +859,7 @@ export default function ProductDetailPage({}: ProductDetailPageProps) {
                                         !registries ||
                                         registries.length === 0
                                     ) {
-                                        navigate("/registry", {
-                                            state: { openCreateModal: true },
-                                        });
+                                        setIsCreateRegistryModalOpen(true);
                                     } else {
                                         setShowRegistryModal(true);
                                     }
@@ -966,20 +964,20 @@ export default function ProductDetailPage({}: ProductDetailPageProps) {
                 </div>
             </main>
 
-      <BazaarFooter />
-      {/* Registry Selection Modal */}
-      {showRegistryModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl scale-100 opacity-100 animate-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-gray-900">Add to Registry</h2>
-              <button
-                onClick={() => setShowRegistryModal(false)}
-                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+            <BazaarFooter />
+            {/* Registry Selection Modal */}
+            {showRegistryModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl scale-100 opacity-100 animate-in zoom-in-95 duration-200">
+                        <div className="flex items-center justify-between mb-6">
+                            <h2 className="text-xl font-bold text-gray-900">Add to Registry</h2>
+                            <button
+                                onClick={() => setShowRegistryModal(false)}
+                                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
 
                         <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent">
                             {registries.map((registry) => (
@@ -1027,47 +1025,47 @@ export default function ProductDetailPage({}: ProductDetailPageProps) {
                             ))}
                         </div>
 
-            <div className="mt-6 pt-4 border-t border-gray-100">
-              <button
-                onClick={() => {
-                  setShowRegistryModal(false);
-                  setIsCreateRegistryModalOpen(true);
+                        <div className="mt-6 pt-4 border-t border-gray-100">
+                            <button
+                                onClick={() => {
+                                    setShowRegistryModal(false);
+                                    setIsCreateRegistryModalOpen(true);
+                                }}
+                                className="w-full py-3 px-4 rounded-xl border border-dashed border-gray-300 text-gray-600 font-medium hover:border-orange-400 hover:text-orange-600 hover:bg-orange-50 transition-all flex items-center justify-center gap-2"
+                            >
+                                <Plus className="w-4 h-4" />
+                                Create New Registry
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* Create Registry Modal */}
+            <CreateRegistryModal
+                isOpen={isCreateRegistryModalOpen}
+                onClose={() => setIsCreateRegistryModalOpen(false)}
+                hideBrowseLink={true}
+                onCreate={(name, category) => {
+                    const newRegistry = {
+                        id: `reg-${Date.now()}`,
+                        title: name,
+                        sharedDate: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+                        imageUrl: "https://images.unsplash.com/photo-1513201099705-a9746e1e201f?w=400&h=400&fit=crop",
+                        category: category,
+                        products: []
+                    };
+                    createRegistry(newRegistry);
+
+                    // Close create modal and reopen registry selection modal
+                    setIsCreateRegistryModalOpen(false);
+                    setShowRegistryModal(true);
+
+                    toast({
+                        title: "Registry Created",
+                        description: `${name} has been created successfully.`,
+                    });
                 }}
-                className="w-full py-3 px-4 rounded-xl border border-dashed border-gray-300 text-gray-600 font-medium hover:border-orange-400 hover:text-orange-600 hover:bg-orange-50 transition-all flex items-center justify-center gap-2"
-              >
-                <Plus className="w-4 h-4" />
-                Create New Registry
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      {/* Create Registry Modal */}
-      <CreateRegistryModal
-        isOpen={isCreateRegistryModalOpen}
-        onClose={() => setIsCreateRegistryModalOpen(false)}
-        hideBrowseLink={true}
-        onCreate={(name, category) => {
-          const newRegistry = {
-            id: `reg-${Date.now()}`,
-            title: name,
-            sharedDate: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-            imageUrl: "https://images.unsplash.com/photo-1513201099705-a9746e1e201f?w=400&h=400&fit=crop",
-            category: category,
-            products: []
-          };
-          createRegistry(newRegistry);
-
-          // Close create modal and reopen registry selection modal
-          setIsCreateRegistryModalOpen(false);
-          setShowRegistryModal(true);
-
-          toast({
-            title: "Registry Created",
-            description: `${name} has been created successfully.`,
-          });
-        }}
-      />
+            />
 
             {/* Cart Modal */}
             {addedProductInfo && (
