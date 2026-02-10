@@ -40,6 +40,7 @@ import {
     mapSellerProductToNormalized,
     mapBuyerProductToNormalized,
     buildCurrentSeller,
+    mapNormalizedToBuyerProduct,
     type NormalizedProductDetail,
 } from "../utils/productMapper";
 import {
@@ -986,33 +987,11 @@ export default function ProductDetailPage({}: ProductDetailPageProps) {
                                 <button
                                     key={registry.id}
                                     onClick={() => {
-                                        // Create a simplified product object for the registry
-                                        const productToAdd = {
-                                            id:
-                                                normalizedProduct?.id ||
-                                                productData.id ||
-                                                "temp-id",
-                                            name: productData.name,
-                                            price: productData.price,
-                                            image: productData.images[0],
-                                            // Add other necessary fields as needed by your Product type or make them optional
-                                            description:
-                                                productData.description || "",
-                                            images: productData.images,
-                                            seller: currentSeller,
-                                            sellerId:
-                                                normalizedProduct?.sellerId ||
-                                                "unknown",
-                                            rating: productData.rating,
-                                            totalReviews:
-                                                productData.reviewCount,
-                                            category: "General",
-                                            sold: 0,
-                                            isFreeShipping: false,
-                                            location: "Metro Manila",
-                                            specifications: {},
-                                            variants: [],
-                                        } as any;
+                                        const productToAdd =
+                                            mapNormalizedToBuyerProduct(
+                                                normalizedProduct!,
+                                                currentSeller,
+                                            );
 
                                         addToRegistry(
                                             registry.id,
@@ -1068,6 +1047,7 @@ export default function ProductDetailPage({}: ProductDetailPageProps) {
             <CreateRegistryModal
                 isOpen={isCreateRegistryModalOpen}
                 onClose={() => setIsCreateRegistryModalOpen(false)}
+                hideBrowseLink={true}
                 onCreate={(name, category) => {
                     const newRegistry = {
                         id: `reg-${Date.now()}`,
@@ -1083,12 +1063,24 @@ export default function ProductDetailPage({}: ProductDetailPageProps) {
                         products: [],
                     };
                     createRegistry(newRegistry);
+
+                    // Auto-add the current product to the new registry
+                    if (normalizedProduct) {
+                        const productToAdd = mapNormalizedToBuyerProduct(
+                            normalizedProduct,
+                            currentSeller,
+                        );
+
+                        addToRegistry(newRegistry.id, productToAdd);
+                    }
+
                     setIsCreateRegistryModalOpen(false);
-                    // Re-open the add to registry modal to allow adding the product immediately
-                    setShowRegistryModal(true);
+                    // showRegistryModal is not needed anymore as we auto-added
+                    setShowRegistryModal(false);
+
                     toast({
-                        title: "Registry Created",
-                        description: `${name} has been created successfully.`,
+                        title: "Registry Created & Item Added",
+                        description: `${name} created and ${normalizedProduct?.name} has been added.`,
                     });
                 }}
             />

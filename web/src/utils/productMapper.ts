@@ -525,6 +525,37 @@ export const mapBuyerProductToNormalized = (
     };
 };
 
+// ─── mapNormalizedToBuyerProduct ──────────────────────────────────────────────
+
+/**
+ * Map a NormalizedProductDetail back to BuyerProduct format.
+ * Used for operations that require the BuyerProduct interface (e.g., addToRegistry).
+ */
+export const mapNormalizedToBuyerProduct = (
+    product: NormalizedProductDetail,
+    seller: BuyerSeller,
+): BuyerProduct => {
+    return {
+        id: product.id,
+        name: product.name,
+        price: product.price,
+        originalPrice: product.originalPrice,
+        image: product.image,
+        images: product.images,
+        seller: seller,
+        sellerId: product.sellerId,
+        rating: product.rating,
+        totalReviews: product.reviewCount,
+        category: product.category,
+        sold: product.sold,
+        isFreeShipping: product.isFreeShipping,
+        location: product.location,
+        description: product.description,
+        specifications: {},
+        variants: product.variants || [],
+    };
+};
+
 // ─── buildCurrentSeller ───────────────────────────────────────────────────────
 
 /**
