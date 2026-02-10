@@ -25,17 +25,33 @@ export const CartItemRow: React.FC<CartItemRowProps> = ({
         <Text style={styles.name} numberOfLines={2}>
           {item.name}
         </Text>
-        {item.selectedVariant && (item.selectedVariant.size || item.selectedVariant.color) && (
-          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
-            {item.selectedVariant.size && (
+        {item.selectedVariant && (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+            {/* Dynamic variant labels (option1/option2) */}
+            {item.selectedVariant.option1Value && (
               <Text style={{ fontSize: 11, color: '#6b7280', backgroundColor: '#f3f4f6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' }}>
-                {item.selectedVariant.size}
+                {item.selectedVariant.option1Label || 'Option'}: {item.selectedVariant.option1Value}
               </Text>
             )}
-            {item.selectedVariant.color && (
+            {item.selectedVariant.option2Value && (
               <Text style={{ fontSize: 11, color: '#6b7280', backgroundColor: '#f3f4f6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' }}>
-                {item.selectedVariant.color}
+                {item.selectedVariant.option2Label || 'Option'}: {item.selectedVariant.option2Value}
               </Text>
+            )}
+            {/* Legacy fallback for size/color if no option values */}
+            {!item.selectedVariant.option1Value && !item.selectedVariant.option2Value && (
+              <>
+                {item.selectedVariant.size && (
+                  <Text style={{ fontSize: 11, color: '#6b7280', backgroundColor: '#f3f4f6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' }}>
+                    Size: {item.selectedVariant.size}
+                  </Text>
+                )}
+                {item.selectedVariant.color && (
+                  <Text style={{ fontSize: 11, color: '#6b7280', backgroundColor: '#f3f4f6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' }}>
+                    Color: {item.selectedVariant.color}
+                  </Text>
+                )}
+              </>
             )}
           </View>
         )}

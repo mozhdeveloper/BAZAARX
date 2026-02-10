@@ -1129,6 +1129,17 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
   }
 
   const handleAddToCart = () => {
+    // Check if user is logged in
+    if (!profile) {
+      toast({
+        title: "Please Login",
+        description: "You need to be logged in to add items to your cart.",
+        variant: "destructive",
+      });
+      navigate("/login");
+      return;
+    }
+
     if (!normalizedProduct) return;
 
     const productImage =
@@ -1288,6 +1299,17 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
   };
 
   const handleBuyNow = () => {
+    // Check if user is logged in
+    if (!profile) {
+      toast({
+        title: "Please Login",
+        description: "You need to be logged in to buy items.",
+        variant: "destructive",
+      });
+      navigate("/login");
+      return;
+    }
+
     if (!normalizedProduct) return;
 
     // Check if we still need to make a selection

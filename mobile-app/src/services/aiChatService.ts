@@ -11,12 +11,19 @@
 
 import { supabase } from '../lib/supabase';
 
+// SECURITY: API keys should be stored in .env files and NEVER committed to Git
 // React Native uses process.env, not import.meta
 const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
-// Using gemini-1.5-flash for reliable availability
+// Using gemini-2.5-flash (stable version, released June 2025)
+// Supports up to 1M tokens and multimodal input
 // Free tier: 1500 requests/day, 1M tokens/minute
-const GEMINI_MODEL = 'gemini-1.5-flash';
+const GEMINI_MODEL = 'gemini-2.5-flash';
 const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+
+// Log initialization (without exposing the actual key)
+if (__DEV__) {
+  console.log('[AIChat] Gemini API initialized | Model:', GEMINI_MODEL, '| API Key configured:', !!GEMINI_API_KEY);
+}
 
 export interface ProductContext {
   id: string;
@@ -656,6 +663,17 @@ ${r.recentReviews.slice(0, 3).map(rev => `- **${rev.buyerName}** (⭐${rev.ratin
     // Build the conversation for Gemini
     const systemPrompt = this.buildSystemPrompt(context);
 
+    // Validate API key
+    if (!GEMINI_API_KEY) {
+      console.error('[AIChat] No Gemini API key found! Check EXPO_PUBLIC_GEMINI_API_KEY in .env');
+      throw new Error('Gemini API key not configured');
+    }
+
+    // Log in development mode only
+    if (__DEV__) {
+      console.log('[AIChat] Sending message to Gemini | User:', userMessage.substring(0, 50), '...');
+    }
+
     try {
       const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
         method: 'POST',
@@ -694,11 +712,21 @@ ${r.recentReviews.slice(0, 3).map(rev => `- **${rev.buyerName}** (⭐${rev.ratin
 
       if (!response.ok) {
         const errorData = await response.json();
-        console.error('Gemini API error:', errorData);
-        throw new Error('Failed to get AI response');
+        // Log detailed errors only in development
+        if (__DEV__) {
+          console.error('[AIChat] Gemini API error:', JSON.stringify(errorData, null, 2));
+          console.error('[AIChat] Response status:', response.status, response.statusText);
+        }
+        throw new Error(`Gemini API error: ${errorData.error?.message || 'Unknown error'}`);
       }
 
       const data = await response.json();
+      
+      // Log success only in development
+      if (__DEV__) {
+        console.log('[AIChat] Gemini response received successfully');
+      }
+      
       const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || 
         "I apologize, but I couldn't process your request. Please try again or tap 'Talk to Seller' for direct assistance.";
 
@@ -720,7 +748,11 @@ ${r.recentReviews.slice(0, 3).map(rev => `- **${rev.buyerName}** (⭐${rev.ratin
         suggestTalkToSeller,
       };
     } catch (error) {
-      console.error('Error calling Gemini API:', error);
+      // Log errors only in development mode
+      if (__DEV__) {
+        console.error('[AIChat] Error calling Gemini API:', error);
+        console.error('[AIChat] Error details:', error instanceof Error ? error.message : String(error));
+      }
       return {
         response: "I apologize for the inconvenience. I'm experiencing technical difficulties. Please tap 'Talk to Seller' for immediate assistance, or try again in a moment.",
         suggestTalkToSeller: true,

@@ -348,7 +348,7 @@ export class AddressService {
 
             // Check if user already has a "Current Location" address
             const { data: existing, error: fetchError } = await supabase
-                .from('addresses')
+                .from('shipping_addresses')
                 .select('*')
                 .eq('user_id', userId)
                 .eq('label', 'Current Location')
@@ -362,17 +362,15 @@ export class AddressService {
             const addressData = {
                 user_id: userId,
                 label: 'Current Location',
-                first_name: '',
-                last_name: '',
-                phone: '',
-                street: street,
+                address_line_1: street,
+                address_line_2: null as string | null,
                 barangay: barangay,
                 city: city,
                 province: province,
                 region: region,
-                zip_code: postalCode,
-                landmark: null,
-                delivery_instructions: null,
+                postal_code: postalCode,
+                landmark: null as string | null,
+                delivery_instructions: null as string | null,
                 address_type: 'residential' as const,
                 is_default: false,
                 coordinates: coords,
@@ -381,7 +379,7 @@ export class AddressService {
             if (existing) {
                 // Update existing "Current Location" address
                 const { data, error } = await supabase
-                    .from('addresses')
+                    .from('shipping_addresses')
                     .update(addressData)
                     .eq('id', existing.id)
                     .select()
@@ -393,7 +391,7 @@ export class AddressService {
             } else {
                 // Create new "Current Location" address
                 const { data, error } = await supabase
-                    .from('addresses')
+                    .from('shipping_addresses')
                     .insert([addressData])
                     .select()
                     .single();
@@ -418,7 +416,7 @@ export class AddressService {
         try {
             // First try to get "Current Location" 
             const { data: currentLoc, error: currentError } = await supabase
-                .from('addresses')
+                .from('shipping_addresses')
                 .select('*')
                 .eq('user_id', userId)
                 .eq('label', 'Current Location')
