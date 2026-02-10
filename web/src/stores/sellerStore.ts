@@ -98,13 +98,15 @@ export interface SellerProduct {
     }[];
 }
 
-interface SellerOrder {
+export interface SellerOrder {
     id: string;
     seller_id?: string; // UUID of the seller for database updates
     buyer_id?: string; // UUID of the buyer for notifications
-    buyerName: string;
+    orderNumber?: string;
+  buyerName: string;
     buyerEmail: string;
-    items: {
+    buyerProfileImage?: string;
+  items: {
         productId: string;
         productName: string;
         quantity: number;
@@ -132,6 +134,7 @@ interface SellerOrder {
     reviewDate?: string;
     type?: "ONLINE" | "OFFLINE"; // POS-Lite: Track order source
     posNote?: string; // POS-Lite: Optional note for offline sales
+  notes?: string; // Unified notes field
 }
 
 // Inventory Ledger - Immutable audit trail for all stock changes
@@ -419,31 +422,21 @@ const mapDbSellerToSeller = (s: any): Seller => {
  * - product_variants: size, color, stock, price
  */
 const mapDbProductToSellerProduct = (p: any): SellerProduct => {
-    // Handle images from product_images relation
-    const images = Array.isArray(p.images)
-        ? p.images.map((img: any) =>
-              typeof img === "string" ? img : img.image_url,
-          )
-        : [];
+  // Handle images from product_images relation
+  const images = Array.isArray(p.images)
+    ? p.images.map((img: any) => typeof img === 'string' ? img : img.image_url)
+    : [];
 
-    // Handle variants to get colors, sizes, and stock
-    const variants = Array.isArray(p.variants) ? p.variants : [];
-    const colors = [
-        ...new Set(variants.map((v: any) => v.color).filter(Boolean)),
-    ];
-    const sizes = [
-        ...new Set(variants.map((v: any) => v.size).filter(Boolean)),
-    ];
-    const totalStock = variants.reduce(
-        (sum: number, v: any) => sum + (v.stock || 0),
-        0,
-    );
+  // Handle variants to get colors, sizes, and stock
+  const variants = Array.isArray(p.variants) ? p.variants : [];
+  const colors: string[] = Array.from(new Set(variants.map((v: any) => v.color).filter((c): c is string => typeof c === 'string' && c.length > 0)));
+  const sizes: string[] = Array.from(new Set(variants.map((v: any) => v.size).filter((s): s is string => typeof s === 'string' && s.length > 0)));
+  const totalStock = variants.reduce((sum: number, v: any) => sum + (v.stock || 0), 0);
 
-    // Get category name from relation
-    const categoryName =
-        typeof p.category === "string"
-            ? p.category
-            : p.category?.name || p.categories?.name || "";
+  // Get category name from relation
+  const categoryName = typeof p.category === 'string'
+    ? p.category
+    : (p.category?.name || p.categories?.name || '');
 
     return {
         id: p.id,
@@ -454,8 +447,8 @@ const mapDbProductToSellerProduct = (p: any): SellerProduct => {
         stock: totalStock || p.stock || 0,
         category: categoryName,
         images: images,
-        sizes: sizes,
-        colors: colors,
+        sizes: sizes as string[],
+        colors: colors as string[],
         isActive: !p.disabled_at,
         sellerId: p.seller_id || "",
         createdAt: p.created_at || "",
@@ -588,6 +581,7 @@ const mapOrderToSellerOrder = (order: any): SellerOrder => {
         id: order.id,
         seller_id: order.seller_id,
         buyer_id: order.buyer_id,
+    orderNumber: order.order_number,
         buyerName: order.buyer_name || "Unknown",
         buyerEmail: order.buyer_email || "unknown@example.com",
         items,
@@ -596,12 +590,12 @@ const mapOrderToSellerOrder = (order: any): SellerOrder => {
         paymentStatus: paymentStatusMap[order.payment_status] || "pending",
         orderDate: order.created_at,
         shippingAddress: {
-            fullName: shippingAddr.fullName || order.buyer_name || "Unknown",
-            street: shippingAddr.street || "",
-            city: shippingAddr.city || "",
-            province: shippingAddr.province || "",
-            postalCode: shippingAddr.postalCode || "",
-            phone: shippingAddr.phone || order.buyer_phone || "",
+            fullName: order.buyer_name || "Unknown",
+            street: order.shipping_street || shippingAddr.street_address || "",
+            city: order.shipping_city || shippingAddr.city || "",
+            province: order.shipping_province || shippingAddr.province || "",
+            postalCode: order.shipping_postal_code || shippingAddr.postal_code || "",
+            phone: order.buyer_phone || shippingAddr.phone || "",
         },
         trackingNumber: order.tracking_number || undefined,
         rating: order.rating || undefined,
@@ -610,6 +604,7 @@ const mapOrderToSellerOrder = (order: any): SellerOrder => {
         reviewDate: order.review_date || undefined,
         type: order.order_type === "OFFLINE" ? "OFFLINE" : "ONLINE",
         posNote: order.pos_note || undefined,
+    notes: order.notes || undefined,
     };
 };
 
@@ -1104,6 +1099,7 @@ export const useProductStore = create<ProductStore>()(
                                         newProduct.id,
                                         validImages.map((url, idx) => ({
                                             product_id: newProduct.id,
+                                            alt_text: "",
                                             image_url: url,
                                             sort_order: idx,
                                             is_primary: idx === 0,
@@ -1130,6 +1126,7 @@ export const useProductStore = create<ProductStore>()(
                         ) {
                             const variantInserts = variants.map(
                                 (v: any, index: number) => ({
+                                    product_id: newProduct.id,
                                     variant_name:
                                         [v.size, v.color]
                                             .filter(Boolean)
@@ -1144,7 +1141,9 @@ export const useProductStore = create<ProductStore>()(
                                         v.sku ||
                                         `${newProduct.id.substring(0, 8)}-${index}`,
                                     thumbnail_url: v.image || null,
-                                }),
+                                  barcode: null,
+                                  embedding: null,
+              }),
                             );
 
                             try {
@@ -1170,12 +1169,17 @@ export const useProductStore = create<ProductStore>()(
                                     [
                                         {
                                             variant_name: "Default",
+                                            product_id: newProduct.id,
                                             size: null,
                                             color: null,
+                                            option_1_value: null,
+                                            option_2_value: null,
                                             stock: product.stock,
                                             price: product.price,
                                             sku: `${newProduct.id.substring(0, 8)}-default`,
                                             thumbnail_url: null,
+                                            barcode: null,
+                                            embedding: null,
                                         },
                                     ],
                                 );
@@ -2355,11 +2359,9 @@ export const useStatsStore = create<StatsStore>()((set) => ({
     refreshStats: () => {
         const orderStore = useOrderStore.getState();
         const productStore = useProductStore.getState();
-        const authStore = useAuthStore.getState();
 
         const orders = orderStore.orders;
         const products = productStore.products;
-        const seller = authStore.seller;
 
         // Calculate total revenue from delivered orders
         const totalRevenue = orders
