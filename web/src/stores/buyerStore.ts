@@ -394,13 +394,22 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       if (!currentProfile) return;
 
       try {
-        // 1. Update Supabase database
-        const { error } = await supabase
-          .from('buyers')
-          .update(updates) // This will update the 'bazcoins' column if included in updates
-          .eq('id', currentProfile.id);
+        // Map local field names to DB column names for the buyers table
+        const dbUpdates: Record<string, any> = {};
+        if (updates.avatar !== undefined) dbUpdates.avatar_url = updates.avatar;
+        if (updates.bazcoins !== undefined) dbUpdates.bazcoins = updates.bazcoins;
+        if (updates.preferences !== undefined) dbUpdates.preferences = updates.preferences;
 
-        if (error) throw error;
+        // Only update buyers table if there are relevant fields
+        if (Object.keys(dbUpdates).length > 0) {
+          dbUpdates.updated_at = new Date().toISOString();
+          const { error } = await supabase
+            .from('buyers')
+            .update(dbUpdates)
+            .eq('id', currentProfile.id);
+
+          if (error) throw error;
+        }
 
         // 2. Update local Zustand state only if DB update succeeds
         set((state) => ({
