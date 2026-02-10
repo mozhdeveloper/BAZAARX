@@ -104,10 +104,10 @@ export interface SellerOrder {
     seller_id?: string; // UUID of the seller for database updates
     buyer_id?: string; // UUID of the buyer for notifications
     orderNumber?: string;
-  buyerName: string;
+    buyerName: string;
     buyerEmail: string;
     buyerProfileImage?: string;
-  items: {
+    items: {
         productId: string;
         productName: string;
         quantity: number;
@@ -135,7 +135,7 @@ export interface SellerOrder {
     reviewDate?: string;
     type?: "ONLINE" | "OFFLINE"; // POS-Lite: Track order source
     posNote?: string; // POS-Lite: Optional note for offline sales
-  notes?: string; // Unified notes field
+    notes?: string; // Unified notes field
 }
 
 // Inventory Ledger - Immutable audit trail for all stock changes
@@ -519,7 +519,7 @@ const mapOrderToSellerOrder = (order: any): SellerOrder => {
         id: order.id,
         seller_id: order.seller_id,
         buyer_id: order.buyer_id,
-    orderNumber: order.order_number,
+        orderNumber: order.order_number,
         buyerName: order.buyer_name || "Unknown",
         buyerEmail: order.buyer_email || "unknown@example.com",
         items,
@@ -529,11 +529,12 @@ const mapOrderToSellerOrder = (order: any): SellerOrder => {
         orderDate: order.created_at,
         shippingAddress: {
             fullName: order.buyer_name || "Unknown",
-            street: order.shipping_street || shippingAddr.street_address || "",
+            street: order.shipping_street || shippingAddr.address_line_1 || "",
             city: order.shipping_city || shippingAddr.city || "",
             province: order.shipping_province || shippingAddr.province || "",
-            postalCode: order.shipping_postal_code || shippingAddr.postal_code || "",
-            phone: order.buyer_phone || shippingAddr.phone || "",
+            postalCode:
+                order.shipping_postal_code || shippingAddr.postal_code || "",
+            phone: order.buyer_phone || "", // Phone comes from recipient, not address
         },
         trackingNumber: order.tracking_number || undefined,
         rating: order.rating || undefined,
@@ -542,7 +543,7 @@ const mapOrderToSellerOrder = (order: any): SellerOrder => {
         reviewDate: order.review_date || undefined,
         type: order.order_type === "OFFLINE" ? "OFFLINE" : "ONLINE",
         posNote: order.pos_note || undefined,
-    notes: order.notes || undefined,
+        notes: order.notes || undefined,
     };
 };
 
@@ -1066,22 +1067,27 @@ export const useProductStore = create<ProductStore>()(
                                 (v: any, index: number) => ({
                                     product_id: newProduct.id,
                                     variant_name:
-                                        [v.variantLabel1Value, v.variantLabel2Value]
+                                        [
+                                            v.variantLabel1Value,
+                                            v.variantLabel2Value,
+                                        ]
                                             .filter(Boolean)
                                             .join(" - ") || "Default",
                                     size: v.variantLabel1Value || null,
                                     color: v.variantLabel2Value || null,
-                                    option_1_value: v.variantLabel1Value || null,
-                                    option_2_value: v.variantLabel2Value || null,
+                                    option_1_value:
+                                        v.variantLabel1Value || null,
+                                    option_2_value:
+                                        v.variantLabel2Value || null,
                                     stock: v.stock || 0,
                                     price: v.price || product.price,
                                     sku:
                                         v.sku ||
                                         `${newProduct.id.substring(0, 8)}-${index}`,
                                     thumbnail_url: v.image || null,
-                                  barcode: null,
-                                  embedding: null,
-              }),
+                                    barcode: null,
+                                    embedding: null,
+                                }),
                             );
 
                             try {
@@ -1140,8 +1146,10 @@ export const useProductStore = create<ProductStore>()(
                             reviews: 0,
                             approvalStatus: "pending",
                             vendorSubmittedCategory: product.category,
-                            variantLabel1Values: product.variantLabel1Values || [],
-                            variantLabel2Values: product.variantLabel2Values || [],
+                            variantLabel1Values:
+                                product.variantLabel1Values || [],
+                            variantLabel2Values:
+                                product.variantLabel2Values || [],
                             sellerId: resolvedSellerId,
                         };
                     }
