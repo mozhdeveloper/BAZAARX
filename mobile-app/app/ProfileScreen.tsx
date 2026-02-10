@@ -40,6 +40,7 @@ export default function ProfileScreen({ navigation }: Props) {
   const [editAvatar, setEditAvatar] = React.useState('');
   const [isSaving, setIsSaving] = React.useState(false);
   const [isSwitching, setIsSwitching] = React.useState(false);
+  const avatarBase64Ref = React.useRef<{ base64: string; mimeType: string } | null>(null);
 
   // Bazcoins State
   const [bazcoins, setBazcoins] = React.useState(0);
@@ -100,33 +101,52 @@ export default function ProfileScreen({ navigation }: Props) {
 
     if (!result.canceled) {
       setEditAvatar(result.assets[0].uri);
+      // Store base64 for reliable upload via ref
+      avatarBase64Ref.current = {
+        base64: result.assets[0].base64 || '',
+        mimeType: result.assets[0].mimeType || 'image/jpeg',
+      };
     }
   };
 
   const uploadAvatar = async (uri: string, userId: string) => {
     try {
-      // 1. Read file as base64 (ImagePicker can return base64)
-      // Since we requested base64 in launchImageLibraryAsync, looking for asset.base64
-      //However, if we only have URI, we need to read it. 
-      // Simplified approach: Re-read or assume we can upload via FormData if supported, 
-      // but React Native with Supabase usually works best with ArrayBuffer or Blob.
+      const base64Data = avatarBase64Ref.current?.base64;
+      const mimeType = avatarBase64Ref.current?.mimeType || 'image/jpeg';
 
-      // Let's use the fetch-blob polyfill method which is reliable in RN
-      const response = await fetch(uri);
-      const blob = await response.blob();
+      if (!base64Data) {
+        throw new Error('No image data available. Please select the image again.');
+      }
 
-      const fileExt = uri.split('.').pop();
-      const fileName = `avatar_${userId}_${Date.now()}.${fileExt}`;
-      const filePath = `${fileName}`;
+      // Convert base64 to ArrayBuffer (most reliable in React Native)
+      const binaryString = atob(base64Data);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+
+      // Determine file extension from mime type
+      const extMap: Record<string, string> = {
+        'image/jpeg': 'jpg',
+        'image/png': 'png',
+        'image/webp': 'webp',
+        'image/gif': 'gif',
+      };
+      const fileExt = extMap[mimeType] || 'jpg';
+      const fileName = `avatar_${Date.now()}.${fileExt}`;
+      const filePath = `${userId}/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
-        .from('profile-avatars') // consistency with storage.ts
-        .upload(filePath, blob, {
-          contentType: 'image/jpeg', // Force jpeg if we can't detect
+        .from('profile-avatars')
+        .upload(filePath, bytes.buffer, {
+          contentType: mimeType,
           upsert: true
         });
 
       if (uploadError) throw uploadError;
+
+      // Clean up stored base64
+      avatarBase64Ref.current = null;
 
       const { data } = supabase.storage.from('profile-avatars').getPublicUrl(filePath);
       return data.publicUrl;
@@ -153,26 +173,35 @@ export default function ProfileScreen({ navigation }: Props) {
         avatarUrl = await uploadAvatar(editAvatar, user.id);
       }
 
-      const updates = {
-        first_name: editFirstName,
-        last_name: editLastName,
-        phone: editPhone,
-        avatar_url: avatarUrl,
-        updated_at: new Date(),
-      };
-
-      const { error } = await supabase
+      // 1. Update profiles table (first_name, last_name, phone — NO avatar_url)
+      const { error: profileError } = await supabase
         .from('profiles')
-        .update(updates)
+        .update({
+          first_name: editFirstName,
+          last_name: editLastName,
+          phone: editPhone,
+          updated_at: new Date().toISOString(),
+        })
         .eq('id', user.id);
 
-      if (error) throw error;
+      if (profileError) throw profileError;
+
+      // 2. Update buyers table (avatar_url lives here)
+      const { error: buyerError } = await supabase
+        .from('buyers')
+        .update({
+          avatar_url: avatarUrl,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', user.id);
+
+      if (buyerError) throw buyerError;
 
       const fullName = `${editFirstName} ${editLastName}`.trim();
       updateProfile({
         name: fullName,
-        phone: updates.phone,
-        email: editEmail, // Email usually doesn't change here without re-auth, but keep it
+        phone: editPhone,
+        email: editEmail,
         avatar: avatarUrl
       });
 
