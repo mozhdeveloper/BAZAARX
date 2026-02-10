@@ -863,7 +863,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
       const variants = (dbProduct as any)?.variants || [];
       const sizes = [...new Set(variants.map((v: any) => v.size).filter(Boolean))];
       if (sizes.length > 0) {
-        setSelectedSize(sizes[0] as string);
+        setSelectedSize(sizes[0]);
       }
     }
   }, [dbProduct]);
@@ -1840,17 +1840,18 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
           };
           createRegistry(newRegistry);
           
-          if (sellerProduct) {
-              addToRegistry(newRegistry.id, sellerProduct as any);
+          // Auto-add the current product to the new registry
+          if (product) {
+              addToRegistry(newRegistry.id, product);
           }
-          
+
           setIsCreateRegistryModalOpen(false);
-          // Do not re-open the add to registry modal as we've auto-added the item
-          // setShowRegistryModal(true); 
-          
+          // showRegistryModal is not needed anymore as we auto-added
+          setShowRegistryModal(false); 
+
           toast({
             title: "Registry Created & Item Added",
-            description: `${name} has been created and ${sellerProduct?.name} was added to it.`,
+            description: `${name} created and ${product?.name} has been added.`,
           });
         }}
       />

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
 import { useNavigate, useLocation } from "react-router-dom";
 import { checkoutService } from "@/services/checkoutService"; // Import checkout service
@@ -225,6 +225,10 @@ export default function CheckoutPage() {
 
   const isQuickCheckout = quickOrder !== null || isBuyAgainMode;
 
+  const isRegistryOrder = useMemo(() => {
+    return checkoutItems.some(item => !!item.registryId);
+  }, [checkoutItems]);
+
   // Bazcoins Logic
   // Earn 1 Bazcoin per ₱10 spent
   const earnedBazcoins = Math.floor(checkoutTotal / 10);
@@ -245,6 +249,18 @@ export default function CheckoutPage() {
     phone: profile?.phone || "",
     paymentMethod: "cod", // COD is default
   });
+
+  // Force non-COD payment for registry orders if COD is selected
+  useEffect(() => {
+    if (isRegistryOrder && formData.paymentMethod === 'cod') {
+      setFormData(prev => ({ ...prev, paymentMethod: 'card' }));
+      toast({
+        title: "Payment Method Changed",
+        description: "Cash on Delivery is not available for registry gifts.",
+        variant: "default", // or "warning" if available, defaults to neutral/blue
+      });
+    }
+  }, [isRegistryOrder, formData.paymentMethod]);
 
   // Removed: Payment method auto-fill logic - always default to COD
   // Users can manually switch to card/gcash/paymaya if needed
@@ -741,7 +757,21 @@ export default function CheckoutPage() {
 
                 </div>
 
-                {selectedAddress ? (
+                {isRegistryOrder ? (
+                  <div className="bg-orange-50/50 border border-orange-200 rounded-xl p-6 flex flex-col items-center justify-center text-center space-y-3">
+                    <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
+                      <Shield className="w-6 h-6 text-orange-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-gray-900">Registry Address (Hidden)</h3>
+                      <p className="text-gray-600 text-sm mt-1">
+                        For privacy, the recipient's address is hidden.
+                        <br />
+                        We will deliver this gift directly to them.
+                      </p>
+                    </div>
+                  </div>
+                ) : selectedAddress ? (
                   <div
                     className="group relative p-5 rounded-xl border border-gray-100 bg-gray-50/50 cursor-pointer hover:border-orange-200 hover:bg-orange-50/30 transition-all"
                     onClick={() => setIsAddressModalOpen(true)}

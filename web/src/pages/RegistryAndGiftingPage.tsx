@@ -28,15 +28,6 @@ const RegistryAndGiftingPage = () => {
     const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
     const [activeCategory, setActiveCategory] = useState<string | null>(null);
 
-    const filteredRegistries = registries.filter(reg => {
-        if (!activeCategory) return true;
-        const cat = reg.category?.toLowerCase() || '';
-        if (activeCategory === 'other') {
-            return !['baby', 'wedding', 'graduation'].includes(cat);
-        }
-        return cat === activeCategory;
-    });
-
     const handleCreateRegistry = (name: string, category: string) => {
         const newRegistry: RegistryItem = {
             id: Date.now().toString(),
@@ -195,13 +186,25 @@ const RegistryAndGiftingPage = () => {
 
                 <section>
                     <div className="flex items-center space-x-3 mb-4">
-                        <h3 className="text-xl font-bold">Your registries and gift lists</h3>
+                        <h3 className="text-xl font-bold">
+                            {activeCategory 
+                                ? `${activeCategory.charAt(0).toUpperCase() + activeCategory.slice(1)} Registries` 
+                                : 'Your registries and gift lists'}
+                        </h3>
                         <button className="p-1 rounded-full border border-gray-300 hover:bg-gray-100">
                             <Plus size={18} />
                         </button>
                     </div>
                     <div className="flex flex-wrap gap-4">
-                        {filteredRegistries.map((list) => (
+                        {registries
+                            .filter(list => {
+                                if (!activeCategory) return true;
+                                if (activeCategory === 'other') {
+                                    return !['baby', 'wedding', 'graduation'].includes(list.category?.toLowerCase() || '');
+                                }
+                                return list.category?.toLowerCase() === activeCategory;
+                            })
+                            .map((list) => (
                             <div
                                 key={list.id}
                                 onClick={() => handleRegistryClick(list as any)}
@@ -210,13 +213,23 @@ const RegistryAndGiftingPage = () => {
                                 <img src={list.imageUrl} alt="Gift list" className="w-12 h-12 rounded object-cover mr-4" />
                                 <div>
                                     <h4 className="font-semibold text-[var(--brand-primary)] text-sm">{list.title}</h4>
-                                    <div className="flex flex-col">
-                                        <p className="text-xs text-gray-500 uppercase tracking-wide">Shared - {list.sharedDate}</p>
-                                        <p className="text-xs text-gray-600 font-medium mt-1">{(list.products?.length || 0)} items</p>
-                                    </div>
+                                    <p className="text-xs text-gray-500 uppercase tracking-wide">
+                                        {list.products?.length || 0} items • Shared - {list.sharedDate}
+                                    </p>
                                 </div>
                             </div>
                         ))}
+                        {registries.filter(list => {
+                                if (!activeCategory) return true;
+                                if (activeCategory === 'other') {
+                                    return !['baby', 'wedding', 'graduation'].includes(list.category?.toLowerCase() || '');
+                                }
+                                return list.category?.toLowerCase() === activeCategory;
+                            }).length === 0 && (
+                            <div className="w-full text-center py-8 text-gray-500 bg-white rounded-lg border border-dashed border-gray-300">
+                                No registries found in this category.
+                            </div>
+                        )}
                     </div>
                 </section>
 
@@ -258,13 +271,27 @@ const RegistryAndGiftingPage = () => {
     );
 };
 
-const CategoryCard = ({ title, desc, imgSrc, isActive, onClick }: { title: string; desc: string; imgSrc: string; isActive?: boolean; onClick?: () => void }) => (
+const CategoryCard = ({ 
+    title, 
+    desc, 
+    imgSrc, 
+    isActive, 
+    onClick 
+}: { 
+    title: string; 
+    desc: string; 
+    imgSrc: string; 
+    isActive?: boolean; 
+    onClick?: () => void; 
+}) => (
     <div 
         onClick={onClick}
-        className={`border rounded-lg overflow-hidden flex flex-col hover:shadow-md transition cursor-pointer ${isActive ? 'border-[var(--brand-primary)] ring-2 ring-[var(--brand-primary)]/20 bg-orange-50' : 'border-gray-200'}`}
+        className={`border rounded-lg overflow-hidden flex flex-col hover:shadow-md transition cursor-pointer ${
+            isActive ? 'border-[var(--brand-primary)] ring-2 ring-[var(--brand-primary)]/20' : 'border-gray-200'
+        }`}
     >
         <img src={imgSrc} alt={title} className="h-44 w-full object-cover" />
-        <div className="p-4">
+        <div className="p-4 bg-white">
             <h4 className={`font-bold text-base ${isActive ? 'text-[var(--brand-primary)]' : ''}`}>{title}</h4>
             <p className="text-sm text-gray-600 mt-2 leading-snug">{desc}</p>
         </div>
