@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, StatusBar, Dimensions, Share, Alert, Pressable, Modal, TextInput, Image, Switch, KeyboardAvoidingView, Platform } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Heart, ShoppingBag, Share2, MoreVertical, Edit2, Search, FolderHeart, Plus, Lock, Globe, User, X, Store, ChevronRight, Trash2, Eye } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
@@ -29,7 +30,7 @@ const CreateListModal = ({ visible, onClose, onCreate }: any) => {
         <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
             <View style={styles.bottomSheetOverlay}>
                 <Pressable style={styles.backdrop} onPress={onClose} />
-                <KeyboardAvoidingView 
+                <KeyboardAvoidingView
                     behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                     style={{ width: '100%' }}
                 >
@@ -40,12 +41,12 @@ const CreateListModal = ({ visible, onClose, onCreate }: any) => {
                                 <X size={24} color="#374151" />
                             </Pressable>
                         </View>
-                        
+
                         <Text style={styles.inputLabel}>List Name</Text>
-                        <TextInput 
-                            style={styles.bsInput} 
-                            value={name} 
-                            onChangeText={setName} 
+                        <TextInput
+                            style={styles.bsInput}
+                            value={name}
+                            onChangeText={setName}
                             placeholder="e.g. Birthday Wishlist"
                             placeholderTextColor="#9CA3AF"
                             autoFocus
@@ -78,7 +79,7 @@ const ItemEditModal = ({ visible, onClose, item, onSave }: any) => {
             <View style={styles.modalOverlay}>
                 <View style={styles.modalContent}>
                     <Text style={styles.modalTitle}>Edit Item</Text>
-                    
+
 
 
                     <Text style={styles.inputLabel}>Desired Quantity</Text>
@@ -92,8 +93,8 @@ const ItemEditModal = ({ visible, onClose, item, onSave }: any) => {
 
                     <View style={styles.modalActions}>
                         <Pressable style={styles.modalBtn} onPress={onClose}><Text style={styles.cancelText}>Cancel</Text></Pressable>
-                        <Pressable 
-                            style={[styles.modalBtn, styles.primaryBtn]} 
+                        <Pressable
+                            style={[styles.modalBtn, styles.primaryBtn]}
                             onPress={() => {
                                 onSave(item.id, { desiredQty: parseInt(qty) });
                                 onClose();
@@ -102,8 +103,8 @@ const ItemEditModal = ({ visible, onClose, item, onSave }: any) => {
                             <Text style={styles.primaryBtnText}>Save</Text>
                         </Pressable>
                     </View>
-                    
-                    <Pressable 
+
+                    <Pressable
                         style={{ position: 'absolute', top: 20, right: 16, padding: 4 }}
                         onPress={() => {
                             Alert.alert(
@@ -111,18 +112,20 @@ const ItemEditModal = ({ visible, onClose, item, onSave }: any) => {
                                 'Are you sure you want to remove this item?',
                                 [
                                     { text: 'Cancel', style: 'cancel' },
-                                    { text: 'Remove', style: 'destructive', onPress: () => {
-                                        onSave(item.id, null, true);
-                                        onClose();
-                                    }}
+                                    {
+                                        text: 'Remove', style: 'destructive', onPress: () => {
+                                            onSave(item.id, null, true);
+                                            onClose();
+                                        }
+                                    }
                                 ]
                             );
                         }}
                     >
                         <Trash2 size={20} color="#EF4444" />
                     </Pressable>
-                    </View>
                 </View>
+            </View>
         </Modal>
     );
 };
@@ -155,10 +158,12 @@ const EditCategoryModal = ({ visible, onClose, category, onSave, onDelete }: any
             'Are you sure? Items will be moved to your default list.',
             [
                 { text: 'Cancel', style: 'cancel' },
-                { text: 'Delete', style: 'destructive', onPress: () => {
-                    onDelete(category.id);
-                    onClose();
-                }}
+                {
+                    text: 'Delete', style: 'destructive', onPress: () => {
+                        onDelete(category.id);
+                        onClose();
+                    }
+                }
             ]
         );
     };
@@ -167,7 +172,7 @@ const EditCategoryModal = ({ visible, onClose, category, onSave, onDelete }: any
         <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
             <View style={styles.bottomSheetOverlay}>
                 <Pressable style={styles.backdrop} onPress={onClose} />
-                <KeyboardAvoidingView 
+                <KeyboardAvoidingView
                     behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                     style={{ width: '100%' }}
                 >
@@ -178,12 +183,12 @@ const EditCategoryModal = ({ visible, onClose, category, onSave, onDelete }: any
                                 <X size={24} color="#374151" />
                             </Pressable>
                         </View>
-                        
+
                         <Text style={styles.inputLabel}>List Name</Text>
-                        <TextInput 
-                            style={styles.bsInput} 
-                            value={name} 
-                            onChangeText={setName} 
+                        <TextInput
+                            style={styles.bsInput}
+                            value={name}
+                            onChangeText={setName}
                             placeholder="List Name"
                         />
 
@@ -193,7 +198,7 @@ const EditCategoryModal = ({ visible, onClose, category, onSave, onDelete }: any
                             <Pressable onPress={handleSave} style={[styles.createBtn, !name.trim() && styles.disabledBtn]}>
                                 <Text style={styles.createBtnText}>Save Changes</Text>
                             </Pressable>
-                            
+
                             {category?.id !== 'default' && (
                                 <Pressable onPress={handleDelete} style={[styles.createBtn, { backgroundColor: '#FEE2E2' }]}>
                                     <Text style={[styles.createBtnText, { color: '#DC2626' }]}>Delete List</Text>
@@ -213,14 +218,14 @@ export default function WishlistScreen() {
 
     const { items, categories, createCategory, updateItem, removeItem, shareWishlist, updateCategory, deleteCategory } = useWishlistStore();
     const { isGuest } = useAuthStore();
-    
+
     // UI State
     const [showGuestModal, setShowGuestModal] = useState(false);
     const [showCreateModal, setShowCreateModal] = useState(false);
 
     const [editingItem, setEditingItem] = useState<WishlistItem | null>(null);
     const [editingCategory, setEditingCategory] = useState<any>(null);
-    
+
     // Navigation State
     const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
 
@@ -254,32 +259,37 @@ export default function WishlistScreen() {
     };
 
     // Filter items based on selected category
-    const displayedItems = selectedCategoryId 
+    const displayedItems = selectedCategoryId
         ? items.filter(item => item.categoryId === selectedCategoryId || (selectedCategoryId === 'default' && !item.categoryId))
         : items;
 
     const currentCategoryName = categories.find(c => c.id === selectedCategoryId)?.name || 'All Items';
 
     return (
-        <View style={styles.container}>
-            <StatusBar barStyle="light-content" />
+        <LinearGradient
+            colors={['#FFE5CC', '#FFE5CC']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.container}
+        >
+            <StatusBar barStyle="dark-content" />
 
             {/* Header */}
-            <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: COLORS.primary }]}>
+            <View style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}>
                 <View style={styles.headerTop}>
-                    <Pressable 
+                    <Pressable
                         onPress={() => {
                             if (selectedCategoryId) {
                                 setSelectedCategoryId(null); // Go back to categories
                             } else {
                                 navigation.goBack();
                             }
-                        }} 
+                        }}
                         style={styles.headerIconButton}
                     >
-                        <ArrowLeft size={24} color="#FFF" strokeWidth={2.5} />
+                        <ArrowLeft size={24} color="#1F2937" strokeWidth={2.5} />
                     </Pressable>
-                    
+
                     <View style={styles.titleContainer}>
                         <Text style={styles.headerTitle}>
                             {selectedCategoryId ? currentCategoryName : 'My Wishlists'}
@@ -288,13 +298,13 @@ export default function WishlistScreen() {
 
                     <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
 
-                        
+
                         {selectedCategoryId && (
                             <Pressable onPress={() => {
                                 // Simulate sharing view
                                 const cat = categories.find(c => c.id === selectedCategoryId);
                                 const catItems = items.filter(i => i.categoryId === selectedCategoryId || (selectedCategoryId === 'default' && !i.categoryId));
-                                
+
                                 const previewData = {
                                     name: "You", // Or user's real name via auth
                                     avatar: "https://ui-avatars.com/api/?name=You&background=random",
@@ -304,50 +314,50 @@ export default function WishlistScreen() {
 
                                 navigation.navigate('SharedWishlist', { wishlistData: previewData });
                             }} style={styles.headerIconButton}>
-                                <Eye size={24} color="#FFF" />
+                                <Eye size={24} color="#1F2937" />
                             </Pressable>
                         )}
 
                         {selectedCategoryId && (
                             <Pressable onPress={handleShare} style={styles.headerIconButton}>
-                                <Share2 size={24} color="#FFF" />
+                                <Share2 size={24} color="#1F2937" />
                             </Pressable>
                         )}
-                        
+
                         {!selectedCategoryId && (
-                             <Pressable onPress={() => setShowCreateModal(true)} style={[styles.createHeaderBtn]}>
+                            <Pressable onPress={() => setShowCreateModal(true)} style={[styles.createHeaderBtn]}>
                                 <Plus size={20} color={COLORS.primary} strokeWidth={3} />
-                             </Pressable>
+                            </Pressable>
                         )}
 
                         {selectedCategoryId && (
-                             <Pressable onPress={() => {
-                                 const cat = categories.find(c => c.id === selectedCategoryId);
-                                 setEditingCategory(cat);
-                             }} style={styles.headerIconButton}>
-                                <MoreVertical size={24} color="#FFF" />
-                             </Pressable>
+                            <Pressable onPress={() => {
+                                const cat = categories.find(c => c.id === selectedCategoryId);
+                                setEditingCategory(cat);
+                            }} style={styles.headerIconButton}>
+                                <MoreVertical size={24} color="#1F2937" />
+                            </Pressable>
                         )}
                     </View>
                 </View>
             </View>
 
             <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-                
+
 
 
                 {/* --- CATEGORIES VIEW (1 COLUMN VERTICAL) --- */}
                 {!selectedCategoryId && (
                     <View>
                         {/* No "Create New List" card here anymore, moved to header */}
-                        
+
                         <View style={styles.categoriesList}>
                             {categories.map((cat) => {
                                 const categoryItems = items.filter(i => i.categoryId === cat.id || (cat.id === 'default' && !i.categoryId));
                                 const itemCount = categoryItems.length;
                                 // Use first item image as cover, or fallback
                                 const coverImage = cat.image || categoryItems[0]?.image;
-                                
+
                                 return (
                                     <Pressable key={cat.id} style={styles.cardContainer} onPress={() => setSelectedCategoryId(cat.id)}>
                                         {/* Banner Image */}
@@ -370,17 +380,17 @@ export default function WishlistScreen() {
                                             </View>
 
                                             <View style={styles.cardHeader}>
-                                                <View style={{flex: 1, paddingRight: 10}}>
+                                                <View style={{ flex: 1, paddingRight: 10 }}>
                                                     <Text style={styles.cardTitle}>{cat.name}</Text>
                                                     <View style={styles.cardRatingRow}>
                                                         <View style={styles.privacyTag}>
-                                                            <Lock size={10} color="#6B7280"/>
+                                                            <Lock size={10} color="#6B7280" />
                                                             <Text style={styles.privacyTagText}>Private</Text>
                                                         </View>
                                                         <Text style={styles.itemCountDetail}>{itemCount} items</Text>
                                                     </View>
                                                 </View>
-                                                
+
                                                 <View style={styles.visitShopBtn}>
                                                     <Text style={styles.visitShopText}>View List</Text>
                                                 </View>
@@ -397,7 +407,7 @@ export default function WishlistScreen() {
                 {selectedCategoryId && (
                     <View>
                         {displayedItems.length === 0 ? (
-                             <View style={styles.emptyState}>
+                            <View style={styles.emptyState}>
                                 <View style={styles.emptyIconContainer}>
                                     <Heart size={48} color="#D1D5DB" fill="#D1D5DB" />
                                 </View>
@@ -426,7 +436,7 @@ export default function WishlistScreen() {
                                                 </Pressable>
                                             </View>
                                         </View>
-                                        
+
 
                                     </View>
                                 ))}
@@ -447,13 +457,13 @@ export default function WishlistScreen() {
                 cancelText="Go back to Home"
             />
 
-            <CreateListModal 
+            <CreateListModal
                 visible={showCreateModal}
                 onClose={() => setShowCreateModal(false)}
                 onCreate={handleCreateList}
             />
 
-            <ItemEditModal 
+            <ItemEditModal
                 visible={!!editingItem}
                 item={editingItem}
                 onClose={() => setEditingItem(null)}
@@ -476,7 +486,7 @@ export default function WishlistScreen() {
                     setSelectedCategoryId(null); // Go back home
                 }}
             />
-        </View>
+        </LinearGradient>
     );
 }
 
@@ -488,16 +498,16 @@ const styles = StyleSheet.create({
         borderBottomRightRadius: 30,
         paddingBottom: 20,
         marginBottom: 10,
-        elevation: 4,
+        elevation: 0,
         zIndex: 10,
     },
     headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', position: 'relative' },
     headerIconButton: { padding: 4, zIndex: 10 },
     createHeaderBtn: { backgroundColor: '#FFF', padding: 6, borderRadius: 20 },
     titleContainer: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
-    headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFF' },
+    headerTitle: { fontSize: 20, fontWeight: '800', color: '#1F2937' },
     scrollContent: { padding: 16, paddingBottom: 40, minHeight: '100%' },
-    
+
     // Categories List (Card Style)
     categoriesList: { gap: 20, paddingBottom: 20 },
     cardContainer: {
@@ -561,7 +571,7 @@ const styles = StyleSheet.create({
     },
     privacyTagText: { fontSize: 10, fontWeight: '600', color: '#6B7280' },
     itemCountDetail: { fontSize: 12, color: '#6B7280' },
-    
+
     visitShopBtn: {
         backgroundColor: COLORS.primary,
         paddingHorizontal: 16,
@@ -601,7 +611,7 @@ const styles = StyleSheet.create({
     qtyText: { fontSize: 11, color: '#374151' },
 
     // Find Registry Banner
-    findRegistryContainer: { 
+    findRegistryContainer: {
         flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
         backgroundColor: '#FFF', padding: 16, borderRadius: 12, marginBottom: 24,
         elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2
@@ -631,7 +641,7 @@ const styles = StyleSheet.create({
     primaryBtn: { backgroundColor: COLORS.primary },
     cancelText: { color: '#6B7280', fontWeight: '600' },
     primaryBtnText: { color: '#FFF', fontWeight: '700' },
-    
+
     // Switch
     switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
     switchLabel: { fontSize: 16, fontWeight: '600', color: '#111827' },

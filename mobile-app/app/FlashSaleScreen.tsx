@@ -68,68 +68,70 @@ export default function FlashSaleScreen({ navigation, route }: Props) {
     const pad = (n: number) => n.toString().padStart(2, '0');
 
     return (
-        <View style={[styles.container, { paddingTop: insets.top }]}>
-            <StatusBar barStyle="light-content" />
+        <LinearGradient
+            colors={['#FFE5CC', '#FFE5CC']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.container}
+        >
+            <View style={{ flex: 1, paddingTop: insets.top }}>
+                <StatusBar barStyle="light-content" />
 
-            {/* Header */}
-            <LinearGradient
-                colors={[COLORS.primary, '#D94F00']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.header}
-            >
-                <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
-                    <ArrowLeft size={24} color="#FFF" />
-                </Pressable>
-                <View style={styles.headerCenter}>
-                    <Zap size={20} color="#FFF" fill="#FFF" />
-                    <Text style={styles.headerTitle}>Flash Sale</Text>
-                </View>
-                <View style={styles.timerRow}>
-                    <Timer size={16} color="#FFF" />
-                    <View style={styles.timerBox}>
-                        <Text style={styles.timerDigit}>{pad(timeLeft.hours)}</Text>
+                {/* Header */}
+                <View style={styles.header}>
+                    <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
+                        <ArrowLeft size={24} color="#1F2937" />
+                    </Pressable>
+                    <View style={styles.headerCenter}>
+                        <Zap size={20} color={COLORS.primary} fill={COLORS.primary} />
+                        <Text style={styles.headerTitle}>Flash Sale</Text>
                     </View>
-                    <Text style={styles.timerSep}>:</Text>
-                    <View style={styles.timerBox}>
-                        <Text style={styles.timerDigit}>{pad(timeLeft.minutes)}</Text>
-                    </View>
-                    <Text style={styles.timerSep}>:</Text>
-                    <View style={styles.timerBox}>
-                        <Text style={styles.timerDigit}>{pad(timeLeft.seconds)}</Text>
+                    <View style={styles.timerRow}>
+                        <Timer size={16} color="#1F2937" />
+                        <View style={styles.timerBox}>
+                            <Text style={styles.timerDigit}>{pad(timeLeft.hours)}</Text>
+                        </View>
+                        <Text style={styles.timerSep}>:</Text>
+                        <View style={styles.timerBox}>
+                            <Text style={styles.timerDigit}>{pad(timeLeft.minutes)}</Text>
+                        </View>
+                        <Text style={styles.timerSep}>:</Text>
+                        <View style={styles.timerBox}>
+                            <Text style={styles.timerDigit}>{pad(timeLeft.seconds)}</Text>
+                        </View>
                     </View>
                 </View>
-            </LinearGradient>
 
-            {/* Products Grid */}
-            <ScrollView
-                style={styles.scrollContent}
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={styles.gridContainer}
-            >
-                {loading ? (
-                    <View style={styles.loadingContainer}>
-                        <Text style={styles.loadingText}>Loading deals...</Text>
-                    </View>
-                ) : products.length === 0 ? (
-                    <View style={styles.emptyContainer}>
-                        <Zap size={48} color="#D1D5DB" />
-                        <Text style={styles.emptyText}>No flash sale products at the moment</Text>
-                    </View>
-                ) : (
-                    <View style={styles.grid}>
-                        {products.map((product) => (
-                            <View key={product.id} style={styles.productCard}>
-                                <ProductCard
-                                    product={product}
-                                    onPress={() => navigation.navigate('ProductDetail', { product })}
-                                />
-                            </View>
-                        ))}
-                    </View>
-                )}
-            </ScrollView>
-        </View>
+                {/* Products Grid */}
+                <ScrollView
+                    style={styles.scrollContent}
+                    showsVerticalScrollIndicator={false}
+                    contentContainerStyle={styles.gridContainer}
+                >
+                    {loading ? (
+                        <View style={styles.loadingContainer}>
+                            <Text style={styles.loadingText}>Loading deals...</Text>
+                        </View>
+                    ) : products.length === 0 ? (
+                        <View style={styles.emptyContainer}>
+                            <Zap size={48} color="#D1D5DB" />
+                            <Text style={styles.emptyText}>No flash sale products at the moment</Text>
+                        </View>
+                    ) : (
+                        <View style={styles.grid}>
+                            {products.map((product) => (
+                                <View key={product.id} style={styles.productCard}>
+                                    <ProductCard
+                                        product={product}
+                                        onPress={() => navigation.navigate('ProductDetail', { product })}
+                                    />
+                                </View>
+                            ))}
+                        </View>
+                    )}
+                </ScrollView>
+            </View>
+        </LinearGradient>
     );
 }
 
@@ -143,16 +145,16 @@ const styles = StyleSheet.create({
     },
     backBtn: { padding: 4, marginRight: 12 },
     headerCenter: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
-    headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFF' },
+    headerTitle: { fontSize: 20, fontWeight: '800', color: '#1F2937' },
     timerRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     timerBox: {
-        backgroundColor: 'rgba(255,255,255,0.25)',
+        backgroundColor: 'rgba(0,0,0,0.05)',
         paddingHorizontal: 6,
         paddingVertical: 3,
         borderRadius: 4,
     },
-    timerDigit: { color: '#FFF', fontSize: 14, fontWeight: '800' },
-    timerSep: { color: '#FFF', fontSize: 14, fontWeight: '800' },
+    timerDigit: { color: COLORS.primary, fontSize: 14, fontWeight: '800' },
+    timerSep: { color: '#1F2937', fontSize: 14, fontWeight: '800' },
     scrollContent: { flex: 1 },
     gridContainer: { padding: 16 },
     loadingContainer: { alignItems: 'center', paddingVertical: 60 },

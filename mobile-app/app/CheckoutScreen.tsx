@@ -14,6 +14,7 @@ import {
   Modal,
   ActivityIndicator,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, MapPin, CreditCard, Shield, Tag, X, ChevronDown, Check, Plus, ShieldCheck, ChevronRight, Home, Briefcase, MapPinned, Building2, Move, Search, ChevronUp } from 'lucide-react-native';
 import MapView, { Marker, Region, PROVIDER_GOOGLE, PROVIDER_DEFAULT } from 'react-native-maps';
@@ -338,7 +339,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
     setProvinceList([]);
     setCityList([]);
     setBarangayList([]);
-    
+
     // Try to get location details for autofill
     let prefillData: Partial<Omit<Address, 'id'>> = {};
     try {
@@ -354,29 +355,29 @@ export default function CheckoutScreen({ navigation, route }: Props) {
           region: details.region || '',
           postal_code: details.postalCode || '',
         };
-        
+
         // Pre-load dropdowns based on autofilled region/province/city
         if (details.region) {
           const allRegions = await regions();
-          const matchedRegion = allRegions.find((r: any) => 
+          const matchedRegion = allRegions.find((r: any) =>
             r.region_name?.toLowerCase().includes(details.region?.toLowerCase()) ||
             details.region?.toLowerCase().includes(r.region_name?.toLowerCase())
           );
           if (matchedRegion) {
             const provList = await provinces(matchedRegion.region_code);
             setProvinceList(provList);
-            
+
             if (details.province) {
-              const matchedProv = provList.find((p: any) => 
+              const matchedProv = provList.find((p: any) =>
                 p.province_name?.toLowerCase().includes(details.province?.toLowerCase()) ||
                 details.province?.toLowerCase().includes(p.province_name?.toLowerCase())
               );
               if (matchedProv) {
                 const cList = await cities(matchedProv.province_code);
                 setCityList(cList);
-                
+
                 if (details.city) {
-                  const matchedCity = cList.find((c: any) => 
+                  const matchedCity = cList.find((c: any) =>
                     c.city_name?.toLowerCase().includes(details.city?.toLowerCase()) ||
                     details.city?.toLowerCase().includes(c.city_name?.toLowerCase())
                   );
@@ -393,7 +394,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
     } catch (err) {
       console.log('[Checkout] Error loading location details for autofill:', err);
     }
-    
+
     setNewAddress({
       ...initialAddressState,
       first_name: user?.name?.split(' ')[0] || '',
@@ -552,7 +553,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
             console.log('[Checkout] Error reading stored address:', storageError);
           }
         }
-        
+
         // Also try to get location details for autofill
         let locationDetails: {
           street?: string;
@@ -562,7 +563,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
           region?: string;
           postalCode?: string;
         } | null = null;
-        
+
         try {
           const storedDetails = await AsyncStorage.getItem('currentLocationDetails');
           if (storedDetails) {
@@ -911,10 +912,10 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                       </View>
                     )}
                     {/* Fallback if no variant selected */}
-                    {!item.selectedVariant?.option1Value && !item.selectedVariant?.option2Value && 
-                     !item.selectedVariant?.color && !item.selectedVariant?.size && (
-                      <Text style={styles.compactVariantText}>Standard</Text>
-                    )}
+                    {!item.selectedVariant?.option1Value && !item.selectedVariant?.option2Value &&
+                      !item.selectedVariant?.color && !item.selectedVariant?.size && (
+                        <Text style={styles.compactVariantText}>Standard</Text>
+                      )}
                     <Text style={styles.compactQuantity}>x{item.quantity}</Text>
                   </View>
                 </View>
@@ -1101,7 +1102,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                 setPaymentMethod('cod');
               }}
               style={[
-                styles.paymentOption, 
+                styles.paymentOption,
                 paymentMethod === 'cod' && styles.paymentOptionActive,
                 isGift && { opacity: 0.5, backgroundColor: '#F3F4F6' }
               ]}
@@ -1112,7 +1113,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
               <View style={{ flex: 1 }}>
                 <Text style={[styles.paymentText, isGift && { color: '#9CA3AF' }]}>Cash on Delivery</Text>
                 <Text style={styles.paymentSubtext}>
-                    {isGift ? 'Not available for wishlist items' : 'Pay when you receive'}
+                  {isGift ? 'Not available for wishlist items' : 'Pay when you receive'}
                 </Text>
               </View>
             </Pressable>

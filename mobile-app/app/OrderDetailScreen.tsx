@@ -221,12 +221,17 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
   const StatusIcon = getStatusIcon();
 
   return (
-    <View style={styles.container}>
+    <LinearGradient
+      colors={['#FFE5CC', '#FFE5CC']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 0 }}
+      style={styles.container}
+    >
       {/* Edge-to-Edge Orange Header - BRANDED */}
-      <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: COLORS.primary }]}>
+      <View style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}>
         <View style={styles.headerTop}>
           <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-            <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
+            <ArrowLeft size={24} color="#1F2937" strokeWidth={2.5} />
           </Pressable>
           <Text style={styles.headerTitle}>Order Details</Text>
           <View style={{ width: 40 }} />
@@ -538,7 +543,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
           </KeyboardAvoidingView>
         </SafeAreaView>
       </Modal>
-    </View>
+    </LinearGradient>
   );
 }
 
@@ -568,12 +573,7 @@ const styles = StyleSheet.create({
   headerIconButton: {
     padding: 4,
   },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: 0.3,
-  },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: '#1F2937', letterSpacing: 0.3 },
   // ===== SCROLL VIEW =====
   scrollView: {
     flex: 1,

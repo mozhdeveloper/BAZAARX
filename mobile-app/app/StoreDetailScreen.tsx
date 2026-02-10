@@ -1,10 +1,11 @@
-import { ArrowLeft, Search, MoreHorizontal, CheckCircle2, Star, MapPin, Grid, Heart, MessageCircle, UserPlus, Check, X, Share2, Flag, Info, Loader2 } from 'lucide-react-native';
+import { ArrowLeft, Search, MoreHorizontal, CheckCircle2, Star, MapPin, Grid, Heart, MessageCircle, UserPlus, Check, X, Share2, Flag, Info, Loader2, MoreVertical } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { ProductCard } from '../src/components/ProductCard';
 import { trendingProducts } from '../src/data/products'; // Placeholder products
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Image, ScrollView, Pressable, StatusBar, Dimensions, Alert, LayoutAnimation, Platform, UIManager, Modal, TextInput, ActivityIndicator } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import StoreChatModal from '../src/components/StoreChatModal';
 import { COLORS } from '../src/constants/theme';
 
@@ -23,12 +24,19 @@ export default function StoreDetailScreen() {
 
     if (!store) {
         return (
-            <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-                <Text>Store information not available</Text>
-                <Pressable onPress={() => navigation.goBack()} style={{ padding: 10, marginTop: 10 }}>
-                    <Text style={{ color: COLORS.primary }}>Go Back</Text>
-                </Pressable>
-            </View>
+            <LinearGradient
+                colors={['#FFE5CC', '#FFE5CC']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.container}
+            >
+                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                    <Text>Store information not available</Text>
+                    <Pressable onPress={() => navigation.goBack()} style={{ padding: 10, marginTop: 10 }}>
+                        <Text style={{ color: COLORS.primary }}>Go Back</Text>
+                    </Pressable>
+                </View>
+            </LinearGradient>
         );
     }
     const BRAND_COLOR = COLORS.primary;
@@ -316,7 +324,12 @@ export default function StoreDetailScreen() {
     };
 
     return (
-        <View style={styles.container}>
+        <LinearGradient
+            colors={['#FFE5CC', '#FFE5CC']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.container}
+        >
             <StatusBar barStyle="light-content" />
 
             {/* Custom Header */}
@@ -340,19 +353,20 @@ export default function StoreDetailScreen() {
                         </Pressable>
                     </View>
                 ) : (
-                    <>
-                        <Pressable onPress={() => navigation.goBack()} style={styles.iconButton}>
-                            <ArrowLeft size={24} color="#FFF" />
+                    /* Store Header - Standardized */
+                    <View style={styles.headerTop}>
+                        <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
+                            <ArrowLeft size={24} color="#1F2937" strokeWidth={2.5} />
                         </Pressable>
                         <View style={styles.headerRight}>
-                            <Pressable style={styles.iconButton} onPress={() => setSearchVisible(true)}>
-                                <Search size={24} color="#FFF" />
+                            <Pressable style={styles.headerIconButton} onPress={() => { }}>
+                                <Share2 size={24} color="#1F2937" />
                             </Pressable>
-                            <Pressable style={styles.iconButton} onPress={() => setMenuVisible(true)}>
-                                <MoreHorizontal size={24} color="#FFF" />
+                            <Pressable style={styles.headerIconButton} onPress={() => { }}>
+                                <MoreVertical size={24} color="#1F2937" />
                             </Pressable>
                         </View>
-                    </>
+                    </View>
                 )}
             </View>
 
@@ -465,27 +479,22 @@ export default function StoreDetailScreen() {
                     message={guestModalMessage || "Please log in to continue."}
                 />
             )}
-        </View>
+        </LinearGradient>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#F3F4F6',
-    },
-    header: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        zIndex: 10,
+    container: { flex: 1 },
+    header: { paddingHorizontal: 20, zIndex: 10, paddingBottom: 10 },
+    headerTop: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        paddingHorizontal: 16,
+        paddingHorizontal: 0,
         paddingBottom: 10,
         alignItems: 'center',
     },
+    headerIconButton: { padding: 4 },
+    headerRight: { flexDirection: 'row', gap: 10 },
     searchHeader: {
         flex: 1,
         flexDirection: 'row',
@@ -516,10 +525,6 @@ const styles = StyleSheet.create({
     cancelText: {
         color: '#FFF',
         fontWeight: '600',
-    },
-    headerRight: {
-        flexDirection: 'row',
-        gap: 8,
     },
     iconButton: {
         width: 40,
