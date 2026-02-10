@@ -418,6 +418,11 @@ export class OrderService {
             ];
             if (orderIds.length === 0) return [];
 
+      // Step 3: Get the actual orders
+      // REMOVED 'phone' from shipping_addresses selection
+      const { data: orders, error: ordersError } = await supabase
+        .from('orders')
+        .select(`
             // Step 3: Get the actual orders with their items and addresses
             const { data: orders, error: ordersError } = await supabase
                 .from("orders")
@@ -436,7 +441,7 @@ export class OrderService {
             variant_id,
             personalized_options
           ),
-          recipient:order_recipients (
+          recipient:order_recipients!orders_recipient_id_fkey (
             first_name,
             last_name,
             phone,
