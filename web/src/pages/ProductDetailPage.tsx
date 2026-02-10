@@ -1828,6 +1828,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
       <CreateRegistryModal
         isOpen={isCreateRegistryModalOpen}
         onClose={() => setIsCreateRegistryModalOpen(false)}
+        hideBrowseLink={true}
         onCreate={(name, category) => {
           const newRegistry = {
             id: `reg-${Date.now()}`,
@@ -1838,12 +1839,19 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
             products: []
           };
           createRegistry(newRegistry);
+          
+          // Auto-add the current product to the new registry
+          if (product) {
+              addToRegistry(newRegistry.id, product);
+          }
+
           setIsCreateRegistryModalOpen(false);
-          // Re-open the add to registry modal to allow adding the product immediately
-          setShowRegistryModal(true);
+          // showRegistryModal is not needed anymore as we auto-added
+          setShowRegistryModal(false); 
+
           toast({
-            title: "Registry Created",
-            description: `${name} has been created successfully.`,
+            title: "Registry Created & Item Added",
+            description: `${name} created and ${product?.name} has been added.`,
           });
         }}
       />
