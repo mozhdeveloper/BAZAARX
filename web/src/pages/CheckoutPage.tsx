@@ -35,15 +35,23 @@ const VOUCHERS = {
     type: "percentage",
     value: 10,
     description: "10% off your order",
+    minPurchase: 0,
   },
-  SAVE50: { type: "fixed", value: 50, description: "₱50 off" },
-  FREESHIP: { type: "shipping", value: 0, description: "Free shipping" },
+  SAVE50: { type: "fixed", value: 50, description: "₱50 off", minPurchase: 0 },
+  FREESHIP: { type: "shipping", value: 0, description: "Free shipping", minPurchase: 0 },
   NEWYEAR25: {
     type: "percentage",
     value: 25,
     description: "25% off New Year Special",
+    minPurchase: 0,
   },
-  FLASH100: { type: "fixed", value: 100, description: "₱100 flash discount" },
+  FLASH100: { type: "fixed", value: 100, description: "₱100 flash discount", minPurchase: 0 },
+  FLASH500: {
+    type: "fixed",
+    value: 500,
+    description: "₱500 off on purchases ₱3000 and above",
+    minPurchase: 3000,
+  },
 } as const;
 import { useCartStore } from "../stores/cartStore";
 import { Address, useBuyerStore } from "../stores/buyerStore";
@@ -382,7 +390,15 @@ export default function CheckoutPage() {
 
   const handleApplyVoucher = () => {
     const code = voucherCode.trim().toUpperCase();
-    if (VOUCHERS[code as keyof typeof VOUCHERS]) {
+    const voucher = VOUCHERS[code as keyof typeof VOUCHERS];
+    if (voucher) {
+      if (totalPrice < (voucher.minPurchase || 0)) {
+        toast({
+          title: "Minimum purchase not met",
+          description: `Minimum purchase ₱${(voucher.minPurchase || 0).toLocaleString()} required.`,
+        });
+        return;
+      }
       setAppliedVoucher(code as keyof typeof VOUCHERS);
     } else {
       alert("Invalid voucher code. Please try again.");
@@ -1251,6 +1267,7 @@ export default function CheckoutPage() {
                 </motion.section>
 
                 <div className="space-y-2 mb-4">
+                  {" "}
                   <div className="flex justify-between text-gray-600">
                     <span>Subtotal</span>
                     <span>₱{totalPrice.toLocaleString()}</span>
@@ -1941,3 +1958,4 @@ export default function CheckoutPage() {
     </div>
   );
 }
+

@@ -50,6 +50,8 @@ export default function EnhancedCartPage() {
   const [voucherCode, setVoucherCode] = useState("");
   const [voucherError, setVoucherError] = useState("");
   const [isApplyingVoucher, setIsApplyingVoucher] = useState(false);
+  const getImageSrc = (src?: string | null) =>
+    src && src.trim().length > 0 ? src : undefined;
 
   // Clear quick order when user navigates to cart
   useEffect(() => {
@@ -270,7 +272,7 @@ export default function EnhancedCartPage() {
                       <div className="space-y-0">
                         {group.items.map((item, itemIndex) => (
                           <motion.div
-                            key={item.id}
+                            key={`${item.id}-${item.selectedVariant?.id || 'base'}`}
                             initial={{ opacity: 0, x: -20 }}
                             animate={{ opacity: 1, x: 0 }}
                             transition={{
@@ -309,6 +311,27 @@ export default function EnhancedCartPage() {
                                 >
                                   {item.name}
                                 </h4>
+                                {item.selectedVariant && (
+                                  <div className="flex flex-wrap gap-1 mt-1">
+                                    {(() => {
+                                      const variantMeta = item.selectedVariant as any;
+                                      const labels: string[] = [];
+                                      if (variantMeta?.size) labels.push(`Size: ${variantMeta.size}`);
+                                      if (variantMeta?.color) labels.push(`Color: ${variantMeta.color}`);
+                                      if (labels.length === 0 && variantMeta?.name) labels.push(variantMeta.name);
+
+                                      return labels.map((label) => (
+                                        <Badge
+                                          key={label}
+                                          variant="secondary"
+                                          className="text-[10px] h-4 px-1 bg-gray-100 text-gray-700 border border-gray-200 hover:bg-yellow-200 hover:text-gray-900 transition-colors"
+                                        >
+                                          {label}
+                                        </Badge>
+                                      ));
+                                    })()}
+                                  </div>
+                                )}
 
                                 {/* Quantity Controls */}
                                 <div className="flex items-center gap-4 mt-2">
