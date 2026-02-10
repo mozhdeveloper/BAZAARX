@@ -15,6 +15,7 @@ import {
   Dimensions,
   RefreshControl
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Search, Package, Clock, Filter, X, ShoppingCart, Check } from 'lucide-react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -35,10 +36,7 @@ import type { RootStackParamList, TabParamList } from '../App';
 import type { Order } from '../src/types';
 import { supabase } from '../src/lib/supabase';
 
-type Props = CompositeScreenProps<
-  BottomTabScreenProps<TabParamList, 'Orders'>,
-  NativeStackScreenProps<RootStackParamList>
->;
+type Props = NativeStackScreenProps<RootStackParamList, 'Orders'>;
 
 const { width } = Dimensions.get('window');
 
@@ -155,7 +153,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
         const items = (order.items || []).map((it: any) => {
           const p = it.product || {};
           const productName = p.name || it.product_name || 'Product Unavailable';
-          
+
           // Get primary image from product_images
           const productImages = p.images || [];
           const primaryImg = productImages.find((img: any) => img.is_primary);
@@ -216,14 +214,14 @@ export default function OrdersScreen({ navigation, route }: Props) {
           typeof order.total_amount === 'number'
             ? order.total_amount
             : parseFloat(order.total_amount || '0') || items.reduce((sum: number, i: any) => sum + (i.price * i.quantity), 0) + shippingFee;
-        
+
         // Parse name and phone from address_line_1 which stores "Name, Phone, Street"
         const addressLine1 = linkedAddress.address_line_1 || '';
         const addressParts = addressLine1.split(', ');
         let addressName = user.name || 'User';
         let addressPhone = '';
         let addressStreet = addressLine1;
-        
+
         if (addressParts.length >= 2) {
           // Check if second part looks like a phone number
           const possiblePhone = addressParts[1];
@@ -233,7 +231,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
             addressStreet = addressParts.slice(2).join(', ');
           }
         }
-        
+
         return {
           id: order.id,
           transactionId: order.order_number || order.id,
@@ -577,11 +575,16 @@ export default function OrdersScreen({ navigation, route }: Props) {
 
   if (isGuest) {
     return (
-      <View style={styles.container}>
-        <View style={[styles.headerContainer, { paddingTop: 60, backgroundColor: COLORS.primary }]}>
+      <LinearGradient
+        colors={['#FFE5CC', '#FFE5CC']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={styles.container}
+      >
+        <View style={[styles.headerContainer, { paddingTop: 60 }]}>
           <View style={styles.headerTop}>
             <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-              <ArrowLeft size={24} color="#FFF" strokeWidth={2.5} />
+              <ArrowLeft size={24} color="#1F2937" strokeWidth={2.5} />
             </Pressable>
             <Text style={styles.headerTitle}>My Orders</Text>
             <View style={{ width: 40 }} />
@@ -594,27 +597,32 @@ export default function OrdersScreen({ navigation, route }: Props) {
           hideCloseButton={true}
           cancelText="Go back to Home"
         />
-      </View>
+      </LinearGradient>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
+    <LinearGradient
+      colors={['#FFE5CC', '#FFE5CC']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 0 }}
+      style={styles.container}
+    >
+      <StatusBar barStyle="dark-content" />
 
       {/* Header with Title only */}
-      <View style={[styles.headerContainer, { paddingTop: insets.top + 10, paddingBottom: 15, backgroundColor: BRAND_COLOR }]}>
+      <View style={[styles.headerContainer, { paddingTop: insets.top + 10, paddingBottom: 15 }]}>
         <View style={styles.headerTop}>
           <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-            <ArrowLeft size={24} color="#FFF" strokeWidth={2.5} />
+            <ArrowLeft size={24} color="#1F2937" strokeWidth={2.5} />
           </Pressable>
           <Text style={styles.headerTitle}>My Orders</Text>
           <View style={styles.headerActions}>
             <Pressable style={styles.headerIconButton} onPress={() => setShowFilterModal(true)}>
-              <Filter size={22} color="#FFF" strokeWidth={2.5} />
+              <Filter size={22} color="#1F2937" strokeWidth={2.5} />
             </Pressable>
             <Pressable style={styles.headerIconButton} onPress={() => setShowSearchModal(true)}>
-              <Search size={22} color="#FFF" strokeWidth={2.5} />
+              <Search size={22} color="#1F2937" strokeWidth={2.5} />
             </Pressable>
           </View>
         </View>
@@ -763,7 +771,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
         onClose={() => setShowRatingModal(false)}
         onSubmit={handleSubmitReview}
       />
-    </View>
+    </LinearGradient>
   );
 }
 
@@ -774,11 +782,11 @@ const styles = StyleSheet.create({
   },
   headerContainer: {
     paddingHorizontal: 20,
-    elevation: 4,
+    elevation: 0,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0,
+    shadowRadius: 0,
     zIndex: 10,
     borderBottomLeftRadius: 30,
     borderBottomRightRadius: 30,
@@ -790,11 +798,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 5,
   },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#FFF',
-  },
+  headerTitle: { fontSize: 22, fontWeight: '800', color: '#1F2937', letterSpacing: 0.5 },
   headerIconButton: {
     padding: 4,
   },

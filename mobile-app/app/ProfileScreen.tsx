@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet, Alert, StatusBar, Modal, TextInput, ActivityIndicator, Image } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { User, MapPin, CreditCard, Bell, HelpCircle, Shield, ChevronRight, Store, Star, Package, Heart, Settings, Edit2, Power, X, Camera, RotateCcw, Clock, Gift } from 'lucide-react-native';
@@ -245,7 +246,7 @@ export default function ProfileScreen({ navigation }: Props) {
   };
 
   const accountMenuItems = [
-    { icon: Package, label: 'My Orders', onPress: () => navigation.navigate('MainTabs', { screen: 'Orders', params: {} }) },
+    { icon: Package, label: 'My Orders', onPress: () => navigation.navigate('Orders', { initialTab: 'toPay' }) },
     { icon: Clock, label: 'History', onPress: () => navigation.navigate('History') },
     { icon: Gift, label: 'Wishlist', onPress: () => navigation.navigate('Wishlist') },
     { icon: MapPin, label: 'My Addresses', onPress: () => navigation.navigate('Addresses') },
@@ -299,9 +300,14 @@ export default function ProfileScreen({ navigation }: Props) {
 
   if (isGuest) {
     return (
-      <View style={styles.container}>
-        <StatusBar barStyle="light-content" />
-        <View style={[styles.header, { paddingTop: insets.top + 20, backgroundColor: BRAND_COLOR }]}>
+      <LinearGradient
+        colors={['#FFE5CC', '#FFE5CC']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={styles.container}
+      >
+        <StatusBar barStyle="dark-content" />
+        <View style={[styles.header, { paddingTop: insets.top + 20 }]}>
           <View style={styles.profileHeader}>
             <View style={styles.avatarWrapper}>
               <View style={styles.avatarCircle}>
@@ -350,16 +356,21 @@ export default function ProfileScreen({ navigation }: Props) {
             </View>
           </View>
         </ScrollView>
-      </View>
+      </LinearGradient>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
+    <LinearGradient
+      colors={['#FFE5CC', '#FFE5CC']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 0 }}
+      style={styles.container}
+    >
+      <StatusBar barStyle="dark-content" />
 
       {/* 1. BRANDED ORANGE HEADER */}
-      <View style={[styles.header, { paddingTop: insets.top + 20, backgroundColor: BRAND_COLOR }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 20 }]}>
         <View style={styles.profileHeader}>
           <View style={styles.avatarWrapper}>
             <View style={styles.avatarCircle}>
@@ -386,7 +397,7 @@ export default function ProfileScreen({ navigation }: Props) {
         <View style={styles.statsCard}>
           <Pressable
             style={({ pressed }) => [styles.statBox, pressed && { opacity: 0.7 }]}
-            onPress={() => navigation.navigate('MainTabs', { screen: 'Orders', params: { initialTab: 'toPay' } })}
+            onPress={() => navigation.navigate('Orders', { initialTab: 'toPay' })}
           >
             <Text style={[styles.statVal, { color: BRAND_COLOR }]}>{profile.totalOrders}</Text>
             <Text style={styles.statLab}>Orders</Text>
@@ -551,7 +562,7 @@ export default function ProfileScreen({ navigation }: Props) {
         hideCloseButton={true}
         cancelText="Go back to Home"
       />
-    </View >
+    </LinearGradient >
   );
 }
 

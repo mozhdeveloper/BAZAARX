@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet, Switch, StatusBar } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Mail, MessageSquare, Bell, Package, ShoppingBag, Tag, ChevronDown } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -66,42 +67,52 @@ export default function NotificationsScreen({ navigation }: Props) {
 
   // Early return for Guest Mode - Renders ONLY the header and the modal, no content below.
   if (isGuest) {
-      return (
-        <View style={styles.container}>
-            <StatusBar barStyle="light-content" />
-            <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: COLORS.primary }]}>
-                <View style={styles.headerTop}>
-                    <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-                        <ArrowLeft size={24} color="#FFF" strokeWidth={2.5} />
-                    </Pressable>
-                    <Text style={styles.headerTitle}>Notifications</Text>
-                    <View style={{ width: 40 }} />
-                </View>
-            </View>
-            <GuestLoginModal
-                visible={true}
-                onClose={() => {
-                    navigation.navigate('MainTabs', { screen: 'Home' });
-                }}
-                message="Sign up to view your notifications."
-                hideCloseButton={true}
-                cancelText="Go back to Home"
-            />
-        </View>
-      );
-  }
-
-  return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
-      {/* Header */}
-      <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: COLORS.primary }]}>
-        <View style={styles.headerTop}>
+    return (
+      <LinearGradient
+        colors={['#FFE5CC', '#FFE5CC']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={styles.container}
+      >
+        <StatusBar barStyle="light-content" />
+        <View style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}>
+          <View style={styles.headerTop}>
             <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-                <ArrowLeft size={24} color="#FFF" strokeWidth={2.5} />
+              <ArrowLeft size={24} color="#1F2937" strokeWidth={2.5} />
             </Pressable>
             <Text style={styles.headerTitle}>Notifications</Text>
             <View style={{ width: 40 }} />
+          </View>
+        </View>
+        <GuestLoginModal
+          visible={true}
+          onClose={() => {
+            navigation.navigate('MainTabs', { screen: 'Home' });
+          }}
+          message="Sign up to view your notifications."
+          hideCloseButton={true}
+          cancelText="Go back to Home"
+        />
+      </LinearGradient>
+    );
+  }
+
+  return (
+    <LinearGradient
+      colors={['#FFE5CC', '#FFE5CC']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 0 }}
+      style={styles.container}
+    >
+      <StatusBar barStyle="light-content" />
+      {/* Header */}
+      <View style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}>
+        <View style={styles.headerTop}>
+          <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
+            <ArrowLeft size={24} color="#1F2937" strokeWidth={2.5} />
+          </Pressable>
+          <Text style={styles.headerTitle}>Notifications</Text>
+          <View style={{ width: 40 }} />
         </View>
       </View>
 
@@ -122,9 +133,9 @@ export default function NotificationsScreen({ navigation }: Props) {
             <Mail size={18} color="#FF6A00" />
             <Text style={styles.sectionTitle}>Email Notifications</Text>
           </View>
-          
+
           <View style={styles.settingCard}>
-            <Pressable 
+            <Pressable
               style={styles.settingItem}
               onPress={() => toggleExpanded('email-orderUpdates')}
             >
@@ -135,9 +146,9 @@ export default function NotificationsScreen({ navigation }: Props) {
                     <Text style={styles.settingSubtitle}>Receive order status updates via email</Text>
                   )}
                 </View>
-                <ChevronDown 
-                  size={20} 
-                  color="#9CA3AF" 
+                <ChevronDown
+                  size={20}
+                  color="#9CA3AF"
                   style={{
                     transform: [{ rotate: expandedItems.has('email-orderUpdates') ? '180deg' : '0deg' }]
                   }}
@@ -153,7 +164,7 @@ export default function NotificationsScreen({ navigation }: Props) {
 
             <View style={styles.divider} />
 
-            <Pressable 
+            <Pressable
               style={styles.settingItem}
               onPress={() => toggleExpanded('email-promotions')}
             >
@@ -164,9 +175,9 @@ export default function NotificationsScreen({ navigation }: Props) {
                     <Text style={styles.settingSubtitle}>Get notified about special offers</Text>
                   )}
                 </View>
-                <ChevronDown 
-                  size={20} 
-                  color="#9CA3AF" 
+                <ChevronDown
+                  size={20}
+                  color="#9CA3AF"
                   style={{
                     transform: [{ rotate: expandedItems.has('email-promotions') ? '180deg' : '0deg' }]
                   }}
@@ -182,7 +193,7 @@ export default function NotificationsScreen({ navigation }: Props) {
 
             <View style={styles.divider} />
 
-            <Pressable 
+            <Pressable
               style={styles.settingItem}
               onPress={() => toggleExpanded('email-newsletter')}
             >
@@ -193,9 +204,9 @@ export default function NotificationsScreen({ navigation }: Props) {
                     <Text style={styles.settingSubtitle}>Monthly newsletter with tips and trends</Text>
                   )}
                 </View>
-                <ChevronDown 
-                  size={20} 
-                  color="#9CA3AF" 
+                <ChevronDown
+                  size={20}
+                  color="#9CA3AF"
                   style={{
                     transform: [{ rotate: expandedItems.has('email-newsletter') ? '180deg' : '0deg' }]
                   }}
@@ -217,9 +228,9 @@ export default function NotificationsScreen({ navigation }: Props) {
             <MessageSquare size={18} color="#FF6A00" />
             <Text style={styles.sectionTitle}>SMS Notifications</Text>
           </View>
-          
+
           <View style={styles.settingCard}>
-            <Pressable 
+            <Pressable
               style={styles.settingItem}
               onPress={() => toggleExpanded('sms-delivery')}
             >
@@ -230,9 +241,9 @@ export default function NotificationsScreen({ navigation }: Props) {
                     <Text style={styles.settingSubtitle}>Get SMS updates about your delivery</Text>
                   )}
                 </View>
-                <ChevronDown 
-                  size={20} 
-                  color="#9CA3AF" 
+                <ChevronDown
+                  size={20}
+                  color="#9CA3AF"
                   style={{
                     transform: [{ rotate: expandedItems.has('sms-delivery') ? '180deg' : '0deg' }]
                   }}
@@ -248,7 +259,7 @@ export default function NotificationsScreen({ navigation }: Props) {
 
             <View style={styles.divider} />
 
-            <Pressable 
+            <Pressable
               style={styles.settingItem}
               onPress={() => toggleExpanded('sms-orderConfirmation')}
             >
@@ -259,9 +270,9 @@ export default function NotificationsScreen({ navigation }: Props) {
                     <Text style={styles.settingSubtitle}>Receive SMS when order is placed</Text>
                   )}
                 </View>
-                <ChevronDown 
-                  size={20} 
-                  color="#9CA3AF" 
+                <ChevronDown
+                  size={20}
+                  color="#9CA3AF"
                   style={{
                     transform: [{ rotate: expandedItems.has('sms-orderConfirmation') ? '180deg' : '0deg' }]
                   }}
@@ -283,9 +294,9 @@ export default function NotificationsScreen({ navigation }: Props) {
             <Bell size={18} color="#FF6A00" />
             <Text style={styles.sectionTitle}>Push Notifications</Text>
           </View>
-          
+
           <View style={styles.settingCard}>
-            <Pressable 
+            <Pressable
               style={styles.settingItem}
               onPress={() => toggleExpanded('push-orderStatus')}
             >
@@ -297,9 +308,9 @@ export default function NotificationsScreen({ navigation }: Props) {
                     <Text style={styles.settingSubtitle}>Track your order in real-time</Text>
                   )}
                 </View>
-                <ChevronDown 
-                  size={20} 
-                  color="#9CA3AF" 
+                <ChevronDown
+                  size={20}
+                  color="#9CA3AF"
                   style={{
                     transform: [{ rotate: expandedItems.has('push-orderStatus') ? '180deg' : '0deg' }]
                   }}
@@ -315,7 +326,7 @@ export default function NotificationsScreen({ navigation }: Props) {
 
             <View style={styles.divider} />
 
-            <Pressable 
+            <Pressable
               style={styles.settingItem}
               onPress={() => toggleExpanded('push-newDeals')}
             >
@@ -327,9 +338,9 @@ export default function NotificationsScreen({ navigation }: Props) {
                     <Text style={styles.settingSubtitle}>Be first to know about new deals</Text>
                   )}
                 </View>
-                <ChevronDown 
-                  size={20} 
-                  color="#9CA3AF" 
+                <ChevronDown
+                  size={20}
+                  color="#9CA3AF"
                   style={{
                     transform: [{ rotate: expandedItems.has('push-newDeals') ? '180deg' : '0deg' }]
                   }}
@@ -345,7 +356,7 @@ export default function NotificationsScreen({ navigation }: Props) {
 
             <View style={styles.divider} />
 
-            <Pressable 
+            <Pressable
               style={styles.settingItem}
               onPress={() => toggleExpanded('push-priceDrops')}
             >
@@ -357,9 +368,9 @@ export default function NotificationsScreen({ navigation }: Props) {
                     <Text style={styles.settingSubtitle}>Get alerted on wishlist price drops</Text>
                   )}
                 </View>
-                <ChevronDown 
-                  size={20} 
-                  color="#9CA3AF" 
+                <ChevronDown
+                  size={20}
+                  color="#9CA3AF"
                   style={{
                     transform: [{ rotate: expandedItems.has('push-priceDrops') ? '180deg' : '0deg' }]
                   }}
@@ -375,7 +386,7 @@ export default function NotificationsScreen({ navigation }: Props) {
 
             <View style={styles.divider} />
 
-            <Pressable 
+            <Pressable
               style={styles.settingItem}
               onPress={() => toggleExpanded('push-messages')}
             >
@@ -387,9 +398,9 @@ export default function NotificationsScreen({ navigation }: Props) {
                     <Text style={styles.settingSubtitle}>Seller messages and chat updates</Text>
                   )}
                 </View>
-                <ChevronDown 
-                  size={20} 
-                  color="#9CA3AF" 
+                <ChevronDown
+                  size={20}
+                  color="#9CA3AF"
                   style={{
                     transform: [{ rotate: expandedItems.has('push-messages') ? '180deg' : '0deg' }]
                   }}
@@ -405,7 +416,7 @@ export default function NotificationsScreen({ navigation }: Props) {
 
             <View style={styles.divider} />
 
-            <Pressable 
+            <Pressable
               style={styles.settingItem}
               onPress={() => toggleExpanded('push-flashSales')}
             >
@@ -417,9 +428,9 @@ export default function NotificationsScreen({ navigation }: Props) {
                     <Text style={styles.settingSubtitle}>Limited-time flash sale alerts</Text>
                   )}
                 </View>
-                <ChevronDown 
-                  size={20} 
-                  color="#9CA3AF" 
+                <ChevronDown
+                  size={20}
+                  color="#9CA3AF"
                   style={{
                     transform: [{ rotate: expandedItems.has('push-flashSales') ? '180deg' : '0deg' }]
                   }}
@@ -435,7 +446,7 @@ export default function NotificationsScreen({ navigation }: Props) {
           </View>
         </View>
       </ScrollView>
-    </View>
+    </LinearGradient>
   );
 }
 
@@ -458,7 +469,7 @@ const styles = StyleSheet.create({
   },
   headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headerIconButton: { padding: 4 },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFF' },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: '#1F2937' },
   scrollView: {
     flex: 1,
   },

@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
   Pressable,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Search, SlidersHorizontal, X, Check, Camera, ShoppingCart, Star, CheckCircle2 } from 'lucide-react-native';
 import MultiSlider from '@ptomasroos/react-native-multi-slider';
@@ -74,6 +75,7 @@ export default function ShopScreen({ navigation, route }: Props) {
 
   const [showFiltersModal, setShowFiltersModal] = useState(false);
   const [showCameraSearch, setShowCameraSearch] = useState(false);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -95,10 +97,10 @@ export default function ShopScreen({ navigation, route }: Props) {
           const mapped: Product[] = productsData.map((row: any) => {
             // Extract images from product_images relation
             const images = row.images?.map((img: any) => img.image_url).filter(Boolean) || [];
-            const primaryImage = row.images?.find((img: any) => img.is_primary)?.image_url 
-              || images[0] 
+            const primaryImage = row.images?.find((img: any) => img.is_primary)?.image_url
+              || images[0]
               || 'https://via.placeholder.com/300';
-            
+
             // Extract variants from product_variants relation
             const variants = row.variants?.map((v: any) => ({
               id: v.id,
@@ -113,15 +115,15 @@ export default function ShopScreen({ navigation, route }: Props) {
               stock: v.stock,
               thumbnail_url: v.thumbnail_url,
             })) || [];
-            
+
             // Extract unique colors and sizes for legacy support
             const colors = [...new Set(variants.map((v: any) => v.color).filter(Boolean))] as string[];
             const sizes = [...new Set(variants.map((v: any) => v.size).filter(Boolean))] as string[];
-            
+
             // Extract option values for dynamic variant support
             const option1Values = [...new Set(variants.map((v: any) => v.option_1_value).filter(Boolean))] as string[];
             const option2Values = [...new Set(variants.map((v: any) => v.option_2_value).filter(Boolean))] as string[];
-            
+
             return {
               id: row.id,
               name: row.name ?? 'Unknown Product',
@@ -215,38 +217,52 @@ export default function ShopScreen({ navigation, route }: Props) {
   }, [sellers, dbProducts]);
 
   return (
-    <View style={styles.container}>
+    <LinearGradient
+      colors={['#FFE5CC', '#FFE5CC']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 0 }}
+      style={styles.container}
+    >
       <StatusBar barStyle="light-content" />
 
-      <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: BRAND_COLOR }]}>
+      <View style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}>
         <View style={styles.headerTop}>
-          <View style={styles.searchBarWrapper}>
-            <Search size={18} color="#9CA3AF" />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search items..."
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              placeholderTextColor="#9CA3AF"
-            />
-            <Pressable onPress={() => setShowCameraSearch(true)}>
-              <Camera size={18} color={BRAND_COLOR} />
-            </Pressable>
+          <View style={[styles.searchBarWrapper, isSearchFocused && { marginRight: 10 }]}>
+            <View style={styles.searchBarInner}>
+              <Search size={18} color="#9CA3AF" />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search items..."
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                placeholderTextColor="#9CA3AF"
+                onFocus={() => setIsSearchFocused(true)}
+              />
+              <Pressable onPress={() => setShowCameraSearch(true)}>
+                <Camera size={18} color="#9CA3AF" />
+              </Pressable>
+            </View>
           </View>
 
-          <View style={styles.headerRight}>
-            <Pressable style={styles.headerIconButton} onPress={() => navigation.navigate('Cart')}>
-              <ShoppingCart size={24} color="#FFFFFF" />
-              {cartItems.length > 0 && (
-                <View style={[styles.badge, { backgroundColor: '#FFFFFF' }]}>
-                  <Text style={[styles.badgeText, { color: BRAND_COLOR }]}>{cartItems.length}</Text>
-                </View>
-              )}
+          {isSearchFocused ? (
+            <Pressable onPress={() => { setIsSearchFocused(false); setSearchQuery(''); }} style={{ paddingLeft: 10 }}>
+              <Text style={{ color: COLORS.primary, fontWeight: '600' }}>Cancel</Text>
             </Pressable>
-            <Pressable style={styles.headerIconButton} onPress={() => setShowFiltersModal(true)}>
-              <SlidersHorizontal size={24} color="#FFFFFF" />
-            </Pressable>
-          </View>
+          ) : (
+            <View style={styles.headerRight}>
+              <Pressable style={styles.headerIconButton} onPress={() => navigation.navigate('Cart')}>
+                <ShoppingCart size={24} color="#1F2937" />
+                {cartItems.length > 0 && (
+                  <View style={[styles.badge, { backgroundColor: COLORS.primary }]}>
+                    <Text style={[styles.badgeText, { color: '#FFFFFF' }]}>{cartItems.length}</Text>
+                  </View>
+                )}
+              </Pressable>
+              <Pressable style={styles.headerIconButton} onPress={() => setShowFiltersModal(true)}>
+                <SlidersHorizontal size={24} color="#1F2937" />
+              </Pressable>
+            </View>
+          )}
         </View>
       </View>
 
@@ -392,7 +408,7 @@ export default function ShopScreen({ navigation, route }: Props) {
           </View>
         </View>
       </Modal>
-    </View>
+    </LinearGradient>
   );
 }
 
@@ -400,7 +416,8 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F9FAFB' },
   headerContainer: { paddingHorizontal: 20, borderBottomLeftRadius: 20, borderBottomRightRadius: 20, paddingBottom: 15 },
   headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
-  searchBarWrapper: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 100, paddingHorizontal: 16, height: 45, gap: 10 },
+  searchBarWrapper: { flex: 1, flexDirection: 'row', alignItems: 'center' },
+  searchBarInner: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 100, paddingHorizontal: 16, height: 45, gap: 10 },
   searchInput: { flex: 1, fontSize: 14, color: '#1F2937' },
   headerRight: { flexDirection: 'row', gap: 10 },
   headerIconButton: { padding: 4, position: 'relative' },

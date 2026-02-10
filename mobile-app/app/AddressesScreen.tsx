@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet, Modal, StatusBar, TextInput, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Plus, Edit2, Trash2, Home, Briefcase, MapPinned, X, ChevronDown, ChevronUp, Search, Check, Building2, Move, MapPin } from 'lucide-react-native';
 import MapView, { Marker, Region, PROVIDER_GOOGLE, PROVIDER_DEFAULT } from 'react-native-maps';
@@ -343,13 +344,18 @@ export default function AddressesScreen({ navigation }: Props) {
   };
 
   return (
-    <View style={styles.container}>
+    <LinearGradient
+      colors={['#FFE5CC', '#FFE5CC']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 0 }}
+      style={styles.container}
+    >
       <StatusBar barStyle="light-content" />
       {/* HEADER */}
-      <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: COLORS.primary }]}>
+      <View style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}>
         <View style={styles.headerTop}>
           <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-            <ArrowLeft size={24} color="#FFF" />
+            <ArrowLeft size={24} color="#1F2937" strokeWidth={2.5} />
           </Pressable>
           <Text style={styles.headerTitle}>My Addresses</Text>
           <View style={{ width: 40 }} />
@@ -558,7 +564,7 @@ export default function AddressesScreen({ navigation }: Props) {
           </View>
         </View>
       </Modal>
-    </View>
+    </LinearGradient>
   );
 }
 
@@ -568,7 +574,7 @@ const styles = StyleSheet.create({
   headerContainer: { paddingHorizontal: 20, borderBottomLeftRadius: 30, borderBottomRightRadius: 30, paddingBottom: 20, marginBottom: 10, elevation: 4, zIndex: 10 },
   headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headerIconButton: { padding: 4 },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFF' },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: '#1F2937' },
   scrollView: { flex: 1 },
   scrollContent: { padding: 16 },
   addButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#FF6A00', paddingVertical: 14, borderRadius: 12, marginBottom: 16 },

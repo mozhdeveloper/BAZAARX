@@ -17,6 +17,7 @@ import {
   FlatList,
   ActivityIndicator,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ArrowLeft,
@@ -525,13 +526,18 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={BRAND_COLOR} />
+    <LinearGradient
+      colors={['#FFE5CC', '#FFE5CC']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 0 }}
+      style={styles.container}
+    >
+      <StatusBar barStyle="dark-content" />
 
       {/* --- HEADER (Matches Screenshot) --- */}
       <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <Pressable onPress={() => navigation.goBack()} style={styles.iconButton}>
-          <ArrowLeft size={24} color="#FFF" />
+          <ArrowLeft size={24} color="#1F2937" />
         </Pressable>
 
         <Pressable style={styles.headerSearchBar} onPress={() => setIsSearchFocused(true)}>
@@ -544,7 +550,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
         <View style={styles.headerRight}>
           <Pressable onPress={() => navigation.navigate('MainTabs', { screen: 'Cart' })} style={styles.iconButton}>
-            <ShoppingCart size={24} color="#FFF" />
+            <ShoppingCart size={24} color="#1F2937" />
             {cartItemCount > 0 && (
               <View style={styles.badge}>
                 <Text style={styles.badgeText}>{cartItemCount}</Text>
@@ -553,9 +559,9 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
           </Pressable>
           <Pressable style={styles.iconButton} onPress={() => { /* Menu Action */ }}>
             <View style={{ gap: 3 }}>
-              <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: '#FFF' }} />
-              <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: '#FFF' }} />
-              <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: '#FFF' }} />
+              <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: '#1F2937' }} />
+              <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: '#1F2937' }} />
+              <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: '#1F2937' }} />
             </View>
           </Pressable>
         </View>
@@ -1103,7 +1109,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
         onTalkToSeller={() => setShowChat(true)}
       />
 
-    </View>
+    </LinearGradient>
   );
 }
 
@@ -1112,11 +1118,8 @@ const styles = StyleSheet.create({
 
   // Header
   header: {
-    backgroundColor: BRAND_COLOR,
     paddingHorizontal: 20,
     paddingBottom: 16,
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
@@ -1148,11 +1151,11 @@ const styles = StyleSheet.create({
   },
   badge: {
     position: 'absolute', top: -4, right: -4,
-    backgroundColor: '#FFF',
+    backgroundColor: '#1F2937',
     borderRadius: 10, width: 16, height: 16,
     justifyContent: 'center', alignItems: 'center',
   },
-  badgeText: { color: BRAND_COLOR, fontSize: 10, fontWeight: 'bold' },
+  badgeText: { color: '#FFF', fontSize: 10, fontWeight: 'bold' },
 
   // Image Area
   imageContainer: {

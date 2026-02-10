@@ -7,6 +7,7 @@ import {
   Pressable,
   StatusBar,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, CheckCircle, Circle, Store, Flame } from 'lucide-react-native';
 import { CartItemRow } from '../src/components/CartItemRow';
@@ -41,8 +42,8 @@ export default function CartScreen({ navigation }: any) {
   const selectedItems = items.filter(item => selectedIds.includes(item.id));
   const subtotal = selectedItems.reduce((sum, item) => sum + ((item.price || 0) * item.quantity), 0);
   const totalSavings = selectedItems.reduce((sum, item) => {
-    const savings = (item.originalPrice && item.originalPrice > (item.price || 0)) 
-      ? (item.originalPrice - (item.price || 0)) * item.quantity 
+    const savings = (item.originalPrice && item.originalPrice > (item.price || 0))
+      ? (item.originalPrice - (item.price || 0)) * item.quantity
       : 0;
     return sum + savings;
   }, 0);
@@ -73,18 +74,18 @@ export default function CartScreen({ navigation }: any) {
 
   const handleCheckout = async () => {
     if (selectedIds.length === 0) return;
-    
+
     // Clear any previous quick order to ensure we checkout strictly from cart selections
     clearQuickOrder();
-    
+
     // Get delivery address from AsyncStorage
     let deliveryAddress: string | undefined;
     let deliveryCoordinates: { latitude: number; longitude: number } | undefined;
-    
+
     try {
       const savedAddress = await AsyncStorage.getItem('currentDeliveryAddress');
       const savedCoords = await AsyncStorage.getItem('currentDeliveryCoordinates');
-      
+
       if (savedAddress) {
         deliveryAddress = savedAddress;
       }
@@ -94,7 +95,7 @@ export default function CartScreen({ navigation }: any) {
     } catch (error) {
       console.error('[CartScreen] Error reading delivery address:', error);
     }
-    
+
     // Navigate to Checkout with selected items and delivery address
     navigation.navigate('Checkout', {
       selectedItems: selectedItems, // Pass the selected cart items
@@ -106,17 +107,26 @@ export default function CartScreen({ navigation }: any) {
 
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
+    <LinearGradient
+      colors={['#FFFFFF', '#FFFFFF']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 0 }}
+      style={styles.container}
+    >
+      <StatusBar barStyle="dark-content" />
 
       {/* HEADER */}
-      <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: BRAND_PRIMARY }]}>
+      <View style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}>
         <View style={styles.headerTop}>
           <Pressable onPress={() => navigation.goBack()} style={styles.headerIcon}>
-            <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
+            <ArrowLeft size={24} color="#1F2937" strokeWidth={2.5} />
           </Pressable>
           <Text style={styles.headerTitle}>My Cart</Text>
-          <Pressable onPress={clearCart}><Text style={styles.clearText}>Clear All</Text></Pressable>
+          <View style={styles.clearTextWrapper}>
+            <Pressable onPress={clearCart}>
+              <Text style={styles.clearText}>Clear All</Text>
+            </Pressable>
+          </View>
         </View>
       </View>
 
@@ -245,22 +255,48 @@ export default function CartScreen({ navigation }: any) {
           </Pressable>
         </View>
       </View>
-    </View>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F3F4F6' }, // Slightly darker bg for contrast
-  headerContainer: { paddingHorizontal: 20, borderBottomLeftRadius: 24, borderBottomRightRadius: 24, paddingBottom: 25 },
-  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  headerIcon: { padding: 4 },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFFFFF' },
-  clearText: { color: 'rgba(255,255,255,0.9)', fontWeight: '600', fontSize: 13 },
+  container: { flex: 1, backgroundColor: '#FFFFFF' }, // Match standard white bg
+  headerContainer: {
+    paddingHorizontal: 20,
+    paddingBottom: 25,
+    backgroundColor: '#FFFFFF',
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 8,
+    zIndex: 10,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    height: 40,
+  },
+  headerIcon: {
+    position: 'absolute',
+    left: 0,
+    padding: 4
+  },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: '#1F2937' },
+  clearTextWrapper: {
+    position: 'absolute',
+    right: 0,
+  },
+  clearText: { color: '#6B7280', fontWeight: '600', fontSize: 13 },
 
   selectAllBar: {
     backgroundColor: '#FFFFFF',
     marginHorizontal: 16,
-    marginTop: -20, // Overlap header slightly
+    marginTop: 12, // Removed negative margin to prevent overlap
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
