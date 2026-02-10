@@ -26,6 +26,16 @@ const RegistryAndGiftingPage = () => {
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [selectedRegistry, setSelectedRegistry] = useState<RegistryItem | null>(null);
     const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+    const [activeCategory, setActiveCategory] = useState<string | null>(null);
+
+    const filteredRegistries = registries.filter(reg => {
+        if (!activeCategory) return true;
+        const cat = reg.category?.toLowerCase() || '';
+        if (activeCategory === 'other') {
+            return !['baby', 'wedding', 'graduation'].includes(cat);
+        }
+        return cat === activeCategory;
+    });
 
     const handleCreateRegistry = (name: string, category: string) => {
         const newRegistry: RegistryItem = {
@@ -157,21 +167,29 @@ const RegistryAndGiftingPage = () => {
                         title="Baby Registry"
                         desc="Get help preparing for your new arrival."
                         imgSrc="/babyRegistry.jpg"
+                        isActive={activeCategory === 'baby'}
+                        onClick={() => setActiveCategory(activeCategory === 'baby' ? null : 'baby')}
                     />
                     <CategoryCard
                         title="Wedding Registry"
                         desc="Register for gifts to start your new chapter."
                         imgSrc="/weddingRegistry.jpg"
+                        isActive={activeCategory === 'wedding'}
+                        onClick={() => setActiveCategory(activeCategory === 'wedding' ? null : 'wedding')}
                     />
                     <CategoryCard
                         title="Graduation Registry"
                         desc="Share gift ideas or needs for college milestones—birthdays, graduations, dorm moves, org events, and more"
                         imgSrc="/gradGift.jpeg"
+                        isActive={activeCategory === 'graduation'}
+                        onClick={() => setActiveCategory(activeCategory === 'graduation' ? null : 'graduation')}
                     />
                     <CategoryCard
                         title="Other Occasions"
                         desc="Share gift ideas or needs for birthdays, holidays, graduations, new homes and more."
                         imgSrc="/othersRegistry.jpg"
+                        isActive={activeCategory === 'other'}
+                        onClick={() => setActiveCategory(activeCategory === 'other' ? null : 'other')}
                     />
                 </section>
 
@@ -183,7 +201,7 @@ const RegistryAndGiftingPage = () => {
                         </button>
                     </div>
                     <div className="flex flex-wrap gap-4">
-                        {registries.map((list) => (
+                        {filteredRegistries.map((list) => (
                             <div
                                 key={list.id}
                                 onClick={() => handleRegistryClick(list as any)}
@@ -192,7 +210,10 @@ const RegistryAndGiftingPage = () => {
                                 <img src={list.imageUrl} alt="Gift list" className="w-12 h-12 rounded object-cover mr-4" />
                                 <div>
                                     <h4 className="font-semibold text-[var(--brand-primary)] text-sm">{list.title}</h4>
-                                    <p className="text-xs text-gray-500 uppercase tracking-wide">Shared - {list.sharedDate}</p>
+                                    <div className="flex flex-col">
+                                        <p className="text-xs text-gray-500 uppercase tracking-wide">Shared - {list.sharedDate}</p>
+                                        <p className="text-xs text-gray-600 font-medium mt-1">{(list.products?.length || 0)} items</p>
+                                    </div>
                                 </div>
                             </div>
                         ))}
@@ -237,11 +258,14 @@ const RegistryAndGiftingPage = () => {
     );
 };
 
-const CategoryCard = ({ title, desc, imgSrc }: { title: string; desc: string; imgSrc: string }) => (
-    <div className="border border-gray-200 rounded-lg overflow-hidden flex flex-col hover:shadow-md transition">
+const CategoryCard = ({ title, desc, imgSrc, isActive, onClick }: { title: string; desc: string; imgSrc: string; isActive?: boolean; onClick?: () => void }) => (
+    <div 
+        onClick={onClick}
+        className={`border rounded-lg overflow-hidden flex flex-col hover:shadow-md transition cursor-pointer ${isActive ? 'border-[var(--brand-primary)] ring-2 ring-[var(--brand-primary)]/20 bg-orange-50' : 'border-gray-200'}`}
+    >
         <img src={imgSrc} alt={title} className="h-44 w-full object-cover" />
         <div className="p-4">
-            <h4 className="font-bold text-base">{title}</h4>
+            <h4 className={`font-bold text-base ${isActive ? 'text-[var(--brand-primary)]' : ''}`}>{title}</h4>
             <p className="text-sm text-gray-600 mt-2 leading-snug">{desc}</p>
         </div>
     </div>

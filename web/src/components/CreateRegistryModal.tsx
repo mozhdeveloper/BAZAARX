@@ -11,12 +11,14 @@ interface CreateRegistryModalProps {
     isOpen: boolean;
     onClose: () => void;
     onCreate: (name: string, category: string) => void;
+    hideBrowseLink?: boolean;
 }
 
-export const CreateRegistryModal = ({ isOpen, onClose, onCreate }: CreateRegistryModalProps) => {
+export const CreateRegistryModal = ({ isOpen, onClose, onCreate, hideBrowseLink = false }: CreateRegistryModalProps) => {
     const navigate = useNavigate();
     const [registryName, setRegistryName] = useState('');
     const [category, setCategory] = useState('');
+    const [otherCategory, setOtherCategory] = useState('');
     const [shareLink, setShareLink] = useState('');
     const [isCopied, setIsCopied] = useState(false);
     const [products, setProducts] = useState<string[]>([]); // Placeholder for selected products
@@ -40,10 +42,12 @@ export const CreateRegistryModal = ({ isOpen, onClose, onCreate }: CreateRegistr
     };
 
     const handleCreate = () => {
-        onCreate(registryName, category);
+        const finalCategory = category === 'other' ? otherCategory : category;
+        onCreate(registryName, finalCategory);
         // Reset form
         setRegistryName('');
         setCategory('');
+        setOtherCategory('');
         setProducts([]);
         onClose();
     };
@@ -101,7 +105,7 @@ export const CreateRegistryModal = ({ isOpen, onClose, onCreate }: CreateRegistr
                                         <SelectTrigger className="focus:ring-[var(--brand-primary)]">
                                             <SelectValue placeholder="Select an occasion" />
                                         </SelectTrigger>
-                                        <SelectContent>
+                                        <SelectContent className="z-[200]">
                                             <SelectItem value="wedding">Wedding</SelectItem>
                                             <SelectItem value="baby">Baby Shower</SelectItem>
                                             <SelectItem value="birthday">Birthday</SelectItem>
@@ -113,35 +117,50 @@ export const CreateRegistryModal = ({ isOpen, onClose, onCreate }: CreateRegistr
                                     </Select>
                                 </div>
 
-                                {/* Products Section */}
-                                <div className="space-y-3">
-                                    <Label>Wishlist Products</Label>
-                                    <div className="border border-dashed border-gray-300 rounded-xl p-6 flex flex-col items-center justify-center text-center bg-gray-50/50">
-                                        <div className="p-4 bg-white rounded-full shadow-sm mb-3">
-                                            <Gift className="w-6 h-6 text-[var(--brand-primary)]" />
-                                        </div>
-                                        {products.length === 0 ? (
-                                            <>
-                                                <p className="text-sm text-[var(--text-secondary)] font-medium">Your registry is empty</p>
-                                                <p className="text-xs text-[var(--text-muted)] mt-1 mb-4">Add products from the shop after creating your registry.</p>
-                                                <Button
-                                                    onClick={() => navigate('/shop')}
-                                                    variant="outline"
-                                                    size="sm"
-                                                    className="text-[var(--brand-primary)] border-[var(--brand-primary)]/30 hover:bg-[var(--brand-primary)]"
-                                                >
-                                                    <Plus className="w-4 h-4 mr-2" />
-                                                    Browse Products
-                                                </Button>
-                                            </>
-                                        ) : (
-                                            <div className="w-full text-left">
-                                                {/* Product list would go here */}
-                                                <p>Length: {products.length}</p>
-                                            </div>
-                                        )}
+                                {/* Other Category Input */}
+                                {category === 'other' && (
+                                    <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                                        <Label htmlFor="otherCategory">Specify Category</Label>
+                                        <Input
+                                            id="otherCategory"
+                                            placeholder="e.g., Anniversary, Promotion"
+                                            value={otherCategory}
+                                            onChange={(e) => setOtherCategory(e.target.value)}
+                                            className="focus-visible:ring-[var(--brand-primary)]"
+                                        />
                                     </div>
-                                </div>
+                                )}
+
+                                {!hideBrowseLink && (
+                                    <div className="space-y-3">
+                                        <Label>Wishlist Products</Label>
+                                        <div className="border border-dashed border-gray-300 rounded-xl p-6 flex flex-col items-center justify-center text-center bg-gray-50/50">
+                                            <div className="p-4 bg-white rounded-full shadow-sm mb-3">
+                                                <Gift className="w-6 h-6 text-[var(--brand-primary)]" />
+                                            </div>
+                                            {products.length === 0 ? (
+                                                <>
+                                                    <p className="text-sm text-[var(--text-secondary)] font-medium">Your registry is empty</p>
+                                                    <p className="text-xs text-[var(--text-muted)] mt-1 mb-4">Add products from the shop after creating your registry.</p>
+                                                    <Button
+                                                        onClick={() => navigate('/shop')}
+                                                        variant="outline"
+                                                        size="sm"
+                                                        className="text-[var(--brand-primary)] border-[var(--brand-primary)]/30 hover:bg-[var(--brand-primary)]"
+                                                    >
+                                                        <Plus className="w-4 h-4 mr-2" />
+                                                        Browse Products
+                                                    </Button>
+                                                </>
+                                            ) : (
+                                                <div className="w-full text-left">
+                                                    {/* Product list would go here */}
+                                                    <p>Length: {products.length}</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
 
                                 {/* Share Link Section */}
                                 {registryName && (
@@ -172,7 +191,7 @@ export const CreateRegistryModal = ({ isOpen, onClose, onCreate }: CreateRegistr
                                 <Button
                                     onClick={handleCreate}
                                     className="btn-primary"
-                                    disabled={!registryName || !category}
+                                    disabled={!registryName || !category || (category === 'other' && !otherCategory)}
                                 >
                                     Create Registry
                                 </Button>

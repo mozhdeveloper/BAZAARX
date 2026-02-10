@@ -863,7 +863,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
       const variants = (dbProduct as any)?.variants || [];
       const sizes = [...new Set(variants.map((v: any) => v.size).filter(Boolean))];
       if (sizes.length > 0) {
-        setSelectedSize(sizes[0]);
+        setSelectedSize(sizes[0] as string);
       }
     }
   }, [dbProduct]);
@@ -1828,6 +1828,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
       <CreateRegistryModal
         isOpen={isCreateRegistryModalOpen}
         onClose={() => setIsCreateRegistryModalOpen(false)}
+        hideBrowseLink={true}
         onCreate={(name, category) => {
           const newRegistry = {
             id: `reg-${Date.now()}`,
@@ -1838,12 +1839,18 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
             products: []
           };
           createRegistry(newRegistry);
+          
+          if (sellerProduct) {
+              addToRegistry(newRegistry.id, sellerProduct as any);
+          }
+          
           setIsCreateRegistryModalOpen(false);
-          // Re-open the add to registry modal to allow adding the product immediately
-          setShowRegistryModal(true);
+          // Do not re-open the add to registry modal as we've auto-added the item
+          // setShowRegistryModal(true); 
+          
           toast({
-            title: "Registry Created",
-            description: `${name} has been created successfully.`,
+            title: "Registry Created & Item Added",
+            description: `${name} has been created and ${sellerProduct?.name} was added to it.`,
           });
         }}
       />
