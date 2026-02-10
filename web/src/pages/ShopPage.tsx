@@ -207,8 +207,8 @@ export default function ShopPage() {
         description: p.description,
         sellerRating: p.sellerRating || 0,
         sellerVerified: p.approvalStatus === "pending",
-        colors: p.colors || [],
-        sizes: p.sizes || [],
+        variantLabel2Values: p.variantLabel2Values || [],
+        variantLabel1Values: p.variantLabel1Values || [],
         stock: p.stock || 99,
         variants: p.variants || [],
       }));
@@ -850,8 +850,8 @@ export default function ShopPage() {
                               }
 
                               const hasVariants = (product as any).variants && (product as any).variants.length > 0;
-                              const hasColors = product.colors && product.colors.length > 0;
-                              const hasSizes = product.sizes && product.sizes.length > 0;
+                              const hasColors = product.variantLabel2Values && product.variantLabel2Values.length > 0;
+                              const hasSizes = product.variantLabel1Values && product.variantLabel1Values.length > 0;
 
                               if (hasVariants || hasColors || hasSizes) {
                                 setVariantProduct(product);
@@ -889,8 +889,8 @@ export default function ShopPage() {
                               }
 
                               const hasVariants = (product as any).variants && (product as any).variants.length > 0;
-                              const hasColors = product.colors && product.colors.length > 0;
-                              const hasSizes = product.sizes && product.sizes.length > 0;
+                              const hasColors = product.variantLabel2Values && product.variantLabel2Values.length > 0;
+                              const hasSizes = product.variantLabel1Values && product.variantLabel1Values.length > 0;
 
                               if (hasVariants || hasColors || hasSizes) {
                                 setVariantProduct(product);
@@ -901,11 +901,11 @@ export default function ShopPage() {
                                   ...product,
                                   quantity: 1,
                                   selectedVariant: null,
-                                  selectedColor: null,
-                                  selectedSize: null,
+                                  selectedVariantLabel1: null,
+                                  selectedVariantLabel2: null,
                                   variants: (product as any).variants || [],
-                                  colors: product.colors || [],
-                                  sizes: product.sizes || [],
+                                  variantLabel2Values: product.variantLabel2Values || [],
+                                  variantLabel1Values: product.variantLabel1Values || [],
                                   stock: product.stock || 99,
                                 } as any);
                                 setShowBuyNowModal(true);

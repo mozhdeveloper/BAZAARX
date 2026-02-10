@@ -27,21 +27,21 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress }) =>
       {/* Product Image */}
       <View style={styles.imageContainer}>
         <Image source={{ uri: product.image }} style={styles.image} resizeMode="cover" />
-        
+
         {/* Discount Badge */}
         {hasDiscount && (
           <View style={styles.discountBadge}>
             <Text style={styles.discountText}>-{discountPercent}%</Text>
           </View>
         )}
-        
+
         {/* Free Shipping Badge */}
         {product.isFreeShipping && (
           <View style={styles.shippingBadge}>
-            <Text style={styles.shippingText}>Free Ship</Text>
+            <Text style={styles.shippingText}>Free Shipping</Text>
           </View>
         )}
-        
+
 
       </View>
 
@@ -58,19 +58,19 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress }) =>
           <Text style={styles.ratingText}>{product.rating}</Text>
         </View>
 
-        {/* Price */}
-        <View style={styles.priceContainer}>
-          <Text style={[styles.price, hasDiscount && { color: '#EF4444' }]}>₱{(product.price || 0).toLocaleString()}</Text>
-          {hasDiscount && product.originalPrice && (
-            <Text style={styles.originalPrice}>₱{product.originalPrice.toLocaleString()}</Text>
-          )}
+        {/* Price & Sold */}
+        <View style={styles.priceSoldRow}>
+          <View style={styles.priceContainer}>
+            <Text style={[styles.price, hasDiscount && { color: '#EF4444' }]}>₱{(product.price || 0).toLocaleString()}</Text>
+            {hasDiscount && product.originalPrice && (
+              <Text style={styles.originalPrice}>₱{product.originalPrice.toLocaleString()}</Text>
+            )}
+          </View>
+          <Text style={styles.soldText}>{(product.sold || 0).toLocaleString()} sold</Text>
         </View>
 
-        {/* Sold Count */}
-        <Text style={styles.soldText}>{(product.sold || 0).toLocaleString()} sold</Text>
-
         {/* Seller Info */}
-        <View style={styles.sellerContainer}>
+        {/* <View style={styles.sellerContainer}>
           <View style={styles.sellerNameContainer}>
             <Text style={styles.sellerName} numberOfLines={1}>
               {product.seller}
@@ -83,7 +83,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress }) =>
             <Star size={10} fill={COLORS.primary} color={COLORS.primary} />
             <Text style={styles.sellerRating}>({product.sellerRating})</Text>
           </View>
-        </View>
+        </View> */}
       </View>
     </Pressable>
   );
@@ -92,13 +92,13 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress }) =>
 const styles = StyleSheet.create({
   container: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+    borderRadius: 10,
     overflow: 'hidden',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 3,
     borderWidth: 1,
     borderColor: '#F3F4F6',
   },
@@ -108,7 +108,7 @@ const styles = StyleSheet.create({
   },
   imageContainer: {
     width: '100%',
-    aspectRatio: 1,
+    aspectRatio: 0.9,
     backgroundColor: '#F9FAFB',
     position: 'relative',
   },
@@ -128,7 +128,7 @@ const styles = StyleSheet.create({
   },
   discountText: {
     color: '#FFFFFF',
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '800',
   },
   shippingBadge: {
@@ -145,7 +145,7 @@ const styles = StyleSheet.create({
   },
   shippingText: {
     color: COLORS.primary,
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '700',
     textTransform: 'uppercase',
   },
@@ -155,7 +155,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   productName: {
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: '600',
     color: '#1F2937',
     marginBottom: 6,
@@ -169,9 +169,15 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   ratingText: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#6B7280',
     fontWeight: '600',
+  },
+  priceSoldRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    marginBottom: 2,
   },
   priceContainer: {
     flexDirection: 'row',
@@ -180,17 +186,17 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   price: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '800',
     color: COLORS.primary,
   },
   originalPrice: {
-    fontSize: 10,
+    fontSize: 12,
     color: '#9CA3AF',
     textDecorationLine: 'line-through',
   },
   soldText: {
-    fontSize: 10,
+    fontSize: 12,
     color: '#9CA3AF',
     marginBottom: 8,
   },

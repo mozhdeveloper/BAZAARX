@@ -525,6 +525,14 @@ export interface OrderRecipient {
 }
 
 export interface Order {
+  tracking_number: string;
+  cancelled_at: string;
+  is_reviewed: boolean;
+  rating: number;
+  review_comment: string;
+  review_images: string[];
+  review_date: string;
+  completed_at: string;
   id: string;
   order_number: string;
   buyer_id: string;

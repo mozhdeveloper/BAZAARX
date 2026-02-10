@@ -97,6 +97,8 @@ class ChatService {
     buyerUnreadCount: number;
     sellerUnreadCount: number;
   }> {
+
+
     // Get last message
     const { data: lastMsg } = await supabase
       .from('messages')
@@ -104,7 +106,7 @@ class ChatService {
       .eq('conversation_id', conversationId)
       .order('created_at', { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
 
     // Get unread counts
     const { count: buyerUnread } = await supabase
@@ -134,6 +136,8 @@ class ChatService {
    * Note: New schema doesn't have seller_id, but we track via order or messages
    */
   async getOrCreateConversation(buyerId: string, sellerId: string, orderId?: string): Promise<Conversation | null> {
+
+
     // First, try to find existing conversation via order if provided
     if (orderId) {
       const { data: existing, error: findError } = await supabase
@@ -141,7 +145,7 @@ class ChatService {
         .select('*')
         .eq('buyer_id', buyerId)
         .eq('order_id', orderId)
-        .single();
+        .maybeSingle();
 
       if (existing && !findError) {
         return this.enrichConversation(existing, sellerId);
@@ -162,7 +166,7 @@ class ChatService {
         .eq('conversation_id', conv.id)
         .eq('sender_id', sellerId)
         .limit(1)
-        .single();
+        .maybeSingle();
 
       if (sellerMsg) {
         return this.enrichConversation(conv, sellerId);
@@ -287,6 +291,7 @@ class ChatService {
    * New schema: no seller_id in conversations, so we find via messages
    */
   async getSellerConversations(sellerId: string): Promise<Conversation[]> {
+
     // Find all conversations where this seller has sent/received messages
     const { data: sellerMessages } = await supabase
       .from('messages')
@@ -333,6 +338,7 @@ class ChatService {
    * Get messages for a conversation
    */
   async getMessages(conversationId: string): Promise<Message[]> {
+
     const { data, error } = await supabase
       .from('messages')
       .select('*')
@@ -427,6 +433,7 @@ class ChatService {
    * New schema: no unread counts in conversations, just mark messages
    */
   async markAsRead(conversationId: string, userId: string, userType: 'buyer' | 'seller'): Promise<void> {
+
     // Mark all messages from the other party as read
     const otherType = userType === 'buyer' ? 'seller' : 'buyer';
     
@@ -579,6 +586,7 @@ class ChatService {
    * New schema: Computed from messages table, not stored in conversations
    */
   async getUnreadCount(userId: string, userType: 'buyer' | 'seller'): Promise<number> {
+
     if (userType === 'buyer') {
       // Count unread messages from sellers in buyer's conversations
       const { data: convs } = await supabase

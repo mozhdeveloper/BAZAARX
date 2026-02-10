@@ -198,15 +198,15 @@ export default function StoreProfileScreen() {
               const newData = payload.new as any;
               setSeller((prev: any) => ({
                 ...prev,
-                owner_name: newData.full_name,
-                email: newData.email,
-                phone: newData.phone,
+                owner_name: newData.full_name || '',
+                email: newData.email || '',
+                phone: newData.phone || '',
               }));
               setFormData((prev) => ({
                 ...prev,
-                ownerName: newData.full_name,
-                email: newData.email,
-                phone: newData.phone,
+                ownerName: newData.full_name || '',
+                email: newData.email || '',
+                phone: newData.phone || '',
               }));
             }
           }

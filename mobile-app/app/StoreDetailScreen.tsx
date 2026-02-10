@@ -19,7 +19,18 @@ export default function StoreDetailScreen() {
     const insets = useSafeAreaInsets();
     const navigation = useNavigation<any>();
     const route = useRoute<any>();
-    const { store } = route.params;
+    const { store } = route.params || {};
+
+    if (!store) {
+        return (
+            <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+                <Text>Store information not available</Text>
+                <Pressable onPress={() => navigation.goBack()} style={{ padding: 10, marginTop: 10 }}>
+                    <Text style={{ color: COLORS.primary }}>Go Back</Text>
+                </Pressable>
+            </View>
+        );
+    }
     const BRAND_COLOR = COLORS.primary;
 
     const { isGuest, user } = useAuthStore();

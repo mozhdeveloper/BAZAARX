@@ -90,7 +90,8 @@ function App() {
           <Route path="/sell" element={<SellerLandingPage />} />
           <Route path="/login" element={<BuyerLoginPage />} />
           <Route path="/signup" element={<BuyerSignupPage />} />
-          <Route path="/buyer-onboarding"
+          <Route
+            path="/buyer-onboarding"
             element={
               // <ProtectedBuyerRoute>
               <BuyerOnboardingPage />
@@ -101,17 +102,28 @@ function App() {
           <Route path="/search" element={<SearchPage />} />
           <Route path="/collections" element={<CollectionsPage />} />
           <Route path="/stores" element={<StoresPage />} />
-          <Route path="/product/:id" element={<ProductDetailPage />} />
-          <Route path="/registry" element={<RegistryAndGiftingPage />} />
-          <Route path="/registry/:id" element={<SharedRegistryPage />} />
-          <Route path="/enhanced-cart"
+          <Route
+            path="/product/:id"
+            element={<ProductDetailPage />}
+          />
+          <Route
+            path="/registry"
+            element={<RegistryAndGiftingPage />}
+          />
+          <Route
+            path="/registry/:id"
+            element={<SharedRegistryPage />}
+          />
+          <Route
+            path="/enhanced-cart"
             element={
               // <ProtectedBuyerRoute>
               <EnhancedCartPage />
               // </ProtectedBuyerRoute>
             }
           />
-          <Route path="/checkout"
+          <Route
+            path="/checkout"
             element={
               // <ProtectedBuyerRoute>
               <CheckoutPage />
@@ -134,14 +146,16 @@ function App() {
               // </ProtectedBuyerRoute>
             }
           />
-          <Route path="/orders"
+          <Route
+            path="/orders"
             element={
               // <ProtectedBuyerRoute>
               <OrdersPage />
               // </ProtectedBuyerRoute>
             }
           />
-          <Route path="/order/:orderId"
+          <Route
+            path="/order/:orderId"
             element={
               // <ProtectedBuyerRoute>
               <OrderDetailPage />
@@ -149,7 +163,8 @@ function App() {
             }
           />
 
-          <Route path="/profile"
+          <Route
+            path="/profile"
             element={
               // <ProtectedBuyerRoute>
               <BuyerProfilePage />
@@ -157,9 +172,16 @@ function App() {
             }
           />
           {/* Temporary test route for Phase 1 refactoring */}
-          <Route path="/test-profile-components" element={<ProfileComponentsTest />} />
-          <Route path="/seller/:sellerId" element={<SellerStorefrontPage />} />
-          <Route path="/messages"
+          <Route
+            path="/test-profile-components"
+            element={<ProfileComponentsTest />}
+          />
+          <Route
+            path="/seller/:sellerId"
+            element={<SellerStorefrontPage />}
+          />
+          <Route
+            path="/messages"
             element={
               // <ProtectedBuyerRoute>
               <MessagesPage />
@@ -167,35 +189,40 @@ function App() {
             }
           />
           <Route path="/reviews" element={<ReviewsPage />} />
-          <Route path="/my-reviews"
+          <Route
+            path="/my-reviews"
             element={
               // <ProtectedBuyerRoute>
               <BuyerReviewsPage />
               // </ProtectedBuyerRoute>
             }
           />
-          <Route path="/following"
+          <Route
+            path="/following"
             element={
               // <ProtectedBuyerRoute>
               <BuyerFollowingPage />
               // </ProtectedBuyerRoute>
             }
           />
-          <Route path="/settings"
+          <Route
+            path="/settings"
             element={
               //<ProtectedBuyerRoute>
               <BuyerSettingsPage />
               //</ProtectedBuyerRoute>
             }
           />
-          <Route path="/buyer-support"
+          <Route
+            path="/buyer-support"
             element={
               //<ProtectedBuyerRoute>
               <BuyerSupport />
               //</ProtectedBuyerRoute>
             }
           />
-          <Route path="/my-tickets"
+          <Route
+            path="/my-tickets"
             element={
               //<ProtectedBuyerRoute>
               <MyTickets />
@@ -206,8 +233,14 @@ function App() {
           {/* Seller Routes */}
           <Route path="/seller/auth" element={<SellerAuthChoice />} />
           <Route path="/seller/login" element={<SellerLogin />} />
-          <Route path="/seller/register" element={<SellerRegister />} />
-          <Route path="/seller/onboarding" element={<SellerOnboarding />} />
+          <Route
+            path="/seller/register"
+            element={<SellerRegister />}
+          />
+          <Route
+            path="/seller/onboarding"
+            element={<SellerOnboarding />}
+          />
           <Route
             path="/seller/pending-approval"
             element={<SellerPendingApproval />}
@@ -352,12 +385,18 @@ function App() {
           {/* Admin Routes */}
           <Route path="/admin/login" element={<AdminAuth />} />
           <Route path="/admin" element={<AdminDashboard />} />
-          <Route path="/admin/categories" element={<AdminCategories />} />
+          <Route
+            path="/admin/categories"
+            element={<AdminCategories />}
+          />
           <Route path="/admin/sellers" element={<AdminSellers />} />
           <Route path="/admin/buyers" element={<AdminBuyers />} />
           <Route path="/admin/orders" element={<AdminOrders />} />
           <Route path="/admin/vouchers" element={<AdminVouchers />} />
-          <Route path="/admin/reviews" element={<AdminReviewModeration />} />
+          <Route
+            path="/admin/reviews"
+            element={<AdminReviewModeration />}
+          />
           <Route path="/admin/products" element={<AdminProducts />} />
           <Route
             path="/admin/product-approvals"
@@ -367,10 +406,16 @@ function App() {
             path="/admin/product-requests"
             element={<AdminProductRequests />}
           />
-          <Route path="/admin/flash-sales" element={<AdminFlashSales />} />
+          <Route
+            path="/admin/flash-sales"
+            element={<AdminFlashSales />}
+          />
           <Route path="/admin/payouts" element={<AdminPayouts />} />
           <Route path="/admin/profile" element={<AdminProfile />} />
-          <Route path="/admin/analytics" element={<AdminAnalytics />} />
+          <Route
+            path="/admin/analytics"
+            element={<AdminAnalytics />}
+          />
           <Route path="/admin/tickets" element={<AdminTickets />} />
           <Route path="/admin/settings" element={<AdminSettings />} />
         </Routes>

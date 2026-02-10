@@ -17,27 +17,27 @@ interface BuyNowModalProps {
     images?: string[];
     variants?: ProductVariant[];
     stock?: number;
-    colors?: string[];
-    sizes?: string[];
+    variantLabel2Values?: string[];
+    variantLabel1Values?: string[];
   };
   onConfirm: (quantity: number, variant?: ProductVariant) => void;
 }
 
 export function BuyNowModal({ isOpen, onClose, product, onConfirm }: BuyNowModalProps) {
   const [quantity, setQuantity] = useState(1);
-  const [selectedColor, setSelectedColor] = useState<string | null>(
-    product.colors?.[0] || null
+  const [selectedVariantLabel1, setSelectedVariantLabel1] = useState<string | null>(
+    product.variantLabel2Values?.[0] || null
   );
-  const [selectedSize, setSelectedSize] = useState<string | null>(
-    product.sizes?.[0] || null
+  const [selectedVariantLabel2, setSelectedVariantLabel2] = useState<string | null>(
+    product.variantLabel1Values?.[0] || null
   );
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(
     product.variants?.[0] || null
   );
 
   const hasVariants = product.variants && product.variants.length > 0;
-  const hasColors = product.colors && product.colors.length > 0;
-  const hasSizes = product.sizes && product.sizes.length > 0;
+  const hasVariantLabel1Values = product.variantLabel2Values && product.variantLabel2Values.length > 0;
+  const hasVariantLabel2Values = product.variantLabel1Values && product.variantLabel1Values.length > 0;
 
   const currentPrice = selectedVariant?.price || product.price;
   const maxStock = selectedVariant ? (selectedVariant.stock ?? 0) : (product.stock || 99);
@@ -125,23 +125,23 @@ export function BuyNowModal({ isOpen, onClose, product, onConfirm }: BuyNowModal
           )}
 
           {/* Color Selection */}
-          {hasColors && !hasVariants && (
+          {hasVariantLabel1Values && !hasVariants && (
             <div className="space-y-3">
-              <label className="text-sm font-semibold text-gray-700">Color</label>
+              <label className="text-sm font-semibold text-gray-700">Variant 1</label>
               <div className="flex flex-wrap gap-2">
-                {product.colors!.map((color) => (
+                {product.variantLabel2Values!.map((val) => (
                   <button
-                    key={color}
-                    onClick={() => setSelectedColor(color)}
+                    key={val}
+                    onClick={() => setSelectedVariantLabel1(val)}
                     className={`
                       px-4 py-2 rounded-xl text-sm font-medium transition-all
-                      ${selectedColor === color
+                      ${selectedVariantLabel1 === val
                         ? 'bg-orange-500 text-white ring-2 ring-orange-500 ring-offset-2'
                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                       }
                     `}
                   >
-                    {color}
+                    {val}
                   </button>
                 ))}
               </div>
@@ -149,23 +149,23 @@ export function BuyNowModal({ isOpen, onClose, product, onConfirm }: BuyNowModal
           )}
 
           {/* Size Selection */}
-          {hasSizes && !hasVariants && (
+          {hasVariantLabel2Values && !hasVariants && (
             <div className="space-y-3">
-              <label className="text-sm font-semibold text-gray-700">Size</label>
+              <label className="text-sm font-semibold text-gray-700">Variant 2</label>
               <div className="flex flex-wrap gap-2">
-                {product.sizes!.map((size) => (
+                {product.variantLabel1Values!.map((val) => (
                   <button
-                    key={size}
-                    onClick={() => setSelectedSize(size)}
+                    key={val}
+                    onClick={() => setSelectedVariantLabel2(val)}
                     className={`
                       min-w-[44px] h-11 px-3 rounded-xl text-sm font-medium transition-all
-                      ${selectedSize === size
+                      ${selectedVariantLabel2 === val
                         ? 'bg-orange-500 text-white ring-2 ring-orange-500 ring-offset-2'
                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                       }
                     `}
                   >
-                    {size}
+                    {val}
                   </button>
                 ))}
               </div>
