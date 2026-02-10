@@ -19,6 +19,7 @@ import {
   ThumbsUp,
   Gift,
   Ruler,
+  X,
 } from "lucide-react";
 import { Textarea } from "../components/ui/textarea";
 import { Badge } from "../components/ui/badge";
@@ -863,7 +864,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
       const variants = (dbProduct as any)?.variants || [];
       const sizes = [...new Set(variants.map((v: any) => v.size).filter(Boolean))];
       if (sizes.length > 0) {
-        setSelectedSize(sizes[0]);
+        setSelectedSize(sizes[0] as string);
       }
     }
   }, [dbProduct]);
@@ -881,7 +882,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
   // Check seller products first (verified products)
   const sellerProduct = dbProduct || initialProduct;
 
-  const baseProduct = sellerProduct; 
+  const baseProduct = sellerProduct;
   // Note: baseProduct definition was redundant if we use sellerProduct like this, 
   // but keeping structure similar to avoid large diffs.
 
@@ -896,7 +897,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
   const extractedVariants = (sellerProduct as any)?.variants || [];
   const extractedSizes = [...new Set(extractedVariants.map((v: any) => v.size).filter(Boolean))] as string[];
   const extractedColors = [...new Set(extractedVariants.map((v: any) => v.color).filter(Boolean))] as string[];
-  
+
   // Create color objects with thumbnail images from variants
   const colorObjects = extractedColors.map(colorName => {
     const variantWithColor = extractedVariants.find((v: any) => v.color === colorName);
@@ -1008,17 +1009,17 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
     if (dbVariants.length === 0) return null;
     // If only one variant, return it
     if (dbVariants.length === 1) return dbVariants[0];
-    
+
     // Get the selected color name
     const selectedColorName = productData.colors[selectedColor]?.name || productData.colors[selectedColor]?.value;
-    
+
     // Find variant matching selected size and/or color
     const matchedVariant = dbVariants.find((v: any) => {
       const sizeMatch = !selectedSize || !v.size || v.size === selectedSize;
       const colorMatch = !selectedColorName || !v.color || v.color === selectedColorName;
       return sizeMatch && colorMatch;
     });
-    
+
     return matchedVariant || dbVariants[0];
   };
 
@@ -1315,7 +1316,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
     // Check if we still need to make a selection
     // Size is required if sizes array exists and no size selected
     const needsSize = productData.sizes && productData.sizes.length > 0 && !selectedSize;
-    
+
     // If selections are incomplete, show modal
     if (needsSize) {
       setShowBuyNowModal(true);
@@ -1352,7 +1353,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
       }
       : undefined;
 
-      proceedToCheckout(quantity, variantToCheckout);
+    proceedToCheckout(quantity, variantToCheckout);
   };
 
   return (
@@ -1751,7 +1752,7 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                 onClick={() => setShowRegistryModal(false)}
                 className="p-2 hover:bg-gray-100 rounded-full transition-colors"
               >
-                <Minus className="w-5 h-5 rotate-45" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
@@ -1839,19 +1840,14 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
             products: []
           };
           createRegistry(newRegistry);
-          
-          // Auto-add the current product to the new registry
-          if (product) {
-              addToRegistry(newRegistry.id, product);
-          }
 
+          // Close create modal and reopen registry selection modal
           setIsCreateRegistryModalOpen(false);
-          // showRegistryModal is not needed anymore as we auto-added
-          setShowRegistryModal(false); 
+          setShowRegistryModal(true);
 
           toast({
-            title: "Registry Created & Item Added",
-            description: `${name} created and ${product?.name} has been added.`,
+            title: "Registry Created",
+            description: `${name} has been created successfully.`,
           });
         }}
       />
