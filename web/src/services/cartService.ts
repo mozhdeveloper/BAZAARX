@@ -125,7 +125,8 @@ export class CartService {
             thumbnail_url
           )
         `)
-        .eq('cart_id', cartId);
+        .eq('cart_id', cartId)
+        .order('created_at', { ascending: false });
 
       if (error) throw error;
       return data || [];
@@ -167,9 +168,9 @@ export class CartService {
       }
 
       const { data: existing, error: findError } = await query.maybeSingle();
+
       if (findError) throw findError;
 
-      let result;
       if (existing) {
         // Update quantity
         const newQuantity = (existing as any).quantity + quantity;
@@ -179,34 +180,34 @@ export class CartService {
             quantity: newQuantity,
             personalized_options: personalizedOptions || (existing as any).personalized_options,
             notes: notes || (existing as any).notes,
+            updated_at: new Date().toISOString()
           })
           .eq('id', (existing as any).id)
           .select()
           .single();
 
         if (error) throw error;
-        result = data;
-      } else {
-        // Insert new item
-        const { data, error } = await supabase
-          .from('cart_items')
-          .insert({
-            cart_id: cartId,
-            product_id: productId,
-            quantity,
-            variant_id: variantId || null,
-            personalized_options: personalizedOptions || null,
-            notes: notes || null,
-          })
-          .select()
-          .single();
-
-        if (error) throw error;
-        result = data;
+        return data; // Return immediately
       }
 
-      if (!result) throw new Error('Failed to add or update cart item');
-      return result;
+      // Insert new item if not exists
+      const { data, error } = await supabase
+        .from('cart_items')
+        .insert({
+          cart_id: cartId,
+          product_id: productId,
+          quantity,
+          variant_id: variantId || null,
+          personalized_options: personalizedOptions || null,
+          notes: notes || null,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      if (!data) throw new Error('Failed to insert cart item');
+
+      return data;
     } catch (error) {
       console.error('Error adding to cart:', error);
       throw new Error(error instanceof Error ? error.message : 'Failed to add item to cart.');

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   Search,
@@ -60,6 +60,7 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { sellerLinks } from "@/config/sellerLinks";
 import { orderService } from "@/services/orderService";
+import { OrderDetailsModal } from "@/components/OrderDetailsModal";
 
 const Logo = () => (
   <Link
@@ -102,11 +103,7 @@ export function SellerOrders() {
     "all",
   );
   const [selectedOrder, setSelectedOrder] = useState<string | null>(null);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editedBuyerName, setEditedBuyerName] = useState("");
-  const [editedBuyerEmail, setEditedBuyerEmail] = useState("");
-  const [editedNote, setEditedNote] = useState("");
-  const [isSaving, setIsSaving] = useState(false);
+
   const [trackingModal, setTrackingModal] = useState<{
     isOpen: boolean;
     orderId: string | null;
@@ -163,17 +160,6 @@ export function SellerOrders() {
     }
   }, [orderParam, orders]);
 
-  // Initialize edit fields when order is selected
-  useEffect(() => {
-    if (selectedOrder) {
-      const order = orders.find((o) => o.id === selectedOrder);
-      if (order) {
-        setEditedBuyerName(order.buyerName || "");
-        setEditedBuyerEmail(order.buyerEmail || "");
-        setEditedNote((order as any).notes || "");
-      }
-    }
-  }, [selectedOrder, orders]);
 
   const handleLogout = () => {
     logout();

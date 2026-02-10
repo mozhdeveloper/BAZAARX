@@ -202,28 +202,33 @@ export default function BuyerProfilePage() {
     setIsSaving(true);
 
     try {
-      const updates = {
-        first_name: editData.firstName, // Assuming DB column mapping
-        last_name: editData.lastName,
-        phone: editData.phone,
-        avatar_url: editData.avatar,
-        updated_at: new Date().toISOString()
-      };
+      const { supabase } = await import('../lib/supabase');
 
-      // 1. Update Supabase
-      const { error } = await (await import('../lib/supabase')).supabase
+      // 1. Update profiles table (first_name, last_name, phone — NO avatar_url here)
+      const { error: profileError } = await supabase
         .from('profiles')
         .update({
-          full_name: `${editData.firstName} ${editData.lastName}`, // Mobile uses full_name
+          first_name: editData.firstName,
+          last_name: editData.lastName,
           phone: editData.phone,
-          avatar_url: editData.avatar,
-          updated_at: new Date()
+          updated_at: new Date().toISOString()
         })
         .eq('id', profile.id);
 
-      if (error) throw error;
+      if (profileError) throw profileError;
 
-      // 2. Update Local Store
+      // 2. Update buyers table (avatar_url lives here)
+      const { error: buyerError } = await supabase
+        .from('buyers')
+        .update({
+          avatar_url: editData.avatar,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', profile.id);
+
+      if (buyerError) throw buyerError;
+
+      // 3. Update Local Store
       updateProfile({
         firstName: editData.firstName,
         lastName: editData.lastName,
@@ -253,15 +258,37 @@ export default function BuyerProfilePage() {
     const file = e.target.files?.[0];
     if (!file || !profile) return;
 
+    // File Validation
+    const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+    const ALLOWED_FILE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+
+    if (!ALLOWED_FILE_TYPES.includes(file.type)) {
+      toast({
+        title: "Invalid File Type",
+        description: "Please upload a valid image (JPEG, PNG, WebP, or GIF).",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (file.size > MAX_FILE_SIZE) {
+      toast({
+        title: "File Too Large",
+        description: "Image size must be less than 5MB.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     try {
-      // Upload to Storage
+      // Upload to Storage — path MUST be userId/filename to satisfy RLS policy
       const fileExt = file.name.split('.').pop();
-      const fileName = `avatar_${profile.id}_${Date.now()}.${fileExt}`;
-      const filePath = `${fileName}`;
+      const fileName = `avatar_${Date.now()}.${fileExt}`;
+      const filePath = `${profile.id}/${fileName}`;
 
       const { error: uploadError } = await (await import('../lib/supabase')).supabase.storage
         .from('profile-avatars')
-        .upload(filePath, file);
+        .upload(filePath, file, { upsert: true });
 
       if (uploadError) throw uploadError;
 
@@ -275,11 +302,16 @@ export default function BuyerProfilePage() {
       // Update local edit state immediately to show preview
       setEditData(prev => ({ ...prev, avatar: publicUrl }));
 
-    } catch (error) {
+      toast({
+        title: "Image Uploaded",
+        description: "Don't forget to save your profile changes.",
+      });
+
+    } catch (error: any) {
       console.error('Error uploading avatar:', error);
       toast({
         title: "Upload Failed",
-        description: "Could not upload image.",
+        description: error.message || "Could not upload image.",
         variant: "destructive"
       });
     }

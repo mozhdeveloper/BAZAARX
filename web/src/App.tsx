@@ -21,6 +21,7 @@ import SharedRegistryPage from "./pages/SharedRegistryPage";
 // Enhanced Buyer Pages
 import EnhancedCartPage from "./pages/EnhancedCartPage";
 import BuyerProfilePage from "./pages/BuyerProfilePage";
+import ProfileComponentsTest from "./pages/ProfileComponentsTest";
 import SellerStorefrontPage from "./pages/SellerStorefrontPage";
 import ReviewsPage from "./pages/ReviewsPage";
 import BuyerReviewsPage from "./pages/BuyerReviewsPage";
@@ -155,6 +156,8 @@ function App() {
               // </ProtectedBuyerRoute>
             }
           />
+          {/* Temporary test route for Phase 1 refactoring */}
+          <Route path="/test-profile-components" element={<ProfileComponentsTest />} />
           <Route path="/seller/:sellerId" element={<SellerStorefrontPage />} />
           <Route path="/messages"
             element={

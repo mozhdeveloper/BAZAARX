@@ -38,6 +38,7 @@ import {
   useOrderStore,
   useProductStore,
 } from "@/stores/sellerStore";
+import { OrderDetailsModal } from "@/components/OrderDetailsModal";
 import { sellerLinks } from "@/config/sellerLinks";
 
 export function SellerDashboard() {
@@ -152,6 +153,7 @@ const Dashboard = () => {
   const { orders } = useOrderStore();
   const { products } = useProductStore();
   const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d' | '1y'>('30d');
+  const [selectedOrder, setSelectedOrder] = useState<string | null>(null);
 
   // Analytics Data
   const revenueData = [
@@ -208,7 +210,7 @@ const Dashboard = () => {
   //   refreshStats();
   // }, [orders, products, refreshStats]);
 
-  const recentOrders = orders.slice(0, 4);
+  const recentOrders = orders.slice(0, 5);
   const topProducts = products.slice(0, 5);
 
 
@@ -518,7 +520,11 @@ const Dashboard = () => {
                     {recentOrders.map((order) => {
                       const firstItem = order.items[0] || { productName: 'Unknown', image: '/placeholder.png' };
                       return (
-                        <tr key={order.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                        <tr
+                          key={order.id}
+                          className="border-b border-gray-50 hover:bg-gray-50 transition-colors cursor-pointer"
+                          onClick={() => setSelectedOrder(order.id)}
+                        >
                           <td className="py-4 px-4 text-sm font-medium text-gray-900">
                             #{order.id.slice(0, 8).toUpperCase()}
                           </td>
@@ -571,6 +577,13 @@ const Dashboard = () => {
             </motion.div>
           </div>
         </div>
+
+        {/* Order Details Modal */}
+        <OrderDetailsModal
+          isOpen={!!selectedOrder}
+          onClose={() => setSelectedOrder(null)}
+          order={orders.find((o) => o.id === selectedOrder) || null}
+        />
       </div>
     </div>
   );
