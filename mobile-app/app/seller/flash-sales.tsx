@@ -13,6 +13,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { SellerStackParamList } from './SellerStack';
 import { ArrowLeft, Zap, Plus, Calendar, Clock, Edit, Trash2 } from 'lucide-react-native';
+import { safeImageUri } from '../../src/utils/imageUtils';
 
 interface FlashSaleProduct {
   id: string;
@@ -80,7 +81,7 @@ export default function FlashSalesScreen() {
     return (
       <View key={product.id} style={styles.productCard}>
         <Image
-          source={{ uri: product.image }}
+          source={{ uri: safeImageUri(product.image) }}
           style={styles.productImage}
         />
         <View style={styles.productInfo}>

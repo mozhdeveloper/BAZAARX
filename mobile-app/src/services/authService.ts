@@ -6,6 +6,7 @@
 
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import type { Profile, Buyer, Seller, UserRole, UserRoleRecord, FullProfile } from '@/types/database.types';
+import { generateUUID } from '@/utils/uuid';
 
 // Service-specific types
 export interface SignUpData {
@@ -46,7 +47,7 @@ export class AuthService {
   ): Promise<AuthResult | null> {
     if (!isSupabaseConfigured()) {
       console.warn('Supabase not configured - cannot sign up');
-      return { user: { id: crypto.randomUUID(), email } } as AuthResult;
+      return { user: { id: generateUUID(), email } } as AuthResult;
     }
 
     // Handle legacy full_name format
@@ -314,7 +315,7 @@ export class AuthService {
   ): Promise<AuthResult | null> {
     if (!isSupabaseConfigured()) {
       console.warn('Supabase not configured - cannot sign in');
-      return { user: { id: crypto.randomUUID(), email } } as AuthResult;
+      return { user: { id: generateUUID(), email } } as AuthResult;
     }
 
     try {

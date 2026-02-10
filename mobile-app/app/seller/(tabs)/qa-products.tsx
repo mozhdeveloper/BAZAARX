@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
+import { safeImageUri } from '../../../src/utils/imageUtils';
 import {
   FileCheck,
   Clock,
@@ -52,11 +53,8 @@ export default function SellerProductQAScreen() {
         loadProducts(seller.id).then(() => {
           console.log('[QA Products] Loaded products for seller:', seller.id);
         });
-      } else {
-        console.log('[QA Products] No seller.id available, loading all...');
-        // Load all QA products and filter client-side as fallback
-        loadProducts();
       }
+      // Don't load all products - only load seller-specific products
     }, [seller?.id])
   );
 
@@ -64,8 +62,6 @@ export default function SellerProductQAScreen() {
     setRefreshing(true);
     if (seller?.id) {
       await loadProducts(seller.id);
-    } else {
-      await loadProducts();
     }
     setRefreshing(false);
   };
@@ -138,13 +134,14 @@ export default function SellerProductQAScreen() {
 
     // Apply search filter
     if (searchQuery.trim()) {
+      const safeStr = (val: any) => typeof val === 'object' ? (val?.name || '') : String(val || '');
       filteredQA = filteredQA.filter(p =>
-        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.category.toLowerCase().includes(searchQuery.toLowerCase())
+        safeStr(p.name).toLowerCase().includes(searchQuery.toLowerCase()) ||
+        safeStr(p.category).toLowerCase().includes(searchQuery.toLowerCase())
       );
       filteredSeller = filteredSeller.filter(p =>
-        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.category.toLowerCase().includes(searchQuery.toLowerCase())
+        safeStr(p.name).toLowerCase().includes(searchQuery.toLowerCase()) ||
+        safeStr(p.category).toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
 
@@ -247,6 +244,15 @@ export default function SellerProductQAScreen() {
       </Text>
     </TouchableOpacity>
   );
+
+  // Null guard for seller
+  if (!seller) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#F9FAFB', justifyContent: 'center', alignItems: 'center' }}>
+        <Text style={{ fontSize: 16, color: '#9CA3AF' }}>Loading seller information...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: '#F9FAFB' }}>
@@ -366,18 +372,18 @@ export default function SellerProductQAScreen() {
               >
                 <View style={{ flexDirection: 'row', gap: 12 }}>
                   <Image
-                    source={{ uri: product.image }}
+                    source={{ uri: safeImageUri(product.image) }}
                     style={{ width: 80, height: 80, borderRadius: 8, backgroundColor: '#F3F4F6' }}
                   />
                   <View style={{ flex: 1 }}>
                     <Text style={{ fontSize: 16, fontWeight: '600', color: '#111827' }}>
-                      {product.name}
+                      {typeof product.name === 'object' ? (product.name as any)?.name || '' : String(product.name || '')}
                     </Text>
                     <Text style={{ fontSize: 14, color: '#6B7280', marginTop: 4 }}>
                       ₱{product.price.toLocaleString()}
                     </Text>
                     <Text style={{ fontSize: 13, color: '#9CA3AF', marginTop: 2 }}>
-                      {product.category}
+                      {typeof product.category === 'object' ? (product.category as any)?.name || '' : String(product.category || '')}
                     </Text>
 
                     <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, gap: 8 }}>

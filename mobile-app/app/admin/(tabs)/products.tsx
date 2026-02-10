@@ -13,6 +13,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Menu, Bell, Package, Search, Edit, Ban, CheckCircle, Eye, XCircle, X } from 'lucide-react-native';
+import { safeImageUri } from '../../../src/utils/imageUtils';
 import AdminDrawer from '../../../src/components/AdminDrawer';
 import { useAdminProducts } from '../../../src/stores/adminStore';
 import { COLORS } from '../../../src/constants/theme';
@@ -195,7 +196,7 @@ export default function AdminProductsScreen() {
             return (
               <View key={product.id} style={styles.productCard}>
                 <View style={styles.cardHeader}>
-                  <Image source={{ uri: product.images[0] }} style={styles.productImage} />
+                  <Image source={{ uri: safeImageUri(product.images?.[0]) }} style={styles.productImage} />
                   <View style={styles.productInfo}>
                     <View style={styles.productNameRow}>
                       <Text style={styles.productName} numberOfLines={1}>{product.name}</Text>

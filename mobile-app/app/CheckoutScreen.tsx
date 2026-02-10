@@ -14,7 +14,6 @@ import {
   Modal,
   ActivityIndicator,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, MapPin, CreditCard, Shield, Tag, X, ChevronDown, Check, Plus, ShieldCheck, ChevronRight, Home, Briefcase, MapPinned, Building2, Move, Search, ChevronUp } from 'lucide-react-native';
 import MapView, { Marker, Region, PROVIDER_GOOGLE, PROVIDER_DEFAULT } from 'react-native-maps';
@@ -26,9 +25,11 @@ import { addressService } from '@/services/addressService';
 import { useCartStore } from '../src/stores/cartStore';
 import { useAuthStore } from '../src/stores/authStore';
 import { useOrderStore } from '../src/stores/orderStore';
+import LocationModal from '../src/components/LocationModal';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import type { CartItem, ShippingAddress, Order } from '../src/types';
+import { safeImageUri } from '../src/utils/imageUtils';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Checkout'>;
 
@@ -119,6 +120,15 @@ export default function CheckoutScreen({ navigation, route }: Props) {
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
   const [openDropdown, setOpenDropdown] = useState<'region' | 'province' | 'city' | 'barangay' | null>(null);
   const [searchText, setSearchText] = useState('');
+  
+  // Map search states
+  const [mapSearchQuery, setMapSearchQuery] = useState('');
+  const [mapSearchResults, setMapSearchResults] = useState<any[]>([]);
+  const [isSearchingMap, setIsSearchingMap] = useState(false);
+  const [showMapSearchResults, setShowMapSearchResults] = useState(false);
+  
+  // LocationModal state for map-first address flow
+  const [showLocationModal, setShowLocationModal] = useState(false);
 
   const [regionList, setRegionList] = useState<any[]>([]);
   const [provinceList, setProvinceList] = useState<any[]>([]);
@@ -146,17 +156,11 @@ export default function CheckoutScreen({ navigation, route }: Props) {
   // Get selected items from navigation params (from CartScreen)
   const selectedItemsFromCart: CartItem[] = params?.selectedItems || [];
 
-  console.log('[Checkout] Params selectedItems:', params?.selectedItems?.length);
-  console.log('[Checkout] selectedItemsFromCart:', selectedItemsFromCart.length);
-  console.log('[Checkout] quickOrder:', quickOrder ? 'Present' : 'Null');
-
   // Determine which items to checkout: quick order takes precedence, then selected items.
   // We do NOT default to 'items' (all cart items) to avoid accidental checkout of unselected items.
   const checkoutItems = quickOrder
     ? [quickOrder]
     : selectedItemsFromCart;
-
-  console.log('[Checkout] Final checkoutItems:', checkoutItems.length);
 
   const checkoutSubtotal = quickOrder
     ? getQuickOrderTotal()
@@ -223,20 +227,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
     }
   }
 
-  // VAT calculation (12%)
-  const tax = Math.round(subtotal * 0.12);
-
-  // Item-level savings (Original price vs Current price)
-  const itemSavings = checkoutItems.reduce((sum, item) => {
-    const original = item.original_price || item.originalPrice || item.price || 0;
-    const current = item.price || 0;
-    return sum + (Math.max(0, original - current) * (item.quantity || 1));
-  }, 0);
-
-  const couponSavings = discount + bazcoinDiscount;
-  const grandTotalSavings = itemSavings + couponSavings;
-
-  const total = Math.max(0, subtotal + shippingFee + tax - couponSavings);
+  const total = Math.max(0, subtotal + shippingFee - discount - bazcoinDiscount);
 
   useEffect(() => {
     regions().then(res => setRegionList(res));
@@ -305,9 +296,37 @@ export default function CheckoutScreen({ navigation, route }: Props) {
     setNewAddress({ ...newAddress, region: name, province: '', city: '', barangay: '', coordinates: null });
     setOpenDropdown(null);
     setIsLoadingLocation(true);
-    const provs = await provinces(code);
-    setProvinceList(provs);
-    setCityList([]);
+    
+    // For Metro Manila (NCR), load cities directly since there are no provinces
+    const isMetroManila = name.toLowerCase().includes('metro manila') || name.toLowerCase().includes('ncr') || code === '13';
+    
+    if (isMetroManila) {
+      // Metro Manila cities can be loaded via the region code directly
+      // In the PH address library, NCR cities are under a special "province" with code "1339"
+      try {
+        // First get the "provinces" for NCR (which are actually city groups)
+        const provs = await provinces(code);
+        setProvinceList(provs);
+        
+        // For NCR, also try to load all cities directly
+        if (provs.length > 0) {
+          // Load cities from all NCR "provinces"
+          let allCities: any[] = [];
+          for (const prov of provs) {
+            const provCities = await cities(prov.province_code);
+            allCities = [...allCities, ...provCities];
+          }
+          setCityList(allCities);
+        }
+      } catch (err) {
+        console.log('[Checkout] Error loading Metro Manila cities:', err);
+      }
+    } else {
+      const provs = await provinces(code);
+      setProvinceList(provs);
+      setCityList([]);
+    }
+    
     setBarangayList([]);
     setIsLoadingLocation(false);
   };
@@ -346,13 +365,135 @@ export default function CheckoutScreen({ navigation, route }: Props) {
     }
   };
 
-  const handleOpenAddressModalForAdd = async () => {
+  // Open LocationModal (map-first flow like HomeScreen)
+  const handleOpenAddressModalForAdd = () => {
+    // Close the selection modal first to avoid modal stacking issues
+    setShowAddressModal(false);
+    
+    // Open the LocationModal with map-first flow
+    setTimeout(() => {
+      setShowLocationModal(true);
+    }, 100);
+  };
+
+  // Handle when location is selected from LocationModal
+  const handleLocationModalSelect = async (
+    address: string, 
+    coords?: { latitude: number; longitude: number }, 
+    details?: {
+      address: string;
+      coordinates: { latitude: number; longitude: number };
+      street?: string;
+      barangay?: string;
+      city?: string;
+      province?: string;
+      region?: string;
+      postalCode?: string;
+    }
+  ) => {
+    if (!user) return;
+    
+    setIsSaving(true);
+    
+    try {
+      // Check if Metro Manila/NCR (no province level)
+      const isMetroManila = details?.region?.toLowerCase().includes('metro manila') || 
+                           details?.region?.toLowerCase().includes('ncr') ||
+                           details?.region?.toLowerCase().includes('national capital');
+      
+      // Prepare address data from location details
+      const addressData = {
+        label: 'Home',
+        firstName: user.name?.split(' ')[0] || '',
+        lastName: user.name?.split(' ').slice(1).join(' ') || '',
+        phone: user.phone || '',
+        street: details?.street || address.split(',')[0] || '',
+        barangay: details?.barangay || '',
+        city: details?.city || '',
+        // For Metro Manila, province field should be the region name (NCR)
+        // For other regions, use the actual province
+        province: isMetroManila ? (details?.region || 'NCR') : (details?.province || ''),
+        region: details?.region || '',
+        // Ensure postal_code has a value (database NOT NULL constraint)
+        zipCode: details?.postalCode || '0000',
+        landmark: null,
+        deliveryInstructions: null,
+        addressType: 'residential' as const,
+        isDefault: addresses.length === 0,
+        coordinates: coords || null,
+      };
+
+      // Save to database using addressService
+      const created = await addressService.createAddress(user.id, addressData);
+      
+      if (created) {
+        // Format the address for display
+        const formattedAddress = [
+          created.street,
+          created.barangay,
+          created.city,
+          created.province || created.region,
+        ].filter(Boolean).join(', ');
+        
+        // Create Address object for state
+        const newAddr: Address = {
+          id: created.id,
+          user_id: user.id,
+          label: created.label || 'Home',
+          first_name: created.firstName || '',
+          last_name: created.lastName || '',
+          phone: created.phone || '',
+          street: created.street || '',
+          barangay: created.barangay || '',
+          city: created.city || '',
+          province: created.province || '',
+          region: created.region || '',
+          postal_code: created.zipCode || '',
+          is_default: created.isDefault || false,
+          coordinates: coords || null,
+        };
+        
+        // Update local state
+        setAddresses(prev => [...prev, newAddr]);
+        setSelectedAddress(newAddr);
+        
+        // Save to AsyncStorage for HomeScreen sync
+        await AsyncStorage.setItem('currentDeliveryAddress', formattedAddress);
+        if (coords) {
+          await AsyncStorage.setItem('currentDeliveryCoordinates', JSON.stringify(coords));
+        }
+        await AsyncStorage.setItem('currentLocationDetails', JSON.stringify({
+          street: details?.street || '',
+          barangay: details?.barangay || '',
+          city: details?.city || '',
+          province: details?.province || '',
+          region: details?.region || '',
+          postalCode: details?.postalCode || '',
+          coordinates: coords,
+        }));
+
+        console.log('[Checkout] Address saved from LocationModal:', formattedAddress);
+      }
+    } catch (error) {
+      console.error('[Checkout] Error saving address from LocationModal:', error);
+      Alert.alert('Error', 'Failed to save address. Please try again.');
+    } finally {
+      setIsSaving(false);
+      setShowLocationModal(false);
+    }
+  };
+
+  // Legacy: Keep the old handleOpenAddressModalForAdd logic for manual form entry
+  const handleOpenAddressFormDirect = async () => {
+    // Close the selection modal first to avoid modal stacking issues
+    setShowAddressModal(false);
+    
     setOpenDropdown(null);
     setSearchText('');
     setProvinceList([]);
     setCityList([]);
     setBarangayList([]);
-
+    
     // Try to get location details for autofill
     let prefillData: Partial<Omit<Address, 'id'>> = {};
     try {
@@ -367,30 +508,66 @@ export default function CheckoutScreen({ navigation, route }: Props) {
           province: details.province || '',
           region: details.region || '',
           postal_code: details.postalCode || '',
+          coordinates: details.coordinates || null,
         };
-
+        
+        // Update map region if coordinates exist
+        if (details.coordinates?.latitude && details.coordinates?.longitude) {
+          setMapRegion({
+            latitude: details.coordinates.latitude,
+            longitude: details.coordinates.longitude,
+            latitudeDelta: 0.005,
+            longitudeDelta: 0.005,
+          });
+        }
+        
         // Pre-load dropdowns based on autofilled region/province/city
         if (details.region) {
           const allRegions = await regions();
-          const matchedRegion = allRegions.find((r: any) =>
+          const matchedRegion = allRegions.find((r: any) => 
             r.region_name?.toLowerCase().includes(details.region?.toLowerCase()) ||
             details.region?.toLowerCase().includes(r.region_name?.toLowerCase())
           );
           if (matchedRegion) {
             const provList = await provinces(matchedRegion.region_code);
             setProvinceList(provList);
-
-            if (details.province) {
-              const matchedProv = provList.find((p: any) =>
+            
+            // Check if this is Metro Manila/NCR
+            const isMetroManila = details.region?.toLowerCase().includes('metro manila') || 
+                                  details.region?.toLowerCase().includes('ncr') || 
+                                  matchedRegion.region_code === '13';
+            
+            if (isMetroManila) {
+              // For Metro Manila, load all cities from all districts
+              let allCities: any[] = [];
+              for (const prov of provList) {
+                const provCities = await cities(prov.province_code);
+                allCities = [...allCities, ...provCities];
+              }
+              setCityList(allCities);
+              
+              // Try to match city and load barangays
+              if (details.city) {
+                const matchedCity = allCities.find((c: any) => 
+                  c.city_name?.toLowerCase().includes(details.city?.toLowerCase()) ||
+                  details.city?.toLowerCase().includes(c.city_name?.toLowerCase())
+                );
+                if (matchedCity) {
+                  const bList = await barangays(matchedCity.city_code);
+                  setBarangayList(bList);
+                }
+              }
+            } else if (details.province) {
+              const matchedProv = provList.find((p: any) => 
                 p.province_name?.toLowerCase().includes(details.province?.toLowerCase()) ||
                 details.province?.toLowerCase().includes(p.province_name?.toLowerCase())
               );
               if (matchedProv) {
                 const cList = await cities(matchedProv.province_code);
                 setCityList(cList);
-
+                
                 if (details.city) {
-                  const matchedCity = cList.find((c: any) =>
+                  const matchedCity = cList.find((c: any) => 
                     c.city_name?.toLowerCase().includes(details.city?.toLowerCase()) ||
                     details.city?.toLowerCase().includes(c.city_name?.toLowerCase())
                   );
@@ -407,7 +584,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
     } catch (err) {
       console.log('[Checkout] Error loading location details for autofill:', err);
     }
-
+    
     setNewAddress({
       ...initialAddressState,
       first_name: user?.name?.split(' ')[0] || '',
@@ -416,28 +593,338 @@ export default function CheckoutScreen({ navigation, route }: Props) {
       is_default: addresses.length === 0,
       ...prefillData,
     });
-    setMapRegion(DEFAULT_REGION);
-    setIsAddressModalOpen(true);
+    
+    // Only reset map region to default if no coordinates were prefilled
+    if (!prefillData.coordinates) {
+      setMapRegion(DEFAULT_REGION);
+    }
+    
+    // Small delay to ensure the first modal is fully closed before opening the new one
+    setTimeout(() => {
+      setIsAddressModalOpen(true);
+    }, 100);
   };
 
-  const handleConfirmLocation = () => {
-    setNewAddress({
-      ...newAddress,
-      coordinates: {
-        latitude: mapRegion.latitude,
-        longitude: mapRegion.longitude,
-      },
+  // Reverse geocode and auto-fill all address fields from pinned location
+  const handleConfirmLocation = async () => {
+    setIsGeocoding(true);
+    
+    try {
+      // Use Nominatim reverse geocoding with high zoom level for street accuracy
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${mapRegion.latitude}&lon=${mapRegion.longitude}&zoom=18&addressdetails=1`,
+        { headers: { 'User-Agent': 'BazaarPHApp/1.0' } }
+      );
+      const data = await response.json();
+      
+      if (data && data.address) {
+        const addr = data.address;
+        
+        // Extract address components from Nominatim response
+        // Nominatim Philippine address structure varies, so we check multiple fields
+        const streetNumber = addr.house_number || '';
+        const streetName = addr.road || addr.street || addr.pedestrian || addr.footway || '';
+        const fullStreet = streetNumber ? `${streetNumber} ${streetName}` : streetName;
+        
+        // Barangay can be in various fields
+        const barangay = addr.suburb || addr.neighbourhood || addr.village || addr.hamlet || '';
+        
+        // City/Municipality
+        const city = addr.city || addr.municipality || addr.town || addr.city_district || '';
+        
+        // Province (for areas outside Metro Manila)
+        const province = addr.province || addr.county || addr.state_district || '';
+        
+        // Region - map to Philippine regions
+        const state = addr.state || addr.region || '';
+        
+        // Postal code
+        const postalCode = addr.postcode || '';
+        
+        // Determine region name for Philippine address system
+        let regionName = '';
+        let isMetroManila = false;
+        
+        // Check if location is in Metro Manila/NCR
+        const metroManilaKeywords = ['metro manila', 'ncr', 'national capital', 'manila', 'quezon city', 'makati', 'pasig', 'taguig', 'paranaque', 'pasay', 'caloocan', 'marikina', 'mandaluyong', 'muntinlupa', 'las pinas', 'navotas', 'valenzuela', 'malabon', 'san juan', 'pateros'];
+        const locationStr = `${city} ${province} ${state}`.toLowerCase();
+        
+        if (metroManilaKeywords.some(keyword => locationStr.includes(keyword))) {
+          isMetroManila = true;
+          regionName = 'National Capital Region (NCR)';
+          
+          // Find matching region in list
+          const ncrRegion = regionList.find(r => 
+            r.region_name?.toLowerCase().includes('ncr') || 
+            r.region_name?.toLowerCase().includes('national capital') ||
+            r.region_code === '13'
+          );
+          
+          if (ncrRegion) {
+            regionName = ncrRegion.region_name;
+            // Load cities for Metro Manila
+            try {
+              const provs = await provinces(ncrRegion.region_code);
+              setProvinceList(provs);
+              
+              // Load all NCR cities
+              let allCities: any[] = [];
+              for (const prov of provs) {
+                const provCities = await cities(prov.province_code);
+                allCities = [...allCities, ...provCities];
+              }
+              setCityList(allCities);
+              
+              // Find matching city
+              const matchingCity = allCities.find(c => 
+                c.city_name?.toLowerCase().includes(city.toLowerCase()) ||
+                city.toLowerCase().includes(c.city_name?.toLowerCase())
+              );
+              
+              if (matchingCity) {
+                // Load barangays for this city
+                const brgys = await barangays(matchingCity.city_code);
+                setBarangayList(brgys);
+                
+                // Find matching barangay
+                const matchingBarangay = brgys.find((b: any) => 
+                  b.brgy_name?.toLowerCase().includes(barangay.toLowerCase()) ||
+                  barangay.toLowerCase().includes(b.brgy_name?.toLowerCase())
+                );
+                
+                setNewAddress({
+                  ...newAddress,
+                  region: regionName,
+                  province: '', // Metro Manila has no province level
+                  city: matchingCity.city_name || city,
+                  barangay: matchingBarangay?.brgy_name || barangay,
+                  street: fullStreet,
+                  postal_code: postalCode,
+                  coordinates: {
+                    latitude: mapRegion.latitude,
+                    longitude: mapRegion.longitude,
+                  },
+                });
+              } else {
+                setNewAddress({
+                  ...newAddress,
+                  region: regionName,
+                  province: '',
+                  city: city,
+                  barangay: barangay,
+                  street: fullStreet,
+                  postal_code: postalCode,
+                  coordinates: {
+                    latitude: mapRegion.latitude,
+                    longitude: mapRegion.longitude,
+                  },
+                });
+              }
+            } catch (err) {
+              console.log('[Checkout] Error loading NCR addresses:', err);
+            }
+          }
+        } else {
+          // Non-Metro Manila - need to find region from province/state
+          const matchingRegion = regionList.find(r => {
+            const rName = r.region_name?.toLowerCase() || '';
+            return rName.includes(state.toLowerCase()) || state.toLowerCase().includes(rName);
+          });
+          
+          if (matchingRegion) {
+            regionName = matchingRegion.region_name;
+            
+            // Load provinces for this region
+            const provs = await provinces(matchingRegion.region_code);
+            setProvinceList(provs);
+            
+            // Find matching province
+            const matchingProvince = provs.find((p: any) => 
+              p.province_name?.toLowerCase().includes(province.toLowerCase()) ||
+              province.toLowerCase().includes(p.province_name?.toLowerCase())
+            );
+            
+            if (matchingProvince) {
+              // Load cities for this province
+              const cts = await cities(matchingProvince.province_code);
+              setCityList(cts);
+              
+              // Find matching city
+              const matchingCity = cts.find((c: any) => 
+                c.city_name?.toLowerCase().includes(city.toLowerCase()) ||
+                city.toLowerCase().includes(c.city_name?.toLowerCase())
+              );
+              
+              if (matchingCity) {
+                // Load barangays
+                const brgys = await barangays(matchingCity.city_code);
+                setBarangayList(brgys);
+                
+                const matchingBarangay = brgys.find((b: any) => 
+                  b.brgy_name?.toLowerCase().includes(barangay.toLowerCase()) ||
+                  barangay.toLowerCase().includes(b.brgy_name?.toLowerCase())
+                );
+                
+                setNewAddress({
+                  ...newAddress,
+                  region: regionName,
+                  province: matchingProvince.province_name,
+                  city: matchingCity.city_name || city,
+                  barangay: matchingBarangay?.brgy_name || barangay,
+                  street: fullStreet,
+                  postal_code: postalCode,
+                  coordinates: {
+                    latitude: mapRegion.latitude,
+                    longitude: mapRegion.longitude,
+                  },
+                });
+              } else {
+                setNewAddress({
+                  ...newAddress,
+                  region: regionName,
+                  province: matchingProvince.province_name,
+                  city: city,
+                  barangay: barangay,
+                  street: fullStreet,
+                  postal_code: postalCode,
+                  coordinates: {
+                    latitude: mapRegion.latitude,
+                    longitude: mapRegion.longitude,
+                  },
+                });
+              }
+            } else {
+              setNewAddress({
+                ...newAddress,
+                region: regionName,
+                province: province,
+                city: city,
+                barangay: barangay,
+                street: fullStreet,
+                postal_code: postalCode,
+                coordinates: {
+                  latitude: mapRegion.latitude,
+                  longitude: mapRegion.longitude,
+                },
+              });
+            }
+          } else {
+            // No matching region found, just fill what we have
+            setNewAddress({
+              ...newAddress,
+              street: fullStreet,
+              barangay: barangay,
+              city: city,
+              province: province,
+              postal_code: postalCode,
+              coordinates: {
+                latitude: mapRegion.latitude,
+                longitude: mapRegion.longitude,
+              },
+            });
+          }
+        }
+      } else {
+        // No address data returned, just save coordinates
+        setNewAddress({
+          ...newAddress,
+          coordinates: {
+            latitude: mapRegion.latitude,
+            longitude: mapRegion.longitude,
+          },
+        });
+      }
+    } catch (error) {
+      console.log('[Checkout] Reverse geocoding error:', error);
+      // Still save coordinates even if geocoding fails
+      setNewAddress({
+        ...newAddress,
+        coordinates: {
+          latitude: mapRegion.latitude,
+          longitude: mapRegion.longitude,
+        },
+      });
+    } finally {
+      setIsGeocoding(false);
+      setMapSearchQuery('');
+      setMapSearchResults([]);
+      setShowMapSearchResults(false);
+      setIsMapModalOpen(false);
+      setTimeout(() => setIsAddressModalOpen(true), 150);
+    }
+  };
+
+  // Search for locations on map using Nominatim with street-level accuracy
+  const handleMapSearch = async () => {
+    if (!mapSearchQuery.trim()) return;
+    
+    setIsSearchingMap(true);
+    setShowMapSearchResults(true);
+    
+    try {
+      const query = `${mapSearchQuery}, Philippines`;
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=8&countrycodes=ph&addressdetails=1`,
+        { headers: { 'User-Agent': 'BazaarPHApp/1.0' } }
+      );
+      const data = await response.json();
+      setMapSearchResults(data || []);
+    } catch (error) {
+      console.log('[Checkout] Map search error:', error);
+      setMapSearchResults([]);
+    } finally {
+      setIsSearchingMap(false);
+    }
+  };
+
+  // Select a search result and move map to that location with street-level zoom
+  const handleSelectMapSearchResult = (result: any) => {
+    const lat = parseFloat(result.lat);
+    const lon = parseFloat(result.lon);
+    
+    // Use bounding box if available for more accurate zoom, otherwise use very tight zoom
+    let latDelta = 0.002;
+    let lonDelta = 0.002;
+    
+    if (result.boundingbox) {
+      const latMin = parseFloat(result.boundingbox[0]);
+      const latMax = parseFloat(result.boundingbox[1]);
+      const lonMin = parseFloat(result.boundingbox[2]);
+      const lonMax = parseFloat(result.boundingbox[3]);
+      latDelta = Math.max((latMax - latMin) * 1.5, 0.001);
+      lonDelta = Math.max((lonMax - lonMin) * 1.5, 0.001);
+    }
+    
+    setMapRegion({
+      latitude: lat,
+      longitude: lon,
+      latitudeDelta: latDelta,
+      longitudeDelta: lonDelta,
     });
-    setIsMapModalOpen(false);
+    
+    // Show first part of address in search bar
+    const shortName = result.display_name?.split(',').slice(0, 2).join(', ') || '';
+    setMapSearchQuery(shortName);
+    setShowMapSearchResults(false);
+    setMapSearchResults([]);
   };
 
   const handleSaveAddress = async () => {
     if (!user) return;
     setIsSaving(true);
 
-    // Validate required fields
-    if (!newAddress.first_name || !newAddress.phone || !newAddress.street || !newAddress.city || !newAddress.province || !newAddress.region) {
-      Alert.alert('Incomplete Form', 'Please fill in all required fields: Name, Phone, Street, Region, Province, and City.');
+    // Validate required fields - for Metro Manila, province is optional since region covers it
+    const isMetroManila = newAddress.region?.toLowerCase().includes('metro manila') || newAddress.region?.toLowerCase().includes('ncr');
+    const requiresProvince = !isMetroManila;
+    
+    if (!newAddress.first_name || !newAddress.phone || !newAddress.street || !newAddress.city || !newAddress.region) {
+      Alert.alert('Incomplete Form', 'Please fill in all required fields: Name, Phone, Street, Region, and City.');
+      setIsSaving(false);
+      return;
+    }
+    
+    if (requiresProvince && !newAddress.province) {
+      Alert.alert('Incomplete Form', 'Please select a Province.');
       setIsSaving(false);
       return;
     }
@@ -451,9 +938,11 @@ export default function CheckoutScreen({ navigation, route }: Props) {
         street: newAddress.street,
         barangay: newAddress.barangay,
         city: newAddress.city,
-        province: newAddress.province,
+        // For Metro Manila, use region as province (database NOT NULL constraint)
+        province: isMetroManila ? newAddress.region : newAddress.province,
         region: newAddress.region,
-        zipCode: newAddress.postal_code,
+        // Ensure postal_code has a value (database NOT NULL constraint)
+        zipCode: newAddress.postal_code || '0000',
         isDefault: newAddress.is_default,
         coordinates: newAddress.coordinates,
         addressType: 'residential',
@@ -481,6 +970,23 @@ export default function CheckoutScreen({ navigation, route }: Props) {
       setAddresses(prev => [createdLocal, ...prev]);
       setSelectedAddress(createdLocal);
       setTempSelectedAddress(createdLocal);
+
+      // Sync to AsyncStorage so HomeScreen can display the address
+      const formattedAddress = `${created.street}, ${created.city}`;
+      await AsyncStorage.setItem('currentDeliveryAddress', formattedAddress);
+      if (created.coordinates) {
+        await AsyncStorage.setItem('currentDeliveryCoordinates', JSON.stringify(created.coordinates));
+      }
+      // Store full location details for future autofill
+      await AsyncStorage.setItem('currentLocationDetails', JSON.stringify({
+        street: created.street,
+        barangay: created.barangay,
+        city: created.city,
+        province: created.province,
+        region: created.region,
+        postalCode: created.zipCode,
+      }));
+
       setIsSaving(false);
       setIsAddressModalOpen(false);
       setShowAddressModal(false);
@@ -524,13 +1030,11 @@ export default function CheckoutScreen({ navigation, route }: Props) {
           is_default: a.isDefault,
           coordinates: a.coordinates,
         }));
-        console.log('[Checkout] Fetched addresses:', addressData.length, 'addresses');
         setAddresses(addressData);
 
         // If this is a gift, DO NOT overwrite the selected address with defaults
         // The other useEffect handles setting the registry address
         if (isGift) {
-          console.log('[Checkout] Gift mode active, skipping default address selection');
           setIsLoadingAddresses(false);
           return;
         }
@@ -549,7 +1053,6 @@ export default function CheckoutScreen({ navigation, route }: Props) {
             // First try database for "Current Location"
             const dbCurrentLoc = await addressService.getCurrentDeliveryLocation(user.id);
             if (dbCurrentLoc && dbCurrentLoc.label === 'Current Location') {
-              console.log('[Checkout] Found Current Location in database');
               homeScreenAddress = `${dbCurrentLoc.street}, ${dbCurrentLoc.city}`;
               homeScreenCoords = dbCurrentLoc.coordinates;
             } else {
@@ -557,16 +1060,15 @@ export default function CheckoutScreen({ navigation, route }: Props) {
               const storedAddress = await AsyncStorage.getItem('currentDeliveryAddress');
               const storedCoords = await AsyncStorage.getItem('currentDeliveryCoordinates');
               if (storedAddress && storedAddress !== 'Select Location') {
-                console.log('[Checkout] Found address in AsyncStorage:', storedAddress);
                 homeScreenAddress = storedAddress;
                 homeScreenCoords = storedCoords ? JSON.parse(storedCoords) : null;
               }
             }
           } catch (storageError) {
-            console.log('[Checkout] Error reading stored address:', storageError);
+            // Silent fail for storage errors
           }
         }
-
+        
         // Also try to get location details for autofill
         let locationDetails: {
           street?: string;
@@ -576,20 +1078,17 @@ export default function CheckoutScreen({ navigation, route }: Props) {
           region?: string;
           postalCode?: string;
         } | null = null;
-
+        
         try {
           const storedDetails = await AsyncStorage.getItem('currentLocationDetails');
           if (storedDetails) {
             locationDetails = JSON.parse(storedDetails);
-            console.log('[Checkout] Found location details from HomeScreen:', locationDetails);
           }
         } catch (detailsError) {
-          console.log('[Checkout] Error reading location details:', detailsError);
+          // Silent fail
         }
 
         if (homeScreenAddress && homeScreenAddress !== 'Select Location') {
-          console.log('[Checkout] Using address from HomeScreen:', homeScreenAddress);
-
           // Check if this matches a saved address (including "Current Location" from DB)
           const matchingAddress = addressData.find(addr =>
             addr.label === 'Current Location' ||
@@ -599,13 +1098,11 @@ export default function CheckoutScreen({ navigation, route }: Props) {
 
           if (matchingAddress) {
             // Use the matching saved address
-            console.log('[Checkout] Found matching saved address:', matchingAddress.label);
             setSelectedAddress(matchingAddress);
             setTempSelectedAddress(matchingAddress);
           } else {
             // Create a temporary address object from HomeScreen's location
             // Use parsed details from map if available, otherwise parse the address string
-            console.log('[Checkout] Creating temporary address from HomeScreen location');
             const tempAddr: Address = {
               id: 'temp-' + Date.now(),
               user_id: user.id,
@@ -622,13 +1119,6 @@ export default function CheckoutScreen({ navigation, route }: Props) {
               is_default: false,
               coordinates: homeScreenCoords || null,
             };
-            console.log('[Checkout] Temp address with autofill:', {
-              street: tempAddr.street,
-              barangay: tempAddr.barangay,
-              city: tempAddr.city,
-              province: tempAddr.province,
-              region: tempAddr.region,
-            });
             setSelectedAddress(tempAddr);
             setTempSelectedAddress(tempAddr);
           }
@@ -636,7 +1126,6 @@ export default function CheckoutScreen({ navigation, route }: Props) {
           // Use default or first saved address
           const defaultAddr = addressData.find(a => a.is_default) || addressData[0];
           if (defaultAddr) {
-            console.log('[Checkout] Using default/first address:', defaultAddr.id);
             setSelectedAddress(defaultAddr);
             setTempSelectedAddress(defaultAddr);
           }
@@ -644,7 +1133,6 @@ export default function CheckoutScreen({ navigation, route }: Props) {
 
         // Fetch Bazcoins balance
         const coins = await addressService.getBazcoins(user.id);
-        console.log('[Checkout] Fetched Bazcoins:', coins);
         setAvailableBazcoins(coins || 0);
       } catch (error) {
         console.error('Error fetching checkout data:', error);
@@ -657,7 +1145,6 @@ export default function CheckoutScreen({ navigation, route }: Props) {
 
     // Subscribe to real-time Bazcoins updates via service
     const subscription = addressService.subscribeToBazcoinChanges(user.id, (newBalance) => {
-      console.log('[Checkout] Bazcoins updated:', newBalance);
       setAvailableBazcoins(newBalance || 0);
     });
 
@@ -760,7 +1247,8 @@ export default function CheckoutScreen({ navigation, route }: Props) {
       };
 
       const order: Order = {
-        id: 'ORD-' + Date.now(),
+        id: result.orderIds?.[0] || 'ORD-' + Date.now(),
+        orderId: result.orderUuids?.[0],
         transactionId: 'TXN' + Math.random().toString(36).slice(2, 10).toUpperCase(),
         items: checkoutItems,
         total,
@@ -894,7 +1382,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
 
             {checkoutItems.map((item) => (
               <View key={item.id} style={styles.compactOrderItem}>
-                <Image source={{ uri: item.image }} style={styles.compactThumbnail} />
+                <Image source={{ uri: safeImageUri(item.image) }} style={styles.compactThumbnail} />
                 <View style={styles.compactOrderInfo}>
                   <Text style={styles.compactProductName} numberOfLines={1}>{item.name}</Text>
                   <View style={styles.compactDetailsRow}>
@@ -925,10 +1413,10 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                       </View>
                     )}
                     {/* Fallback if no variant selected */}
-                    {!item.selectedVariant?.option1Value && !item.selectedVariant?.option2Value &&
-                      !item.selectedVariant?.color && !item.selectedVariant?.size && (
-                        <Text style={styles.compactVariantText}>Standard</Text>
-                      )}
+                    {!item.selectedVariant?.option1Value && !item.selectedVariant?.option2Value && 
+                     !item.selectedVariant?.color && !item.selectedVariant?.size && (
+                      <Text style={styles.compactVariantText}>Standard</Text>
+                    )}
                     <Text style={styles.compactQuantity}>x{item.quantity}</Text>
                   </View>
                 </View>
@@ -1115,7 +1603,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                 setPaymentMethod('cod');
               }}
               style={[
-                styles.paymentOption,
+                styles.paymentOption, 
                 paymentMethod === 'cod' && styles.paymentOptionActive,
                 isGift && { opacity: 0.5, backgroundColor: '#F3F4F6' }
               ]}
@@ -1126,7 +1614,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
               <View style={{ flex: 1 }}>
                 <Text style={[styles.paymentText, isGift && { color: '#9CA3AF' }]}>Cash on Delivery</Text>
                 <Text style={styles.paymentSubtext}>
-                  {isGift ? 'Not available for wishlist items' : 'Pay when you receive'}
+                    {isGift ? 'Not available for wishlist items' : 'Pay when you receive'}
                 </Text>
               </View>
             </Pressable>
@@ -1229,15 +1717,17 @@ export default function CheckoutScreen({ navigation, route }: Props) {
               <Text style={styles.summaryValue}>₱{shippingFee.toLocaleString()}</Text>
             </View>
 
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Tax (12% VAT)</Text>
-              <Text style={styles.summaryValue}>₱{tax.toLocaleString()}</Text>
-            </View>
-
-            {couponSavings > 0 && (
+            {discount > 0 && (
               <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Discounts & Rewards</Text>
-                <Text style={[styles.summaryValue, { color: '#10B981' }]}>-₱{couponSavings.toLocaleString()}</Text>
+                <Text style={styles.summaryLabel}>Voucher Discount</Text>
+                <Text style={[styles.summaryValue, { color: '#10B981' }]}>-₱{discount.toLocaleString()}</Text>
+              </View>
+            )}
+
+            {useBazcoins && bazcoinDiscount > 0 && (
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Bazcoins Redeemed</Text>
+                <Text style={[styles.summaryValue, { color: '#EAB308' }]}>-₱{bazcoinDiscount.toLocaleString()}</Text>
               </View>
             )}
 
@@ -1247,14 +1737,6 @@ export default function CheckoutScreen({ navigation, route }: Props) {
               <Text style={styles.totalLabelLarge}>Total Payment</Text>
               <Text style={styles.totalAmountLarge}>₱{total.toLocaleString()}</Text>
             </View>
-
-            {grandTotalSavings > 0 && (
-              <View style={{ marginTop: 8, alignItems: 'flex-end' }}>
-                <Text style={{ fontSize: 12, color: '#10B981', fontWeight: '700' }}>
-                  You're saving ₱{grandTotalSavings.toLocaleString()} on this order!
-                </Text>
-              </View>
-            )}
 
             <View style={{ marginTop: 16, backgroundColor: '#FEFCE8', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#FEF08A', flexDirection: 'row', gap: 12, alignItems: 'center' }}>
               <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: '#EAB308', alignItems: 'center', justifyContent: 'center' }}>
@@ -1476,8 +1958,11 @@ export default function CheckoutScreen({ navigation, route }: Props) {
               <Text style={[checkoutStyles.sectionHeader, { marginTop: 12 }]}>Location Details</Text>
 
               <AddressDropdown label="Region" type="region" value={newAddress.region} list={regionList} />
-              <AddressDropdown label="Province" type="province" value={newAddress.province} list={provinceList} disabled={!newAddress.region} />
-              <AddressDropdown label="City / Municipality" type="city" value={newAddress.city} list={cityList} disabled={!newAddress.province} />
+              {/* Only show Province for non-Metro Manila regions */}
+              {!(newAddress.region?.toLowerCase().includes('metro manila') || newAddress.region?.toLowerCase().includes('ncr') || newAddress.region?.toLowerCase().includes('national capital')) && (
+                <AddressDropdown label="Province" type="province" value={newAddress.province} list={provinceList} disabled={!newAddress.region} />
+              )}
+              <AddressDropdown label="City / Municipality" type="city" value={newAddress.city} list={cityList} disabled={!newAddress.province && !(newAddress.region?.toLowerCase().includes('metro manila') || newAddress.region?.toLowerCase().includes('ncr') || newAddress.region?.toLowerCase().includes('national capital'))} />
               <AddressDropdown label="Barangay" type="barangay" value={newAddress.barangay} list={barangayList} disabled={!newAddress.city} />
 
               <Text style={checkoutStyles.inputLabel}>Street / House No.</Text>
@@ -1489,25 +1974,41 @@ export default function CheckoutScreen({ navigation, route }: Props) {
                 placeholder="123 Acacia St."
               />
 
-              {/* Live Map Preview (same as AddressesScreen) */}
-              <Text style={checkoutStyles.inputLabel}>Pin Location</Text>
-              <View style={checkoutStyles.mapPreviewWrapper}>
-                <MapView
-                  provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : PROVIDER_DEFAULT}
-                  style={checkoutStyles.mapPreview}
-                  region={mapRegion}
-                  scrollEnabled={false}
-                  zoomEnabled={false}
-                >
-                  {newAddress.coordinates && <Marker coordinate={newAddress.coordinates} />}
-                </MapView>
-                <View style={checkoutStyles.mapOverlay}>
-                  <Pressable style={checkoutStyles.editPinButton} onPress={() => setIsMapModalOpen(true)}>
-                    <Move size={14} color="#FFF" />
-                    <Text style={checkoutStyles.editPinText}>Adjust Pin</Text>
-                  </Pressable>
+              {/* Interactive Map Preview - Tap to open full map */}
+              <Text style={checkoutStyles.inputLabel}>Pin Location on Map</Text>
+              <Pressable onPress={() => { setIsAddressModalOpen(false); setTimeout(() => setIsMapModalOpen(true), 150); }} style={{ marginBottom: 16 }}>
+                <View style={[checkoutStyles.mapPreviewWrapper, { height: 180 }]}>
+                  <MapView
+                    provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : PROVIDER_DEFAULT}
+                    style={[checkoutStyles.mapPreview, { height: 180 }]}
+                    region={mapRegion}
+                    scrollEnabled={false}
+                    zoomEnabled={false}
+                    pitchEnabled={false}
+                    rotateEnabled={false}
+                  >
+                    {(newAddress.coordinates || mapRegion) && (
+                      <Marker 
+                        coordinate={newAddress.coordinates || { latitude: mapRegion.latitude, longitude: mapRegion.longitude }} 
+                      />
+                    )}
+                  </MapView>
+                  <View style={[checkoutStyles.mapOverlay, { backgroundColor: 'rgba(0,0,0,0.03)' }]}>
+                    <View style={checkoutStyles.editPinButton}>
+                      <Search size={14} color="#FFF" />
+                      <Text style={checkoutStyles.editPinText}>Search & Pin Location</Text>
+                    </View>
+                  </View>
                 </View>
-              </View>
+                {newAddress.coordinates && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, paddingHorizontal: 4 }}>
+                    <MapPin size={14} color={COLORS.primary} />
+                    <Text style={{ fontSize: 12, color: '#6B7280', marginLeft: 4 }}>
+                      {newAddress.coordinates.latitude.toFixed(6)}, {newAddress.coordinates.longitude.toFixed(6)}
+                    </Text>
+                  </View>
+                )}
+              </Pressable>
 
               <Text style={checkoutStyles.inputLabel}>Postal Code</Text>
               <TextInput value={newAddress.postal_code} onChangeText={(t) => setNewAddress({ ...newAddress, postal_code: t })} style={checkoutStyles.formInput} placeholder="1000" keyboardType="number-pad" />
@@ -1528,7 +2029,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
           </KeyboardAvoidingView>
         </Modal>
 
-        {/* --- PRECISION MAP MODAL --- */}
+        {/* --- PRECISION MAP MODAL WITH SEARCH --- */}
         <Modal visible={isMapModalOpen} animationType="slide" onRequestClose={() => setIsMapModalOpen(false)}>
           <View style={{ flex: 1, backgroundColor: '#FFF' }}>
             <MapView
@@ -1541,21 +2042,107 @@ export default function CheckoutScreen({ navigation, route }: Props) {
               <MapPin size={48} color={COLORS.primary} fill={COLORS.primary} />
               <View style={checkoutStyles.markerShadow} />
             </View>
+            
+            {/* Header with Back Button */}
             <View style={[checkoutStyles.mapHeader, { paddingTop: insets.top + 10 }]}>
-              <Pressable onPress={() => setIsMapModalOpen(false)} style={checkoutStyles.mapCloseButton}>
+              <Pressable onPress={() => { setIsMapModalOpen(false); setMapSearchQuery(''); setMapSearchResults([]); setShowMapSearchResults(false); setTimeout(() => setIsAddressModalOpen(true), 150); }} style={checkoutStyles.mapCloseButton}>
                 <ArrowLeft size={24} color="#1F2937" />
               </Pressable>
-              <Text style={checkoutStyles.mapTitle}>Adjust Location</Text>
+              <Text style={checkoutStyles.mapTitle}>Pin Your Location</Text>
               <View style={{ width: 40 }} />
             </View>
+            
+            {/* Search Bar */}
+            <View style={{ position: 'absolute', top: insets.top + 60, left: 16, right: 16, zIndex: 100 }}>
+              <View style={{ flexDirection: 'row', backgroundColor: '#FFF', borderRadius: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 5 }}>
+                <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12 }}>
+                  <Search size={18} color="#9CA3AF" />
+                  <TextInput
+                    style={{ flex: 1, height: 48, marginLeft: 8, fontSize: 15, color: '#1F2937' }}
+                    placeholder="Search location..."
+                    placeholderTextColor="#9CA3AF"
+                    value={mapSearchQuery}
+                    onChangeText={setMapSearchQuery}
+                    onSubmitEditing={handleMapSearch}
+                    returnKeyType="search"
+                  />
+                  {mapSearchQuery.length > 0 && (
+                    <Pressable onPress={() => { setMapSearchQuery(''); setMapSearchResults([]); setShowMapSearchResults(false); }}>
+                      <X size={18} color="#9CA3AF" />
+                    </Pressable>
+                  )}
+                </View>
+                <Pressable 
+                  onPress={handleMapSearch} 
+                  style={{ backgroundColor: COLORS.primary, paddingHorizontal: 16, justifyContent: 'center', borderTopRightRadius: 12, borderBottomRightRadius: 12 }}
+                >
+                  {isSearchingMap ? (
+                    <ActivityIndicator size="small" color="#FFF" />
+                  ) : (
+                    <Text style={{ color: '#FFF', fontWeight: '600' }}>Search</Text>
+                  )}
+                </Pressable>
+              </View>
+              
+              {/* Search Results */}
+              {showMapSearchResults && mapSearchResults.length > 0 && (
+                <View style={{ backgroundColor: '#FFF', borderRadius: 12, marginTop: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3, maxHeight: 200 }}>
+                  <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled">
+                    {mapSearchResults.map((result, index) => (
+                      <Pressable
+                        key={index}
+                        style={{ padding: 12, borderBottomWidth: index < mapSearchResults.length - 1 ? 1 : 0, borderBottomColor: '#F3F4F6' }}
+                        onPress={() => handleSelectMapSearchResult(result)}
+                      >
+                        <Text style={{ fontSize: 14, fontWeight: '600', color: '#1F2937' }} numberOfLines={1}>
+                          {result.display_name?.split(',')[0]}
+                        </Text>
+                        <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }} numberOfLines={2}>
+                          {result.display_name}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+              
+              {/* No Results */}
+              {showMapSearchResults && mapSearchResults.length === 0 && !isSearchingMap && mapSearchQuery.length > 0 && (
+                <View style={{ backgroundColor: '#FFF', borderRadius: 12, marginTop: 8, padding: 16, alignItems: 'center' }}>
+                  <Text style={{ color: '#6B7280', fontSize: 14 }}>No locations found</Text>
+                </View>
+              )}
+            </View>
+            
+            {/* Footer */}
             <View style={checkoutStyles.mapFooter}>
-              <Text style={checkoutStyles.mapInstruction}>Drag map to pin exact location</Text>
-              <Pressable style={checkoutStyles.confirmButton} onPress={handleConfirmLocation}>
-                <Text style={checkoutStyles.confirmButtonText}>Confirm Pin</Text>
+              <Text style={checkoutStyles.mapInstruction}>Search or drag map to pin exact location</Text>
+              <Pressable 
+                style={[checkoutStyles.confirmButton, isGeocoding && { opacity: 0.7 }]} 
+                onPress={handleConfirmLocation}
+                disabled={isGeocoding}
+              >
+                {isGeocoding ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <ActivityIndicator color="#FFF" size="small" style={{ marginRight: 8 }} />
+                    <Text style={checkoutStyles.confirmButtonText}>Getting Address...</Text>
+                  </View>
+                ) : (
+                  <Text style={checkoutStyles.confirmButtonText}>Confirm Location</Text>
+                )}
               </Pressable>
             </View>
           </View>
         </Modal>
+
+        {/* --- LOCATION MODAL (Map-First Address Flow) --- */}
+        <LocationModal
+          visible={showLocationModal}
+          onClose={() => setShowLocationModal(false)}
+          onSelectLocation={handleLocationModalSelect}
+          currentAddress={selectedAddress ? `${selectedAddress.street}, ${selectedAddress.city}` : undefined}
+          initialCoordinates={selectedAddress?.coordinates || null}
+        />
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

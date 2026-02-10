@@ -6,6 +6,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { officialStores } from '../src/data/stores';
 import { COLORS } from '../src/constants/theme';
 import { sellerService } from '../src/services/sellerService';
+import { safeImageUri, PLACEHOLDER_BANNER } from '../src/utils/imageUtils';
 
 export default function AllStoresScreen() {
     const insets = useSafeAreaInsets();
@@ -60,7 +61,7 @@ export default function AllStoresScreen() {
             style={styles.shopCard} 
             onPress={() => navigation.navigate('StoreDetail', { store: item })}
         >
-            <Image source={{ uri: item.banner }} style={styles.shopImage} />
+            <Image source={{ uri: safeImageUri(item.banner, PLACEHOLDER_BANNER) }} style={styles.shopImage} />
             <View style={styles.overlay} />
             <View style={styles.logoContainer}>
                 <Text style={{ fontSize: 24 }}>{item.logo}</Text>

@@ -13,6 +13,7 @@ import { CheckCircle, Package, MapPin, CreditCard, ChevronRight, Home } from 'lu
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import type { Order } from '../src/types';
+import { safeImageUri } from '../src/utils/imageUtils';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'OrderConfirmation'>;
 
@@ -81,7 +82,7 @@ export default function OrderConfirmationScreen({ route, navigation }: Props) {
                 ]}
               >
                 <Image
-                  source={{ uri: item.image }}
+                  source={{ uri: safeImageUri(item.image) }}
                   style={styles.productImage}
                 />
                 <View style={styles.productInfo}>

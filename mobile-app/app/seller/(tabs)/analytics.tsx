@@ -23,7 +23,7 @@ type TimeRange = '7d' | '30d' | '90d';
 export default function SellerAnalyticsScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<SellerStackParamList>>();
   
-  const { stats, revenueData = [], categorySales = [], products = [] } = useSellerStore();
+  const { stats, revenueData = [], categorySales = [], products = [], seller } = useSellerStore();
   const insets = useSafeAreaInsets();
   const [selectedRange, setSelectedRange] = useState<TimeRange>('7d');
 
@@ -41,6 +41,15 @@ export default function SellerAnalyticsScreen() {
   const topProducts = products
     .sort((a, b) => (b.sales ?? 0) - (a.sales ?? 0))
     .slice(0, 5);
+
+  // Null guard for seller
+  if (!seller) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={{ fontSize: 16, color: '#9CA3AF' }}>Loading seller information...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -164,7 +173,7 @@ export default function SellerAnalyticsScreen() {
                     style={[styles.legendDot, { backgroundColor: item.color }]}
                   />
                   <Text style={styles.legendText}>
-                    {item.category} ({item.value}%)
+                    {typeof item.category === 'object' ? (item.category as any)?.name || '' : String(item.category || '')} ({item.value}%)
                   </Text>
                 </View>
               ))}
@@ -197,7 +206,7 @@ export default function SellerAnalyticsScreen() {
                     <Text style={styles.rankText}>{index + 1}</Text>
                   </View>
                   <Text style={styles.tableNameCell} numberOfLines={1}>
-                    {product.name}
+                    {typeof product.name === 'object' ? (product.name as any)?.name || '' : String(product.name || '')}
                   </Text>
                 </View>
                 <Text style={[styles.tableCell, { flex: 1, textAlign: 'center' }]}>

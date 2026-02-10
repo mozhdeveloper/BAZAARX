@@ -64,7 +64,6 @@ export class ReviewService {
                 .single();
 
             if (error) throw error;
-            console.log('[ReviewService] ✅ Review created:', data?.id);
             return data;
         } catch (error) {
             console.error('[ReviewService] Error creating review:', error);
@@ -224,7 +223,7 @@ export class ReviewService {
                 .eq('product_id', productId);
 
             if (error) throw error;
-            console.log('[ReviewService] ✅ Order item marked as reviewed');
+
         } catch (error) {
             console.error('[ReviewService] Error marking item as reviewed:', error);
         }
@@ -255,7 +254,7 @@ export class ReviewService {
                     .eq('id', orderId);
 
                 if (updateError) throw updateError;
-                console.log('[ReviewService] ✅ Order marked as fully reviewed');
+
             }
         } catch (error) {
             console.error('[ReviewService] Error updating order reviewed status:', error);

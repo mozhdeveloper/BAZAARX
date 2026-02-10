@@ -5,6 +5,7 @@ import { ArrowLeft, Gift, Share2, ShieldCheck, MapPin, CheckCircle } from 'lucid
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { COLORS } from '../src/constants/theme';
 import { useCartStore } from '../src/stores/cartStore';
+import { safeImageUri, PLACEHOLDER_AVATAR } from '../src/utils/imageUtils';
 
 const { width } = Dimensions.get('window');
 
@@ -110,7 +111,7 @@ export default function SharedWishlistScreen() {
             <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
                 {/* Profile Info - Moved to Body */}
                 <View style={styles.profileSection}>
-                    <Image source={{ uri: wishlistOwner.avatar }} style={styles.avatar} />
+                    <Image source={{ uri: safeImageUri(wishlistOwner.avatar, PLACEHOLDER_AVATAR) }} style={styles.avatar} />
                     <View style={{ flex: 1 }}>
                         <Text style={styles.ownerName}>{wishlistOwner.name}'s Registry</Text>
                         <View style={styles.registryMeta}>
@@ -134,7 +135,7 @@ export default function SharedWishlistScreen() {
                         return (
                             <View key={item.id} style={styles.productCard}>
                                 <View style={styles.imageContainer}>
-                                    <Image source={{ uri: item.image }} style={styles.productImage} />
+                                    <Image source={{ uri: safeImageUri(item.image) }} style={styles.productImage} />
                                     {isFullyPurchased && (
                                         <View style={styles.purchasedOverlay}>
                                             <Gift size={24} color="#FFF" />

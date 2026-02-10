@@ -60,7 +60,7 @@ export default function BuyerLoginPage() {
         .from("buyers")
         .select("*")
         .eq("id", user.id)
-        .single();
+        .maybeSingle();
 
       if (buyerError || !buyerData) {
         console.error("Buyer verification error:", buyerError);
@@ -75,7 +75,7 @@ export default function BuyerLoginPage() {
         .from("profiles")
         .select("*")
         .eq("id", user.id)
-        .single();
+        .maybeSingle();
 
       const fullName = (profileData as any)?.full_name || "User";
       const bazcoins = (buyerData as any)?.bazcoins ?? 0;

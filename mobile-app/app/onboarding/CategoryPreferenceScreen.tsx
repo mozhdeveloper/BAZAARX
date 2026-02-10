@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Check, Search, ArrowLeft } from 'lucide-react-native';
+import { safeImageUri } from '../../src/utils/imageUtils';
 import { LinearGradient } from 'expo-linear-gradient';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../App';
@@ -109,7 +110,7 @@ export default function CategoryPreferenceScreen({ navigation, route }: Props) {
         onPress={() => toggleCategory(item.id)}
       >
         <ImageBackground
-          source={{ uri: item.image }}
+          source={{ uri: safeImageUri(item.image) }}
           style={styles.imageBackground}
           imageStyle={{ borderRadius: 12 }}
         >

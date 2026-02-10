@@ -37,6 +37,14 @@ export default function SellerDashboardScreen() {
 
   const recentOrders = orders.slice(0, 3);
 
+  // Ensure seller orders are fetched from database on mount
+  useEffect(() => {
+    if (seller?.id && orders.length === 0) {
+      const { fetchSellerOrders } = useOrderStore.getState();
+      fetchSellerOrders(seller.id);
+    }
+  }, [seller?.id]);
+
   // Fetch unread messages count
   useEffect(() => {
     const fetchUnreadCount = async () => {
@@ -332,10 +340,10 @@ export default function SellerDashboardScreen() {
                     {/* The container for ID/Name must have flex: 1 and flexShrink: 1 */}
                     <View style={styles.orderTextContainer}>
                       <Text style={styles.orderId} numberOfLines={1} ellipsizeMode="tail">
-                        {order.orderId}
+                        {String(order.orderId || order.id || '')}
                       </Text>
                       <Text style={styles.customerName} numberOfLines={1} ellipsizeMode="tail">
-                        {order.customerName}
+                        {String(order.customerName || '')}
                       </Text>
                     </View>
 
@@ -353,7 +361,7 @@ export default function SellerDashboardScreen() {
                         ]}
                         numberOfLines={1}
                       >
-                        {order.status.replace('-', ' ').toUpperCase()}
+                        {String(order.status || 'pending').replace('-', ' ').toUpperCase()}
                       </Text>
                     </View>
                   </View>

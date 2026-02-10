@@ -40,13 +40,12 @@ export default function SellerProductsScreen() {
   const { products = [], loading, error, fetchProducts, toggleProductStatus, deleteProduct, seller, updateProduct, addProduct } = useSellerStore();
   const { addProductToQA } = useProductQAStore();
   const navigation = useNavigation();
-  // Fetch products on mount
+  // Fetch products on mount - only fetch for current seller
   useEffect(() => {
     if (seller?.id) {
       fetchProducts({ sellerId: seller.id });
-    } else {
-      fetchProducts();
     }
+    // Don't fetch all products - only fetch seller-specific products
   }, [seller?.id, fetchProducts]);
   const insets = useSafeAreaInsets();
   const [searchQuery, setSearchQuery] = useState('');
@@ -281,10 +280,11 @@ export default function SellerProductsScreen() {
     }
   };
 
-  const handleDeleteProduct = (id: string, name: string) => {
+  const handleDeleteProduct = (id: string, name: any) => {
+    const safeName = typeof name === 'object' ? name?.name || '' : String(name || '');
     Alert.alert(
       'Delete Product',
-      `Are you sure you want to delete "${name}"?`,
+      `Are you sure you want to delete "${safeName}"?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -489,9 +489,10 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
     );
   };
 
-  const filteredProducts = products.filter((product) =>
-    product.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredProducts = products.filter((product) => {
+    const name = typeof product.name === 'object' ? (product.name as any)?.name || '' : String(product.name || '');
+    return name.toLowerCase().includes(searchQuery.toLowerCase());
+  });
 
   const renderProductCard = ({ item }: { item: SellerProduct }) => (
     <View style={styles.productCard}>
@@ -500,8 +501,8 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
       <View style={styles.productInfo}>
         <View style={styles.productHeader}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.productName} numberOfLines={1}>{item.name}</Text>
-            <Text style={styles.productCategory}>{item.category}</Text>
+            <Text style={styles.productName} numberOfLines={1}>{typeof item.name === 'object' ? (item.name as any)?.name || '' : String(item.name || '')}</Text>
+            <Text style={styles.productCategory}>{typeof item.category === 'object' ? (item.category as any)?.name || '' : String(item.category || '')}</Text>
           </View>
           <View style={[styles.statusBadge, { backgroundColor: item.isActive ? '#DCFCE7' : '#F3F4F6' }]}>
             <Text style={[styles.statusText, { color: item.isActive ? '#16A34A' : '#6B7280' }]}>
@@ -554,8 +555,8 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
       <View style={styles.productInfo}>
         <View style={styles.productHeader}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.productName} numberOfLines={1}>{item.name}</Text>
-            <Text style={styles.productCategory}>{item.category}</Text>
+            <Text style={styles.productName} numberOfLines={1}>{typeof item.name === 'object' ? (item.name as any)?.name || '' : String(item.name || '')}</Text>
+            <Text style={styles.productCategory}>{typeof item.category === 'object' ? (item.category as any)?.name || '' : String(item.category || '')}</Text>
           </View>
         </View>
 
@@ -571,6 +572,15 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
       </View>
     </View>
   );
+
+  // Null guard for seller - show loading when seller is not available
+  if (!seller) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={{ fontSize: 16, color: '#9CA3AF' }}>Loading seller information...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>

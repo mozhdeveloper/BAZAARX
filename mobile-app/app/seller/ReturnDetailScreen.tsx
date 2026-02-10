@@ -18,6 +18,7 @@ import type { SellerStackParamList } from './SellerStack';
 import { useReturnStore } from '../../src/stores/returnStore';
 import { useOrderStore } from '../../src/stores/orderStore';
 import { ReturnStatus } from '../../src/types';
+import { safeImageUri } from '../../src/utils/imageUtils';
 
 type Props = NativeStackScreenProps<SellerStackParamList, 'ReturnDetail'>;
 
@@ -115,7 +116,7 @@ export default function SellerReturnDetailScreen({ route, navigation }: Props) {
         {/* Buyer Info */}
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Buyer Information</Text>
-          <Text style={styles.label}>Name: <Text style={styles.value}>{order.shippingAddress.name}</Text></Text>
+          <Text style={styles.label}>Name: <Text style={styles.value}>{typeof order.shippingAddress === 'object' && order.shippingAddress?.name ? String(order.shippingAddress.name) : 'N/A'}</Text></Text>
           <Text style={styles.label}>Order ID: <Text style={styles.value}>{order.transactionId}</Text></Text>
         </View>
 
@@ -151,9 +152,9 @@ export default function SellerReturnDetailScreen({ route, navigation }: Props) {
             
             return (
               <View key={returnItem.itemId} style={styles.itemRow}>
-                <Image source={{ uri: orderItem.image }} style={styles.itemImage} />
+                <Image source={{ uri: safeImageUri(orderItem.image) }} style={styles.itemImage} />
                 <View style={styles.itemInfo}>
-                  <Text style={styles.itemName} numberOfLines={2}>{orderItem.name}</Text>
+                  <Text style={styles.itemName} numberOfLines={2}>{typeof orderItem.name === 'object' ? (orderItem.name as any)?.name || '' : String(orderItem.name || '')}</Text>
                   <Text style={styles.itemMeta}>Qty: {returnItem.quantity}</Text>
                 </View>
               </View>

@@ -118,6 +118,7 @@ export interface CartItem extends Product {
 
 export interface Order {
   id: string;
+  orderId?: string;
   transactionId: string;
   items: CartItem[];
   total: number;

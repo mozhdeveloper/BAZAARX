@@ -5,6 +5,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useAdminBuyers } from '../../../src/stores/adminStore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../../../src/constants/theme';
+import { safeImageUri, PLACEHOLDER_AVATAR } from '../../../src/utils/imageUtils';
 
 export default function AdminBuyersScreen() {
   const navigation = useNavigation();
@@ -146,7 +147,7 @@ export default function AdminBuyersScreen() {
           filteredBuyers.map((buyer) => (
             <View key={buyer.id} style={styles.buyerCard}>
               <View style={styles.cardHeader}>
-                <Image source={{ uri: buyer.avatar }} style={styles.avatar} />
+                <Image source={{ uri: safeImageUri(buyer.avatar, PLACEHOLDER_AVATAR) }} style={styles.avatar} />
                 <View style={styles.headerInfo}>
                   <Text style={styles.buyerName}>{buyer.firstName} {buyer.lastName}</Text>
                   {getStatusBadge(buyer.status)}
@@ -243,7 +244,7 @@ export default function AdminBuyersScreen() {
                 {/* Buyer Info Section */}
                 <View style={styles.modalSection}>
                   <View style={styles.buyerInfoRow}>
-                    <Image source={{ uri: selectedBuyer.avatar }} style={styles.modalAvatar} />
+                    <Image source={{ uri: safeImageUri(selectedBuyer.avatar, PLACEHOLDER_AVATAR) }} style={styles.modalAvatar} />
                     <View style={styles.buyerMainInfo}>
                       <Text style={styles.modalBuyerName}>{selectedBuyer.firstName} {selectedBuyer.lastName}</Text>
                       <Text style={styles.modalBuyerEmail}>{selectedBuyer.email}</Text>

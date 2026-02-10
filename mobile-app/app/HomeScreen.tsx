@@ -12,27 +12,21 @@ import {
   StatusBar,
   Alert,
   TouchableOpacity,
-  NativeSyntheticEvent,
-  NativeScrollEvent,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import {
-  Search, Bell, Camera, Bot, X, Package, Timer, MapPin, ChevronDown, ArrowLeft, Clock,
-  MessageSquare, MessageCircle, CheckCircle2, ShoppingBag, Truck, XCircle,
-  Shirt, Smartphone, Sparkles, Sofa, Dumbbell, Gamepad2, Apple, Watch, Car, BookOpen,
-} from 'lucide-react-native';
-import type { LucideIcon } from 'lucide-react-native';
+import { Search, Bell, Camera, Bot, X, Package, Timer, MapPin, ChevronDown, ArrowLeft, Clock, MessageSquare, MessageCircle, CheckCircle2, ShoppingBag, Truck, XCircle } from 'lucide-react-native';
 import { ProductCard } from '../src/components/ProductCard';
 import CameraSearchModal from '../src/components/CameraSearchModal';
 import AIChatModal from '../src/components/AIChatModal';
 import LocationModal from '../src/components/LocationModal';
 import ProductRequestModal from '../src/components/ProductRequestModal';
 import type { CompositeScreenProps } from '@react-navigation/native';
+import { useFocusEffect } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList, TabParamList } from '../App';
 import type { Product } from '../src/types';
+import { safeImageUri } from '../src/utils/imageUtils';
 import { productService } from '../src/services/productService';
 import { sellerService } from '../src/services/sellerService';
 import { addressService } from '../src/services/addressService';
@@ -50,25 +44,18 @@ type Props = CompositeScreenProps<
 
 const { width } = Dimensions.get('window');
 
-const categories: { id: string; name: string; Icon: LucideIcon }[] = [
-  { id: 'fashion', name: 'Fashion', Icon: Shirt },
-  { id: 'electronics', name: 'Electronics', Icon: Smartphone },
-  { id: 'beauty', name: 'Health &\nBeauty', Icon: Sparkles },
-  { id: 'home-garden', name: 'Home &\nLiving', Icon: Sofa },
-  { id: 'sports', name: 'Sports', Icon: Dumbbell },
-  { id: 'toys', name: 'Toys &\nGames', Icon: Gamepad2 },
-  { id: 'groceries', name: 'Groceries', Icon: Apple },
-  { id: 'watches', name: 'Watches', Icon: Watch },
-  { id: 'automotive', name: 'Automotive', Icon: Car },
-  { id: 'books', name: 'Books', Icon: BookOpen },
+const categories = [
+  { id: 'electronics', name: 'Electronics', image: 'https://images.unsplash.com/photo-1498049794561-7780e7231661?w=300', size: '' },
+  { id: 'fashion', name: 'Fashion', image: 'https://images.unsplash.com/photo-1445205170230-053b83016050?w=300' },
+  { id: 'home-garden', name: 'Home & Living', image: 'https://images.unsplash.com/photo-1556911220-bff31c812dba?w=300' },
+  { id: 'beauty', name: 'Beauty', image: 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=300' },
+  { id: 'sports', name: 'Sports', image: 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=300' },
 ];
 
-const CATEGORY_ITEM_WIDTH = (width - 40 - 40) / 5; // 5 columns, 20px padding each side, 10px gaps
-
-const CategoryItem = ({ label, Icon }: { label: string; Icon: LucideIcon }) => (
+const CategoryItem = ({ label, image }: { label: string; image: string }) => (
   <View style={styles.categoryItm}>
-    <View style={styles.categoryIconBox}>
-      <Icon size={24} color={COLORS.primary} />
+    <View style={styles.iconCircle}>
+      <Image source={{ uri: image }} style={{ width: 60, height: 60, borderRadius: 30 }} />
     </View>
     <Text style={styles.categoryLabel}>{label}</Text>
   </View>
@@ -102,8 +89,6 @@ export default function HomeScreen({ navigation }: Props) {
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [activeSlide, setActiveSlide] = useState(0);
   const scrollRef = useRef<ScrollView>(null);
-  const scrollAnchor = useRef(0);
-  const [showLocationRow, setShowLocationRow] = useState(true);
 
   const promoSlides = [
     {
@@ -135,7 +120,7 @@ export default function HomeScreen({ navigation }: Props) {
   // Fetch seller products and convert to buyer Product format
   // NOTE: useSellerStore is a plain hook (not a Zustand store), so NO selectors - must destructure
   const { products: sellerProducts = [], seller } = useSellerStore();
-
+  
   // Placeholder image for products without images
   const PLACEHOLDER_IMAGE = 'https://placehold.co/400x400/e5e7eb/6b7280?text=No+Image';
 
@@ -222,14 +207,14 @@ export default function HomeScreen({ navigation }: Props) {
 
         const mapped: Product[] = (data || []).map((row: any) => {
           // Extract images from product_images relation
-          const images = row.images?.map((img: any) =>
+          const images = row.images?.map((img: any) => 
             typeof img === 'string' ? img : img.image_url
           ).filter(Boolean) || [];
-          const primaryImage = row.images?.find((img: any) => img.is_primary)?.image_url
-            || images[0]
+          const primaryImage = row.images?.find((img: any) => img.is_primary)?.image_url 
+            || images[0] 
             || row.primary_image
             || '';
-
+          
           // Extract variants from product_variants relation
           const variants = row.variants?.map((v: any) => ({
             id: v.id,
@@ -244,11 +229,11 @@ export default function HomeScreen({ navigation }: Props) {
             stock: v.stock,
             thumbnail_url: v.thumbnail_url,
           })) || [];
-
+          
           // Extract unique colors and sizes for legacy support
           const colors = [...new Set(variants.map((v: any) => v.color).filter(Boolean))] as string[];
           const sizes = [...new Set(variants.map((v: any) => v.size).filter(Boolean))] as string[];
-
+          
           // Extract option values for dynamic variant support
           const option1Values = [...new Set(variants.map((v: any) => v.option_1_value).filter(Boolean))] as string[];
           const option2Values = [...new Set(variants.map((v: any) => v.option_2_value).filter(Boolean))] as string[];
@@ -263,7 +248,7 @@ export default function HomeScreen({ navigation }: Props) {
             ? row.seller.rating
             : parseFloat(row.seller?.rating || '4.8') || 4.8;
           const sellerVerified = !!row.seller?.verified_at;
-          const location = row.seller?.business_profile?.city
+          const location = row.seller?.business_profile?.city 
             ? `${row.seller.business_profile.city}, ${row.seller.business_profile.province || 'Philippines'}`
             : 'Philippines';
           return {
@@ -345,7 +330,6 @@ export default function HomeScreen({ navigation }: Props) {
 
         if (savedAddress) {
           setDeliveryAddress(savedAddress);
-          console.log('[HomeScreen] Loaded address from AsyncStorage:', savedAddress);
         }
         if (savedCoords) {
           setDeliveryCoordinates(JSON.parse(savedCoords));
@@ -366,7 +350,6 @@ export default function HomeScreen({ navigation }: Props) {
               : savedLocation.street;
 
             setDeliveryAddress(formatted);
-            console.log('[HomeScreen] Loaded location from database:', formatted);
 
             // Store coordinates if available
             if (savedLocation.coordinates) {
@@ -399,9 +382,31 @@ export default function HomeScreen({ navigation }: Props) {
     }
   }, [user]);
 
+  // Reload address when screen comes into focus (e.g., returning from Checkout)
+  useFocusEffect(
+    useCallback(() => {
+      const reloadAddress = async () => {
+        try {
+          const savedAddress = await AsyncStorage.getItem('currentDeliveryAddress');
+          const savedCoords = await AsyncStorage.getItem('currentDeliveryCoordinates');
+          
+          if (savedAddress && savedAddress !== 'Select Location') {
+            setDeliveryAddress(savedAddress);
+          }
+          if (savedCoords) {
+            setDeliveryCoordinates(JSON.parse(savedCoords));
+          }
+        } catch (e) {
+          // Silent fail
+        }
+      };
+      reloadAddress();
+    }, [])
+  );
+
   // Handle address selection from modal
   const handleSelectLocation = async (
-    address: string,
+    address: string, 
     coords?: { latitude: number; longitude: number },
     details?: {
       address: string;
@@ -423,25 +428,16 @@ export default function HomeScreen({ navigation }: Props) {
       if (coords) {
         await AsyncStorage.setItem('currentDeliveryCoordinates', JSON.stringify(coords));
       }
-
+      
       // Store full location details for checkout autofill
       if (details) {
         await AsyncStorage.setItem('currentLocationDetails', JSON.stringify(details));
-        console.log('[HomeScreen] Saved location details for autofill:', {
-          city: details.city,
-          province: details.province,
-          barangay: details.barangay,
-          street: details.street,
-        });
       }
-
-      console.log('[HomeScreen] Saved delivery address to AsyncStorage:', address);
 
       // Also save to database if user is logged in
       if (user?.id) {
         try {
           await addressService.saveCurrentDeliveryLocation(user.id, address, coords || null, details);
-          console.log('[HomeScreen] Saved delivery location to database');
         } catch (dbError) {
           console.error('[HomeScreen] Error saving to database (non-critical):', dbError);
         }
@@ -484,41 +480,34 @@ export default function HomeScreen({ navigation }: Props) {
   };
 
   return (
-    <LinearGradient
-      colors={['#FFE5CC', '#FFE5CC']}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 0 }}
-      style={styles.container}
-    >
-      <StatusBar barStyle="dark-content" />
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" />
 
       {/* 1. BRANDED HEADER */}
-      <View style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}>
-        {showLocationRow && (
-          <View style={styles.locationRow}>
-            <Pressable onPress={() => setShowLocationModal(true)}>
-              <Text style={styles.locationLabel}>Location</Text>
-              <View style={styles.locationSelector}>
-                <MapPin size={16} color={COLORS.primary} fill={COLORS.primary} />
-                <Text numberOfLines={1} style={[styles.locationText, { maxWidth: 200, color: '#1F2937', fontWeight: 'bold', fontSize: 16 }]}>{deliveryAddress}</Text>
-                <ChevronDown size={16} color="#1F2937" />
-              </View>
-            </Pressable>
-            <Pressable
-              onPress={() => {
-                if (isGuest) {
-                  setShowGuestModal(true);
-                } else {
-                  setShowNotifications(true);
-                }
-              }}
-              style={styles.headerIconButton}
-            >
-              <Bell size={24} color="#1F2937" />
-              {!isGuest && notifications.some(n => !n.is_read) && <View style={[styles.notifBadge, { backgroundColor: '#FFF' }]} />}
-            </Pressable>
-          </View>
-        )}
+      <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: BRAND_COLOR }]}>
+        <View style={styles.locationRow}>
+          <Pressable onPress={() => setShowLocationModal(true)}>
+            <Text style={styles.locationLabel}>Location</Text>
+            <View style={styles.locationSelector}>
+              <MapPin size={16} color="white" fill="white" />
+              <Text numberOfLines={1} style={[styles.locationText, { maxWidth: 200, color: 'white', fontWeight: 'bold', fontSize: 16 }]}>{deliveryAddress}</Text>
+              <ChevronDown size={16} color="white" />
+            </View>
+          </Pressable>
+          <Pressable
+            onPress={() => {
+              if (isGuest) {
+                setShowGuestModal(true);
+              } else {
+                setShowNotifications(true);
+              }
+            }}
+            style={styles.headerIconButton}
+          >
+            <Bell size={24} color="#FFF" />
+            {!isGuest && notifications.some(n => !n.is_read) && <View style={[styles.notifBadge, { backgroundColor: '#FFF' }]} />}
+          </Pressable>
+        </View>
 
         {/* 2. PERSISTENT SEARCH BAR */}
         <View style={styles.searchBarWrapper}>
@@ -542,26 +531,7 @@ export default function HomeScreen({ navigation }: Props) {
         </View>
       </View>
 
-      <ScrollView
-        style={styles.contentScroll}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 100 }}
-        scrollEventThrottle={16}
-        onScroll={(e: NativeSyntheticEvent<NativeScrollEvent>) => {
-          const y = e.nativeEvent.contentOffset.y;
-          if (y > scrollAnchor.current + 15 && y > 50) {
-            if (showLocationRow) {
-              setShowLocationRow(false);
-              scrollAnchor.current = y;
-            }
-          } else if (y < scrollAnchor.current - 15) {
-            if (!showLocationRow) {
-              setShowLocationRow(true);
-              scrollAnchor.current = y;
-            }
-          }
-        }}
-      >
+      <ScrollView style={styles.contentScroll} showsVerticalScrollIndicator={false}>
         {isSearchFocused ? (
           <View style={styles.searchDiscovery}>
             {searchQuery.trim() === '' ? (
@@ -635,11 +605,7 @@ export default function HomeScreen({ navigation }: Props) {
                 scrollEventThrottle={16}
               >
                 {promoSlides.map((slide) => (
-                  <Pressable
-                    key={slide.id}
-                    style={[styles.promoBox, { width: width - 40 }]}
-                    onPress={() => navigation.navigate('FlashSale' as any)}
-                  >
+                  <View key={slide.id} style={[styles.promoBox, { width: width - 40 }]}>
                     <View style={[styles.promoBorder, { backgroundColor: slide.color }]} />
                     <View style={styles.promoTextPart}>
                       <View style={[styles.promoBadge, { backgroundColor: slide.color }]}>
@@ -649,9 +615,9 @@ export default function HomeScreen({ navigation }: Props) {
                       <Text style={styles.promoBrandName}>{slide.brand}</Text>
                     </View>
                     <View style={styles.promoImgPart}>
-                      <Image source={{ uri: slide.image }} style={styles.promoImg} />
+                      <Image source={{ uri: safeImageUri(slide.image) }} style={styles.promoImg} />
                     </View>
-                  </Pressable>
+                  </View>
                 ))}
               </ScrollView>
 
@@ -668,33 +634,50 @@ export default function HomeScreen({ navigation }: Props) {
                 ))}
               </View>
             </View>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Flash Sale</Text>
+              <View style={styles.timerContainer}>
+                <Text style={styles.timerLabel}>Closing in : </Text>
+                <Text style={[styles.timerTime, { color: BRAND_COLOR }]}>02 : 12 : 56</Text>
+              </View>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingLeft: 20, paddingBottom: 10 }}>
+              <View style={styles.itemBoxContainerHorizontal}>
+                <ProductCard product={{
+                  id: 'dummy1',
+                  name: 'Wireless Headphones',
+                  price: 1299,
+                  originalPrice: 2500,
+                  image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500',
+                  rating: 4.8,
+                  sold: 120,
+                  seller: 'TechStore',
+                  sellerId: 's1',
+                  sellerRating: 4.8,
+                  sellerVerified: true,
+                  isFreeShipping: true,
+                  isVerified: true,
+                  location: 'Manila',
+                  description: 'Great sound',
+                  category: 'Electronics',
+                  stock: 50
+                }} onPress={() => { }} />
+              </View>
+            </ScrollView>
 
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Category</Text>
               <TouchableOpacity><Text style={styles.seeAll}>See All</Text></TouchableOpacity>
             </View>
-            <View style={styles.categoryGrid}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRow} style={{ flexGrow: 0 }}>
               {categories.map((item) => (
-                <Pressable key={item.id} style={styles.categoryGridItem} onPress={() => navigation.navigate('Shop', { category: item.id })}>
-                  <CategoryItem label={item.name} Icon={item.Icon} />
-                </Pressable>
+                <View key={item.id} style={{ marginRight: 20 }}>
+                  <CategoryItem label={item.name} image={item.image} />
+                </View>
               ))}
-            </View>
+            </ScrollView>
 
 
-            <View style={styles.gridContainer}>
-              <View style={styles.gridHeader}>
-                <Text style={styles.gridTitleText}>Popular Items</Text>
-                <Pressable onPress={() => navigation.navigate('Shop', {})}><Text style={styles.gridSeeAll}>View All</Text></Pressable>
-              </View>
-              <View style={styles.gridBody}>
-                {popularProducts.map((product) => (
-                  <View key={product.id} style={styles.itemBoxContainerVertical}>
-                    <ProductCard product={product} onPress={() => handleProductPress(product)} />
-                  </View>
-                ))}
-              </View>
-            </View>
 
             <View style={styles.section}>
               <Pressable
@@ -712,6 +695,20 @@ export default function HomeScreen({ navigation }: Props) {
                 </View>
               </Pressable>
             </View>
+
+            <View style={styles.gridContainer}>
+              <View style={styles.gridHeader}>
+                <Text style={styles.gridTitleText}>Popular Items</Text>
+                <Pressable onPress={() => navigation.navigate('Shop', {})}><Text style={styles.gridSeeAll}>View All</Text></Pressable>
+              </View>
+              <View style={styles.gridBody}>
+                {popularProducts.map((product) => (
+                  <View key={product.id} style={styles.itemBoxContainerVertical}>
+                    <ProductCard product={product} onPress={() => handleProductPress(product)} />
+                  </View>
+                ))}
+              </View>
+            </View>
           </>
         ) : (
           <View style={styles.categoryExpandedContent}>
@@ -720,16 +717,22 @@ export default function HomeScreen({ navigation }: Props) {
               {categories.map((item) => (
                 <Pressable
                   key={item.id}
-                  style={styles.categoryGridItem}
+                  style={styles.categoryCardBox}
                   onPress={() => navigation.navigate('Shop', { category: item.id })}
                 >
-                  <CategoryItem label={item.name} Icon={item.Icon} />
+                  <Image source={{ uri: safeImageUri(item.image) }} style={styles.categoryCardImage} />
+                  <View style={styles.categoryCardOverlay} />
+                  <Text style={styles.categoryCardText}>{item.name}</Text>
                 </Pressable>
               ))}
             </View>
           </View>
         )}
       </ScrollView>
+
+      <Pressable style={[styles.aiFloatingButton, { backgroundColor: BRAND_COLOR, bottom: 90 }]} onPress={() => navigation.navigate('Messages')}>
+        <MessageCircle size={28} color="#FFF" />
+      </Pressable>
 
       <ProductRequestModal visible={showProductRequest} onClose={() => setShowProductRequest(false)} />
       <AIChatModal visible={showAIChat} onClose={() => setShowAIChat(false)} />
@@ -794,7 +797,7 @@ export default function HomeScreen({ navigation }: Props) {
                         if (n.action_data?.orderNumber || n.type.includes('order')) {
                           setShowNotifications(false);
                           // Navigate to Orders tab in MainTabs
-                          navigation.navigate('Orders' as any);
+                          navigation.navigate('MainTabs', { screen: 'Orders' } as any);
                         }
                       }}
                     >
@@ -817,20 +820,20 @@ export default function HomeScreen({ navigation }: Props) {
           </View>
         </View>
       </Modal>
-    </LinearGradient >
+    </View >
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  headerContainer: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 10, borderBottomLeftRadius: 30, borderBottomRightRadius: 20 },
+  container: { flex: 1, backgroundColor: '#F9FAFB' },
+  headerContainer: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 15, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 },
   locationRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  locationLabel: { color: '#6B7280', fontSize: 14, paddingBottom: 5 },
+  locationLabel: { color: 'rgba(255,255,255,0.7)', fontSize: 14, paddingBottom: 7 },
   locationSelector: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  locationText: { color: '#1F2937', fontWeight: 'bold', fontSize: 16 },
+  locationText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
   headerIconButton: { padding: 4 },
   notifBadge: { position: 'absolute', top: 4, right: 4, width: 8, height: 8, borderRadius: 4, borderWidth: 1.5, borderColor: COLORS.primary },
-  searchBarWrapper: { flexDirection: 'row', alignItems: 'center', marginBottom: 2 },
+  searchBarWrapper: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
   searchBarInner: { flex: 1, flexDirection: 'row', alignItems: 'center', borderRadius: 12, paddingHorizontal: 15, height: 48, gap: 10 },
   searchInput: { flex: 1, fontSize: 14 },
   searchBackBtn: { padding: 4 },
@@ -848,7 +851,7 @@ const styles = StyleSheet.create({
   promoBox: {
     height: 160,
     backgroundColor: '#FFF',
-    borderRadius: 10,
+    borderRadius: 20,
     padding: 20,
     flexDirection: 'row',
     alignItems: 'center',
@@ -876,32 +879,32 @@ const styles = StyleSheet.create({
   promoBadgeText: { color: '#FFF', fontSize: 10, fontWeight: '900' },
   promoHeadline: { fontSize: 18, fontWeight: '800', color: '#1F2937', lineHeight: 24 },
   promoBrandName: { fontSize: 12, fontWeight: '700', color: '#666', marginTop: 4 },
-  promoImgPart: { width: 80, height: 100, borderRadius: 6, overflow: 'hidden' },
+  promoImgPart: { width: 80, height: 100, borderRadius: 12, overflow: 'hidden' },
   promoImg: { width: '100%', height: '100%' },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 15, paddingTop: 5 },
-  sectionTitle: { fontSize: 19, fontWeight: 'bold', color: '#1F2937' },
+  sectionTitle: { fontSize: 19, fontWeight: 'bold', color: '#333' },
   timerContainer: { flexDirection: 'row', alignItems: 'center' },
-  timerLabel: { fontSize: 12, color: '#6B7280' },
+  timerLabel: { fontSize: 12, color: '#999' },
   timerTime: { color: COLORS.primary, fontWeight: '700', fontSize: 13 },
   filterTabs: { paddingLeft: 20 },
-  filterTab: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20, backgroundColor: '#F3F4F6', marginRight: 10, borderWidth: 1, borderColor: '#E5E7EB' },
+  filterTab: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20, backgroundColor: '#F8F8F8', marginRight: 10, borderWidth: 1, borderColor: '#EEE' },
   activeTab: { backgroundColor: '#FF6a00', borderColor: '#FF6a00' },
-  filterTabText: { color: '#4B5563', fontWeight: '600' },
-  activeTabText: { color: '#FFF' },
+  filterTabText: { color: '#666', fontWeight: '600' },
+  activeTabText: { color: 'white' },
   seeAll: { color: COLORS.primary, fontSize: 12, fontWeight: '600' },
-  categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 20, marginBottom: 10, gap: 10 },
-  categoryGridItem: { width: CATEGORY_ITEM_WIDTH, alignItems: 'center' },
-  categoryItm: { alignItems: 'center', gap: 6 },
-  categoryIconBox: { width: CATEGORY_ITEM_WIDTH - 4, height: CATEGORY_ITEM_WIDTH - 4, borderRadius: 16, backgroundColor: '#FFF', justifyContent: 'center', alignItems: 'center', elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 3 },
-  categoryLabel: { fontSize: 11, color: '#4B5563', fontWeight: '600', textAlign: 'center', lineHeight: 14 },
+  categoryRow: { flexDirection: 'row', paddingHorizontal: 20, marginBottom: 10 },
+  categoryItm: { alignItems: 'center', gap: 8 },
+  iconCircle: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center' },
+  iconText: { fontSize: 24 },
+  categoryLabel: { fontSize: 13, color: '#4B5563', fontWeight: '500' },
   flashSaleSection: { marginVertical: 15 },
   flashHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 15, paddingHorizontal: 20 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   timerBox: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, gap: 4 },
   timerText: { color: '#FFF', fontSize: 12, fontWeight: '700' },
-  itemBoxContainerHorizontal: { width: 160, marginRight: 15 },
-  itemBoxContainerVertical: { width: (width - 48) / 2, marginBottom: 12 },
-  section: { paddingHorizontal: 20, marginVertical: 5 },
+  itemBoxContainerHorizontal: { width: 160, marginRight: 15, backgroundColor: '#FFF', borderRadius: 18, elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.1, shadowRadius: 6 },
+  itemBoxContainerVertical: { width: (width - 55) / 2, marginBottom: 20, backgroundColor: '#FFF', borderRadius: 18, elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.1, shadowRadius: 6 },
+  section: { paddingHorizontal: 20, marginVertical: 15 },
   productRequestButton: { backgroundColor: '#FFFFFF', borderRadius: 20, padding: 16, elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8 },
   productRequestButtonPressed: { opacity: 0.8, transform: [{ scale: 0.98 }] },
   productRequestContent: { flexDirection: 'row', alignItems: 'center', gap: 15 },
@@ -924,6 +927,23 @@ const styles = StyleSheet.create({
   resultsSection: { flex: 1 },
   categoryExpandedContent: { padding: 20 },
   categorySectionTitle: { fontSize: 18, fontWeight: '800', color: '#1F2937', marginBottom: 15 },
+  categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+  categoryCardBox: {
+    width: (width - 55) / 2,
+    height: 100,
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginBottom: 15,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    backgroundColor: '#FFF'
+  },
+  categoryCardImage: { ...StyleSheet.absoluteFillObject },
+  categoryCardOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.3)' },
+  categoryCardText: { color: '#FFF', fontWeight: '800', fontSize: 15, zIndex: 1 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.5)', justifyContent: 'flex-end' },
   notificationModalContent: { backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, height: '80%' },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },

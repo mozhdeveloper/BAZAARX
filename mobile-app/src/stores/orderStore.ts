@@ -431,16 +431,6 @@ export const useOrderStore = create<OrderStore>()(
         // Add to buyer's order list
         set({ orders: [...get().orders, newOrder] });
 
-        // NOTIFICATION LOGIC (Simulation)
-        if (options?.isGift && options.recipientId) {
-             // Simulate sending a notification to the recipient
-             console.log(`[Notification System] 🔔 Notify User ${options.recipientId}: "You have a new gift order on the way! Tracker: ${transactionId}"`);
-             if (options.isAnonymous) {
-                 console.log(`[Notification System] 🤫 The sender chose to stay anonymous.`);
-             } else {
-                 console.log(`[Notification System] 🎁 From: ${shippingAddress.name} (Sender)`);
-             }
-        }
 
         // SYNC TO SELLER: Also add to seller's order store (local state)
         const sellerOrder: SellerOrder = {
@@ -466,8 +456,6 @@ export const useOrderStore = create<OrderStore>()(
         set((state) => ({
           sellerOrders: [sellerOrder, ...state.sellerOrders]
         }));
-
-        console.log('[OrderStore] Order synced to seller orders:', sellerOrder.orderId);
 
         return newOrder;
       },
@@ -516,20 +504,17 @@ export const useOrderStore = create<OrderStore>()(
       sellerOrdersLoading: false,
 
       fetchSellerOrders: async (sellerId?: string) => {
-        console.log('[OrderStore] fetchSellerOrders called with provided sellerId:', sellerId);
         let actualSellerId = sellerId;
         const isValidUUID =
           sellerId &&
           /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sellerId);
 
         if (!isValidUUID) {
-          console.log('[OrderStore] SellerId is not a valid UUID, getting from session via authService...');
           const session = await authService.getSession();
           if (session?.user?.id) {
             actualSellerId = session.user.id;
-            console.log('[OrderStore] Got seller ID from session:', actualSellerId);
           } else {
-            console.warn('[OrderStore] No authenticated session available for fetchSellerOrders');
+            console.warn('[OrderStore] No authenticated session for fetchSellerOrders');
             set({ sellerOrdersLoading: false });
             return;
           }
@@ -542,9 +527,106 @@ export const useOrderStore = create<OrderStore>()(
 
         set({ sellerOrdersLoading: true });
         try {
-          const orders = await orderService.getSellerOrders(actualSellerId);
-          set({ sellerOrders: orders as unknown as SellerOrder[], sellerOrdersLoading: false });
-          console.log(`[OrderStore] Fetched ${orders.length} seller orders from database`);
+          const rawOrders = await orderService.getSellerOrders(actualSellerId);
+          
+          // Map raw database orders to SellerOrder interface
+          // DEFENSIVE: DB fields (product_name, buyer_name) may be objects like {name: "..."}
+          // from JSONB columns or foreign key joins. Always extract string safely.
+          const safeString = (val: any, fallback = ''): string => {
+            if (val === null || val === undefined) return fallback;
+            if (typeof val === 'string') return val;
+            if (typeof val === 'object' && val.name) return String(val.name);
+            if (typeof val === 'object' && val.full_name) return String(val.full_name);
+            if (typeof val === 'object' && val.store_name) return String(val.store_name);
+            return String(val);
+          };
+
+          const mappedOrders: SellerOrder[] = (rawOrders || []).map((order: any) => {
+            // Map order items from database format to SellerOrder.items format
+            const orderItems = Array.isArray(order.order_items) ? order.order_items : [];
+            const items = orderItems.map((item: any) => ({
+              productId: String(item.product_id || item.productId || ''),
+              productName: safeString(item.product_name, safeString(item.productName, 'Unknown Product')),
+              image: (Array.isArray(item.product_images) ? item.product_images[0] : null) || item.primary_image_url || item.image || 'https://via.placeholder.com/100',
+              quantity: item.quantity || 1,
+              price: parseFloat(item.price?.toString() || '0'),
+              selectedColor: item.personalized_options?.color || item.selected_color || item.selectedColor,
+              selectedSize: item.personalized_options?.size || item.selected_size || item.selectedSize,
+            }));
+
+            // Calculate total from items (more reliable than DB total_amount which may be 0)
+            const calculatedTotal = items.reduce((sum: number, item: { price: number; quantity: number }) => 
+              sum + (item.price * item.quantity), 0);
+            const dbTotal = parseFloat(order.total_amount?.toString() || '0');
+            const total = calculatedTotal > 0 ? calculatedTotal : dbTotal;
+
+            // Get customer info based on order type
+            // ONLINE orders: buyer_profile from profiles table  
+            // OFFLINE orders: recipient info or Walk-in Customer
+            let customerName = 'Walk-in Customer';
+            let customerEmail = '';
+            let customerPhone = '';
+            
+            if (order.order_type === 'ONLINE') {
+              const buyerProfile = order.buyer_profile;
+              if (buyerProfile?.first_name || buyerProfile?.last_name) {
+                customerName = `${buyerProfile.first_name || ''} ${buyerProfile.last_name || ''}`.trim();
+              } else if (buyerProfile?.email) {
+                customerName = buyerProfile.email.split('@')[0];
+              }
+              customerEmail = buyerProfile?.email || '';
+              customerPhone = buyerProfile?.phone || '';
+            } else {
+              // OFFLINE (POS) orders - check recipient
+              const recipient = order.recipient;
+              if (recipient?.first_name || recipient?.last_name) {
+                customerName = `${recipient.first_name || ''} ${recipient.last_name || ''}`.trim();
+              }
+              customerEmail = recipient?.email || '';
+              customerPhone = recipient?.phone || '';
+            }
+
+            // Map status from database format
+            const statusMap: Record<string, SellerOrder['status']> = {
+              'pending_payment': 'pending',
+              'pending': 'pending',
+              'confirmed': 'pending',
+              'processing': 'to-ship',
+              'shipped': 'to-ship',
+              'delivered': 'completed',
+              'completed': 'completed',
+              'cancelled': 'cancelled',
+            };
+
+            // Map payment status
+            const paymentStatusMap: Record<string, SellerOrder['paymentStatus']> = {
+              'pending': 'pending',
+              'paid': 'paid',
+              'refunded': 'refunded',
+              'failed': 'pending',
+            };
+
+            return {
+              id: order.id,
+              orderId: String(order.order_number || order.id || ''),
+              customerName,
+              customerEmail,
+              customerPhone,
+              shippingAddress: typeof order.shipping_address === 'object' 
+                ? JSON.stringify(order.shipping_address) 
+                : (order.address ? `${order.address.address_line_1 || ''}, ${order.address.city || ''}`.trim() : String(order.shipping_address || '')),
+              items,
+              total,
+              status: statusMap[order.shipment_status || order.status || 'pending'] || 'pending',
+              paymentStatus: paymentStatusMap[order.payment_status || 'pending'] || 'pending',
+              trackingNumber: order.tracking_number,
+              createdAt: order.created_at || new Date().toISOString(),
+              type: order.order_type === 'OFFLINE' ? 'OFFLINE' : 'ONLINE',
+              posNote: order.notes || order.pos_note,
+            };
+          });
+          
+          set({ sellerOrders: mappedOrders, sellerOrdersLoading: false });
         } catch (error) {
           console.error('[OrderStore] Error fetching seller orders:', error);
           set({ sellerOrdersLoading: false });

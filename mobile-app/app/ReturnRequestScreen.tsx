@@ -19,6 +19,7 @@ import type { RootStackParamList } from '../App';
 import { useReturnStore } from '../src/stores/returnStore';
 import { useAuthStore } from '../src/stores/authStore';
 import { ReturnReason, ReturnType } from '../src/types';
+import { safeImageUri } from '../src/utils/imageUtils';
 import * as ImagePicker from 'expo-image-picker';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ReturnRequest'>;
@@ -193,7 +194,7 @@ export default function ReturnRequestScreen({ route, navigation }: Props) {
                   <View style={styles.unchecked} />
                 )}
               </View>
-              <Image source={{ uri: item.image }} style={styles.itemImage} />
+              <Image source={{ uri: safeImageUri(item.image) }} style={styles.itemImage} />
               <View style={styles.itemInfo}>
                 <Text style={styles.itemName} numberOfLines={2}>{item.name}</Text>
                 <Text style={styles.itemPrice}>₱{(item.price ?? 0).toLocaleString()}</Text>

@@ -62,13 +62,14 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
     if (isSupabaseConfigured()) {
       fetchTimelineHistory();
 
+      const orderUuid = order.orderId || order.id;
       const subscription = supabase
-        .channel(`order_status_${order.id}`)
+        .channel(`order_status_${orderUuid}`)
         .on('postgres_changes', {
           event: 'INSERT',
           schema: 'public',
           table: 'order_status_history',
-          filter: `order_id=eq.${order.id}`
+          filter: `order_id=eq.${orderUuid}`
         }, (payload) => {
           console.log('New status update:', payload);
           // Append new status to timeline
@@ -100,7 +101,7 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
         supabase.removeChannel(subscription);
       };
     }
-  }, [order.id]);
+  }, [order.id, order.orderId]);
 
   const initializeTimeline = () => {
     // Fail-safe initialization: Hardcode the first node as "Order Placed"
@@ -115,10 +116,11 @@ export default function DeliveryTrackingScreen({ route, navigation }: Props) {
 
   const fetchTimelineHistory = async () => {
     try {
+      const orderUuid = order.orderId || order.id;
       const { data, error } = await supabase
         .from('order_status_history')
         .select('*')
-        .eq('order_id', order.id)
+        .eq('order_id', orderUuid)
         .order('created_at', { ascending: true });
 
       if (error) throw error;

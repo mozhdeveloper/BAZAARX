@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { ArrowLeft, CheckCircle, Circle, Store, Flame } from 'lucide-react-native';
 import { CartItemRow } from '../src/components/CartItemRow';
 import { useCartStore } from '../src/stores/cartStore';
@@ -26,6 +27,13 @@ export default function CartScreen({ navigation }: any) {
   useEffect(() => {
     initializeForCurrentUser();
   }, []);
+
+  // Also refresh when screen is focused (returning from product detail, etc.)
+  useFocusEffect(
+    useCallback(() => {
+      initializeForCurrentUser();
+    }, [])
+  );
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 

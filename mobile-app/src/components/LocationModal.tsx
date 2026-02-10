@@ -317,29 +317,168 @@ export default function LocationModal({
   };
 
   // --- 5. PROCEED TO ADDRESS FORM ---
-  const handleProceedToForm = () => {
+  const handleProceedToForm = async () => {
     // Pre-fill the form with geocoded data
+    const geocodedRegion = locationDetails?.region || '';
+    const geocodedProvince = locationDetails?.province || '';
+    const geocodedCity = locationDetails?.city || '';
+    const geocodedBarangay = locationDetails?.barangay || '';
+    
     setFormAddress({
       street: locationDetails?.street || '',
-      barangay: locationDetails?.barangay || '',
-      city: locationDetails?.city || '',
-      province: locationDetails?.province || '',
-      region: locationDetails?.region || '',
+      barangay: geocodedBarangay,
+      city: geocodedCity,
+      province: geocodedProvince,
+      region: geocodedRegion,
       postalCode: locationDetails?.postalCode || '',
       label: 'Home',
     });
+    
+    // Try to match geocoded data to Philippines address API and load dropdown choices
+    try {
+      // Load regions if not already loaded
+      let regList = regionList;
+      if (regList.length === 0) {
+        regList = await regions();
+        setRegionList(regList);
+      }
+      
+      // Find matching region (try different name variations)
+      const matchedRegion = regList.find((r: any) => {
+        const rName = r.region_name?.toLowerCase() || '';
+        const gRegion = geocodedRegion.toLowerCase();
+        const gProvince = geocodedProvince.toLowerCase();
+        const gCity = geocodedCity.toLowerCase();
+        
+        // Check for Metro Manila variations
+        if (rName.includes('metro manila') || rName.includes('ncr') || rName.includes('national capital')) {
+          if (gRegion.includes('metro manila') || gRegion.includes('ncr') || gRegion.includes('national capital') ||
+              gProvince.includes('metro manila') || gCity.includes('manila') || gCity.includes('quezon') ||
+              gCity.includes('makati') || gCity.includes('pasig') || gCity.includes('taguig') ||
+              gCity.includes('marikina') || gCity.includes('paranaque') || gCity.includes('pasay') ||
+              gCity.includes('caloocan') || gCity.includes('malabon') || gCity.includes('navotas') ||
+              gCity.includes('valenzuela') || gCity.includes('muntinlupa') || gCity.includes('las piñas') ||
+              gCity.includes('san juan') || gCity.includes('mandaluyong') || gCity.includes('pateros')) {
+            return true;
+          }
+        }
+        
+        // Direct match
+        return rName.includes(gRegion) || gRegion.includes(rName);
+      });
+      
+      if (matchedRegion) {
+        // Update form with matched region name
+        setFormAddress(prev => ({ ...prev, region: matchedRegion.region_name }));
+        
+        // Load provinces for this region
+        const provList = await provinces(matchedRegion.region_code);
+        setProvinceList(provList);
+        
+        const isMetroManila = matchedRegion.region_name?.toLowerCase().includes('metro manila') || 
+                              matchedRegion.region_name?.toLowerCase().includes('ncr') ||
+                              matchedRegion.region_code === '13';
+        
+        if (isMetroManila) {
+          // For Metro Manila, load all cities from all districts
+          let allCities: any[] = [];
+          for (const prov of provList) {
+            const provCities = await cities(prov.province_code);
+            allCities = [...allCities, ...provCities];
+          }
+          setCityList(allCities);
+          
+          // Find matching city
+          const matchedCity = allCities.find((c: any) => {
+            const cName = c.city_name?.toLowerCase() || '';
+            return cName.includes(geocodedCity.toLowerCase()) || geocodedCity.toLowerCase().includes(cName.split(' ')[0]);
+          });
+          
+          if (matchedCity) {
+            setFormAddress(prev => ({ ...prev, city: matchedCity.city_name }));
+            
+            // Load barangays for this city
+            const brgyList = await barangays(matchedCity.city_code);
+            setBarangayList(brgyList);
+            
+            // Find matching barangay
+            if (geocodedBarangay) {
+              const matchedBrgy = brgyList.find((b: any) => {
+                const bName = b.brgy_name?.toLowerCase() || '';
+                return bName.includes(geocodedBarangay.toLowerCase()) || geocodedBarangay.toLowerCase().includes(bName);
+              });
+              if (matchedBrgy) {
+                setFormAddress(prev => ({ ...prev, barangay: matchedBrgy.brgy_name }));
+              }
+            }
+          }
+        } else {
+          // Non-Metro Manila: Find matching province
+          const matchedProvince = provList.find((p: any) => {
+            const pName = p.province_name?.toLowerCase() || '';
+            return pName.includes(geocodedProvince.toLowerCase()) || geocodedProvince.toLowerCase().includes(pName);
+          });
+          
+          if (matchedProvince) {
+            setFormAddress(prev => ({ ...prev, province: matchedProvince.province_name }));
+            
+            // Load cities for this province
+            const cityListData = await cities(matchedProvince.province_code);
+            setCityList(cityListData);
+            
+            // Find matching city
+            const matchedCity = cityListData.find((c: any) => {
+              const cName = c.city_name?.toLowerCase() || '';
+              return cName.includes(geocodedCity.toLowerCase()) || geocodedCity.toLowerCase().includes(cName.split(' ')[0]);
+            });
+            
+            if (matchedCity) {
+              setFormAddress(prev => ({ ...prev, city: matchedCity.city_name }));
+              
+              // Load barangays for this city
+              const brgyList = await barangays(matchedCity.city_code);
+              setBarangayList(brgyList);
+              
+              // Find matching barangay
+              if (geocodedBarangay) {
+                const matchedBrgy = brgyList.find((b: any) => {
+                  const bName = b.brgy_name?.toLowerCase() || '';
+                  return bName.includes(geocodedBarangay.toLowerCase()) || geocodedBarangay.toLowerCase().includes(bName);
+                });
+                if (matchedBrgy) {
+                  setFormAddress(prev => ({ ...prev, barangay: matchedBrgy.brgy_name }));
+                }
+              }
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.log('Error loading address dropdowns:', error);
+    }
+    
     setCurrentStep('form');
   };
 
   // --- 6. FINAL CONFIRM (from form) ---
   const handleFinalConfirm = () => {
-    // Validate required fields
-    if (!formAddress.street || !formAddress.city || !formAddress.province || !formAddress.region) {
-      Alert.alert('Incomplete Address', 'Please fill in Street, City, Province, and Region.');
+    // Check if this is Metro Manila/NCR (no province required)
+    const isMetroManila = formAddress.region?.toLowerCase().includes('metro manila') || 
+                          formAddress.region?.toLowerCase().includes('ncr') ||
+                          formAddress.region?.toLowerCase().includes('national capital');
+    
+    // Validate required fields - province optional for Metro Manila
+    if (!formAddress.street || !formAddress.city || !formAddress.region) {
+      Alert.alert('Incomplete Address', 'Please fill in Street, City, and Region.');
+      return;
+    }
+    
+    if (!isMetroManila && !formAddress.province) {
+      Alert.alert('Incomplete Address', 'Please select a Province.');
       return;
     }
 
-    const finalAddress = `${formAddress.street}, ${formAddress.barangay ? formAddress.barangay + ', ' : ''}${formAddress.city}, ${formAddress.province}`;
+    const finalAddress = `${formAddress.street}, ${formAddress.barangay ? formAddress.barangay + ', ' : ''}${formAddress.city}${formAddress.province ? ', ' + formAddress.province : ''}`;
     const coords = {
       latitude: region.latitude,
       longitude: region.longitude
@@ -385,10 +524,28 @@ export default function LocationModal({
   const handleRegionSelect = async (regionItem: any) => {
     setFormAddress(prev => ({ ...prev, region: regionItem.region_name, province: '', city: '', barangay: '' }));
     setOpenDropdown(null);
+    
     // Load provinces for this region
     const provList = await provinces(regionItem.region_code);
     setProvinceList(provList);
-    setCityList([]);
+    
+    // Check if this is Metro Manila/NCR - load cities directly
+    const isMetroManila = regionItem.region_name?.toLowerCase().includes('metro manila') || 
+                          regionItem.region_name?.toLowerCase().includes('ncr') ||
+                          regionItem.region_code === '13';
+    
+    if (isMetroManila) {
+      // For Metro Manila, load all cities from all districts
+      let allCities: any[] = [];
+      for (const prov of provList) {
+        const provCities = await cities(prov.province_code);
+        allCities = [...allCities, ...provCities];
+      }
+      setCityList(allCities);
+    } else {
+      setCityList([]);
+    }
+    
     setBarangayList([]);
   };
 
@@ -670,36 +827,42 @@ export default function LocationModal({
                   </View>
                 )}
 
-                {/* Province Dropdown */}
-                <Text style={styles.formSectionTitle}>Province *</Text>
-                <Pressable 
-                  style={[styles.dropdownButton, !formAddress.region && styles.dropdownDisabled]}
-                  onPress={() => formAddress.region && setOpenDropdown(openDropdown === 'province' ? null : 'province')}
-                  disabled={!formAddress.region}
-                >
-                  <Text style={formAddress.province ? styles.dropdownText : styles.dropdownPlaceholder}>
-                    {formAddress.province || 'Select Province'}
-                  </Text>
-                  {openDropdown === 'province' ? <ChevronUp size={20} color="#6B7280" /> : <ChevronDown size={20} color="#6B7280" />}
-                </Pressable>
-                {openDropdown === 'province' && (
-                  <View style={styles.dropdownList}>
-                    <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled>
-                      {provinceList.map((p, idx) => (
-                        <Pressable key={p.province_code || `province-${idx}`} style={styles.dropdownItem} onPress={() => handleProvinceSelect(p)}>
-                          <Text style={styles.dropdownItemText}>{p.province_name}</Text>
-                        </Pressable>
-                      ))}
-                    </ScrollView>
-                  </View>
+                {/* Province Dropdown - Hidden for Metro Manila/NCR */}
+                {!(formAddress.region?.toLowerCase().includes('metro manila') || 
+                   formAddress.region?.toLowerCase().includes('ncr') ||
+                   formAddress.region?.toLowerCase().includes('national capital')) && (
+                  <>
+                    <Text style={styles.formSectionTitle}>Province *</Text>
+                    <Pressable 
+                      style={[styles.dropdownButton, !formAddress.region && styles.dropdownDisabled]}
+                      onPress={() => formAddress.region && setOpenDropdown(openDropdown === 'province' ? null : 'province')}
+                      disabled={!formAddress.region}
+                    >
+                      <Text style={formAddress.province ? styles.dropdownText : styles.dropdownPlaceholder}>
+                        {formAddress.province || 'Select Province'}
+                      </Text>
+                      {openDropdown === 'province' ? <ChevronUp size={20} color="#6B7280" /> : <ChevronDown size={20} color="#6B7280" />}
+                    </Pressable>
+                    {openDropdown === 'province' && (
+                      <View style={styles.dropdownList}>
+                        <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled>
+                          {provinceList.map((p, idx) => (
+                            <Pressable key={p.province_code || `province-${idx}`} style={styles.dropdownItem} onPress={() => handleProvinceSelect(p)}>
+                              <Text style={styles.dropdownItemText}>{p.province_name}</Text>
+                            </Pressable>
+                          ))}
+                        </ScrollView>
+                      </View>
+                    )}
+                  </>
                 )}
 
                 {/* City Dropdown */}
                 <Text style={styles.formSectionTitle}>City / Municipality *</Text>
                 <Pressable 
-                  style={[styles.dropdownButton, !formAddress.province && styles.dropdownDisabled]}
-                  onPress={() => formAddress.province && setOpenDropdown(openDropdown === 'city' ? null : 'city')}
-                  disabled={!formAddress.province}
+                  style={[styles.dropdownButton, (!formAddress.province && !(formAddress.region?.toLowerCase().includes('metro manila') || formAddress.region?.toLowerCase().includes('ncr') || formAddress.region?.toLowerCase().includes('national capital'))) && styles.dropdownDisabled]}
+                  onPress={() => (formAddress.province || formAddress.region?.toLowerCase().includes('metro manila') || formAddress.region?.toLowerCase().includes('ncr') || formAddress.region?.toLowerCase().includes('national capital')) && setOpenDropdown(openDropdown === 'city' ? null : 'city')}
+                  disabled={!formAddress.province && !(formAddress.region?.toLowerCase().includes('metro manila') || formAddress.region?.toLowerCase().includes('ncr') || formAddress.region?.toLowerCase().includes('national capital'))}
                 >
                   <Text style={formAddress.city ? styles.dropdownText : styles.dropdownPlaceholder}>
                     {formAddress.city || 'Select City'}

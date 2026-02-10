@@ -40,6 +40,7 @@ import { useSellerStore } from '../../src/stores/sellerStore';
 import { useOrderStore } from '../../src/stores/orderStore';
 import { orderService } from '../../src/services/orderService';
 import SellerDrawer from '../../src/components/SellerDrawer';
+import { safeImageUri } from '../../src/utils/imageUtils';
 
 interface CartItem {
   productId: string;
@@ -111,10 +112,13 @@ export default function POSScreen() {
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(
-        (product) =>
-          product.name.toLowerCase().includes(query) ||
-          product.id.toLowerCase().includes(query) ||
-          product.category.toLowerCase().includes(query)
+        (product) => {
+          const name = typeof product.name === 'object' ? (product.name as any)?.name || '' : String(product.name || '');
+          const category = typeof product.category === 'object' ? (product.category as any)?.name || '' : String(product.category || '');
+          return name.toLowerCase().includes(query) ||
+            product.id.toLowerCase().includes(query) ||
+            category.toLowerCase().includes(query);
+        }
       );
     }
 
@@ -659,7 +663,7 @@ export default function POSScreen() {
                 >
                   {/* Product Image */}
                   <View style={styles.productImageContainer}>
-                    <Image source={{ uri: product.images[0] }} style={styles.productImage} />
+                    <Image source={{ uri: safeImageUri(product.images?.[0]) }} style={styles.productImage} />
 
                     {/* Stock Badge */}
                     <View
@@ -688,9 +692,9 @@ export default function POSScreen() {
                   {/* Product Info */}
                   <View style={styles.productInfo}>
                     <Text style={styles.productName} numberOfLines={2}>
-                      {product.name}
+                      {typeof product.name === 'object' ? (product.name as any)?.name || '' : String(product.name || '')}
                     </Text>
-                    <Text style={styles.productCategory}>{product.category}</Text>
+                    <Text style={styles.productCategory}>{typeof product.category === 'object' ? (product.category as any)?.name || '' : String(product.category || '')}</Text>
 
                     {/* Product Details */}
                     <View style={styles.productDetails}>
@@ -767,7 +771,7 @@ export default function POSScreen() {
               <View style={styles.cartItems}>
                 {cart.map((item) => (
                   <View key={item.variantKey || item.productId} style={styles.cartItem}>
-                    <Image source={{ uri: item.image }} style={styles.cartItemImage} />
+                    <Image source={{ uri: safeImageUri(item.image) }} style={styles.cartItemImage} />
                     <View style={styles.cartItemInfo}>
                       <Text style={styles.cartItemName} numberOfLines={1}>
                         {item.productName}
@@ -1000,11 +1004,11 @@ export default function POSScreen() {
                 {/* Product Info */}
                 <View style={styles.variantProductInfo}>
                   <Image
-                    source={{ uri: selectedProduct.images[0] }}
+                    source={{ uri: safeImageUri(selectedProduct.images?.[0]) }}
                     style={styles.variantProductImage}
                   />
                   <View style={styles.variantProductDetails}>
-                    <Text style={styles.variantProductName}>{selectedProduct.name}</Text>
+                    <Text style={styles.variantProductName}>{typeof selectedProduct.name === 'object' ? (selectedProduct.name as any)?.name || '' : String(selectedProduct.name || '')}</Text>
                     <Text style={styles.variantProductPrice}>
                       ₱{selectedProduct.price.toLocaleString()}
                     </Text>
@@ -1113,7 +1117,7 @@ export default function POSScreen() {
               <>
                 {cart.map((item) => (
                   <View key={item.variantKey || item.productId} style={styles.cartModalItem}>
-                    <Image source={{ uri: item.image }} style={styles.cartModalItemImage} />
+                    <Image source={{ uri: safeImageUri(item.image) }} style={styles.cartModalItemImage} />
                     <View style={styles.cartModalItemInfo}>
                       <Text style={styles.cartModalItemName} numberOfLines={2}>{item.productName}</Text>
                       {(item.selectedColor || item.selectedSize) && (

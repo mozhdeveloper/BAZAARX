@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Search, User, ChevronRight } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { COLORS } from '../src/constants/theme';
+import { safeImageUri, PLACEHOLDER_AVATAR } from '../src/utils/imageUtils';
 
 // Mock Search Results
 const MOCK_RESULTS = [
@@ -114,7 +115,7 @@ export default function FindRegistryScreen() {
                     }
                     renderItem={({ item }) => (
                         <Pressable style={styles.userCard} onPress={() => handleSelectUser(item)}>
-                            <Image source={{ uri: item.avatar }} style={styles.avatar} />
+                            <Image source={{ uri: safeImageUri(item.avatar, PLACEHOLDER_AVATAR) }} style={styles.avatar} />
                             <View style={styles.userInfo}>
                                 <Text style={styles.userName}>{item.name}</Text>
                                 <Text style={styles.userLocation}>{item.location} • {item.itemCount} Items</Text>

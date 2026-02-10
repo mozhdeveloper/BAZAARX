@@ -16,6 +16,7 @@ import type { RootStackParamList } from '../App';
 import { useReturnStore } from '../src/stores/returnStore';
 import { useOrderStore } from '../src/stores/orderStore';
 import { ReturnStatus } from '../src/types';
+import { safeImageUri } from '../src/utils/imageUtils';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ReturnDetail'>;
 
@@ -135,7 +136,7 @@ export default function ReturnDetailScreen({ route, navigation }: Props) {
             
             return (
               <View key={returnItem.itemId} style={styles.itemRow}>
-                <Image source={{ uri: orderItem.image }} style={styles.itemImage} />
+                <Image source={{ uri: safeImageUri(orderItem.image) }} style={styles.itemImage} />
                 <View style={styles.itemInfo}>
                   <Text style={styles.itemName} numberOfLines={2}>{orderItem.name}</Text>
                   <Text style={styles.itemMeta}>Qty: {returnItem.quantity}</Text>

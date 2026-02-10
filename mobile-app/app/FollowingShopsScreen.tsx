@@ -9,6 +9,7 @@ import { GuestLoginModal } from '../src/components/GuestLoginModal';
 import { COLORS } from '../src/constants/theme';
 
 import { sellerService } from '../src/services/sellerService';
+import { safeImageUri, PLACEHOLDER_BANNER } from '../src/utils/imageUtils';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'FollowingShops'>;
 
@@ -123,7 +124,7 @@ export default function FollowingShopsScreen({ navigation }: Props) {
                 ) : (
                     followingShops.map((shop) => (
                         <Pressable key={shop.id} style={styles.shopCard} onPress={() => handleVisitShop(shop)}>
-                            <Image source={{ uri: shop.banner }} style={styles.shopImage} />
+                            <Image source={{ uri: safeImageUri(shop.banner, PLACEHOLDER_BANNER) }} style={styles.shopImage} />
                             <View style={styles.overlay} />
                             <View style={styles.logoContainer}>
                                 <Text style={{ fontSize: 24 }}>{shop.logo}</Text>

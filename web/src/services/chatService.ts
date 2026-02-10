@@ -73,10 +73,26 @@ class ChatService {
       `)
       .eq('order_id', orderId)
       .limit(1)
-      .single();
+      .maybeSingle();
 
     // Note: If products don't have seller_id, this might need adjustment
     return (data?.product as any)?.seller_id || null;
+  }
+
+  /**
+   * Helper: Get seller ID from messages in a conversation
+   */
+  private async getSellerIdFromMessages(conversationId: string): Promise<string | null> {
+    // Find the seller from messages where sender_type is 'seller'
+    const { data } = await supabase
+      .from('messages')
+      .select('sender_id')
+      .eq('conversation_id', conversationId)
+      .eq('sender_type', 'seller')
+      .limit(1)
+      .maybeSingle();
+
+    return data?.sender_id || null;
   }
 
   /**
@@ -97,9 +113,7 @@ class ChatService {
     buyerUnreadCount: number;
     sellerUnreadCount: number;
   }> {
-
-
-    // Get last message
+    // Get last message - use maybeSingle to handle conversations with no messages yet
     const { data: lastMsg } = await supabase
       .from('messages')
       .select('content, created_at')
@@ -136,8 +150,6 @@ class ChatService {
    * Note: New schema doesn't have seller_id, but we track via order or messages
    */
   async getOrCreateConversation(buyerId: string, sellerId: string, orderId?: string): Promise<Conversation | null> {
-
-
     // First, try to find existing conversation via order if provided
     if (orderId) {
       const { data: existing, error: findError } = await supabase
@@ -200,18 +212,24 @@ class ChatService {
       .from('profiles')
       .select('first_name, last_name, email')
       .eq('id', conv.buyer_id)
-      .single();
+      .maybeSingle();
 
     const { data: buyerData } = await supabase
       .from('buyers')
       .select('avatar_url')
       .eq('id', conv.buyer_id)
-      .single();
+      .maybeSingle();
 
-    // Try to get seller from order if not provided
+    // Try to get seller from multiple sources:
+    // 1. Provided sellerId
+    // 2. From order (via order_items -> products -> seller_id)
+    // 3. From messages where sender_type is 'seller'
     let resolvedSellerId = sellerId;
     if (!resolvedSellerId && conv.order_id) {
       resolvedSellerId = await this.getSellerIdFromOrder(conv.order_id) || undefined;
+    }
+    if (!resolvedSellerId) {
+      resolvedSellerId = await this.getSellerIdFromMessages(conv.id) || undefined;
     }
 
     let seller = null;
@@ -220,7 +238,7 @@ class ChatService {
         .from('sellers')
         .select('store_name, avatar_url')
         .eq('id', resolvedSellerId)
-        .single();
+        .maybeSingle();
       seller = data;
     }
 
@@ -291,7 +309,6 @@ class ChatService {
    * New schema: no seller_id in conversations, so we find via messages
    */
   async getSellerConversations(sellerId: string): Promise<Conversation[]> {
-
     // Find all conversations where this seller has sent/received messages
     const { data: sellerMessages } = await supabase
       .from('messages')
@@ -338,7 +355,6 @@ class ChatService {
    * Get messages for a conversation
    */
   async getMessages(conversationId: string): Promise<Message[]> {
-
     const { data, error } = await supabase
       .from('messages')
       .select('*')
@@ -395,7 +411,7 @@ class ChatService {
       .from('conversations')
       .select('buyer_id, order_id')
       .eq('id', conversationId)
-      .single();
+      .maybeSingle();
 
     // Send notification to the recipient
     try {
@@ -407,7 +423,7 @@ class ChatService {
             .from('profiles')
             .select('first_name, last_name')
             .eq('id', senderId)
-            .single();
+            .maybeSingle();
 
           const buyerName = buyer ? this.getBuyerFullName(buyer) : 'A customer';
 
@@ -433,7 +449,6 @@ class ChatService {
    * New schema: no unread counts in conversations, just mark messages
    */
   async markAsRead(conversationId: string, userId: string, userType: 'buyer' | 'seller'): Promise<void> {
-
     // Mark all messages from the other party as read
     const otherType = userType === 'buyer' ? 'seller' : 'buyer';
     
@@ -553,7 +568,7 @@ class ChatService {
               .from('conversations')
               .select('*')
               .eq('id', msg.conversation_id)
-              .single();
+              .maybeSingle();
             
             if (conv) {
               const enriched = await this.enrichConversation(conv, userId);
@@ -586,7 +601,6 @@ class ChatService {
    * New schema: Computed from messages table, not stored in conversations
    */
   async getUnreadCount(userId: string, userType: 'buyer' | 'seller'): Promise<number> {
-
     if (userType === 'buyer') {
       // Count unread messages from sellers in buyer's conversations
       const { data: convs } = await supabase

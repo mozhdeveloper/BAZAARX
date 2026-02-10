@@ -386,7 +386,6 @@ export class AddressService {
                     .single();
 
                 if (error) throw error;
-                console.log('[AddressService] Updated current delivery location in DB');
                 return this.mapFromDB(data);
             } else {
                 // Create new "Current Location" address
@@ -397,7 +396,6 @@ export class AddressService {
                     .single();
 
                 if (error) throw error;
-                console.log('[AddressService] Created current delivery location in DB');
                 return this.mapFromDB(data);
             }
         } catch (error) {

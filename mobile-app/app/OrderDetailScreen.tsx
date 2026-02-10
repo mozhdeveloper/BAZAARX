@@ -23,6 +23,7 @@ import { supabase } from '../src/lib/supabase';
 import { useReturnStore } from '../src/stores/returnStore';
 import { reviewService } from '../src/services/reviewService';
 import { useAuthStore } from '../src/stores/authStore';
+import { safeImageUri } from '../src/utils/imageUtils';
 import ReviewModal from '../src/components/ReviewModal';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'OrderDetail'>;
@@ -273,7 +274,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
               <View style={styles.itemRow}>
                 <Pressable onPress={() => navigation.navigate('ProductDetail', { product: item })}>
                   <Image
-                    source={{ uri: item.image || 'https://via.placeholder.com/60' }}
+                    source={{ uri: safeImageUri(item.image) }}
                     style={styles.itemImage}
                   />
                 </Pressable>

@@ -31,6 +31,7 @@ export interface CheckoutPayload {
 export interface CheckoutResult {
     success: boolean;
     orderIds?: string[];
+    orderUuids?: string[];
     error?: string;
     newBazcoinsBalance?: number;
 }
@@ -68,10 +69,8 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
         email
     } = payload;
 
-    console.log('[Checkout] Starting checkout process...', { userId, itemCount: items.length });
-
     try {
-        // 1. Validate Stock
+        // 1. Validate Stock (non-blocking — skips items with missing products)
         for (const item of items) {
             if (!item.id) continue;
 
@@ -79,16 +78,20 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                 .from('products')
                 .select('stock')
                 .eq('id', item.id)
-                .single();
+                .maybeSingle();
 
-            if (productError || !product) {
-                console.warn(`Product ${item.id} not found, skipping stock validation`);
+            if (productError) {
+                console.warn(`[Checkout] Stock check error for ${item.id}:`, productError.message);
                 continue; // Skip validation but allow checkout
+            }
+            if (!product) {
+                console.warn(`[Checkout] Product ${item.id} not found in DB, skipping stock check`);
+                continue;
             }
 
             // For now, we're checking base stock (variants support can be added later)
             if ((product.stock || 0) < item.quantity) {
-                throw new Error(`Insufficient stock for ${item.name}`);
+                throw new Error(`Insufficient stock for ${item.name}. Only ${product.stock || 0} left.`);
             }
         }
 
@@ -120,6 +123,7 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
         }
 
         const createdOrderIds: string[] = [];
+        const createdOrderUuids: string[] = [];
         const sharedBaseNumber = generateOrderNumber();
         let sellerIndex = 1;
 
@@ -134,12 +138,20 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
             );
 
             // First, create a shipping address record
+            // Build address_line_1 properly - filter out empty values
+            const addressParts = [
+                shippingAddress.fullName || '',
+                shippingAddress.phone || '',
+                shippingAddress.street || ''
+            ].filter(Boolean);
+            const addressLine1 = addressParts.length > 0 ? addressParts.join(', ') : shippingAddress.street || 'Address';
+
             const { data: addressData, error: addressError } = await supabase
                 .from('shipping_addresses')
                 .insert({
                     user_id: userId,
                     label: 'Checkout Address',
-                    address_line_1: `${shippingAddress.fullName}, ${shippingAddress.phone}, ${shippingAddress.street}`,
+                    address_line_1: addressLine1,
                     barangay: shippingAddress.barangay || '',
                     city: shippingAddress.city || 'Manila',
                     province: shippingAddress.province || 'Metro Manila',
@@ -174,6 +186,7 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
 
             if (orderError) throw orderError;
             createdOrderIds.push(orderData.order_number);
+            createdOrderUuids.push(orderData.id);
 
             console.log(`[Checkout] ✅ Order created: ${orderData.order_number} for seller ${sellerId}`);
 
@@ -333,8 +346,6 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
             const currentCoins = buyer?.bazcoins || 0;
             const newBalance = currentCoins - usedBazcoins + earnedBazcoins;
 
-            console.log(`[Checkout] Bazcoins update: ${currentCoins} - ${usedBazcoins} + ${earnedBazcoins} = ${newBalance}`);
-
             const { error: updateError } = await supabase
                 .from('buyers')
                 .update({ bazcoins: newBalance })
@@ -345,37 +356,38 @@ export const processCheckout = async (payload: CheckoutPayload): Promise<Checkou
                 throw new Error('Failed to update Bazcoins balance');
             }
 
-            console.log(`[Checkout] ✅ Updated Bazcoins: ${currentCoins} -> ${newBalance}`);
         }
 
-        // 5. Clear cart items
-        const itemIdsToRemove = items.map(i => i.id);
-        if (itemIdsToRemove.length > 0) {
-            // Get cart ID for the user
+        // 5. Clear checked-out items from cart
+        const productIdsToRemove = items.map(i => i.id).filter(Boolean);
+        if (productIdsToRemove.length > 0) {
+            // Get cart for this user (simple query without expires_at filter)
             const { data: cart } = await supabase
                 .from('carts')
                 .select('id')
                 .eq('buyer_id', userId)
-                .is('expires_at', null)
                 .maybeSingle();
 
             if (cart) {
-                await supabase
+                const { error: deleteError } = await supabase
                     .from('cart_items')
                     .delete()
                     .eq('cart_id', cart.id)
-                    .in('product_id', itemIdsToRemove);
+                    .in('product_id', productIdsToRemove);
 
-                // Recalculate cart total using CartService
-                await cartService.syncCartTotal(cart.id);
+                if (deleteError) {
+                    console.warn('[Checkout] Failed to clear cart items:', deleteError.message);
+                } else {
+                    console.log('[Checkout] ✅ Cleared', productIdsToRemove.length, 'items from cart');
+                }
             }
         }
 
-        console.log('[Checkout] ✅ Checkout completed successfully');
 
         return {
             success: true,
-            orderIds: createdOrderIds
+            orderIds: createdOrderIds,
+            orderUuids: createdOrderUuids
         };
 
     } catch (error: any) {

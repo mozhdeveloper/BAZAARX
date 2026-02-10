@@ -16,7 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Mail, Lock, Eye, EyeOff, ArrowRight, Zap, CheckCircle2, ChevronDown, X } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../../src/lib/supabase';
-import { useSellerStore, useAuthStore } from '../../src/stores/sellerStore';
+import { useAuthStore } from '../../src/stores/sellerStore';
 import { LinearGradient } from 'expo-linear-gradient';
 
 const { width } = Dimensions.get('window');
@@ -93,8 +93,8 @@ export default function SellerLoginScreen() {
         const lastName = (profile as any)?.last_name || '';
         const fullName = `${firstName} ${lastName}`.trim() || sellerData.store_name || 'BazaarX Seller';
 
-        // FIXED: Use .getState() pattern for Zustand stores in async functions (same as buyer login)
-        useSellerStore.getState().setUser({
+        // FIXED: Use useAuthStore.getState() - the actual Zustand store for seller auth
+        useAuthStore.getState().setUser({
           id: authData.user.id,
           name: fullName,
           email: authData.user.email || '',
@@ -102,8 +102,8 @@ export default function SellerLoginScreen() {
           avatar: (profile as any)?.avatar_url || ''
         });
 
-        // Sync with SellerStore
-        useSellerStore.getState().updateSellerInfo({
+        // Sync with AuthStore (seller info)
+        useAuthStore.getState().updateSellerInfo({
           id: authData.user.id,
           store_name: sellerData.store_name,
           email: authData.user.email,
@@ -118,12 +118,16 @@ export default function SellerLoginScreen() {
         });
 
         // Set roles and switch to seller role
-        useSellerStore.getState().addRole('seller');
-        useSellerStore.getState().switchRole('seller');
+        useAuthStore.getState().addRole('seller');
+        useAuthStore.getState().switchRole('seller');
 
-        // Fetch orders to replace dummy data in OrderStore
+        // Fetch seller orders from database (not buyer orders)
         const { useOrderStore } = await import('../../src/stores/orderStore');
-        useOrderStore.getState().fetchOrders(authData.user.id);
+        useOrderStore.getState().fetchSellerOrders(authData.user.id);
+
+        // Fetch seller products from database
+        const { useProductStore } = await import('../../src/stores/sellerStore');
+        useProductStore.getState().fetchProducts({ sellerId: authData.user.id });
 
         navigation.replace('SellerStack');
       }
@@ -135,8 +139,9 @@ export default function SellerLoginScreen() {
   };
 
   const fillDemoCredentials = () => {
-    setEmail('seller@bazaarph.com');
-    setPassword('password');
+    // Use first test seller account credentials
+    setEmail('seller1@bazaarph.com');
+    setPassword('Test@123456');
   };
 
   return (

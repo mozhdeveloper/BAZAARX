@@ -5,6 +5,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useAdminCategories } from '../../../src/stores/adminStore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../../../src/constants/theme';
+import { safeImageUri } from '../../../src/utils/imageUtils';
 
 export default function AdminCategoriesScreen() {
   const navigation = useNavigation();
@@ -127,7 +128,7 @@ export default function AdminCategoriesScreen() {
           filteredCategories.map((category) => (
             <View key={category.id} style={styles.categoryCard}>
               <View style={styles.cardHeader}>
-                <Image source={{ uri: category.image }} style={styles.categoryImage} />
+                <Image source={{ uri: safeImageUri(category.image) }} style={styles.categoryImage} />
                 <View style={styles.headerInfo}>
                   <Text style={styles.categoryName}>{category.name}</Text>
                   <Text style={styles.categorySlug}>/{category.slug}</Text>

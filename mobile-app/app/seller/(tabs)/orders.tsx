@@ -17,6 +17,7 @@ import { Package, ShoppingCart, Bell, X, Search, ChevronDown, Menu, RefreshCw, E
 import { useSellerStore } from '../../../src/stores/sellerStore';
 import { useReturnStore } from '../../../src/stores/returnStore';
 import SellerDrawer from '../../../src/components/SellerDrawer';
+import { safeImageUri } from '../../../src/utils/imageUtils';
 
 type OrderStatus = 'all' | 'pending' | 'to-ship' | 'completed' | 'cancelled' | 'returns' | 'refunds';
 type ChannelFilter = 'all' | 'online' | 'pos';
@@ -74,6 +75,9 @@ export default function SellerOrdersScreen() {
   };
 
   // Save edited order details to database
+  // Note: orders table does NOT have buyer_name/buyer_email columns!
+  // For POS (OFFLINE) orders: use order_recipients table for customer info
+  // For ONLINE orders: customer info comes from buyers → profiles (read-only)
   const handleSaveOrderDetails = async () => {
     if (!selectedOrder) return;
     
@@ -85,20 +89,87 @@ export default function SellerOrdersScreen() {
       const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
       const supabase = createClient(supabaseUrl, supabaseKey);
       
-      // Update order in database
-      const { error } = await supabase
+      // Get current order to check for existing recipient
+      const { data: currentOrder, error: fetchError } = await supabase
         .from('orders')
-        .update({
-          buyer_name: editedCustomerName,
-          buyer_email: editedCustomerEmail,
-          notes: editedNote,
-        })
-        .eq('id', selectedOrder.id);
+        .select('recipient_id, order_type')
+        .eq('id', selectedOrder.id)
+        .single();
+        
+      if (fetchError) {
+        console.error('[Orders] Failed to fetch order:', fetchError);
+        throw fetchError;
+      }
       
-      if (error) {
-        console.error('[Orders] Failed to update order:', error);
-        alert('Failed to save changes. Please try again.');
-        return;
+      // Only allow editing customer details for OFFLINE (POS) orders
+      // ONLINE orders have customer info from verified buyer profile
+      if (currentOrder.order_type === 'ONLINE') {
+        // For ONLINE orders, only update the notes field
+        const { error } = await supabase
+          .from('orders')
+          .update({
+            notes: editedNote,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', selectedOrder.id);
+          
+        if (error) throw error;
+      } else {
+        // For OFFLINE (POS) orders, update or create recipient record
+        // Parse name into first/last
+        const nameParts = editedCustomerName.trim().split(' ');
+        const firstName = nameParts[0] || '';
+        const lastName = nameParts.slice(1).join(' ') || '';
+        
+        if (currentOrder.recipient_id) {
+          // Update existing recipient
+          const { error: recipientError } = await supabase
+            .from('order_recipients')
+            .update({
+              first_name: firstName,
+              last_name: lastName,
+              email: editedCustomerEmail || null,
+            })
+            .eq('id', currentOrder.recipient_id);
+            
+          if (recipientError) throw recipientError;
+        } else {
+          // Create new recipient and link to order
+          const { data: newRecipient, error: createError } = await supabase
+            .from('order_recipients')
+            .insert({
+              first_name: firstName,
+              last_name: lastName,
+              email: editedCustomerEmail || null,
+            })
+            .select('id')
+            .single();
+            
+          if (createError) throw createError;
+          
+          // Link recipient to order
+          const { error: linkError } = await supabase
+            .from('orders')
+            .update({ 
+              recipient_id: newRecipient.id,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', selectedOrder.id);
+            
+          if (linkError) throw linkError;
+        }
+        
+        // Update order notes (uses pos_note for POS orders)
+        const { error: noteError } = await supabase
+          .from('orders')
+          .update({
+            pos_note: editedNote,
+            notes: editedNote, // Also update general notes for compatibility
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', selectedOrder.id);
+          
+        if (noteError) throw noteError;
       }
       
       console.log('[Orders] ✅ Order details updated in database');
@@ -142,6 +213,8 @@ export default function SellerOrdersScreen() {
       fetchOrders(seller.id);
     }
   }, [seller?.id]);
+
+
 
   // Pull-to-refresh handler
   const onRefresh = async () => {
@@ -207,9 +280,9 @@ export default function SellerOrdersScreen() {
     
     const q = searchQuery.trim().toLowerCase();
     const matchesSearch = !q ? true : (
-      (order.orderId && order.orderId.toLowerCase().includes(q)) ||
-      (order.customerName && order.customerName.toLowerCase().includes(q)) ||
-      (order.customerEmail && order.customerEmail.toLowerCase().includes(q))
+      (order.orderId && String(order.orderId).toLowerCase().includes(q)) ||
+      (order.customerName && String(order.customerName).toLowerCase().includes(q)) ||
+      (order.customerEmail && String(order.customerEmail).toLowerCase().includes(q))
     );
 
     return matchesTab && matchesChannel && matchesSearch;
@@ -515,7 +588,7 @@ export default function SellerOrdersScreen() {
                           numberOfLines={1}
                           ellipsizeMode="tail"
                         >
-                          {order.orderId}
+                          {String(order.orderId || order.id || '')}
                         </Text>
                       </View>
                       <View style={{ marginLeft: 8, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -531,14 +604,14 @@ export default function SellerOrdersScreen() {
                         )}
                       </View>
                     </View>
-                    <Text style={styles.customerName}>{order.customerName}</Text>
+                    <Text style={styles.customerName}>{String(order.customerName || '')}</Text>
                     {order.posNote ? (
                       <Text style={styles.posNote} numberOfLines={1}>
-                        Note: {order.posNote}
+                        Note: {String(order.posNote || '')}
                       </Text>
                     ) : (
                       <Text style={styles.customerEmail} numberOfLines={1}>
-                        {order.customerEmail}
+                        {String(order.customerEmail || '')}
                       </Text>
                     )}
                   </View>
@@ -554,7 +627,7 @@ export default function SellerOrdersScreen() {
                         { color: getStatusColor(order.status) },
                       ]}
                     >
-                      {order.status.replace('-', ' ').toUpperCase()}
+                      {String(order.status || 'pending').replace('-', ' ').toUpperCase()}
                     </Text>
                   </View>
                 </View>
@@ -565,7 +638,7 @@ export default function SellerOrdersScreen() {
                 >
                   {order.items.map((item, index) => (
                     <View key={index} style={styles.thumbnailContainer}>
-                      <Image source={{ uri: item.image }} style={styles.thumbnail} />
+                      <Image source={{ uri: safeImageUri(item.image) }} style={styles.thumbnail} />
                       <View style={styles.quantityBadge}>
                         <Text style={styles.quantityText}>x{item.quantity}</Text>
                       </View>
@@ -576,7 +649,11 @@ export default function SellerOrdersScreen() {
                   <View>
                     <Text style={styles.totalLabel}>Total Amount</Text>
                     <Text style={styles.totalAmount}>
-                      ₱{order.total.toLocaleString()}
+                      ₱{(
+                        order.total > 0 
+                          ? order.total 
+                          : order.items.reduce((sum: number, item: any) => sum + ((item.price || 0) * (item.quantity || 1)), 0)
+                      ).toLocaleString()}
                     </Text>
                   </View>
                   <View style={styles.viewDetailsHint}>
@@ -637,7 +714,7 @@ export default function SellerOrdersScreen() {
                   <Text style={styles.editSectionTitle}>Order Information</Text>
                   <View style={styles.editInfoRow}>
                     <Text style={styles.editLabel}>Order ID</Text>
-                    <Text style={styles.editValue}>{selectedOrder.orderId}</Text>
+                    <Text style={styles.editValue}>{String(selectedOrder.orderId || selectedOrder.id || '')}</Text>
                   </View>
                   <View style={styles.editInfoRow}>
                     <Text style={styles.editLabel}>Type</Text>
@@ -711,16 +788,16 @@ export default function SellerOrdersScreen() {
                     <>
                       <View style={styles.editInfoRow}>
                         <Text style={styles.editLabel}>Name</Text>
-                        <Text style={styles.editValue}>{selectedOrder.customerName}</Text>
+                        <Text style={styles.editValue}>{String(selectedOrder.customerName || '')}</Text>
                       </View>
                       <View style={styles.editInfoRow}>
                         <Text style={styles.editLabel}>Email</Text>
-                        <Text style={styles.editValue}>{selectedOrder.customerEmail || 'N/A'}</Text>
+                        <Text style={styles.editValue}>{String(selectedOrder.customerEmail || 'N/A')}</Text>
                       </View>
                       {selectedOrder.posNote && (
                         <View style={styles.editInfoRow}>
                           <Text style={styles.editLabel}>Note</Text>
-                          <Text style={styles.editValue}>{selectedOrder.posNote}</Text>
+                          <Text style={styles.editValue}>{String(selectedOrder.posNote || '')}</Text>
                         </View>
                       )}
                     </>
@@ -750,27 +827,33 @@ export default function SellerOrdersScreen() {
                   <Text style={styles.editSectionTitle}>Items ({selectedOrder.items.length})</Text>
                   {selectedOrder.items.map((item: any, index: number) => (
                     <View key={index} style={styles.editItemRow}>
-                      <Image source={{ uri: item.image }} style={styles.editItemImage} />
+                      <Image source={{ uri: safeImageUri(item.image) }} style={styles.editItemImage} />
                       <View style={styles.editItemInfo}>
-                        <Text style={styles.editItemName} numberOfLines={2}>{item.productName}</Text>
+                        <Text style={styles.editItemName} numberOfLines={2}>{String(item.productName || 'Unknown Product')}</Text>
                         <Text style={styles.editItemDetails}>
                           {item.selectedColor && `Color: ${item.selectedColor}`}
                           {item.selectedColor && item.selectedSize && ' | '}
                           {item.selectedSize && `Size: ${item.selectedSize}`}
                         </Text>
                         <Text style={styles.editItemPrice}>
-                          ₱{item.price.toLocaleString()} × {item.quantity}
+                          ₱{(item.price || 0).toLocaleString()} × {item.quantity}
                         </Text>
                       </View>
                     </View>
                   ))}
                 </View>
 
-                {/* Total */}
+                {/* Total - Calculate from items if order.total is 0 */}
                 <View style={styles.editSection}>
                   <View style={styles.editTotalRow}>
                     <Text style={styles.editTotalLabel}>Total Amount</Text>
-                    <Text style={styles.editTotalValue}>₱{selectedOrder.total.toLocaleString()}</Text>
+                    <Text style={styles.editTotalValue}>
+                      ₱{(
+                        selectedOrder.total > 0 
+                          ? selectedOrder.total 
+                          : selectedOrder.items.reduce((sum: number, item: any) => sum + ((item.price || 0) * (item.quantity || 1)), 0)
+                      ).toLocaleString()}
+                    </Text>
                   </View>
                 </View>
 
@@ -785,7 +868,7 @@ export default function SellerOrdersScreen() {
                       styles.currentStatusText,
                       { color: getStatusColor(selectedOrder.status) }
                     ]}>
-                      {selectedOrder.status.replace('-', ' ').toUpperCase()}
+                      {String(selectedOrder.status || 'pending').replace('-', ' ').toUpperCase()}
                     </Text>
                   </View>
                 </View>

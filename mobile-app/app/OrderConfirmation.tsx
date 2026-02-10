@@ -12,6 +12,7 @@ import { CheckCircle, HelpCircle } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import type { Order } from '../src/types';
+import { safeImageUri } from '../src/utils/imageUtils';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'OrderConfirmation'>;
 
@@ -42,7 +43,7 @@ export default function OrderConfirmation({ navigation, route }: Props) {
           {order.items.slice(0, 3).map((item, index) => (
             <View key={index} style={styles.thumbnailWrapper}>
               <Image
-                source={{ uri: item.image }}
+                source={{ uri: safeImageUri(item.image) }}
                 style={styles.thumbnail}
               />
             </View>

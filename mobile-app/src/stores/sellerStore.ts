@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useProductQAStore } from './productQAStore';
 import { useOrderStore as useOrderStoreExternal } from './orderStore';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
@@ -99,7 +100,8 @@ interface SellerOrder {
     selectedSize?: string;
   }[];
   total: number;
-  status: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
+  // Status aligned with Order Management UI: pending, to-ship, completed, cancelled
+  status: 'pending' | 'to-ship' | 'completed' | 'cancelled' | 'confirmed' | 'shipped' | 'delivered';
   paymentStatus: 'pending' | 'paid' | 'refunded';
   orderDate: string;
   shippingAddress: {
@@ -345,6 +347,18 @@ const mapDbSellerToSeller = (s: any): Seller => {
 };
 
 /**
+ * Safely extract a string from a value that might be an object, e.g. {name:"..."} from JSONB
+ */
+const safeStr = (val: any, fallback = ''): string => {
+  if (val === null || val === undefined) return fallback;
+  if (typeof val === 'string') return val;
+  if (typeof val === 'object' && val.name) return String(val.name);
+  if (typeof val === 'object' && val.full_name) return String(val.full_name);
+  if (typeof val === 'object' && val.store_name) return String(val.store_name);
+  return String(val);
+};
+
+/**
  * Map database product to SellerProduct interface
  * Note: Actual schema has product data split across:
  * - products: id, name, description, price, category_id, brand, sku, specifications, approval_status
@@ -370,8 +384,8 @@ const mapDbProductToSellerProduct = (p: any): SellerProduct => {
 
   return {
     id: p.id,
-    name: p.name || '',
-    description: p.description || '',
+    name: safeStr(p.name, ''),
+    description: safeStr(p.description, ''),
     price: Number(p.price ?? 0),
     originalPrice: undefined,
     stock: totalStock || p.stock || 0,
@@ -442,66 +456,153 @@ const dummyOrders: SellerOrder[] = [];
 
 // Helper function to map database Order to SellerOrder
 const mapOrderToSellerOrder = (order: any): SellerOrder => {
+  // Extract buyer info from order data
+  // For ONLINE orders: buyer_profile contains the customer info (fetched separately)
+  // For OFFLINE orders: use recipient info or defaults to Walk-in
+  // Note: buyer_profile is attached by orderService after fetching from profiles table
+  const buyerProfile = order.buyer_profile; // Direct profile data, not nested
+  const recipientInfo = order.recipient;
+  const addressInfo = order.address;
+  
+
+
+  // Determine buyer name - priority: buyer profile (for ONLINE) > recipient > Walk-in
+  let buyerName = 'Walk-in Customer';
+  let buyerEmail = '';
+  let buyerPhone = '';
+  
+  if (order.order_type === 'ONLINE') {
+    // For ONLINE orders, get real customer info from buyer profile first, then recipient
+    if (buyerProfile?.first_name || buyerProfile?.last_name) {
+      buyerName = `${buyerProfile.first_name || ''} ${buyerProfile.last_name || ''}`.trim() || 'Customer';
+      buyerEmail = buyerProfile.email || '';
+      buyerPhone = buyerProfile.phone || '';
+    } else if (buyerProfile?.email) {
+      // Use email username as name if no name available
+      buyerName = buyerProfile.email.split('@')[0];
+      buyerEmail = buyerProfile.email;
+    } else if (recipientInfo?.first_name || recipientInfo?.last_name) {
+      // Fallback to recipient info if profile doesn't have name
+      buyerName = `${recipientInfo.first_name || ''} ${recipientInfo.last_name || ''}`.trim() || 'Customer';
+      buyerEmail = recipientInfo.email || '';
+      buyerPhone = recipientInfo.phone || '';
+    }
+  } else {
+    // For OFFLINE (POS) orders, check recipient table first (new schema)
+    // then fall back to legacy fields
+    if (recipientInfo?.first_name || recipientInfo?.last_name) {
+      buyerName = `${recipientInfo.first_name || ''} ${recipientInfo.last_name || ''}`.trim() || 'Walk-in Customer';
+      buyerEmail = recipientInfo.email || '';
+      buyerPhone = recipientInfo.phone || '';
+    } else {
+      buyerName = 'Walk-in Customer';
+      buyerEmail = '';
+      buyerPhone = '';
+    }
+  }
+
   // Handle order_items - it might be nested or need to be fetched separately
   const orderItems = Array.isArray(order.order_items) ? order.order_items : [];
 
-  const items = orderItems.map((item: any) => ({
-    productId: item.product_id || '',
-    productName: item.product_name || 'Unknown Product',
-    quantity: item.quantity || 1,
-    price: parseFloat(item.price?.toString() || '0'),
-    image: item.product_images?.[0] || 'https://via.placeholder.com/100'
-  }));
+  const items = orderItems.map((item: any) => {
+    const itemPrice = parseFloat(item.price?.toString() || '0');
+    const itemQty = item.quantity || 1;
+    
+    return {
+      productId: String(item.product_id || ''),
+      productName: safeStr(item.product_name, safeStr(item.productName, 'Unknown Product')),
+      quantity: itemQty,
+      price: itemPrice,
+      image: (Array.isArray(item.product_images) ? item.product_images[0] : null) || item.primary_image_url || item.image || 'https://via.placeholder.com/100',
+      selectedColor: item.personalized_options?.color || undefined,
+      selectedSize: item.personalized_options?.size || undefined
+    };
+  });
 
-  // Map database status to SellerOrder status
-  const statusMap: Record<string, SellerOrder['status']> = {
-    'pending_payment': 'pending',
-    'pending': 'pending',
-    'confirmed': 'confirmed',
-    'processing': 'confirmed',
-    'shipped': 'shipped',
-    'delivered': 'delivered',
-    'cancelled': 'cancelled',
-    'completed': 'delivered'
+  // Always calculate total from items - this is more reliable than DB total_amount
+  const calculatedTotal = items.reduce((sum: number, item: { price: number; quantity: number }) => 
+    sum + (item.price * item.quantity), 0);
+  const dbTotal = parseFloat(order.total_amount?.toString() || '0');
+  
+  // Use calculated total if DB total is 0 or missing
+  const total = calculatedTotal > 0 ? calculatedTotal : dbTotal;
+
+  // Map database status to Orders UI status (pending, to-ship, completed, cancelled)
+  // Database uses: pending_payment, processing, ready_to_ship, shipped, delivered, etc.
+  // UI expects: pending, to-ship, completed, cancelled
+  const mapStatus = (dbStatus: string, paymentStatus?: string, shipmentStatus?: string): SellerOrder['status'] => {
+    // First check shipment_status if available (new schema)
+    if (shipmentStatus) {
+      if (shipmentStatus === 'delivered' || shipmentStatus === 'received') return 'completed';
+      if (['ready_to_ship', 'processing', 'shipped', 'out_for_delivery'].includes(shipmentStatus)) return 'to-ship';
+      if (shipmentStatus === 'returned' || shipmentStatus === 'cancelled') return 'cancelled';
+      if (shipmentStatus === 'waiting_for_seller') return 'pending';
+    }
+    
+    // Fallback to legacy status mapping
+    const statusMap: Record<string, SellerOrder['status']> = {
+      'pending_payment': 'pending',
+      'pending': 'pending',
+      'confirmed': 'to-ship',
+      'processing': 'to-ship',
+      'ready_to_ship': 'to-ship',
+      'shipped': 'to-ship',
+      'out_for_delivery': 'to-ship',
+      'delivered': 'completed',
+      'completed': 'completed',
+      'cancelled': 'cancelled',
+      'refunded': 'cancelled'
+    };
+    return statusMap[dbStatus] || 'pending';
   };
 
   // Map payment status
   const paymentStatusMap: Record<string, SellerOrder['paymentStatus']> = {
     'pending': 'pending',
+    'pending_payment': 'pending',
     'paid': 'paid',
     'refunded': 'refunded',
     'failed': 'pending'
   };
 
-  const shippingAddr = order.shipping_address || {};
+  // Build shipping address from joined address relation or fallback to legacy fields
+  const shippingAddress = {
+    fullName: recipientInfo 
+      ? `${recipientInfo.first_name || ''} ${recipientInfo.last_name || ''}`.trim() 
+      : buyerName,
+    street: addressInfo?.address_line_1 || order.shipping_address?.street || '',
+    barangay: addressInfo?.barangay || '',
+    city: addressInfo?.city || order.shipping_address?.city || '',
+    province: addressInfo?.province || order.shipping_address?.province || '',
+    region: addressInfo?.region || '',
+    postalCode: addressInfo?.postal_code || order.shipping_address?.postalCode || '',
+    phone: recipientInfo?.phone || buyerPhone || order.shipping_address?.phone || ''
+  };
 
   return {
     id: order.id,
+    orderId: order.order_number || order.id, // Add orderId for display
     seller_id: order.seller_id,
     buyer_id: order.buyer_id,
-    buyerName: order.buyer_name || 'Unknown',
-    buyerEmail: order.buyer_email || 'unknown@example.com',
+    buyerName: buyerName,
+    buyerEmail: buyerEmail,
+    customerName: buyerName,
+    customerEmail: buyerEmail,
     items,
-    total: parseFloat(order.total_amount?.toString() || '0'),
-    status: statusMap[order.status] || 'pending',
+    total,
+    status: mapStatus(order.status, order.payment_status, order.shipment_status),
     paymentStatus: paymentStatusMap[order.payment_status] || 'pending',
     orderDate: order.created_at,
-    shippingAddress: {
-      fullName: shippingAddr.fullName || order.buyer_name || 'Unknown',
-      street: shippingAddr.street || '',
-      city: shippingAddr.city || '',
-      province: shippingAddr.province || '',
-      postalCode: shippingAddr.postalCode || '',
-      phone: shippingAddr.phone || order.buyer_phone || ''
-    },
+    createdAt: order.created_at,
+    shippingAddress,
     trackingNumber: order.tracking_number || undefined,
     rating: order.rating || undefined,
     reviewComment: order.review_comment || undefined,
     reviewImages: order.review_images || undefined,
     reviewDate: order.review_date || undefined,
     type: order.order_type === 'OFFLINE' ? 'OFFLINE' : 'ONLINE',
-    posNote: order.pos_note || undefined
-  };
+    posNote: order.pos_note || order.notes || undefined
+  } as SellerOrder & { orderId: string; customerName: string; customerEmail: string; createdAt: string };
 };
 
 // Auth Store
@@ -773,7 +874,20 @@ export const useAuthStore = create<AuthStore>()(
       updateSellerInfo: (info) => {
         const { seller } = get();
         if (seller) {
-          set({ seller: { ...seller, ...info } });
+          set({ seller: { ...seller, ...info }, isAuthenticated: true });
+        } else {
+          // Create a new seller object when seller is null (e.g., during login.tsx flow)
+          set({
+            seller: {
+              id: info.id || '',
+              store_name: info.store_name || '',
+              store_description: info.store_description || '',
+              owner_name: info.owner_name || '',
+              approval_status: info.approval_status || 'pending',
+              ...info,
+            } as Seller,
+            isAuthenticated: true,
+          });
         }
       },
 
@@ -793,7 +907,8 @@ export const useAuthStore = create<AuthStore>()(
       },
     }),
     {
-      name: 'seller-auth-storage'
+      name: 'seller-auth-storage',
+      storage: createJSONStorage(() => AsyncStorage),
     }
   )
 );
@@ -818,11 +933,7 @@ export const useProductStore = create<ProductStore>()(
         set({ loading: true, error: null });
         try {
           const data = await productService.getProducts(filters);
-          console.log('🔍 Raw product data from DB:', data);
-          console.log('🔍 First product seller info:', data?.[0]?.seller);
           const mappedProducts = (data || []).map(mapDbProductToSellerProduct);
-          console.log('🔍 Mapped products:', mappedProducts);
-          console.log('🔍 First mapped product:', mappedProducts[0]);
           set({
             products: mappedProducts,
             loading: false,
@@ -1571,6 +1682,7 @@ export const useProductStore = create<ProductStore>()(
     }),
     {
       name: 'seller-products-storage',
+      storage: createJSONStorage(() => AsyncStorage),
       version: 2,
       migrate: (state: unknown, version: number) => {
         if (version < 2) {
@@ -1670,30 +1782,37 @@ export const useOrderStore = create<OrderStore>()(
             throw new Error(`Order ${id} not found`);
           }
 
-          // Validate status transition (database-ready logic)
-          const validTransitions: Record<SellerOrder['status'], SellerOrder['status'][]> = {
-            'pending': ['confirmed', 'cancelled'],
-            'confirmed': ['shipped', 'cancelled'],
-            'shipped': ['delivered', 'cancelled'],
-            'delivered': [],
-            'cancelled': []
+          // Validate status transition (UI status: pending, to-ship, completed, cancelled)
+          const validTransitions: Record<string, string[]> = {
+            'pending': ['to-ship', 'cancelled'],
+            'to-ship': ['completed', 'cancelled'],
+            'completed': [],
+            'cancelled': [],
+            // Legacy status support
+            'confirmed': ['to-ship', 'shipped', 'cancelled'],
+            'shipped': ['delivered', 'completed', 'cancelled'],
+            'delivered': []
           };
 
-          if (!validTransitions[order.status].includes(status)) {
-            console.warn(`Invalid status transition: ${order.status} -> ${status}`);
+          const allowedTransitions = validTransitions[order.status] || [];
+          if (allowedTransitions.length > 0 && !allowedTransitions.includes(status)) {
+            console.warn(`Warning: Unusual status transition: ${order.status} -> ${status}`);
           }
 
-          // Map seller status to database status
-          const statusToDbMap: Record<SellerOrder['status'], string> = {
-            'pending': 'pending_payment',
+          // Map UI status to database shipment_status
+          const statusToDbMap: Record<string, string> = {
+            'pending': 'waiting_for_seller',
+            'to-ship': 'ready_to_ship',
+            'completed': 'delivered',
+            'cancelled': 'cancelled',
+            // Legacy mappings
             'confirmed': 'processing',
             'shipped': 'shipped',
-            'delivered': 'delivered',
-            'cancelled': 'cancelled'
+            'delivered': 'delivered'
           };
 
           const dbStatus = statusToDbMap[status] || status;
-          console.log(`📝 Mapping seller status '${status}' to database status '${dbStatus}'`);
+          console.log(`📝 Mapping UI status '${status}' to database status '${dbStatus}'`);
 
           // Get seller ID from OrderStore (stored in fetchOrders)
           let sellerId = get().sellerId;
@@ -1952,6 +2071,7 @@ export const useOrderStore = create<OrderStore>()(
     }),
     {
       name: 'seller-orders-storage',
+      storage: createJSONStorage(() => AsyncStorage),
       version: 1, // Version for migration support
     }
   )

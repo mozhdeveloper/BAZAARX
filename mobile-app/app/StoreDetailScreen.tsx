@@ -13,6 +13,7 @@ import { useAuthStore } from '../src/stores/authStore';
 import { GuestLoginModal } from '../src/components/GuestLoginModal';
 import { sellerService } from '../src/services/sellerService';
 import { productService } from '../src/services/productService';
+import { safeImageUri, PLACEHOLDER_BANNER } from '../src/utils/imageUtils';
 
 const { width } = Dimensions.get('window');
 
@@ -373,7 +374,7 @@ export default function StoreDetailScreen() {
             <ScrollView showsVerticalScrollIndicator={false}>
                 {/* Profile Banner Section */}
                 <View style={styles.profileSection}>
-                    <Image source={{ uri: store.banner }} style={styles.bannerImage} resizeMode="cover" />
+                    <Image source={{ uri: safeImageUri(store.banner, PLACEHOLDER_BANNER) }} style={styles.bannerImage} resizeMode="cover" />
                     <View style={styles.overlay} />
 
                     <View style={styles.storeInfoContent}>

@@ -3,6 +3,7 @@ import { View, Text, Image, Pressable, StyleSheet } from 'react-native';
 import { Trash2 } from 'lucide-react-native';
 import { CartItem } from '../types';
 import { QuantityStepper } from './QuantityStepper';
+import { safeImageUri } from '../utils/imageUtils';
 
 interface CartItemRowProps {
   item: CartItem;
@@ -19,7 +20,7 @@ export const CartItemRow: React.FC<CartItemRowProps> = ({
 }) => {
   return (
     <View style={styles.container}>
-      <Image source={{ uri: item.image }} style={styles.image} resizeMode="cover" />
+      <Image source={{ uri: safeImageUri(item.image) }} style={styles.image} resizeMode="cover" />
 
       <View style={styles.infoContainer}>
         <Text style={styles.name} numberOfLines={2}>

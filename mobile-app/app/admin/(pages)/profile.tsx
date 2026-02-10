@@ -5,6 +5,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useAdminAuth } from '../../../src/stores/adminStore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../../../src/constants/theme';
+import { safeImageUri, PLACEHOLDER_AVATAR } from '../../../src/utils/imageUtils';
 
 export default function AdminProfileScreen() {
   const navigation = useNavigation();
@@ -40,7 +41,7 @@ export default function AdminProfileScreen() {
         <View style={styles.profileCard}>
           <View style={styles.avatarContainer}>
             {user?.avatar ? (
-              <Image source={{ uri: user.avatar }} style={styles.avatar} />
+              <Image source={{ uri: safeImageUri(user.avatar, PLACEHOLDER_AVATAR) }} style={styles.avatar} />
             ) : (
               <View style={styles.avatarPlaceholder}>
                 <Text style={styles.avatarText}>{user?.name?.charAt(0) || 'A'}</Text>

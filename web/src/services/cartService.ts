@@ -28,7 +28,7 @@ export class CartService {
    */
   async getCart(buyerId: string): Promise<Cart | null> {
     if (!isSupabaseConfigured()) {
-      console.warn('Supabase not configured - cannot fetch cart');
+      console.warn('[CartService] Supabase not configured - returning null');
       return null;
     }
 
@@ -39,10 +39,26 @@ export class CartService {
         .eq('buyer_id', buyerId)
         .maybeSingle();
 
-      if (error) throw error;
+      if (error) {
+        // Log detailed error info for debugging
+        console.error('[CartService] Supabase error getting cart:', {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          buyerId
+        });
+        // For RLS or permission errors, return null instead of throwing
+        // so the app can continue gracefully
+        if (error.code === 'PGRST301' || error.code === '42501') {
+          console.warn('[CartService] Permission denied - returning null');
+          return null;
+        }
+        throw error;
+      }
       return cart;
     } catch (error) {
-      console.error('Error getting cart:', error);
+      console.error('[CartService] Error getting cart:', error);
       throw new Error('Failed to retrieve cart.');
     }
   }

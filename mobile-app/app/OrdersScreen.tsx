@@ -34,6 +34,7 @@ import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList, TabParamList } from '../App';
 import type { Order } from '../src/types';
+import { safeImageUri } from '../src/utils/imageUtils';
 import { supabase } from '../src/lib/supabase';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Orders'>;
@@ -70,7 +71,6 @@ export default function OrdersScreen({ navigation, route }: Props) {
   const loadOrders = async () => {
     if (!user?.id) return;
     try {
-      console.log('[OrdersScreen] Loading orders for user:', user.id);
       const { data, error } = await supabase
         .from('orders')
         .select(`
@@ -117,8 +117,6 @@ export default function OrdersScreen({ navigation, route }: Props) {
         setDbOrders([]);
         return;
       }
-
-      console.log('[OrdersScreen] Loaded orders:', data?.length);
 
       const mapped: Order[] = (data || []).map((order: any) => {
         // Use shipment_status for order status (orders table uses shipment_status, not status)
@@ -233,7 +231,8 @@ export default function OrdersScreen({ navigation, route }: Props) {
         }
 
         return {
-          id: order.id,
+          id: order.order_number || order.id,
+          orderId: order.id,
           transactionId: order.order_number || order.id,
           items,
           sellerInfo: productSeller,
@@ -551,7 +550,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
         </View>
 
         <View style={styles.cardBody}>
-          <Image source={{ uri: productInfo.image }} style={styles.productThumb} />
+          <Image source={{ uri: safeImageUri(productInfo.image) }} style={styles.productThumb} />
           <View style={styles.productInfo}>
             <Text style={styles.productName} numberOfLines={1}>{productInfo.name}</Text>
             <View style={styles.dateRow}>

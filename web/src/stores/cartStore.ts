@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { notificationService } from '@/services/notificationService';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 // Unified Product interface for cart system
 export interface Product {
@@ -10,6 +11,7 @@ export interface Product {
   image: string;
   seller: string;
   sellerId?: string; // Seller UUID for database notifications
+  seller_id?: string;
   rating: number;
   category: string;
   originalPrice?: number;
@@ -23,6 +25,7 @@ export interface Product {
 // Cart item with quantity
 export interface CartItem extends Product {
   quantity: number;
+  cartItemId?: string; // DB cart_item id
   variant?: {
     id?: string;
     name?: string;
@@ -94,8 +97,11 @@ export interface OrderNotification {
 
 interface CartStore {
   items: CartItem[];
+  cartId: string | null;
+  isLoading: boolean;
   orders: Order[];
   notifications: OrderNotification[];
+  initializeCart: (userId: string) => Promise<void>;
   addToCart: (product: Product) => void;
   removeFromCart: (productId: string) => void;
   updateQuantity: (productId: string, quantity: number) => void;
@@ -283,40 +289,208 @@ const sampleOrders: Order[] = [
   }
 ];
 
+// Helper for local-only cart add (fallback when no DB)
+function addToCartLocal(set: any, get: any, product: Product) {
+  set((state: any) => {
+    const existingItem = state.items.find((item: CartItem) => item.id === product.id);
+    if (existingItem) {
+      return {
+        ...state,
+        items: state.items.map((item: CartItem) =>
+          item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+        ),
+      };
+    } else {
+      return {
+        ...state,
+        items: [...state.items, { ...product, quantity: 1 }],
+      };
+    }
+  });
+}
+
 export const useCartStore = create<CartStore>()(
   persist(
     (set, get) => ({
       items: [],
+      cartId: null,
+      isLoading: false,
       orders: [],
       notifications: [],
 
-      addToCart: (product: Product) => {
-        set((state) => {
-          const existingItem = state.items.find(item => item.id === product.id);
+      initializeCart: async (userId: string) => {
+        if (!isSupabaseConfigured()) return;
+        set({ isLoading: true });
+        try {
+          // Get or create cart
+          let { data: cart } = await supabase
+            .from('carts')
+            .select('id')
+            .eq('buyer_id', userId)
+            .maybeSingle();
 
-          if (existingItem) {
-            return {
-              ...state,
-              items: state.items.map(item =>
-                item.id === product.id
-                  ? { ...item, quantity: item.quantity + 1 }
-                  : item
-              ),
-            };
-          } else {
-            return {
-              ...state,
-              items: [...state.items, { ...product, quantity: 1 }],
-            };
+          if (!cart) {
+            const { data: newCart, error } = await supabase
+              .from('carts')
+              .insert({ buyer_id: userId })
+              .select('id')
+              .single();
+            if (error) throw error;
+            cart = newCart;
           }
-        });
+
+          set({ cartId: cart!.id });
+
+          // Fetch cart items with product details
+          const { data: rawItems, error } = await supabase
+            .from('cart_items')
+            .select(`
+              *,
+              product:products (
+                id, name, description, price, seller_id, is_free_shipping,
+                variant_label_1, variant_label_2,
+                category:categories (name),
+                images:product_images (image_url, is_primary, sort_order),
+                seller:sellers!products_seller_id_fkey (id, store_name, avatar_url)
+              ),
+              variant:product_variants (
+                id, sku, variant_name, size, color, option_1_value, option_2_value,
+                price, stock, thumbnail_url
+              )
+            `)
+            .eq('cart_id', cart!.id)
+            .order('created_at', { ascending: false });
+
+          if (error) throw error;
+
+          // Map DB rows to flat CartItem format
+          const items: CartItem[] = (rawItems || []).map((ci: any) => {
+            const product = ci.product || {};
+            const variant = ci.variant || null;
+            const productImages = product.images || [];
+            const primaryImg = productImages.find((img: any) => img.is_primary);
+            const firstImg = [...productImages].sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0))[0];
+            const imageUrl = variant?.thumbnail_url || primaryImg?.image_url || firstImg?.image_url || '';
+            const price = (variant?.price != null && variant.price > 0) ? variant.price : (product.price || 0);
+            const seller = product.seller || {};
+
+            return {
+              id: product.id || ci.product_id,
+              cartItemId: ci.id,
+              name: product.name || 'Product',
+              price,
+              image: imageUrl,
+              seller: seller.store_name || 'Shop',
+              sellerId: seller.id || product.seller_id || '',
+              seller_id: seller.id || product.seller_id || '',
+              rating: 0,
+              category: product.category?.name || '',
+              description: product.description || '',
+              isFreeShipping: !!product.is_free_shipping,
+              quantity: ci.quantity || 1,
+              variant: variant ? {
+                id: variant.id,
+                name: variant.variant_name,
+                size: variant.size,
+                color: variant.color,
+                sku: variant.sku,
+              } : undefined,
+            } as CartItem;
+          });
+
+          set({ items });
+        } catch (e: any) {
+          console.error('[WebCartStore] Failed to init cart:', e);
+        } finally {
+          set({ isLoading: false });
+        }
+      },
+
+      addToCart: (product: Product) => {
+        const cartId = get().cartId;
+        
+        if (cartId && isSupabaseConfigured()) {
+          // DB-backed add
+          (async () => {
+            try {
+              const variantId = (product as any).variant?.id || (product as any).selectedVariant?.variantId || null;
+              
+              // Check for existing item
+              let query = supabase
+                .from('cart_items')
+                .select('id, quantity')
+                .eq('cart_id', cartId)
+                .eq('product_id', product.id);
+              
+              if (variantId) {
+                query = query.eq('variant_id', variantId);
+              } else {
+                query = query.is('variant_id', null);
+              }
+              
+              const { data: existing } = await query.maybeSingle();
+              
+              if (existing) {
+                await supabase
+                  .from('cart_items')
+                  .update({ quantity: existing.quantity + 1 })
+                  .eq('id', existing.id);
+              } else {
+                await supabase
+                  .from('cart_items')
+                  .insert({
+                    cart_id: cartId,
+                    product_id: product.id,
+                    quantity: 1,
+                    variant_id: variantId,
+                  });
+              }
+              
+              // Re-fetch items to get full product details
+              // Get the user from supabase auth
+              const { data: { user } } = await supabase.auth.getUser();
+              if (user) await get().initializeCart(user.id);
+            } catch (e) {
+              console.error('[WebCartStore] DB add failed, using local:', e);
+              // Fallback to local
+              addToCartLocal(set, get, product);
+            }
+          })();
+        } else {
+          // Local-only fallback
+          addToCartLocal(set, get, product);
+        }
       },
 
       removeFromCart: (productId: string) => {
-        set((state) => ({
-          ...state,
-          items: state.items.filter(item => item.id !== productId),
-        }));
+        const cartId = get().cartId;
+        
+        if (cartId && isSupabaseConfigured()) {
+          (async () => {
+            try {
+              const item = get().items.find(i => i.id === productId);
+              if (item?.cartItemId) {
+                await supabase.from('cart_items').delete().eq('id', item.cartItemId);
+              } else {
+                // Fallback: find by product_id
+                const { data } = await supabase
+                  .from('cart_items')
+                  .select('id')
+                  .eq('cart_id', cartId)
+                  .eq('product_id', productId);
+                if (data?.[0]) {
+                  await supabase.from('cart_items').delete().eq('id', data[0].id);
+                }
+              }
+              set((state) => ({ items: state.items.filter(i => i.id !== productId) }));
+            } catch (e) {
+              console.error('[WebCartStore] DB remove failed:', e);
+              set((state) => ({ items: state.items.filter(i => i.id !== productId) }));
+            }
+          })();
+        } else {
+          set((state) => ({ items: state.items.filter(i => i.id !== productId) }));
+        }
       },
 
       updateQuantity: (productId: string, quantity: number) => {
@@ -325,18 +499,44 @@ export const useCartStore = create<CartStore>()(
           return;
         }
 
-        set((state) => ({
-          ...state,
-          items: state.items.map(item =>
-            item.id === productId
-              ? { ...item, quantity }
-              : item
-          ),
-        }));
+        const cartId = get().cartId;
+        
+        if (cartId && isSupabaseConfigured()) {
+          (async () => {
+            try {
+              const item = get().items.find(i => i.id === productId);
+              if (item?.cartItemId) {
+                await supabase
+                  .from('cart_items')
+                  .update({ quantity })
+                  .eq('id', item.cartItemId);
+              }
+              set((state) => ({
+                items: state.items.map(i => i.id === productId ? { ...i, quantity } : i)
+              }));
+            } catch (e) {
+              console.error('[WebCartStore] DB update qty failed:', e);
+              set((state) => ({
+                items: state.items.map(i => i.id === productId ? { ...i, quantity } : i)
+              }));
+            }
+          })();
+        } else {
+          set((state) => ({
+            items: state.items.map(i => i.id === productId ? { ...i, quantity } : i)
+          }));
+        }
       },
 
       clearCart: () => {
-        set((state) => ({ ...state, items: [] }));
+        const cartId = get().cartId;
+        if (cartId && isSupabaseConfigured()) {
+          supabase.from('cart_items').delete().eq('cart_id', cartId).then(() => {
+            set({ items: [] });
+          }).catch(() => set({ items: [] }));
+        } else {
+          set({ items: [] });
+        }
       },
 
       getTotalItems: () => {

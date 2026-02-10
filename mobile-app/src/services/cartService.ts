@@ -103,9 +103,18 @@ export class CartService {
             name,
             description,
             price,
+            seller_id,
+            is_free_shipping,
+            variant_label_1,
+            variant_label_2,
             category_id,
             category:categories (name),
-            images:product_images (image_url, is_primary, sort_order)
+            images:product_images (image_url, is_primary, sort_order),
+            seller:sellers!products_seller_id_fkey (
+              id,
+              store_name,
+              avatar_url
+            )
           ),
           variant:product_variants (
             id,
@@ -113,12 +122,15 @@ export class CartService {
             variant_name,
             size,
             color,
+            option_1_value,
+            option_2_value,
             price,
             stock,
             thumbnail_url
           )
         `)
-        .eq('cart_id', cartId);
+        .eq('cart_id', cartId)
+        .order('created_at', { ascending: false });
 
       if (error) throw error;
       return data || [];
@@ -159,8 +171,13 @@ export class CartService {
         query = query.is('variant_id', null);
       }
 
-      const { data: existing, error: findError } = await query.maybeSingle();
-      if (findError) throw findError;
+      // Use limit(1) instead of maybeSingle() to avoid errors on duplicates
+      const { data: existingRows, error: findError } = await query.limit(1);
+      if (findError) {
+        console.error('[CartService] Error finding existing cart item:', findError);
+        throw findError;
+      }
+      const existing = existingRows && existingRows.length > 0 ? existingRows[0] : null;
 
       let result;
       if (existing) {
@@ -177,7 +194,10 @@ export class CartService {
           .select()
           .single();
 
-        if (error) throw error;
+        if (error) {
+          console.error('[CartService] Error updating cart item quantity:', error);
+          throw error;
+        }
         result = data;
       } else {
         // Insert new item
@@ -194,15 +214,18 @@ export class CartService {
           .select()
           .single();
 
-        if (error) throw error;
+        if (error) {
+          console.error('[CartService] Error inserting cart item:', error);
+          throw error;
+        }
         result = data;
       }
 
       if (!result) throw new Error('Failed to add or update cart item');
       return result;
-    } catch (error) {
-      console.error('Error adding to cart:', error);
-      throw new Error(error instanceof Error ? error.message : 'Failed to add item to cart.');
+    } catch (error: any) {
+      console.error('[CartService] addToCart failed:', error?.message || error);
+      throw new Error(error?.message || 'Failed to add item to cart.');
     }
   }
 
@@ -308,24 +331,32 @@ export class CartService {
   }
 
   // Convenience wrapper methods for cart store compatibility
-  async addItem(cartId: string, productId: string, unitPrice: number, quantity: number, variantId?: string | null): Promise<CartItem> {
-    return this.addToCart(cartId, productId, quantity, variantId || undefined);
+  async addItem(cartId: string, productId: string, unitPrice: number, quantity: number, variantId?: string | null, personalizedOptions?: Record<string, unknown> | null): Promise<CartItem> {
+    return this.addToCart(cartId, productId, quantity, variantId || undefined, personalizedOptions || undefined);
   }
 
   async removeItem(cartId: string, productId: string): Promise<void> {
-    // Find item by product ID and  cart ID, then delete
-    const items = await this.getCartItems(cartId);
-    const item = items.find(i => (i as any).product_id === productId);
-    if (item) {
-      await this.removeFromCart((item as any).id);
+    // Find item by product ID and cart ID, then delete
+    const { data: items } = await supabase
+      .from('cart_items')
+      .select('id')
+      .eq('cart_id', cartId)
+      .eq('product_id', productId);
+    
+    if (items && items.length > 0) {
+      await this.removeFromCart(items[0].id);
     }
   }
 
-  async updateQuantity(cartId: string, productId: string, quantity: number, unitPrice: number): Promise<void> {
-    const items = await this.getCartItems(cartId);
-    const item = items.find(i => (i as any).product_id === productId);
-    if (item) {
-      await this.updateCartItemQuantity((item as any).id, quantity);
+  async updateQuantity(cartId: string, productId: string, quantity: number): Promise<void> {
+    const { data: items } = await supabase
+      .from('cart_items')
+      .select('id')
+      .eq('cart_id', cartId)
+      .eq('product_id', productId);
+    
+    if (items && items.length > 0) {
+      await this.updateCartItemQuantity(items[0].id, quantity);
     }
   }
 

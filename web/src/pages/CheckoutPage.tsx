@@ -1565,43 +1565,21 @@ export default function CheckoutPage() {
                           const provs = await provinces(matchedRegion.region_code);
                           setProvinceList(provs);
                           
-                          // Match province (in NCR, "province" is actually the city/district)
-                          const provinceToMatch = location.province || (isMetroManila ? location.city : '');
-                          let matchedProvince = null;
-                          
-                          if (provinceToMatch) {
-                            matchedProvince = provs.find((p: any) => 
-                              p.province_name?.toLowerCase().includes(provinceToMatch?.toLowerCase()) ||
-                              provinceToMatch?.toLowerCase().includes(p.province_name?.toLowerCase())
-                            );
-                            
-                            // For NCR, try matching city name to province (e.g., "Makati" -> "City of Makati")
-                            if (!matchedProvince && isMetroManila && location.city) {
-                              matchedProvince = provs.find((p: any) => 
-                                p.province_name?.toLowerCase().includes(location.city?.toLowerCase()) ||
-                                location.city?.toLowerCase().includes(p.province_name?.toLowerCase().replace('city of ', ''))
-                              );
+                          // For Metro Manila/NCR, load ALL cities from all districts
+                          if (isMetroManila) {
+                            let allCities: any[] = [];
+                            for (const prov of provs) {
+                              const provCities = await cities(prov.province_code);
+                              allCities = [...allCities, ...provCities];
                             }
-                          }
-                          
-                          if (matchedProvince) {
-                            updatedAddr.province = matchedProvince.province_name;
-                            // Load cities for this province
-                            const cts = await cities(matchedProvince.province_code);
-                            setCityList(cts);
+                            setCityList(allCities);
                             
                             // Match city
-                            const cityToMatch = location.city || '';
-                            if (cityToMatch) {
-                              let matchedCity = cts.find((c: any) => 
-                                c.city_name?.toLowerCase().includes(cityToMatch?.toLowerCase()) ||
-                                cityToMatch?.toLowerCase().includes(c.city_name?.toLowerCase())
+                            if (location.city) {
+                              const matchedCity = allCities.find((c: any) => 
+                                c.city_name?.toLowerCase().includes(location.city?.toLowerCase()) ||
+                                location.city?.toLowerCase().includes(c.city_name?.toLowerCase().replace('city of ', ''))
                               );
-                              
-                              // For NCR, the city might be same as province, just pick first city
-                              if (!matchedCity && isMetroManila && cts.length > 0) {
-                                matchedCity = cts[0];
-                              }
                               
                               if (matchedCity) {
                                 updatedAddr.city = matchedCity.city_name;
@@ -1621,8 +1599,64 @@ export default function CheckoutPage() {
                                 }
                               }
                             }
+                          } else {
+                            // Non-Metro Manila: Match province first
+                            const provinceToMatch = location.province || '';
+                            let matchedProvince = null;
+                          
+                            if (provinceToMatch) {
+                              matchedProvince = provs.find((p: any) => 
+                                p.province_name?.toLowerCase().includes(provinceToMatch?.toLowerCase()) ||
+                                provinceToMatch?.toLowerCase().includes(p.province_name?.toLowerCase())
+                              );
+                            
+                              if (matchedProvince) {
+                                updatedAddr.province = matchedProvince.province_name;
+                                // Load cities for this province
+                                const cts = await cities(matchedProvince.province_code);
+                                setCityList(cts);
+                                
+                                // Match city
+                                const cityToMatch = location.city || '';
+                                if (cityToMatch) {
+                                  const matchedCity = cts.find((c: any) => 
+                                    c.city_name?.toLowerCase().includes(cityToMatch?.toLowerCase()) ||
+                                    cityToMatch?.toLowerCase().includes(c.city_name?.toLowerCase())
+                                  );
+                                  
+                                  if (matchedCity) {
+                                    updatedAddr.city = matchedCity.city_name;
+                                    // Load barangays for this city
+                                    const brgys = await barangays(matchedCity.city_code);
+                                    setBarangayList(brgys);
+                                    
+                                    // Match barangay
+                                    if (location.barangay) {
+                                      const matchedBarangay = brgys.find((b: any) => 
+                                        b.brgy_name?.toLowerCase().includes(location.barangay?.toLowerCase()) ||
+                                        location.barangay?.toLowerCase().includes(b.brgy_name?.toLowerCase())
+                                      );
+                                      if (matchedBarangay) {
+                                        updatedAddr.barangay = matchedBarangay.brgy_name;
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
                           }
                         }
+                      }
+                      
+                      // Autofill name and phone from profile if not already set
+                      if (!updatedAddr.firstName && profile?.firstName) {
+                        updatedAddr.firstName = profile.firstName;
+                      }
+                      if (!updatedAddr.lastName && profile?.lastName) {
+                        updatedAddr.lastName = profile.lastName;
+                      }
+                      if (!updatedAddr.phone && profile?.phone) {
+                        updatedAddr.phone = profile.phone;
                       }
                       
                       setNewAddr(updatedAddr);
@@ -1630,6 +1664,8 @@ export default function CheckoutPage() {
                       
                       // Show toast with autofill summary
                       const filledFields = [];
+                      if (updatedAddr.firstName || updatedAddr.lastName) filledFields.push('Name');
+                      if (updatedAddr.phone) filledFields.push('Phone');
                       if (updatedAddr.region) filledFields.push('Region');
                       if (updatedAddr.province) filledFields.push('Province');
                       if (updatedAddr.city) filledFields.push('City');
@@ -1640,7 +1676,7 @@ export default function CheckoutPage() {
                       if (filledFields.length > 0) {
                         toast({
                           title: "📍 Location Selected",
-                          description: `Auto-filled: ${filledFields.join(', ')}. Please verify and complete the remaining fields.`,
+                          description: `Auto-filled: ${filledFields.join(', ')}. Please verify the details.`,
                         });
                       }
                     }}

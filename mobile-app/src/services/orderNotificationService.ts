@@ -103,7 +103,6 @@ class OrderNotificationService {
       // Also store in order notification log for tracking
       await this.logNotification(orderId, newStatus, messageContent);
 
-      console.log(`[OrderNotification] Sent ${newStatus} notification for order ${orderId}`);
       return true;
     } catch (error) {
       console.error('[OrderNotification] Error sending notification:', error);
@@ -166,12 +165,10 @@ class OrderNotificationService {
         .limit(1);
 
       if (error) {
-        // Table might not have the right columns, just log
-        console.log(`[OrderNotification] Logged notification for order ${orderId}`);
+        // Table might not have the right columns
       }
     } catch (error) {
-      // Non-critical, just log
-      console.log(`[OrderNotification] Could not log notification: ${error}`);
+      // Non-critical
     }
   }
 
