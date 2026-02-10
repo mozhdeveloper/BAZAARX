@@ -215,26 +215,52 @@ export class AddressService {
     /**
      * Map database response to Address frontend model
      * shipping_addresses table structure:
-     * - address_line_1 (street)
-     * - address_line_2 
-     * - postal_code (not zip_code)
-     * - no first_name/last_name/phone (those are on buyer profile)
+     * - address_line_1 (may include "Name, Phone, Street" format)
+     * - address_line_2
+     * - postal_code
      */
     private mapToAddress(data: any): Address {
+        const addressLine1 = data.address_line_1 || '';
+        const parts = addressLine1.split(', ').map((part: string) => part.trim()).filter(Boolean);
+
+        let fullName = '';
+        let phone = '';
+        let street = addressLine1;
+
+        if (parts.length >= 3 && /^\d{10,11}$/.test(parts[1]?.replace(/\D/g, ''))) {
+            fullName = parts[0];
+            phone = parts[1];
+            street = parts.slice(2).join(', ');
+        } else if (parts.length >= 2) {
+            if (/^\d{10,11}$/.test(parts[0]?.replace(/\D/g, ''))) {
+                phone = parts[0];
+                street = parts.slice(1).join(', ');
+            } else {
+                fullName = parts[0];
+                street = parts.slice(1).join(', ');
+            }
+        }
+
+        if (data.address_line_2) {
+            street = `${street}, ${data.address_line_2}`;
+        }
+
         return {
             id: data.id,
             label: data.label || 'Address',
-            firstName: '', // Not stored in shipping_addresses
-            lastName: '',  // Not stored in shipping_addresses
-            fullName: '',  // Will be filled from buyer profile
-            phone: '',     // Not stored in shipping_addresses
-            street: data.address_line_1 || '',
+            firstName: fullName ? fullName.split(' ')[0] : '',
+            lastName: fullName ? fullName.split(' ').slice(1).join(' ') : '',
+            fullName,
+            phone,
+            street,
             barangay: data.barangay || '',
             city: data.city || '',
             province: data.province || '',
             region: data.region || '',
             postalCode: data.postal_code || '',
             isDefault: data.is_default || false,
+            landmark: data.landmark || '',
+            deliveryInstructions: data.delivery_instructions || '',
             coordinates: data.coordinates,
         };
     }

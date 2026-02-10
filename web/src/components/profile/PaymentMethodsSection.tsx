@@ -6,31 +6,36 @@ import { Badge } from '@/components/ui/badge';
 import { CreditCard, Smartphone, Trash2, Plus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { PaymentMethod } from '@/stores/buyerStore';
+import { usePaymentMethodManager } from '@/hooks/profile/usePaymentMethodManager';
 import { PaymentMethodModal } from './PaymentMethodModal';
 
 interface PaymentMethodsSectionProps {
-  paymentMethods: PaymentMethod[];
-  onAddPaymentMethod: (method: PaymentMethod) => void;
-  onDeletePaymentMethod: (id: string) => void;
-  onSetDefault: (id: string) => void;
+  userId: string;
 }
 
 export const PaymentMethodsSection = ({
-  paymentMethods,
-  onAddPaymentMethod,
-  onDeletePaymentMethod,
-  onSetDefault
+  userId
 }: PaymentMethodsSectionProps) => {
+  const { paymentMethods, deletePaymentMethod, setDefaultPaymentMethod } = usePaymentMethodManager(userId);
   const { toast } = useToast();
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const handleDeleteCard = (id: string) => {
+  const handleDeleteCard = async (id: string) => {
     if (!confirm("Are you sure you want to remove this payment method?")) return;
-    onDeletePaymentMethod(id);
-    toast({
-      title: "Card Removed",
-      description: "The payment method has been deleted.",
-    });
+    
+    const result = await deletePaymentMethod(id);
+    if (result) {
+      toast({
+        title: "Card Removed",
+        description: "The payment method has been deleted.",
+      });
+    } else {
+      toast({
+        title: "Error",
+        description: "Failed to delete payment method. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
 
   return (
@@ -40,8 +45,8 @@ export const PaymentMethodsSection = ({
       className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
     >
       {paymentMethods.map((method) => (
-        <Card 
-          key={method.id} 
+        <Card
+          key={method.id}
           className="relative overflow-hidden group border-2 border-gray-100 shadow-lg bg-white text-gray-900 min-h-[180px]"
         >
           <div className="absolute top-0 right-0 p-6 opacity-[0.03] transform translate-x-4 -translate-y-4">
@@ -93,7 +98,7 @@ export const PaymentMethodsSection = ({
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => onSetDefault(method.id)}
+                      onClick={() => setDefaultPaymentMethod(method.id)}
                       className="text-gray-400 hover:text-[#ff6a00] p-0 transition-colors text-[10px] font-bold uppercase tracking-wider h-auto bg-transparent hover:bg-transparent"
                     >
                       Set as default
@@ -129,7 +134,6 @@ export const PaymentMethodsSection = ({
       <PaymentMethodModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        onAddPaymentMethod={onAddPaymentMethod}
       />
     </motion.div>
   );
