@@ -6,7 +6,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Home, Store, ShoppingCart, Package, User } from 'lucide-react-native';
+import { Home, Store, ShoppingCart, MessageCircle, User } from 'lucide-react-native';
 import type { CartItem } from './src/types';
 
 // Import screens
@@ -24,6 +24,7 @@ import OrderConfirmationScreen from './app/OrderConfirmation';
 import OrdersScreen from './app/OrdersScreen';
 import OrderDetailScreen from './app/OrderDetailScreen';
 import DeliveryTrackingScreen from './app/DeliveryTrackingScreen';
+import FlashSaleScreen from './app/FlashSaleScreen';
 import ProfileScreen from './app/ProfileScreen';
 import FollowingShopsScreen from './app/FollowingShopsScreen';
 import WishlistScreen from './app/WishlistScreen';
@@ -65,7 +66,7 @@ export type TabParamList = {
   Home: undefined;
   Shop: { category?: string; searchQuery?: string; customResults?: Product[] };
   Cart: undefined;
-  Orders: { initialTab?: 'toPay' | 'toShip' | 'toReceive' | 'completed' | 'returns' | 'cancelled' };
+  Messages: undefined;
   Profile: undefined;
 };
 
@@ -96,8 +97,10 @@ export type RootStackParamList = {
   };
   PaymentGateway: { paymentMethod: string; order: Order; isQuickCheckout?: boolean };
   OrderConfirmation: { order: Order };
+  Orders: { initialTab?: 'toPay' | 'toShip' | 'toReceive' | 'completed' | 'returns' | 'cancelled' };
   OrderDetail: { order: Order };
   DeliveryTracking: { order: Order };
+  FlashSale: undefined;
   FollowingShops: undefined;
   Wishlist: undefined;
   SharedWishlist: { wishlistId?: string; userId?: string };
@@ -181,11 +184,10 @@ function MainTabs() {
         }}
       />
       <Tab.Screen
-        name="Orders"
-        component={OrdersScreen}
+        name="Messages"
+        component={MessagesScreen}
         options={{
-          tabBarIcon: ({ color, size }) => <Package size={size} color={color} />,
-          tabBarLabel: 'Track Order',
+          tabBarIcon: ({ color, size }) => <MessageCircle size={size} color={color} />,
         }}
       />
       <Tab.Screen
@@ -302,8 +304,10 @@ export default function App() {
             <Stack.Screen name="Checkout" component={CheckoutScreen} />
             <Stack.Screen name="PaymentGateway" component={PaymentGatewayScreen} options={{ headerShown: false }} />
             <Stack.Screen name="OrderConfirmation" component={OrderConfirmationScreen} />
+            <Stack.Screen name="Orders" component={OrdersScreen} options={{ headerShown: false }} />
             <Stack.Screen name="OrderDetail" component={OrderDetailScreen} />
             <Stack.Screen name="DeliveryTracking" component={DeliveryTrackingScreen} />
+            <Stack.Screen name="FlashSale" component={FlashSaleScreen} options={{ headerShown: false }} />
             <Stack.Screen name="FollowingShops" component={FollowingShopsScreen} />
             <Stack.Screen name="Wishlist" component={WishlistScreen} />
             <Stack.Screen name="SharedWishlist" component={SharedWishlistScreen} />
