@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Gift, Plus, ShoppingBag, Copy, Check } from 'lucide-react';
+import { X, Gift, Plus, ShoppingBag, Copy, Check, Trash2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -15,9 +15,10 @@ interface RegistryDetailModalProps {
     onClose: () => void;
     registry: RegistryItem | null;
     onAddProduct: (registryId: string, productName: string) => void;
+    onDelete?: (registryId: string) => void;
 }
 
-export const RegistryDetailModal = ({ isOpen, onClose, registry, onAddProduct }: RegistryDetailModalProps) => {
+export const RegistryDetailModal = ({ isOpen, onClose, registry, onAddProduct, onDelete }: RegistryDetailModalProps) => {
     const [newProductName, setNewProductName] = useState('');
     const [isAdding, setIsAdding] = useState(false);
     const navigate = useNavigate();
@@ -26,6 +27,7 @@ export const RegistryDetailModal = ({ isOpen, onClose, registry, onAddProduct }:
     const [selectedItem, setSelectedItem] = useState<RegistryProduct | null>(null);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [isCopied, setIsCopied] = useState(false);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
     if (!registry) return null;
 
@@ -47,6 +49,14 @@ export const RegistryDetailModal = ({ isOpen, onClose, registry, onAddProduct }:
         navigator.clipboard.writeText(link);
         setIsCopied(true);
         setTimeout(() => setIsCopied(false), 2000);
+    };
+
+    const handleDelete = () => {
+        if (onDelete && registry) {
+            onDelete(registry.id);
+            setShowDeleteConfirm(false);
+            onClose();
+        }
     };
 
     return (
@@ -88,24 +98,37 @@ export const RegistryDetailModal = ({ isOpen, onClose, registry, onAddProduct }:
                                 </div>
                                 <div className="flex items-start justify-between gap-4">
                                     <h2 className="text-3xl font-bold text-[var(--text-primary)]">{registry.title}</h2>
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={handleCopyLink}
-                                        className="gap-2 text-gray-600 border-gray-200 hover:bg-gray-50 hover:text-gray-900"
-                                    >
-                                        {isCopied ? (
-                                            <>
-                                                <Check className="w-4 h-4 text-green-600" />
-                                                <span className="text-green-600">Copied</span>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Copy className="w-4 h-4" />
-                                                <span>Share</span>
-                                            </>
+                                    <div className="flex gap-2">
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={handleCopyLink}
+                                            className="gap-2 text-gray-600 border-gray-200 hover:bg-gray-50 hover:text-gray-900"
+                                        >
+                                            {isCopied ? (
+                                                <>
+                                                    <Check className="w-4 h-4 text-green-600" />
+                                                    <span className="text-green-600">Copied</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Copy className="w-4 h-4" />
+                                                    <span>Share</span>
+                                                </>
+                                            )}
+                                        </Button>
+                                        {onDelete && (
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={() => setShowDeleteConfirm(true)}
+                                                className="gap-2 text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                                <span>Delete</span>
+                                            </Button>
                                         )}
-                                    </Button>
+                                    </div>
                                 </div>
                             </div>
 
@@ -216,6 +239,46 @@ export const RegistryDetailModal = ({ isOpen, onClose, registry, onAddProduct }:
                             </Button>
                         </div>
                     </motion.div>
+
+                    {/* Delete Confirmation Dialog */}
+                    <AnimatePresence>
+                        {showDeleteConfirm && (
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                className="absolute inset-0 z-20 flex items-center justify-center p-4 bg-black/50"
+                                onClick={() => setShowDeleteConfirm(false)}
+                            >
+                                <motion.div
+                                    initial={{ scale: 0.9, opacity: 0 }}
+                                    animate={{ scale: 1, opacity: 1 }}
+                                    exit={{ scale: 0.9, opacity: 0 }}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="bg-white rounded-xl p-6 max-w-md w-full shadow-2xl"
+                                >
+                                    <h3 className="text-xl font-bold text-gray-900 mb-2">Delete Registry?</h3>
+                                    <p className="text-gray-600 mb-6">
+                                        Are you sure you want to delete "{registry?.title}"? This action cannot be undone and all items in this registry will be removed.
+                                    </p>
+                                    <div className="flex gap-3 justify-end">
+                                        <Button
+                                            variant="outline"
+                                            onClick={() => setShowDeleteConfirm(false)}
+                                        >
+                                            Cancel
+                                        </Button>
+                                        <Button
+                                            onClick={handleDelete}
+                                            className="bg-red-600 hover:bg-red-700 text-white"
+                                        >
+                                            Delete Registry
+                                        </Button>
+                                    </div>
+                                </motion.div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
 
                     <EditRegistryItemModal
                         isOpen={isEditModalOpen}

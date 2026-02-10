@@ -641,856 +641,855 @@ export function SellerStoreProfile() {
 
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="flex-1 overflow-auto">
-          <div className="max-w-7xl mx-auto p-8">
-            {/* Header */}
-            <div className="mb-8 flex items-center justify-between">
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900">
-                  Store Profile
-                </h1>
-                <p className="text-gray-600 mt-2">
-                  Manage your store's complete profile and verification
-                </p>
-              </div>
-              <div className="flex gap-3">
-                {isVerified && (
-                  <Badge className="bg-green-100 text-green-700 hover:bg-green-100 px-4 py-2">
-                    <CheckCircle2 className="h-4 w-4 mr-2" />
-                    Verified Seller
-                  </Badge>
-                )}
-                {approvalStatus === "pending" && !isVerified && (
-                  <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 px-4 py-2">
-                    <Clock className="h-4 w-4 mr-2" />
-                    Pending Approval
-                  </Badge>
-                )}
-                {approvalStatus === "rejected" && (
-                  <div className="flex items-center gap-2">
-                    <Badge className="bg-red-100 text-red-700 hover:bg-red-100 px-4 py-2">
-                      <AlertCircle className="h-4 w-4 mr-2" />
-                      Rejected
-                    </Badge>
-                    <Button
-                      size="sm"
-                      className="bg-[#FF6A00] hover:bg-orange-600"
-                      onClick={handleReapply}
-                      disabled={reapplyLoading}
-                    >
-                      {reapplyLoading ? "Reapplying…" : "Reapply"}
-                    </Button>
-                  </div>
-                )}
-                {approvalStatus === "approved" && !isVerified && (
-                  <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100 px-4 py-2">
-                    <CheckCircle2 className="h-4 w-4 mr-2" />
-                    Approved
-                  </Badge>
-                )}
-              </div>
-            </div>
-
-            {/* Store Header Card */}
-            <Card className="p-6 mb-6">
-              <div className="flex items-start gap-6">
-                {/* Store Logo */}
-                <div className="relative">
-                  {seller?.avatar ? (
-                    <img
-                      src={seller.avatar}
-                      alt={seller.storeName}
-                      className="h-24 w-24 rounded-xl object-cover shadow-lg"
-                    />
-                  ) : (
-                    <div className="h-24 w-24 rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center text-white text-3xl font-bold shadow-lg">
-                      {seller?.storeName?.charAt(0) || "S"}
-                    </div>
-                  )}
-                  <label className="absolute -bottom-2 -right-2 h-8 w-8 rounded-full bg-[#FF6A00] text-white flex items-center justify-center shadow-lg hover:bg-orange-600 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
-                    {avatarLoading ? (
-                      <Loader className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Camera className="h-4 w-4" />
-                    )}
-                    <input
-                      ref={avatarInputRef}
-                      type="file"
-                      className="hidden"
-                      accept="image/*"
-                      onChange={handleAvatarUpload}
-                      disabled={avatarLoading}
-                    />
-                  </label>
+          <div className="max-w-7xl mx-auto p-4 md:p-8">
+            {/* Two Column Layout */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              {/* Left Sidebar - Profile Summary */}
+              <div className="lg:col-span-4 space-y-6">
+                {/* Page Title - Not Sticky */}
+                <div>
+                  <h1 className="text-3xl font-bold text-gray-900">
+                    Store Profile
+                  </h1>
+                  <p className="text-gray-600 mt-2 whitespace-nowrap">
+                    Manage your store's complete profile and verification
+                  </p>
                 </div>
 
-                {/* Store Info */}
-                <div className="flex-1">
-                  {avatarError && (
-                    <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-                      <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
-                      <div>
-                        <p className="text-sm font-medium text-red-900">
-                          Upload Failed
-                        </p>
-                        <p className="text-sm text-red-700 mt-1">
-                          {avatarError}
-                        </p>
+                {/* Sticky Profile Card */}
+                <div className="lg:sticky lg:top-4">
+                  <Card className="p-6 shadow-md border-gray-100">
+                    <div className="flex flex-col items-center text-center">
+                      {/* Avatar */}
+                      <div className="relative mb-4">
+                        {seller?.avatar ? (
+                          <img
+                            src={seller.avatar}
+                            alt={seller.storeName}
+                            className="h-24 w-24 rounded-full object-cover shadow-lg ring-4 ring-white"
+                          />
+                        ) : (
+                          <div className="h-24 w-24 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center text-white text-3xl font-bold shadow-md ring-4 ring-white">
+                            {seller?.storeName?.charAt(0) || "S"}
+                          </div>
+                        )}
+                        <label className="absolute -bottom-1 -right-1 h-8 w-8 rounded-full bg-[#FF6A00] text-white flex items-center justify-center shadow-md hover:bg-orange-600 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+                          {avatarLoading ? (
+                            <Loader className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Camera className="h-4 w-4" />
+                          )}
+                          <input
+                            ref={avatarInputRef}
+                            type="file"
+                            className="hidden"
+                            accept="image/*"
+                            onChange={handleAvatarUpload}
+                            disabled={avatarLoading}
+                          />
+                        </label>
                       </div>
-                    </div>
-                  )}
-                  <div className="flex items-start justify-between mb-4">
-                    <div>
-                      <h2 className="text-2xl font-bold text-gray-900">
+
+                      {/* Store Name */}
+                      <h2 className="text-2xl font-bold text-gray-900 mb-1">
                         {seller?.storeName || "Your Store"}
                       </h2>
-                      <p className="text-gray-600 mt-1 flex items-center gap-2">
-                        <Globe className="h-4 w-4" />
-                        bazaarph.com/store/{seller?.id || "your-store"}
+
+                      {/* Email */}
+                      <p className="text-sm text-gray-600 mb-1">
+                        {seller?.email || "Not provided"}
                       </p>
-                    </div>
-                  </div>
 
-                  {/* Quick Stats */}
-                  <div className="grid grid-cols-4 gap-4">
-                    <div className="bg-gray-50 rounded-lg p-3">
-                      <div className="flex items-center gap-2 text-gray-600 text-sm mb-1">
-                        <Award className="h-4 w-4" />
-                        Rating
-                      </div>
-                      <div className="text-xl font-bold text-gray-900">
-                        {seller?.rating ? `${seller.rating}/5.0` : "New"}
-                      </div>
-                    </div>
-                    <div className="bg-gray-50 rounded-lg p-3">
-                      <div className="flex items-center gap-2 text-gray-600 text-sm mb-1">
-                        <Package className="h-4 w-4" />
-                        Products
-                      </div>
-                      <div className="text-xl font-bold text-gray-900">0</div>
-                    </div>
-                    <div className="bg-gray-50 rounded-lg p-3">
-                      <div className="flex items-center gap-2 text-gray-600 text-sm mb-1">
-                        <TrendingUp className="h-4 w-4" />
-                        Sales
-                      </div>
-                      <div className="text-xl font-bold text-gray-900">
-                        {seller?.totalSales || 0}
-                      </div>
-                    </div>
-                    <div className="bg-gray-50 rounded-lg p-3">
-                      <div className="flex items-center gap-2 text-gray-600 text-sm mb-1">
-                        <Users className="h-4 w-4" />
-                        Followers
-                      </div>
-                      <div className="text-xl font-bold text-gray-900">0</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </Card>
-
-            {/* Owner & Contact Information (Editable) */}
-            <Card className="p-6 mb-6">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-2">
-                  <User className="h-5 w-5 text-[#FF6A00]" />
-                  <h3 className="text-xl font-bold text-gray-900">
-                    Owner & Contact Information
-                  </h3>
-                </div>
-                {editSection !== "basic" && (
-                  <Button
-                    onClick={() => setEditSection("basic")}
-                    variant="outline"
-                    size="sm"
-                    className="gap-2"
-                  >
-                    <Edit2 className="h-4 w-4" />
-                    Edit
-                  </Button>
-                )}
-              </div>
-
-              {editSection === "basic" ? (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label>Owner Name</Label>
-                      <Input
-                        value={formData.ownerName}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            ownerName: e.target.value,
-                          })
-                        }
-                        placeholder="Full name"
-                      />
-                    </div>
-                    <div>
-                      <Label>Email</Label>
-                      <Input
-                        type="email"
-                        value={formData.email}
-                        onChange={(e) =>
-                          setFormData({ ...formData, email: e.target.value })
-                        }
-                        placeholder="email@example.com"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label>Phone</Label>
-                      <Input
-                        value={formData.phone}
-                        onChange={(e) =>
-                          setFormData({ ...formData, phone: e.target.value })
-                        }
-                        placeholder="+63 XXX XXX XXXX"
-                      />
-                    </div>
-                    <div>
-                      <Label>Store Name</Label>
-                      <Input
-                        value={formData.storeName}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            storeName: e.target.value,
-                          })
-                        }
-                        placeholder="Your store name"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <Label>Store Description</Label>
-                    <Textarea
-                      value={formData.storeDescription}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          storeDescription: e.target.value,
-                        })
-                      }
-                      rows={4}
-                      placeholder="Describe your store and what you sell..."
-                    />
-                  </div>
-
-                  <div className="flex gap-3 pt-2">
-                    <Button
-                      onClick={handleSaveBasic}
-                      className="bg-[#FF6A00] hover:bg-orange-600"
-                    >
-                      Save Changes
-                    </Button>
-                    <Button
-                      onClick={() => setEditSection(null)}
-                      variant="outline"
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-6">
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1 flex items-center gap-2">
-                      Owner Name
-                      {isEmptyField(seller?.ownerName) && (
-                        <AlertCircle
-                          className="h-4 w-4 text-amber-500"
-                          aria-label="Required field"
-                        />
-                      )}
-                    </p>
-                    <p className="text-gray-900 font-medium">
-                      {seller?.ownerName || "Not provided"}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1 flex items-center gap-2">
-                      Email Address
-                      {isEmptyField(seller?.email) && (
-                        <AlertCircle
-                          className="h-4 w-4 text-amber-500"
-                          aria-label="Required field"
-                        />
-                      )}
-                    </p>
-                    <p className="text-gray-900 font-medium">
-                      {seller?.email || "Not provided"}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1 flex items-center gap-2">
-                      Phone Number
-                      {isEmptyField(seller?.phone) && (
-                        <AlertCircle
-                          className="h-4 w-4 text-amber-500"
-                          aria-label="Required field"
-                        />
-                      )}
-                    </p>
-                    <p className="text-gray-900 font-medium">
-                      {seller?.phone || "Not provided"}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1 flex items-center gap-2">
-                      Store Name
-                      {isEmptyField(seller?.storeName) && (
-                        <AlertCircle
-                          className="h-4 w-4 text-amber-500"
-                          aria-label="Required field"
-                        />
-                      )}
-                    </p>
-                    <p className="text-gray-900 font-medium">
-                      {seller?.storeName || "Your Store"}
-                    </p>
-                  </div>
-                  <div className="col-span-2">
-                    <p className="text-sm text-gray-600 mb-1 flex items-center gap-2">
-                      Store Description
-                      {isEmptyField(seller?.storeDescription) && (
-                        <AlertCircle
-                          className="h-4 w-4 text-amber-500"
-                          aria-label="Recommended field"
-                        />
-                      )}
-                    </p>
-                    <p className="text-gray-900">
-                      {seller?.storeDescription || "No description added"}
-                    </p>
-                  </div>
-                </div>
-              )}
-            </Card>
-
-            {/* Business Information (Locked if Verified) */}
-            <Card className="p-6 mb-6">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-2">
-                  <Building2 className="h-5 w-5 text-[#FF6A00]" />
-                  <h3 className="text-xl font-bold text-gray-900">
-                    Business Information
-                  </h3>
-                  {isVerified && (
-                    <Badge className="bg-green-100 text-green-700 ml-2">
-                      <Lock className="h-3 w-3 mr-1" />
-                      Verified & Locked
-                    </Badge>
-                  )}
-                </div>
-                {!isVerified && (
-                  <Button
-                    onClick={() => setEditSection("business")}
-                    variant="outline"
-                    size="sm"
-                    className="gap-2"
-                  >
-                    <Edit2 className="h-4 w-4" />
-                    Edit
-                  </Button>
-                )}
-              </div>
-
-              {editSection === "business" ? (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label>Business Name</Label>
-                      <Input
-                        value={businessForm.businessName}
-                        onChange={(e) =>
-                          setBusinessForm({
-                            ...businessForm,
-                            businessName: e.target.value,
-                          })
-                        }
-                      />
-                    </div>
-                    <div>
-                      <Label>Business Type</Label>
-                      <Input
-                        value={businessForm.businessType}
-                        onChange={(e) =>
-                          setBusinessForm({
-                            ...businessForm,
-                            businessType: e.target.value,
-                          })
-                        }
-                      />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label>Business Registration Number</Label>
-                      <Input
-                        value={businessForm.businessRegistrationNumber}
-                        onChange={(e) =>
-                          setBusinessForm({
-                            ...businessForm,
-                            businessRegistrationNumber: e.target.value,
-                          })
-                        }
-                      />
-                    </div>
-                    <div>
-                      <Label>Tax ID Number (TIN)</Label>
-                      <Input
-                        value={businessForm.taxIdNumber}
-                        onChange={(e) =>
-                          setBusinessForm({
-                            ...businessForm,
-                            taxIdNumber: e.target.value,
-                          })
-                        }
-                      />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-4 gap-4">
-                    <div className="col-span-2">
-                      <Label>Address</Label>
-                      <Input
-                        value={businessForm.businessAddress}
-                        onChange={(e) =>
-                          setBusinessForm({
-                            ...businessForm,
-                            businessAddress: e.target.value,
-                          })
-                        }
-                      />
-                    </div>
-                    <div>
-                      <Label>City</Label>
-                      <Input
-                        value={businessForm.city}
-                        onChange={(e) =>
-                          setBusinessForm({
-                            ...businessForm,
-                            city: e.target.value,
-                          })
-                        }
-                      />
-                    </div>
-                    <div>
-                      <Label>Province</Label>
-                      <Input
-                        value={businessForm.province}
-                        onChange={(e) =>
-                          setBusinessForm({
-                            ...businessForm,
-                            province: e.target.value,
-                          })
-                        }
-                      />
-                    </div>
-                    <div>
-                      <Label>Postal Code</Label>
-                      <Input
-                        value={businessForm.postalCode}
-                        onChange={(e) =>
-                          setBusinessForm({
-                            ...businessForm,
-                            postalCode: e.target.value,
-                          })
-                        }
-                      />
-                    </div>
-                  </div>
-                  <div className="flex gap-3 pt-2">
-                    <Button
-                      onClick={handleSaveBusiness}
-                      className="bg-[#FF6A00] hover:bg-orange-600"
-                    >
-                      Save Changes
-                    </Button>
-                    <Button
-                      onClick={() => setEditSection(null)}
-                      variant="outline"
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-6">
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1 flex items-center gap-2">
-                      Business Name
-                      {isEmptyField(seller?.businessName) && (
-                        <AlertCircle
-                          className="h-4 w-4 text-amber-500"
-                          aria-label="Required field"
-                        />
-                      )}
-                    </p>
-                    <p className="text-gray-900 font-medium">
-                      {seller?.businessName || "Not provided"}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1 flex items-center gap-2">
-                      Business Type
-                      {isEmptyField(seller?.businessType) && (
-                        <AlertCircle
-                          className="h-4 w-4 text-amber-500"
-                          aria-label="Required field"
-                        />
-                      )}
-                    </p>
-                    <p className="text-gray-900 font-medium">
-                      {seller?.businessType || "Not provided"}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1 flex items-center gap-2">
-                      Business Registration Number
-                      {isEmptyField(seller?.businessRegistrationNumber) && (
-                        <AlertCircle
-                          className="h-4 w-4 text-amber-500"
-                          aria-label="Required field"
-                        />
-                      )}
-                    </p>
-                    <p className="text-gray-900 font-medium font-mono">
-                      {seller?.businessRegistrationNumber || "Not provided"}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1 flex items-center gap-2">
-                      Tax ID Number (TIN)
-                      {isEmptyField(seller?.taxIdNumber) && (
-                        <AlertCircle
-                          className="h-4 w-4 text-amber-500"
-                          aria-label="Required field"
-                        />
-                      )}
-                    </p>
-                    <p className="text-gray-900 font-medium font-mono">
-                      {seller?.taxIdNumber || "Not provided"}
-                    </p>
-                  </div>
-                  <div className="col-span-2">
-                    <p className="text-sm text-gray-600 mb-1 flex items-center gap-2">
-                      Business Address
-                      {(isEmptyField(seller?.businessAddress) ||
-                        isEmptyField(seller?.city) ||
-                        isEmptyField(seller?.province) ||
-                        isEmptyField(seller?.postalCode)) && (
-                          <AlertCircle
-                            className="h-4 w-4 text-amber-500"
-                            aria-label="Required field"
-                          />
+                      {/* Verification Badge */}
+                      <div className="mt-3 mb-4">
+                        {isVerified && (
+                          <Badge className="bg-green-100 text-green-700 hover:bg-green-100">
+                            <CheckCircle2 className="h-3 w-3 mr-1" />
+                            Verified Seller
+                          </Badge>
                         )}
-                    </p>
-                    <p className="text-gray-900">
-                      {seller?.businessAddress &&
-                        seller?.city &&
-                        seller?.province &&
-                        seller?.postalCode
-                        ? `${seller.businessAddress}, ${seller.city}, ${seller.province} ${seller.postalCode}`
-                        : "Not provided"}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {isVerified && (
-                <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
-                  <p className="text-sm text-green-700 flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4" />
-                    Your business information has been verified and cannot be
-                    edited. Contact support if you need to make changes.
-                  </p>
-                </div>
-              )}
-            </Card>
-
-            {/* Banking Information (Locked if Verified) */}
-            <Card className="p-6 mb-6">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-2">
-                  <CreditCard className="h-5 w-5 text-[#FF6A00]" />
-                  <h3 className="text-xl font-bold text-gray-900">
-                    Banking Information
-                  </h3>
-                  {isVerified && (
-                    <Badge className="bg-green-100 text-green-700 ml-2">
-                      <Lock className="h-3 w-3 mr-1" />
-                      Verified & Locked
-                    </Badge>
-                  )}
-                </div>
-                {!isVerified && (
-                  <Button
-                    onClick={() => setEditSection("banking")}
-                    variant="outline"
-                    size="sm"
-                    className="gap-2"
-                  >
-                    <Edit2 className="h-4 w-4" />
-                    Edit
-                  </Button>
-                )}
-              </div>
-
-              {editSection === "banking" ? (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label>Bank Name</Label>
-                      <Input
-                        value={bankingForm.bankName}
-                        onChange={(e) =>
-                          setBankingForm({
-                            ...bankingForm,
-                            bankName: e.target.value,
-                          })
-                        }
-                      />
-                    </div>
-                    <div>
-                      <Label>Account Name</Label>
-                      <Input
-                        value={bankingForm.accountName}
-                        onChange={(e) =>
-                          setBankingForm({
-                            ...bankingForm,
-                            accountName: e.target.value,
-                          })
-                        }
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <Label>Account Number</Label>
-                    <Input
-                      value={bankingForm.accountNumber}
-                      onChange={(e) =>
-                        setBankingForm({
-                          ...bankingForm,
-                          accountNumber: e.target.value,
-                        })
-                      }
-                      placeholder="Enter your account number"
-                    />
-                  </div>
-                  <div className="flex gap-3 pt-2">
-                    <Button
-                      onClick={handleSaveBanking}
-                      className="bg-[#FF6A00] hover:bg-orange-600"
-                    >
-                      Save Changes
-                    </Button>
-                    <Button
-                      onClick={() => setEditSection(null)}
-                      variant="outline"
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-6">
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1 flex items-center gap-2">
-                      Bank Name
-                      {isEmptyField(seller?.bankName) && (
-                        <AlertCircle
-                          className="h-4 w-4 text-amber-500"
-                          aria-label="Required field"
-                        />
-                      )}
-                    </p>
-                    <p className="text-gray-900 font-medium">
-                      {seller?.bankName || "Not provided"}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1 flex items-center gap-2">
-                      Account Name
-                      {isEmptyField(seller?.accountName) && (
-                        <AlertCircle
-                          className="h-4 w-4 text-amber-500"
-                          aria-label="Required field"
-                        />
-                      )}
-                    </p>
-                    <p className="text-gray-900 font-medium">
-                      {seller?.accountName || "Not provided"}
-                    </p>
-                  </div>
-                  <div className="col-span-2">
-                    <p className="text-sm text-gray-600 mb-1 flex items-center gap-2">
-                      Account Number
-                      {isEmptyField(seller?.accountNumber) && (
-                        <AlertCircle
-                          className="h-4 w-4 text-amber-500"
-                          aria-label="Required field"
-                        />
-                      )}
-                    </p>
-                    <p className="text-gray-900 font-medium font-mono">
-                      {seller?.accountNumber
-                        ? `****${seller.accountNumber.slice(-4)}`
-                        : "Not provided"}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {isVerified && (
-                <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
-                  <p className="text-sm text-green-700 flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4" />
-                    Your banking information has been verified and secured.
-                    Contact support if you need to update these details.
-                  </p>
-                </div>
-              )}
-            </Card>
-
-            {/* Verification Documents */}
-            <Card className="p-6 mb-6">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-2">
-                  <FileText className="h-5 w-5 text-[#FF6A00]" />
-                  <h3 className="text-xl font-bold text-gray-900">
-                    Verification Documents
-                  </h3>
-                </div>
-                {isVerified ? (
-                  <Badge className="bg-green-100 text-green-700">
-                    <CheckCircle2 className="h-4 w-4 mr-1" />
-                    All Verified
-                  </Badge>
-                ) : (
-                  <Badge className="bg-amber-100 text-amber-700">
-                    <Clock className="h-4 w-4 mr-1" />
-                    Under Review
-                  </Badge>
-                )}
-              </div>
-
-              <div className="space-y-4">
-                {/* Document Helper Function */}
-                {[
-                  {
-                    key: "businessPermitUrl",
-                    label: "Business Permit",
-                    description: "Mayor's permit or business registration",
-                    icon: Building2,
-                    column: "business_permit_url",
-                  },
-                  {
-                    key: "validIdUrl",
-                    label: "Government-Issued ID",
-                    description:
-                      "Owner's valid ID (Driver's License, Passport, etc.)",
-                    icon: User,
-                    column: "valid_id_url",
-                  },
-                  {
-                    key: "proofOfAddressUrl",
-                    label: "Proof of Address",
-                    description:
-                      "Utility bill or bank statement showing business address",
-                    icon: FileText,
-                    column: "proof_of_address_url",
-                  },
-                  {
-                    key: "dtiRegistrationUrl",
-                    label: "DTI/SEC Registration",
-                    description:
-                      "DTI certificate for sole proprietor or SEC for corporation",
-                    icon: Building2,
-                    column: "dti_registration_url",
-                  },
-                  {
-                    key: "taxIdUrl",
-                    label: "BIR Tax ID (TIN)",
-                    description: "Certificate of Registration from BIR",
-                    icon: CreditCard,
-                    column: "tax_id_url",
-                  },
-                ].map((doc) => {
-                  const hasDocument =
-                    documents[doc.key as keyof typeof documents];
-                  const Icon = doc.icon;
-                  const isUploading = uploadingDoc === doc.key;
-
-                  return (
-                    <div
-                      key={doc.key}
-                      className={`p-4 border rounded-lg transition-colors ${hasDocument
-                        ? "border-green-200 bg-green-50/50 hover:border-green-300"
-                        : "border-gray-200 hover:border-orange-300"
-                        }`}
-                    >
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-3">
-                          <div
-                            className={`h-10 w-10 rounded-lg flex items-center justify-center ${hasDocument ? "bg-green-100" : "bg-gray-100"
-                              }`}
-                          >
-                            <Icon
-                              className={`h-5 w-5 ${hasDocument ? "text-green-600" : "text-gray-500"
-                                }`}
-                            />
+                        {approvalStatus === "pending" && !isVerified && (
+                          <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">
+                            <Clock className="h-3 w-3 mr-1" />
+                            Pending Approval
+                          </Badge>
+                        )}
+                        {approvalStatus === "rejected" && (
+                          <div className="flex flex-col items-center gap-2">
+                            <Badge className="bg-red-100 text-red-700 hover:bg-red-100">
+                              <AlertCircle className="h-3 w-3 mr-1" />
+                              Rejected
+                            </Badge>
+                            <Button
+                              size="sm"
+                              className="bg-[#FF6A00] hover:bg-orange-600 text-xs"
+                              onClick={handleReapply}
+                              disabled={reapplyLoading}
+                            >
+                              {reapplyLoading ? "Reapplying…" : "Reapply"}
+                            </Button>
                           </div>
-                          <div>
-                            <p className="font-medium text-gray-900">
-                              {doc.label}
-                            </p>
-                            <p className="text-sm text-gray-500">
-                              {doc.description}
-                              <span className="block mt-1 text-xs text-gray-400">
-                                Accepted: PDF, JPG, PNG • Max 10MB
-                              </span>
-                            </p>
+                        )}
+                        {approvalStatus === "approved" && !isVerified && (
+                          <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">
+                            <CheckCircle2 className="h-3 w-3 mr-1" />
+                            Approved
+                          </Badge>
+                        )}
+                      </div>
+
+                      {/* Avatar Error */}
+                      {avatarError && (
+                        <div className="w-full mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                          <p className="text-xs font-medium text-red-900 mb-1">
+                            Upload Failed
+                          </p>
+                          <p className="text-xs text-red-700">{avatarError}</p>
+                        </div>
+                      )}
+
+                      {/* Quick Stats */}
+                      <div className="w-full grid grid-cols-2 gap-3">
+                        <div className="bg-gray-50 rounded-lg p-3">
+                          <div className="flex items-center justify-center gap-1 text-gray-600 text-xs mb-1">
+                            <Award className="h-3 w-3" />
+                            Rating
+                          </div>
+                          <div className="text-lg font-bold text-gray-900">
+                            {seller?.rating ? `${seller.rating}/5.0` : "New"}
                           </div>
                         </div>
+                        <div className="bg-gray-50 rounded-lg p-3">
+                          <div className="flex items-center justify-center gap-1 text-gray-600 text-xs mb-1">
+                            <Package className="h-3 w-3" />
+                            Products
+                          </div>
+                          <div className="text-lg font-bold text-gray-900">0</div>
+                        </div>
+                        <div className="bg-gray-50 rounded-lg p-3">
+                          <div className="flex items-center justify-center gap-1 text-gray-600 text-xs mb-1">
+                            <TrendingUp className="h-3 w-3" />
+                            Sales
+                          </div>
+                          <div className="text-lg font-bold text-gray-900">
+                            {seller?.totalSales || 0}
+                          </div>
+                        </div>
+                        <div className="bg-gray-50 rounded-lg p-3">
+                          <div className="flex items-center justify-center gap-1 text-gray-600 text-xs mb-1">
+                            <Users className="h-3 w-3" />
+                            Followers
+                          </div>
+                          <div className="text-lg font-bold text-gray-900">0</div>
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+                </div>
+              </div>
 
-                        {hasDocument ? (
-                          <div className="flex gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="gap-2"
-                              onClick={() => {
-                                const docUrl =
-                                  documents[doc.key as keyof typeof documents];
-                                console.log(
-                                  "Opening document:",
-                                  doc.label,
-                                  "URL:",
-                                  docUrl,
-                                );
+              {/* Right Content Area - Scrollable */}
+              <div className="lg:col-span-8 space-y-6">
+                {/* Invisible spacer to align with left section title */}
+                <div className="h-[70px]" aria-hidden="true"></div>
 
-                                if (!docUrl) {
-                                  alert("Document URL not found");
-                                  return;
-                                }
+                {/* Owner & Contact Information (Editable) */}
+                <Card className="p-6 mb-6 shadow-md border-gray-100">
+                  <div className="flex items-center justify-between mb-6">
+                    <div>
+                      <h3 className="text-xl font-bold text-gray-900">
+                        Owner & Contact Information
+                      </h3>
+                    </div>
+                    {editSection !== "basic" && (
+                      <Button
+                        onClick={() => setEditSection("basic")}
+                        variant="outline"
+                        size="sm"
+                        className="gap-2"
+                      >
+                        <Edit2 className="h-4 w-4" />
+                        Edit
+                      </Button>
+                    )}
+                  </div>
 
-                                // Handle different URL types
-                                if (docUrl.startsWith("mock://")) {
-                                  alert(
-                                    "Mock URL detected. This is a test URL. Please upload a real document.",
-                                  );
-                                  return;
-                                }
+                  {editSection === "basic" ? (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label>Owner Name</Label>
+                          <Input
+                            value={formData.ownerName}
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                ownerName: e.target.value,
+                              })
+                            }
+                            placeholder="Full name"
+                          />
+                        </div>
+                        <div>
+                          <Label>Email</Label>
+                          <Input
+                            type="email"
+                            value={formData.email}
+                            onChange={(e) =>
+                              setFormData({ ...formData, email: e.target.value })
+                            }
+                            placeholder="email@example.com"
+                          />
+                        </div>
+                      </div>
 
-                                // Open PDF in new tab with proper viewer
-                                const newWindow = window.open("", "_blank");
-                                if (newWindow) {
-                                  newWindow.document.write(`
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label>Phone</Label>
+                          <Input
+                            value={formData.phone}
+                            onChange={(e) =>
+                              setFormData({ ...formData, phone: e.target.value })
+                            }
+                            placeholder="+63 XXX XXX XXXX"
+                          />
+                        </div>
+                        <div>
+                          <Label>Store Name</Label>
+                          <Input
+                            value={formData.storeName}
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                storeName: e.target.value,
+                              })
+                            }
+                            placeholder="Your store name"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <Label>Store Description</Label>
+                        <Textarea
+                          value={formData.storeDescription}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              storeDescription: e.target.value,
+                            })
+                          }
+                          rows={4}
+                          placeholder="Describe your store and what you sell..."
+                        />
+                      </div>
+
+                      <div className="flex gap-3 pt-2">
+                        <Button
+                          onClick={handleSaveBasic}
+                          className="bg-[#FF6A00] hover:bg-orange-600"
+                        >
+                          Save Changes
+                        </Button>
+                        <Button
+                          onClick={() => setEditSection(null)}
+                          variant="outline"
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-6">
+                      <div>
+                        <p className="text-sm text-gray-600 mb-1 flex items-center gap-2">
+                          Owner Name
+                          {isEmptyField(seller?.ownerName) && (
+                            <AlertCircle
+                              className="h-4 w-4 text-amber-500"
+                              aria-label="Required field"
+                            />
+                          )}
+                        </p>
+                        <p className="text-gray-900 font-medium">
+                          {seller?.ownerName || "Not provided"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600 mb-1 flex items-center gap-2">
+                          Email Address
+                          {isEmptyField(seller?.email) && (
+                            <AlertCircle
+                              className="h-4 w-4 text-amber-500"
+                              aria-label="Required field"
+                            />
+                          )}
+                        </p>
+                        <p className="text-gray-900 font-medium">
+                          {seller?.email || "Not provided"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600 mb-1 flex items-center gap-2">
+                          Phone Number
+                          {isEmptyField(seller?.phone) && (
+                            <AlertCircle
+                              className="h-4 w-4 text-amber-500"
+                              aria-label="Required field"
+                            />
+                          )}
+                        </p>
+                        <p className="text-gray-900 font-medium">
+                          {seller?.phone || "Not provided"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600 mb-1 flex items-center gap-2">
+                          Store Name
+                          {isEmptyField(seller?.storeName) && (
+                            <AlertCircle
+                              className="h-4 w-4 text-amber-500"
+                              aria-label="Required field"
+                            />
+                          )}
+                        </p>
+                        <p className="text-gray-900 font-medium">
+                          {seller?.storeName || "Your Store"}
+                        </p>
+                      </div>
+                      <div className="col-span-2">
+                        <p className="text-sm text-gray-600 mb-1 flex items-center gap-2">
+                          Store Description
+                          {isEmptyField(seller?.storeDescription) && (
+                            <AlertCircle
+                              className="h-4 w-4 text-amber-500"
+                              aria-label="Recommended field"
+                            />
+                          )}
+                        </p>
+                        <p className="text-gray-900">
+                          {seller?.storeDescription || "No description added"}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </Card>
+
+                {/* Business Information (Locked if Verified) */}
+                <Card className="p-6 mb-6 shadow-md border-gray-100">
+                  <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-xl font-bold text-gray-900">
+                        Business Information
+                      </h3>
+                      {isVerified && (
+                        <Badge className="bg-green-100 text-green-700 ml-2">
+                          <Lock className="h-3 w-3 mr-1" />
+                          Verified & Locked
+                        </Badge>
+                      )}
+                    </div>
+                    {!isVerified && (
+                      <Button
+                        onClick={() => setEditSection("business")}
+                        variant="outline"
+                        size="sm"
+                        className="gap-2"
+                      >
+                        <Edit2 className="h-4 w-4" />
+                        Edit
+                      </Button>
+                    )}
+                  </div>
+
+                  {editSection === "business" ? (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label>Business Name</Label>
+                          <Input
+                            value={businessForm.businessName}
+                            onChange={(e) =>
+                              setBusinessForm({
+                                ...businessForm,
+                                businessName: e.target.value,
+                              })
+                            }
+                          />
+                        </div>
+                        <div>
+                          <Label>Business Type</Label>
+                          <Input
+                            value={businessForm.businessType}
+                            onChange={(e) =>
+                              setBusinessForm({
+                                ...businessForm,
+                                businessType: e.target.value,
+                              })
+                            }
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label>Business Registration Number</Label>
+                          <Input
+                            value={businessForm.businessRegistrationNumber}
+                            onChange={(e) =>
+                              setBusinessForm({
+                                ...businessForm,
+                                businessRegistrationNumber: e.target.value,
+                              })
+                            }
+                          />
+                        </div>
+                        <div>
+                          <Label>Tax ID Number (TIN)</Label>
+                          <Input
+                            value={businessForm.taxIdNumber}
+                            onChange={(e) =>
+                              setBusinessForm({
+                                ...businessForm,
+                                taxIdNumber: e.target.value,
+                              })
+                            }
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-4 gap-4">
+                        <div className="col-span-2">
+                          <Label>Address</Label>
+                          <Input
+                            value={businessForm.businessAddress}
+                            onChange={(e) =>
+                              setBusinessForm({
+                                ...businessForm,
+                                businessAddress: e.target.value,
+                              })
+                            }
+                          />
+                        </div>
+                        <div>
+                          <Label>City</Label>
+                          <Input
+                            value={businessForm.city}
+                            onChange={(e) =>
+                              setBusinessForm({
+                                ...businessForm,
+                                city: e.target.value,
+                              })
+                            }
+                          />
+                        </div>
+                        <div>
+                          <Label>Province</Label>
+                          <Input
+                            value={businessForm.province}
+                            onChange={(e) =>
+                              setBusinessForm({
+                                ...businessForm,
+                                province: e.target.value,
+                              })
+                            }
+                          />
+                        </div>
+                        <div>
+                          <Label>Postal Code</Label>
+                          <Input
+                            value={businessForm.postalCode}
+                            onChange={(e) =>
+                              setBusinessForm({
+                                ...businessForm,
+                                postalCode: e.target.value,
+                              })
+                            }
+                          />
+                        </div>
+                      </div>
+                      <div className="flex gap-3 pt-2">
+                        <Button
+                          onClick={handleSaveBusiness}
+                          className="bg-[#FF6A00] hover:bg-orange-600"
+                        >
+                          Save Changes
+                        </Button>
+                        <Button
+                          onClick={() => setEditSection(null)}
+                          variant="outline"
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-6">
+                      <div>
+                        <p className="text-sm text-gray-600 mb-1 flex items-center gap-2">
+                          Business Name
+                          {isEmptyField(seller?.businessName) && (
+                            <AlertCircle
+                              className="h-4 w-4 text-amber-500"
+                              aria-label="Required field"
+                            />
+                          )}
+                        </p>
+                        <p className="text-gray-900 font-medium">
+                          {seller?.businessName || "Not provided"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600 mb-1 flex items-center gap-2">
+                          Business Type
+                          {isEmptyField(seller?.businessType) && (
+                            <AlertCircle
+                              className="h-4 w-4 text-amber-500"
+                              aria-label="Required field"
+                            />
+                          )}
+                        </p>
+                        <p className="text-gray-900 font-medium">
+                          {seller?.businessType || "Not provided"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600 mb-1 flex items-center gap-2">
+                          Business Registration Number
+                          {isEmptyField(seller?.businessRegistrationNumber) && (
+                            <AlertCircle
+                              className="h-4 w-4 text-amber-500"
+                              aria-label="Required field"
+                            />
+                          )}
+                        </p>
+                        <p className="text-gray-900 font-medium font-mono">
+                          {seller?.businessRegistrationNumber || "Not provided"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600 mb-1 flex items-center gap-2">
+                          Tax ID Number (TIN)
+                          {isEmptyField(seller?.taxIdNumber) && (
+                            <AlertCircle
+                              className="h-4 w-4 text-amber-500"
+                              aria-label="Required field"
+                            />
+                          )}
+                        </p>
+                        <p className="text-gray-900 font-medium font-mono">
+                          {seller?.taxIdNumber || "Not provided"}
+                        </p>
+                      </div>
+                      <div className="col-span-2">
+                        <p className="text-sm text-gray-600 mb-1 flex items-center gap-2">
+                          Business Address
+                          {(isEmptyField(seller?.businessAddress) ||
+                            isEmptyField(seller?.city) ||
+                            isEmptyField(seller?.province) ||
+                            isEmptyField(seller?.postalCode)) && (
+                              <AlertCircle
+                                className="h-4 w-4 text-amber-500"
+                                aria-label="Required field"
+                              />
+                            )}
+                        </p>
+                        <p className="text-gray-900">
+                          {seller?.businessAddress &&
+                            seller?.city &&
+                            seller?.province &&
+                            seller?.postalCode
+                            ? `${seller.businessAddress}, ${seller.city}, ${seller.province} ${seller.postalCode}`
+                            : "Not provided"}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {isVerified && (
+                    <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+                      <p className="text-sm text-green-700 flex items-center gap-2">
+                        <CheckCircle2 className="h-4 w-4" />
+                        Your business information has been verified and cannot be
+                        edited. Contact support if you need to make changes.
+                      </p>
+                    </div>
+                  )}
+                </Card>
+
+                {/* Banking Information (Locked if Verified) */}
+                <Card className="p-6 mb-6 shadow-md border-gray-100">
+                  <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-xl font-bold text-gray-900">
+                        Banking Information
+                      </h3>
+                      {isVerified && (
+                        <Badge className="bg-green-100 text-green-700 ml-2">
+                          <Lock className="h-3 w-3 mr-1" />
+                          Verified & Locked
+                        </Badge>
+                      )}
+                    </div>
+                    {!isVerified && (
+                      <Button
+                        onClick={() => setEditSection("banking")}
+                        variant="outline"
+                        size="sm"
+                        className="gap-2"
+                      >
+                        <Edit2 className="h-4 w-4" />
+                        Edit
+                      </Button>
+                    )}
+                  </div>
+
+                  {editSection === "banking" ? (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label>Bank Name</Label>
+                          <Input
+                            value={bankingForm.bankName}
+                            onChange={(e) =>
+                              setBankingForm({
+                                ...bankingForm,
+                                bankName: e.target.value,
+                              })
+                            }
+                          />
+                        </div>
+                        <div>
+                          <Label>Account Name</Label>
+                          <Input
+                            value={bankingForm.accountName}
+                            onChange={(e) =>
+                              setBankingForm({
+                                ...bankingForm,
+                                accountName: e.target.value,
+                              })
+                            }
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <Label>Account Number</Label>
+                        <Input
+                          value={bankingForm.accountNumber}
+                          onChange={(e) =>
+                            setBankingForm({
+                              ...bankingForm,
+                              accountNumber: e.target.value,
+                            })
+                          }
+                          placeholder="Enter your account number"
+                        />
+                      </div>
+                      <div className="flex gap-3 pt-2">
+                        <Button
+                          onClick={handleSaveBanking}
+                          className="bg-[#FF6A00] hover:bg-orange-600"
+                        >
+                          Save Changes
+                        </Button>
+                        <Button
+                          onClick={() => setEditSection(null)}
+                          variant="outline"
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-6">
+                      <div>
+                        <p className="text-sm text-gray-600 mb-1 flex items-center gap-2">
+                          Bank Name
+                          {isEmptyField(seller?.bankName) && (
+                            <AlertCircle
+                              className="h-4 w-4 text-amber-500"
+                              aria-label="Required field"
+                            />
+                          )}
+                        </p>
+                        <p className="text-gray-900 font-medium">
+                          {seller?.bankName || "Not provided"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600 mb-1 flex items-center gap-2">
+                          Account Name
+                          {isEmptyField(seller?.accountName) && (
+                            <AlertCircle
+                              className="h-4 w-4 text-amber-500"
+                              aria-label="Required field"
+                            />
+                          )}
+                        </p>
+                        <p className="text-gray-900 font-medium">
+                          {seller?.accountName || "Not provided"}
+                        </p>
+                      </div>
+                      <div className="col-span-2">
+                        <p className="text-sm text-gray-600 mb-1 flex items-center gap-2">
+                          Account Number
+                          {isEmptyField(seller?.accountNumber) && (
+                            <AlertCircle
+                              className="h-4 w-4 text-amber-500"
+                              aria-label="Required field"
+                            />
+                          )}
+                        </p>
+                        <p className="text-gray-900 font-medium font-mono">
+                          {seller?.accountNumber
+                            ? `****${seller.accountNumber.slice(-4)}`
+                            : "Not provided"}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {isVerified && (
+                    <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+                      <p className="text-sm text-green-700 flex items-center gap-2">
+                        <CheckCircle2 className="h-4 w-4" />
+                        Your banking information has been verified and secured.
+                        Contact support if you need to update these details.
+                      </p>
+                    </div>
+                  )}
+                </Card>
+
+                {/* Verification Documents */}
+                <Card className="p-6 mb-6 shadow-md border-gray-100">
+                  <div className="flex items-center justify-between mb-6">
+                    <div>
+                      <h3 className="text-xl font-bold text-gray-900">
+                        Verification Documents
+                      </h3>
+                    </div>
+                    {isVerified ? (
+                      <Badge className="bg-green-100 text-green-700">
+                        <CheckCircle2 className="h-4 w-4 mr-1" />
+                        All Verified
+                      </Badge>
+                    ) : (
+                      <Badge className="bg-amber-100 text-amber-700">
+                        <Clock className="h-4 w-4 mr-1" />
+                        Under Review
+                      </Badge>
+                    )}
+                  </div>
+
+                  <div className="space-y-4">
+                    {/* Document Helper Function */}
+                    {[
+                      {
+                        key: "businessPermitUrl",
+                        label: "Business Permit",
+                        description: "Mayor's permit or business registration",
+                        icon: Building2,
+                        column: "business_permit_url",
+                      },
+                      {
+                        key: "validIdUrl",
+                        label: "Government-Issued ID",
+                        description:
+                          "Owner's valid ID (Driver's License, Passport, etc.)",
+                        icon: User,
+                        column: "valid_id_url",
+                      },
+                      {
+                        key: "proofOfAddressUrl",
+                        label: "Proof of Address",
+                        description:
+                          "Utility bill or bank statement showing business address",
+                        icon: FileText,
+                        column: "proof_of_address_url",
+                      },
+                      {
+                        key: "dtiRegistrationUrl",
+                        label: "DTI/SEC Registration",
+                        description:
+                          "DTI certificate for sole proprietor or SEC for corporation",
+                        icon: Building2,
+                        column: "dti_registration_url",
+                      },
+                      {
+                        key: "taxIdUrl",
+                        label: "BIR Tax ID (TIN)",
+                        description: "Certificate of Registration from BIR",
+                        icon: CreditCard,
+                        column: "tax_id_url",
+                      },
+                    ].map((doc) => {
+                      const hasDocument =
+                        documents[doc.key as keyof typeof documents];
+                      const Icon = doc.icon;
+                      const isUploading = uploadingDoc === doc.key;
+
+                      return (
+                        <div
+                          key={doc.key}
+                          className={`p-4 border rounded-lg transition-colors ${hasDocument
+                            ? "border-green-200 bg-green-50/50 hover:border-green-300"
+                            : "border-gray-200 hover:border-orange-300"
+                            }`}
+                        >
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-3">
+                              <div
+                                className="h-10 w-10 rounded-lg flex items-center justify-center"
+                              >
+                                <Icon
+                                  className={`h-5 w-5 ${hasDocument ? "text-green-600" : "text-gray-500"
+                                    }`}
+                                />
+                              </div>
+                              <div>
+                                <p className="font-medium text-gray-900">
+                                  {doc.label}
+                                </p>
+                                <p className="text-sm text-gray-500">
+                                  {doc.description}
+                                  <span className="block mt-1 text-xs text-gray-400">
+                                    Accepted: PDF, JPG, PNG • Max 10MB
+                                  </span>
+                                </p>
+                              </div>
+                            </div>
+
+                            {hasDocument ? (
+                              <div className="flex gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="gap-2"
+                                  onClick={() => {
+                                    const docUrl =
+                                      documents[doc.key as keyof typeof documents];
+                                    console.log(
+                                      "Opening document:",
+                                      doc.label,
+                                      "URL:",
+                                      docUrl,
+                                    );
+
+                                    if (!docUrl) {
+                                      alert("Document URL not found");
+                                      return;
+                                    }
+
+                                    // Handle different URL types
+                                    if (docUrl.startsWith("mock://")) {
+                                      alert(
+                                        "Mock URL detected. This is a test URL. Please upload a real document.",
+                                      );
+                                      return;
+                                    }
+
+                                    // Open PDF in new tab with proper viewer
+                                    const newWindow = window.open("", "_blank");
+                                    if (newWindow) {
+                                      newWindow.document.write(`
                                     <!DOCTYPE html>
                                     <html>
                                       <head>
@@ -1505,240 +1504,242 @@ export function SellerStoreProfile() {
                                       </body>
                                     </html>
                                   `);
-                                  newWindow.document.close();
-                                } else {
-                                  alert(
-                                    "Pop-up blocked. Please allow pop-ups and try again.",
-                                  );
-                                }
-                              }}
-                            >
-                              <Eye className="h-4 w-4" />
-                              View
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="gap-2"
-                              onClick={() => {
-                                const docUrl =
-                                  documents[doc.key as keyof typeof documents];
-                                if (docUrl && !docUrl.startsWith("mock://")) {
-                                  handleDownloadDocument(
-                                    docUrl,
-                                    `${doc.label.replace(/\s+/g, "_")}.pdf`,
-                                  );
-                                }
-                              }}
-                            >
-                              <Download className="h-4 w-4" />
-                              Download
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="gap-2 text-orange-600 hover:text-orange-700"
-                              onClick={() => {
-                                const input = document.createElement("input");
-                                input.type = "file";
-                                input.accept = ".pdf,.jpg,.jpeg,.png";
-                                input.onchange = async (e) => {
-                                  const file = (e.target as HTMLInputElement)
-                                    .files?.[0];
-                                  if (file && seller?.id) {
-                                    await handleDocumentUpload(
-                                      file,
-                                      doc.key,
-                                      doc.column,
-                                    );
-                                  }
-                                };
-                                input.click();
-                              }}
-                            >
-                              <Upload className="h-4 w-4" />
-                              Replace
-                            </Button>
-                          </div>
-                        ) : (
-                          <Button
-                            size="sm"
-                            className="gap-2 bg-[#FF6A00] hover:bg-orange-600"
-                            disabled={isUploading}
-                            onClick={() => {
-                              const input = document.createElement("input");
-                              input.type = "file";
-                              input.accept = ".pdf,.jpg,.jpeg,.png";
-                              input.onchange = async (e) => {
-                                const file = (e.target as HTMLInputElement)
-                                  .files?.[0];
-                                if (file && seller?.id) {
-                                  await handleDocumentUpload(
-                                    file,
-                                    doc.key,
-                                    doc.column,
-                                  );
-                                }
-                              };
-                              input.click();
-                            }}
-                          >
-                            {isUploading ? (
-                              <>
-                                <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                Uploading...
-                              </>
+                                      newWindow.document.close();
+                                    } else {
+                                      alert(
+                                        "Pop-up blocked. Please allow pop-ups and try again.",
+                                      );
+                                    }
+                                  }}
+                                >
+                                  <Eye className="h-4 w-4" />
+                                  View
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="gap-2"
+                                  onClick={() => {
+                                    const docUrl =
+                                      documents[doc.key as keyof typeof documents];
+                                    if (docUrl && !docUrl.startsWith("mock://")) {
+                                      handleDownloadDocument(
+                                        docUrl,
+                                        `${doc.label.replace(/\s+/g, "_")}.pdf`,
+                                      );
+                                    }
+                                  }}
+                                >
+                                  <Download className="h-4 w-4" />
+                                  Download
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="gap-2 text-orange-600 hover:text-orange-700"
+                                  onClick={() => {
+                                    const input = document.createElement("input");
+                                    input.type = "file";
+                                    input.accept = ".pdf,.jpg,.jpeg,.png";
+                                    input.onchange = async (e) => {
+                                      const file = (e.target as HTMLInputElement)
+                                        .files?.[0];
+                                      if (file && seller?.id) {
+                                        await handleDocumentUpload(
+                                          file,
+                                          doc.key,
+                                          doc.column,
+                                        );
+                                      }
+                                    };
+                                    input.click();
+                                  }}
+                                >
+                                  <Upload className="h-4 w-4" />
+                                  Replace
+                                </Button>
+                              </div>
                             ) : (
-                              <>
-                                <Upload className="h-4 w-4" />
-                                Upload PDF
-                              </>
+                              <Button
+                                size="sm"
+                                className="gap-2 bg-[#FF6A00] hover:bg-orange-600"
+                                disabled={isUploading}
+                                onClick={() => {
+                                  const input = document.createElement("input");
+                                  input.type = "file";
+                                  input.accept = ".pdf,.jpg,.jpeg,.png";
+                                  input.onchange = async (e) => {
+                                    const file = (e.target as HTMLInputElement)
+                                      .files?.[0];
+                                    if (file && seller?.id) {
+                                      await handleDocumentUpload(
+                                        file,
+                                        doc.key,
+                                        doc.column,
+                                      );
+                                    }
+                                  };
+                                  input.click();
+                                }}
+                              >
+                                {isUploading ? (
+                                  <>
+                                    <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                    Uploading...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Upload className="h-4 w-4" />
+                                    Upload PDF
+                                  </>
+                                )}
+                              </Button>
                             )}
-                          </Button>
-                        )}
 
-                        {/* Image preview for uploaded images */}
-                        {hasDocument && isImageFile(documents[doc.key as keyof typeof documents]) && (
-                          <div className="mt-3 border rounded-lg overflow-hidden bg-gray-50">
-                            <img
-                              src={documents[doc.key as keyof typeof documents]}
-                              alt={`${doc.label} preview`}
-                              className="w-full max-w-md object-contain"
-                              loading="lazy"
-                            />
+                            {/* Image preview for uploaded images */}
+                            {hasDocument && isImageFile(documents[doc.key as keyof typeof documents]) && (
+                              <div className="mt-3 border rounded-lg overflow-hidden bg-gray-50">
+                                <img
+                                  src={documents[doc.key as keyof typeof documents]}
+                                  alt={`${doc.label} preview`}
+                                  className="w-full max-w-md object-contain"
+                                  loading="lazy"
+                                />
+                              </div>
+                            )}
                           </div>
-                        )}
+
+                          {hasDocument && isVerified && (
+                            <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 px-3 py-2 rounded">
+                              <CheckCircle2 className="h-4 w-4" />
+                              Verified on{" "}
+                              {seller?.joinDate
+                                ? new Date(seller.joinDate).toLocaleDateString()
+                                : "N/A"}
+                            </div>
+                          )}
+
+                          {hasDocument && !isVerified && (
+                            <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 px-3 py-2 rounded">
+                              <Clock className="h-4 w-4" />
+                              Pending verification
+                            </div>
+                          )}
+
+                          {!hasDocument && (
+                            <div className="flex items-center gap-2 text-sm text-gray-500 bg-gray-50 px-3 py-2 rounded">
+                              <AlertCircle className="h-4 w-4" />
+                              Document not uploaded yet
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {!isVerified && (
+                    <div className="mt-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                      <p className="text-sm text-amber-700 flex items-center gap-2">
+                        <AlertCircle className="h-4 w-4" />
+                        Your documents are currently being reviewed by our team.
+                        This usually takes 1-2 business days. You'll be notified
+                        once verification is complete.
+                      </p>
+                    </div>
+                  )}
+                </Card>
+
+                {/* Store Categories */}
+                <Card className="p-6 mb-6 shadow-md border-gray-100">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-xl font-bold text-gray-900">
+                      Store Categories
+                    </h3>
+                    {editSection !== "categories" && (
+                      <Button
+                        onClick={() => setEditSection("categories")}
+                        variant="outline"
+                        size="sm"
+                        className="gap-2"
+                      >
+                        <Edit2 className="h-4 w-4" />
+                        Edit
+                      </Button>
+                    )}
+                  </div>
+
+                  {editSection === "categories" ? (
+                    <div className="space-y-4">
+                      <div>
+                        <Label>Store Categories</Label>
+                        <p className="text-sm text-gray-600 mb-2">
+                          Enter categories separated by commas (e.g., Electronics,
+                          Fashion, Home & Garden)
+                        </p>
+                        <Textarea
+                          value={categoriesForm.join(", ")}
+                          onChange={(e) =>
+                            setCategoriesForm(
+                              e.target.value
+                                .split(",")
+                                .map((cat) => cat.trim())
+                                .filter((cat) => cat.length > 0),
+                            )
+                          }
+                          placeholder="Enter store categories..."
+                          rows={3}
+                        />
                       </div>
-
-                      {hasDocument && isVerified && (
-                        <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 px-3 py-2 rounded">
-                          <CheckCircle2 className="h-4 w-4" />
-                          Verified on{" "}
-                          {seller?.joinDate
-                            ? new Date(seller.joinDate).toLocaleDateString()
-                            : "N/A"}
-                        </div>
-                      )}
-
-                      {hasDocument && !isVerified && (
-                        <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 px-3 py-2 rounded">
-                          <Clock className="h-4 w-4" />
-                          Pending verification
-                        </div>
-                      )}
-
-                      {!hasDocument && (
-                        <div className="flex items-center gap-2 text-sm text-gray-500 bg-gray-50 px-3 py-2 rounded">
-                          <AlertCircle className="h-4 w-4" />
-                          Document not uploaded yet
-                        </div>
+                      <div className="flex gap-3 pt-2">
+                        <Button
+                          onClick={handleSaveCategories}
+                          className="bg-[#FF6A00] hover:bg-orange-600"
+                        >
+                          Save Changes
+                        </Button>
+                        <Button
+                          onClick={() => setEditSection(null)}
+                          variant="outline"
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {seller?.storeCategory && seller.storeCategory.length > 0 ? (
+                        seller.storeCategory.map((category, index) => (
+                          <span
+                            key={index}
+                            className="px-4 py-2 bg-orange-100 text-orange-700 rounded-full text-sm font-medium"
+                          >
+                            {category}
+                          </span>
+                        ))
+                      ) : (
+                        <p className="text-gray-500">No categories selected</p>
                       )}
                     </div>
-                  );
-                })}
-              </div>
-
-              {!isVerified && (
-                <div className="mt-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                  <p className="text-sm text-amber-700 flex items-center gap-2">
-                    <AlertCircle className="h-4 w-4" />
-                    Your documents are currently being reviewed by our team.
-                    This usually takes 1-2 business days. You'll be notified
-                    once verification is complete.
-                  </p>
-                </div>
-              )}
-            </Card>
-
-            {/* Store Categories */}
-            <Card className="p-6 mb-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-bold text-gray-900">
-                  Store Categories
-                </h3>
-                {editSection !== "categories" && (
-                  <Button
-                    onClick={() => setEditSection("categories")}
-                    variant="outline"
-                    size="sm"
-                    className="gap-2"
-                  >
-                    <Edit2 className="h-4 w-4" />
-                    Edit
-                  </Button>
-                )}
-              </div>
-
-              {editSection === "categories" ? (
-                <div className="space-y-4">
-                  <div>
-                    <Label>Store Categories</Label>
-                    <p className="text-sm text-gray-600 mb-2">
-                      Enter categories separated by commas (e.g., Electronics,
-                      Fashion, Home & Garden)
-                    </p>
-                    <Textarea
-                      value={categoriesForm.join(", ")}
-                      onChange={(e) =>
-                        setCategoriesForm(
-                          e.target.value
-                            .split(",")
-                            .map((cat) => cat.trim())
-                            .filter((cat) => cat.length > 0),
-                        )
-                      }
-                      placeholder="Enter store categories..."
-                      rows={3}
-                    />
-                  </div>
-                  <div className="flex gap-3 pt-2">
-                    <Button
-                      onClick={handleSaveCategories}
-                      className="bg-[#FF6A00] hover:bg-orange-600"
-                    >
-                      Save Changes
-                    </Button>
-                    <Button
-                      onClick={() => setEditSection(null)}
-                      variant="outline"
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex flex-wrap gap-2">
-                  {seller?.storeCategory && seller.storeCategory.length > 0 ? (
-                    seller.storeCategory.map((category, index) => (
-                      <span
-                        key={index}
-                        className="px-4 py-2 bg-orange-100 text-orange-700 rounded-full text-sm font-medium"
-                      >
-                        {category}
-                      </span>
-                    ))
-                  ) : (
-                    <p className="text-gray-500">No categories selected</p>
                   )}
-                </div>
-              )}
-            </Card>
+                </Card>
 
-            {/* Store Banner */}
-            <Card className="p-6">
-              <h3 className="text-xl font-bold text-gray-900 mb-4">
-                Store Banner
-              </h3>
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center hover:border-orange-500 transition-colors cursor-pointer">
-                <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-600 mb-2">
-                  Click to upload store banner
-                </p>
-                <p className="text-sm text-gray-500">
-                  Recommended size: 1200x400px (Max 5MB)
-                </p>
+                {/* Store Banner */}
+                <Card className="p-6 shadow-md border-gray-100">
+                  <h3 className="text-xl font-bold text-gray-900 mb-4">
+                    Store Banner
+                  </h3>
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center hover:border-orange-500 transition-colors cursor-pointer">
+                    <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-600 mb-2">
+                      Click to upload store banner
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      Recommended size: 1200x400px (Max 5MB)
+                    </p>
+                  </div>
+                </Card>
               </div>
-            </Card>
+            </div>
           </div>
         </div>
       </div>
