@@ -181,6 +181,22 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
         return matchedVariant || dbVariants[0];
     };
 
+    // ── Quantity & Stock Clamping ──────────────────────────────────────────
+
+    // Clamp quantity when selected variant changes or product loads
+    useEffect(() => {
+        const currentVariant = getSelectedVariant();
+        const maxStock = currentVariant?.stock || normalizedProduct?.stock || 0;
+
+        if (maxStock === 0) {
+            setQuantity(0);
+        } else if (quantity > maxStock) {
+            setQuantity(maxStock);
+        } else if (quantity === 0 && maxStock > 0) {
+            setQuantity(1);
+        }
+    }, [selectedVariantLabel1, selectedVariantLabel2Index, normalizedProduct?.id]);
+
     // productData is now just an alias for normalizedProduct – no more
     // hardcoded enhancedProductData fallback. Every downstream reference to
     // `productData.X` still works because the keys match NormalizedProductDetail.
@@ -878,9 +894,18 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                             </Button>
                             <Button
                                 onClick={handleBuyNow}
-                                className="flex-1 h-12 sm:h-14 rounded-full bg-[#ff6a00] hover:bg-[#e65f00] text-white text-sm sm:text-base font-bold shadow-xl shadow-[#ff6a00]/20 hover:shadow-2xl hover:shadow-[#ff6a00]/30 transition-all active:scale-[0.98] border-0"
+                                disabled={(() => {
+                                    const currentVariant = getSelectedVariant();
+                                    const stockQty = currentVariant?.stock || normalizedProduct?.stock || 0;
+                                    return stockQty === 0;
+                                })()}
+                                className="flex-1 h-12 sm:h-14 rounded-full bg-[#ff6a00] hover:bg-[#e65f00] text-white text-sm sm:text-base font-bold shadow-xl shadow-[#ff6a00]/20 hover:shadow-2xl hover:shadow-[#ff6a00]/30 transition-all active:scale-[0.98] border-0 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                Buy Now
+                                {(() => {
+                                    const currentVariant = getSelectedVariant();
+                                    const stockQty = currentVariant?.stock || normalizedProduct?.stock || 0;
+                                    return stockQty > 0 ? "Buy Now" : "Out of Stock";
+                                })()}
                             </Button>
                         </div>
                     </div>
