@@ -178,6 +178,7 @@ export interface Address {
   province: string;
   region: string;
   postalCode: string;
+  country?: string;
   isDefault: boolean;
   coordinates?: {
     lat: number;
@@ -456,10 +457,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       const userId = state.profile?.id;
 
       if (!userId) {
-        set({
-          addresses: [...state.addresses, address]
-        });
-        return;
+        throw new Error('User not authenticated');
       }
 
       try {
@@ -480,17 +478,14 @@ export const useBuyerStore = create<BuyerStore>()(persist(
         };
 
         const createdAddress = await addressService.createAddress(addressToInsert);
-        
+
         // Update local state with the created address
         set({
           addresses: [...state.addresses, createdAddress]
         });
       } catch (err) {
         console.error('Error saving address to database:', err);
-        // Fallback to local state if service fails
-        set({
-          addresses: [...state.addresses, address]
-        });
+        throw err;
       }
     },
 
@@ -501,58 +496,60 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       // If we are setting this address as default, unset others
       const isSettingDefault = updatedAddress.isDefault === true;
 
-      // Update in database using service layer
-      if (userId) {
-        try {
-          // Prepare update data
-          const currentAddress = state.addresses.find(addr => addr.id === id);
-          const mergedAddress = { ...currentAddress, ...updatedAddress };
-          const addressUpdate: Partial<AddressInsert> = {};
-          const shouldUpdateLine1 = Boolean(
-            updatedAddress.street ||
-            updatedAddress.firstName ||
-            updatedAddress.lastName ||
-            updatedAddress.phone ||
-            updatedAddress.fullName
-          );
-          if (shouldUpdateLine1 && currentAddress) {
-            addressUpdate.address_line_1 = buildAddressLine1(mergedAddress as Address);
-          }
-          if (updatedAddress.city) addressUpdate.city = updatedAddress.city;
-          if (updatedAddress.province) addressUpdate.province = updatedAddress.province;
-          if (updatedAddress.postalCode) addressUpdate.postal_code = updatedAddress.postalCode;
-          if (updatedAddress.label) addressUpdate.label = updatedAddress.label;
-          if (typeof updatedAddress.isDefault === 'boolean') addressUpdate.is_default = updatedAddress.isDefault;
-          if (updatedAddress.barangay) addressUpdate.barangay = updatedAddress.barangay;
-          if (updatedAddress.region) addressUpdate.region = updatedAddress.region;
-          if (updatedAddress.landmark !== undefined) addressUpdate.landmark = updatedAddress.landmark;
-          if (updatedAddress.deliveryInstructions !== undefined) {
-            addressUpdate.delivery_instructions = updatedAddress.deliveryInstructions;
-          }
-
-          // Update the specific address
-          await addressService.updateAddress(id, addressUpdate);
-
-          // If setting as default, handle default logic separately
-          if (isSettingDefault) {
-            await addressService.setDefaultAddress(userId, id);
-          }
-        } catch (err) {
-          console.error('Error updating address in database:', err);
-        }
+      if (!userId) {
+        throw new Error('User not authenticated');
       }
 
-      set({
-        addresses: state.addresses.map(addr => {
-          if (addr.id === id) {
-            return { ...addr, ...updatedAddress };
-          }
-          if (isSettingDefault) {
-            return { ...addr, isDefault: false };
-          }
-          return addr;
-        })
-      });
+      try {
+        // Prepare update data
+        const currentAddress = state.addresses.find(addr => addr.id === id);
+        const mergedAddress = { ...currentAddress, ...updatedAddress };
+        const addressUpdate: Partial<AddressInsert> = {};
+        const shouldUpdateLine1 = Boolean(
+          updatedAddress.street ||
+          updatedAddress.firstName ||
+          updatedAddress.lastName ||
+          updatedAddress.phone ||
+          updatedAddress.fullName
+        );
+        if (shouldUpdateLine1 && currentAddress) {
+          addressUpdate.address_line_1 = buildAddressLine1(mergedAddress as Address);
+        }
+        if (updatedAddress.city) addressUpdate.city = updatedAddress.city;
+        if (updatedAddress.province) addressUpdate.province = updatedAddress.province;
+        if (updatedAddress.postalCode) addressUpdate.postal_code = updatedAddress.postalCode;
+        if (updatedAddress.label) addressUpdate.label = updatedAddress.label;
+        if (typeof updatedAddress.isDefault === 'boolean') addressUpdate.is_default = updatedAddress.isDefault;
+        if (updatedAddress.barangay) addressUpdate.barangay = updatedAddress.barangay;
+        if (updatedAddress.region) addressUpdate.region = updatedAddress.region;
+        if (updatedAddress.landmark !== undefined) addressUpdate.landmark = updatedAddress.landmark;
+        if (updatedAddress.deliveryInstructions !== undefined) {
+          addressUpdate.delivery_instructions = updatedAddress.deliveryInstructions;
+        }
+
+        // Update the specific address
+        await addressService.updateAddress(id, addressUpdate);
+
+        // If setting as default, handle default logic separately
+        if (isSettingDefault) {
+          await addressService.setDefaultAddress(userId, id);
+        }
+
+        set({
+          addresses: state.addresses.map(addr => {
+            if (addr.id === id) {
+              return { ...addr, ...updatedAddress };
+            }
+            if (isSettingDefault) {
+              return { ...addr, isDefault: false };
+            }
+            return addr;
+          })
+        });
+      } catch (err) {
+        console.error('Error updating address in database:', err);
+        throw err;
+      }
     },
 
     deleteAddress: async (id) => {
@@ -560,17 +557,20 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       const userId = state.profile?.id;
 
       // Delete from database using service layer
-      if (userId) {
-        try {
-          await addressService.deleteAddress(id);
-        } catch (err) {
-          console.error('Error deleting address from database:', err);
-        }
+      if (!userId) {
+        throw new Error('User not authenticated');
       }
 
-      set({
-        addresses: state.addresses.filter(addr => addr.id !== id)
-      });
+      try {
+        await addressService.deleteAddress(id);
+
+        set({
+          addresses: state.addresses.filter(addr => addr.id !== id)
+        });
+      } catch (err) {
+        console.error('Error deleting address from database:', err);
+        throw err;
+      }
     },
 
     setDefaultAddress: async (id) => {

@@ -27,6 +27,19 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import type { Address } from "@/stores/buyerStore";
 
+type AddressField =
+  | "label"
+  | "firstName"
+  | "lastName"
+  | "phone"
+  | "street"
+  | "barangay"
+  | "city"
+  | "province"
+  | "region"
+  | "postalCode"
+  | "country";
+
 interface AddressModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -47,6 +60,9 @@ export const AddressModal = ({
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [errors, setErrors] = useState<Partial<Record<AddressField, string>>>(
+    {},
+  );
 
   const [newAddress, setNewAddress] = useState({
     label: "Home",
@@ -59,6 +75,7 @@ export const AddressModal = ({
     province: "",
     region: "",
     postalCode: "",
+    country: "Philippines",
     isDefault: false,
   });
 
@@ -80,7 +97,10 @@ export const AddressModal = ({
     if (isOpen) {
       if (address) {
         setEditingId(address.id);
-        setNewAddress({ ...address });
+        setNewAddress({
+          ...address,
+          country: address.country || "Philippines",
+        });
         hydrateAddressLists(address);
       } else {
         setEditingId(null);
@@ -98,6 +118,7 @@ export const AddressModal = ({
     setProvinceList([]);
     setCityList([]);
     setBarangayList([]);
+    setErrors({});
     setNewAddress({
       label: "Home",
       firstName: "",
@@ -109,8 +130,47 @@ export const AddressModal = ({
       province: "",
       region: "",
       postalCode: "",
+      country: "Philippines",
       isDefault: false,
     });
+  };
+
+  const updateField = <K extends AddressField>(key: K, value: string) => {
+    setNewAddress((prev) => ({ ...prev, [key]: value }));
+    if (errors[key]) {
+      const nextErrors = { ...errors };
+      delete nextErrors[key];
+      setErrors(nextErrors);
+    }
+  };
+
+  const validateAddress = () => {
+    const nextErrors: Partial<Record<AddressField, string>> = {};
+    const phonePattern = /^\+?\d{10,13}$/;
+    const postalPattern = /^\d{4,6}$/;
+
+    if (!newAddress.firstName.trim())
+      nextErrors.firstName = "First name is required.";
+    if (!newAddress.lastName.trim())
+      nextErrors.lastName = "Last name is required.";
+    if (!newAddress.phone.trim()) {
+      nextErrors.phone = "Phone number is required.";
+    } else if (!phonePattern.test(newAddress.phone.replace(/\s+/g, ""))) {
+      nextErrors.phone = "Enter a valid phone number.";
+    }
+    if (!newAddress.street.trim())
+      nextErrors.street = "Street address is required.";
+    if (!newAddress.region.trim()) nextErrors.region = "Region is required.";
+    if (!newAddress.province.trim())
+      nextErrors.province = "Province is required.";
+    if (!newAddress.city.trim()) nextErrors.city = "City is required.";
+    if (!newAddress.postalCode.trim()) {
+      nextErrors.postalCode = "Postal code is required.";
+    } else if (!postalPattern.test(newAddress.postalCode.trim())) {
+      nextErrors.postalCode = "Enter a valid postal code.";
+    }
+
+    return nextErrors;
   };
 
   const hydrateAddressLists = async (address: Address) => {
@@ -159,6 +219,12 @@ export const AddressModal = ({
       city: "",
       barangay: "",
     });
+    setErrors((prev) => ({
+      ...prev,
+      region: undefined,
+      province: undefined,
+      city: undefined,
+    }));
     provinces(regionCode).then((res) => setProvinceList(res));
     setCityList([]);
     setBarangayList([]);
@@ -175,6 +241,11 @@ export const AddressModal = ({
       city: "",
       barangay: "",
     });
+    setErrors((prev) => ({
+      ...prev,
+      province: undefined,
+      city: undefined,
+    }));
     cities(provinceCode).then((res) => setCityList(res));
     setBarangayList([]);
   };
@@ -183,16 +254,27 @@ export const AddressModal = ({
   const onCityChange = (cityCode: string) => {
     const name = cityList.find((i) => i.city_code === cityCode)?.city_name;
     setNewAddress({ ...newAddress, city: name || "", barangay: "" });
+    setErrors((prev) => ({
+      ...prev,
+      city: undefined,
+    }));
     barangays(cityCode).then((res) => setBarangayList(res));
   };
 
   const handleSaveAddress = async () => {
+    const nextErrors = validateAddress();
+    if (Object.keys(nextErrors).length > 0) {
+      setErrors(nextErrors);
+      return;
+    }
+
     setIsSaving(true);
 
     try {
       if (editingId) {
         const updated = await onAddressUpdated(editingId, {
           ...newAddress,
+          country: newAddress.country,
           id: editingId,
           fullName: `${newAddress.firstName} ${newAddress.lastName}`,
         } as unknown as Address);
@@ -204,6 +286,7 @@ export const AddressModal = ({
       } else {
         const added = await onAddressAdded({
           ...newAddress,
+          country: newAddress.country,
         });
         if (!added) {
           throw new Error("Failed to add address");
@@ -214,6 +297,7 @@ export const AddressModal = ({
 
       onClose();
       setEditingId(null);
+      setErrors({});
     } catch (error) {
       toast({
         title: "Error",
@@ -235,43 +319,77 @@ export const AddressModal = ({
         </DialogHeader>
 
         <div className="grid gap-4 py-4">
-          {/* Label and Phone */}
+          {/* Name */}
           <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>
+                First Name <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                value={newAddress.firstName}
+                onChange={(e) => updateField("firstName", e.target.value)}
+              />
+              {errors.firstName && (
+                <p className="text-xs text-red-500">{errors.firstName}</p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label>
+                Last Name <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                value={newAddress.lastName}
+                onChange={(e) => updateField("lastName", e.target.value)}
+              />
+              {errors.lastName && (
+                <p className="text-xs text-red-500">{errors.lastName}</p>
+              )}
+            </div>
+          </div>
+
+          {/* Phone and Label */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>
+                Phone Number <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                value={newAddress.phone}
+                onChange={(e) => updateField("phone", e.target.value)}
+              />
+              {errors.phone && (
+                <p className="text-xs text-red-500">{errors.phone}</p>
+              )}
+            </div>
             <div className="space-y-2">
               <Label>Address Label</Label>
               <Input
                 placeholder="Home, Office, etc."
                 value={newAddress.label}
-                onChange={(e) =>
-                  setNewAddress({ ...newAddress, label: e.target.value })
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Phone Number</Label>
-              <Input
-                value={newAddress.phone}
-                onChange={(e) =>
-                  setNewAddress({ ...newAddress, phone: e.target.value })
-                }
+                onChange={(e) => updateField("label", e.target.value)}
               />
             </div>
           </div>
 
           <div className="space-y-2">
-            <Label>Street Name, House No.</Label>
+            <Label>
+              Street Name, House No. <span className="text-red-500">*</span>
+            </Label>
             <Input
               value={newAddress.street}
-              onChange={(e) =>
-                setNewAddress({ ...newAddress, street: e.target.value })
-              }
+              onChange={(e) => updateField("street", e.target.value)}
             />
+            {errors.street && (
+              <p className="text-xs text-red-500">{errors.street}</p>
+            )}
           </div>
 
           {/* Region and Province */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Region</Label>
+              <Label>
+                Region <span className="text-red-500">*</span>
+              </Label>
               <Select
                 value={
                   regionList.find((r) => r.region_name === newAddress.region)
@@ -292,7 +410,9 @@ export const AddressModal = ({
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Province</Label>
+              <Label>
+                Province <span className="text-red-500">*</span>
+              </Label>
               <Select
                 value={
                   provinceList.find(
@@ -315,11 +435,19 @@ export const AddressModal = ({
               </Select>
             </div>
           </div>
+          {errors.region && (
+            <p className="text-xs text-red-500">{errors.region}</p>
+          )}
+          {errors.province && (
+            <p className="text-xs text-red-500">{errors.province}</p>
+          )}
 
           {/* City and Barangay */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>City / Municipality</Label>
+              <Label>
+                City / Municipality <span className="text-red-500">*</span>
+              </Label>
               <Select
                 value={
                   cityList.find((c) => c.city_name === newAddress.city)
@@ -345,9 +473,7 @@ export const AddressModal = ({
               <Select
                 disabled={!barangayList.length}
                 value={newAddress.barangay}
-                onValueChange={(val) =>
-                  setNewAddress({ ...newAddress, barangay: val })
-                }
+                onValueChange={(val) => updateField("barangay", val)}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select Barangay" />
@@ -362,18 +488,32 @@ export const AddressModal = ({
               </Select>
             </div>
           </div>
+          {errors.city && <p className="text-xs text-red-500">{errors.city}</p>}
 
-          {/* Postal Code & Default Switch */}
+          {/* Postal Code & Country */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Postal Code</Label>
+              <Label>
+                Postal Code <span className="text-red-500">*</span>
+              </Label>
               <Input
                 value={newAddress.postalCode}
-                onChange={(e) =>
-                  setNewAddress({ ...newAddress, postalCode: e.target.value })
-                }
+                onChange={(e) => updateField("postalCode", e.target.value)}
               />
+              {errors.postalCode && (
+                <p className="text-xs text-red-500">{errors.postalCode}</p>
+              )}
             </div>
+            <div className="space-y-2">
+              <Label>
+                Country <span className="text-red-500">*</span>
+              </Label>
+              <Input value={newAddress.country} disabled />
+            </div>
+          </div>
+
+          {/* Default Switch */}
+          <div className="grid grid-cols-2 gap-4">
             <div className="flex items-center gap-2 pt-8">
               <Switch
                 id="default-addr"
@@ -393,7 +533,7 @@ export const AddressModal = ({
           </Button>
           <Button
             onClick={handleSaveAddress}
-            disabled={isSaving}
+            disabled={isSaving || Object.keys(validateAddress()).length > 0}
             className="bg-[#ff6a00] hover:bg-[#e65e00] text-white"
           >
             {isSaving && <Loader2 className="animate-spin w-4 h-4 mr-2" />}

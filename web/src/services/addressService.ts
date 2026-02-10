@@ -26,6 +26,9 @@ export type AddressInsert = {
 
 export type AddressUpdate = Partial<Omit<AddressInsert, 'user_id'>>;
 
+const isValidPhone = (value: string) => /^\+?\d{10,13}$/.test(value.replace(/\s+/g, ''));
+const isValidPostalCode = (value: string) => /^\d{4,6}$/.test(value.trim());
+
 export class AddressService {
     private static instance: AddressService;
 
@@ -80,6 +83,8 @@ export class AddressService {
             throw new Error('Supabase not configured - cannot create address');
         }
 
+        this.validateAddressInsert(address);
+
         try {
             const { data, error } = await supabase
                 .from('shipping_addresses')
@@ -112,6 +117,8 @@ export class AddressService {
             throw new Error('Supabase not configured - cannot update address');
         }
 
+        this.validateAddressUpdate(updates);
+
         try {
             const { data, error } = await supabase
                 .from('shipping_addresses')
@@ -139,6 +146,8 @@ export class AddressService {
         }
 
         try {
+            await this.ensureAddressNotInActiveOrder(id);
+
             const { error } = await supabase
                 .from('shipping_addresses')
                 .delete()
@@ -212,6 +221,81 @@ export class AddressService {
         }
     }
 
+    private validateAddressInsert(address: AddressInsert) {
+        if (!address.address_line_1?.trim()) {
+            throw new Error('Street address is required.');
+        }
+
+        if (!address.city?.trim()) {
+            throw new Error('City is required.');
+        }
+
+        if (!address.province?.trim()) {
+            throw new Error('Province is required.');
+        }
+
+        if (!address.region?.trim()) {
+            throw new Error('Region is required.');
+        }
+
+        if (!address.postal_code?.trim()) {
+            throw new Error('Postal code is required.');
+        }
+
+        if (!isValidPostalCode(address.postal_code)) {
+            throw new Error('Postal code format is invalid.');
+        }
+
+        if (address.address_line_1) {
+            const parts = address.address_line_1.split(',').map(part => part.trim());
+            if (parts.length >= 2) {
+                const maybePhone = parts.find(part => isValidPhone(part));
+                if (maybePhone && !isValidPhone(maybePhone)) {
+                    throw new Error('Phone format is invalid.');
+                }
+            }
+        }
+    }
+
+    private validateAddressUpdate(updates: AddressUpdate) {
+        if (updates.postal_code !== undefined && !isValidPostalCode(updates.postal_code)) {
+            throw new Error('Postal code format is invalid.');
+        }
+
+        if (updates.address_line_1) {
+            const parts = updates.address_line_1.split(',').map(part => part.trim());
+            const maybePhone = parts.find(part => isValidPhone(part));
+            if (maybePhone && !isValidPhone(maybePhone)) {
+                throw new Error('Phone format is invalid.');
+            }
+        }
+    }
+
+    private async ensureAddressNotInActiveOrder(addressId: string) {
+        const activeStatuses = [
+            'waiting_for_seller',
+            'processing',
+            'ready_to_ship',
+            'shipped',
+            'out_for_delivery'
+        ];
+
+        const { data, error } = await supabase
+            .from('orders')
+            .select('id')
+            .eq('address_id', addressId)
+            .in('shipment_status', activeStatuses)
+            .limit(1);
+
+        if (error) {
+            throw error;
+        }
+
+        if (data && data.length > 0) {
+            throw new Error('This address is used in an active order and cannot be deleted.');
+        }
+    }
+
     /**
      * Map database response to Address frontend model
      * shipping_addresses table structure:
@@ -220,6 +304,7 @@ export class AddressService {
      * - postal_code
      */
     private mapToAddress(data: any): Address {
+        const defaultCountry = 'Philippines';
         const addressLine1 = data.address_line_1 || '';
         const parts = addressLine1.split(', ').map((part: string) => part.trim()).filter(Boolean);
 
@@ -258,6 +343,7 @@ export class AddressService {
             province: data.province || '',
             region: data.region || '',
             postalCode: data.postal_code || '',
+            country: defaultCountry,
             isDefault: data.is_default || false,
             landmark: data.landmark || '',
             deliveryInstructions: data.delivery_instructions || '',
