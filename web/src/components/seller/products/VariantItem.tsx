@@ -9,8 +9,8 @@ interface VariantItemProps {
   firstAttributeName: string;
   secondAttributeName: string;
   formData: {
-    sizes: string[];
-    colors: string[];
+    variantLabel1Values: string[];
+    variantLabel2Values: string[];
   };
   updateVariantConfig: (id: string, field: keyof VariantConfig, value: string | number) => void;
   cancelEditVariant: () => void;
@@ -37,22 +37,22 @@ export function VariantItem({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-medium text-gray-500">{firstAttributeName || 'Size/Variation'}</label>
-              {formData.sizes.length > 0 ? (
+              {formData.variantLabel1Values.length > 0 ? (
                 <select
-                  value={variant.size}
-                  onChange={(e) => updateVariantConfig(variant.id, 'size', e.target.value)}
+                  value={variant.variantLabel1Value}
+                  onChange={(e) => updateVariantConfig(variant.id, 'variantLabel1Value', e.target.value)}
                   className="w-full mt-1 rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
                 >
-                  <option value="">-- No size --</option>
-                  {formData.sizes.map((size) => (
-                    <option key={size} value={size}>{size}</option>
+                  <option value="">-- No {(firstAttributeName || 'Variation').toLowerCase()} --</option>
+                  {formData.variantLabel1Values.map((val) => (
+                    <option key={val} value={val}>{val}</option>
                   ))}
                 </select>
               ) : (
                 <input
                   type="text"
-                  value={variant.size}
-                  onChange={(e) => updateVariantConfig(variant.id, 'size', e.target.value)}
+                  value={variant.variantLabel1Value}
+                  onChange={(e) => updateVariantConfig(variant.id, 'variantLabel1Value', e.target.value)}
                   className="w-full mt-1 rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
                   placeholder="e.g., Small, Large, XL"
                 />
@@ -60,22 +60,22 @@ export function VariantItem({
             </div>
             <div>
               <label className="text-xs font-medium text-gray-500">{secondAttributeName || 'Color'}</label>
-              {formData.colors.length > 0 ? (
+              {formData.variantLabel2Values.length > 0 ? (
                 <select
-                  value={variant.color}
-                  onChange={(e) => updateVariantConfig(variant.id, 'color', e.target.value)}
+                  value={variant.variantLabel2Value}
+                  onChange={(e) => updateVariantConfig(variant.id, 'variantLabel2Value', e.target.value)}
                   className="w-full mt-1 rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
                 >
-                  <option value="">-- No color --</option>
-                  {formData.colors.map((color) => (
-                    <option key={color} value={color}>{color}</option>
+                  <option value="">-- No {(secondAttributeName || 'Variation').toLowerCase()} --</option>
+                  {formData.variantLabel2Values.map((val) => (
+                    <option key={val} value={val}>{val}</option>
                   ))}
                 </select>
               ) : (
                 <input
                   type="text"
-                  value={variant.color}
-                  onChange={(e) => updateVariantConfig(variant.id, 'color', e.target.value)}
+                  value={variant.variantLabel2Value}
+                  onChange={(e) => updateVariantConfig(variant.id, 'variantLabel2Value', e.target.value)}
                   className="w-full mt-1 rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
                   placeholder="e.g., Red, Blue"
                 />
@@ -155,7 +155,7 @@ export function VariantItem({
             {/* Variant Image Thumbnail */}
             <div className="h-10 w-10 rounded-lg border border-gray-200 bg-gray-50 overflow-hidden flex items-center justify-center flex-shrink-0">
               {variant.image ? (
-                <img src={variant.image} alt={`${variant.size} ${variant.color}`} className="h-full w-full object-cover" />
+                <img src={variant.image} alt={`${variant.variantLabel1Value} ${variant.variantLabel2Value}`} className="h-full w-full object-cover" />
               ) : (
                 <Package className="h-4 w-4 text-gray-300" />
               )}
@@ -163,8 +163,8 @@ export function VariantItem({
             <div className="flex flex-col">
               <span className="text-sm font-medium text-gray-900">
                 {[
-                  variant.size && `${firstAttributeName || 'Size'}: ${variant.size}`,
-                  variant.color && `${secondAttributeName || 'Color'}: ${variant.color}`
+                  variant.variantLabel1Value && `${firstAttributeName || 'Variation 1'}: ${variant.variantLabel1Value}`,
+                  variant.variantLabel2Value && `${secondAttributeName || 'Variation 2'}: ${variant.variantLabel2Value}`
                 ].filter(Boolean).join(', ')}
               </span>
             </div>

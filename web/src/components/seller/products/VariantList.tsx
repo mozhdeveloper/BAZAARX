@@ -8,8 +8,8 @@ interface VariantListProps {
   firstAttributeName: string;
   secondAttributeName: string;
   formData: {
-    sizes: string[];
-    colors: string[];
+    variantLabel1Values: string[];
+    variantLabel2Values: string[];
   };
   editingVariantId: string | null;
   newVariant: Partial<VariantConfig>;

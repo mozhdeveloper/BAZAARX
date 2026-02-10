@@ -5,8 +5,8 @@ import { VariantConfig } from "@/types";
 
 interface AttributesTabProps {
     formData: {
-        sizes: string[];
-        colors: string[];
+        variantLabel1Values: string[];
+        variantLabel2Values: string[];
         price: string;
         stock: string;
     };
@@ -174,9 +174,9 @@ export function AttributesTab({
                             Add
                         </Button>
                     </div>
-                    {formData.sizes.length > 0 && (
+                    {formData.variantLabel1Values.length > 0 && (
                         <div className="flex flex-wrap gap-2">
-                            {formData.sizes.map((variation) => (
+                            {formData.variantLabel1Values.map((variation) => (
                                 <span
                                     key={variation}
                                     className="inline-flex items-center gap-1.5 rounded-full bg-orange-50 text-orange-700 px-3 py-1.5 text-sm font-medium border border-orange-200"
@@ -280,9 +280,9 @@ export function AttributesTab({
                             Add
                         </Button>
                     </div>
-                    {formData.colors.length > 0 && (
+                    {formData.variantLabel2Values.length > 0 && (
                         <div className="flex flex-wrap gap-2">
-                            {formData.colors.map((color) => (
+                            {formData.variantLabel2Values.map((color) => (
                                 <span
                                     key={color}
                                     className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 text-blue-700 px-3 py-1.5 text-sm font-medium border border-blue-200"

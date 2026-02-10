@@ -5,6 +5,7 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { authService } from "@/services/authService";
 import { productService } from "@/services/productService";
 import { orderService } from "@/services/orderService";
+import { mapDbProductToSellerProduct } from "@/utils/productMapper";
 import type {
     Seller as DBSeller,
     Database,
@@ -68,8 +69,8 @@ export interface SellerProduct {
     stock: number;
     category: string;
     images: string[];
-    sizes?: string[];
-    colors?: string[];
+    variantLabel1Values?: string[];
+    variantLabel2Values?: string[];
     isActive: boolean;
     sellerId: string;
     createdAt: string;
@@ -89,8 +90,8 @@ export interface SellerProduct {
     variants?: {
         id: string;
         name?: string;
-        size?: string;
-        color?: string;
+        variantLabel1Value?: string;
+        variantLabel2Value?: string;
         price: number;
         stock: number;
         image?: string;
@@ -112,8 +113,8 @@ export interface SellerOrder {
         quantity: number;
         price: number;
         image: string;
-        selectedColor?: string;
-        selectedSize?: string;
+        selectedVariantLabel1?: string;
+        selectedVariantLabel2?: string;
     }[];
     total: number;
     status: "pending" | "confirmed" | "shipped" | "delivered" | "cancelled";
@@ -319,8 +320,8 @@ interface OrderStore {
             quantity: number;
             price: number;
             image: string;
-            selectedColor?: string;
-            selectedSize?: string;
+            selectedVariantLabel1?: string;
+            selectedVariantLabel2?: string;
         }[],
         total: number,
         note?: string,
@@ -414,70 +415,7 @@ const mapDbSellerToSeller = (s: any): Seller => {
     };
 };
 
-/**
- * Map database product to SellerProduct interface
- * Note: Actual schema has product data split across:
- * - products: id, name, description, price, category_id, brand, sku, specifications, approval_status
- * - product_images: image_url, is_primary
- * - product_variants: size, color, stock, price
- */
-const mapDbProductToSellerProduct = (p: any): SellerProduct => {
-  // Handle images from product_images relation
-  const images = Array.isArray(p.images)
-    ? p.images.map((img: any) => typeof img === 'string' ? img : img.image_url)
-    : [];
-
-  // Handle variants to get colors, sizes, and stock
-  const variants = Array.isArray(p.variants) ? p.variants : [];
-  const colors: string[] = Array.from(new Set(variants.map((v: any) => v.color).filter((c): c is string => typeof c === 'string' && c.length > 0)));
-  const sizes: string[] = Array.from(new Set(variants.map((v: any) => v.size).filter((s): s is string => typeof s === 'string' && s.length > 0)));
-  const totalStock = variants.reduce((sum: number, v: any) => sum + (v.stock || 0), 0);
-
-  // Get category name from relation
-  const categoryName = typeof p.category === 'string'
-    ? p.category
-    : (p.category?.name || p.categories?.name || '');
-
-    return {
-        id: p.id,
-        name: p.name || "",
-        description: p.description || "",
-        price: Number(p.price ?? 0),
-        originalPrice: undefined,
-        stock: totalStock || p.stock || 0,
-        category: categoryName,
-        images: images,
-        sizes: sizes as string[],
-        colors: colors as string[],
-        isActive: !p.disabled_at,
-        sellerId: p.seller_id || "",
-        createdAt: p.created_at || "",
-        updatedAt: p.updated_at || "",
-        sales: 0,
-        rating: p.rating || 0,
-        reviews: p.reviewCount || 0,
-        approvalStatus:
-            (p.approval_status as SellerProduct["approvalStatus"]) || "pending",
-        rejectionReason: undefined,
-        vendorSubmittedCategory: undefined,
-        adminReclassifiedCategory: undefined,
-        sellerName: p.sellerName || p.seller?.store_name,
-        sellerRating: 0,
-        sellerLocation: p.sellerLocation || p.seller?.business_profile?.city,
-        variantLabel1: p.variant_label_1 || undefined,
-        variantLabel2: p.variant_label_2 || undefined,
-        variants: variants.map((v: any) => ({
-            id: v.id,
-            name: v.variant_name || v.name,
-            size: v.size,
-            color: v.color,
-            price: v.price || 0,
-            stock: v.stock || 0,
-            image: v.thumbnail_url || v.image,
-            sku: v.sku,
-        })),
-    };
-};
+// mapDbProductToSellerProduct is imported from @/utils/productMapper
 
 /**
  * Build product insert for database
@@ -1128,13 +1066,13 @@ export const useProductStore = create<ProductStore>()(
                                 (v: any, index: number) => ({
                                     product_id: newProduct.id,
                                     variant_name:
-                                        [v.size, v.color]
+                                        [v.variantLabel1Value, v.variantLabel2Value]
                                             .filter(Boolean)
                                             .join(" - ") || "Default",
-                                    size: v.size || null,
-                                    color: v.color || null,
-                                    option_1_value: v.size || null,
-                                    option_2_value: v.color || null,
+                                    size: v.variantLabel1Value || null,
+                                    color: v.variantLabel2Value || null,
+                                    option_1_value: v.variantLabel1Value || null,
+                                    option_2_value: v.variantLabel2Value || null,
                                     stock: v.stock || 0,
                                     price: v.price || product.price,
                                     sku:
@@ -1202,8 +1140,8 @@ export const useProductStore = create<ProductStore>()(
                             reviews: 0,
                             approvalStatus: "pending",
                             vendorSubmittedCategory: product.category,
-                            sizes: product.sizes || [],
-                            colors: product.colors || [],
+                            variantLabel1Values: product.variantLabel1Values || [],
+                            variantLabel2Values: product.variantLabel2Values || [],
                             sellerId: resolvedSellerId,
                         };
                     }

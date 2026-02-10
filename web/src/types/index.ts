@@ -95,8 +95,8 @@ export interface Collection {
 
 export interface VariantConfig {
   id: string;
-  size: string;
-  color: string;
+  variantLabel1Value: string;
+  variantLabel2Value: string;
   stock: number;
   price: number;
   sku: string;

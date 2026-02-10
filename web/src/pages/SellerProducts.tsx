@@ -95,8 +95,8 @@ export function SellerProducts() {
         Array<{
             id: string;
             name?: string;
-            size?: string;
-            color?: string;
+            variantLabel1Value?: string;
+            variantLabel2Value?: string;
             price: number;
             stock: number;
         }>
@@ -190,8 +190,8 @@ export function SellerProducts() {
             (product.variants || []).map((v) => ({
                 id: v.id,
                 name: v.name,
-                size: v.size,
-                color: v.color,
+                variantLabel1Value: v.variantLabel1Value,
+                variantLabel2Value: v.variantLabel2Value,
                 price: v.price,
                 stock: v.stock,
             })),
@@ -620,22 +620,22 @@ export function SellerProducts() {
                                                 <p className="font-medium text-sm truncate">
                                                     {variant.name ||
                                                         [
-                                                            variant.size,
-                                                            variant.color,
+                                                            variant.variantLabel1Value,
+                                                            variant.variantLabel2Value,
                                                         ]
                                                             .filter(Boolean)
                                                             .join(" - ") ||
                                                         `Variant ${index + 1}`}
                                                 </p>
                                                 <div className="flex gap-1 text-xs text-gray-500">
-                                                    {variant.size && (
+                                                    {variant.variantLabel1Value && (
                                                         <span className="bg-blue-100 text-blue-700 px-1 rounded">
-                                                            {variant.size}
+                                                            {variant.variantLabel1Value}
                                                         </span>
                                                     )}
-                                                    {variant.color && (
+                                                    {variant.variantLabel2Value && (
                                                         <span className="bg-purple-100 text-purple-700 px-1 rounded">
-                                                            {variant.color}
+                                                            {variant.variantLabel2Value}
                                                         </span>
                                                     )}
                                                 </div>
@@ -783,8 +783,8 @@ export function AddProduct() {
     // Variant configuration interface
     interface VariantConfig {
         id: string;
-        size: string;
-        color: string;
+        variantLabel1Value: string;
+        variantLabel2Value: string;
         stock: number;
         price: number;
         sku: string;
@@ -799,8 +799,8 @@ export function AddProduct() {
         stock: "",
         category: "",
         images: [""],
-        sizes: [] as string[],
-        colors: [] as string[],
+        variantLabel1Values: [] as string[],
+        variantLabel2Values: [] as string[],
     });
     const [variationInput, setVariationInput] = useState("");
     const [colorInput, setColorInput] = useState("");
@@ -862,8 +862,8 @@ export function AddProduct() {
         fetchCategories();
     }, []);
     const [newVariant, setNewVariant] = useState<Partial<VariantConfig>>({
-        size: "",
-        color: "",
+        variantLabel1Value: "",
+        variantLabel2Value: "",
         stock: 0,
         price: 0,
         sku: "",
@@ -879,10 +879,10 @@ export function AddProduct() {
 
     // Add a new variant
     const addVariant = () => {
-        if (!newVariant.size && !newVariant.color) {
+        if (!newVariant.variantLabel1Value && !newVariant.variantLabel2Value) {
             setErrors((prev) => ({
                 ...prev,
-                variant: "At least one of Size or Color is required",
+                variant: "At least one variant attribute is required",
             }));
             return;
         }
@@ -890,8 +890,8 @@ export function AddProduct() {
         // Check for duplicates
         const isDuplicate = variantConfigs.some(
             (v) =>
-                v.size === (newVariant.size || "") &&
-                v.color === (newVariant.color || ""),
+                v.variantLabel1Value === (newVariant.variantLabel1Value || "") &&
+                v.variantLabel2Value === (newVariant.variantLabel2Value || ""),
         );
         if (isDuplicate) {
             setErrors((prev) => ({
@@ -904,8 +904,8 @@ export function AddProduct() {
         const basePrice = parseInt(formData.price) || 0;
         const variant: VariantConfig = {
             id: generateVariantId(),
-            size: newVariant.size || "",
-            color: newVariant.color || "",
+            variantLabel1Value: newVariant.variantLabel1Value || "",
+            variantLabel2Value: newVariant.variantLabel2Value || "",
             stock: newVariant.stock || 0,
             // Use variant's price if set (even if 0), otherwise use base price
             price:
@@ -914,7 +914,7 @@ export function AddProduct() {
                     : basePrice,
             sku:
                 newVariant.sku ||
-                `${formData.name.substring(0, 3).toUpperCase()}-${newVariant.size || "DEF"}-${newVariant.color || "DEF"}`.replace(
+                `${formData.name.substring(0, 3).toUpperCase()}-${newVariant.variantLabel1Value || "DEF"}-${newVariant.variantLabel2Value || "DEF"}`.replace(
                     /\s+/g,
                     "-",
                 ),
@@ -923,8 +923,8 @@ export function AddProduct() {
 
         setVariantConfigs((prev) => [...prev, variant]);
         setNewVariant({
-            size: "",
-            color: "",
+            variantLabel1Value: "",
+            variantLabel2Value: "",
             stock: 0,
             price: 0,
             sku: "",
@@ -988,10 +988,10 @@ export function AddProduct() {
 
     const addVariation = () => {
         const trimmed = variationInput.trim();
-        if (trimmed && !formData.sizes.includes(trimmed)) {
+        if (trimmed && !formData.variantLabel1Values.includes(trimmed)) {
             setFormData((prev) => ({
                 ...prev,
-                sizes: [...prev.sizes, trimmed],
+                variantLabel1Values: [...prev.variantLabel1Values, trimmed],
             }));
             setVariationInput("");
         }
@@ -1000,16 +1000,16 @@ export function AddProduct() {
     const removeVariation = (variation: string) => {
         setFormData((prev) => ({
             ...prev,
-            sizes: prev.sizes.filter((v) => v !== variation),
+            variantLabel1Values: prev.variantLabel1Values.filter((v) => v !== variation),
         }));
     };
 
     const addColor = () => {
         const trimmed = colorInput.trim();
-        if (trimmed && !formData.colors.includes(trimmed)) {
+        if (trimmed && !formData.variantLabel2Values.includes(trimmed)) {
             setFormData((prev) => ({
                 ...prev,
-                colors: [...prev.colors, trimmed],
+                variantLabel2Values: [...prev.variantLabel2Values, trimmed],
             }));
             setColorInput("");
         }
@@ -1018,7 +1018,7 @@ export function AddProduct() {
     const removeColor = (color: string) => {
         setFormData((prev) => ({
             ...prev,
-            colors: prev.colors.filter((c) => c !== color),
+            variantLabel2Values: prev.variantLabel2Values.filter((c) => c !== color),
         }));
     };
 
@@ -1117,8 +1117,8 @@ export function AddProduct() {
                 stock: totalStock,
                 category: formData.category,
                 images: formData.images.filter((img) => img.trim() !== ""),
-                sizes: formData.sizes,
-                colors: formData.colors,
+                variantLabel1Values: formData.variantLabel1Values,
+                variantLabel2Values: formData.variantLabel2Values,
                 isActive: true,
                 sellerId: seller?.id || "",
                 // Pass custom variant label names for the products table
@@ -1230,13 +1230,13 @@ export function AddProduct() {
                                         )}
                                     </div>
                                     <div className="flex flex-wrap gap-2">
-                                        {formData.sizes.length > 0 ? (
-                                            formData.sizes.map((size, idx) => (
+                                        {formData.variantLabel1Values.length > 0 ? (
+                                            formData.variantLabel1Values.map((val, idx) => (
                                                 <span
-                                                    key={`${size}-${idx}`}
+                                                    key={`${val}-${idx}`}
                                                     className="rounded-full bg-orange-50 text-orange-700 px-3 py-1 text-xs font-semibold"
                                                 >
-                                                    {size}
+                                                    {val}
                                                 </span>
                                             ))
                                         ) : (
@@ -1246,20 +1246,20 @@ export function AddProduct() {
                                         )}
                                     </div>
                                     <div className="flex flex-wrap gap-2">
-                                        {(formData.colors.length
-                                            ? formData.colors
-                                            : ["No colors"]
-                                        ).map((color, idx) => (
+                                        {(formData.variantLabel2Values.length
+                                            ? formData.variantLabel2Values
+                                            : ["No second attributes"]
+                                        ).map((val, idx) => (
                                             <span
-                                                key={`${color}-${idx}`}
+                                                key={`${val}-${idx}`}
                                                 className={cn(
                                                     "rounded-full border px-3 py-1 text-xs font-semibold",
-                                                    formData.colors.length
+                                                    formData.variantLabel2Values.length
                                                         ? "border-blue-200 bg-blue-50 text-blue-700"
                                                         : "border-gray-200 text-gray-400 italic",
                                                 )}
                                             >
-                                                {color}
+                                                {val}
                                             </span>
                                         ))}
                                     </div>

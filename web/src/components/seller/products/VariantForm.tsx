@@ -6,8 +6,8 @@ interface VariantFormProps {
     firstAttributeName: string;
     secondAttributeName: string;
     formData: {
-        sizes: string[];
-        colors: string[];
+        variantLabel1Values: string[];
+        variantLabel2Values: string[];
         price: string;
         stock: string;
     };
@@ -64,13 +64,13 @@ export function VariantForm({
                             <label className="text-xs font-medium text-gray-500">
                                 Select {firstAttributeName}
                             </label>
-                            {formData.sizes.length > 0 ? (
+                            {formData.variantLabel1Values.length > 0 ? (
                                 <select
-                                    value={newVariant.size || ""}
+                                    value={newVariant.variantLabel1Value || ""}
                                     onChange={(e) =>
                                         setNewVariant((prev) => ({
                                             ...prev,
-                                            size: e.target.value,
+                                            variantLabel1Value: e.target.value,
                                         }))
                                     }
                                     className="w-full mt-1 rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
@@ -78,9 +78,9 @@ export function VariantForm({
                                     <option value="">
                                         -- Select variation --
                                     </option>
-                                    {formData.sizes.map((size) => (
-                                        <option key={size} value={size}>
-                                            {size}
+                                    {formData.variantLabel1Values.map((val) => (
+                                        <option key={val} value={val}>
+                                            {val}
                                         </option>
                                     ))}
                                 </select>
@@ -97,21 +97,21 @@ export function VariantForm({
                             <label className="text-xs font-medium text-gray-500">
                                 Select {secondAttributeName}
                             </label>
-                            {formData.colors.length > 0 ? (
+                            {formData.variantLabel2Values.length > 0 ? (
                                 <select
-                                    value={newVariant.color || ""}
+                                    value={newVariant.variantLabel2Value || ""}
                                     onChange={(e) =>
                                         setNewVariant((prev) => ({
                                             ...prev,
-                                            color: e.target.value,
+                                            variantLabel2Value: e.target.value,
                                         }))
                                     }
                                     className="w-full mt-1 rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
                                 >
-                                    <option value="">-- Select color --</option>
-                                    {formData.colors.map((color) => (
-                                        <option key={color} value={color}>
-                                            {color}
+                                    <option value="">-- Select variation --</option>
+                                    {formData.variantLabel2Values.map((val) => (
+                                        <option key={val} value={val}>
+                                            {val}
                                         </option>
                                     ))}
                                 </select>
@@ -240,8 +240,8 @@ export function VariantForm({
                             onClick={() => {
                                 setShowAddVariantForm(false);
                                 setNewVariant({
-                                    size: "",
-                                    color: "",
+                                    variantLabel1Value: "",
+                                    variantLabel2Value: "",
                                     stock: 0,
                                     price: 0,
                                     sku: "",

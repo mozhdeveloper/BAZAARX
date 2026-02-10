@@ -8,8 +8,8 @@ interface VariantManagerProps {
     secondAttributeName: string;
     variantConfigs: VariantConfig[];
     formData: {
-        sizes: string[];
-        colors: string[];
+        variantLabel1Values: string[];
+        variantLabel2Values: string[];
         price: string;
         stock: string;
     };
