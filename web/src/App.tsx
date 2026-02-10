@@ -277,6 +277,14 @@ function App() {
             }
           />
           <Route
+            path="/seller/orders/:orderId"
+            element={
+              //<ProtectedSellerRoute>
+              <SellerOrders />
+              //</ProtectedSellerRoute>
+            }
+          />
+          <Route
             path="/seller/notifications"
             element={
               //<ProtectedSellerRoute>
