@@ -598,6 +598,37 @@ export const useBuyerStore = create<BuyerStore>()(persist(
       } : null
     })),
 
+    // Service Layer Integration Methods
+    syncAddressesWithService: async () => {
+      const state = get();
+      const userId = state.profile?.id;
+      if (!userId) return;
+
+      try {
+        // This would integrate with addressService when fully implemented
+        // For now, we'll keep the existing functionality
+        console.log('Syncing addresses with service layer for user:', userId);
+      } catch (error) {
+        console.error('Error syncing addresses with service:', error);
+      }
+    },
+
+    syncPaymentMethodsWithService: async () => {
+      const state = get();
+      const userId = state.profile?.id;
+      const paymentMethods = state.profile?.paymentMethods || [];
+      
+      if (!userId) return;
+
+      try {
+        // This would integrate with paymentService when fully implemented
+        // For now, we'll keep the existing functionality
+        console.log('Syncing payment methods with service layer for user:', userId);
+      } catch (error) {
+        console.error('Error syncing payment methods with service:', error);
+      }
+    },
+
     // Following Shops
     followedShops: ['seller-001', 'seller-003'],
 
