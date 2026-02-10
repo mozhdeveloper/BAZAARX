@@ -16,14 +16,14 @@ export type ShopProduct = {
     description?: string;
     sellerRating?: number;
     sellerVerified?: boolean;
-    colors?: string[];
-    sizes?: string[];
+    variantLabel1Values?: string[];
+    variantLabel2Values?: string[];
     stock?: number;
     variants?: {
         id: string;
         name?: string;
-        size?: string;
-        color?: string;
+        variantLabel1Value?: string;
+        variantLabel2Value?: string;
         price: number;
         stock: number;
         image?: string;
