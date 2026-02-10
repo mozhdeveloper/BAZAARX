@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
 import { useNavigate, useLocation } from "react-router-dom";
 import { checkoutService } from "@/services/checkoutService"; // Import checkout service
@@ -225,6 +225,10 @@ export default function CheckoutPage() {
 
   const isQuickCheckout = quickOrder !== null || isBuyAgainMode;
 
+  const isRegistryOrder = useMemo(() => {
+    return checkoutItems.some(item => !!item.registryId);
+  }, [checkoutItems]);
+
   // Bazcoins Logic
   // Earn 1 Bazcoin per ₱10 spent
   const earnedBazcoins = Math.floor(checkoutTotal / 10);
@@ -244,7 +248,25 @@ export default function CheckoutPage() {
     postalCode: "",
     phone: profile?.phone || "",
     paymentMethod: "cod", // COD is default
+    cardNumber: "",
+    cardName: "",
+    expiryDate: "",
+    cvv: "",
+    gcashNumber: "",
+    paymayaNumber: "",
   });
+
+  // Force non-COD payment for registry orders if COD is selected
+  useEffect(() => {
+    if (isRegistryOrder && formData.paymentMethod === 'cod') {
+      setFormData(prev => ({ ...prev, paymentMethod: 'card' }));
+      toast({
+        title: "Payment Method Changed",
+        description: "Cash on Delivery is not available for registry gifts.",
+        variant: "default", // or "warning" if available, defaults to neutral/blue
+      });
+    }
+  }, [isRegistryOrder, formData.paymentMethod]);
 
   // Removed: Payment method auto-fill logic - always default to COD
   // Users can manually switch to card/gcash/paymaya if needed
@@ -342,8 +364,21 @@ export default function CheckoutPage() {
     }
   }
 
+  // VAT calculation (12%)
+  const tax = Math.round(totalPrice * 0.12);
+  
+  // Item-level savings (Original price vs Current price)
+  const itemSavings = checkoutItems.reduce((sum, item) => {
+    const original = item.originalPrice || item.price;
+    const current = item.selectedVariant?.price || item.price;
+    return sum + (Math.max(0, original - current) * item.quantity);
+  }, 0);
+  
+  const couponSavings = discount + bazcoinDiscount;
+  const grandTotalSavings = itemSavings + couponSavings;
+
   // Final total calculation including Bazcoins
-  const finalTotal = Math.max(0, totalPrice + shippingFee - discount - bazcoinDiscount);
+  const finalTotal = Math.max(0, totalPrice + shippingFee + tax - couponSavings);
 
   const handleApplyVoucher = () => {
     const code = voucherCode.trim().toUpperCase();
@@ -741,7 +776,21 @@ export default function CheckoutPage() {
 
                 </div>
 
-                {selectedAddress ? (
+                {isRegistryOrder ? (
+                  <div className="bg-orange-50/50 border border-orange-200 rounded-xl p-6 flex flex-col items-center justify-center text-center space-y-3">
+                    <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
+                      <Shield className="w-6 h-6 text-orange-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-gray-900">Registry Address (Hidden)</h3>
+                      <p className="text-gray-600 text-sm mt-1">
+                        For privacy, the recipient's address is hidden.
+                        <br />
+                        We will deliver this gift directly to them.
+                      </p>
+                    </div>
+                  </div>
+                ) : selectedAddress ? (
                   <div
                     className="group relative p-5 rounded-xl border border-gray-100 bg-gray-50/50 cursor-pointer hover:border-orange-200 hover:bg-orange-50/30 transition-all"
                     onClick={() => setIsAddressModalOpen(true)}
@@ -1202,7 +1251,6 @@ export default function CheckoutPage() {
                 </motion.section>
 
                 <div className="space-y-2 mb-4">
-                  \n{" "}
                   <div className="flex justify-between text-gray-600">
                     <span>Subtotal</span>
                     <span>₱{totalPrice.toLocaleString()}</span>
@@ -1217,16 +1265,14 @@ export default function CheckoutPage() {
                       )}
                     </span>
                   </div>
-                  {discount > 0 && (
-                    <div className="flex justify-between text-[var(--brand-primary)] font-medium">
-                      <span>Voucher Discount</span>
-                      <span>-₱{discount.toLocaleString()}</span>
-                    </div>
-                  )}
-                  {useBazcoins && bazcoinDiscount > 0 && (
-                    <div className="flex justify-between text-yellow-600 font-medium">
-                      <span>Bazcoins Redeemed</span>
-                      <span>-₱{bazcoinDiscount.toLocaleString()}</span>
+                  <div className="flex justify-between text-gray-600">
+                    <span>Tax (12% VAT)</span>
+                    <span>₱{tax.toLocaleString()}</span>
+                  </div>
+                  {couponSavings > 0 && (
+                    <div className="flex justify-between text-green-600 font-medium">
+                      <span>Discounts & Rewards</span>
+                      <span>-₱{couponSavings.toLocaleString()}</span>
                     </div>
                   )}
                   <hr className="border-gray-300" />
@@ -1236,6 +1282,13 @@ export default function CheckoutPage() {
                       ₱{finalTotal.toLocaleString()}
                     </span>
                   </div>
+                  {grandTotalSavings > 0 && (
+                    <div className="mt-2 text-right">
+                      <p className="text-xs text-green-600 font-semibold animate-pulse">
+                        You're saving ₱{grandTotalSavings.toLocaleString()} on this order!
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6 flex items-start gap-3">

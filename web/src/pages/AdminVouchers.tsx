@@ -74,7 +74,7 @@ const AdminVouchers: React.FC = () => {
     type: 'percentage' as 'percentage' | 'fixed' | 'free_shipping',
     value: 0,
     minPurchase: 0,
-    maxDiscount: undefined as number | undefined,
+    maxDiscount: 0 as number,
     usageLimit: 1000,
     startDate: new Date(),
     endDate: new Date(new Date().getTime() + 30 * 24 * 60 * 60 * 1000),
@@ -143,7 +143,7 @@ const AdminVouchers: React.FC = () => {
       type: 'percentage',
       value: 0,
       minPurchase: 0,
-      maxDiscount: undefined,
+      maxDiscount: 0,
       usageLimit: 1000,
       startDate: new Date(),
       endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
@@ -658,7 +658,7 @@ const AdminVouchers: React.FC = () => {
                       id="maxDiscount"
                       name="maxDiscount"
                       type="number"
-                      value={formData.maxDiscount || ''}
+                      value={formData.maxDiscount ?? ''}
                       onChange={handleInputChange}
                       min="0"
                       placeholder="Optional"

@@ -18,8 +18,8 @@ interface VariantSelectionModalProps {
         price: number;
         image: string;
         variants: ProductVariant[];
-        sizes: string[];
-        colors: string[];
+        variantLabel1Values: string[];
+        variantLabel2Values: string[];
     };
     onConfirm: (variant: ProductVariant | any, quantity: number) => void;
     buttonText?: string;
@@ -32,7 +32,7 @@ export function VariantSelectionModal({
     onConfirm,
     buttonText = '🛒 Add to Cart',
 }: VariantSelectionModalProps) {
-    console.log('🎨 NEW MODAL LOADED - v2.0 with separate Color/Size sections');
+    console.log('🎨 NEW MODAL LOADED - v2.0 with separate variant sections');
     console.log('Product data:', {
         name: product.name,
         variants: product.variants,
@@ -61,8 +61,8 @@ export function VariantSelectionModal({
         hasVariants,
         uniqueColors,
         uniqueSizes,
-        selectedColor,
-        selectedSize,
+        selectedVariantLabel1: selectedColor,
+        selectedVariantLabel2: selectedSize,
         currentImage,
         currentPrice
     });

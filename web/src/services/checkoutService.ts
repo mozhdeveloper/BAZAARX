@@ -13,6 +13,7 @@ import { orderNotificationService } from './orderNotificationService';
 export interface CheckoutPayload {
     userId: string;
     items: (CartItem & {
+        selected_variant?: any;
         product?: {
             price?: number;
             seller_id?: string;
@@ -88,9 +89,9 @@ export class CheckoutService {
                 // First get product stock
                 const { data: product, error: productError } = await supabase
                     .from('products')
-                    .select('stock')
+                    .select('*')
                     .eq('id', item.product_id)
-                    .single();
+                    .maybeSingle();
 
                 if (productError || !product) {
                     console.warn(`Product ${item.product_id} not found, skipping stock validation`);

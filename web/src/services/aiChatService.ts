@@ -29,9 +29,9 @@ export interface ProductContext {
   discountPercentage?: number;
   category?: string;
   brand?: string;
-  colors?: string[];
-  sizes?: string[];
-  variants?: Array<{ size?: string; color?: string; stock?: number; price?: number }>;
+  variantLabel2Values?: string[];
+  variantLabel1Values?: string[];
+  variants?: Array<{ variantLabel1Value?: string; variantLabel2Value?: string; stock?: number; price?: number }>;
   specifications?: Record<string, any>;
   stock?: number;
   lowStockThreshold?: number;
@@ -291,8 +291,8 @@ class AIChatService {
         discountPercentage: 0,
         category: categoryName,
         brand: data.brand || '',
-        colors: [...new Set(data.variants?.map((v: any) => v.color).filter(Boolean))] as string[],
-        sizes: [...new Set(data.variants?.map((v: any) => v.size).filter(Boolean))] as string[],
+        variantLabel2Values: [...new Set(data.variants?.map((v: any) => v.color).filter(Boolean))] as string[],
+        variantLabel1Values: [...new Set(data.variants?.map((v: any) => v.size).filter(Boolean))] as string[],
         variants: data.variants || [],
         specifications: data.specifications || {},
         stock: totalStock,
@@ -520,8 +520,8 @@ ${p.originalPrice && p.originalPrice > p.price ? `- **Original Price**: ₱${p.o
 
 ### Availability
 - **Stock Status**: ${stockStatus}
-${p.sizes?.length ? `- **Available Sizes**: ${p.sizes.join(', ')}` : ''}
-${p.colors?.length ? `- **Available Colors**: ${p.colors.join(', ')}` : ''}
+${p.variantLabel1Values?.length ? `- **Available Variant 1 Options**: ${p.variantLabel1Values.join(', ')}` : ''}
+${p.variantLabel2Values?.length ? `- **Available Variant 2 Options**: ${p.variantLabel2Values.join(', ')}` : ''}
 
 ### Shipping
 - **Free Shipping**: ${p.isFreeShipping ? '✅ Yes! Free shipping on this item' : '❌ Standard shipping rates apply'}
@@ -540,7 +540,7 @@ ${p.specifications && Object.keys(p.specifications).length > 0 ? `### Specificat
 ${Object.entries(p.specifications).map(([key, value]) => `- **${key}**: ${value}`).join('\n')}` : ''}
 
 ${p.variants && p.variants.length > 0 ? `### Variant Options
-${p.variants.slice(0, 10).map(v => `- ${v.color || ''} ${v.size || ''}: ${v.stock || 0} in stock${v.price ? ` (₱${v.price})` : ''}`).join('\n')}
+${p.variants.slice(0, 10).map(v => `- ${v.variantLabel2Value || ''} ${v.variantLabel1Value || ''}: ${v.stock || 0} in stock${v.price ? ` (₱${v.price})` : ''}`).join('\n')}
 ${p.variants.length > 10 ? `\n... and ${p.variants.length - 10} more variants` : ''}` : ''}
 
 ${p.tags?.length ? `### Tags
@@ -749,8 +749,8 @@ ${r.recentReviews.slice(0, 3).map(rev => `- **${rev.buyerName}** (⭐${rev.ratin
     // Size/color questions
     if (lowerMessage.includes('size') || lowerMessage.includes('color') || lowerMessage.includes('variant')) {
       if (product) {
-        const sizes = product.sizes?.length ? `Sizes: ${product.sizes.join(', ')}` : '';
-        const colors = product.colors?.length ? `Colors: ${product.colors.join(', ')}` : '';
+        const sizes = product.variantLabel1Values?.length ? `Options 1: ${product.variantLabel1Values.join(', ')}` : '';
+        const colors = product.variantLabel2Values?.length ? `Options 2: ${product.variantLabel2Values.join(', ')}` : '';
         if (sizes || colors) {
           return `Available options for ${product.name}: ${[sizes, colors].filter(Boolean).join('. ')}. Select your preference and add to cart!`;
         }
@@ -860,10 +860,10 @@ ${r.recentReviews.slice(0, 3).map(rev => `- **${rev.buyerName}** (⭐${rev.ratin
       }
       
       // Variant-related
-      if (p.sizes?.length) {
+      if (p.variantLabel1Values?.length) {
         quickReplies.push('What sizes are available?');
       }
-      if (p.colors?.length) {
+      if (p.variantLabel2Values?.length) {
         quickReplies.push('What colors can I choose?');
       }
       

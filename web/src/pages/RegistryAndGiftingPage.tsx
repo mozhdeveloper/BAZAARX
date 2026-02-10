@@ -22,10 +22,11 @@ import { RegistryItem, Product } from '../stores/buyerStore';
 // Updating RegistryDetailModal is cleaner but might break other things.
 // Casting in RegistryAndGiftingPage is safer for now.
 const RegistryAndGiftingPage = () => {
-    const { registries, createRegistry, addToRegistry } = useBuyerStore();
+    const { registries, createRegistry, addToRegistry, deleteRegistry } = useBuyerStore();
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [selectedRegistry, setSelectedRegistry] = useState<RegistryItem | null>(null);
     const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+    const [activeCategory, setActiveCategory] = useState<string | null>(null);
 
     const handleCreateRegistry = (name: string, category: string) => {
         const newRegistry: RegistryItem = {
@@ -157,45 +158,78 @@ const RegistryAndGiftingPage = () => {
                         title="Baby Registry"
                         desc="Get help preparing for your new arrival."
                         imgSrc="/babyRegistry.jpg"
+                        isActive={activeCategory === 'baby'}
+                        onClick={() => setActiveCategory(activeCategory === 'baby' ? null : 'baby')}
                     />
                     <CategoryCard
                         title="Wedding Registry"
                         desc="Register for gifts to start your new chapter."
                         imgSrc="/weddingRegistry.jpg"
+                        isActive={activeCategory === 'wedding'}
+                        onClick={() => setActiveCategory(activeCategory === 'wedding' ? null : 'wedding')}
                     />
                     <CategoryCard
                         title="Graduation Registry"
                         desc="Share gift ideas or needs for college milestones—birthdays, graduations, dorm moves, org events, and more"
                         imgSrc="/gradGift.jpeg"
+                        isActive={activeCategory === 'graduation'}
+                        onClick={() => setActiveCategory(activeCategory === 'graduation' ? null : 'graduation')}
                     />
                     <CategoryCard
                         title="Other Occasions"
                         desc="Share gift ideas or needs for birthdays, holidays, graduations, new homes and more."
                         imgSrc="/othersRegistry.jpg"
+                        isActive={activeCategory === 'other'}
+                        onClick={() => setActiveCategory(activeCategory === 'other' ? null : 'other')}
                     />
                 </section>
 
                 <section>
                     <div className="flex items-center space-x-3 mb-4">
-                        <h3 className="text-xl font-bold">Your registries and gift lists</h3>
+                        <h3 className="text-xl font-bold">
+                            {activeCategory
+                                ? `${activeCategory.charAt(0).toUpperCase() + activeCategory.slice(1)} Registries`
+                                : 'Your registries and gift lists'}
+                        </h3>
                         <button className="p-1 rounded-full border border-gray-300 hover:bg-gray-100">
                             <Plus size={18} />
                         </button>
                     </div>
                     <div className="flex flex-wrap gap-4">
-                        {registries.map((list) => (
-                            <div
-                                key={list.id}
-                                onClick={() => handleRegistryClick(list as any)}
-                                className="flex items-center w-full md:w-80 p-3 border border-gray-200 rounded-lg hover:shadow-sm cursor-pointer transition bg-white"
-                            >
-                                <img src={list.imageUrl} alt="Gift list" className="w-12 h-12 rounded object-cover mr-4" />
-                                <div>
-                                    <h4 className="font-semibold text-[var(--brand-primary)] text-sm">{list.title}</h4>
-                                    <p className="text-xs text-gray-500 uppercase tracking-wide">Shared - {list.sharedDate}</p>
+                        {registries
+                            .filter(list => {
+                                if (!activeCategory) return true;
+                                if (activeCategory === 'other') {
+                                    return !['baby', 'wedding', 'graduation'].includes(list.category?.toLowerCase() || '');
+                                }
+                                return list.category?.toLowerCase() === activeCategory;
+                            })
+                            .map((list) => (
+                                <div
+                                    key={list.id}
+                                    onClick={() => handleRegistryClick(list as any)}
+                                    className="flex items-center w-full md:w-80 p-3 border border-gray-200 rounded-lg hover:shadow-sm cursor-pointer transition bg-white"
+                                >
+                                    <img src={list.imageUrl} alt="Gift list" className="w-12 h-12 rounded object-cover mr-4" />
+                                    <div>
+                                        <h4 className="font-semibold text-[var(--brand-primary)] text-sm">{list.title}</h4>
+                                        <p className="text-xs text-gray-500 uppercase tracking-wide">
+                                            {list.products?.length || 0} items • Shared - {list.sharedDate}
+                                        </p>
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
+                            ))}
+                        {registries.filter(list => {
+                            if (!activeCategory) return true;
+                            if (activeCategory === 'other') {
+                                return !['baby', 'wedding', 'graduation'].includes(list.category?.toLowerCase() || '');
+                            }
+                            return list.category?.toLowerCase() === activeCategory;
+                        }).length === 0 && (
+                                <div className="w-full text-center py-8 text-gray-500 bg-white rounded-lg border border-dashed border-gray-300">
+                                    No registries found in this category.
+                                </div>
+                            )}
                     </div>
                 </section>
 
@@ -231,17 +265,34 @@ const RegistryAndGiftingPage = () => {
                     onClose={() => setIsDetailModalOpen(false)}
                     registry={selectedRegistry as any}
                     onAddProduct={handleAddProductToRegistry}
+                    onDelete={deleteRegistry}
                 />
             </div>
         </div>
     );
 };
 
-const CategoryCard = ({ title, desc, imgSrc }: { title: string; desc: string; imgSrc: string }) => (
-    <div className="border border-gray-200 rounded-lg overflow-hidden flex flex-col hover:shadow-md transition">
+const CategoryCard = ({
+    title,
+    desc,
+    imgSrc,
+    isActive,
+    onClick
+}: {
+    title: string;
+    desc: string;
+    imgSrc: string;
+    isActive?: boolean;
+    onClick?: () => void;
+}) => (
+    <div
+        onClick={onClick}
+        className={`border rounded-lg overflow-hidden flex flex-col hover:shadow-md transition cursor-pointer ${isActive ? 'border-[var(--brand-primary)] ring-2 ring-[var(--brand-primary)]/20' : 'border-gray-200'
+            }`}
+    >
         <img src={imgSrc} alt={title} className="h-44 w-full object-cover" />
-        <div className="p-4">
-            <h4 className="font-bold text-base">{title}</h4>
+        <div className="p-4 bg-white">
+            <h4 className={`font-bold text-base ${isActive ? 'text-[var(--brand-primary)]' : ''}`}>{title}</h4>
             <p className="text-sm text-gray-600 mt-2 leading-snug">{desc}</p>
         </div>
     </div>

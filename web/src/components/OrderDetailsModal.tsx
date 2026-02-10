@@ -201,9 +201,9 @@ export function OrderDetailsModal({ isOpen, onClose, order }: OrderDetailsModalP
                                                     </div>
                                                     <div className="flex-1 min-w-0 flex flex-col justify-center">
                                                         <h4 className="font-medium text-gray-900 text-sm truncate">{item.productName}</h4>
-                                                        {(item.selectedSize || item.selectedColor) && (
+                                                        {(item.selectedVariantLabel2 || item.selectedVariantLabel1) && (
                                                             <p className="text-xs text-gray-500 mt-0.5 truncate">
-                                                                {item.selectedColor} {item.selectedSize ? `• ${item.selectedSize}` : ''}
+                                                                {item.selectedVariantLabel1} {item.selectedVariantLabel2 ? `• ${item.selectedVariantLabel2}` : ''}
                                                             </p>
                                                         )}
                                                     </div>

@@ -16,8 +16,7 @@ import {
   Star,
   Hash,
   Printer,
-  Receipt,
-  X
+  Receipt
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -46,9 +45,9 @@ interface CartItem {
   price: number;
   image: string;
   maxStock: number;
-  selectedColor?: string;
-  selectedSize?: string;
-  variantKey?: string; // Unique key for color+size combo
+  selectedVariantLabel1?: string;
+  selectedVariantLabel2?: string;
+  variantKey?: string; // Unique key for variant combo
 }
 
 interface ReceiptData {
@@ -90,8 +89,8 @@ export function SellerPOS() {
   const [flashingProduct, setFlashingProduct] = useState<string | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<typeof products[0] | null>(null);
   const [showProductDetails, setShowProductDetails] = useState(false);
-  const [selectedColor, setSelectedColor] = useState<string>('');
-  const [selectedSize, setSelectedSize] = useState<string>('');
+  const [selectedVariantLabel1, setSelectedVariantLabel1] = useState<string>('');
+  const [selectedVariantLabel2, setSelectedVariantLabel2] = useState<string>('');
   const [showReceipt, setShowReceipt] = useState(false);
   const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
   const receiptRef = useRef<HTMLDivElement>(null);
@@ -134,8 +133,8 @@ export function SellerPOS() {
   // Show product details
   const showDetails = (product: typeof products[0]) => {
     setSelectedProduct(product);
-    setSelectedColor(product.colors?.[0] || '');
-    setSelectedSize(product.sizes?.[0] || '');
+    setSelectedVariantLabel1(product.variantLabel2Values?.[0] || '');
+    setSelectedVariantLabel2(product.variantLabel1Values?.[0] || '');
     setShowProductDetails(true);
   };
 
@@ -173,8 +172,8 @@ export function SellerPOS() {
         price: product.price,
         image: product.images[0],
         maxStock: product.stock,
-        selectedColor: color,
-        selectedSize: size,
+        selectedVariantLabel1: color,
+        selectedVariantLabel2: size,
         variantKey
       }]);
     }
@@ -237,8 +236,8 @@ export function SellerPOS() {
           quantity: item.quantity,
           price: item.price,
           image: item.image,
-          selectedColor: item.selectedColor,
-          selectedSize: item.selectedSize
+          selectedVariantLabel1: item.selectedVariantLabel1,
+          selectedVariantLabel2: item.selectedVariantLabel2
         })),
         total,
         receiptNote,
@@ -309,11 +308,11 @@ export function SellerPOS() {
       <tr>
         <td style="padding: 8px 0; border-bottom: 1px solid #eee;">
           <div style="font-weight: 500;">${item.productName}</div>
-          ${item.selectedColor || item.selectedSize ? `
+          ${item.selectedVariantLabel1 || item.selectedVariantLabel2 ? `
             <div style="font-size: 11px; color: #666;">
-              ${item.selectedColor ? `Color: ${item.selectedColor}` : ''}
-              ${item.selectedColor && item.selectedSize ? ' | ' : ''}
-              ${item.selectedSize ? `Size: ${item.selectedSize}` : ''}
+              ${item.selectedVariantLabel1 ? `${item.selectedVariantLabel1}` : ''}
+              ${item.selectedVariantLabel1 && item.selectedVariantLabel2 ? ' | ' : ''}
+              ${item.selectedVariantLabel2 ? `${item.selectedVariantLabel2}` : ''}
             </div>
           ` : ''}
         </td>
@@ -835,16 +834,16 @@ export function SellerPOS() {
                             {item.productName}
                           </h4>
                           {/* Show variant info (color/size) if available */}
-                          {(item.selectedColor || item.selectedSize) && (
+                          {(item.selectedVariantLabel1 || item.selectedVariantLabel2) && (
                             <div className="flex items-center gap-1 mt-0.5">
-                              {item.selectedColor && (
+                              {item.selectedVariantLabel1 && (
                                 <span className="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">
-                                  {item.selectedColor}
+                                  {item.selectedVariantLabel1}
                                 </span>
                               )}
-                              {item.selectedSize && (
+                              {item.selectedVariantLabel2 && (
                                 <span className="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">
-                                  Size: {item.selectedSize}
+                                  {item.selectedVariantLabel2}
                                 </span>
                               )}
                             </div>
@@ -1089,22 +1088,22 @@ export function SellerPOS() {
                   </div>
 
                   {/* Variant Selection - Colors */}
-                  {selectedProduct.colors && selectedProduct.colors.length > 0 && (
+                  {selectedProduct.variantLabel2Values && selectedProduct.variantLabel2Values.length > 0 && (
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-700">Color</label>
+                      <label className="text-sm font-medium text-gray-700">Variant 1</label>
                       <div className="flex flex-wrap gap-2">
-                        {selectedProduct.colors.map((color) => (
+                        {selectedProduct.variantLabel2Values.map((val) => (
                           <button
-                            key={color}
-                            onClick={() => setSelectedColor(color)}
+                            key={val}
+                            onClick={() => setSelectedVariantLabel1(val)}
                             className={cn(
                               "px-4 py-2 rounded-lg border text-sm font-medium transition-all",
-                              selectedColor === color
+                              selectedVariantLabel1 === val
                                 ? "border-[#FF5722] bg-orange-50 text-[#FF5722]"
                                 : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
                             )}
                           >
-                            {color}
+                            {val}
                           </button>
                         ))}
                       </div>
@@ -1112,22 +1111,22 @@ export function SellerPOS() {
                   )}
 
                   {/* Variant Selection - Sizes */}
-                  {selectedProduct.sizes && selectedProduct.sizes.length > 0 && (
+                  {selectedProduct.variantLabel1Values && selectedProduct.variantLabel1Values.length > 0 && (
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-700">Size</label>
+                      <label className="text-sm font-medium text-gray-700">Variant 2</label>
                       <div className="flex flex-wrap gap-2">
-                        {selectedProduct.sizes.map((size) => (
+                        {selectedProduct.variantLabel1Values.map((val) => (
                           <button
-                            key={size}
-                            onClick={() => setSelectedSize(size)}
+                            key={val}
+                            onClick={() => setSelectedVariantLabel2(val)}
                             className={cn(
                               "px-4 py-2 rounded-lg border text-sm font-medium transition-all",
-                              selectedSize === size
+                              selectedVariantLabel2 === val
                                 ? "border-[#FF5722] bg-orange-50 text-[#FF5722]"
                                 : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
                             )}
                           >
-                            {size}
+                            {val}
                           </button>
                         ))}
                       </div>
@@ -1166,7 +1165,7 @@ export function SellerPOS() {
                   {/* Add to Cart Button */}
                   <div className="pt-4">
                     <Button
-                      onClick={() => addToCart(selectedProduct, true, selectedColor || undefined, selectedSize || undefined)}
+                      onClick={() => addToCart(selectedProduct, true, selectedVariantLabel1 || undefined, selectedVariantLabel2 || undefined)}
                       disabled={selectedProduct.stock === 0}
                       className="w-full h-12 text-base font-bold bg-[#FF5722] hover:bg-[#E64A19] text-white"
                     >
@@ -1175,7 +1174,7 @@ export function SellerPOS() {
                       ) : (
                         <>
                           <ShoppingCart className="h-5 w-5 mr-2" />
-                          Add to Cart {selectedColor || selectedSize ? `(${[selectedColor, selectedSize].filter(Boolean).join(' / ')})` : ''}
+                          Add to Cart {selectedVariantLabel1 || selectedVariantLabel2 ? `(${[selectedVariantLabel1, selectedVariantLabel2].filter(Boolean).join(' / ')})` : ''}
                         </>
                       )}
                     </Button>
@@ -1230,9 +1229,9 @@ export function SellerPOS() {
                   <div key={idx} className="flex justify-between text-sm py-1.5">
                     <div className="flex-1">
                       <div className="font-medium text-gray-800">{item.productName}</div>
-                      {(item.selectedColor || item.selectedSize) && (
+                      {(item.selectedVariantLabel1 || item.selectedVariantLabel2) && (
                         <div className="text-xs text-gray-500">
-                          {[item.selectedColor, item.selectedSize].filter(Boolean).join(' / ')}
+                          {[item.selectedVariantLabel1, item.selectedVariantLabel2].filter(Boolean).join(' / ')}
                         </div>
                       )}
                       <div className="text-xs text-gray-500">

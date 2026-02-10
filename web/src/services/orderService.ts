@@ -62,8 +62,8 @@ export class OrderService {
       quantity: number;
       price: number;
       image: string;
-      selectedColor?: string;
-      selectedSize?: string;
+      selectedVariantLabel1?: string;
+      selectedVariantLabel2?: string;
     }[],
     total: number,
     note?: string,
@@ -124,9 +124,9 @@ export class OrderService {
       shipping_discount: 0,
       quantity: item.quantity,
       variant_id: null,
-      personalized_options: item.selectedColor || item.selectedSize ? {
-        color: item.selectedColor,
-        size: item.selectedSize
+      personalized_options: item.selectedVariantLabel1 || item.selectedVariantLabel2 ? {
+        variantLabel1: item.selectedVariantLabel1,
+        variantLabel2: item.selectedVariantLabel2
       } : null,
       rating: null,
     }));
