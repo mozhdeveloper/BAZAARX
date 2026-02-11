@@ -232,13 +232,12 @@ export function SellerNotifications() {
           </div>
         </SidebarBody>
       </Sidebar>
-      <main className="flex-1 overflow-y-auto">
-        <div className="p-6 max-w-7xl mx-auto">
+      <div className="p-2 md:p-8 bg-gray-50 flex-1 w-full h-full overflow-auto">
+        <div className="max-w-7xl mx-auto space-y-6">
           {/* Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                <Bell className="w-6 h-6 text-orange-500" />
+              <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
                 Notifications
                 {unreadCount > 0 && (
                   <Badge className="bg-orange-500 text-white ml-2">
@@ -246,7 +245,7 @@ export function SellerNotifications() {
                   </Badge>
                 )}
               </h1>
-              <p className="text-gray-600 mt-1">
+              <p className="text-sm text-gray-500 mt-1">
                 Stay updated with your store activity
               </p>
             </div>
@@ -275,7 +274,7 @@ export function SellerNotifications() {
           </div>
 
           {/* Filters */}
-          <div className="bg-white rounded-lg border p-4 mb-6">
+          <div className="bg-white rounded-lg border p-4">
             <div className="flex flex-col sm:flex-row gap-4">
               <div className="flex-1 relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
@@ -408,7 +407,7 @@ export function SellerNotifications() {
             </div>
           )}
         </div>
-      </main>
+      </div>
     </div>
   );
 }

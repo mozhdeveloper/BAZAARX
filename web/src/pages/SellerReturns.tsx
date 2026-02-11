@@ -151,44 +151,45 @@ export function SellerReturns() {
         </SidebarBody>
       </Sidebar>
 
-      <div className="flex-1 flex flex-col overflow-hidden bg-gray-50">
-        <div className="flex-1 overflow-auto">
-          <div className="w-full max-w-7xl mx-auto">
-            <div className="px-8 py-6 bg-white border-b border-gray-200">
-              <div className="flex items-center justify-between">
-                <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                  <RotateCcw className="h-6 w-6 text-orange-600" />
+      <div className="flex flex-1 w-full overflow-hidden">
+        <div className="p-2 md:p-8 bg-gray-50 flex-1 w-full h-full overflow-auto">
+          <div className="max-w-7xl mx-auto flex flex-col gap-6">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
+                <div>
                   Returns & Refunds
-                </h1>
-                <div className="flex gap-2">
-                  <Button
-                    variant={statusFilter === 'all' ? 'default' : 'outline'}
-                    onClick={() => setStatusFilter('all')}
-                    size="sm"
-                  >
-                    All
-                  </Button>
-                  <Button
-                    variant={statusFilter === 'pending' ? 'default' : 'outline'}
-                    onClick={() => setStatusFilter('pending')}
-                    size="sm"
-                    className={statusFilter === 'pending' ? 'bg-yellow-500 hover:bg-yellow-600' : ''}
-                  >
-                    Pending
-                  </Button>
-                  <Button
-                    variant={statusFilter === 'approved' ? 'default' : 'outline'}
-                    onClick={() => setStatusFilter('approved')}
-                    size="sm"
-                    className={statusFilter === 'approved' ? 'bg-green-600 hover:bg-green-700' : ''}
-                  >
-                    Approved
-                  </Button>
+                  <p className="text-sm text-gray-500 mt-1 font-normal">Manage your return requests and refunds</p>
                 </div>
+              </h1>
+              <div className="flex gap-2">
+                <Button
+                  variant={statusFilter === 'all' ? 'default' : 'outline'}
+                  onClick={() => setStatusFilter('all')}
+                  size="sm"
+                >
+                  All
+                </Button>
+                <Button
+                  variant={statusFilter === 'pending' ? 'default' : 'outline'}
+                  onClick={() => setStatusFilter('pending')}
+                  size="sm"
+                  className={statusFilter === 'pending' ? 'bg-yellow-500 hover:bg-yellow-600' : ''}
+                >
+                  Pending
+                </Button>
+                <Button
+                  variant={statusFilter === 'approved' ? 'default' : 'outline'}
+                  onClick={() => setStatusFilter('approved')}
+                  size="sm"
+                  className={statusFilter === 'approved' ? 'bg-green-600 hover:bg-green-700' : ''}
+                >
+                  Approved
+                </Button>
               </div>
             </div>
 
-            <div className="p-8 overflow-y-auto">
+            <div className="">
               <div className="mb-6 flex gap-4">
                 <div className="relative flex-1 max-w-md">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />

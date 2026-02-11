@@ -54,7 +54,7 @@ export function SellerSettings() {
   };
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="h-screen w-full flex flex-col md:flex-row bg-gray-50 overflow-hidden">
       <Sidebar open={open} setOpen={setOpen}>
         <SidebarBody className="justify-between gap-10">
           <div className="flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
@@ -90,15 +90,15 @@ export function SellerSettings() {
         </SidebarBody>
       </Sidebar>
 
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="flex-1 overflow-auto">
-          <div className="w-full max-w-7xl mx-auto">
+      <div className="flex flex-1 w-full overflow-hidden">
+        <div className="p-2 md:p-8 bg-gray-50 flex-1 w-full h-full overflow-auto">
+          <div className="max-w-7xl mx-auto flex flex-col gap-6">
             {/* Header */}
-            <div className="bg-white border-b border-gray-200 p-6">
+            <div>
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                  <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-                  <p className="text-gray-600 mt-1">Manage your account and store preferences</p>
+                  <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
+                  <p className="text-sm text-gray-500 mt-1">Manage your account and store preferences</p>
                 </div>
                 <Button
                   onClick={handleSave}
@@ -121,7 +121,7 @@ export function SellerSettings() {
             </div>
 
             {/* Main Content */}
-            <div className="flex-1 overflow-auto p-6">
+            <div className="flex-1">
               <Tabs defaultValue="profile" className="w-full">
                 <TabsList className="grid w-full grid-cols-5 mb-6">
                   <TabsTrigger value="profile">Profile</TabsTrigger>

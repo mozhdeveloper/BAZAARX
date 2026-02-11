@@ -305,40 +305,39 @@ export function SellerProducts() {
             </Sidebar>
 
             <div className="flex-1 flex flex-col overflow-hidden">
-                <div className="flex-1 overflow-auto">
-                    <div className="w-full max-w-7xl mx-auto">
-                        <div className="p-6 bg-white border-b border-gray-200">
-                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                                <div>
-                                    <h1 className="text-2xl font-semibold text-gray-900">
-                                        Products
-                                    </h1>
-                                    <p className="text-gray-600 mt-1">
-                                        Manage your product inventory
-                                    </p>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                    <Button
-                                        onClick={() =>
-                                            setIsBulkUploadOpen(true)
-                                        }
-                                        variant="outline"
-                                        className="border-orange-500 text-orange-500 hover:bg-orange-50 flex items-center gap-2"
-                                    >
-                                        <Upload className="h-4 w-4" />
-                                        Bulk Upload
+                <div className="p-2 md:p-8 bg-gray-50 flex-1 w-full h-full overflow-auto">
+                    <div className="w-full max-w-7xl mx-auto space-y-6">
+                        {/* Header */}
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                            <div>
+                                <h1 className="text-3xl font-bold text-gray-900">
+                                    Products
+                                </h1>
+                                <p className="text-gray-500 mt-1 text-sm">
+                                    Manage your product inventory
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <Button
+                                    onClick={() =>
+                                        setIsBulkUploadOpen(true)
+                                    }
+                                    variant="outline"
+                                    className="border-orange-500 text-orange-500 hover:bg-orange-50 flex items-center gap-2"
+                                >
+                                    <Upload className="h-4 w-4" />
+                                    Bulk Upload
+                                </Button>
+                                <Link to="/seller/products/add">
+                                    <Button className="bg-orange-500 hover:bg-orange-600 text-white flex items-center gap-2">
+                                        <Plus className="h-4 w-4" />
+                                        Add Product
                                     </Button>
-                                    <Link to="/seller/products/add">
-                                        <Button className="bg-orange-500 hover:bg-orange-600 text-white flex items-center gap-2">
-                                            <Plus className="h-4 w-4" />
-                                            Add Product
-                                        </Button>
-                                    </Link>
-                                </div>
+                                </Link>
                             </div>
                         </div>
 
-                        <div className="p-6">
+                        <div>
                             {/* Filters */}
                             <div className="flex flex-col sm:flex-row gap-4 mb-6">
                                 <div className="flex-1 relative">
@@ -423,32 +422,32 @@ export function SellerProducts() {
                                                 <div className="mb-3">
                                                     {product.approvalStatus ===
                                                         "pending" && (
-                                                        <Badge className="bg-yellow-100 text-yellow-700 hover:bg-yellow-100">
-                                                            <Clock className="w-3 h-3 mr-1" />
-                                                            Pending Approval
-                                                        </Badge>
-                                                    )}
+                                                            <Badge className="bg-yellow-100 text-yellow-700 hover:bg-yellow-100">
+                                                                <Clock className="w-3 h-3 mr-1" />
+                                                                Pending Approval
+                                                            </Badge>
+                                                        )}
                                                     {product.approvalStatus ===
                                                         "approved" && (
-                                                        <Badge className="bg-green-100 text-green-700 hover:bg-green-100">
-                                                            <BadgeCheck className="w-3 h-3 mr-1" />
-                                                            Verified
-                                                        </Badge>
-                                                    )}
+                                                            <Badge className="bg-green-100 text-green-700 hover:bg-green-100">
+                                                                <BadgeCheck className="w-3 h-3 mr-1" />
+                                                                Verified
+                                                            </Badge>
+                                                        )}
                                                     {product.approvalStatus ===
                                                         "rejected" && (
-                                                        <Badge className="bg-red-100 text-red-700 hover:bg-red-100">
-                                                            <AlertTriangle className="w-3 h-3 mr-1" />
-                                                            Rejected
-                                                        </Badge>
-                                                    )}
+                                                            <Badge className="bg-red-100 text-red-700 hover:bg-red-100">
+                                                                <AlertTriangle className="w-3 h-3 mr-1" />
+                                                                Rejected
+                                                            </Badge>
+                                                        )}
                                                     {product.approvalStatus ===
                                                         "reclassified" && (
-                                                        <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100">
-                                                            <AlertTriangle className="w-3 h-3 mr-1" />
-                                                            Category Adjusted
-                                                        </Badge>
-                                                    )}
+                                                            <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100">
+                                                                <AlertTriangle className="w-3 h-3 mr-1" />
+                                                                Category Adjusted
+                                                            </Badge>
+                                                        )}
                                                 </div>
                                             )}
 
@@ -655,15 +654,15 @@ export function SellerProducts() {
                                                                     ...editVariants,
                                                                 ];
                                                             newVariants[index] =
-                                                                {
-                                                                    ...variant,
-                                                                    price:
-                                                                        parseFloat(
-                                                                            e
-                                                                                .target
-                                                                                .value,
-                                                                        ) || 0,
-                                                                };
+                                                            {
+                                                                ...variant,
+                                                                price:
+                                                                    parseFloat(
+                                                                        e
+                                                                            .target
+                                                                            .value,
+                                                                    ) || 0,
+                                                            };
                                                             setEditVariants(
                                                                 newVariants,
                                                             );
@@ -685,15 +684,15 @@ export function SellerProducts() {
                                                                     ...editVariants,
                                                                 ];
                                                             newVariants[index] =
-                                                                {
-                                                                    ...variant,
-                                                                    stock:
-                                                                        parseInt(
-                                                                            e
-                                                                                .target
-                                                                                .value,
-                                                                        ) || 0,
-                                                                };
+                                                            {
+                                                                ...variant,
+                                                                stock:
+                                                                    parseInt(
+                                                                        e
+                                                                            .target
+                                                                            .value,
+                                                                    ) || 0,
+                                                            };
                                                             setEditVariants(
                                                                 newVariants,
                                                             );
