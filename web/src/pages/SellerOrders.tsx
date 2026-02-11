@@ -52,6 +52,7 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { sellerLinks } from "@/config/sellerLinks";
 import { OrderDetailsModal } from "@/components/OrderDetailsModal";
+import { OrderStatusBadge } from "@/components/orders/OrderStatusBadge";
 
 const Logo = () => (
   <Link
@@ -619,32 +620,7 @@ export function SellerOrders() {
 
                     {/* Status */}
                     <TableCell>
-                      <Badge
-                        variant="secondary"
-                        className={cn(
-                          "font-medium",
-                          order.status ===
-                          "pending" &&
-                          "bg-yellow-100 text-yellow-700 hover:bg-yellow-100",
-                          order.status ===
-                          "confirmed" &&
-                          "bg-blue-100 text-blue-700 hover:bg-blue-100",
-                          order.status ===
-                          "shipped" &&
-                          "bg-purple-100 text-purple-700 hover:bg-purple-100",
-                          order.status ===
-                          "delivered" &&
-                          "bg-green-100 text-green-700 hover:bg-green-100",
-                          order.status ===
-                          "cancelled" &&
-                          "bg-red-100 text-red-700 hover:bg-red-100",
-                        )}
-                      >
-                        {order.status
-                          .charAt(0)
-                          .toUpperCase() +
-                          order.status.slice(1)}
-                      </Badge>
+                      <OrderStatusBadge status={order.status} compact />
                     </TableCell>
 
                     {/* Payment Status */}

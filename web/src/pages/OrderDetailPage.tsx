@@ -31,12 +31,13 @@ import {
   CardHeader,
   CardTitle,
 } from "../components/ui/card";
-import { supabase } from "@/lib/supabase";
-import { orderService } from "../services/orderService";
+import { orderReadService } from "../services/orders/orderReadService";
+import { orderMutationService } from "../services/orders/orderMutationService";
 import { chatService, Message, Conversation } from "../services/chatService";
 import Header from "../components/Header";
 import { BazaarFooter } from "../components/ui/bazaar-footer";
 import { cn } from "@/lib/utils";
+import { ShippingAddressCard } from "../components/orders/ShippingAddressCard";
 
 interface ChatMessage {
   id: string;
@@ -80,197 +81,35 @@ export default function OrderDetailPage() {
   const [reviewComment, setReviewComment] = useState("");
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
 
-  // Load order and seller info
+  // Load order + seller info through shared read service.
   useEffect(() => {
     const fetchOrder = async () => {
       if (!orderId) return;
 
       setIsLoading(true);
       try {
-        // Try fetching by ID first, then by order_number
-        const isUuid =
-          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-            orderId,
-          );
+        const detail = await orderReadService.getOrderDetail({
+          orderIdOrNumber: orderId,
+          buyerId: profile?.id,
+        });
 
-        // Query orders without seller join (orders table no longer has seller_id)
-        let query = supabase.from("orders").select(`
-            *,
-            order_items (
-              *,
-              variant:product_variants(id, variant_name, size, color, price, thumbnail_url)
-            ),
-            recipient:order_recipients (
-              first_name,
-              last_name,
-              phone,
-              email
-            ),
-            address:shipping_addresses (
-              label,
-              address_line_1,
-              address_line_2,
-              city,
-              province,
-              region,
-              postal_code
-            )
-          `);
-
-        if (isUuid) {
-          query = query.eq("id", orderId);
-        } else {
-          query = query.eq("order_number", orderId);
-        }
-
-        const { data: orderData, error } = await query.maybeSingle();
-
-        if (error) throw error;
-
-        if (!orderData) {
+        if (!detail) {
           console.error("Order not found or access denied");
           navigate("/orders");
           return;
         }
 
-        if (orderData) {
-          // Get seller info from the first order item's product
-          const firstItem = orderData.order_items?.[0];
-          if (firstItem?.product_id) {
-            const { data: productData } = await supabase
-              .from('products')
-              .select('seller_id, seller:sellers(id, store_name)')
-              .eq('id', firstItem.product_id)
-              .single();
-            
-            if (productData?.seller) {
-              setSellerId((productData.seller as any).id);
-              setStoreName((productData.seller as any).store_name || "Seller");
-            } else if (productData?.seller_id) {
-              setSellerId(productData.seller_id);
-              // Fetch store name separately
-              const { data: sellerData } = await supabase
-                .from('sellers')
-                .select('store_name')
-                .eq('id', productData.seller_id)
-                .single();
-              if (sellerData) {
-                setStoreName(sellerData.store_name || "Seller");
-              }
-            }
-          }
+        setSellerId(detail.sellerId);
+        setStoreName(detail.storeName || "Seller");
 
-          // Map shipment_status from database to frontend status
-          const shipmentStatusMap: Record<string, Order["status"]> = {
-            pending: "pending",
-            processing: "confirmed",
-            shipped: "shipped",
-            delivered: "delivered",
-            cancelled: "cancelled",
-            returned: "cancelled",
-          };
+        const extendedOrder: Order & DbOrderData = {
+          ...(detail.order as unknown as Order),
+          buyer_id: detail.buyer_id,
+          is_reviewed: detail.is_reviewed || false,
+          shipping_cost: detail.shipping_cost || 0,
+        };
 
-          // Use shipment_status as the primary status indicator
-          const dbShipmentStatus = orderData.shipment_status || 'pending';
-          const mappedStatus = shipmentStatusMap[dbShipmentStatus] || "pending";
-
-          // Compute total from order items (orders table doesn't have total_amount)
-          const items = orderData.order_items || [];
-          const computedTotal = items.reduce((sum: number, item: any) => {
-            const itemPrice = (item.variant?.price || item.price || 0);
-            return sum + (item.quantity * itemPrice);
-          }, 0);
-
-          const mappedOrder: Order = {
-            id: orderData.id,
-            orderNumber: orderData.order_number,
-            total: computedTotal || orderData.total_amount || 0,
-            status: mappedStatus,
-            isPaid: orderData.payment_status === "paid",
-            createdAt: new Date(orderData.created_at),
-            date: new Date(orderData.created_at).toLocaleDateString("en-PH", {
-              year: "numeric",
-              month: "short",
-              day: "numeric",
-            }),
-            estimatedDelivery: new Date(
-              orderData.estimated_delivery_date ||
-              Date.now() + 3 * 24 * 60 * 60 * 1000,
-            ),
-            items: items.map((item: any) => {
-              // Get variant from joined data or from legacy selected_variant field
-              const variantData = item.variant || item.selected_variant;
-              return {
-                id: item.id,
-                name: item.product_name,
-                price: variantData?.price || item.price,
-                quantity: item.quantity,
-                image:
-                  variantData?.thumbnail_url ||
-                  item.primary_image_url ||
-                  item.product_images?.[0] ||
-                  "https://placehold.co/100?text=Product",
-                seller: item.seller_name || storeName || "Bazaar Merchant",
-                variant: variantData ? {
-                  id: variantData.id,
-                  name: variantData.variant_name || variantData.name,
-                  size: variantData.size,
-                  color: variantData.color,
-                  sku: variantData.sku,
-                } : undefined,
-              };
-            }),
-            shippingAddress: (() => {
-              // Try to parse shipping address from notes (JSON embedded)
-              let notesAddress: any = null;
-              if (orderData.notes && orderData.notes.includes('SHIPPING_ADDRESS:')) {
-                try {
-                  const jsonPart = orderData.notes.split('SHIPPING_ADDRESS:')[1]?.split('|')[0];
-                  if (jsonPart) {
-                    notesAddress = JSON.parse(jsonPart);
-                  }
-                } catch (e) {
-                  console.warn('Could not parse shipping address from notes');
-                }
-              }
-              
-              return {
-                fullName:
-                  notesAddress?.fullName ||
-                  (orderData.recipient
-                    ? `${orderData.recipient.first_name || ''} ${orderData.recipient.last_name || ''}`.trim()
-                    : (orderData.shipping_address as any)?.fullName || orderData.buyer_name || 'Customer'),
-                street: notesAddress?.street || orderData.address?.address_line_1 || (orderData.shipping_address as any)?.street || "",
-                city: notesAddress?.city || orderData.address?.city || (orderData.shipping_address as any)?.city || "",
-                province: notesAddress?.province || orderData.address?.province || (orderData.shipping_address as any)?.province || "",
-                postalCode: notesAddress?.postalCode || orderData.address?.postal_code || (orderData.shipping_address as any)?.postalCode || "",
-                phone:
-                  notesAddress?.phone ||
-                  orderData.recipient?.phone ||
-                  (orderData.shipping_address as any)?.phone ||
-                  orderData.buyer_phone ||
-                  "",
-              };
-            })(),
-            paymentMethod: {
-              type: typeof orderData.payment_method === 'string'
-                ? orderData.payment_method
-                : (orderData.payment_method as any)?.type || "cod",
-              details: undefined, // No extra details needed
-            },
-            trackingNumber: orderData.tracking_number || undefined,
-          } as Order;
-
-          // Add DB-specific fields
-          const extendedOrder: Order & DbOrderData = {
-            ...mappedOrder,
-            buyer_id: orderData.buyer_id,
-            is_reviewed: orderData.is_reviewed || false,
-            shipping_cost: orderData.shipping_cost || 0,
-          };
-
-          setDbOrder(extendedOrder);
-        }
+        setDbOrder(extendedOrder);
       } catch (err) {
         console.error("Error fetching order details:", err);
       } finally {
@@ -278,8 +117,8 @@ export default function OrderDetailPage() {
       }
     };
 
-    fetchOrder();
-  }, [orderId]);
+    void fetchOrder();
+  }, [orderId, profile?.id, navigate]);
 
   // Load chat messages when seller and profile are ready
   useEffect(() => {
@@ -870,13 +709,13 @@ export default function OrderDetailPage() {
 
     setIsSubmittingReview(true);
     try {
-      const success = await orderService.submitOrderReview(
-        order.id,
-        dbOrder?.buyer_id || "",
-        reviewRating,
-        reviewComment,
-        [],
-      );
+      const success = await orderMutationService.submitOrderReview({
+        orderId: order.id,
+        buyerId: dbOrder?.buyer_id || "",
+        rating: reviewRating,
+        comment: reviewComment,
+        images: [],
+      });
 
       if (success) {
         alert("✅ Review submitted successfully! Thank you for your feedback.");
@@ -886,30 +725,19 @@ export default function OrderDetailPage() {
 
         // Refresh order data to show is_reviewed status
         if (orderId) {
-          const isUuid =
-            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-              orderId,
-            );
-          const { data } = await supabase
-            .from("orders")
-            .select(
-              `
-              *,
-              order_items (
-                *,
-                product:products (
-                  id,
-                  name,
-                  image_url
-                )
-              )
-            `,
-            )
-            .eq(isUuid ? "id" : "order_number", orderId)
-            .single();
+          const detail = await orderReadService.getOrderDetail({
+            orderIdOrNumber: orderId,
+            buyerId: profile?.id,
+          });
 
-          if (data) {
-            setDbOrder(data);
+          if (detail) {
+            const refreshedOrder: Order & DbOrderData = {
+              ...(detail.order as unknown as Order),
+              buyer_id: detail.buyer_id,
+              is_reviewed: detail.is_reviewed || false,
+              shipping_cost: detail.shipping_cost || 0,
+            };
+            setDbOrder(refreshedOrder);
           }
         }
       } else {
@@ -1355,33 +1183,7 @@ export default function OrderDetailPage() {
               </Card>
             )}
 
-            {/* Delivery Address */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <MapPin className="w-5 h-5 text-orange-500" />
-                  Delivery Address
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <p className="font-medium text-gray-900">
-                  {order.shippingAddress.fullName}
-                </p>
-                <p className="text-sm text-gray-700">
-                  {order.shippingAddress.street}
-                </p>
-                <p className="text-sm text-gray-700">
-                  {order.shippingAddress.city}, {order.shippingAddress.province}{" "}
-                  {order.shippingAddress.postalCode}
-                </p>
-                {order.shippingAddress.phone && (
-                  <div className="flex items-center gap-2 text-sm text-gray-600 pt-2">
-                    <Phone className="w-4 h-4" />
-                    {order.shippingAddress.phone}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            <ShippingAddressCard address={order.shippingAddress} />
 
             {/* Need Help */}
             <Card className="bg-orange-50 border-orange-200">

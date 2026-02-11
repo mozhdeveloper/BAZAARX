@@ -19,6 +19,7 @@ import {
     AccordionTrigger,
 } from "@/components/ui/accordion";
 import { useOrderStore, SellerOrder } from "@/stores/sellerStore";
+import { OrderStatusBadge } from "@/components/orders/OrderStatusBadge";
 
 interface OrderDetailsModalProps {
     isOpen: boolean;
@@ -126,41 +127,6 @@ export function OrderDetailsModal({
         }
     };
 
-    const getStatusBadge = (status: string) => {
-        switch (status) {
-            case "delivered":
-                return (
-                    <div className="inline-flex items-center bg-blue-50 text-blue-700 gap-1 rounded-full px-3 py-1 text-xs font-normal">
-                        <CheckCircle className="w-3 h-3" /> Delivered
-                    </div>
-                );
-            case "shipped":
-                return (
-                    <div className="inline-flex items-center bg-purple-50 text-purple-700 gap-1 rounded-full px-3 py-1 text-xs font-normal">
-                        <Truck className="w-3 h-3" /> Shipped
-                    </div>
-                );
-            case "cancelled":
-                return (
-                    <div className="inline-flex items-center bg-red-50 text-red-700 gap-1 rounded-full px-3 py-1 text-xs font-normal">
-                        <XCircle className="w-3 h-3" /> Cancelled
-                    </div>
-                );
-            case "confirmed":
-                return (
-                    <div className="inline-flex items-center bg-green-50 text-green-700 gap-1 rounded-full px-3 py-1 text-xs font-normal">
-                        <CheckCircle className="w-3 h-3" /> Confirmed
-                    </div>
-                );
-            default:
-                return (
-                    <div className="inline-flex items-center bg-orange-50 text-orange-700 gap-1 rounded-full px-3 py-1 text-xs font-normal">
-                        <Clock className="w-3 h-3" /> Pending
-                    </div>
-                );
-        }
-    };
-
     return (
         <AnimatePresence>
             {isOpen && (
@@ -186,7 +152,10 @@ export function OrderDetailsModal({
                                 </h2>
                                 <div className="flex flex-wrap items-center gap-4 text-xs">
                                     <div className="flex items-center gap-2">
-                                        {getStatusBadge(order.status)}
+                                        <OrderStatusBadge
+                                            status={order.status}
+                                            compact
+                                        />
                                     </div>
                                     <div className="flex items-center gap-2 text-gray-500">
                                         <span className="font-medium text-gray-400">
