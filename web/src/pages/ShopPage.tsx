@@ -486,6 +486,14 @@ export default function ShopPage() {
                     transition={{ delay: index * 0.1 }}
                     className="bg-white rounded-lg overflow-hidden cursor-pointer hover:shadow-lg transition-all border border-gray-100 hover:border-[var(--brand-primary)] pb-2"
                     onClick={() => navigate(`/product/${product.id}`)}
+                    role="link"
+                    tabIndex={0}
+                    aria-label={`View flash sale deal for ${product.name}, ${product.discount}% off`}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        navigate(`/product/${product.id}`);
+                      }
+                    }}
                   >
                     <div className="relative aspect-[4/3] mb-2">
                       <img
@@ -547,6 +555,9 @@ export default function ShopPage() {
                   <button
                     onClick={() => setShowFilters(!showFilters)}
                     className="lg:hidden flex items-center gap-2 px-4 py-2 bg-gray-100/80 hover:bg-gray-200/80 rounded-xl text-xs font-semibold text-gray-700 transition-colors"
+                    aria-expanded={showFilters}
+                    aria-controls="mobile-filters-menu"
+                    aria-label={showFilters ? "Close categories menu" : "Open categories menu"}
                   >
                     <Menu className="w-4 h-4" />
                     Categories
@@ -585,6 +596,7 @@ export default function ShopPage() {
                   animate={{ height: "auto", opacity: 1 }}
                   exit={{ height: 0, opacity: 0 }}
                   className="lg:hidden overflow-hidden bg-white/80 backdrop-blur-md rounded-xl border border-gray-100 mb-6 shadow-sm"
+                  id="mobile-filters-menu"
                 >
                   <div className="p-4">
                     <div className="flex items-center justify-between mb-3">
@@ -610,6 +622,7 @@ export default function ShopPage() {
                             ? "bg-[var(--brand-primary)] text-white font-medium shadow-sm"
                             : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                             }`}
+                          aria-pressed={selectedCategory === category}
                         >
                           {category}
                         </button>
@@ -632,6 +645,7 @@ export default function ShopPage() {
                       <button
                         onClick={() => setSelectedCategory("All Categories")}
                         className={`w-full flex justify-between items-center group transition-colors ${selectedCategory === "All Categories" ? "text-[var(--brand-primary)]" : "text-gray-600 hover:text-gray-900"}`}
+                        aria-pressed={selectedCategory === "All Categories"}
                       >
                         <span className={`text-sm ${selectedCategory === "All Categories" ? "font-bold" : "font-medium"}`}>All Product</span>
                         <span className="text-xs font-semibold">{allProducts.length}</span>
@@ -641,6 +655,7 @@ export default function ShopPage() {
                           key={cat.id}
                           onClick={() => setSelectedCategory(cat.name)}
                           className={`w-full flex justify-between items-center group transition-colors ${selectedCategory === cat.name ? "text-[var(--brand-primary)]" : "text-gray-500 hover:text-gray-900"}`}
+                          aria-pressed={selectedCategory === cat.name}
                         >
                           <span className="text-sm font-medium">{cat.name}</span>
                           <span className="text-xs font-normal text-gray-400 group-hover:text-gray-600">
@@ -698,6 +713,7 @@ export default function ShopPage() {
                               className={`w-6 h-6 rounded-full border border-gray-100 shadow-sm hover:scale-110 transition-transform ${color.name === "Orange" ? "ring-2 ring-offset-2 ring-[var(--brand-primary)]" : ""}`}
                               style={{ backgroundColor: color.hex }}
                               title={color.name}
+                              aria-label={`Filter by color: ${color.name}`}
                             />
                           ))}
                         </div>
@@ -760,6 +776,14 @@ export default function ShopPage() {
                       transition={{ delay: index * 0.05 }}
                       className="bg-white rounded-xl shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden group cursor-pointer"
                       onClick={() => navigate(`/product/${product.id}`)}
+                      role="link"
+                      tabIndex={0}
+                      aria-label={`View details for ${product.name}`}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          navigate(`/product/${product.id}`);
+                        }
+                      }}
                     >
                       <div className="relative aspect-square overflow-hidden">
                         <img
@@ -866,6 +890,7 @@ export default function ShopPage() {
                             size="icon"
                             className="flex-shrink-0 border-[var(--brand-primary)] text-[var(--brand-primary)] hover:bg-[var(--brand-primary)] hover:text-white rounded-lg transition-all active:scale-95 h-8 w-8 p-0"
                             title="Add to Cart"
+                            aria-label={`Add ${product.name} to cart`}
                           >
                             <ShoppingCart className="w-4 h-4" />
                           </Button>
@@ -907,6 +932,7 @@ export default function ShopPage() {
                               }
                             }}
                             className="flex-1 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white rounded-lg transition-all active:scale-95 h-8 text-xs"
+                            aria-label={`Buy ${product.name} now`}
                           >
                             Buy Now
                           </Button>

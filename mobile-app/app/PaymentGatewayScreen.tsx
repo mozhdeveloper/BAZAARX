@@ -135,6 +135,8 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
             onPress={() => navigation.goBack()}
             style={styles.backButton}
             disabled={status === 'processing'}
+            accessibilityLabel="Go back"
+            accessibilityRole="button"
           >
             <ArrowLeft size={24} color="#374151" strokeWidth={2.5} />
           </Pressable>
@@ -187,6 +189,7 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
                       keyboardType="number-pad"
                       maxLength={16}
                       editable={status !== 'processing'}
+                      accessibilityLabel="Card Number Input"
                     />
                   </View>
                 </View>
@@ -204,6 +207,7 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
                       keyboardType="number-pad"
                       maxLength={5}
                       editable={status !== 'processing'}
+                      accessibilityLabel="Expiry Date Input (MM/YY)"
                     />
                   </View>
 
@@ -221,6 +225,7 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
                         maxLength={4}
                         secureTextEntry
                         editable={status !== 'processing'}
+                        accessibilityLabel="CVV Input"
                       />
                       <View style={styles.inputIconRight}>
                         <Lock size={16} color="#9CA3AF" />
@@ -240,6 +245,7 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
                     onChangeText={setCardName}
                     autoCapitalize="characters"
                     editable={status !== 'processing'}
+                    accessibilityLabel="Cardholder Name Input"
                   />
                 </View>
               </>
@@ -263,6 +269,7 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
                       keyboardType="phone-pad"
                       maxLength={10}
                       editable={status !== 'processing'}
+                      accessibilityLabel="Mobile Number Input"
                     />
                   </View>
                 </View>
@@ -281,6 +288,7 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
                     keyboardType="number-pad"
                     maxLength={6}
                     editable={status !== 'processing'}
+                    accessibilityLabel={methodSlug === 'gcash' ? "MPIN Input" : "Password Input"}
                   />
                 </View>
               </>
@@ -314,6 +322,8 @@ export default function PaymentGatewayScreen({ navigation, route }: Props) {
             ]}
             onPress={handlePayment}
             disabled={!isFormValid() || status === 'processing'}
+            accessibilityLabel={`Pay ${order.total.toLocaleString()} pesos`}
+            accessibilityRole="button"
           >
             <Text style={styles.payButtonText}>
               {status === 'processing' ? 'Processing...' : `Pay ₱${order.total.toLocaleString()}`}
