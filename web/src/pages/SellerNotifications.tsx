@@ -166,11 +166,27 @@ export function SellerNotifications() {
       await handleMarkAsRead(n.id);
     }
 
-    // Navigate based on action_url or type
+    // Extract Order ID or Number from action_data
+    const data = n.action_data as any;
+    const orderId = data?.orderId || data?.id;
+    const orderNumber = data?.orderNumber || data?.order_number;
+
+    // Priority: Use Order Number if available, else UUID
+    const targetId = orderNumber || orderId;
+
+    // 1. For Order Notifications: Force the correct query param format "?ID"
+    // This fixes both new and existing notifications in the database
+    if (targetId && (n.type === "seller_new_order" || n.type.includes("order"))) {
+      navigate(`/seller/orders?${targetId}`);
+      return;
+    }
+
+    // 2. Fallback: Use explicit Action URL
     if (n.action_url) {
       navigate(n.action_url);
-    } else if (n.action_data?.orderId) {
-      navigate(`/seller/orders`);
+    } else {
+      // 3. Final Fallback
+      navigate("/seller/orders");
     }
   };
 
@@ -341,8 +357,8 @@ export function SellerNotifications() {
                           <div>
                             <h4
                               className={`text-sm font-medium ${!notification.is_read
-                                  ? "text-gray-900"
-                                  : "text-gray-700"
+                                ? "text-gray-900"
+                                : "text-gray-700"
                                 }`}
                             >
                               {notification.title}
@@ -367,8 +383,8 @@ export function SellerNotifications() {
                           <Badge
                             variant="outline"
                             className={`mt-2 ${notification.priority === "urgent"
-                                ? "border-red-300 text-red-600"
-                                : "border-orange-300 text-orange-600"
+                              ? "border-red-300 text-red-600"
+                              : "border-orange-300 text-orange-600"
                               }`}
                           >
                             {notification.priority === "urgent"

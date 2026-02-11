@@ -2141,15 +2141,15 @@ export const useOrderStore = create<OrderStore>()(
 
                     if (order.buyer_id) {
                         const statusMessages: Record<string, string> = {
-                            confirmed: `Your order #${id.slice(-8)} has been confirmed and is being prepared.`,
-                            shipped: `Your order #${id.slice(-8)} has been shipped and is on its way!`,
-                            delivered: `Your order #${id.slice(-8)} has been delivered. Enjoy your purchase!`,
-                            cancelled: `Your order #${id.slice(-8)} has been cancelled.`,
+                            confirmed: `Your order #${order.orderNumber} has been confirmed and is being prepared.`,
+                            shipped: `Your order #${order.orderNumber} has been shipped and is on its way!`,
+                            delivered: `Your order #${order.orderNumber} has been delivered. Enjoy your purchase!`,
+                            cancelled: `Your order #${order.orderNumber} has been cancelled.`,
                         };
 
                         const message =
                             statusMessages[status] ||
-                            `Order #${id.slice(-8)} status updated to ${status}`;
+                            `Order #${order.orderNumber} status updated to ${status}`;
 
                         console.log(
                             `🚀 Creating buyer notification for order ${id}`,
@@ -2162,7 +2162,7 @@ export const useOrderStore = create<OrderStore>()(
                                     .notifyBuyerOrderStatus({
                                         buyerId: order.buyer_id!,
                                         orderId: id,
-                                        orderNumber: id.slice(-8),
+                                        orderNumber: order.orderNumber,
                                         status,
                                         message,
                                     })

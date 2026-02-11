@@ -534,15 +534,16 @@ export const useCartStore = create<CartStore>()(
         }
       },
 
-      clearCart: () => {
+      clearCart: async () => {
         const cartId = get().cartId;
         if (cartId && isSupabaseConfigured()) {
-          supabase.from('cart_items').delete().eq('cart_id', cartId).then(() => {
-            set({ items: [] });
-          }).catch(() => set({ items: [] }));
-        } else {
-          set({ items: [] });
+          try {
+            await supabase.from('cart_items').delete().eq('cart_id', cartId);
+          } catch (e) {
+            console.error('[WebCartStore] Failed to clear cart:', e);
+          }
         }
+        set({ items: [] });
       },
 
       getTotalItems: () => {
@@ -585,6 +586,7 @@ export const useCartStore = create<CartStore>()(
           isPaid: orderData.paymentMethod?.type !== 'cod', // COD is unpaid, others are paid
           shippingAddress: orderData.shippingAddress,
           paymentMethod: orderData.paymentMethod,
+          orderNumber: orderId.slice(-8),
         };
 
         set((state) => ({
@@ -653,7 +655,7 @@ export const useCartStore = create<CartStore>()(
                 get().addSellerNotification(
                   orderId,
                   'seller_new_order',
-                  `New order #${orderId.slice(-8)} from ${orderData.shippingAddress.fullName}. Total: ₱${sellerTotal.toLocaleString()}`
+                  `New order #${newOrder.orderNumber} from ${orderData.shippingAddress.fullName}. Total: ₱${sellerTotal.toLocaleString()}`
                 );
 
                 // Save notification to database if we have seller_id
@@ -666,7 +668,7 @@ export const useCartStore = create<CartStore>()(
                   notificationService.notifySellerNewOrder({
                     sellerId: firstItem.sellerId,
                     orderId,
-                    orderNumber: orderId.slice(-8),
+                    orderNumber: newOrder.orderNumber,
                     buyerName: orderData.shippingAddress.fullName || 'Unknown Buyer',
                     total: sellerTotal
                   }).catch(error => {
@@ -720,23 +722,23 @@ export const useCartStore = create<CartStore>()(
           switch (status) {
             case 'confirmed':
               notificationType = 'seller_confirmed';
-              notificationMessage = `Order #${orderId.slice(-8)} has been confirmed. Please prepare for shipment.`;
+              notificationMessage = `Order #${order.orderNumber || orderId.slice(-8)} has been confirmed. Please prepare for shipment.`;
               break;
             case 'shipped':
               notificationType = 'shipped';
-              notificationMessage = `Order #${orderId.slice(-8)} has been marked as shipped.`;
+              notificationMessage = `Order #${order.orderNumber || orderId.slice(-8)} has been marked as shipped.`;
               break;
             case 'delivered':
               notificationType = 'delivered';
-              notificationMessage = `Order #${orderId.slice(-8)} has been delivered to the customer.`;
+              notificationMessage = `Order #${order.orderNumber || orderId.slice(-8)} has been delivered to the customer.`;
               break;
             case 'cancelled':
               notificationType = 'cancelled';
-              notificationMessage = `Order #${orderId.slice(-8)} has been cancelled.`;
+              notificationMessage = `Order #${order.orderNumber || orderId.slice(-8)} has been cancelled.`;
               break;
             case 'returned':
               notificationType = 'seller_return_approved';
-              notificationMessage = `Order #${orderId.slice(-8)} has been returned by the customer.`;
+              notificationMessage = `Order #${order.orderNumber || orderId.slice(-8)} has been returned by the customer.`;
               break;
             default:
               break;
