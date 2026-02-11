@@ -1,7 +1,7 @@
 import React, { useState, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { useAuthStore } from "@/stores/sellerStore";
+import { useAuthStore, useProductStore, useOrderStore } from "@/stores/sellerStore";
 import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
 import { sellerLinks } from "@/config/sellerLinks";
 import {
@@ -25,6 +25,9 @@ import {
   LogOut,
   Download,
   Loader,
+  Star,
+  Calendar,
+  MessageCircle,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -71,6 +74,8 @@ const LogoIcon = () => (
 
 export function SellerStoreProfile() {
   const { seller, updateSellerDetails, logout } = useAuthStore();
+  const { products } = useProductStore();
+  const { orders } = useOrderStore();
   const [open, setOpen] = useState(false);
   const [editSection, setEditSection] = useState<
     "basic" | "business" | "banking" | "categories" | null
@@ -640,26 +645,27 @@ export function SellerStoreProfile() {
       </Sidebar>
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="flex-1 overflow-auto">
-          <div className="max-w-7xl mx-auto p-4 md:p-8">
+        <div className="p-2 md:p-8 bg-gray-50 flex-1 w-full h-full overflow-auto">
+          <div className="max-w-7xl mx-auto space-y-6">
+            {/* Page Title */}
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">
+                Store Profile
+              </h1>
+              <p className="text-sm text-gray-500 mt-1 whitespace-nowrap">
+                Manage your store's complete profile and verification
+              </p>
+            </div>
             {/* Two Column Layout */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
               {/* Left Sidebar - Profile Summary */}
               <div className="lg:col-span-4 space-y-6">
-                {/* Page Title - Not Sticky */}
-                <div>
-                  <h1 className="text-3xl font-bold text-gray-900">
-                    Store Profile
-                  </h1>
-                  <p className="text-gray-600 mt-2 whitespace-nowrap">
-                    Manage your store's complete profile and verification
-                  </p>
-                </div>
+
 
                 {/* Sticky Profile Card */}
                 <div className="lg:sticky lg:top-4">
-                  <Card className="p-6 shadow-md border-gray-100">
-                    <div className="flex flex-col items-center text-center">
+                  <Card className="p-6 shadow-md border border-gray-100 bg-white">
+                    <div className="flex flex-col items-start text-left w-full">
                       {/* Avatar */}
                       <div className="relative mb-4">
                         {seller?.avatar ? (
@@ -691,23 +697,36 @@ export function SellerStoreProfile() {
                       </div>
 
                       {/* Store Name */}
-                      <h2 className="text-2xl font-bold text-gray-900 mb-1">
-                        {seller?.storeName || "Your Store"}
-                      </h2>
+                      <div className="flex items-center gap-2 mb-1">
+                        <h2 className="text-2xl font-bold text-gray-900">
+                          {seller?.storeName || "Your Store"}
+                        </h2>
+                        {isVerified && (
+                          <CheckCircle2 className="h-5 w-5 text-green-400" />
+                        )}
+                      </div>
 
-                      {/* Email */}
-                      <p className="text-sm text-gray-600 mb-1">
-                        {seller?.email || "Not provided"}
-                      </p>
+                      {/* Email and Joined Date */}
+                      <div className="flex items-center gap-4 text-sm text-gray-600 mb-1 flex-wrap">
+                        <span>{seller?.email || "Not provided"}</span>
+                        <span className="text-gray-300">|</span>
+                        <div className="flex items-center gap-1">
+                          <Calendar className="h-3 w-3" />
+                          <span>
+                            Joined{" "}
+                            {seller?.joinDate
+                              ? new Date(seller.joinDate).toLocaleDateString(
+                                "en-US",
+                                { year: "numeric" },
+                              )
+                              : "N/A"}
+                          </span>
+                        </div>
+                      </div>
 
                       {/* Verification Badge */}
                       <div className="mt-3 mb-4">
-                        {isVerified && (
-                          <Badge className="bg-green-100 text-green-700 hover:bg-green-100">
-                            <CheckCircle2 className="h-3 w-3 mr-1" />
-                            Verified Seller
-                          </Badge>
-                        )}
+
                         {approvalStatus === "pending" && !isVerified && (
                           <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">
                             <Clock className="h-3 w-3 mr-1" />
@@ -749,38 +768,51 @@ export function SellerStoreProfile() {
                       )}
 
                       {/* Quick Stats */}
-                      <div className="w-full grid grid-cols-2 gap-3">
-                        <div className="bg-gray-50 rounded-lg p-3">
-                          <div className="flex items-center justify-center gap-1 text-gray-600 text-xs mb-1">
-                            <Award className="h-3 w-3" />
-                            Rating
+                      <div className="w-full bg-none rounded-xl divide-y border-0 divide-gray-200">
+                        {/* Followers */}
+                        <div className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors group cursor-default">
+                          <div className="flex items-center gap-3">
+                            <Users className="h-5 w-5 text-gray-500 group-hover:text-purple-500 transition-colors" />
+                            <span className="text-sm font-medium text-gray-600">
+                              Followers
+                            </span>
                           </div>
-                          <div className="text-lg font-bold text-gray-900">
+                          <span className="font-bold text-gray-900">0</span>
+                        </div>
+
+                        {/* Rating */}
+                        <div className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors group cursor-default">
+                          <div className="flex items-center gap-3">
+                            <Star className="h-5 w-5 text-gray-500 group-hover:text-yellow-500 transition-colors" />
+                            <span className="text-sm font-medium text-gray-600">
+                              Rating
+                            </span>
+                          </div>
+                          <span className="font-bold text-gray-900">
                             {seller?.rating ? `${seller.rating}/5.0` : "New"}
-                          </div>
+                          </span>
                         </div>
-                        <div className="bg-gray-50 rounded-lg p-3">
-                          <div className="flex items-center justify-center gap-1 text-gray-600 text-xs mb-1">
-                            <Package className="h-3 w-3" />
-                            Products
+
+                        {/* Response Rate */}
+                        <div className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors group cursor-default">
+                          <div className="flex items-center gap-3">
+                            <MessageCircle className="h-5 w-5 text-gray-500 group-hover:text-blue-500 transition-colors" />
+                            <span className="text-sm font-medium text-gray-600">
+                              Response Rate
+                            </span>
                           </div>
-                          <div className="text-lg font-bold text-gray-900">0</div>
+                          <span className="font-bold text-gray-900">100%</span>
                         </div>
-                        <div className="bg-gray-50 rounded-lg p-3">
-                          <div className="flex items-center justify-center gap-1 text-gray-600 text-xs mb-1">
-                            <TrendingUp className="h-3 w-3" />
-                            Sales
+
+                        {/* Products */}
+                        <div className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors group cursor-default">
+                          <div className="flex items-center gap-3">
+                            <Package className="h-5 w-5 text-gray-500 group-hover:text-orange-500 transition-colors" />
+                            <span className="text-sm font-medium text-gray-600">
+                              Products
+                            </span>
                           </div>
-                          <div className="text-lg font-bold text-gray-900">
-                            {seller?.totalSales || 0}
-                          </div>
-                        </div>
-                        <div className="bg-gray-50 rounded-lg p-3">
-                          <div className="flex items-center justify-center gap-1 text-gray-600 text-xs mb-1">
-                            <Users className="h-3 w-3" />
-                            Followers
-                          </div>
-                          <div className="text-lg font-bold text-gray-900">0</div>
+                          <span className="font-bold text-gray-900">{products.length}</span>
                         </div>
                       </div>
                     </div>
@@ -790,8 +822,7 @@ export function SellerStoreProfile() {
 
               {/* Right Content Area - Scrollable */}
               <div className="lg:col-span-8 space-y-6">
-                {/* Invisible spacer to align with left section title */}
-                <div className="h-[70px]" aria-hidden="true"></div>
+
 
                 {/* Owner & Contact Information (Editable) */}
                 <Card className="p-6 mb-6 shadow-md border-gray-100">
