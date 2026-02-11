@@ -16,6 +16,8 @@ import {
     Clock,
     BadgeCheck,
     Upload,
+    ChevronDown,
+    Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
@@ -35,6 +37,12 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
@@ -134,7 +142,8 @@ export function SellerProducts() {
         const matchesFilter =
             filterStatus === "all" ||
             (filterStatus === "active" && product.isActive) ||
-            (filterStatus === "inactive" && !product.isActive);
+            (filterStatus === "inactive" && !product.isActive) ||
+            (filterStatus === "pending" && product.approvalStatus === "pending");
 
         // Only return true if it belongs to the seller AND matches search/filters
         return matchesSeller && matchesSearch && matchesFilter;
@@ -317,30 +326,86 @@ export function SellerProducts() {
                                     Manage your product inventory
                                 </p>
                             </div>
-                            <div className="flex items-center gap-3">
-                                <Button
-                                    onClick={() =>
-                                        setIsBulkUploadOpen(true)
-                                    }
-                                    variant="outline"
-                                    className="border-orange-500 text-orange-500 hover:bg-orange-50 flex items-center gap-2"
-                                >
-                                    <Upload className="h-4 w-4" />
-                                    Bulk Upload
-                                </Button>
-                                <Link to="/seller/products/add">
-                                    <Button className="bg-orange-500 hover:bg-orange-600 text-white flex items-center gap-2">
-                                        <Plus className="h-4 w-4" />
-                                        Add Product
-                                    </Button>
-                                </Link>
-                            </div>
                         </div>
 
                         <div>
                             {/* Filters */}
                             <div className="flex flex-col sm:flex-row gap-4 mb-6">
-                                <div className="flex-1 relative">
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button
+                                            variant="outline"
+                                            className="h-10 px-4 border border-gray-100 shadow-sm rounded-lg hover:bg-gray-100 text-gray-800 hover:text-gray-800 flex items-center gap-2 min-w-[140px] justify-between"
+                                        >
+                                            <span>
+                                                {filterStatus === "all" && "All Products"}
+                                                {filterStatus === "active" && "Active"}
+                                                {filterStatus === "inactive" && "Inactive"}
+                                                {filterStatus === "pending" && "Pending Approval"}
+                                            </span>
+                                            <ChevronDown className="h-4 w-4 text-gray-500" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="start" className="w-[200px] p-1">
+                                        <DropdownMenuItem
+                                            onClick={() => setFilterStatus("all")}
+                                            className={cn(
+                                                "cursor-pointer rounded-md px-3 py-2 text-sm",
+                                                filterStatus === "all"
+                                                    ? "bg-orange-500 text-white hover:bg-orange-600 hover:text-white"
+                                                    : "hover:bg-gray-100"
+                                            )}
+                                        >
+                                            <span className="flex items-center justify-between w-full">
+                                                All Products
+                                                {filterStatus === "all" && <Check className="h-4 w-4" />}
+                                            </span>
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem
+                                            onClick={() => setFilterStatus("active")}
+                                            className={cn(
+                                                "cursor-pointer rounded-md px-3 py-2 text-sm",
+                                                filterStatus === "active"
+                                                    ? "bg-orange-500 text-white hover:bg-orange-600 hover:text-white"
+                                                    : "hover:bg-gray-100"
+                                            )}
+                                        >
+                                            <span className="flex items-center justify-between w-full">
+                                                Active
+                                                {filterStatus === "active" && <Check className="h-4 w-4" />}
+                                            </span>
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem
+                                            onClick={() => setFilterStatus("inactive")}
+                                            className={cn(
+                                                "cursor-pointer rounded-md px-3 py-2 text-sm",
+                                                filterStatus === "inactive"
+                                                    ? "bg-orange-500 text-white hover:bg-orange-600 hover:text-white"
+                                                    : "hover:bg-gray-100"
+                                            )}
+                                        >
+                                            <span className="flex items-center justify-between w-full">
+                                                Inactive
+                                                {filterStatus === "inactive" && <Check className="h-4 w-4" />}
+                                            </span>
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem
+                                            onClick={() => setFilterStatus("pending")}
+                                            className={cn(
+                                                "cursor-pointer rounded-md px-3 py-2 text-sm",
+                                                filterStatus === "pending"
+                                                    ? "bg-orange-500 text-white hover:bg-orange-600 hover:text-white"
+                                                    : "hover:bg-gray-100"
+                                            )}
+                                        >
+                                            <span className="flex items-center justify-between w-full">
+                                                Pending Approval
+                                                {filterStatus === "pending" && <Check className="h-4 w-4" />}
+                                            </span>
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                                <div className="flex-1 sm:max-w-md relative">
                                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                                     <input
                                         type="text"
@@ -349,20 +414,32 @@ export function SellerProducts() {
                                         onChange={(e) =>
                                             setSearchQuery(e.target.value)
                                         }
-                                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                                        className="w-full h-10 pl-10 pr-4 border border-gray-100 shadow-sm rounded-lg focus:outline-none focus:ring-1 focus:ring-orange-500"
                                     />
                                 </div>
-                                <select
-                                    value={filterStatus}
-                                    onChange={(e) =>
-                                        setFilterStatus(e.target.value)
-                                    }
-                                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                                >
-                                    <option value="all">All Products</option>
-                                    <option value="active">Active</option>
-                                    <option value="inactive">Inactive</option>
-                                </select>
+                                <div className="flex items-center gap-3 sm:ml-auto">
+                                    <Button
+                                        onClick={() =>
+                                            setIsBulkUploadOpen(true)
+                                        }
+                                        variant="outline"
+                                        className="h-10 border-orange-500 text-orange-500 hover:bg-orange-600 hover:text-white flex items-center gap-2"
+                                    >
+                                        <Upload className="h-4 w-4" />
+                                        Bulk Upload
+                                    </Button>
+                                    <Link to="/seller/products/add">
+                                        <Button className="h-10 bg-orange-500 hover:bg-orange-600 text-white flex items-center gap-2">
+                                            <Plus className="h-4 w-4" />
+                                            Add Product
+                                        </Button>
+                                    </Link>
+                                </div>
+                            </div>
+
+                            {/* Product Count */}
+                            <div className="text-xs text-gray-500 -mt-2 mb-2">
+                                Showing {filteredProducts.length} {filteredProducts.length === 1 ? 'product' : 'products'}
                             </div>
 
                             {/* Products Grid */}
@@ -372,7 +449,7 @@ export function SellerProducts() {
                                         key={product.id}
                                         initial={{ opacity: 0, y: 20 }}
                                         animate={{ opacity: 1, y: 0 }}
-                                        className="bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-lg transition-shadow duration-300"
+                                        className="bg-white rounded-lg border border-gray-100 shadow-sm overflow-hidden hover:shadow-lg transition-shadow duration-300"
                                     >
                                         <div className="relative">
                                             <img
