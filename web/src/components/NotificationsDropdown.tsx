@@ -155,7 +155,7 @@ export function NotificationsDropdown() {
 
     const data = n.action_data as any;
     if (data?.orderNumber) {
-      navigate(`/orders/${data.orderNumber}`);
+      navigate(`/order/${data.orderNumber}`);
     } else if (n.action_url) {
       navigate(n.action_url);
     } else {
@@ -169,7 +169,7 @@ export function NotificationsDropdown() {
     if (n.type === "shipped" || n.type === "delivered") {
       navigate(`/delivery-tracking/${n.orderId}`);
     } else {
-      navigate(`/orders/${n.orderId}`);
+      navigate(`/order/${n.orderId}`);
     }
   };
 
