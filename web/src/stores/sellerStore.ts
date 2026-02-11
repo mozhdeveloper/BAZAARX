@@ -7,10 +7,9 @@ import { productService } from "@/services/productService";
 import { orderService } from "@/services/orderService";
 import { mapDbProductToSellerProduct } from "@/utils/productMapper";
 import type {
-    Seller as DBSeller,
     Database,
-    Order,
-    OrderItem,
+    PaymentStatus,
+    ShipmentStatus,
 } from "@/types/database.types";
 
 // Types
@@ -129,6 +128,10 @@ export interface SellerOrder {
         phone: string;
     };
     trackingNumber?: string;
+    shipmentStatusRaw?: ShipmentStatus;
+    paymentStatusRaw?: PaymentStatus;
+    shippedAt?: string;
+    deliveredAt?: string;
     rating?: number; // 1-5 stars from buyer after delivery
     reviewComment?: string;
     reviewImages?: string[];
@@ -305,6 +308,8 @@ interface OrderStore {
     getOrdersByStatus: (status: SellerOrder["status"]) => SellerOrder[];
     getOrderById: (id: string) => SellerOrder | undefined;
     addTrackingNumber: (id: string, trackingNumber: string) => void;
+    markOrderAsShipped: (id: string, trackingNumber: string) => Promise<void>;
+    markOrderAsDelivered: (id: string) => Promise<void>;
     deleteOrder: (id: string) => void;
     addOrderRating: (
         id: string,
@@ -361,9 +366,6 @@ interface StatsStore {
     stats: SellerStats;
     refreshStats: () => void;
 }
-
-type ProductInsert = Database["public"]["Tables"]["products"]["Insert"];
-type ProductUpdate = Database["public"]["Tables"]["products"]["Update"];
 
 // Optional fallback seller ID for Supabase inserts (set VITE_SUPABASE_SELLER_ID in .env for testing)
 const fallbackSellerId = (
@@ -478,65 +480,162 @@ const mapSellerUpdatesToDb = (updates: Partial<SellerProduct>): any => {
 
 const dummyOrders: SellerOrder[] = [];
 
+const parseShippingAddressFromNotes = (notes?: string | null) => {
+    if (!notes || !notes.includes("SHIPPING_ADDRESS:")) return null;
+
+    try {
+        const jsonPart = notes.split("SHIPPING_ADDRESS:")[1]?.split("|")[0];
+        if (!jsonPart) return null;
+        return JSON.parse(jsonPart) as {
+            fullName?: string;
+            street?: string;
+            city?: string;
+            province?: string;
+            postalCode?: string;
+            phone?: string;
+        };
+    } catch {
+        return null;
+    }
+};
+
+const getLatestShipmentRecord = (shipments: any[]) => {
+    if (!Array.isArray(shipments) || shipments.length === 0) return null;
+
+    const sorted = [...shipments].sort((a, b) => {
+        const aDate = new Date(
+            a.delivered_at || a.shipped_at || a.created_at || 0,
+        ).getTime();
+        const bDate = new Date(
+            b.delivered_at || b.shipped_at || b.created_at || 0,
+        ).getTime();
+        return bDate - aDate;
+    });
+
+    return sorted[0];
+};
+
+const mapNormalizedShipmentStatus = (
+    paymentStatus?: PaymentStatus | string | null,
+    shipmentStatus?: ShipmentStatus | string | null,
+): SellerOrder["status"] => {
+    if (shipmentStatus === "delivered" || shipmentStatus === "received")
+        return "delivered";
+    if (shipmentStatus === "shipped" || shipmentStatus === "out_for_delivery")
+        return "shipped";
+    if (shipmentStatus === "processing" || shipmentStatus === "ready_to_ship")
+        return "confirmed";
+    if (shipmentStatus === "returned" || shipmentStatus === "failed_to_deliver")
+        return "cancelled";
+    if (paymentStatus === "refunded" || paymentStatus === "partially_refunded")
+        return "cancelled";
+    return "pending";
+};
+
+const mapNormalizedPaymentStatus = (
+    paymentStatus?: PaymentStatus | string | null,
+): SellerOrder["paymentStatus"] => {
+    if (paymentStatus === "paid") return "paid";
+    if (paymentStatus === "refunded" || paymentStatus === "partially_refunded")
+        return "refunded";
+    return "pending";
+};
+
+const buildRecipientFullName = (
+    firstName?: string | null,
+    lastName?: string | null,
+) => `${firstName || ""} ${lastName || ""}`.trim();
+
 // Helper function to map database Order to SellerOrder
 const mapOrderToSellerOrder = (order: any): SellerOrder => {
-    // Handle order_items - it might be nested or need to be fetched separately
     const orderItems = Array.isArray(order.order_items)
         ? order.order_items
         : [];
+    const latestShipment = getLatestShipmentRecord(order.shipments || []);
+    const notesAddress = parseShippingAddressFromNotes(order.notes);
+    const shippingAddr = order.shipping_address || order.address || {};
+    const recipient = order.recipient || {};
 
     const items = orderItems.map((item: any) => ({
         productId: item.product_id || "",
         productName: item.product_name || "Unknown Product",
-        quantity: item.quantity || 1,
-        price: parseFloat(item.price?.toString() || "0"),
-        image: item.product_images?.[0] || "https://via.placeholder.com/100",
+        quantity: Math.max(1, Number(item.quantity || 1)),
+        price: parseFloat((item.variant?.price || item.price || 0).toString()),
+        image:
+            item.variant?.thumbnail_url ||
+            item.primary_image_url ||
+            "https://placehold.co/100?text=Product",
+        selectedVariantLabel1:
+            item.personalized_options?.variantLabel1 ||
+            item.variant?.size ||
+            undefined,
+        selectedVariantLabel2:
+            item.personalized_options?.variantLabel2 ||
+            item.variant?.color ||
+            undefined,
     }));
 
-    // Map database status to SellerOrder status
-    const statusMap: Record<string, SellerOrder["status"]> = {
-        pending_payment: "pending",
-        pending: "pending",
-        confirmed: "confirmed",
-        processing: "confirmed",
-        shipped: "shipped",
-        delivered: "delivered",
-        cancelled: "cancelled",
-        completed: "delivered",
-    };
+    const recipientName =
+        buildRecipientFullName(recipient?.first_name, recipient?.last_name) ||
+        order.buyer_name ||
+        notesAddress?.fullName ||
+        "Customer";
 
-    // Map payment status
-    const paymentStatusMap: Record<string, SellerOrder["paymentStatus"]> = {
-        pending: "pending",
-        paid: "paid",
-        refunded: "refunded",
-        failed: "pending",
-    };
+    const computedTotal = orderItems.reduce((sum: number, item: any) => {
+        const itemPrice = (item.price || 0) - (item.price_discount || 0);
+        const shippingPrice = (item.shipping_price || 0) - (item.shipping_discount || 0);
+        return sum + itemPrice * (item.quantity || 0) + shippingPrice;
+    }, 0);
 
-    const shippingAddr = order.shipping_address || {};
+    const parsedTotal = parseFloat(order.total_amount?.toString() || "0");
 
     return {
         id: order.id,
         seller_id: order.seller_id,
         buyer_id: order.buyer_id,
         orderNumber: order.order_number,
-        buyerName: order.buyer_name || "Unknown",
-        buyerEmail: order.buyer_email || "unknown@example.com",
+        buyerName: recipientName,
+        buyerEmail: recipient?.email || order.buyer_email || "unknown@example.com",
         items,
-        total: parseFloat(order.total_amount?.toString() || "0"),
-        status: statusMap[order.status] || "pending",
-        paymentStatus: paymentStatusMap[order.payment_status] || "pending",
+        total: Number.isFinite(parsedTotal) && parsedTotal > 0 ? parsedTotal : computedTotal,
+        status: mapNormalizedShipmentStatus(
+            order.payment_status,
+            order.shipment_status,
+        ),
+        paymentStatus: mapNormalizedPaymentStatus(order.payment_status),
         orderDate: order.created_at,
         shippingAddress: {
-            fullName: order.buyer_name || "Unknown",
-            street: order.shipping_street || shippingAddr.address_line_1 || "",
-            city: order.shipping_city || shippingAddr.city || "",
-            province: order.shipping_province || shippingAddr.province || "",
+            fullName: recipientName,
+            street:
+                order.shipping_street ||
+                notesAddress?.street ||
+                shippingAddr.address_line_1 ||
+                "",
+            city:
+                order.shipping_city || notesAddress?.city || shippingAddr.city || "",
+            province:
+                order.shipping_province ||
+                notesAddress?.province ||
+                shippingAddr.province ||
+                "",
             postalCode:
-                order.shipping_postal_code || shippingAddr.postal_code || "",
-            phone: order.buyer_phone || "", // Phone comes from recipient, not address
+                order.shipping_postal_code ||
+                notesAddress?.postalCode ||
+                shippingAddr.postal_code ||
+                "",
+            phone:
+                order.buyer_phone ||
+                notesAddress?.phone ||
+                recipient?.phone ||
+                "",
         },
-        trackingNumber: order.tracking_number || undefined,
+        trackingNumber:
+            latestShipment?.tracking_number || order.tracking_number || undefined,
+        shipmentStatusRaw: order.shipment_status || undefined,
+        paymentStatusRaw: order.payment_status || undefined,
+        shippedAt: latestShipment?.shipped_at || order.shipped_at || undefined,
+        deliveredAt:
+            latestShipment?.delivered_at || order.delivered_at || undefined,
         rating: order.rating || undefined,
         reviewComment: order.review_comment || undefined,
         reviewImages: order.review_images || undefined,
@@ -2150,6 +2249,97 @@ export const useOrderStore = create<OrderStore>()(
                     console.error("Failed to add tracking number:", error);
                     throw error;
                 }
+            },
+
+            markOrderAsShipped: async (id, trackingNumber) => {
+                const order = get().orders.find((o) => o.id === id);
+                if (!order) {
+                    throw new Error(`Order ${id} not found`);
+                }
+
+                const sellerId =
+                    get().sellerId ||
+                    order.seller_id ||
+                    useAuthStore.getState().seller?.id ||
+                    null;
+
+                if (!sellerId) {
+                    throw new Error(
+                        "Seller ID is required to mark order as shipped",
+                    );
+                }
+
+                const sanitizedTrackingNumber = trackingNumber.trim().toUpperCase();
+                if (!sanitizedTrackingNumber) {
+                    throw new Error("Tracking number is required");
+                }
+
+                const success = await orderService.markOrderAsShipped(
+                    id,
+                    sanitizedTrackingNumber,
+                    sellerId,
+                );
+                if (!success) {
+                    throw new Error("Failed to mark order as shipped");
+                }
+
+                set((state) => ({
+                    orders: state.orders.map((existing) =>
+                        existing.id === id
+                            ? {
+                                  ...existing,
+                                  status: "shipped",
+                                  trackingNumber: sanitizedTrackingNumber,
+                                  shipmentStatusRaw: "shipped",
+                                  shippedAt: new Date().toISOString(),
+                              }
+                            : existing,
+                    ),
+                }));
+
+                await get().fetchOrders(sellerId);
+            },
+
+            markOrderAsDelivered: async (id) => {
+                const order = get().orders.find((o) => o.id === id);
+                if (!order) {
+                    throw new Error(`Order ${id} not found`);
+                }
+
+                const sellerId =
+                    get().sellerId ||
+                    order.seller_id ||
+                    useAuthStore.getState().seller?.id ||
+                    null;
+
+                if (!sellerId) {
+                    throw new Error(
+                        "Seller ID is required to mark order as delivered",
+                    );
+                }
+
+                const success = await orderService.markOrderAsDelivered(
+                    id,
+                    sellerId,
+                );
+                if (!success) {
+                    throw new Error("Failed to mark order as delivered");
+                }
+
+                set((state) => ({
+                    orders: state.orders.map((existing) =>
+                        existing.id === id
+                            ? {
+                                  ...existing,
+                                  status: "delivered",
+                                  shipmentStatusRaw: "delivered",
+                                  deliveredAt: new Date().toISOString(),
+                              }
+                            : existing,
+                    ),
+                }));
+
+                await get().fetchOrders(sellerId);
             },
 
             deleteOrder: (id) => {

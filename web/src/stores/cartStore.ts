@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { notificationService } from '@/services/notificationService';
+import type { PaymentStatus, ShipmentStatus } from '@/types/database.types';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 // Unified Product interface for cart system
@@ -38,11 +39,14 @@ export interface CartItem extends Product {
 // Unified order interface
 export interface Order {
   id: string;
+  dbId?: string;
   orderNumber?: string; // User-friendly order number
   items: CartItem[];
   total: number;
   status: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled' | 'returned' | 'reviewed';
   isPaid: boolean; // Payment status
+  shipmentStatus?: ShipmentStatus;
+  paymentStatus?: PaymentStatus;
   createdAt: Date;
   date: string; // Formatted date string
   shippingAddress: {
@@ -58,6 +62,8 @@ export interface Order {
     details?: string;
   };
   estimatedDelivery: Date;
+  shippedAt?: Date;
+  deliveredAt?: Date;
   deliveryDate?: Date; // Actual delivery date
   trackingNumber?: string;
   returnRequest?: {

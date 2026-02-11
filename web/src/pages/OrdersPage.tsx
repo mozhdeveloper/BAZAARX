@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import {
@@ -31,7 +31,49 @@ import ReturnRefundModal from "../components/ReturnRefundModal";
 import { ReviewModal } from "../components/ReviewModal";
 import { cn } from "../lib/utils";
 import { useToast } from "../hooks/use-toast";
-import { supabase } from "../lib/supabase";
+import { orderService } from "../services/orderService";
+
+const parseAddressFromNotes = (notes?: string | null) => {
+  if (!notes || !notes.includes("SHIPPING_ADDRESS:")) return null;
+
+  try {
+    const jsonPart = notes.split("SHIPPING_ADDRESS:")[1]?.split("|")[0];
+    if (!jsonPart) return null;
+
+    return JSON.parse(jsonPart) as {
+      fullName?: string;
+      street?: string;
+      city?: string;
+      province?: string;
+      postalCode?: string;
+      phone?: string;
+    };
+  } catch {
+    return null;
+  }
+};
+
+const mapBuyerOrderStatus = (
+  status?: string,
+): "pending" | "confirmed" | "shipped" | "delivered" | "cancelled" | "returned" | "reviewed" => {
+  switch (status) {
+    case "reviewed":
+      return "reviewed";
+    case "confirmed":
+    case "processing":
+      return "confirmed";
+    case "shipped":
+      return "shipped";
+    case "delivered":
+      return "delivered";
+    case "cancelled":
+      return "cancelled";
+    case "returned":
+      return "returned";
+    default:
+      return "pending";
+  }
+};
 
 export default function OrdersPage() {
   const navigate = useNavigate();
@@ -162,28 +204,152 @@ export default function OrdersPage() {
     });
   };
 
+  const loadBuyerOrders = useCallback(async () => {
+    if (!profile?.id) return;
+
+    setIsLoading(true);
+    try {
+      const buyerOrders = await orderService.getBuyerOrders(profile.id);
+
+      const mappedOrders = buyerOrders.map((order: any) => {
+        const notesAddress = parseAddressFromNotes(order.notes);
+        const createdAt = new Date(order.created_at);
+        const shippedAt = order.shipped_at
+          ? new Date(order.shipped_at)
+          : undefined;
+        const deliveredAt = order.delivered_at
+          ? new Date(order.delivered_at)
+          : undefined;
+
+        const rawItems = Array.isArray(order.order_items) ? order.order_items : [];
+        const fallbackStoreName =
+          order.store_name ||
+          rawItems.find((item: any) => item?.seller_name)?.seller_name ||
+          "Unknown Store";
+        const fallbackSellerId =
+          order.seller_id ||
+          rawItems.find((item: any) => item?.seller_id)?.seller_id ||
+          null;
+
+        const items = rawItems.map((item: any) => {
+          const variantData = item.variant;
+          const personalized = (item.personalized_options || {}) as Record<
+            string,
+            string | undefined
+          >;
+          const variantLabel1 = personalized.variantLabel1 || variantData?.size;
+          const variantLabel2 = personalized.variantLabel2 || variantData?.color;
+          const variantParts = [];
+
+          if (variantData?.variant_name) {
+            variantParts.push(variantData.variant_name);
+          }
+          if (variantLabel1) {
+            variantParts.push(`Size: ${variantLabel1}`);
+          }
+          if (variantLabel2) {
+            variantParts.push(`Color: ${variantLabel2}`);
+          }
+
+          return {
+            id: item.product_id || item.id,
+            orderItemId: item.id,
+            name: item.product_name,
+            image:
+              variantData?.thumbnail_url ||
+              item.primary_image_url ||
+              "https://placehold.co/100?text=Product",
+            price: item.price || variantData?.price || 0,
+            quantity: item.quantity || 1,
+            seller: item.seller_name || fallbackStoreName,
+            sellerId: item.seller_id || fallbackSellerId,
+            selectedVariant: variantData
+              ? {
+                  id: variantData.id,
+                  name: variantData.variant_name,
+                  size: variantData.size,
+                  color: variantData.color,
+                }
+              : null,
+            variantDisplay: variantParts.length > 0 ? variantParts.join(" / ") : null,
+            rating: 5,
+            category: "General",
+          };
+        });
+
+        const numericTotal = Number(order.total_amount || 0);
+        const computedTotal = items.reduce(
+          (sum: number, item: any) => sum + item.price * item.quantity,
+          0,
+        );
+
+        return {
+          id: order.order_number || order.id,
+          dbId: order.id,
+          orderNumber: order.order_number,
+          createdAt,
+          date: createdAt.toLocaleDateString("en-US", {
+            year: "numeric",
+            month: "short",
+            day: "numeric",
+          }),
+          status: mapBuyerOrderStatus(order.status),
+          isPaid: order.payment_status === "paid",
+          paymentStatus: order.payment_status,
+          shipmentStatus: order.shipment_status,
+          total: numericTotal > 0 ? numericTotal : computedTotal,
+          estimatedDelivery:
+            deliveredAt ||
+            (shippedAt
+              ? new Date(shippedAt.getTime() + 2 * 24 * 60 * 60 * 1000)
+              : new Date(createdAt.getTime() + 3 * 24 * 60 * 60 * 1000)),
+          shippedAt,
+          deliveredAt,
+          items,
+          shippingAddress: {
+            fullName: order.buyer_name || notesAddress?.fullName || "Customer",
+            street: order.shipping_street || notesAddress?.street || "",
+            city: order.shipping_city || notesAddress?.city || "",
+            province: order.shipping_province || notesAddress?.province || "",
+            postalCode:
+              order.shipping_postal_code || notesAddress?.postalCode || "",
+            phone: order.buyer_phone || notesAddress?.phone || "",
+          },
+          paymentMethod: {
+            type: "cod",
+            details: "",
+          },
+          trackingNumber: order.tracking_number || undefined,
+          storeName: fallbackStoreName,
+          sellerId: fallbackSellerId,
+          order_type: order.order_type,
+        };
+      });
+
+      useCartStore.setState({ orders: mappedOrders as any });
+    } catch (err) {
+      console.error("Error fetching orders:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [profile?.id]);
+
   const handleCancelOrder = async () => {
     if (!orderToCancel?.dbId || !cancelReason) return;
 
     const reason = cancelReason === "Other" ? otherReason : cancelReason;
-    console.log("Order cancelled with reason:", reason); // TODO: Add cancellation_reason column to orders table if you want to persist this
 
     try {
-      const { error } = await supabase
-        .from("orders")
-        .update({
-          status: "cancelled",
-          // Note: Add 'cancellation_reason' column to orders table to persist: cancellation_reason: reason
-        })
-        .eq("id", orderToCancel.dbId);
+      const success = await orderService.cancelOrder(
+        orderToCancel.dbId,
+        reason,
+        profile?.id,
+      );
+      if (!success) {
+        throw new Error("Failed to cancel order");
+      }
 
-      if (error) throw error;
-
-      useCartStore.setState({
-        orders: orders.map((o: any) =>
-          o.id === orderToCancel.id ? { ...o, status: "cancelled" } : o
-        ),
-      });
+      await loadBuyerOrders();
 
       toast({
         title: "Order Cancelled",
@@ -213,198 +379,10 @@ export default function OrdersPage() {
     ?.fromCheckout;
   const [showSuccessBanner, setShowSuccessBanner] = useState(!!fromCheckout);
 
-  // Fetch orders from Supabase
+  // Fetch orders from shared service mapper
   useEffect(() => {
-    const fetchOrders = async () => {
-      if (!profile?.id) return;
-
-      setIsLoading(true);
-      try {
-        // Actual schema: orders has NO seller_id, total_amount, shipping_address, status
-        // Orders use payment_status + shipment_status, totals computed from order_items
-        const { data, error } = await supabase
-          .from("orders")
-          .select(
-            `
-            *,
-            items:order_items (
-              id,
-              product_id,
-              product_name,
-              primary_image_url,
-              quantity,
-              price,
-              price_discount,
-              shipping_price,
-              shipping_discount,
-              variant_id,
-              variant:product_variants (
-                id,
-                variant_name,
-                size,
-                color,
-                price,
-                thumbnail_url
-              )
-            ),
-            recipient:order_recipients (
-              first_name,
-              last_name,
-              phone,
-              email
-            ),
-            address:shipping_addresses (
-              label,
-              address_line_1,
-              address_line_2,
-              city,
-              province,
-              region,
-              postal_code
-            )
-          `,
-          )
-          .eq("buyer_id", profile.id)
-          .order("created_at", { ascending: false });
-
-        if (error) throw error;
-
-        // For each order, we need to get seller info from products
-        // Since seller_id is on products, not orders
-        const mappedOrders = await Promise.all((data || []).map(async (order) => {
-          // Compute order status from payment_status + shipment_status
-          let status = "pending";
-          if (order.shipment_status === "delivered") {
-            status = "delivered";
-          } else if (order.shipment_status === "shipped" || order.shipment_status === "out_for_delivery") {
-            status = "shipped";
-          } else if (order.shipment_status === "cancelled") {
-            status = "cancelled";
-          } else if (order.shipment_status === "returned" || order.shipment_status === "refunded") {
-            status = "returned";
-          } else if (order.payment_status === "paid" || order.shipment_status === "processing" || order.shipment_status === "ready_to_ship") {
-            status = "confirmed";
-          }
-
-          // Compute total from order_items
-          const items = order.items || [];
-          const totalAmount = items.reduce((sum: number, item: any) => {
-            const itemPrice = (item.price || 0) - (item.price_discount || 0);
-            const shippingPrice = (item.shipping_price || 0) - (item.shipping_discount || 0);
-            return sum + (item.quantity * itemPrice) + shippingPrice;
-          }, 0);
-
-          // Get seller info from the first product
-          let storeName = "Unknown Store";
-          let sellerId = null;
-          if (items.length > 0 && items[0].product_id) {
-            const { data: productData } = await supabase
-              .from("products")
-              .select("seller_id, sellers(store_name)")
-              .eq("id", items[0].product_id)
-              .single();
-            if (productData) {
-              sellerId = productData.seller_id;
-              storeName = (productData.sellers as any)?.store_name || "Unknown Store";
-            }
-          }
-
-          const recipient = order.recipient as any;
-          const address = order.address as any;
-
-          const createdAt = new Date(order.created_at);
-          const estimatedDelivery = new Date(createdAt.getTime() + 3 * 24 * 60 * 60 * 1000);
-
-          return {
-            id: order.order_number || order.id,
-            dbId: order.id,
-            orderNumber: order.order_number,
-            createdAt: createdAt,
-            date: createdAt.toLocaleDateString("en-US", {
-              year: "numeric",
-              month: "short",
-              day: "numeric",
-            }),
-            status: status as any,
-            isPaid: order.payment_status === "paid",
-            total: totalAmount,
-            estimatedDelivery: estimatedDelivery,
-            items: items.map((item: any) => {
-              const variantData = item.variant;
-              // Build variant display text
-              let variantDisplay = null;
-              if (variantData) {
-                const parts = [];
-                if (variantData.variant_name) parts.push(variantData.variant_name);
-                if (variantData.size) parts.push(`Size: ${variantData.size}`);
-                if (variantData.color) parts.push(`Color: ${variantData.color}`);
-                if (parts.length > 0) variantDisplay = parts.join(' / ');
-              }
-
-              return {
-                id: item.product_id,
-                orderItemId: item.id,
-                name: item.product_name,
-                image: variantData?.thumbnail_url || item.primary_image_url || "https://placehold.co/100?text=Product",
-                price: variantData?.price || item.price,
-                quantity: item.quantity,
-                seller: storeName,
-                sellerId: sellerId,
-                selectedVariant: variantData ? {
-                  id: variantData.id,
-                  name: variantData.variant_name,
-                  size: variantData.size,
-                  color: variantData.color,
-                } : null,
-                variantDisplay,
-                rating: 5,
-                category: "General",
-              };
-            }),
-            shippingAddress: (() => {
-              // Try to parse shipping address from notes (JSON embedded)
-              let notesAddress: any = null;
-              if (order.notes && order.notes.includes('SHIPPING_ADDRESS:')) {
-                try {
-                  const jsonPart = order.notes.split('SHIPPING_ADDRESS:')[1]?.split('|')[0];
-                  if (jsonPart) {
-                    notesAddress = JSON.parse(jsonPart);
-                  }
-                } catch (e) {
-                  console.warn('Could not parse shipping address from notes');
-                }
-              }
-
-              return {
-                fullName: notesAddress?.fullName || (recipient
-                  ? `${recipient.first_name || ""} ${recipient.last_name || ""}`.trim()
-                  : "Customer"),
-                street: notesAddress?.street || address?.address_line_1 || "",
-                city: notesAddress?.city || address?.city || "",
-                province: notesAddress?.province || address?.province || "",
-                postalCode: notesAddress?.postalCode || address?.postal_code || "",
-                phone: notesAddress?.phone || recipient?.phone || "",
-              };
-            })(),
-            paymentMethod: {
-              type: "cod",
-              details: "",
-            },
-            storeName: storeName,
-            sellerId: sellerId,
-          };
-        }));
-
-        useCartStore.setState({ orders: mappedOrders as any });
-      } catch (err) {
-        console.error("Error fetching orders:", err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchOrders();
-  }, [profile?.id, newOrderId]); // Refetch if new order comes in
+    void loadBuyerOrders();
+  }, [loadBuyerOrders, newOrderId]); // Refetch if new order comes in
 
   // Auto-hide success banner after 8 seconds
   useEffect(() => {

@@ -12,7 +12,6 @@
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import type {
     Order,
-    OrderItem,
     PaymentStatus,
     ShipmentStatus,
     Database,
@@ -24,6 +23,43 @@ import { notificationService } from "./notificationService";
 export type OrderInsert = Database["public"]["Tables"]["orders"]["Insert"];
 export type OrderItemInsert =
     Database["public"]["Tables"]["order_items"]["Insert"];
+
+export interface OrderTrackingSnapshot {
+    order_id: string;
+    order_number: string;
+    buyer_id: string | null;
+    payment_status: PaymentStatus;
+    shipment_status: ShipmentStatus;
+    created_at: string;
+    tracking_number: string | null;
+    shipped_at: string | null;
+    delivered_at: string | null;
+    recipient: {
+        first_name: string | null;
+        last_name: string | null;
+        phone: string | null;
+        email: string | null;
+    } | null;
+    address: {
+        address_line_1: string | null;
+        address_line_2: string | null;
+        barangay: string | null;
+        city: string | null;
+        province: string | null;
+        region: string | null;
+        postal_code: string | null;
+        landmark: string | null;
+        delivery_instructions: string | null;
+    } | null;
+    shipment: {
+        id: string;
+        status: string;
+        tracking_number: string | null;
+        shipped_at: string | null;
+        delivered_at: string | null;
+        created_at: string;
+    } | null;
+}
 
 // Legacy status mapping to new payment_status + shipment_status
 const LEGACY_STATUS_MAP: Record<
@@ -56,8 +92,152 @@ const LEGACY_STATUS_MAP: Record<
     completed: { payment_status: "paid", shipment_status: "received" },
 };
 
+const DEFAULT_LEGACY_STATUS = LEGACY_STATUS_MAP.pending_payment;
+
+const parseLegacyShippingAddressFromNotes = (notes?: string | null) => {
+    if (!notes || !notes.includes("SHIPPING_ADDRESS:")) {
+        return null;
+    }
+
+    try {
+        const jsonPart = notes.split("SHIPPING_ADDRESS:")[1]?.split("|")[0];
+        if (!jsonPart) return null;
+        return JSON.parse(jsonPart) as {
+            fullName?: string;
+            street?: string;
+            city?: string;
+            province?: string;
+            postalCode?: string;
+            phone?: string;
+        };
+    } catch {
+        return null;
+    }
+};
+
+const buildPersonName = (firstName?: string | null, lastName?: string | null) =>
+    `${firstName || ""} ${lastName || ""}`.trim();
+
+const mapNormalizedToLegacyStatus = (
+    paymentStatus?: PaymentStatus | null,
+    shipmentStatus?: ShipmentStatus | null,
+): string => {
+    if (shipmentStatus === "delivered" || shipmentStatus === "received") {
+        return "delivered";
+    }
+    if (shipmentStatus === "shipped" || shipmentStatus === "out_for_delivery") {
+        return "shipped";
+    }
+    if (shipmentStatus === "processing" || shipmentStatus === "ready_to_ship") {
+        return "processing";
+    }
+    if (shipmentStatus === "returned" || shipmentStatus === "failed_to_deliver") {
+        return "cancelled";
+    }
+    if (paymentStatus === "refunded" || paymentStatus === "partially_refunded") {
+        return "cancelled";
+    }
+    return "pending_payment";
+};
+
+const getLatestShipment = (shipments: any[]) => {
+    if (!Array.isArray(shipments) || shipments.length === 0) return null;
+
+    const sorted = [...shipments].sort((a, b) => {
+        const aDate = new Date(
+            a.delivered_at || a.shipped_at || a.created_at || 0,
+        ).getTime();
+        const bDate = new Date(
+            b.delivered_at || b.shipped_at || b.created_at || 0,
+        ).getTime();
+        return bDate - aDate;
+    });
+
+    return sorted[0];
+};
+
+const getLatestCancellation = (cancellations: any[]) => {
+    if (!Array.isArray(cancellations) || cancellations.length === 0) return null;
+
+    const sorted = [...cancellations].sort((a, b) => {
+        const aDate = new Date(a.cancelled_at || a.created_at || 0).getTime();
+        const bDate = new Date(b.cancelled_at || b.created_at || 0).getTime();
+        return bDate - aDate;
+    });
+
+    return sorted[0];
+};
+
+const mapNormalizedToBuyerUiStatus = (
+    paymentStatus?: PaymentStatus | null,
+    shipmentStatus?: ShipmentStatus | null,
+    hasCancellationRecord?: boolean,
+    isReviewed?: boolean,
+):
+    | "pending"
+    | "confirmed"
+    | "shipped"
+    | "delivered"
+    | "cancelled"
+    | "returned"
+    | "reviewed" => {
+    if (isReviewed) {
+        return "reviewed";
+    }
+
+    if (shipmentStatus === "delivered" || shipmentStatus === "received") {
+        return "delivered";
+    }
+
+    if (shipmentStatus === "shipped" || shipmentStatus === "out_for_delivery") {
+        return "shipped";
+    }
+
+    if (shipmentStatus === "processing" || shipmentStatus === "ready_to_ship") {
+        return "confirmed";
+    }
+
+    if (shipmentStatus === "failed_to_deliver") {
+        return "cancelled";
+    }
+
+    if (shipmentStatus === "returned") {
+        return hasCancellationRecord ? "cancelled" : "returned";
+    }
+
+    if (paymentStatus === "refunded" || paymentStatus === "partially_refunded") {
+        return hasCancellationRecord ? "cancelled" : "returned";
+    }
+
+    return "pending";
+};
+
 export class OrderService {
     private mockOrders: Order[] = [];
+
+    private async resolveOrderSellerId(orderId: string): Promise<string | undefined> {
+        try {
+            const { data: orderItems } = await supabase
+                .from("order_items")
+                .select(
+                    `
+                    product:products!order_items_product_id_fkey (
+                        seller_id
+                    )
+                `,
+                )
+                .eq("order_id", orderId);
+
+            const firstSellerId = (orderItems || []).find(
+                (item: any) => item?.product?.seller_id,
+            )?.product?.seller_id;
+
+            return firstSellerId;
+        } catch (error) {
+            console.warn("Failed to resolve seller ID from order:", error);
+            return undefined;
+        }
+    }
 
     /**
      * Create a POS (Point of Sale) offline order
@@ -301,18 +481,186 @@ export class OrderService {
      */
     async getBuyerOrders(buyerId: string): Promise<Order[]> {
         if (!isSupabaseConfigured()) {
-            return this.mockOrders.filter((o) => o.buyer_id === buyerId);
+            return this.mockOrders
+                .filter((o) => o.buyer_id === buyerId)
+                .map((order) => ({
+                    ...order,
+                    status: mapNormalizedToBuyerUiStatus(
+                        order.payment_status,
+                        order.shipment_status,
+                        false,
+                        Boolean((order as any).is_reviewed),
+                    ),
+                }));
         }
 
         try {
             const { data, error } = await supabase
                 .from("orders")
-                .select("*, order_items(*)")
+                .select(
+                    `
+                    *,
+                    order_items (
+                        id,
+                        product_id,
+                        product_name,
+                        primary_image_url,
+                        quantity,
+                        price,
+                        price_discount,
+                        shipping_price,
+                        shipping_discount,
+                        variant_id,
+                        personalized_options,
+                        variant:product_variants!order_items_variant_id_fkey (
+                            id,
+                            variant_name,
+                            size,
+                            color,
+                            price,
+                            thumbnail_url
+                        ),
+                        product:products!order_items_product_id_fkey (
+                            seller_id,
+                            seller:sellers!products_seller_id_fkey (
+                                id,
+                                store_name
+                            )
+                        )
+                    ),
+                    recipient:order_recipients!orders_recipient_id_fkey (
+                        first_name,
+                        last_name,
+                        phone,
+                        email
+                    ),
+                    shipping_address:shipping_addresses!orders_address_id_fkey (
+                        address_line_1,
+                        address_line_2,
+                        barangay,
+                        city,
+                        province,
+                        region,
+                        postal_code,
+                        landmark,
+                        delivery_instructions
+                    ),
+                    shipments:order_shipments (
+                        id,
+                        status,
+                        tracking_number,
+                        shipped_at,
+                        delivered_at,
+                        created_at
+                    ),
+                    cancellations:order_cancellations (
+                        id,
+                        reason,
+                        cancelled_at,
+                        cancelled_by,
+                        created_at
+                    )
+                `,
+                )
                 .eq("buyer_id", buyerId)
                 .order("created_at", { ascending: false });
 
             if (error) throw error;
-            return data || [];
+
+            return (data || []).map((order: any) => {
+                const fallbackAddress = parseLegacyShippingAddressFromNotes(
+                    order.notes,
+                );
+                const recipient = order.recipient || {};
+                const shippingAddr = order.shipping_address || {};
+                const latestShipment = getLatestShipment(order.shipments || []);
+                const latestCancellation = getLatestCancellation(
+                    order.cancellations || [],
+                );
+
+                const normalizedItems = (order.order_items || []).map((item: any) => ({
+                    ...item,
+                    seller_id: item?.product?.seller_id || null,
+                    seller_name:
+                        item?.product?.seller?.store_name || "Unknown Store",
+                }));
+
+                const firstSellerItem = normalizedItems.find(
+                    (item: any) => item.seller_id,
+                );
+
+                const totalAmount = normalizedItems.reduce(
+                    (sum: number, item: any) => {
+                        const itemPrice =
+                            (item.price || 0) - (item.price_discount || 0);
+                        const shippingPrice =
+                            (item.shipping_price || 0) -
+                            (item.shipping_discount || 0);
+                        return sum + itemPrice * (item.quantity || 0) + shippingPrice;
+                    },
+                    0,
+                );
+
+                const buyerName =
+                    buildPersonName(recipient?.first_name, recipient?.last_name) ||
+                    fallbackAddress?.fullName ||
+                    "Customer";
+
+                const fullAddress = [
+                    shippingAddr?.address_line_1 || fallbackAddress?.street,
+                    shippingAddr?.address_line_2,
+                    shippingAddr?.barangay,
+                    shippingAddr?.city || fallbackAddress?.city,
+                    shippingAddr?.province || fallbackAddress?.province,
+                    shippingAddr?.postal_code || fallbackAddress?.postalCode,
+                ]
+                    .filter(Boolean)
+                    .join(", ");
+
+                const hasCancellationRecord = Boolean(latestCancellation);
+
+                return {
+                    ...order,
+                    order_items: normalizedItems,
+                    shipments: order.shipments || [],
+                    cancellations: order.cancellations || [],
+                    seller_id: firstSellerItem?.seller_id || null,
+                    store_name: firstSellerItem?.seller_name || "Unknown Store",
+                    total_amount: totalAmount,
+                    status: mapNormalizedToBuyerUiStatus(
+                        order.payment_status,
+                        order.shipment_status,
+                        hasCancellationRecord,
+                        Boolean(order.is_reviewed),
+                    ),
+                    buyer_name: buyerName,
+                    buyer_phone: recipient?.phone || fallbackAddress?.phone || "",
+                    buyer_email: recipient?.email || "",
+                    tracking_number: latestShipment?.tracking_number || null,
+                    shipped_at: latestShipment?.shipped_at || null,
+                    delivered_at: latestShipment?.delivered_at || null,
+                    cancellation_reason: latestCancellation?.reason || null,
+                    cancelled_at:
+                        latestCancellation?.cancelled_at ||
+                        latestCancellation?.created_at ||
+                        null,
+                    shipping_address: fullAddress || "No address provided",
+                    shipping_street:
+                        shippingAddr?.address_line_1 || fallbackAddress?.street || "",
+                    shipping_city:
+                        shippingAddr?.city || fallbackAddress?.city || "",
+                    shipping_province:
+                        shippingAddr?.province || fallbackAddress?.province || "",
+                    shipping_postal_code:
+                        shippingAddr?.postal_code || fallbackAddress?.postalCode || "",
+                    shipping_barangay: shippingAddr?.barangay || "",
+                    shipping_region: shippingAddr?.region || "",
+                    shipping_landmark: shippingAddr?.landmark || "",
+                    shipping_instructions:
+                        shippingAddr?.delivery_instructions || "",
+                    shipping_country: "Philippines",
+                } as Order;
+            });
         } catch (error) {
             console.error("Error fetching buyer orders:", error);
             throw new Error("Failed to fetch orders");
@@ -353,8 +701,7 @@ export class OrderService {
             ];
             if (orderIds.length === 0) return [];
 
-            // Step 3: Get the actual orders with their items and addresses
-            // Uses explicit foreign key syntax to prevent 400 Bad Request errors
+            // Step 3: Get the actual orders with normalized recipient/address/shipment joins
             const { data: orders, error: ordersError } = await supabase
                 .from("orders")
                 .select(`
@@ -368,10 +715,20 @@ export class OrderService {
                         price_discount,
                         shipping_price,
                         shipping_discount,
+                        primary_image_url,
                         variant_id,
-                        personalized_options
+                        personalized_options,
+                        variant:product_variants!order_items_variant_id_fkey (
+                            id,
+                            variant_name,
+                            size,
+                            color,
+                            thumbnail_url,
+                            price
+                        )
                     ),
                     recipient:order_recipients!orders_recipient_id_fkey (
+                        id,
                         first_name,
                         last_name,
                         phone,
@@ -387,6 +744,14 @@ export class OrderService {
                         postal_code,
                         landmark,
                         delivery_instructions
+                    ),
+                    shipments:order_shipments (
+                        id,
+                        status,
+                        tracking_number,
+                        shipped_at,
+                        delivered_at,
+                        created_at
                     )
                 `)
                 .in("id", orderIds)
@@ -400,6 +765,7 @@ export class OrderService {
                 const sellerItems = allItems.filter((item: any) =>
                     productIds.includes(item.product_id),
                 );
+                const latestShipment = getLatestShipment(order.shipments || []);
 
                 const totalAmount = sellerItems.reduce(
                     (sum: number, item: any) => {
@@ -415,39 +781,53 @@ export class OrderService {
 
                 const recipient = order.recipient as any;
                 const shippingAddr = order.shipping_address as any;
+                const fallbackAddress = parseLegacyShippingAddressFromNotes(
+                    order.notes,
+                );
 
-                // Construct full address from normalized schema fields
                 const fullAddress = [
-                    shippingAddr?.address_line_1,
+                    shippingAddr?.address_line_1 || fallbackAddress?.street,
                     shippingAddr?.address_line_2,
                     shippingAddr?.barangay,
-                    shippingAddr?.city,
-                    shippingAddr?.province,
-                    shippingAddr?.postal_code,
+                    shippingAddr?.city || fallbackAddress?.city,
+                    shippingAddr?.province || fallbackAddress?.province,
+                    shippingAddr?.postal_code || fallbackAddress?.postalCode,
                 ]
                     .filter(Boolean)
                     .join(", ");
 
+                const legacyStatus = mapNormalizedToLegacyStatus(
+                    order.payment_status,
+                    order.shipment_status,
+                );
+                const buyerName =
+                    buildPersonName(recipient?.first_name, recipient?.last_name) ||
+                    fallbackAddress?.fullName ||
+                    "Customer";
+
                 return {
                     ...order,
                     order_items: sellerItems, // Only include this seller's items
+                    shipments: order.shipments || [],
                     seller_id: sellerId, // Add for compatibility
                     total_amount: totalAmount,
-                    status:
-                        order.shipment_status ||
-                        order.payment_status ||
-                        "pending",
-                    buyer_name: recipient
-                        ? `${recipient.first_name || ""} ${recipient.last_name || ""}`.trim()
-                        : "Customer",
-                    buyer_phone: recipient?.phone || "",
+                    status: legacyStatus,
+                    buyer_name: buyerName,
+                    buyer_phone: recipient?.phone || fallbackAddress?.phone || "",
                     buyer_email: recipient?.email || "",
+                    tracking_number: latestShipment?.tracking_number || null,
+                    shipped_at: latestShipment?.shipped_at || null,
+                    delivered_at: latestShipment?.delivered_at || null,
                     // Add shipping address fields for compatibility
                     shipping_address: fullAddress || "No address provided",
-                    shipping_street: shippingAddr?.address_line_1 || "",
-                    shipping_city: shippingAddr?.city || "",
-                    shipping_province: shippingAddr?.province || "",
-                    shipping_postal_code: shippingAddr?.postal_code || "",
+                    shipping_street:
+                        shippingAddr?.address_line_1 || fallbackAddress?.street || "",
+                    shipping_city:
+                        shippingAddr?.city || fallbackAddress?.city || "",
+                    shipping_province:
+                        shippingAddr?.province || fallbackAddress?.province || "",
+                    shipping_postal_code:
+                        shippingAddr?.postal_code || fallbackAddress?.postalCode || "",
                     shipping_barangay: shippingAddr?.barangay || "",
                     shipping_region: shippingAddr?.region || "",
                     shipping_landmark: shippingAddr?.landmark || "",
@@ -487,6 +867,132 @@ export class OrderService {
         } catch (error) {
             console.error("Error fetching order:", error);
             throw new Error("Failed to fetch order details");
+        }
+    }
+
+    /**
+     * Get buyer-facing order tracking snapshot from normalized tables
+     */
+    async getOrderTrackingSnapshot(
+        orderIdOrNumber: string,
+        buyerId?: string,
+    ): Promise<OrderTrackingSnapshot | null> {
+        if (!isSupabaseConfigured()) {
+            const mockOrder = this.mockOrders.find(
+                (o) =>
+                    o.id === orderIdOrNumber || o.order_number === orderIdOrNumber,
+            );
+
+            if (!mockOrder) return null;
+            if (buyerId && mockOrder.buyer_id !== buyerId) return null;
+
+            const normalized =
+                LEGACY_STATUS_MAP[mockOrder.status || "pending_payment"] ||
+                DEFAULT_LEGACY_STATUS;
+
+            return {
+                order_id: mockOrder.id,
+                order_number: mockOrder.order_number || mockOrder.id,
+                buyer_id: mockOrder.buyer_id || null,
+                payment_status:
+                    (mockOrder.payment_status as PaymentStatus) ||
+                    normalized.payment_status,
+                shipment_status:
+                    (mockOrder.shipment_status as ShipmentStatus) ||
+                    normalized.shipment_status,
+                created_at: mockOrder.created_at || new Date().toISOString(),
+                tracking_number: mockOrder.tracking_number || null,
+                shipped_at: null,
+                delivered_at: null,
+                recipient: null,
+                address: null,
+                shipment: null,
+            };
+        }
+
+        try {
+            const isUuid =
+                /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+                    orderIdOrNumber,
+                );
+
+            let query = supabase
+                .from("orders")
+                .select(
+                    `
+                    id,
+                    order_number,
+                    buyer_id,
+                    payment_status,
+                    shipment_status,
+                    created_at,
+                    recipient:order_recipients!orders_recipient_id_fkey (
+                        first_name,
+                        last_name,
+                        phone,
+                        email
+                    ),
+                    address:shipping_addresses!orders_address_id_fkey (
+                        address_line_1,
+                        address_line_2,
+                        barangay,
+                        city,
+                        province,
+                        region,
+                        postal_code,
+                        landmark,
+                        delivery_instructions
+                    ),
+                    shipments:order_shipments (
+                        id,
+                        status,
+                        tracking_number,
+                        shipped_at,
+                        delivered_at,
+                        created_at
+                    )
+                `,
+                )
+                .eq(isUuid ? "id" : "order_number", orderIdOrNumber)
+                .maybeSingle();
+
+            if (buyerId) {
+                query = query.eq("buyer_id", buyerId);
+            }
+
+            const { data, error } = await query;
+
+            if (error) throw error;
+            if (!data) return null;
+
+            const latestShipment = getLatestShipment((data as any).shipments || []);
+
+            return {
+                order_id: data.id,
+                order_number: data.order_number,
+                buyer_id: data.buyer_id || null,
+                payment_status: data.payment_status,
+                shipment_status: data.shipment_status,
+                created_at: data.created_at,
+                tracking_number: latestShipment?.tracking_number || null,
+                shipped_at: latestShipment?.shipped_at || null,
+                delivered_at: latestShipment?.delivered_at || null,
+                recipient: (data as any).recipient || null,
+                address: (data as any).address || null,
+                shipment: latestShipment
+                    ? {
+                          id: latestShipment.id,
+                          status: latestShipment.status,
+                          tracking_number: latestShipment.tracking_number,
+                          shipped_at: latestShipment.shipped_at,
+                          delivered_at: latestShipment.delivered_at,
+                          created_at: latestShipment.created_at,
+                      }
+                    : null,
+            };
+        } catch (error) {
+            console.error("Error fetching order tracking snapshot:", error);
+            throw new Error("Failed to fetch order tracking details");
         }
     }
 
@@ -594,9 +1100,7 @@ export class OrderService {
                 throw new Error("Order not found");
             }
 
-            const newStatuses =
-                LEGACY_STATUS_MAP[status] ||
-                LEGACY_STATUS_MAP["pending_payment"];
+            const newStatuses = LEGACY_STATUS_MAP[status] || DEFAULT_LEGACY_STATUS;
 
             const { error: orderError } = await supabase
                 .from("orders")
@@ -622,15 +1126,7 @@ export class OrderService {
 
             if (historyError) throw historyError;
 
-            let sellerId: string | undefined;
-            if (order.items && order.items.length > 0) {
-                const { data: product } = await supabase
-                    .from("products")
-                    .select("seller_id")
-                    .eq("id", order.items[0].product_id)
-                    .single();
-                sellerId = product?.seller_id;
-            }
+            const sellerId = await this.resolveOrderSellerId(orderId);
 
             if (userRole === "seller" && order.buyer_id && sellerId) {
                 await orderNotificationService.sendStatusUpdateNotification(
@@ -940,7 +1436,11 @@ export class OrderService {
     /**
      * Cancel an order
      */
-    async cancelOrder(orderId: string, reason?: string): Promise<boolean> {
+    async cancelOrder(
+        orderId: string,
+        reason?: string,
+        cancelledBy?: string,
+    ): Promise<boolean> {
         if (!isSupabaseConfigured()) {
             const order = this.mockOrders.find((o) => o.id === orderId);
             if (order) {
@@ -952,23 +1452,59 @@ export class OrderService {
         }
 
         try {
-            const { error } = await supabase
+            const nowIso = new Date().toISOString();
+            const normalizedReason = reason?.trim() || null;
+
+            const { data: existingOrder, error: fetchError } = await supabase
+                .from("orders")
+                .select("id, payment_status")
+                .eq("id", orderId)
+                .single();
+
+            if (fetchError || !existingOrder) {
+                throw new Error("Order not found");
+            }
+
+            const nextPaymentStatus: PaymentStatus =
+                existingOrder.payment_status === "paid" ||
+                existingOrder.payment_status === "partially_refunded"
+                    ? "refunded"
+                    : "pending_payment";
+
+            const { error: orderUpdateError } = await supabase
                 .from("orders")
                 .update({
-                    payment_status: "refunded",
+                    payment_status: nextPaymentStatus,
                     shipment_status: "returned",
-                    notes: reason || null,
-                    updated_at: new Date().toISOString(),
+                    notes: normalizedReason,
+                    updated_at: nowIso,
                 })
                 .eq("id", orderId);
 
-            if (error) throw error;
+            if (orderUpdateError) throw orderUpdateError;
+
+            const { error: cancellationError } = await supabase
+                .from("order_cancellations")
+                .insert({
+                    order_id: orderId,
+                    reason: normalizedReason,
+                    cancelled_at: nowIso,
+                    cancelled_by: cancelledBy || null,
+                });
+
+            if (cancellationError) throw cancellationError;
 
             await supabase.from("order_status_history").insert({
                 order_id: orderId,
                 status: "cancelled",
-                note: reason || "Order cancelled",
-                metadata: { cancelled_at: new Date().toISOString() },
+                note: normalizedReason || "Order cancelled",
+                changed_by: cancelledBy || null,
+                changed_by_role: cancelledBy ? "buyer" : null,
+                metadata: {
+                    cancelled_at: nowIso,
+                    payment_status: nextPaymentStatus,
+                    shipment_status: "returned",
+                },
             });
 
             return true;
