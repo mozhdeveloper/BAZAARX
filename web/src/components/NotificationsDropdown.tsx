@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { PopoverArrow } from "@radix-ui/react-popover";
 import {
   Bell,
   Package,
@@ -16,64 +17,52 @@ import {
 import { useNavigate } from "react-router-dom";
 import { useCartStore } from "@/stores/cartStore";
 import { OrderNotification } from "@/stores/cartStore";
-import { useAuthStore } from "@/stores/sellerStore";
 import { getCurrentUser, isSupabaseConfigured } from "@/lib/supabase";
 import {
   notificationService,
   type Notification as DbNotification,
 } from "@/services/notificationService";
+import { cn } from "@/lib/utils";
 
-function Dot({ className }: { className?: string }) {
-  return (
-    <svg
-      width="6"
-      height="6"
-      fill="currentColor"
-      viewBox="0 0 6 6"
-      xmlns="http://www.w3.org/2000/svg"
-      className={className}
-      aria-hidden="true"
-    >
-      <circle cx="3" cy="3" r="3" />
-    </svg>
-  );
-}
+// --- Helper Functions ---
 
-function getNotificationIcon(type: OrderNotification["type"]) {
-  switch (type) {
-    case "seller_confirmed":
-      return <CheckCircle className="w-4 h-4 text-green-600" />;
-    case "shipped":
-      return <Truck className="w-4 h-4 text-blue-600" />;
-    case "delivered":
-      return <Package className="w-4 h-4 text-orange-600" />;
-    case "cancelled":
-      return <XCircle className="w-4 h-4 text-red-600" />;
-    default:
-      return <Bell className="w-4 h-4 text-gray-600" />;
+function getNotificationStyles(type: string) {
+  const t = type.toLowerCase();
+
+  if (t.includes("delivered") || t.includes("shipped") || t === "shipped") {
+    return {
+      icon: <Truck className="w-5 h-5 text-orange-600" />,
+      bg: "bg-orange-100",
+      borderColor: "border-orange-200"
+    };
   }
-}
-
-function getDbNotificationIcon(n: DbNotification) {
-  // Map DB notification types to icons
-  if (n.type === "seller_new_order")
-    return <ShoppingBag className="w-4 h-4 text-green-600" />;
-  if (n.type.startsWith("order_")) {
-    const status = n.type.replace("order_", "");
-    if (status === "placed")
-      return <ShoppingBag className="w-4 h-4 text-green-600" />;
-    if (status === "confirmed")
-      return <CheckCircle className="w-4 h-4 text-green-600" />;
-    if (status === "processing")
-      return <Package className="w-4 h-4 text-purple-600" />;
-    if (status === "shipped")
-      return <Truck className="w-4 h-4 text-blue-600" />;
-    if (status === "delivered")
-      return <Package className="w-4 h-4 text-orange-600" />;
-    if (status === "cancelled")
-      return <XCircle className="w-4 h-4 text-red-600" />;
+  if (t.includes("placed") || t.includes("confirmed") || t === "seller_confirmed") {
+    return {
+      icon: <CheckCircle className="w-5 h-5 text-green-600" />,
+      bg: "bg-green-100",
+      borderColor: "border-green-200"
+    };
   }
-  return <Bell className="w-4 h-4 text-gray-600" />;
+  if (t.includes("cancelled")) {
+    return {
+      icon: <XCircle className="w-5 h-5 text-red-600" />,
+      bg: "bg-red-100",
+      borderColor: "border-red-200"
+    };
+  }
+  if (t.includes("processing")) {
+    return {
+      icon: <Package className="w-5 h-5 text-blue-600" />,
+      bg: "bg-blue-100",
+      borderColor: "border-blue-200"
+    };
+  }
+
+  return {
+    icon: <Bell className="w-5 h-5 text-gray-600" />,
+    bg: "bg-gray-100",
+    borderColor: "border-gray-200"
+  };
 }
 
 function getTimeAgo(timestamp: Date): string {
@@ -84,95 +73,49 @@ function getTimeAgo(timestamp: Date): string {
   const diffDays = Math.floor(diffMs / 86400000);
 
   if (diffMins < 1) return "Just now";
-  if (diffMins < 60) return `${diffMins} minute${diffMins > 1 ? "s" : ""} ago`;
-  if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`;
-  if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
   return new Date(timestamp).toLocaleDateString();
 }
 
 export function NotificationsDropdown() {
   const navigate = useNavigate();
   const { notifications, markNotificationRead } = useCartStore();
-  const { seller } = useAuthStore();
   const [open, setOpen] = useState(false);
   const [dbNotifications, setDbNotifications] = useState<DbNotification[]>([]);
   const [dbLoading, setDbLoading] = useState(false);
   const [buyerId, setBuyerId] = useState<string | null>(null);
 
-  // Determine current user context: seller (from auth store) or buyer (from supabase auth)
-  const userContext = useMemo(() => {
-    if (seller?.id) {
-      console.log("[Notifications] Seller context detected:", seller.id);
-      return { userId: seller.id, userType: "seller" as const };
-    }
-    return null; // Fallback to buyer via supabase below
-  }, [seller?.id]);
-
   // Initialize buyer ID on mount
   useEffect(() => {
     let mounted = true;
     async function initBuyerId() {
-      if (userContext) {
-        console.log(
-          "[Notifications] Using seller context, skipping buyer ID init",
-        );
-        return;
-      }
       try {
         const user = await getCurrentUser();
-        if (mounted) {
-          if (user?.id) {
-            console.log("[Notifications] Buyer ID initialized:", user.id);
-            setBuyerId(user.id);
-          } else {
-            console.log("[Notifications] No authenticated buyer found");
-          }
+        if (mounted && user?.id) {
+          setBuyerId(user.id);
         }
       } catch (e) {
-        console.error("[Notifications] Failed to get current user:", e);
+        console.error("Failed to get user", e);
       }
     }
     initBuyerId();
-    return () => {
-      mounted = false;
-    };
-  }, [userContext]);
+    return () => { mounted = false; };
+  }, []);
 
-  // Fetch notifications on mount and when dropdown opens
+  // Fetch notifications
   useEffect(() => {
     let mounted = true;
     async function loadNotifications() {
-      if (!isSupabaseConfigured()) {
-        console.log("[Notifications] Supabase not configured, skipping fetch");
-        return;
-      }
+      if (!isSupabaseConfigured() || !buyerId) return;
 
       setDbLoading(true);
       try {
-        const userId = userContext?.userId || buyerId;
-        const userType = userContext?.userType || "buyer";
-
-        if (!userId) {
-          console.log("[Notifications] No userId available, skipping fetch");
-          setDbNotifications([]);
-          setDbLoading(false);
-          return;
-        }
-
-        console.log("[Notifications] Fetching notifications for:", {
-          userId,
-          userType,
-        });
-        const rows = await notificationService.getNotifications(userId, userType, 50);
-        if (mounted) {
-          console.log("[Notifications] Fetched", rows.length, "notifications");
-          setDbNotifications(rows);
-        }
+        const rows = await notificationService.getNotifications(buyerId, "buyer", 50);
+        if (mounted) setDbNotifications(rows);
       } catch (e) {
-        console.error(
-          "[Notifications] Failed to load notifications from DB:",
-          e,
-        );
+        console.error("Failed to load notifications:", e);
       } finally {
         if (mounted) setDbLoading(false);
       }
@@ -180,93 +123,53 @@ export function NotificationsDropdown() {
 
     loadNotifications();
 
-    // Refresh every 30 seconds when dropdown is open
+    // Poll for updates if open
     let pollInterval: ReturnType<typeof setInterval> | null = null;
     if (open) {
-      console.log("[Notifications] Dropdown opened, starting poll");
-      pollInterval = setInterval(() => {
-        loadNotifications();
-      }, 30000);
+      pollInterval = setInterval(loadNotifications, 15000);
     }
-
     return () => {
       mounted = false;
       if (pollInterval) clearInterval(pollInterval);
     };
-  }, [userContext?.userId, userContext?.userType, buyerId, open]);
+  }, [buyerId, open]);
 
-  const unreadCountLocal = notifications.filter((n) => n.read === false).length;
-  const unreadCountDb = dbNotifications.filter(
-    (n) => n.is_read === false,
-  ).length;
-  const unreadCount = unreadCountDb || unreadCountLocal;
+  // Combined counts
+  const unreadCount = dbNotifications.filter(n => !n.is_read).length +
+    notifications.filter(n => !n.read).length;
 
   const handleMarkAllAsRead = async () => {
-    // Mark local store notifications
-    notifications.forEach((notification) => {
-      if (!notification.read) {
-        markNotificationRead(notification.id);
-      }
-    });
-    // Mark DB notifications
-    try {
-      const userId = userContext?.userId || buyerId;
-      const userType = userContext?.userType || "buyer";
-      if (userId) {
-        console.log("[Notifications] Marking all as read for:", {
-          userId,
-          userType,
-        });
-        await notificationService.markAllAsRead(userId, userType);
-        setDbNotifications((prev) =>
-          prev.map((n) => ({
-            ...n,
-            is_read: true,
-            read_at: new Date().toISOString(),
-          })),
-        );
-      }
-    } catch (e) {
-      console.error(
-        "[Notifications] Failed to mark all notifications read in DB:",
-        e,
-      );
-    }
-  };
-
-  const handleNotificationClickLocal = (notification: OrderNotification) => {
-    markNotificationRead(notification.id);
-    setOpen(false);
-    if (notification.type === "shipped" || notification.type === "delivered") {
-      navigate(`/delivery-tracking/${notification.orderId}`);
-    } else {
-      navigate(`/orders/${notification.orderId}`);
+    notifications.forEach(n => !n.read && markNotificationRead(n.id));
+    if (buyerId) {
+      await notificationService.markAllAsRead(buyerId, "buyer");
+      setDbNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
     }
   };
 
   const handleNotificationClickDb = async (n: DbNotification) => {
-    try {
-      await notificationService.markAsRead(n.id);
-      setDbNotifications((prev) =>
-        prev.map((x) =>
-          x.id === n.id
-            ? { ...x, is_read: true, read_at: new Date().toISOString() }
-            : x,
-        ),
-      );
-    } catch (e) {
-      console.error("[Notifications] Failed to mark notification read:", e);
+    if (!n.is_read) {
+      setDbNotifications(prev => prev.map(x => x.id === n.id ? { ...x, is_read: true } : x));
+      await notificationService.markAsRead(n.id, "buyer");
     }
     setOpen(false);
-    if (n.action_url) {
+
+    const data = n.action_data as any;
+    if (data?.orderNumber) {
+      navigate(`/orders/${data.orderNumber}`);
+    } else if (n.action_url) {
       navigate(n.action_url);
-      return;
+    } else {
+      navigate("/orders");
     }
-    // Fallback navigation based on type
-    if (n.type.startsWith("order_")) {
-      navigate(`/orders/${(n.action_data as any)?.orderId ?? ""}`);
-    } else if (n.type === "seller_new_order") {
-      navigate(`/seller/orders/${(n.action_data as any)?.orderId ?? ""}`);
+  };
+
+  const handleNotificationClickLocal = (n: OrderNotification) => {
+    markNotificationRead(n.id);
+    setOpen(false);
+    if (n.type === "shipped" || n.type === "delivered") {
+      navigate(`/delivery-tracking/${n.orderId}`);
+    } else {
+      navigate(`/orders/${n.orderId}`);
     }
   };
 
@@ -280,97 +183,144 @@ export function NotificationsDropdown() {
           <Bell className="w-6 h-6" strokeWidth={2} aria-hidden="true" />
           {unreadCount > 0 && (
             <Badge className="absolute top-0 right-0 min-w-[1.25rem] h-5 px-1 flex items-center justify-center bg-red-500 text-white border-none rounded-full text-xs">
-              {unreadCount > 99 ? "99+" : unreadCount}
+              {unreadCount > 9 ? "9+" : unreadCount}
             </Badge>
           )}
         </button>
       </PopoverTrigger>
-      <PopoverContent className="w-80 p-1" align="end">
-        <div className="flex items-baseline justify-between gap-4 px-3 py-2">
-          <div className="text-sm font-semibold">Notifications</div>
+
+      <PopoverContent className="w-[380px] p-0 shadow-xl border-gray-100 rounded-xl overflow-hidden" align="end" sideOffset={8}>
+        <PopoverArrow className="fill-white w-4 h-2 drop-shadow-sm" />
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-gray-100 sticky top-0 z-10">
+          <div className="flex items-center gap-2">
+            <h4 className="font-semibold text-gray-900">Notifications</h4>
+            {unreadCount > 0 && (
+              <Badge variant="secondary" className="bg-orange-100 text-orange-700 hover:bg-orange-100 px-1.5 py-0 h-5 text-xs">
+                {unreadCount} new
+              </Badge>
+            )}
+          </div>
           {unreadCount > 0 && (
             <button
-              className="text-xs font-medium text-[var(--brand-primary)] hover:underline"
               onClick={handleMarkAllAsRead}
+              className="text-xs font-medium text-orange-600 hover:text-orange-700 hover:underline transition-colors"
             >
-              Mark all as read
+              Mark all read
             </button>
           )}
         </div>
-        <div
-          role="separator"
-          aria-orientation="horizontal"
-          className="-mx-1 my-1 h-px bg-border"
-        ></div>
 
-        {dbLoading ? (
-          <div className="px-3 py-8 text-center text-sm text-muted-foreground">
-            <Bell className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-            <p>Loading notifications…</p>
-          </div>
-        ) : dbNotifications.length > 0 ? (
-          <div className="max-h-[400px] overflow-y-auto">
-            {dbNotifications.map((n) => (
-              <div
-                key={n.id}
-                className="rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent cursor-pointer"
-                onClick={() => handleNotificationClickDb(n)}
-              >
-                <div className="relative flex items-start gap-3 pe-3">
-                  <div className="mt-0.5">{getDbNotificationIcon(n)}</div>
-                  <div className="flex-1 space-y-1">
-                    <p className="text-foreground/90 leading-snug">{n.title}</p>
-                    <p className="text-muted-foreground text-xs">{n.message}</p>
-                    <div className="text-xs text-muted-foreground">
-                      {getTimeAgo(new Date(n.created_at))}
-                    </div>
-                  </div>
-                  {!n.is_read && (
-                    <div className="absolute end-0 top-1">
-                      <span className="sr-only">Unread</span>
-                      <Dot className="text-[var(--brand-primary)]" />
-                    </div>
-                  )}
-                </div>
+        {/* Scrollable Content Area */}
+        <div className="max-h-[65vh] overflow-y-auto bg-gray-50/50">
+          {dbLoading && dbNotifications.length === 0 ? (
+            <div className="py-12 flex flex-col items-center justify-center text-gray-400">
+              <div className="animate-pulse bg-gray-200 h-8 w-8 rounded-full mb-3" />
+              <p className="text-sm">Loading...</p>
+            </div>
+          ) : dbNotifications.length === 0 && notifications.length === 0 ? (
+            <div className="py-16 flex flex-col items-center justify-center text-center px-6">
+              <div className="bg-gray-100 p-4 rounded-full mb-3">
+                <Bell className="w-8 h-8 text-gray-400" />
               </div>
-            ))}
-          </div>
-        ) : notifications.length === 0 ? (
-          <div className="px-3 py-8 text-center text-sm text-muted-foreground">
-            <Bell className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-            <p>No notifications yet</p>
-          </div>
-        ) : (
-          <div className="max-h-[400px] overflow-y-auto">
-            {notifications.map((notification) => (
-              <div
-                key={notification.id}
-                className="rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent cursor-pointer"
-                onClick={() => handleNotificationClickLocal(notification)}
-              >
-                <div className="relative flex items-start gap-3 pe-3">
-                  <div className="mt-0.5">
-                    {getNotificationIcon(notification.type)}
-                  </div>
-                  <div className="flex-1 space-y-1">
-                    <p className="text-foreground/90 leading-snug">
-                      {notification.message}
-                    </p>
-                    <div className="text-xs text-muted-foreground">
-                      {getTimeAgo(notification.timestamp)}
+              <h5 className="text-gray-900 font-medium mb-1">No notifications yet</h5>
+              <p className="text-xs text-gray-500 max-w-[200px]">
+                When you place orders or receive updates, they will appear here.
+              </p>
+            </div>
+          ) : (
+            <div className="flex flex-col">
+              {/* DB Notifications */}
+              {dbNotifications.map((n) => {
+                const style = getNotificationStyles(n.type);
+                return (
+                  <div
+                    key={n.id}
+                    onClick={() => handleNotificationClickDb(n)}
+                    className={cn(
+                      "group flex gap-4 p-4 border-b border-gray-100 cursor-pointer transition-all",
+                      // Apply specific hover color requested: #FFD4A3
+                      "hover:bg-[#FFD4A3]",
+                      !n.is_read ? "bg-white" : "bg-gray-50/30"
+                    )}
+                  >
+                    {/* Icon Box */}
+                    <div className={cn(
+                      "flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center border",
+                      style.bg,
+                      style.borderColor
+                    )}>
+                      {style.icon}
+                    </div>
+
+                    {/* Content */}
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <div className="flex justify-between items-start gap-2">
+                        <p className={cn(
+                          "text-sm leading-none truncate pr-2",
+                          !n.is_read ? "font-semibold text-gray-900" : "font-medium text-gray-700"
+                        )}>
+                          {n.title}
+                        </p>
+                        {!n.is_read && <span className="w-2 h-2 rounded-full bg-orange-500 flex-shrink-0 mt-1" />}
+                      </div>
+                      <p className={cn(
+                        "text-xs line-clamp-2",
+                        !n.is_read ? "text-gray-600" : "text-gray-500"
+                      )}>
+                        {n.message}
+                      </p>
+                      <p className="text-[10px] text-gray-400 pt-1">
+                        {getTimeAgo(new Date(n.created_at))}
+                      </p>
                     </div>
                   </div>
-                  {!notification.read && (
-                    <div className="absolute end-0 top-1">
-                      <span className="sr-only">Unread</span>
-                      <Dot className="text-[var(--brand-primary)]" />
+                );
+              })}
+
+              {/* Local Notifications */}
+              {notifications.map((n) => {
+                const style = getNotificationStyles(n.type);
+                return (
+                  <div
+                    key={n.id}
+                    onClick={() => handleNotificationClickLocal(n)}
+                    className={cn(
+                      "group flex gap-4 p-4 border-b border-gray-100 cursor-pointer transition-all",
+                      // Apply specific hover color requested: #FFD4A3
+                      "hover:bg-[#FFD4A3]",
+                      !n.read ? "bg-white" : "bg-gray-50/30"
+                    )}
+                  >
+                    <div className={cn(
+                      "flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center border",
+                      style.bg,
+                      style.borderColor
+                    )}>
+                      {style.icon}
                     </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <div className="flex justify-between items-start">
+                        <p className={cn(
+                          "text-sm leading-none font-medium",
+                          !n.read ? "text-gray-900 font-semibold" : "text-gray-700"
+                        )}>
+                          Order Update
+                        </p>
+                        {!n.read && <span className="w-2 h-2 rounded-full bg-orange-500 flex-shrink-0 mt-1" />}
+                      </div>
+                      <p className="text-xs text-gray-600 line-clamp-2">{n.message}</p>
+                      <p className="text-[10px] text-gray-400 pt-1">
+                        {getTimeAgo(n.timestamp)}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </PopoverContent>
     </Popover>
   );
