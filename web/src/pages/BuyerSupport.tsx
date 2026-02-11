@@ -7,8 +7,6 @@ import {
   RotateCcw,
   Clock,
   Upload,
-  Send,
-  MessageSquare,
   Package,
 } from "lucide-react";
 import React, { useState } from "react";
