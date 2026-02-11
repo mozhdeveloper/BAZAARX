@@ -35,6 +35,16 @@ export function BuyerTicketModal({
 }: BuyerTicketModalProps) {
   if (!open) return null;
 
+  const handleSubmit = (e: React.FormEvent) => {
+    console.log("Submitting support ticket:", {
+      subject: ticket.subject,
+      description: ticket.description,
+      category: ticket.category,
+      proofName: ticket.proof?.name || null,
+    });
+    onSubmit(e);
+  };
+
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
       <div className="bg-white w-full max-w-xl h-auto rounded-2xl shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col">
@@ -52,7 +62,7 @@ export function BuyerTicketModal({
               </button>
             </div>
 
-            <form onSubmit={onSubmit} className="p-5 space-y-4">
+            <form onSubmit={handleSubmit} className="p-5 space-y-4">
               <div>
                 <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">
                   Subject
