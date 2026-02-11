@@ -286,7 +286,51 @@ export const testOrderService = async (
         (orders) => Array.isArray(orders)
       )
     );
+
+    tests.push(
+      await runTest(
+        'getSellerOrders - includes normalized shipment/payment compatibility fields',
+        () => orderService.getSellerOrders(testSellerId),
+        (orders) =>
+          Array.isArray(orders) &&
+          orders.every((order) =>
+            typeof order === 'object' &&
+            order !== null &&
+            'payment_status' in order &&
+            'shipment_status' in order &&
+            'status' in order
+          )
+      )
+    );
+
+    const sellerOrders = await orderService.getSellerOrders(testSellerId);
+    const orderForTracking = sellerOrders[0];
+    if (orderForTracking) {
+      tests.push(
+        await runTest(
+          'getOrderTrackingSnapshot - returns tracking snapshot for seller order',
+          () => orderService.getOrderTrackingSnapshot(orderForTracking.id),
+          (snapshot) =>
+            snapshot === null ||
+            (typeof snapshot === 'object' &&
+              snapshot !== null &&
+              'order_id' in snapshot)
+        )
+      );
+    }
   }
+
+  tests.push(
+    await runTest(
+      'getOrderTrackingSnapshot - returns null for unknown order',
+      () => orderService.getOrderTrackingSnapshot('00000000-0000-0000-0000-000000000000'),
+      (snapshot) =>
+        snapshot === null ||
+        (typeof snapshot === 'object' &&
+          snapshot !== null &&
+          'order_id' in snapshot)
+    )
+  );
   
   // Test 3: POS Order creation (mock mode)
   tests.push(

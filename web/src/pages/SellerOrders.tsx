@@ -8,12 +8,7 @@ import {
   CheckCircle,
   XCircle,
   Clock,
-  User,
-  MapPin,
-  Phone,
-  Mail,
   Download,
-  Star,
   LogOut,
   Globe,
   Store as StoreIcon,
@@ -22,12 +17,7 @@ import {
   Eye,
   Printer,
   CreditCard,
-  Edit3,
-  Save,
-  X,
-  Loader2,
   AlertCircle,
-  RefreshCw
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
@@ -61,7 +51,6 @@ import {
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { sellerLinks } from "@/config/sellerLinks";
-import { orderService } from "@/services/orderService";
 import { OrderDetailsModal } from "@/components/OrderDetailsModal";
 
 const Logo = () => (
@@ -153,7 +142,8 @@ export function SellerOrders() {
     loading,
     fetchOrders,
     updateOrderStatus,
-    addTrackingNumber,
+    markOrderAsShipped,
+    markOrderAsDelivered,
   } = useOrderStore();
   const navigate = useNavigate();
 
@@ -187,34 +177,18 @@ export function SellerOrders() {
     setTrackingModal((prev) => ({ ...prev, isLoading: true }));
 
     try {
-      const success = await orderService.markOrderAsShipped(
+      await markOrderAsShipped(
         trackingModal.orderId,
         trackingModal.trackingNumber,
-        seller!.id,
       );
 
-      if (success) {
-        // Update local store
-        addTrackingNumber(
-          trackingModal.orderId,
-          trackingModal.trackingNumber,
-        );
-        updateOrderStatus(trackingModal.orderId, "shipped");
-
-        // Refresh orders from database
-        await fetchOrders(seller!.id);
-
-        // Close modal and show success
-        setTrackingModal({
-          isOpen: false,
-          orderId: null,
-          trackingNumber: "",
-          isLoading: false,
-        });
-        alert("✅ Order marked as shipped! Buyer notification sent.");
-      } else {
-        alert("❌ Failed to mark order as shipped. Please try again.");
-      }
+      setTrackingModal({
+        isOpen: false,
+        orderId: null,
+        trackingNumber: "",
+        isLoading: false,
+      });
+      alert("✅ Order marked as shipped! Buyer notification sent.");
     } catch (error) {
       console.error("Error marking order as shipped:", error);
       alert("An error occurred. Please try again.");
@@ -229,26 +203,8 @@ export function SellerOrders() {
     }
 
     try {
-      const success = await orderService.markOrderAsDelivered(
-        orderId,
-        seller!.id,
-      );
-
-      if (success) {
-        // Update local store
-        updateOrderStatus(orderId, "delivered");
-
-        // Refresh orders from database
-        await fetchOrders(seller!.id);
-
-        alert(
-          "✅ Order marked as delivered! Payout will be processed.",
-        );
-      } else {
-        alert(
-          "❌ Failed to mark order as delivered. Please try again.",
-        );
-      }
+      await markOrderAsDelivered(orderId);
+      alert("✅ Order marked as delivered! Payout will be processed.");
     } catch (error) {
       console.error("Error marking order as delivered:", error);
       alert("An error occurred. Please try again.");
@@ -272,49 +228,33 @@ export function SellerOrders() {
     return matchesSearch && matchesFilter && matchesChannel;
   });
 
-  const handleStatusUpdate = (orderId: string, newStatus: any) => {
-    updateOrderStatus(orderId, newStatus);
+  const handleStatusUpdate = async (
+    orderId: string,
+    newStatus: "confirmed" | "cancelled",
+  ) => {
+    try {
+      await updateOrderStatus(orderId, newStatus);
 
-    // Cross-store sync: Update buyer order status and send notification
-    if (newStatus === "confirmed") {
-      // Dynamically import cart store to avoid circular dependency
-      import("../stores/cartStore")
-        .then(({ useCartStore }) => {
-          const cartStore = useCartStore.getState();
-          cartStore.updateOrderStatus(orderId, "confirmed");
-          cartStore.addNotification(
-            orderId,
-            "seller_confirmed",
-            "Your order has been confirmed by the seller! Track your delivery now.",
-          );
-        })
-        .catch((error) => {
-          console.error("Failed to sync buyer notification:", error);
-        });
-    }
-
-    // If shipped, add a tracking number and notify buyer
-    if (newStatus === "shipped") {
-      const trackingNumber = `TRK${Date.now().toString().slice(-8)}`;
-      addTrackingNumber(orderId, trackingNumber);
-
-      // Notify buyer about shipment
-      import("../stores/cartStore")
-        .then(({ useCartStore }) => {
-          const cartStore = useCartStore.getState();
-          cartStore.updateOrderStatus(orderId, "shipped");
-          cartStore.addNotification(
-            orderId,
-            "shipped",
-            `Your order is on the way! Tracking: ${trackingNumber}`,
-          );
-        })
-        .catch((error) => {
-          console.error(
-            "Failed to sync shipment notification:",
-            error,
-          );
-        });
+      // Cross-store sync: Update buyer order status and send notification
+      if (newStatus === "confirmed") {
+        // Dynamically import cart store to avoid circular dependency
+        import("../stores/cartStore")
+          .then(({ useCartStore }) => {
+            const cartStore = useCartStore.getState();
+            cartStore.updateOrderStatus(orderId, "confirmed");
+            cartStore.addNotification(
+              orderId,
+              "seller_confirmed",
+              "Your order has been confirmed by the seller! Track your delivery now.",
+            );
+          })
+          .catch((error) => {
+            console.error("Failed to sync buyer notification:", error);
+          });
+      }
+    } catch (error) {
+      console.error("Failed to update order status:", error);
+      alert("Failed to update order status. Please try again.");
     }
   };
 
@@ -484,13 +424,15 @@ export function SellerOrders() {
                 </div>
 
                 {/* Channel Filter Tabs */}
-                <Tabs
-                  value={channelFilter}
-                  onValueChange={(v) =>
-                    setChannelFilter(v as any)
-                  }
-                  className="w-full lg:w-auto"
-                >
+                                <Tabs
+                                  value={channelFilter}
+                                  onValueChange={(value) =>
+                                    setChannelFilter(
+                                      value as "all" | "online" | "pos",
+                                    )
+                                  }
+                                  className="w-full lg:w-auto"
+                                >
                   <TabsList className="grid w-full lg:w-auto grid-cols-3 bg-gray-100">
                     <TabsTrigger
                       value="all"
@@ -785,30 +727,30 @@ export function SellerOrders() {
                             "pending" && (
                               <>
                                 <DropdownMenuItem
-                                  onClick={(
-                                    e,
-                                  ) => {
-                                    e.stopPropagation();
-                                    handleStatusUpdate(
-                                      order.id,
-                                      "confirmed",
-                                    );
-                                  }}
+                                    onClick={(
+                                      e,
+                                    ) => {
+                                      e.stopPropagation();
+                                      void handleStatusUpdate(
+                                        order.id,
+                                        "confirmed",
+                                      );
+                                    }}
                                   className="text-green-600"
                                 >
                                   <CheckCircle className="h-4 w-4 mr-2" />
                                   Confirm Order
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
-                                  onClick={(
-                                    e,
-                                  ) => {
-                                    e.stopPropagation();
-                                    handleStatusUpdate(
-                                      order.id,
-                                      "cancelled",
-                                    );
-                                  }}
+                                    onClick={(
+                                      e,
+                                    ) => {
+                                      e.stopPropagation();
+                                      void handleStatusUpdate(
+                                        order.id,
+                                        "cancelled",
+                                      );
+                                    }}
                                   className="text-red-600"
                                 >
                                   <XCircle className="h-4 w-4 mr-2" />
@@ -895,7 +837,7 @@ export function SellerOrders() {
           />
 
           {showAccessDenied && (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[99999] backdrop-blur-sm p-4">
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[200] backdrop-blur-sm p-4">
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
@@ -932,7 +874,7 @@ export function SellerOrders() {
 
           {/* Tracking Number Modal */}
           {trackingModal.isOpen && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[200]">
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}

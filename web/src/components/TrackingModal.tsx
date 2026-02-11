@@ -1,6 +1,9 @@
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { X, Package, Truck, MapPin, Clock, CheckCircle } from 'lucide-react';
 import { Order } from '../stores/cartStore';
+import { orderService, type OrderTrackingSnapshot } from '../services/orderService';
+import type { ShipmentStatus } from '../types/database.types';
 
 interface TrackingModalProps {
   order: Order;
@@ -8,10 +11,95 @@ interface TrackingModalProps {
   onClose: () => void;
 }
 
+const mapLegacyStatusToShipmentStatus = (
+  status: Order['status'],
+): ShipmentStatus => {
+  if (status === 'delivered' || status === 'reviewed') return 'delivered';
+  if (status === 'shipped') return 'shipped';
+  if (status === 'confirmed') return 'processing';
+  if (status === 'returned' || status === 'cancelled') return 'returned';
+  return 'waiting_for_seller';
+};
+
 export default function TrackingModal({ order, isOpen, onClose }: TrackingModalProps) {
+  const [trackingSnapshot, setTrackingSnapshot] = useState<OrderTrackingSnapshot | null>(null);
+  const [isLoadingSnapshot, setIsLoadingSnapshot] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    let isCancelled = false;
+
+    const fetchTrackingSnapshot = async () => {
+      if (!order.dbId) {
+        setTrackingSnapshot(null);
+        return;
+      }
+
+      setIsLoadingSnapshot(true);
+      try {
+        const snapshot =
+          (await orderService.getOrderTrackingSnapshot(order.dbId)) ||
+          (await orderService.getOrderTrackingSnapshot(order.id));
+
+        if (!isCancelled) {
+          setTrackingSnapshot(snapshot);
+        }
+      } catch (error) {
+        console.error('Failed to load tracking snapshot:', error);
+        if (!isCancelled) {
+          setTrackingSnapshot(null);
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsLoadingSnapshot(false);
+        }
+      }
+    };
+
+    void fetchTrackingSnapshot();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [isOpen, order.dbId, order.id]);
+
   if (!isOpen) return null;
 
-  const getTrackingSteps = (status: string) => {
+  const shipmentStatus = trackingSnapshot?.shipment_status || order.shipmentStatus || mapLegacyStatusToShipmentStatus(order.status);
+  const trackingNumber = trackingSnapshot?.tracking_number || order.trackingNumber || null;
+  const shippedAt = trackingSnapshot?.shipped_at
+    ? new Date(trackingSnapshot.shipped_at)
+    : order.shippedAt;
+  const deliveredAt = trackingSnapshot?.delivered_at
+    ? new Date(trackingSnapshot.delivered_at)
+    : order.deliveredAt || (order.status === 'delivered' ? order.estimatedDelivery : undefined);
+  const createdAt = trackingSnapshot?.created_at
+    ? new Date(trackingSnapshot.created_at)
+    : order.createdAt;
+
+  const snapshotAddress = trackingSnapshot?.address;
+  const snapshotRecipient = trackingSnapshot?.recipient;
+  const recipientName = `${snapshotRecipient?.first_name || ''} ${snapshotRecipient?.last_name || ''}`.trim();
+  const normalizedAddress = {
+    fullName: recipientName || order.shippingAddress?.fullName || 'Customer',
+    street: snapshotAddress?.address_line_1 || order.shippingAddress?.street || 'Address unavailable',
+    city: snapshotAddress?.city || order.shippingAddress?.city || 'N/A',
+    province: snapshotAddress?.province || order.shippingAddress?.province || 'N/A',
+    postalCode: snapshotAddress?.postal_code || order.shippingAddress?.postalCode || '',
+    phone: snapshotRecipient?.phone || order.shippingAddress?.phone || '',
+  };
+
+  const formatTime = (date?: Date | null) => {
+    if (!date) return null;
+    return date.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const getTrackingSteps = (status: ShipmentStatus) => {
+    const isReturned = status === 'returned' || status === 'failed_to_deliver';
+    const processingReached = ['processing', 'ready_to_ship', 'shipped', 'out_for_delivery', 'delivered', 'received', 'returned', 'failed_to_deliver'].includes(status);
+    const shippedReached = ['shipped', 'out_for_delivery', 'delivered', 'received', 'returned', 'failed_to_deliver'].includes(status);
+
     const steps = [
       {
         id: 'confirmed',
@@ -19,47 +107,49 @@ export default function TrackingModal({ order, isOpen, onClose }: TrackingModalP
         description: 'Your order has been confirmed and is being prepared',
         icon: CheckCircle,
         completed: true,
-        time: order.createdAt.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })
+        time: formatTime(createdAt),
       },
       {
         id: 'processing',
         title: 'Order Processing',
         description: 'Your items are being prepared for shipment',
         icon: Package,
-        completed: ['confirmed', 'shipped', 'delivered'].includes(status),
-        time: status === 'confirmed' || ['shipped', 'delivered'].includes(status)
-          ? new Date(order.createdAt.getTime() + 2 * 60 * 1000).toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })
-          : null
+        completed: processingReached,
+        current: ['processing', 'ready_to_ship'].includes(status),
+        time: processingReached ? formatTime(createdAt) : null,
       },
       {
         id: 'shipped',
         title: 'Order Shipped',
-        description: `Package is on its way (Tracking: ${order.trackingNumber})`,
+        description: trackingNumber
+          ? `Package is on its way (Tracking: ${trackingNumber})`
+          : 'Package is on its way',
         icon: Truck,
-        completed: ['delivered'].includes(status),
-        current: status === 'shipped',
-        time: status === 'shipped' || status === 'delivered'
-          ? new Date(order.createdAt.getTime() + 62 * 60 * 1000).toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })
-          : null
+        completed: shippedReached,
+        current: status === 'shipped' || status === 'out_for_delivery',
+        time: shippedReached ? formatTime(shippedAt) : null,
       },
       {
         id: 'delivered',
-        title: 'Package Delivered',
-        description: 'Your order has been successfully delivered',
+        title: isReturned ? 'Delivery Update' : 'Package Delivered',
+        description: isReturned
+          ? 'Delivery was unsuccessful or the package was returned'
+          : 'Your order has been successfully delivered',
         icon: CheckCircle,
-        completed: status === 'delivered',
-        time: status === 'delivered'
-          ? order.estimatedDelivery.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })
-          : null
+        completed: status === 'delivered' || status === 'received',
+        time: status === 'delivered' || status === 'received'
+          ? formatTime(deliveredAt)
+          : null,
       },
     ];
 
     return steps;
   };
 
-  const trackingSteps = getTrackingSteps(order.status);
+  const trackingSteps = getTrackingSteps(shipmentStatus);
 
-  const formatDate = (date: Date) => {
+  const formatDate = (date?: Date | null) => {
+    if (!date) return 'N/A';
     return new Intl.DateTimeFormat('en-PH', {
       month: 'long',
       day: 'numeric',
@@ -67,12 +157,20 @@ export default function TrackingModal({ order, isOpen, onClose }: TrackingModalP
     }).format(date);
   };
 
+  const displayDeliveryDate = deliveredAt || order.estimatedDelivery || createdAt;
+  const deliveryLabel =
+    shipmentStatus === 'delivered' || shipmentStatus === 'received'
+      ? 'Delivered'
+      : shipmentStatus === 'returned' || shipmentStatus === 'failed_to_deliver'
+        ? 'Latest Update'
+        : 'Estimated Delivery';
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4"
+      className="fixed inset-0 z-[200] flex items-center justify-center bg-black bg-opacity-50 p-4"
       onClick={onClose}
     >
       <motion.div
@@ -88,7 +186,7 @@ export default function TrackingModal({ order, isOpen, onClose }: TrackingModalP
             <div>
               <h2 className="text-xl font-semibold text-gray-900">Track Your Order</h2>
               <p className="text-sm text-gray-500 mt-1">
-                Order #{order.orderNumber} • {formatDate(order.createdAt)}
+                Order #{order.orderNumber || trackingSnapshot?.order_number || order.id} • {formatDate(createdAt)}
               </p>
             </div>
             <button
@@ -102,6 +200,9 @@ export default function TrackingModal({ order, isOpen, onClose }: TrackingModalP
 
         {/* Tracking Steps */}
         <div className="p-6">
+          {isLoadingSnapshot && (
+            <p className="text-xs text-gray-500 mb-4">Refreshing live tracking details...</p>
+          )}
           <div className="space-y-4">
             {trackingSteps.map((step, index) => {
               const Icon = step.icon;
@@ -159,10 +260,10 @@ export default function TrackingModal({ order, isOpen, onClose }: TrackingModalP
               <span className="font-medium text-gray-900">Delivery Address</span>
             </div>
             <div className="text-sm text-gray-600 leading-relaxed">
-              <div className="font-medium">{order.shippingAddress.fullName}</div>
-              <div>{order.shippingAddress.street}</div>
-              <div>{order.shippingAddress.city}, {order.shippingAddress.province} {order.shippingAddress.postalCode}</div>
-              <div>{order.shippingAddress.phone}</div>
+              <div className="font-medium">{normalizedAddress.fullName}</div>
+              <div>{normalizedAddress.street}</div>
+              <div>{normalizedAddress.city}, {normalizedAddress.province} {normalizedAddress.postalCode}</div>
+              {normalizedAddress.phone && <div>{normalizedAddress.phone}</div>}
             </div>
           </div>
 
@@ -171,12 +272,15 @@ export default function TrackingModal({ order, isOpen, onClose }: TrackingModalP
             <div className="flex items-center gap-3 mb-2">
               <Clock className="w-5 h-5 text-orange-600" />
               <span className="font-medium text-orange-900">
-                {order.status === 'delivered' ? 'Delivered' : 'Estimated Delivery'}
+                {deliveryLabel}
               </span>
             </div>
             <div className="text-sm text-orange-800">
-              {formatDate(order.estimatedDelivery)}
-              {order.status !== 'delivered' && (
+              {formatDate(displayDeliveryDate)}
+              {trackingNumber && shipmentStatus !== 'delivered' && shipmentStatus !== 'received' && (
+                <span className="text-orange-600"> • Tracking {trackingNumber}</span>
+              )}
+              {!trackingNumber && shipmentStatus !== 'delivered' && shipmentStatus !== 'received' && (
                 <span className="text-orange-600"> • Usually arrives by 6:00 PM</span>
               )}
             </div>

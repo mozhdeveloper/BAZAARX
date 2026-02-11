@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     Package,
@@ -6,23 +6,19 @@ import {
     Loader2,
     XCircle,
     Clock,
-    Mail,
     Phone,
     Truck,
     CheckCircle,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import {
     Accordion,
     AccordionContent,
     AccordionItem,
     AccordionTrigger,
 } from "@/components/ui/accordion";
-import { useAuthStore, useOrderStore, SellerOrder } from "@/stores/sellerStore";
-import { orderService } from "@/services/orderService";
+import { useOrderStore, SellerOrder } from "@/stores/sellerStore";
 
 interface OrderDetailsModalProps {
     isOpen: boolean;
@@ -30,9 +26,16 @@ interface OrderDetailsModalProps {
     order: SellerOrder | null;
 }
 
-export function OrderDetailsModal({ isOpen, onClose, order }: OrderDetailsModalProps) {
-    const { seller } = useAuthStore();
-    const { fetchOrders, updateOrderStatus, addTrackingNumber } = useOrderStore();
+export function OrderDetailsModal({
+    isOpen,
+    onClose,
+    order,
+}: OrderDetailsModalProps) {
+    const {
+        updateOrderStatus,
+        markOrderAsShipped,
+        markOrderAsDelivered,
+    } = useOrderStore();
 
     const [trackingModal, setTrackingModal] = useState<{
         isOpen: boolean;
@@ -48,25 +51,28 @@ export function OrderDetailsModal({ isOpen, onClose, order }: OrderDetailsModalP
 
     if (!isOpen || !order) return null;
 
-    // Debug: Log order data to check shipping address
-    console.log('Order Details Modal - Full Order:', order);
-    console.log('Order Details Modal - Shipping Address:', order.shippingAddress);
+    const handleStatusUpdate = async (
+        status: Extract<SellerOrder["status"], "confirmed" | "cancelled">,
+    ) => {
+        try {
+            await updateOrderStatus(order.id, status);
 
-    const handleStatusUpdate = (status: SellerOrder['status']) => {
-        updateOrderStatus(order.id, status);
-
-        if (status === "confirmed") {
-            import("@/stores/cartStore")
-                .then(({ useCartStore }) => {
-                    const cartStore = useCartStore.getState();
-                    cartStore.updateOrderStatus(order.id, "confirmed");
-                    cartStore.addNotification(
-                        order.id,
-                        "seller_confirmed",
-                        "Your order has been confirmed by the seller! Track your delivery now."
-                    );
-                })
-                .catch(console.error);
+            if (status === "confirmed") {
+                import("@/stores/cartStore")
+                    .then(({ useCartStore }) => {
+                        const cartStore = useCartStore.getState();
+                        cartStore.updateOrderStatus(order.id, "confirmed");
+                        cartStore.addNotification(
+                            order.id,
+                            "seller_confirmed",
+                            "Your order has been confirmed by the seller! Track your delivery now.",
+                        );
+                    })
+                    .catch(console.error);
+            }
+        } catch (error) {
+            console.error("Failed to update order status:", error);
+            alert("Failed to update order status.");
         }
     };
 
@@ -79,33 +85,28 @@ export function OrderDetailsModal({ isOpen, onClose, order }: OrderDetailsModalP
         setTrackingModal((prev) => ({ ...prev, isLoading: true }));
 
         try {
-            const success = await orderService.markOrderAsShipped(
+            await markOrderAsShipped(
                 order.id,
                 trackingModal.trackingNumber,
-                seller!.id,
             );
 
-            if (success) {
-                addTrackingNumber(order.id, trackingModal.trackingNumber);
-                updateOrderStatus(order.id, "shipped");
-                await fetchOrders(seller!.id);
+            import("@/stores/cartStore")
+                .then(({ useCartStore }) => {
+                    const cartStore = useCartStore.getState();
+                    cartStore.updateOrderStatus(order.id, "shipped");
+                    cartStore.addNotification(
+                        order.id,
+                        "shipped",
+                        `Your order is on the way! Tracking: ${trackingModal.trackingNumber}`,
+                    );
+                })
+                .catch(console.error);
 
-                import("@/stores/cartStore")
-                    .then(({ useCartStore }) => {
-                        const cartStore = useCartStore.getState();
-                        cartStore.updateOrderStatus(order.id, "shipped");
-                        cartStore.addNotification(
-                            order.id,
-                            "shipped",
-                            `Your order is on the way! Tracking: ${trackingModal.trackingNumber}`,
-                        );
-                    })
-                    .catch(console.error);
-
-                setTrackingModal(prev => ({ ...prev, isOpen: false, trackingNumber: "" }));
-            } else {
-                alert("Failed to mark order as shipped.");
-            }
+            setTrackingModal((prev) => ({
+                ...prev,
+                isOpen: false,
+                trackingNumber: "",
+            }));
         } catch (error) {
             console.error("Error marking order as shipped:", error);
             alert("An error occurred.");
@@ -118,30 +119,45 @@ export function OrderDetailsModal({ isOpen, onClose, order }: OrderDetailsModalP
         if (!window.confirm("Mark this order as delivered?")) return;
 
         try {
-            const success = await orderService.markOrderAsDelivered(order.id, seller!.id);
-            if (success) {
-                updateOrderStatus(order.id, "delivered");
-                await fetchOrders(seller!.id);
-            } else {
-                alert("Failed to mark as delivered.");
-            }
+            await markOrderAsDelivered(order.id);
         } catch (error) {
             console.error("Error marking delivered:", error);
+            alert("Failed to mark as delivered.");
         }
     };
 
     const getStatusBadge = (status: string) => {
         switch (status) {
-            case 'delivered':
-                return <div className="inline-flex items-center bg-blue-50 text-blue-700 gap-1 rounded-full px-3 py-1 text-xs font-normal"><CheckCircle className="w-3 h-3" /> Delivered</div>;
-            case 'shipped':
-                return <div className="inline-flex items-center bg-purple-50 text-purple-700 gap-1 rounded-full px-3 py-1 text-xs font-normal"><Truck className="w-3 h-3" /> Shipped</div>;
-            case 'cancelled':
-                return <div className="inline-flex items-center bg-red-50 text-red-700 gap-1 rounded-full px-3 py-1 text-xs font-normal"><XCircle className="w-3 h-3" /> Cancelled</div>;
-            case 'confirmed':
-                return <div className="inline-flex items-center bg-green-50 text-green-700 gap-1 rounded-full px-3 py-1 text-xs font-normal"><CheckCircle className="w-3 h-3" /> Confirmed</div>;
+            case "delivered":
+                return (
+                    <div className="inline-flex items-center bg-blue-50 text-blue-700 gap-1 rounded-full px-3 py-1 text-xs font-normal">
+                        <CheckCircle className="w-3 h-3" /> Delivered
+                    </div>
+                );
+            case "shipped":
+                return (
+                    <div className="inline-flex items-center bg-purple-50 text-purple-700 gap-1 rounded-full px-3 py-1 text-xs font-normal">
+                        <Truck className="w-3 h-3" /> Shipped
+                    </div>
+                );
+            case "cancelled":
+                return (
+                    <div className="inline-flex items-center bg-red-50 text-red-700 gap-1 rounded-full px-3 py-1 text-xs font-normal">
+                        <XCircle className="w-3 h-3" /> Cancelled
+                    </div>
+                );
+            case "confirmed":
+                return (
+                    <div className="inline-flex items-center bg-green-50 text-green-700 gap-1 rounded-full px-3 py-1 text-xs font-normal">
+                        <CheckCircle className="w-3 h-3" /> Confirmed
+                    </div>
+                );
             default:
-                return <div className="inline-flex items-center bg-orange-50 text-orange-700 gap-1 rounded-full px-3 py-1 text-xs font-normal"><Clock className="w-3 h-3" /> Pending</div>;
+                return (
+                    <div className="inline-flex items-center bg-orange-50 text-orange-700 gap-1 rounded-full px-3 py-1 text-xs font-normal">
+                        <Clock className="w-3 h-3" /> Pending
+                    </div>
+                );
         }
     };
 
@@ -149,7 +165,8 @@ export function OrderDetailsModal({ isOpen, onClose, order }: OrderDetailsModalP
         <AnimatePresence>
             {isOpen && (
                 <div
-                    className="fixed inset-0 bg-black/30 flex items-center justify-center z-[99999] p-4 backdrop-blur-sm"
+                    key="order-details-modal"
+                    className="fixed inset-0 bg-black/30 flex items-center justify-center z-[200] p-4 backdrop-blur-sm"
                     onClick={onClose}
                 >
                     <motion.div
@@ -163,15 +180,27 @@ export function OrderDetailsModal({ isOpen, onClose, order }: OrderDetailsModalP
                         <div className="px-6 py-5 bg-white border-b border-gray-100 sticky top-0 z-10 flex items-start justify-between">
                             <div className="space-y-1">
                                 <h2 className="text-xl font-bold text-gray-900 tracking-tight">
-                                    Order #{order.orderNumber || order.id.slice(0, 8).toUpperCase()}
+                                    Order #
+                                    {order.orderNumber ||
+                                        order.id.slice(0, 8).toUpperCase()}
                                 </h2>
                                 <div className="flex flex-wrap items-center gap-4 text-xs">
                                     <div className="flex items-center gap-2">
                                         {getStatusBadge(order.status)}
                                     </div>
                                     <div className="flex items-center gap-2 text-gray-500">
-                                        <span className="font-medium text-gray-400">Order date:</span>
-                                        <span className="font-medium text-gray-900">{new Date(order.orderDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span>
+                                        <span className="font-medium text-gray-400">
+                                            Order date:
+                                        </span>
+                                        <span className="font-medium text-gray-900">
+                                            {new Date(
+                                                order.orderDate,
+                                            ).toLocaleDateString("en-US", {
+                                                month: "long",
+                                                day: "numeric",
+                                                year: "numeric",
+                                            })}
+                                        </span>
                                     </div>
                                 </div>
                             </div>
@@ -187,68 +216,132 @@ export function OrderDetailsModal({ isOpen, onClose, order }: OrderDetailsModalP
 
                         {/* Scrollable Content */}
                         <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 space-y-4 bg-[#f9fafb] pb-24">
-
-                            <Accordion type="multiple" defaultValue={['summary', 'customer', 'delivery']} className="space-y-4">
-
+                            <Accordion
+                                type="multiple"
+                                defaultValue={[
+                                    "summary",
+                                    "customer",
+                                    "delivery",
+                                ]}
+                                className="space-y-4"
+                            >
                                 {/* Order Summary */}
-                                <AccordionItem value="summary" className="bg-white rounded-xl border border-gray-100 shadow-sm px-1 overflow-hidden">
+                                <AccordionItem
+                                    value="summary"
+                                    className="bg-white rounded-xl border border-gray-100 shadow-sm px-1 overflow-hidden"
+                                >
                                     <AccordionTrigger className="px-4 hover:no-underline py-4">
-                                        <span className="font-semibold text-gray-900 text-sm">Order Summary</span>
+                                        <span className="font-semibold text-gray-900 text-sm">
+                                            Order Summary
+                                        </span>
                                     </AccordionTrigger>
                                     <AccordionContent className="px-4 pb-4">
                                         <div className="space-y-6">
                                             {order.items.map((item, idx) => (
-                                                <div key={idx} className="flex gap-4">
+                                                <div
+                                                    key={idx}
+                                                    className="flex gap-4"
+                                                >
                                                     <div className="h-14 w-14 rounded-md bg-gray-50 border border-gray-100 overflow-hidden flex-shrink-0">
-                                                        <img src={item.image} alt={item.productName} className="h-full w-full object-cover" />
+                                                        <img
+                                                            src={item.image}
+                                                            alt={
+                                                                item.productName
+                                                            }
+                                                            className="h-full w-full object-cover"
+                                                        />
                                                     </div>
                                                     <div className="flex-1 min-w-0 flex flex-col justify-center">
-                                                        <h4 className="font-medium text-gray-900 text-sm truncate">{item.productName}</h4>
-                                                        {(item.selectedVariantLabel2 || item.selectedVariantLabel1) && (
+                                                        <h4 className="font-medium text-gray-900 text-sm truncate">
+                                                            {item.productName}
+                                                        </h4>
+                                                        {(item.selectedVariantLabel2 ||
+                                                            item.selectedVariantLabel1) && (
                                                             <p className="text-xs text-gray-500 mt-0.5 truncate">
-                                                                {item.selectedVariantLabel1} {item.selectedVariantLabel2 ? `• ${item.selectedVariantLabel2}` : ''}
+                                                                {
+                                                                    item.selectedVariantLabel1
+                                                                }{" "}
+                                                                {item.selectedVariantLabel2
+                                                                    ? `• ${item.selectedVariantLabel2}`
+                                                                    : ""}
                                                             </p>
                                                         )}
                                                     </div>
                                                     <div className="text-right flex flex-col justify-center">
-                                                        <p className="text-sm font-medium text-gray-900">{item.quantity} item{item.quantity > 1 ? 's' : ''}</p>
-                                                        <p className="text-sm text-gray-500">₱{item.price.toLocaleString()}</p>
+                                                        <p className="text-sm font-medium text-gray-900">
+                                                            {item.quantity} item
+                                                            {item.quantity > 1
+                                                                ? "s"
+                                                                : ""}
+                                                        </p>
+                                                        <p className="text-sm text-gray-500">
+                                                            ₱
+                                                            {item.price.toLocaleString()}
+                                                        </p>
                                                     </div>
                                                 </div>
                                             ))}
 
                                             <div className="pt-4 border-t border-gray-100 space-y-2">
                                                 <div className="flex justify-between text-sm">
-                                                    <span className="text-gray-500">Subtotal</span>
-                                                    <span className="font-medium text-gray-900">₱{order.total.toLocaleString()}</span>
+                                                    <span className="text-gray-500">
+                                                        Subtotal
+                                                    </span>
+                                                    <span className="font-medium text-gray-900">
+                                                        ₱
+                                                        {order.total.toLocaleString()}
+                                                    </span>
                                                 </div>
                                                 <div className="flex justify-between text-sm">
-                                                    <span className="text-gray-500">Tax (0%)</span>
-                                                    <span className="font-medium text-gray-900">₱0.00</span>
+                                                    <span className="text-gray-500">
+                                                        Tax (0%)
+                                                    </span>
+                                                    <span className="font-medium text-gray-900">
+                                                        ₱0.00
+                                                    </span>
                                                 </div>
                                                 <div className="flex justify-between text-base pt-2 font-semibold border-t border-gray-50 mt-2">
-                                                    <span className="text-gray-900">Total amount</span>
-                                                    <span className="text-gray-900">₱{order.total.toLocaleString()}</span>
+                                                    <span className="text-gray-900">
+                                                        Total amount
+                                                    </span>
+                                                    <span className="text-gray-900">
+                                                        ₱
+                                                        {order.total.toLocaleString()}
+                                                    </span>
                                                 </div>
                                             </div>
                                         </div>
                                     </AccordionContent>
                                 </AccordionItem>
 
-
                                 {/* Customer */}
                                 <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-4">
-                                    <span className="font-semibold text-gray-900 text-sm block mb-3">Customer</span>
+                                    <span className="font-semibold text-gray-900 text-sm block mb-3">
+                                        Customer
+                                    </span>
                                     <div>
-                                        <p className="text-sm font-semibold text-gray-900">{order.buyerName}</p>
-                                        <p className="text-xs text-gray-500 mt-0.5">{order.shippingAddress?.city || 'Unknown Location'}, {order.shippingAddress?.province || 'PH'}</p>
+                                        <p className="text-sm font-semibold text-gray-900">
+                                            {order.buyerName}
+                                        </p>
+                                        <p className="text-xs text-gray-500 mt-0.5">
+                                            {order.shippingAddress?.city ||
+                                                "Unknown Location"}
+                                            ,{" "}
+                                            {order.shippingAddress?.province ||
+                                                "PH"}
+                                        </p>
                                     </div>
                                 </div>
 
                                 {/* Delivery Information */}
-                                <AccordionItem value="delivery" className="bg-white rounded-xl border border-gray-100 shadow-sm px-1 overflow-hidden">
+                                <AccordionItem
+                                    value="delivery"
+                                    className="bg-white rounded-xl border border-gray-100 shadow-sm px-1 overflow-hidden"
+                                >
                                     <AccordionTrigger className="px-4 hover:no-underline py-4">
-                                        <span className="font-semibold text-gray-900 text-sm">Delivery information</span>
+                                        <span className="font-semibold text-gray-900 text-sm">
+                                            Delivery information
+                                        </span>
                                     </AccordionTrigger>
                                     <AccordionContent className="px-4 pb-4">
                                         <div className="space-y-6">
@@ -257,15 +350,43 @@ export function OrderDetailsModal({ isOpen, onClose, order }: OrderDetailsModalP
                                                     <Package className="w-4 h-4" />
                                                 </div>
                                                 <div className="flex-1">
-                                                    <span className="block text-sm font-semibold text-gray-900 mb-1">Ship to</span>
-                                                    <span className="block text-xs text-gray-600 leading-relaxed">
-                                                        {order.shippingAddress?.street || 'No street provided'}, {order.shippingAddress?.city} {order.shippingAddress?.postalCode}<br />
-                                                        {order.shippingAddress?.province}, Philippines
+                                                    <span className="block text-sm font-semibold text-gray-900 mb-1">
+                                                        Ship to
                                                     </span>
-                                                    {order.shippingAddress?.phone && (
+                                                    <span className="block text-xs text-gray-600 leading-relaxed">
+                                                        {order.shippingAddress
+                                                            ?.street ||
+                                                            "No street provided"}
+                                                        ,{" "}
+                                                        {
+                                                            order
+                                                                .shippingAddress
+                                                                ?.city
+                                                        }{" "}
+                                                        {
+                                                            order
+                                                                .shippingAddress
+                                                                ?.postalCode
+                                                        }
+                                                        <br />
+                                                        {
+                                                            order
+                                                                .shippingAddress
+                                                                ?.province
+                                                        }
+                                                        , Philippines
+                                                    </span>
+                                                    {order.shippingAddress
+                                                        ?.phone && (
                                                         <div className="flex items-center gap-1.5 mt-2">
                                                             <Phone className="w-3 h-3 text-gray-400" />
-                                                            <span className="text-xs text-gray-600 font-medium">{order.shippingAddress.phone}</span>
+                                                            <span className="text-xs text-gray-600 font-medium">
+                                                                {
+                                                                    order
+                                                                        .shippingAddress
+                                                                        .phone
+                                                                }
+                                                            </span>
                                                         </div>
                                                     )}
                                                 </div>
@@ -280,14 +401,31 @@ export function OrderDetailsModal({ isOpen, onClose, order }: OrderDetailsModalP
                                                         </div>
                                                         <div className="flex-1 space-y-2">
                                                             <div>
-                                                                <span className="block text-sm font-semibold text-gray-900">Shipped with Standard Delivery</span>
+                                                                <span className="block text-sm font-semibold text-gray-900">
+                                                                    Shipped with
+                                                                    Standard
+                                                                    Delivery
+                                                                </span>
                                                                 <div className="flex items-center gap-2 mt-1">
-                                                                    <span className="text-xs text-gray-500">Status:</span>
-                                                                    <span className="text-xs text-purple-600 font-medium bg-purple-50 px-1.5 py-0.5 rounded">{order.status}</span>
+                                                                    <span className="text-xs text-gray-500">
+                                                                        Status:
+                                                                    </span>
+                                                                    <span className="text-xs text-purple-600 font-medium bg-purple-50 px-1.5 py-0.5 rounded">
+                                                                        {
+                                                                            order.status
+                                                                        }
+                                                                    </span>
                                                                 </div>
                                                                 <div className="flex items-center gap-2 mt-1">
-                                                                    <span className="text-xs text-gray-500">Tracking number:</span>
-                                                                    <span className="text-xs font-medium text-gray-900 underline decoration-gray-300 decoration-dotted cursor-pointer">{order.trackingNumber}</span>
+                                                                    <span className="text-xs text-gray-500">
+                                                                        Tracking
+                                                                        number:
+                                                                    </span>
+                                                                    <span className="text-xs font-medium text-gray-900 underline decoration-gray-300 decoration-dotted cursor-pointer">
+                                                                        {
+                                                                            order.trackingNumber
+                                                                        }
+                                                                    </span>
                                                                 </div>
                                                             </div>
                                                         </div>
@@ -299,9 +437,13 @@ export function OrderDetailsModal({ isOpen, onClose, order }: OrderDetailsModalP
                                                         <Truck className="w-4 h-4" />
                                                     </div>
                                                     <div>
-                                                        <span className="block text-sm font-semibold text-gray-400 mb-0.5">Shipment Pending</span>
+                                                        <span className="block text-sm font-semibold text-gray-400 mb-0.5">
+                                                            Shipment Pending
+                                                        </span>
                                                         <span className="block text-xs text-gray-400 leading-relaxed">
-                                                            Details will appear here once the order is shipped.
+                                                            Details will appear
+                                                            here once the order
+                                                            is shipped.
                                                         </span>
                                                     </div>
                                                 </div>
@@ -309,7 +451,6 @@ export function OrderDetailsModal({ isOpen, onClose, order }: OrderDetailsModalP
                                         </div>
                                     </AccordionContent>
                                 </AccordionItem>
-
                             </Accordion>
                         </div>
 
@@ -321,7 +462,11 @@ export function OrderDetailsModal({ isOpen, onClose, order }: OrderDetailsModalP
                                         <Button
                                             size="lg"
                                             className="bg-orange-500 hover:bg-orange-600 text-white flex-1 font-semibold shadow-md hover:shadow-lg transition-all"
-                                            onClick={() => handleStatusUpdate('confirmed')}
+                                            onClick={() =>
+                                                void handleStatusUpdate(
+                                                    "confirmed",
+                                                )
+                                            }
                                         >
                                             Confirm Order
                                         </Button>
@@ -329,7 +474,11 @@ export function OrderDetailsModal({ isOpen, onClose, order }: OrderDetailsModalP
                                             size="lg"
                                             variant="ghost"
                                             className="flex-1 text-red-600 hover:text-red-700 hover:bg-red-50 font-medium"
-                                            onClick={() => handleStatusUpdate('cancelled')}
+                                            onClick={() =>
+                                                void handleStatusUpdate(
+                                                    "cancelled",
+                                                )
+                                            }
                                         >
                                             Cancel Order
                                         </Button>
@@ -340,7 +489,12 @@ export function OrderDetailsModal({ isOpen, onClose, order }: OrderDetailsModalP
                                         <Button
                                             size="lg"
                                             className="bg-orange-500 hover:bg-orange-600 text-white flex-1 font-semibold shadow-md hover:shadow-lg transition-all"
-                                            onClick={() => setTrackingModal(prev => ({ ...prev, isOpen: true }))}
+                                            onClick={() =>
+                                                setTrackingModal((prev) => ({
+                                                    ...prev,
+                                                    isOpen: true,
+                                                }))
+                                            }
                                         >
                                             Ship Order
                                         </Button>
@@ -348,7 +502,11 @@ export function OrderDetailsModal({ isOpen, onClose, order }: OrderDetailsModalP
                                             size="lg"
                                             variant="ghost"
                                             className="flex-1 text-red-600 hover:text-red-700 hover:bg-red-50 font-medium"
-                                            onClick={() => handleStatusUpdate('cancelled')}
+                                            onClick={() =>
+                                                void handleStatusUpdate(
+                                                    "cancelled",
+                                                )
+                                            }
                                         >
                                             Cancel Order
                                         </Button>
@@ -363,33 +521,45 @@ export function OrderDetailsModal({ isOpen, onClose, order }: OrderDetailsModalP
                                         Mark as Delivered
                                     </Button>
                                 )}
-                                {(order.status === "delivered" || order.status === "cancelled") && (
+                                {(order.status === "delivered" ||
+                                    order.status === "cancelled") && (
                                     <div className="w-full text-center text-sm text-gray-400 italic py-3 bg-gray-50 rounded-lg border border-gray-100">
                                         No further actions required.
                                     </div>
                                 )}
                             </div>
                         </div>
-
                     </motion.div>
                 </div>
             )}
 
             {/* Nested Tracking Modal */}
             {trackingModal.isOpen && (
-                <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[10000] p-4 backdrop-blur-sm">
+                <div
+                    key="tracking-modal"
+                    className="fixed inset-0 bg-black/40 flex items-center justify-center z-[250] p-4 backdrop-blur-sm"
+                >
                     <motion.div
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
                         className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm"
                     >
-                        <h3 className="font-bold text-gray-900 mb-4 text-lg">Shipment Details</h3>
+                        <h3 className="font-bold text-gray-900 mb-4 text-lg">
+                            Shipment Details
+                        </h3>
                         <div className="space-y-4">
                             <div>
-                                <label className="text-sm font-medium text-gray-700 mb-2 block">Tracking Number</label>
+                                <label className="text-sm font-medium text-gray-700 mb-2 block">
+                                    Tracking Number
+                                </label>
                                 <Input
                                     value={trackingModal.trackingNumber}
-                                    onChange={(e) => setTrackingModal(prev => ({ ...prev, trackingNumber: e.target.value }))}
+                                    onChange={(e) =>
+                                        setTrackingModal((prev) => ({
+                                            ...prev,
+                                            trackingNumber: e.target.value,
+                                        }))
+                                    }
                                     placeholder="Enter tracking ID"
                                     className="text-sm"
                                 />
@@ -399,7 +569,12 @@ export function OrderDetailsModal({ isOpen, onClose, order }: OrderDetailsModalP
                                     variant="outline"
                                     size="lg"
                                     className="flex-1"
-                                    onClick={() => setTrackingModal(prev => ({ ...prev, isOpen: false }))}
+                                    onClick={() =>
+                                        setTrackingModal((prev) => ({
+                                            ...prev,
+                                            isOpen: false,
+                                        }))
+                                    }
                                 >
                                     Cancel
                                 </Button>
@@ -407,9 +582,16 @@ export function OrderDetailsModal({ isOpen, onClose, order }: OrderDetailsModalP
                                     size="lg"
                                     className="flex-1 bg-orange-500 hover:bg-orange-600 text-white font-semibold"
                                     onClick={handleMarkAsShipped}
-                                    disabled={trackingModal.isLoading || !trackingModal.trackingNumber}
+                                    disabled={
+                                        trackingModal.isLoading ||
+                                        !trackingModal.trackingNumber
+                                    }
                                 >
-                                    {trackingModal.isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Confirm"}
+                                    {trackingModal.isLoading ? (
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                    ) : (
+                                        "Confirm"
+                                    )}
                                 </Button>
                             </div>
                         </div>
