@@ -218,13 +218,13 @@ export function SellerReviews() {
         </SidebarBody>
       </Sidebar>
 
-      <div className="flex-1 overflow-auto">
+      <div className="p-2 md:p-8 bg-gray-50 flex-1 w-full h-full overflow-auto">
         <div className="w-full max-w-7xl mx-auto">
-          <div className="p-8">
+          <div className="space-y-6">
             {/* Header */}
             <div className="mb-8">
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">Reviews & Ratings</h1>
-              <p className="text-gray-600">Manage customer feedback and respond to reviews</p>
+              <h1 className="text-3xl font-bold text-gray-900">Reviews & Ratings</h1>
+              <p className="text-sm text-gray-500 mt-1">Manage customer feedback and respond to reviews</p>
             </div>
 
             {/* Stats Cards */}

@@ -350,7 +350,7 @@ export default function SellerMessages() {
       </Sidebar>
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="flex-1 flex h-full overflow-hidden max-w-7xl mx-auto w-full p-0 md:p-6 gap-0 md:gap-6">
+        <div className="flex-1 flex h-full overflow-hidden max-w-7xl mx-auto w-full p-0 md:px-8 md:py-6 gap-0 md:gap-6">
           {/* Conversations List Sidebar */}
           <div className="w-full md:w-80 border-r bg-white flex flex-col md:rounded-2xl md:shadow-sm md:border border-gray-100 overflow-hidden hidden md:flex">
             <div className="p-4 border-b border-gray-50 bg-white">

@@ -33,9 +33,9 @@ const Logo = () => {
       to="/seller"
       className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20"
     >
-      <img 
-        src="/Logo.png" 
-        alt="BazaarPH Logo" 
+      <img
+        src="/Logo.png"
+        alt="BazaarPH Logo"
         className="h-8 w-8 object-contain flex-shrink-0"
       />
       <span className="font-semibold text-gray-900 dark:text-white whitespace-pre">
@@ -51,9 +51,9 @@ const LogoIcon = () => {
       to="/seller"
       className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20"
     >
-      <img 
-        src="/Logo.png" 
-        alt="BazaarPH Logo" 
+      <img
+        src="/Logo.png"
+        alt="BazaarPH Logo"
         className="h-8 w-8 object-contain flex-shrink-0"
       />
     </Link>
@@ -67,7 +67,7 @@ const SellerProductStatus = () => {
   const [logisticsMethod, setLogisticsMethod] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'waiting' | 'qa' | 'revision' | 'verified' | 'rejected'>('all');
-  
+
   const { products: qaProducts, submitSample, loadProducts, isLoading } = useProductQAStore();
   const { toast } = useToast();
   const { seller } = useAuthStore();
@@ -133,11 +133,11 @@ const SellerProductStatus = () => {
 
     // Apply search filter
     if (searchQuery.trim()) {
-      filteredQA = filteredQA.filter(p => 
+      filteredQA = filteredQA.filter(p =>
         p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.category.toLowerCase().includes(searchQuery.toLowerCase())
       );
-      filteredSeller = filteredSeller.filter(p => 
+      filteredSeller = filteredSeller.filter(p =>
         p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.category.toLowerCase().includes(searchQuery.toLowerCase())
       );
@@ -147,13 +147,13 @@ const SellerProductStatus = () => {
   };
 
   const { filteredQA: filteredQAProducts, filteredSeller: filteredSellerProducts } = getFilteredProducts();
-  
+
   // Get product IDs that are already in QA system to avoid duplicates
-  const qaProductIds = new Set(qaProducts.map(p => p.productId));
-  
+  const qaProductIds = new Set(qaProducts.map(p => p.id));
+
   // Only include seller products that are NOT in the QA system yet
   const nonQASellerProducts = filteredSellerProducts.filter(p => !qaProductIds.has(p.id));
-  
+
   const allFilteredProducts = [...filteredQAProducts, ...nonQASellerProducts];
 
   const handleSubmitSample = () => {
@@ -218,33 +218,26 @@ const SellerProductStatus = () => {
         </SidebarBody>
       </Sidebar>
 
-      <div className="flex-1 overflow-auto">
-        <div className="bg-white border-b">
-          <div className="max-w-7xl mx-auto px-8 py-6">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-orange-50 rounded-xl">
-                <FileCheck className="w-6 h-6 text-[#FF5722]" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">Product QA Status</h1>
-                <p className="text-sm text-gray-500">Track your product quality assurance status</p>
-              </div>
+      <div className="p-2 md:p-8 bg-gray-50 flex-1 w-full h-full overflow-auto">
+        <div className="w-full max-w-7xl mx-auto space-y-6">
+          <div className="flex items-center gap-3">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Product QA Status</h1>
+              <p className="text-sm text-gray-500 mt-1">Track your product quality assurance status</p>
             </div>
           </div>
-        </div>
-        
-        <div className="max-w-7xl mx-auto px-8 py-8">
+
+
 
           {/* Stat-Filter Cards (Consolidated Navigation) */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
             {/* Pending Review */}
-            <Card 
+            <Card
               onClick={() => setFilterStatus(filterStatus === 'pending' ? 'all' : 'pending')}
-              className={`cursor-pointer transition-all hover:shadow-md ${
-                filterStatus === 'pending' 
-                  ? 'border-[#FF5722] border-2 bg-orange-50' 
-                  : 'border-gray-200 bg-white hover:border-gray-300'
-              }`}
+              className={`cursor-pointer transition-all hover:shadow-md ${filterStatus === 'pending'
+                ? 'border-[#FF5722] border-2 bg-orange-50'
+                : 'border-gray-200 bg-white hover:border-gray-300'
+                }`}
             >
               <div className="p-4">
                 <div className="flex items-center justify-between mb-2">
@@ -256,13 +249,12 @@ const SellerProductStatus = () => {
             </Card>
 
             {/* Awaiting Sample */}
-            <Card 
+            <Card
               onClick={() => setFilterStatus(filterStatus === 'waiting' ? 'all' : 'waiting')}
-              className={`cursor-pointer transition-all hover:shadow-md ${
-                filterStatus === 'waiting' 
-                  ? 'border-[#FF5722] border-2 bg-orange-50' 
-                  : 'border-gray-200 bg-white hover:border-gray-300'
-              }`}
+              className={`cursor-pointer transition-all hover:shadow-md ${filterStatus === 'waiting'
+                ? 'border-[#FF5722] border-2 bg-orange-50'
+                : 'border-gray-200 bg-white hover:border-gray-300'
+                }`}
             >
               <div className="p-4">
                 <div className="flex items-center justify-between mb-2">
@@ -274,13 +266,12 @@ const SellerProductStatus = () => {
             </Card>
 
             {/* QA Queue */}
-            <Card 
+            <Card
               onClick={() => setFilterStatus(filterStatus === 'qa' ? 'all' : 'qa')}
-              className={`cursor-pointer transition-all hover:shadow-md ${
-                filterStatus === 'qa' 
-                  ? 'border-[#FF5722] border-2 bg-orange-50' 
-                  : 'border-gray-200 bg-white hover:border-gray-300'
-              }`}
+              className={`cursor-pointer transition-all hover:shadow-md ${filterStatus === 'qa'
+                ? 'border-[#FF5722] border-2 bg-orange-50'
+                : 'border-gray-200 bg-white hover:border-gray-300'
+                }`}
             >
               <div className="p-4">
                 <div className="flex items-center justify-between mb-2">
@@ -292,13 +283,12 @@ const SellerProductStatus = () => {
             </Card>
 
             {/* For Revision */}
-            <Card 
+            <Card
               onClick={() => setFilterStatus(filterStatus === 'revision' ? 'all' : 'revision')}
-              className={`cursor-pointer transition-all hover:shadow-md ${
-                filterStatus === 'revision' 
-                  ? 'border-[#FF5722] border-2 bg-orange-50' 
-                  : 'border-gray-200 bg-white hover:border-gray-300'
-              }`}
+              className={`cursor-pointer transition-all hover:shadow-md ${filterStatus === 'revision'
+                ? 'border-[#FF5722] border-2 bg-orange-50'
+                : 'border-gray-200 bg-white hover:border-gray-300'
+                }`}
             >
               <div className="p-4">
                 <div className="flex items-center justify-between mb-2">
@@ -310,13 +300,12 @@ const SellerProductStatus = () => {
             </Card>
 
             {/* Verified */}
-            <Card 
+            <Card
               onClick={() => setFilterStatus(filterStatus === 'verified' ? 'all' : 'verified')}
-              className={`cursor-pointer transition-all hover:shadow-md ${
-                filterStatus === 'verified' 
-                  ? 'border-[#FF5722] border-2 bg-orange-50' 
-                  : 'border-gray-200 bg-white hover:border-gray-300'
-              }`}
+              className={`cursor-pointer transition-all hover:shadow-md ${filterStatus === 'verified'
+                ? 'border-[#FF5722] border-2 bg-orange-50'
+                : 'border-gray-200 bg-white hover:border-gray-300'
+                }`}
             >
               <div className="p-4">
                 <div className="flex items-center justify-between mb-2">
@@ -328,13 +317,12 @@ const SellerProductStatus = () => {
             </Card>
 
             {/* Rejected */}
-            <Card 
+            <Card
               onClick={() => setFilterStatus(filterStatus === 'rejected' ? 'all' : 'rejected')}
-              className={`cursor-pointer transition-all hover:shadow-md ${
-                filterStatus === 'rejected' 
-                  ? 'border-[#FF5722] border-2 bg-orange-50' 
-                  : 'border-gray-200 bg-white hover:border-gray-300'
-              }`}
+              className={`cursor-pointer transition-all hover:shadow-md ${filterStatus === 'rejected'
+                ? 'border-[#FF5722] border-2 bg-orange-50'
+                : 'border-gray-200 bg-white hover:border-gray-300'
+                }`}
             >
               <div className="p-4">
                 <div className="flex items-center justify-between mb-2">

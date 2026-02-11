@@ -66,12 +66,12 @@ export function SellerDashboard() {
           <div className="space-y-2">
             <SidebarLink
               link={{
-                label: seller?.name || "Seller",
+                label: seller?.storeName || seller?.ownerName || seller?.name || "Seller",
                 href: "/seller/profile",
                 icon: (
                   <div className="h-7 w-7 flex-shrink-0 rounded-full bg-orange-500 flex items-center justify-center">
                     <span className="text-white text-xs font-medium">
-                      {seller?.name?.charAt(0) || "S"}
+                      {(seller?.storeName || seller?.ownerName || seller?.name || "S").charAt(0)}
                     </span>
                   </div>
                 ),
@@ -222,10 +222,10 @@ const Dashboard = () => {
           {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-semibold text-gray-900">
-                Hello, {seller?.name || "Seller"}!
+              <h1 className="text-3xl font-bold text-gray-900">
+                Hello, {seller?.ownerName || seller?.name || seller?.storeName || "Seller"}!
               </h1>
-              <p className="text-gray-400 mt-1">
+              <p className="text-sm text-gray-500 mt-1">
                 View and manage your business insights.
               </p>
             </div>
