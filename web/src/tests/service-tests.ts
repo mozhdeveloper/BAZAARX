@@ -275,6 +275,24 @@ export const testOrderService = async (
         (orders) => Array.isArray(orders)
       )
     );
+
+    tests.push(
+      await runTest(
+        'getBuyerOrders - includes buyer compatibility mapping fields',
+        () => orderService.getBuyerOrders(testBuyerId),
+        (orders) =>
+          Array.isArray(orders) &&
+          orders.every((order) =>
+            typeof order === 'object' &&
+            order !== null &&
+            'payment_status' in order &&
+            'shipment_status' in order &&
+            'status' in order &&
+            'total_amount' in order &&
+            'order_items' in order
+          )
+      )
+    );
   }
   
   if (testSellerId) {

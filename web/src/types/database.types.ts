@@ -900,6 +900,7 @@ export interface Database {
       vouchers: { Row: Voucher; Insert: Partial<Voucher>; Update: Partial<Voucher> };
       orders: { Row: Order; Insert: Partial<Order>; Update: Partial<Order> };
       order_items: { Row: OrderItem; Insert: Partial<OrderItem>; Update: Partial<OrderItem> };
+      order_cancellations: { Row: OrderCancellation; Insert: Partial<OrderCancellation>; Update: Partial<OrderCancellation> };
       order_status_history: { Row: OrderStatusHistory; Insert: Partial<OrderStatusHistory>; Update: Partial<OrderStatusHistory> };
       conversations: { Row: Conversation; Insert: Partial<Conversation>; Update: Partial<Conversation> };
       messages: { Row: Message; Insert: Partial<Message>; Update: Partial<Message> };
