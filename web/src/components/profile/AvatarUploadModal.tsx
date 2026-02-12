@@ -12,13 +12,12 @@ import { Label } from '@/components/ui/label';
 import { Camera, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { BuyerProfile } from '@/stores/buyerStore';
-import { supabase } from '@/lib/supabase';
 
 interface AvatarUploadModalProps {
   isOpen: boolean;
   onClose: () => void;
   profile: BuyerProfile;
-  onAvatarUpdated: (avatarUrl: string) => void;
+  onAvatarUpdated: (file: File) => Promise<string | null>;
 }
 
 export const AvatarUploadModal = ({
@@ -37,33 +36,15 @@ export const AvatarUploadModal = ({
     setIsUploading(true);
 
     try {
-      // Upload to Storage
-      const fileExt = file.name.split('.').pop();
-      const fileName = `avatar_${profile.id}_${Date.now()}.${fileExt}`;
-      const filePath = `${fileName}`;
+      const updatedUrl = await onAvatarUpdated(file);
+      if (updatedUrl) {
+        toast({
+          title: "Avatar Updated",
+          description: "Your profile picture has been updated successfully.",
+        });
 
-      const { error: uploadError } = await supabase.storage
-        .from('profile-avatars')
-        .upload(filePath, file);
-
-      if (uploadError) throw uploadError;
-
-      // Get Public URL
-      const { data } = supabase.storage
-        .from('profile-avatars')
-        .getPublicUrl(filePath);
-
-      const publicUrl = data.publicUrl;
-
-      // Update avatar URL
-      onAvatarUpdated(publicUrl);
-
-      toast({
-        title: "Avatar Updated",
-        description: "Your profile picture has been updated successfully.",
-      });
-
-      onClose();
+        onClose();
+      }
     } catch (error) {
       console.error('Error uploading avatar:', error);
       toast({

@@ -13,13 +13,12 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Loader2, CreditCard, Smartphone } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useToast } from '@/hooks/use-toast';
 import type { PaymentMethod } from '@/stores/buyerStore';
 
 interface PaymentMethodModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onAddPaymentMethod: (method: PaymentMethod) => void;
+  onAddPaymentMethod: (method: Omit<PaymentMethod, 'id'>) => Promise<PaymentMethod | null> | PaymentMethod | null;
 }
 
 export const PaymentMethodModal = ({
@@ -27,7 +26,6 @@ export const PaymentMethodModal = ({
   onClose,
   onAddPaymentMethod
 }: PaymentMethodModalProps) => {
-  const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
   
   const [newPaymentMethod, setNewPaymentMethod] = useState({
@@ -46,8 +44,7 @@ export const PaymentMethodModal = ({
 
     try {
       const isCard = newPaymentMethod.type === 'card';
-      const cardData = {
-        id: `${newPaymentMethod.type}_${Date.now()}`,
+      const cardData: Omit<PaymentMethod, 'id'> = {
         type: newPaymentMethod.type,
         brand: newPaymentMethod.brand,
         last4: isCard ? newPaymentMethod.number.replace(/\s/g, '').slice(-4) : undefined,
@@ -56,23 +53,20 @@ export const PaymentMethodModal = ({
         isDefault: newPaymentMethod.isDefault
       };
 
-      onAddPaymentMethod(cardData);
-
-      toast({
-        title: isCard ? "Card Added" : "Wallet Linked",
-        description: `Your ${newPaymentMethod.brand} has been saved successfully.`,
-      });
-      onClose();
-      setNewPaymentMethod({ 
-        type: 'card', 
-        brand: 'Visa', 
-        number: '', 
-        expiry: '', 
-        cvv: '', 
-        name: '', 
-        accountNumber: '', 
-        isDefault: false 
-      });
+      const added = await onAddPaymentMethod(cardData);
+      if (added) {
+        onClose();
+        setNewPaymentMethod({ 
+          type: 'card', 
+          brand: 'Visa', 
+          number: '', 
+          expiry: '', 
+          cvv: '', 
+          name: '', 
+          accountNumber: '', 
+          isDefault: false 
+        });
+      }
     } finally {
       setIsSaving(false);
     }

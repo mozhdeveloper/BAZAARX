@@ -16,7 +16,7 @@ interface PaymentMethodsSectionProps {
 export const PaymentMethodsSection = ({
   userId
 }: PaymentMethodsSectionProps) => {
-  const { paymentMethods, deletePaymentMethod, setDefaultPaymentMethod } = usePaymentMethodManager(userId);
+  const { paymentMethods, addPaymentMethod, deletePaymentMethod, setDefaultPaymentMethod } = usePaymentMethodManager(userId);
   const { toast } = useToast();
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -134,6 +134,7 @@ export const PaymentMethodsSection = ({
       <PaymentMethodModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
+        onAddPaymentMethod={addPaymentMethod}
       />
     </motion.div>
   );
