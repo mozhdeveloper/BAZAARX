@@ -302,7 +302,13 @@ export default function StoreDetailScreen() {
 
                             <View style={styles.infoRow}>
                                 <MapPin size={18} color="#6B7280" />
-                                <Text style={styles.infoText}>{storeData.location}</Text>
+                                <Text style={styles.infoText}>
+                                    {[
+                                        storeData.business_profile?.address_line_1,
+                                        storeData.city || storeData.business_profile?.city,
+                                        storeData.province || storeData.business_profile?.province
+                                    ].filter(Boolean).join(', ') || storeData.location || "Address not available"}
+                                </Text>
                             </View>
                             <View style={styles.infoRow}>
                                 <Star size={18} color="#F59E0B" fill="#F59E0B" />
@@ -389,7 +395,13 @@ export default function StoreDetailScreen() {
                                 </View>
                                 <View style={styles.locationRow}>
                                     <MapPin size={12} color="#FFF" />
-                                    <Text style={styles.locationText}>{storeData.location}</Text>
+                                    <Text style={styles.locationText} numberOfLines={1}>
+                                        {[
+                                            storeData.business_profile?.address_line_1,
+                                            storeData.city || storeData.business_profile?.city,
+                                            storeData.province || storeData.business_profile?.province
+                                        ].filter(Boolean).join(', ') || storeData.location || "Address not available"}
+                                    </Text>
                                 </View>
                                 <View style={styles.metricsRow}>
                                     <Text style={styles.metricText}><Text style={styles.metricBold}>{storeData.rating}</Text> Rating</Text>
