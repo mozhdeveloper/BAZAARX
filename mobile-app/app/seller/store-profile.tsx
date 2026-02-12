@@ -560,7 +560,7 @@ export default function StoreProfileScreen() {
           <View style={styles.storeHeaderRow1}>
             {/* Logo Section */}
             <View style={styles.logoWrapper}>
-              {storeLogoUri ? (
+              {storeLogoUri && typeof storeLogoUri === 'string' && storeLogoUri.trim() ? (
                 <Image source={{ uri: storeLogoUri }} style={styles.logoContainer} />
               ) : (
                 <View style={styles.logoContainer}>

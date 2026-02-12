@@ -44,71 +44,73 @@ function mapDbCartItemsToCartItems(dbItems: any[]): CartItem[] {
       return true;
     })
     .map((ci: any) => {
-    const product = ci.product || {};
-    const variant = ci.variant || null;
-    const productImages = product.images || [];
-    
-    // Find primary image or first image
-    const primaryImg = productImages.find((img: any) => img.is_primary);
-    const sortedImages = [...productImages].sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0));
-    const firstImg = sortedImages[0];
-    const imageUrl = variant?.thumbnail_url || primaryImg?.image_url || firstImg?.image_url || PLACEHOLDER_PRODUCT;
-    
-    // Price: use variant price if available, else product price
-    const price = (variant?.price != null && variant.price > 0) ? variant.price : (product.price || 0);
-    
-    // Get seller info
-    const seller = product.seller || {};
-    const sellerName = seller.store_name || 'Shop';
-    const sellerId = seller.id || product.seller_id || '';
-    
-    // Build selectedVariant if variant exists
-    let selectedVariant = null;
-    if (variant) {
-      selectedVariant = {
-        variantId: variant.id,
-        color: variant.color || undefined,
-        size: variant.size || undefined,
-        option1Value: variant.option_1_value || undefined,
-        option2Value: variant.option_2_value || undefined,
-        option1Label: product.variant_label_1 || undefined,
-        option2Label: product.variant_label_2 || undefined,
-      };
-    }
-    // Also check personalized_options for variant info
-    if (!selectedVariant && ci.personalized_options) {
-      const po = ci.personalized_options;
-      if (po.variantId || po.color || po.size || po.option1Value) {
+      const product = ci.product || {};
+      const variant = ci.variant || null;
+      const productImages = product.images || [];
+
+      // Find primary image or first image
+      const primaryImg = productImages.find((img: any) => img.is_primary);
+      const sortedImages = [...productImages].sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0));
+      const firstImg = sortedImages[0];
+      const imageUrl = variant?.thumbnail_url || primaryImg?.image_url || firstImg?.image_url || PLACEHOLDER_PRODUCT;
+
+      // Price: use variant price if available, else product price
+      const price = (variant?.price != null && variant.price > 0) ? variant.price : (product.price || 0);
+
+      // Get seller info
+      const seller = product.seller || {};
+      const sellerName = seller.store_name || 'Shop';
+      const sellerId = seller.id || product.seller_id || '';
+
+      // Build selectedVariant if variant exists
+      let selectedVariant = null;
+      if (variant) {
         selectedVariant = {
-          variantId: po.variantId,
-          color: po.color,
-          size: po.size,
-          option1Label: po.option1Label,
-          option1Value: po.option1Value,
-          option2Label: po.option2Label,
-          option2Value: po.option2Value,
+          variantId: variant.id,
+          color: variant.color || undefined,
+          size: variant.size || undefined,
+          option1Value: variant.option_1_value || undefined,
+          option2Value: variant.option_2_value || undefined,
+          option1Label: product.variant_label_1 || undefined,
+          option2Label: product.variant_label_2 || undefined,
         };
       }
-    }
+      // Also check personalized_options for variant info
+      if (!selectedVariant && ci.personalized_options) {
+        const po = ci.personalized_options;
+        if (po.variantId || po.color || po.size || po.option1Value) {
+          selectedVariant = {
+            variantId: po.variantId,
+            color: po.color,
+            size: po.size,
+            option1Label: po.option1Label,
+            option1Value: po.option1Value,
+            option2Label: po.option2Label,
+            option2Value: po.option2Value,
+          };
+        }
+      }
 
-    return {
-      id: product.id || ci.product_id,
-      cartItemId: ci.id,
-      name: product.name || 'Product',
-      description: product.description || '',
-      price,
-      image: imageUrl,
-      images: productImages.map((img: any) => img.image_url),
-      seller: sellerName,
-      sellerId: sellerId,
-      seller_id: sellerId,
-      category: product.category?.name || '',
-      stock: product.stock || 0,
-      isFreeShipping: !!product.is_free_shipping,
-      quantity: ci.quantity || 1,
-      selectedVariant,
-    } as CartItem;
-  });
+      return {
+        id: product.id || ci.product_id,
+        cartItemId: ci.id,
+        name: product.name || 'Product',
+        description: product.description || '',
+        price,
+        // Prioritize product original price (variants don't have original_price in schema)
+        originalPrice: product.original_price || 0,
+        image: imageUrl,
+        images: productImages.map((img: any) => img.image_url),
+        seller: sellerName,
+        sellerId: sellerId,
+        seller_id: sellerId,
+        category: product.category?.name || '',
+        stock: (variant?.stock != null) ? variant.stock : (product.stock || 0),
+        isFreeShipping: !!product.is_free_shipping,
+        quantity: ci.quantity || 1,
+        selectedVariant,
+      } as CartItem;
+    });
 }
 
 export const useCartStore = create<CartStore>()(
@@ -167,7 +169,7 @@ export const useCartStore = create<CartStore>()(
 
           // Extract variantId string from selectedVariant object (fix UUID error)
           const variantId = selectedVariant?.variantId || null;
-          
+
           // Build personalized options from selected variant
           const personalizedOptions = selectedVariant ? {
             ...(selectedVariant.color ? { color: selectedVariant.color } : {}),
@@ -247,7 +249,8 @@ export const useCartStore = create<CartStore>()(
           quickOrder: {
             ...product,
             quantity,
-            selectedVariant
+            selectedVariant,
+            originalPrice: product.originalPrice || product.original_price, // Ensure originalPrice is carried over
           } as CartItem
         });
       },

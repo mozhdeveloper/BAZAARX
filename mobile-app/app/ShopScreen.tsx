@@ -128,7 +128,7 @@ export default function ShopScreen({ navigation, route }: Props) {
               id: row.id,
               name: row.name ?? 'Unknown Product',
               price: typeof row.price === 'number' ? row.price : parseFloat(row.price || '0'),
-              originalPrice: row.original_price,
+              originalPrice: typeof row.original_price === 'number' ? row.original_price : parseFloat(row.original_price || '0'),
               image: primaryImage,
               images: images.length > 0 ? images : [primaryImage],
               rating: row.rating ?? 4.5,
@@ -250,14 +250,7 @@ export default function ShopScreen({ navigation, route }: Props) {
             </Pressable>
           ) : (
             <View style={styles.headerRight}>
-              <Pressable style={styles.headerIconButton} onPress={() => navigation.navigate('Cart')}>
-                <ShoppingCart size={24} color="#1F2937" />
-                {cartItems.length > 0 && (
-                  <View style={[styles.badge, { backgroundColor: COLORS.primary }]}>
-                    <Text style={[styles.badgeText, { color: '#FFFFFF' }]}>{cartItems.length}</Text>
-                  </View>
-                )}
-              </Pressable>
+
               <Pressable style={styles.headerIconButton} onPress={() => setShowFiltersModal(true)}>
                 <SlidersHorizontal size={24} color="#1F2937" />
               </Pressable>
@@ -414,20 +407,20 @@ export default function ShopScreen({ navigation, route }: Props) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F9FAFB' },
-  headerContainer: { paddingHorizontal: 20, borderBottomLeftRadius: 20, borderBottomRightRadius: 20, paddingBottom: 15 },
+  headerContainer: { paddingHorizontal: 20, borderBottomLeftRadius: 20, borderBottomRightRadius: 20, paddingBottom: 10 },
   headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
   searchBarWrapper: { flex: 1, flexDirection: 'row', alignItems: 'center' },
-  searchBarInner: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 100, paddingHorizontal: 16, height: 45, gap: 10 },
+  searchBarInner: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 12, paddingHorizontal: 15, height: 48, gap: 10 },
   searchInput: { flex: 1, fontSize: 14, color: '#1F2937' },
   headerRight: { flexDirection: 'row', gap: 10 },
   headerIconButton: { padding: 4, position: 'relative' },
   badge: { position: 'absolute', top: 0, right: 0, minWidth: 16, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   badgeText: { fontSize: 9, fontWeight: '900' },
   scrollView: { flex: 1 },
-  categoryScroll: { paddingHorizontal: 20, paddingVertical: 15, gap: 10 },
+  categoryScroll: { paddingHorizontal: 20, paddingVertical: 8, gap: 10 },
   chip: { paddingHorizontal: 18, paddingVertical: 8, borderRadius: 25, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB' },
   chipText: { fontSize: 13, fontWeight: '600', color: '#9CA3AF' },
-  storesSection: { marginTop: 10 },
+  storesSection: { marginTop: 5 },
   sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20 },
   sectionTitle: { fontSize: 18, fontWeight: '800', color: '#1F2937' },
   storesScroll: { paddingHorizontal: 20, paddingVertical: 15, gap: 15 },
@@ -441,7 +434,7 @@ const styles = StyleSheet.create({
   ratingText: { fontSize: 11, color: '#6B7280', fontWeight: '600' },
   storeProducts: { flexDirection: 'row', gap: 8 },
   storeProductThumb: { flex: 1, height: 60, borderRadius: 8, backgroundColor: '#F3F4F6' },
-  productsSection: { paddingHorizontal: 20, marginTop: 25 },
+  productsSection: { paddingHorizontal: 20, marginTop: 15 },
   productsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginTop: 15 },
   cardWrapper: { width: '48%', marginBottom: 15 },
   emptyBox: { width: '100%', alignItems: 'center', paddingVertical: 40 },

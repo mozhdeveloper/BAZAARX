@@ -1873,13 +1873,23 @@ export const useOrderStore = create<OrderStore>()(
             },
 
             updateOrderStatus: async (id, status) => {
-                try {
-                    const order = get().orders.find((o) => o.id === id);
-                    if (!order) {
-                        console.error("Order not found:", id);
-                        throw new Error(`Order ${id} not found`);
-                    }
+                const order = get().orders.find((o) => o.id === id);
+                if (!order) {
+                    console.error("Order not found:", id);
+                    throw new Error(`Order ${id} not found`);
+                }
 
+                // Store previous status for rollback if needed
+                const previousStatus = order.status;
+
+                // OPTIMISTIC UPDATE: Update local state immediately for instant UI feedback
+                set((state) => ({
+                    orders: state.orders.map((o) =>
+                        o.id === id ? { ...o, status } : o,
+                    ),
+                }));
+
+                try {
                     // Validate status transition (database-ready logic)
                     const validTransitions: Record<
                         SellerOrder["status"],
@@ -1892,9 +1902,9 @@ export const useOrderStore = create<OrderStore>()(
                         cancelled: [],
                     };
 
-                    if (!validTransitions[order.status].includes(status)) {
+                    if (!validTransitions[previousStatus].includes(status)) {
                         console.warn(
-                            `Invalid status transition: ${order.status} -> ${status}`,
+                            `Invalid status transition: ${previousStatus} -> ${status}`,
                         );
                     }
 
@@ -1920,7 +1930,6 @@ export const useOrderStore = create<OrderStore>()(
                         `Current seller ID from OrderStore:`,
                         sellerId,
                     );
-                    console.log(`Order object:`, order);
 
                     // Fallback: Extract seller ID from order object if store doesn't have it
                     if (!sellerId && (order as any).seller_id) {
@@ -2017,16 +2026,16 @@ export const useOrderStore = create<OrderStore>()(
                         );
                     }
 
-                    // Update local state
-                    set((state) => ({
-                        orders: state.orders.map((order) =>
-                            order.id === id ? { ...order, status } : order,
-                        ),
-                    }));
-
+                    // Local state already updated optimistically above
                     console.log(`✅ Order ${id} status updated to ${status}`);
                 } catch (error) {
-                    console.error("Failed to update order status:", error);
+                    // ROLLBACK: Revert local state on error
+                    console.error("Failed to update order status, rolling back:", error);
+                    set((state) => ({
+                        orders: state.orders.map((o) =>
+                            o.id === id ? { ...o, status: previousStatus } : o,
+                        ),
+                    }));
                     throw error;
                 }
             },
@@ -2111,36 +2120,50 @@ export const useOrderStore = create<OrderStore>()(
                     throw new Error("Tracking number is required");
                 }
 
-                const success = await orderMutationService.markOrderShipped({
-                    orderId: id,
-                    trackingNumber: sanitizedTrackingNumber,
-                    sellerId,
-                });
-                if (!success) {
-                    throw new Error("Failed to mark order as shipped");
-                }
-
+                // OPTIMISTIC UPDATE: Update UI immediately
+                const previousStatus = order.status;
+                const previousTracking = order.trackingNumber;
+                
                 set((state) => ({
-                    orders: state.orders.map((existingOrder) =>
-                        existingOrder.id === id
+                    orders: state.orders.map((existing) =>
+                        existing.id === id
                             ? {
-                                  ...existingOrder,
+                                  ...existing,
                                   status: "shipped",
                                   trackingNumber: sanitizedTrackingNumber,
+                                  shipmentStatusRaw: "shipped",
                                   shippedAt: new Date().toISOString(),
                               }
-                            : existingOrder,
+                            : existing,
                     ),
                 }));
 
-                void get()
-                    .fetchOrders(sellerId)
-                    .catch((refreshError) => {
-                        console.error(
-                            "Failed to refresh orders after marking as shipped:",
-                            refreshError,
-                        );
+                try {
+                    // Sync to database in background
+                    const success = await orderMutationService.markOrderShipped({
+                        orderId: id,
+                        trackingNumber: sanitizedTrackingNumber,
+                        sellerId,
                     });
+                    if (!success) {
+                        throw new Error("Database update failed");
+                    }
+                } catch (error) {
+                    // ROLLBACK on error
+                    console.error("Failed to mark order as shipped, rolling back:", error);
+                    set((state) => ({
+                        orders: state.orders.map((existing) =>
+                            existing.id === id
+                                ? {
+                                      ...existing,
+                                      status: previousStatus,
+                                      trackingNumber: previousTracking,
+                                  }
+                                : existing,
+                        ),
+                    }));
+                    throw error;
+                }
             },
 
             markOrderAsDelivered: async (id) => {
@@ -2161,34 +2184,49 @@ export const useOrderStore = create<OrderStore>()(
                     );
                 }
 
-                const success = await orderMutationService.markOrderDelivered({
-                    orderId: id,
-                    sellerId,
-                });
-                if (!success) {
-                    throw new Error("Failed to mark order as delivered");
-                }
-
+                // OPTIMISTIC UPDATE: Update UI immediately
+                const previousStatus = order.status;
+                const previousShipmentStatus = order.shipmentStatusRaw;
+                
                 set((state) => ({
-                    orders: state.orders.map((existingOrder) =>
-                        existingOrder.id === id
+                    orders: state.orders.map((existing) =>
+                        existing.id === id
                             ? {
-                                  ...existingOrder,
+                                  ...existing,
                                   status: "delivered",
+                                  shipmentStatusRaw: "delivered",
                                   deliveredAt: new Date().toISOString(),
                               }
-                            : existingOrder,
+                            : existing,
                     ),
                 }));
 
-                void get()
-                    .fetchOrders(sellerId)
-                    .catch((refreshError) => {
-                        console.error(
-                            "Failed to refresh orders after marking as delivered:",
-                            refreshError,
-                        );
+                try {
+                    // Sync to database in background
+                    const success = await orderMutationService.markOrderDelivered({
+                        orderId: id,
+                        sellerId,
                     });
+                    if (!success) {
+                        throw new Error("Database update failed");
+                    }
+                } catch (error) {
+                    // ROLLBACK on error
+                    console.error("Failed to mark order as delivered, rolling back:", error);
+                    set((state) => ({
+                        orders: state.orders.map((existing) =>
+                            existing.id === id
+                                ? {
+                                      ...existing,
+                                      status: previousStatus,
+                                      shipmentStatusRaw: previousShipmentStatus,
+                                      deliveredAt: undefined,
+                                  }
+                                : existing,
+                        ),
+                    }));
+                    throw error;
+                }
             },
 
             deleteOrder: (id) => {

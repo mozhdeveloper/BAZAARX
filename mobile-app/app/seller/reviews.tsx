@@ -24,6 +24,7 @@ import {
   Flag,
   Check,
 } from 'lucide-react-native';
+import { safeImageUri, PLACEHOLDER_PRODUCT, PLACEHOLDER_AVATAR } from '../../src/utils/imageUtils';
 
 interface Review {
   id: string;
@@ -290,7 +291,7 @@ export default function ReviewsScreen() {
             <View key={review.id} style={styles.reviewCard}>
               {/* Product Header */}
               <View style={styles.productHeader}>
-                <Image source={{ uri: review.productImage }} style={styles.productImage} />
+                <Image source={{ uri: safeImageUri(review.productImage, PLACEHOLDER_PRODUCT) }} style={styles.productImage} />
                 <Text style={styles.productName} numberOfLines={2}>
                   {review.productName}
                 </Text>
@@ -298,7 +299,7 @@ export default function ReviewsScreen() {
 
               {/* Buyer Info */}
               <View style={styles.buyerSection}>
-                <Image source={{ uri: review.buyerAvatar }} style={styles.buyerAvatar} />
+                <Image source={{ uri: safeImageUri(review.buyerAvatar, PLACEHOLDER_AVATAR) }} style={styles.buyerAvatar} />
                 <View style={styles.buyerInfo}>
                   <View style={styles.buyerHeader}>
                     <Text style={styles.buyerName}>{review.buyerName}</Text>

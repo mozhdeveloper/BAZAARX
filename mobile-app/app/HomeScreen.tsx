@@ -14,9 +14,18 @@ import {
   TouchableOpacity,
   NativeSyntheticEvent,
   NativeScrollEvent,
+  NativeSyntheticEvent,
+  NativeScrollEvent,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import {
+  Search, Bell, Camera, Bot, X, Package, Timer, MapPin, ChevronDown, ArrowLeft, Clock,
+  MessageSquare, MessageCircle, CheckCircle2, ShoppingBag, Truck, XCircle,
+  Shirt, Smartphone, Sparkles, Sofa, Dumbbell, Gamepad2, Apple, Watch, Car, BookOpen,
+} from 'lucide-react-native';
+import type { LucideIcon } from 'lucide-react-native';
 import {
   Search, Bell, Camera, Bot, X, Package, Timer, MapPin, ChevronDown, ArrowLeft, Clock,
   MessageSquare, MessageCircle, CheckCircle2, ShoppingBag, Truck, XCircle,
@@ -148,8 +157,9 @@ export default function HomeScreen({ navigation }: Props) {
       originalPrice: p.originalPrice,
       image: (p.images && p.images.length > 0 && p.images[0]) ? p.images[0] : PLACEHOLDER_IMAGE,
       images: (p.images && p.images.length > 0) ? p.images.filter(img => img && typeof img === 'string' && img.trim() !== '') : [PLACEHOLDER_IMAGE],
-      rating: 4.5,
-      sold: p.sales || 0, // SellerProduct has 'sales', mapping to 'sold'
+      rating: (p as any).rating || 0, // Use actual rating, default to 0 if no reviews
+      reviewCount: (p as any).reviewCount || 0,
+      sold: p.sales || (p as any).reviewCount || 0, // SellerProduct has 'sales', fallback to reviewCount
       seller: seller?.store_name || 'Verified Seller',
       sellerId: seller?.id,
       sellerRating: 4.9,
@@ -257,7 +267,9 @@ export default function HomeScreen({ navigation }: Props) {
           const originalNum = row.original_price != null
             ? (typeof row.original_price === 'number' ? row.original_price : parseFloat(row.original_price))
             : undefined;
-          const ratingNum = typeof row.rating === 'number' ? row.rating : parseFloat(row.rating || '4.5') || 4.5;
+          // Use rating from database (calculated from reviews), fallback to 0 if no reviews
+          const ratingNum = typeof row.rating === 'number' ? row.rating : parseFloat(row.rating || '0') || 0;
+          const reviewCount = row.reviewCount || 0;
           const sellerName = row.seller?.store_name || 'Verified Seller';
           const sellerRating = typeof row.seller?.rating === 'number'
             ? row.seller.rating
@@ -274,7 +286,8 @@ export default function HomeScreen({ navigation }: Props) {
             image: primaryImage,
             images: images.length > 0 ? images : [primaryImage],
             rating: ratingNum,
-            sold: row.sales_count || 0,
+            reviewCount: reviewCount,
+            sold: row.sales_count || row.reviewCount || 0, // Use review count as proxy for sold
             seller: sellerName,
             sellerId: row.seller_id || row.seller?.id,
             seller_id: row.seller_id || row.seller?.id,
@@ -790,11 +803,10 @@ export default function HomeScreen({ navigation }: Props) {
                           await notificationService.markAsRead(n.id);
                           loadNotifications();
                         }
-                        // Navigate to orders tab if it's an order notification
+                        // Navigate to Orders screen if it's an order notification
                         if (n.action_data?.orderNumber || n.type.includes('order')) {
                           setShowNotifications(false);
-                          // Navigate to Orders tab in MainTabs
-                          navigation.navigate('Orders' as any);
+                          navigation.navigate('Orders', {});
                         }
                       }}
                     >
