@@ -23,7 +23,6 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { COLORS } from '../src/constants/theme';
 import AIChatModal from '../src/components/AIChatModal';
-import ChatScreen from '../src/components/ChatScreen';
 import { useAuthStore } from '../src/stores/authStore';
 import { chatService, Conversation } from '../src/services/chatService';
 import type { RootStackParamList } from '../App';
@@ -37,7 +36,6 @@ export default function MessagesScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
 
   const loadConversations = useCallback(async () => {
     if (!user?.id) {
@@ -108,19 +106,8 @@ export default function MessagesScreen() {
   };
 
   // If a conversation is selected, show the chat screen
-  if (selectedConversation) {
-    return (
-      <ChatScreen
-        conversation={selectedConversation}
-        currentUserId={user?.id || ''}
-        userType="buyer"
-        onBack={() => {
-          setSelectedConversation(null);
-          loadConversations(); // Refresh to update unread counts
-        }}
-      />
-    );
-  }
+  // Removed conditional rendering, now navigating to 'Chat' screen
+
 
   return (
     <View style={styles.container}>
@@ -135,7 +122,7 @@ export default function MessagesScreen() {
           <Text style={styles.headerTitle}>Messages</Text>
 
           <Pressable onPress={() => setShowAIChat(true)} style={styles.headerIcon}>
-            <Bot size={24} color="#1F2937" strokeWidth={2.5} />
+            <Bot size={24} color={COLORS.primary} strokeWidth={2.5} />
           </Pressable>
         </View>
       </View>
@@ -197,7 +184,13 @@ export default function MessagesScreen() {
             <Pressable
               key={conv.id}
               style={styles.conversationItem}
-              onPress={() => setSelectedConversation(conv)}
+              onPress={() => {
+                navigation.navigate('Chat', {
+                  conversation: conv,
+                  currentUserId: user?.id || '',
+                  userType: 'buyer',
+                });
+              }}
             >
               <View style={styles.avatar}>
                 <Store size={20} color="#FFFFFF" />

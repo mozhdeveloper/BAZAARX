@@ -53,6 +53,7 @@ import AddProductScreen from '@/components/seller/AddProductScreen';
 import CreateTicketScreen from './app/tickets/CreateTicketScreen';
 import TicketDetailScreen from './app/tickets/TicketDetailScreen';
 import MessagesScreen from './app/MessagesScreen';
+import ChatScreen from './src/components/ChatScreen';
 
 // Onboarding Screens
 import TermsScreen from './app/onboarding/TermsScreen';
@@ -121,6 +122,11 @@ export type RootStackParamList = {
   TicketDetail: { ticketId: string };
   Messages: undefined;
   AddProduct: undefined;
+  Chat: {
+    conversation: any; // Using any to avoid circular dependency or import issues, but ideally Conversation type
+    currentUserId: string;
+    userType: 'buyer' | 'seller';
+  };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -328,6 +334,7 @@ export default function App() {
             <Stack.Screen name="Messages" component={MessagesScreen} />
             <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
             <Stack.Screen name="AddProduct" component={AddProductScreen} />
+            <Stack.Screen name="Chat" component={ChatScreen} />
           </Stack.Navigator>
         </NavigationContainer>
       </SafeAreaProvider>
