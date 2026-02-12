@@ -23,7 +23,7 @@ import {
   Image as ImageIcon,
   Ticket,
 } from 'lucide-react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { COLORS } from '../constants/theme';
 import { chatService, Conversation, Message } from '../services/chatService';
@@ -41,33 +41,46 @@ export default function ChatScreen({
   currentUserId,
   userType,
   onBack,
-}: ChatScreenProps) {
+}: ChatScreenProps | any) { // Relaxed type to support usage as Screen
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const route = useRoute<any>(); // Simple route access
+
+  // Resolve props from route params if available (when pushed as screen)
+  const isScreen = route?.name === 'Chat';
+  const effectiveConversation = isScreen ? route.params?.conversation : conversation;
+  const effectiveUserId = isScreen ? route.params?.currentUserId : currentUserId;
+  const effectiveUserType = isScreen ? route.params?.userType : userType;
+  const handleBack = isScreen ? () => navigation.goBack() : onBack;
+
+  // Use effective values
+  const conversationId = effectiveConversation?.id;
+  const conversationData = effectiveConversation;
   const scrollViewRef = useRef<ScrollView>(null);
-  
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
 
-  const displayName = userType === 'buyer' 
-    ? conversation.seller_store_name || 'Store'
-    : conversation.buyer_name || 'Customer';
+  const displayName = effectiveUserType === 'buyer'
+    ? conversationData?.seller_store_name || 'Store'
+    : conversationData?.buyer_name || 'Customer';
 
   const loadMessages = useCallback(async () => {
+    if (!conversationId) return;
     try {
-      const msgs = await chatService.getMessages(conversation.id);
+      const msgs = await chatService.getMessages(conversationId);
       setMessages(msgs);
-      
+
       // Mark as read
-      await chatService.markAsRead(conversation.id, currentUserId, userType);
+      await chatService.markAsRead(conversationId, effectiveUserId, effectiveUserType);
     } catch (error) {
       console.error('[ChatScreen] Error loading messages:', error);
     } finally {
       setLoading(false);
     }
-  }, [conversation.id, currentUserId, userType]);
+  }, [conversationId, effectiveUserId, effectiveUserType]);
 
   useEffect(() => {
     loadMessages();
@@ -75,8 +88,9 @@ export default function ChatScreen({
 
   // Subscribe to new messages
   useEffect(() => {
+    if (!conversationId) return;
     const unsubscribe = chatService.subscribeToMessages(
-      conversation.id,
+      conversationId,
       (newMsg) => {
         // Only add if message doesn't already exist (prevent duplicates from optimistic updates)
         setMessages(prev => {
@@ -84,23 +98,18 @@ export default function ChatScreen({
           if (exists) return prev;
           return [...prev, newMsg];
         });
-        
+
         // Mark as read if from other party
-        if (newMsg.sender_type !== userType) {
-          chatService.markAsRead(conversation.id, currentUserId, userType);
+        if (newMsg.sender_type !== effectiveUserType) {
+          chatService.markAsRead(conversationId, effectiveUserId, effectiveUserType);
         }
       }
     );
 
     return unsubscribe;
-  }, [conversation.id, currentUserId, userType]);
+  }, [conversationId, effectiveUserId, effectiveUserType]);
 
-  // Auto-scroll to bottom
-  useEffect(() => {
-    setTimeout(() => {
-      scrollViewRef.current?.scrollToEnd({ animated: true });
-    }, 100);
-  }, [messages]);
+  // ... rest of the component ...
 
   const handleSend = async () => {
     if (!newMessage.trim() || sending) return;
@@ -111,12 +120,12 @@ export default function ChatScreen({
 
     try {
       await chatService.sendMessage(
-        conversation.id,
-        currentUserId,
-        userType,
+        conversationId,
+        effectiveUserId,
+        effectiveUserType,
         messageText
       );
-      
+
       // Real-time subscription will add the message automatically
     } catch (error) {
       console.error('[ChatScreen] Error sending message:', error);
@@ -145,10 +154,10 @@ export default function ChatScreen({
     } else if (date.toDateString() === yesterday.toDateString()) {
       return 'Yesterday';
     } else {
-      return date.toLocaleDateString([], { 
-        weekday: 'long', 
-        month: 'short', 
-        day: 'numeric' 
+      return date.toLocaleDateString([], {
+        weekday: 'long',
+        month: 'short',
+        day: 'numeric'
       });
     }
   };
@@ -167,7 +176,7 @@ export default function ChatScreen({
   messages.forEach(msg => {
     const dateKey = new Date(msg.created_at).toDateString();
     const lastGroup = groupedMessages[groupedMessages.length - 1];
-    
+
     if (lastGroup && new Date(lastGroup.messages[0].created_at).toDateString() === dateKey) {
       lastGroup.messages.push(msg);
     } else {
@@ -178,19 +187,19 @@ export default function ChatScreen({
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={0}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
     >
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-        <Pressable onPress={onBack} style={styles.backButton}>
-          <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
+        <Pressable onPress={handleBack} style={styles.backButton}>
+          <ArrowLeft size={24} color={COLORS.primary} strokeWidth={2.5} />
         </Pressable>
 
         <View style={styles.headerInfo}>
           <View style={styles.avatarContainer}>
-            {userType === 'buyer' ? (
-              <Store size={16} color={COLORS.primary} />
+            {effectiveUserType === 'buyer' ? (
+              <Store size={20} color={COLORS.primary} />
             ) : (
               <User size={16} color={COLORS.primary} />
             )}
@@ -207,11 +216,11 @@ export default function ChatScreen({
         <Pressable
           style={styles.ticketButton}
           onPress={() => {
-            onBack();
+            handleBack();
             navigation.navigate('CreateTicket');
           }}
         >
-          <Ticket size={22} color="#FFFFFF" />
+          <Ticket size={22} color={COLORS.primary} />
         </Pressable>
       </View>
 
@@ -239,8 +248,8 @@ export default function ChatScreen({
               </View>
 
               {group.messages.map((msg) => {
-                const isMe = msg.sender_type === userType;
-                
+                const isMe = msg.sender_type === effectiveUserType;
+
                 return (
                   <View
                     key={msg.id}
@@ -274,33 +283,28 @@ export default function ChatScreen({
       )}
 
       {/* Input Area */}
-      <View style={[styles.inputContainer, { paddingBottom: insets.bottom + 8 }]}>
-        <Pressable style={styles.attachButton}>
-          <ImageIcon size={20} color="#6B7280" strokeWidth={2} />
-        </Pressable>
-        <TextInput
-          style={styles.textInput}
-          placeholder="Type a message..."
-          placeholderTextColor="#9CA3AF"
-          value={newMessage}
-          onChangeText={setNewMessage}
-          multiline
-          maxLength={1000}
-        />
-        <Pressable
-          style={[
-            styles.sendButton,
-            (!newMessage.trim() || sending) && styles.sendButtonDisabled,
-          ]}
-          onPress={handleSend}
-          disabled={!newMessage.trim() || sending}
-        >
-          {sending ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
-          ) : (
-            <Send size={18} color="#FFFFFF" strokeWidth={2.5} />
-          )}
-        </Pressable>
+      <View style={[styles.inputContainer, { paddingBottom: insets.bottom + 12 }]}>
+        <View style={styles.inputBar}>
+          <TextInput
+            style={styles.input}
+            value={newMessage}
+            onChangeText={setNewMessage}
+            placeholder="Type a message..."
+            placeholderTextColor="#9CA3AF"
+            multiline
+            maxLength={1000}
+          />
+          <Pressable
+            onPress={() => handleSend()}
+            style={[
+              styles.sendButton,
+              !newMessage.trim() && styles.sendButtonDisabled,
+            ]}
+            disabled={!newMessage.trim()}
+          >
+            <Send size={20} color={COLORS.primary} strokeWidth={2.5} />
+          </Pressable>
+        </View>
       </View>
     </KeyboardAvoidingView>
   );
@@ -314,13 +318,16 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.primary,
+    backgroundColor: '#FFE5CC',
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
     paddingHorizontal: 16,
     paddingBottom: 16,
     gap: 12,
   },
   backButton: {
     padding: 4,
+    color: COLORS.primary,
   },
   headerInfo: {
     flex: 1,
@@ -337,9 +344,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   headerTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: '#1F2937',
   },
   statusRow: {
     flexDirection: 'row',
@@ -353,8 +360,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#4ADE80',
   },
   statusText: {
-    fontSize: 12,
-    color: '#FFFFFF',
+    fontSize: 14,
+    color: '#1F2937',
     opacity: 0.9,
   },
   ticketButton: {
@@ -370,6 +377,7 @@ const styles = StyleSheet.create({
   },
   messagesContent: {
     padding: 16,
+    paddingBottom: 100, // Add space for floating input
     gap: 8,
   },
   dateSeparator: {
@@ -428,37 +436,47 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
   },
   inputContainer: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  inputBar: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 12,
-    paddingTop: 12,
-    gap: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
+    gap: 12,
   },
-  attachButton: {
-    padding: 10,
-  },
-  textInput: {
+  input: {
     flex: 1,
-    backgroundColor: '#F3F4F6',
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    backgroundColor: '#F2F2F2',
+    borderRadius: 999,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
     fontSize: 15,
     color: '#1F2937',
     maxHeight: 100,
+    letterSpacing: -0.1,
   },
   sendButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: COLORS.primary,
-    alignItems: 'center',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#FFE5CC',
     justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#FFE5CC',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 6,
   },
   sendButtonDisabled: {
-    backgroundColor: '#D1D5DB',
+    backgroundColor: '#FFE5CC',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
   },
 });
