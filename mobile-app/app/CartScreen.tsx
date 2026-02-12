@@ -116,7 +116,7 @@ export default function CartScreen({ navigation }: any) {
 
   return (
     <LinearGradient
-      colors={['#FFFFFF', '#FFFFFF']}
+      colors={['#FFE5CC', '#FFE5CC']}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 0 }}
       style={styles.container}
