@@ -390,10 +390,10 @@ export default function ShopPage() {
 
   return (
     <>
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-muted/30">
         <Header />
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-4 pt-0 pb-4 flex flex-col gap-2">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-0 pb-4 flex flex-col gap-2">
           {!isSupabaseConfigured() && (
             <Alert variant="destructive" className="bg-red-50 border-red-200">
               <AlertCircle className="h-4 w-4" />
@@ -408,32 +408,32 @@ export default function ShopPage() {
           <div className="flex items-center justify-center gap-10 pt-1 pb-1">
             <Link
               to="/shop"
-              className="text-sm text-[var(--brand-primary)]"
+              className="text-sm text-primary font-medium"
             >
               Shop
             </Link>
             <Link
               to="/collections"
-              className="text-sm text-gray-500 hover:text-[var(--brand-primary)] transition-all duration-300"
+              className="text-sm text-muted-foreground hover:text-primary transition-all duration-300"
             >
               Collections
             </Link>
             <Link
               to="/stores"
-              className="text-sm text-gray-500 hover:text-[var(--brand-primary)] transition-all duration-300"
+              className="text-sm text-muted-foreground hover:text-primary transition-all duration-300"
             >
               Stores
             </Link>
             <Link
               to="/registry"
-              className="text-sm text-gray-500 hover:text-[var(--brand-primary)] transition-all duration-300"
+              className="text-sm text-muted-foreground hover:text-primary transition-all duration-300"
             >
               Registry & Gifting
             </Link>
           </div>
 
           {/* Shop Header */}
-          <div className="py-24 bg-gradient-to-br from-orange-100/20 via-orange-200/50 to-orange-200/50 backdrop-blur-md border border-orange-200/30 rounded-3xl">
+          <div className="py-24 bg-gradient-to-br from-primary/5 via-primary/10 to-primary/5 backdrop-blur-md border border-primary/10 rounded-3xl">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -441,7 +441,7 @@ export default function ShopPage() {
             >
               <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-2 tracking-tight">
                 Shop All {''}
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-[var(--brand-primary)] to-red-500">
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-destructive">
                   Products
                 </span>
               </h1>
@@ -457,13 +457,13 @@ export default function ShopPage() {
             <div className="mb-2 bg-white rounded-xl py-4 px-8 shadow-[0_4px_20px_rgba(0,0,0,0.08)] hover:shadow-[0_8px_30px_rgba(255,106,0,0.15)] transition-all">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  <h2 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-[var(--brand-primary)] to-red-500 uppercase tracking-wide">
+                  <h2 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-primary to-destructive uppercase tracking-wide">
                     FLASH SALE
                   </h2>
                 </div>
 
                 {/* Ends in + Timer */}
-                <div className="bg-gradient-to-r from-[var(--brand-primary)] to-red-500 text-white rounded-lg px-3 py-1.5 flex items-center gap-2 shadow-sm border border-[var(--brand-primary)]/20">
+                <div className="bg-gradient-to-r from-primary to-destructive text-white rounded-lg px-3 py-1.5 flex items-center gap-2 shadow-sm border border-primary/20">
                   <span className="text-xs font-semibold uppercase tracking-wide opacity-90">
                     Ends in
                   </span>
@@ -484,7 +484,7 @@ export default function ShopPage() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.1 }}
-                    className="bg-white rounded-lg overflow-hidden cursor-pointer hover:shadow-lg transition-all border border-gray-100 hover:border-[var(--brand-primary)] pb-2"
+                    className="bg-white rounded-lg overflow-hidden cursor-pointer hover:shadow-lg transition-all border border-gray-100 hover:border-primary pb-2"
                     onClick={() => navigate(`/product/${product.id}`)}
                     role="link"
                     tabIndex={0}
@@ -500,7 +500,7 @@ export default function ShopPage() {
                         src={product.image}
                         alt={product.name}
                         className="w-full h-full object-cover" />
-                      <div className="absolute top-0 right-0 bg-[var(--brand-primary)] text-white text-[9px] font-bold px-1.5 py-0.5 rounded-bl-md z-10">
+                      <div className="absolute top-0 right-0 bg-primary text-white text-[9px] font-bold px-1.5 py-0.5 rounded-bl-md z-10">
                         -{product.discount}%
                       </div>
                     </div>
@@ -517,7 +517,7 @@ export default function ShopPage() {
                       </div>
 
                       <div className="flex flex-col gap-0.5">
-                        <div className="text-base font-bold text-[var(--brand-primary)] leading-none">
+                        <div className="text-base font-bold text-primary leading-none">
                           ₱{product.price.toLocaleString()}
                         </div>
                         <div className="flex items-center gap-1.5">
@@ -564,7 +564,7 @@ export default function ShopPage() {
                   </button>
 
                   <p className="text-gray-800 text-sm font-medium">
-                    <span className="text-[var(--brand-primary)] font-bold">{filteredProducts.length}</span> Products Found
+                    <span className="text-primary font-bold">{filteredProducts.length}</span> Products Found
                   </p>
                 </div>
 
@@ -619,7 +619,7 @@ export default function ShopPage() {
                             setShowFilters(false);
                           }}
                           className={`px-3 py-1.5 rounded-lg text-sm transition-all duration-200 ${selectedCategory === category
-                            ? "bg-[var(--brand-primary)] text-white font-medium shadow-sm"
+                            ? "bg-primary text-primary-foreground font-medium shadow-sm"
                             : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                             }`}
                           aria-pressed={selectedCategory === category}
@@ -644,7 +644,7 @@ export default function ShopPage() {
                     <div className="space-y-4">
                       <button
                         onClick={() => setSelectedCategory("All Categories")}
-                        className={`w-full flex justify-between items-center group transition-colors ${selectedCategory === "All Categories" ? "text-[var(--brand-primary)]" : "text-gray-600 hover:text-gray-900"}`}
+                        className={`w-full flex justify-between items-center group transition-colors ${selectedCategory === "All Categories" ? "text-primary" : "text-gray-600 hover:text-gray-900"}`}
                         aria-pressed={selectedCategory === "All Categories"}
                       >
                         <span className={`text-sm ${selectedCategory === "All Categories" ? "font-bold" : "font-medium"}`}>All Product</span>
@@ -654,7 +654,7 @@ export default function ShopPage() {
                         <button
                           key={cat.id}
                           onClick={() => setSelectedCategory(cat.name)}
-                          className={`w-full flex justify-between items-center group transition-colors ${selectedCategory === cat.name ? "text-[var(--brand-primary)]" : "text-gray-500 hover:text-gray-900"}`}
+                          className={`w-full flex justify-between items-center group transition-colors ${selectedCategory === cat.name ? "text-primary" : "text-muted-foreground hover:text-gray-900"}`}
                           aria-pressed={selectedCategory === cat.name}
                         >
                           <span className="text-sm font-medium">{cat.name}</span>
@@ -680,7 +680,7 @@ export default function ShopPage() {
                             step={100}
                             value={priceRange}
                             onValueChange={setPriceRange}
-                            className="text-[var(--brand-primary)]"
+                            className="text-primary"
                           />
                         </div>
                         <p className="text-xs text-gray-500 mt-4">
@@ -695,7 +695,7 @@ export default function ShopPage() {
                           {sizeOptions.map((size) => (
                             <button
                               key={size}
-                              className="w-10 h-10 rounded-full border border-gray-200 flex items-center justify-center text-xs font-medium text-gray-600 hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] transition-all active:scale-95"
+                              className="w-10 h-10 rounded-full border border-gray-200 flex items-center justify-center text-xs font-medium text-gray-600 hover:border-primary hover:text-primary transition-all active:scale-95"
                             >
                               {size}
                             </button>
@@ -710,7 +710,7 @@ export default function ShopPage() {
                           {colorOptions.map((color) => (
                             <button
                               key={color.name}
-                              className={`w-6 h-6 rounded-full border border-gray-100 shadow-sm hover:scale-110 transition-transform ${color.name === "Orange" ? "ring-2 ring-offset-2 ring-[var(--brand-primary)]" : ""}`}
+                              className={`w-6 h-6 rounded-full border border-gray-100 shadow-sm hover:scale-110 transition-transform ${color.name === "Orange" ? "ring-2 ring-offset-2 ring-primary" : ""}`}
                               style={{ backgroundColor: color.hex }}
                               title={color.name}
                               aria-label={`Filter by color: ${color.name}`}
@@ -726,11 +726,11 @@ export default function ShopPage() {
                           {brandOptions.map((brand) => (
                             <div key={brand.name} className="flex justify-between items-center group cursor-pointer hover:text-gray-900">
                               <div className="flex items-center gap-2">
-                                <span className={`text-sm transition-colors ${brand.name === "The North Face" ? "text-[var(--brand-primary)] font-bold" : "text-gray-500 font-medium"}`}>
+                                <span className={`text-sm transition-colors ${brand.name === "The North Face" ? "text-primary font-bold" : "text-muted-foreground font-medium"}`}>
                                   {brand.name}
                                 </span>
                               </div>
-                              <span className={`text-[11px] transition-colors ${brand.name === "The North Face" ? "text-[var(--brand-primary)]" : "text-gray-400"}`}>
+                              <span className={`text-[11px] transition-colors ${brand.name === "The North Face" ? "text-primary" : "text-muted-foreground"}`}>
                                 {brand.count}
                               </span>
                             </div>
@@ -745,7 +745,7 @@ export default function ShopPage() {
                           {popularTags.map((tag) => (
                             <button
                               key={tag}
-                              className="text-xs text-gray-400 hover:text-[var(--brand-primary)] transition-colors"
+                              className="text-xs text-muted-foreground hover:text-primary transition-colors"
                             >
                               {tag},
                             </button>
@@ -792,7 +792,7 @@ export default function ShopPage() {
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                         />
                         {product.originalPrice && (
-                          <Badge className="absolute top-3 left-3 bg-red-500 hover:bg-red-500 text-white text-xs">
+                          <Badge className="absolute top-3 left-3 bg-destructive hover:bg-destructive text-white text-xs">
                             {Math.round(
                               ((product.originalPrice - product.price) /
                                 product.originalPrice) *
@@ -809,7 +809,7 @@ export default function ShopPage() {
                       </div>
 
                       <div className="p-3 flex-1 flex flex-col">
-                        <h3 className="font-semibold text-gray-900 group-hover:text-[var(--brand-primary)] transition-colors duration-200 line-clamp-2 h-10 text-sm">
+                        <h3 className="font-semibold text-gray-900 group-hover:text-primary transition-colors duration-200 line-clamp-2 h-10 text-sm">
                           {product.name}
                         </h3>
 
@@ -833,7 +833,7 @@ export default function ShopPage() {
 
                         <div className="mt-1.5">
                           <div className="flex items-center gap-2">
-                            <span className="text-base font-bold text-[var(--brand-primary)]">
+                            <span className="text-base font-bold text-primary">
                               ₱{product.price.toLocaleString()}
                             </span>
                             {product.originalPrice && (
@@ -888,7 +888,7 @@ export default function ShopPage() {
                             }}
                             variant="outline"
                             size="icon"
-                            className="flex-shrink-0 border-[var(--brand-primary)] text-[var(--brand-primary)] hover:bg-[var(--brand-primary)] hover:text-white rounded-lg transition-all active:scale-95 h-8 w-8 p-0"
+                            className="flex-shrink-0 border-primary text-primary hover:bg-primary hover:text-white rounded-lg transition-all active:scale-95 h-8 w-8 p-0"
                             title="Add to Cart"
                             aria-label={`Add ${product.name} to cart`}
                           >
@@ -931,7 +931,7 @@ export default function ShopPage() {
                                 setShowBuyNowModal(true);
                               }
                             }}
-                            className="flex-1 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white rounded-lg transition-all active:scale-95 h-8 text-xs"
+                            className="flex-1 bg-primary hover:bg-primary/90 text-white rounded-lg transition-all active:scale-95 h-8 text-xs"
                             aria-label={`Buy ${product.name} now`}
                           >
                             Buy Now
@@ -952,7 +952,7 @@ export default function ShopPage() {
                   >
                     <Button
                       variant="outline"
-                      className="px-8 py-3 border-[var(--brand-primary)] text-[var(--brand-primary)] hover:bg-[var(--brand-primary)] hover:text-white rounded-xl"
+                      className="px-8 py-3 border-primary text-primary hover:bg-primary hover:text-white rounded-xl"
                     >
                       Load More Products
                     </Button>
