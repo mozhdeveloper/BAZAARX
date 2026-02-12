@@ -228,11 +228,14 @@ export class OrderService {
                 )
                 .eq("order_id", orderId);
 
-            const firstSellerId = (orderItems || []).find(
-                (item: any) => item?.product?.seller_id,
-            )?.product?.seller_id;
+            const firstItem: any = (orderItems || [])[0];
+            if (!firstItem) return undefined;
 
-            return firstSellerId;
+            const product = Array.isArray(firstItem.product)
+                ? firstItem.product[0]
+                : firstItem.product;
+
+            return product?.seller_id;
         } catch (error) {
             console.warn("Failed to resolve seller ID from order:", error);
             return undefined;
@@ -1026,13 +1029,11 @@ export class OrderService {
                 `,
                 )
                 .eq(isUuid ? "id" : "order_number", orderIdOrNumber)
-                .maybeSingle();
-
             if (buyerId) {
                 query = query.eq("buyer_id", buyerId);
             }
 
-            const { data, error } = await query;
+            const { data, error } = await query.maybeSingle();
 
             if (error) throw error;
             if (!data) return null;
@@ -1207,13 +1208,39 @@ export class OrderService {
                     : await this.resolveOrderSellerId(orderId);
 
             if (userRole === "seller" && order.buyer_id && sellerId) {
-                this.dispatchStatusNotifications({
+                await orderNotificationService.sendStatusUpdateNotification(
                     orderId,
                     status,
                     sellerId,
-                    buyerId: order.buyer_id,
-                    orderNumber: order.order_number,
-                });
+                    order.buyer_id,
+                );
+                
+                const statusMessages: Record<string, string> = {
+                    confirmed: `Your order #${order.order_number} has been confirmed by the seller.`,
+                    processing: `Your order #${order.order_number} is now being prepared.`,
+                    shipped: `Your order #${order.order_number} has been shipped!`,
+                    delivered: `Your order #${order.order_number} has been delivered!`,
+                    cancelled: `Your order #${order.order_number} has been cancelled.`,
+                };
+
+                const message =
+                    statusMessages[status] ||
+                    `Your order status has been updated to ${status}.`;
+
+                await notificationService
+                    .notifyBuyerOrderStatus({
+                        buyerId: order.buyer_id,
+                        orderId: orderId,
+                        orderNumber: order.order_number,
+                        status: status,
+                        message: message,
+                    })
+                    .catch((err) => {
+                        console.error(
+                            "Failed to send buyer notification:",
+                            err,
+                        );
+                    });
             }
 
             return true;
@@ -1335,14 +1362,29 @@ export class OrderService {
             });
 
             if (order.buyer_id) {
-                this.dispatchStatusNotifications({
+                await orderNotificationService.sendStatusUpdateNotification(
                     orderId,
-                    status: "shipped",
+                    "shipped",
                     sellerId,
-                    buyerId: order.buyer_id,
-                    orderNumber: order.order_number,
+                    order.buyer_id,
                     trackingNumber,
-                });
+                );
+
+                await notificationService
+                    .notifyBuyerOrderStatus({
+                        buyerId: order.buyer_id,
+                        orderId: orderId,
+                        orderNumber:
+                            order.order_number,
+                        status: "shipped",
+                        message: `Your order #${order.order_number} has been shipped! Tracking: ${trackingNumber}`,
+                    })
+                    .catch((err) => {
+                        console.error(
+                            "Failed to send shipped notification:",
+                            err,
+                        );
+                    });
             }
 
             return true;
@@ -1440,13 +1482,28 @@ export class OrderService {
             });
 
             if (order.buyer_id) {
-                this.dispatchStatusNotifications({
+                await orderNotificationService.sendStatusUpdateNotification(
                     orderId,
-                    status: "delivered",
+                    "delivered",
                     sellerId,
-                    buyerId: order.buyer_id,
-                    orderNumber: order.order_number,
-                });
+                    order.buyer_id,
+                );
+
+                await notificationService
+                    .notifyBuyerOrderStatus({
+                        buyerId: order.buyer_id,
+                        orderId: orderId,
+                        orderNumber:
+                            (order as any).order_number,
+                        status: "delivered",
+                        message: `Your order #${(order as any).order_number} has been delivered! Enjoy your purchase!`,
+                    })
+                    .catch((err) => {
+                        console.error(
+                            "Failed to send delivered notification:",
+                            err,
+                        );
+                    });
             }
 
             return true;

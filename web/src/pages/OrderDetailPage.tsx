@@ -873,7 +873,7 @@ export default function OrderDetailPage() {
                         </p>
                         <Button
                           onClick={() =>
-                            navigate(`/delivery-tracking/${order.id}`)
+                            navigate(`/delivery-tracking/${order.orderNumber}`)
                           }
                           className="mt-3 bg-blue-600 hover:bg-blue-700 text-white"
                           size="sm"

@@ -85,6 +85,7 @@ export interface Order {
 export interface OrderNotification {
   id: string;
   orderId: string;
+  orderNumber?: string;
   type:
   | 'seller_confirmed'
   | 'shipped'
@@ -118,8 +119,8 @@ interface CartStore {
   getOrderById: (orderId: string) => Order | undefined;
   updateOrderStatus: (orderId: string, status: Order['status']) => void;
   simulateOrderProgression: (orderId: string) => void;
-  addNotification: (orderId: string, type: OrderNotification['type'], message: string) => void;
-  addSellerNotification: (orderId: string, type: 'seller_new_order' | 'seller_cancellation_request' | 'seller_return_request' | 'seller_return_approved' | 'seller_return_rejected', message: string) => void;
+  addNotification: (orderId: string, type: OrderNotification['type'], message: string, orderNumber?: string) => void;
+  addSellerNotification: (orderId: string, type: 'seller_new_order' | 'seller_cancellation_request' | 'seller_return_request' | 'seller_return_approved' | 'seller_return_rejected', message: string, orderNumber?: string) => void;
   markNotificationRead: (notificationId: string) => void;
   clearNotifications: () => void;
   getUnreadNotifications: () => OrderNotification[];
@@ -535,15 +536,16 @@ export const useCartStore = create<CartStore>()(
         }
       },
 
-      clearCart: () => {
+      clearCart: async () => {
         const cartId = get().cartId;
         if (cartId && isSupabaseConfigured()) {
-          supabase.from('cart_items').delete().eq('cart_id', cartId).then(() => {
-            set({ items: [] });
-          }).catch(() => set({ items: [] }));
-        } else {
-          set({ items: [] });
+          try {
+            await supabase.from('cart_items').delete().eq('cart_id', cartId);
+          } catch (e) {
+            console.error('[WebCartStore] Failed to clear cart:', e);
+          }
         }
+        set({ items: [] });
       },
 
       getTotalItems: () => {
@@ -586,6 +588,7 @@ export const useCartStore = create<CartStore>()(
           isPaid: orderData.paymentMethod?.type !== 'cod', // COD is unpaid, others are paid
           shippingAddress: orderData.shippingAddress,
           paymentMethod: orderData.paymentMethod,
+          orderNumber: orderId.slice(-8),
         };
 
         set((state) => ({
@@ -654,7 +657,8 @@ export const useCartStore = create<CartStore>()(
                 get().addSellerNotification(
                   orderId,
                   'seller_new_order',
-                  `New order #${orderId.slice(-8)} from ${orderData.shippingAddress.fullName}. Total: ₱${sellerTotal.toLocaleString()}`
+                  `New order #${newOrder.orderNumber} from ${orderData.shippingAddress.fullName}. Total: ₱${sellerTotal.toLocaleString()}`,
+                  newOrder.orderNumber
                 );
 
                 // Save notification to database if we have seller_id
@@ -667,7 +671,7 @@ export const useCartStore = create<CartStore>()(
                   notificationService.notifySellerNewOrder({
                     sellerId: firstItem.sellerId,
                     orderId,
-                    orderNumber: orderId.slice(-8),
+                    orderNumber: newOrder.orderNumber,
                     buyerName: orderData.shippingAddress.fullName || 'Unknown Buyer',
                     total: sellerTotal
                   }).catch(error => {
@@ -721,40 +725,41 @@ export const useCartStore = create<CartStore>()(
           switch (status) {
             case 'confirmed':
               notificationType = 'seller_confirmed';
-              notificationMessage = `Order #${orderId.slice(-8)} has been confirmed. Please prepare for shipment.`;
+              notificationMessage = `Order #${order.orderNumber || orderId.slice(-8)} has been confirmed. Please prepare for shipment.`;
               break;
             case 'shipped':
               notificationType = 'shipped';
-              notificationMessage = `Order #${orderId.slice(-8)} has been marked as shipped.`;
+              notificationMessage = `Order #${order.orderNumber || orderId.slice(-8)} has been marked as shipped.`;
               break;
             case 'delivered':
               notificationType = 'delivered';
-              notificationMessage = `Order #${orderId.slice(-8)} has been delivered to the customer.`;
+              notificationMessage = `Order #${order.orderNumber || orderId.slice(-8)} has been delivered to the customer.`;
               break;
             case 'cancelled':
               notificationType = 'cancelled';
-              notificationMessage = `Order #${orderId.slice(-8)} has been cancelled.`;
+              notificationMessage = `Order #${order.orderNumber || orderId.slice(-8)} has been cancelled.`;
               break;
             case 'returned':
               notificationType = 'seller_return_approved';
-              notificationMessage = `Order #${orderId.slice(-8)} has been returned by the customer.`;
+              notificationMessage = `Order #${order.orderNumber || orderId.slice(-8)} has been returned by the customer.`;
               break;
             default:
               break;
           }
 
           if (notificationType) {
-            get().addNotification(orderId, notificationType, notificationMessage);
+            get().addNotification(orderId, notificationType, notificationMessage, order.orderNumber);
           }
         }
       },
-      addNotification: (orderId, type, message) => {
+      addNotification: (orderId, type, message, orderNumber) => {
         const notificationId = `notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
         set((state) => ({
           notifications: [
             {
               id: notificationId,
               orderId,
+              orderNumber,
               type,
               message,
               timestamp: new Date(),
@@ -765,13 +770,14 @@ export const useCartStore = create<CartStore>()(
         }));
       },
 
-      addSellerNotification: (orderId, type, message) => {
+      addSellerNotification: (orderId, type, message, orderNumber) => {
         const notificationId = `notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
         set((state) => ({
           notifications: [
             {
               id: notificationId,
               orderId,
+              orderNumber,
               type,
               message,
               timestamp: new Date(),

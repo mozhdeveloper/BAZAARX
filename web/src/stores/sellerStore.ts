@@ -1448,7 +1448,7 @@ export const useProductStore = create<ProductStore>()(
                     get().checkLowStock();
 
                     console.log(
-                        `✅ Stock deducted: ${product.name} - ${quantity} units. New stock: ${newStock}. Ledger ID: ${ledgerEntry.id}`,
+                        `Stock deducted: ${product.name} - ${quantity} units. New stock: ${newStock}. Ledger ID: ${ledgerEntry.id}`,
                     );
                 } catch (error) {
                     console.error("Failed to deduct stock:", error);
@@ -1584,7 +1584,7 @@ export const useProductStore = create<ProductStore>()(
                     get().checkLowStock();
 
                     console.log(
-                        `✅ Stock adjusted: ${product.name}. Old: ${product.stock}, New: ${newQuantity}`,
+                        `Stock adjusted: ${product.name}. Old: ${product.stock}, New: ${newQuantity}`,
                     );
                 } catch (error) {
                     console.error("Failed to adjust stock:", error);
@@ -1752,7 +1752,7 @@ export const useProductStore = create<ProductStore>()(
                             }));
 
                             console.warn(
-                                `⚠️ LOW STOCK ALERT: ${product.name} - Only ${product.stock} units remaining!`,
+                                `LOW STOCK ALERT: ${product.name} - Only ${product.stock} units remaining!`,
                             );
                         }
                     }
@@ -1823,7 +1823,7 @@ export const useOrderStore = create<OrderStore>()(
                     });
 
                     console.log(
-                        `✅ Fetched ${sellerOrders.length} orders for seller ${sellerId}`,
+                        `Fetched ${sellerOrders.length} orders for seller ${sellerId}`,
                     );
                 } catch (error) {
                     console.error("Failed to fetch orders:", error);
@@ -1910,29 +1910,29 @@ export const useOrderStore = create<OrderStore>()(
 
                     const dbStatus = statusToDbMap[status] || status;
                     console.log(
-                        `📝 Mapping seller status '${status}' to database status '${dbStatus}'`,
+                        `Mapping seller status '${status}' to database status '${dbStatus}'`,
                     );
 
                     // Get seller ID from OrderStore (stored in fetchOrders)
                     let sellerId = get().sellerId;
 
                     console.log(
-                        `👤 Current seller ID from OrderStore:`,
+                        `Current seller ID from OrderStore:`,
                         sellerId,
                     );
-                    console.log(`📦 Order object:`, order);
+                    console.log(`Order object:`, order);
 
                     // Fallback: Extract seller ID from order object if store doesn't have it
                     if (!sellerId && (order as any).seller_id) {
                         sellerId = (order as any).seller_id;
                         console.log(
-                            `✅ Fallback: Using seller_id from order object: ${sellerId}`,
+                            `Fallback: Using seller_id from order object: ${sellerId}`,
                         );
                     }
 
                     if (!sellerId) {
                         console.error(
-                            "❌ No seller ID found! Cannot update database.",
+                            "No seller ID found! Cannot update database.",
                         );
                         console.error(
                             "Seller from store:",
@@ -1945,7 +1945,7 @@ export const useOrderStore = create<OrderStore>()(
                     }
 
                     console.log(
-                        `🔄 Updating order ${id} in database with seller ${sellerId}...`,
+                        `Updating order ${id} in database with seller ${sellerId}...`,
                     );
                     const success = await orderMutationService.updateOrderStatus(
                         {
@@ -1958,36 +1958,71 @@ export const useOrderStore = create<OrderStore>()(
                     );
 
                     console.log(
-                        `📊 Database update result: ${success ? "✅ SUCCESS" : "❌ FAILED"}`,
+                        `Database update result: ${success ? "SUCCESS" : "FAILED"}`,
                     );
 
                     if (!success) {
                         console.error(
-                            "❌ Failed to update order status in database",
+                            "Failed to update order status in database",
                         );
                         throw new Error("Database update failed");
                     }
 
                     console.log(
-                        `✅ Database updated successfully with status: ${dbStatus}`,
+                        `Database updated successfully with status: ${dbStatus}`,
                     );
 
-                    set((state) => ({
-                        orders: state.orders.map((existingOrder) =>
-                            existingOrder.id === id
-                                ? { ...existingOrder, status }
-                                : existingOrder,
-                        ),
-                    }));
+                    // Create notification for buyer if order has buyer_id
+                    console.log(`Order object:`, order);
+                    console.log(`Order buyer_id:`, order.buyer_id);
 
-                    void get()
-                        .fetchOrders(sellerId)
+                    if (order.buyer_id) {
+                        const statusMessages: Record<string, string> = {
+                            confirmed: `Your order #${order.orderNumber} has been confirmed and is being prepared.`,
+                            shipped: `Your order #${order.orderNumber} has been shipped and is on its way!`,
+                            delivered: `Your order #${order.orderNumber} has been delivered. Enjoy your purchase!`,
+                            cancelled: `Your order #${order.orderNumber} has been cancelled.`,
+                        };
+
+                        const message =
+                            statusMessages[status] ||
+                            `Order #${order.orderNumber} status updated to ${status}`;
+
+                        console.log(
+                            `🚀 Creating buyer notification for order ${id}`,
+                        );
+
+                        // Import notification service dynamically to avoid circular dependency
+                        import("../services/notificationService").then(
+                            ({ notificationService }) => {
+                                notificationService
+                                    .notifyBuyerOrderStatus({
+                                        buyerId: order.buyer_id!,
+                                        orderId: id,
+                                        orderNumber: id.slice(-8),
+                                        status,
+                                        message,
+                                    })
                         .catch((refreshError) => {
                             console.error(
                                 "Failed to refresh orders after status update:",
                                 refreshError,
                             );
                         });
+                            },
+                        );
+                    } else {
+                        console.warn(
+                            `⚠️ No buyer_id found for order ${id}, skipping buyer notification`,
+                        );
+                    }
+
+                    // Update local state
+                    set((state) => ({
+                        orders: state.orders.map((order) =>
+                            order.id === id ? { ...order, status } : order,
+                        ),
+                    }));
 
                     console.log(`✅ Order ${id} status updated to ${status}`);
                 } catch (error) {

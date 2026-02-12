@@ -13,10 +13,7 @@ import {
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
 import { ChevronLeft, Store } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
 import { useProfileManager } from "@/hooks/profile/useProfileManager";
-import { useAddressManager } from "@/hooks/profile/useAddressManager";
-import { usePaymentMethodManager } from "@/hooks/profile/usePaymentMethodManager";
 import {
     ProfileInfoSection,
     ProfileSummarySection,
@@ -24,39 +21,18 @@ import {
     PaymentMethodsSection,
     FollowingSection,
     NotificationSettingsSection,
-    AddressModal,
-    PaymentMethodModal,
     AvatarUploadModal,
 } from "@/components/profile";
 
 export default function BuyerProfilePage() {
     const navigate = useNavigate();
-    const { toast } = useToast();
-    const { profile, followedShops } = useBuyerStore();
+    const { profile, followedShops, updateProfile } = useBuyerStore();
 
     const userId = profile?.id || "";
-    const { checkSellerStatus } = useProfileManager(userId);
-    useAddressManager(userId);
-    usePaymentMethodManager(userId);
+    const { checkSellerStatus, uploadAvatar } = useProfileManager(userId);
 
     const [activeTab, setActiveTab] = useState("personal");
-    const {
-        addresses,
-        addAddress,
-        updateAddress,
-        deleteAddress
-    } = useAddressManager(userId);
-
-    const {
-        loading: profileLoading,
-        updateProfile: updateProfileData,
-        uploadAvatar
-    } = useProfileManager(userId);
-
-    const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
-    const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-    const [editingAddress, setEditingAddress] = useState<any>(null);
     const [isSeller, setIsSeller] = useState(false);
 
     // Check if user is also a seller
@@ -288,19 +264,7 @@ export default function BuyerProfilePage() {
 
                     {/* Addresses Content */}
                     <TabsContent value="addresses">
-                        <AddressManagementSection
-                            userId={userId}
-                            addresses={addresses}
-                            onAddAddress={() => {
-                                setEditingAddress(null);
-                                setIsAddressModalOpen(true);
-                            }}
-                            onEditAddress={(addr) => {
-                                setEditingAddress(addr);
-                                setIsAddressModalOpen(true);
-                            }}
-                            onDeleteAddress={deleteAddress}
-                        />
+                        <AddressManagementSection userId={userId} />
                     </TabsContent>
 
                     <TabsContent value="following">
@@ -314,26 +278,11 @@ export default function BuyerProfilePage() {
                     <TabsContent value="settings">
                         <NotificationSettingsSection
                             profile={profile}
-                            onUpdatePreferences={() => undefined}
+                            onUpdatePreferences={(preferences) => updateProfile({ preferences })}
                         />
                     </TabsContent>
                 </Tabs>
             </div>
-
-            {/* Address Modal */}
-            <AddressModal
-                isOpen={isAddressModalOpen}
-                onClose={() => setIsAddressModalOpen(false)}
-                address={editingAddress}
-                onAddressAdded={addAddress}
-                onAddressUpdated={updateAddress}
-            />
-
-            {/* Payment Method Modal */}
-            <PaymentMethodModal
-                isOpen={isPaymentModalOpen}
-                onClose={() => setIsPaymentModalOpen(false)}
-            />
 
             {/* Edit Profile Modal */}
             <AvatarUploadModal

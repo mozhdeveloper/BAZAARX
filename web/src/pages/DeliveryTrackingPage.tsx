@@ -35,7 +35,7 @@ import { Order } from "../stores/cartStore";
 
 function DeliveryTrackingPage() {
   const navigate = useNavigate();
-  const { orderId } = useParams<{ orderId: string }>();
+  const { orderNumber } = useParams<{ orderNumber: string }>();
   const [dbOrder, setDbOrder] = useState<Order | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showReceipt, setShowReceipt] = useState(false);
@@ -46,47 +46,76 @@ function DeliveryTrackingPage() {
   // Fetch the order from Supabase
   useEffect(() => {
     const fetchOrder = async () => {
-      if (!orderId) return;
+      if (!orderNumber) return;
 
       setIsLoading(true);
       try {
         // Try fetching by ID first, then by order_number
         const isUuid =
           /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-            orderId,
+            orderNumber,
           );
 
         let query = supabase.from("orders").select(`
             *,
-            order_items (*)
+            order_items (
+              *,
+              variant:product_variants(id, variant_name, size, color, price, thumbnail_url)
+            ),
+            recipient:order_recipients (
+              first_name,
+              last_name,
+              phone,
+              email
+            ),
+            address:shipping_addresses (
+              label,
+              address_line_1,
+              address_line_2,
+              city,
+              province,
+              region,
+              postal_code
+            )
           `);
 
         if (isUuid) {
-          query = query.eq("id", orderId);
+          query = query.eq("id", orderNumber);
         } else {
-          query = query.eq("order_number", orderId);
+          query = query.eq("order_number", orderNumber);
         }
 
-        const { data: orderData, error } = await query.single();
+        const { data: orderData, error } = await query.maybeSingle();
 
         if (error) throw error;
 
         if (orderData) {
-          const statusMap = {
-            pending_payment: "pending",
-            paid: "confirmed",
+          // Map shipment_status from database to frontend status
+          const shipmentStatusMap: Record<string, Order["status"]> = {
+            pending: "pending",
             processing: "confirmed",
             shipped: "shipped",
             delivered: "delivered",
             cancelled: "cancelled",
+            returned: "cancelled",
           };
+
+          // Use shipment_status as the primary status indicator
+          const dbShipmentStatus = orderData.shipment_status || 'pending';
+          const mappedStatus = shipmentStatusMap[dbShipmentStatus] || "pending";
+
+          // Compute total from order items
+          const items = orderData.order_items || [];
+          const computedTotal = items.reduce((sum: number, item: any) => {
+            const itemPrice = (item.variant?.price || item.price || 0);
+            return sum + (item.quantity * itemPrice);
+          }, 0);
 
           const mappedOrder: Order = {
             id: orderData.id,
             orderNumber: orderData.order_number,
-            total: orderData.total_amount,
-            status: (statusMap[orderData.status as keyof typeof statusMap] ||
-              "pending") as Order["status"],
+            total: computedTotal || orderData.total_amount || 0,
+            status: mappedStatus,
             isPaid: orderData.payment_status === "paid",
             createdAt: new Date(orderData.created_at),
             date: new Date(orderData.created_at).toLocaleDateString("en-PH", {
@@ -98,28 +127,26 @@ function DeliveryTrackingPage() {
               orderData.estimated_delivery_date ||
               Date.now() + 3 * 24 * 60 * 60 * 1000,
             ),
-            items: (orderData.order_items || []).map((item: any) => ({
+            items: items.map((item: any) => ({
               id: item.id,
               name: item.product_name,
-              price: item.price,
-              quantity: item.quantity,
+              price: item.variant?.price || item.price || 0,
+              quantity: item.quantity || 1,
               image:
+                item.variant?.thumbnail_url ||
                 item.product_images?.[0] ||
                 "https://placehold.co/100?text=Product",
               seller: item.seller_name || "Bazaar Merchant",
             })),
             shippingAddress: {
-              fullName:
-                (orderData.shipping_address as any)?.fullName ||
-                orderData.buyer_name,
-              street: (orderData.shipping_address as any)?.street || "",
-              city: (orderData.shipping_address as any)?.city || "",
-              province: (orderData.shipping_address as any)?.province || "",
-              postalCode: (orderData.shipping_address as any)?.postalCode || "",
-              phone:
-                (orderData.shipping_address as any)?.phone ||
-                orderData.buyer_phone ||
-                "",
+              fullName: orderData.recipient
+                ? `${orderData.recipient.first_name} ${orderData.recipient.last_name}`
+                : orderData.buyer_name || "Guest",
+              street: orderData.address?.address_line_1 || "",
+              city: orderData.address?.city || "",
+              province: orderData.address?.province || "",
+              postalCode: orderData.address?.postal_code || "",
+              phone: orderData.recipient?.phone || orderData.buyer_phone || "",
             },
             paymentMethod: {
               type: (orderData.payment_method as any)?.type || "cod",
@@ -131,7 +158,7 @@ function DeliveryTrackingPage() {
           setDbOrder(mappedOrder);
 
           // Map status to currentStep
-          const stepMap = {
+          const stepMap: Record<string, number> = {
             pending: 1,
             confirmed: 2,
             shipped: 3,
@@ -148,7 +175,7 @@ function DeliveryTrackingPage() {
     };
 
     fetchOrder();
-  }, [orderId]);
+  }, [orderNumber]);
 
   // Update animated progress based on current step
   useEffect(() => {
@@ -443,18 +470,18 @@ function DeliveryTrackingPage() {
                     >
                       <div
                         className={`relative ${step.status === "completed"
-                            ? "animate-pulse"
-                            : step.status === "current"
-                              ? "animate-bounce"
-                              : ""
+                          ? "animate-pulse"
+                          : step.status === "current"
+                            ? "animate-bounce"
+                            : ""
                           }`}
                       >
                         <div
                           className={`w-6 h-6 rounded-full border-3 ${step.status === "completed"
-                              ? "bg-green-500 border-green-600 shadow-lg shadow-green-500/50"
-                              : step.status === "current"
-                                ? "bg-orange-500 border-orange-600 shadow-lg shadow-orange-500/50 animate-ping"
-                                : "bg-gray-300 border-gray-400"
+                            ? "bg-green-500 border-green-600 shadow-lg shadow-green-500/50"
+                            : step.status === "current"
+                              ? "bg-orange-500 border-orange-600 shadow-lg shadow-orange-500/50 animate-ping"
+                              : "bg-gray-300 border-gray-400"
                             }`}
                         />
 
@@ -475,8 +502,8 @@ function DeliveryTrackingPage() {
                 <motion.div
                   className="absolute z-30"
                   animate={{
-                    x: [60, 200, 360, 480][currentStep] - 20,
-                    y: [320, 240, 120, 60][currentStep] - 20,
+                    x: [60, 200, 360, 480][currentStep - 1] - 20,
+                    y: [320, 240, 120, 60][currentStep - 1] - 20,
                   }}
                   transition={{ duration: 1.5, ease: "easeInOut" }}
                 >
@@ -588,10 +615,10 @@ function DeliveryTrackingPage() {
                     >
                       <div
                         className={`w-8 h-8 rounded-full flex items-center justify-center border-2 mt-1 ${isCompleted
-                            ? "bg-green-500 border-green-600 text-white"
-                            : isCurrent
-                              ? "bg-blue-500 border-blue-600 text-white animate-pulse"
-                              : "bg-gray-100 border-gray-300 text-gray-400"
+                          ? "bg-green-500 border-green-600 text-white"
+                          : isCurrent
+                            ? "bg-blue-500 border-blue-600 text-white animate-pulse"
+                            : "bg-gray-100 border-gray-300 text-gray-400"
                           }`}
                       >
                         {isCompleted ? (
@@ -606,16 +633,16 @@ function DeliveryTrackingPage() {
                           <div>
                             <h4
                               className={`font-medium ${isCompleted || isCurrent
-                                  ? "text-gray-900"
-                                  : "text-gray-500"
+                                ? "text-gray-900"
+                                : "text-gray-500"
                                 }`}
                             >
                               {step.location.name}
                             </h4>
                             <p
                               className={`text-sm ${isCompleted || isCurrent
-                                  ? "text-gray-600"
-                                  : "text-gray-400"
+                                ? "text-gray-600"
+                                : "text-gray-400"
                                 }`}
                             >
                               {step.description}
@@ -623,8 +650,8 @@ function DeliveryTrackingPage() {
                           </div>
                           <span
                             className={`text-xs font-medium ${isCompleted || isCurrent
-                                ? "text-gray-500"
-                                : "text-gray-400"
+                              ? "text-gray-500"
+                              : "text-gray-400"
                               }`}
                           >
                             {step.time}
@@ -652,7 +679,7 @@ function DeliveryTrackingPage() {
                 <div className="p-4 bg-gradient-to-r from-orange-50 to-amber-50 rounded-xl border border-orange-100">
                   <div className="flex items-center justify-between mb-3">
                     <h4 className="font-semibold text-orange-900">
-                      Order #{order.id}
+                      Order #{order.orderNumber || order.id}
                     </h4>
                     <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
                       {order.status.toUpperCase()}
@@ -668,7 +695,7 @@ function DeliveryTrackingPage() {
                         Total Amount
                       </p>
                       <p className="text-orange-800 font-bold text-lg">
-                        ₱{order.total.toLocaleString()}
+                        ₱{(order.total || 0).toLocaleString()}
                       </p>
                     </div>
                   </div>
@@ -749,11 +776,11 @@ function DeliveryTrackingPage() {
                           </p>
                           <p className="text-sm text-gray-600">
                             Qty: {item.quantity} • ₱
-                            {item.price.toLocaleString()} each
+                            {(item.price || 0).toLocaleString()} each
                           </p>
                         </div>
                         <p className="font-medium text-gray-900">
-                          ₱{(item.price * item.quantity).toLocaleString()}
+                          ₱{((item.price || 0) * (item.quantity || 1)).toLocaleString()}
                         </p>
                       </div>
                     ))}
@@ -831,7 +858,7 @@ function DeliveryTrackingPage() {
                 <p className="text-orange-100">Your Premium Marketplace</p>
                 <div className="mt-4 p-3 bg-white/20 rounded-lg backdrop-blur-sm">
                   <p className="font-medium">Official Receipt</p>
-                  <p className="text-sm text-orange-100">Order #{order.id}</p>
+                  <p className="text-sm text-orange-100">Order #{order.orderNumber || order.id}</p>
                 </div>
               </div>
 
@@ -878,12 +905,12 @@ function DeliveryTrackingPage() {
                             </p>
                             <p className="text-xs text-gray-500">
                               Qty: {item.quantity} × ₱
-                              {item.price.toLocaleString()}
+                              {(item.price || 0).toLocaleString()}
                             </p>
                           </div>
                         </div>
                         <p className="font-semibold text-gray-900">
-                          ₱{(item.price * item.quantity).toLocaleString()}
+                          ₱{((item.price || 0) * (item.quantity || 1)).toLocaleString()}
                         </p>
                       </div>
                     ))}
@@ -924,7 +951,7 @@ function DeliveryTrackingPage() {
                     <div className="flex justify-between">
                       <span className="text-gray-600">Subtotal</span>
                       <span className="font-medium">
-                        ₱{(order.total - 50).toLocaleString()}
+                        ₱{Math.max(0, (order.total || 0) - 50).toLocaleString()}
                       </span>
                     </div>
                     <div className="flex justify-between">
@@ -937,7 +964,7 @@ function DeliveryTrackingPage() {
                           Total Amount
                         </span>
                         <span className="font-bold text-orange-600 text-lg">
-                          ₱{order.total.toLocaleString()}
+                          ₱{(order.total || 0).toLocaleString()}
                         </span>
                       </div>
                     </div>

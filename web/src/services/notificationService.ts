@@ -15,6 +15,7 @@ export interface Notification {
   id: string;
   user_id?: string;
   buyer_id?: string;
+  seller_id?: string;
   admin_id?: string;
   type: string;
   title: string;
@@ -59,6 +60,7 @@ export class NotificationService {
   private getUserIdColumn(userType: 'buyer' | 'seller' | 'admin'): string {
     switch (userType) {
       case 'buyer': return 'buyer_id';
+      case 'seller': return 'seller_id';
       case 'admin': return 'admin_id';
       default: return 'buyer_id'; // seller_notifications doesn't have a seller_id column in the schema
     }
@@ -97,6 +99,7 @@ export class NotificationService {
       
       // Build the insert data based on user type
       const insertData: any = {
+        [userIdColumn]: params.userId,
         type: params.type,
         title: params.title,
         message: params.message,
@@ -104,11 +107,6 @@ export class NotificationService {
         action_data: params.actionData,
         priority: params.priority || 'normal',
       };
-
-      // Only add user ID column for buyer and admin (seller_notifications doesn't have seller_id)
-      if (params.userType !== 'seller') {
-        insertData[userIdColumn] = params.userId;
-      }
 
       const { data, error } = await supabase
         .from(tableName)
@@ -166,18 +164,12 @@ export class NotificationService {
       const tableName = this.getTableName(userType);
       const userIdColumn = this.getUserIdColumn(userType);
       
-      let query = supabase
+      const { data, error } = await supabase
         .from(tableName)
         .select('*')
+        .eq(userIdColumn, userId) // Enforce ID filtering for ALL types
         .order('created_at', { ascending: false })
         .limit(limit);
-
-      // Only filter by user ID for buyer and admin (seller_notifications doesn't have seller_id)
-      if (userType !== 'seller') {
-        query = query.eq(userIdColumn, userId);
-      }
-
-      const { data, error } = await query;
 
       // Handle table not existing (404) or other errors gracefully
       if (error) {
@@ -217,17 +209,11 @@ export class NotificationService {
       const tableName = this.getTableName(userType);
       const userIdColumn = this.getUserIdColumn(userType);
       
-      let query = supabase
+      const { count, error } = await supabase
         .from(tableName)
         .select('*', { count: 'exact', head: true })
+        .eq(userIdColumn, userId) // Enforce ID filtering
         .is('read_at', null); // Unread = read_at is null
-
-      // Only filter by user ID for buyer and admin
-      if (userType !== 'seller') {
-        query = query.eq(userIdColumn, userId);
-      }
-
-      const { count, error } = await query;
 
       if (error) {
         console.warn('Error fetching unread count:', error);
@@ -284,19 +270,13 @@ export class NotificationService {
       const tableName = this.getTableName(userType);
       const userIdColumn = this.getUserIdColumn(userType);
       
-      let query = supabase
+      const { error } = await supabase
         .from(tableName)
         .update({
           read_at: new Date().toISOString()
         })
+        .eq(userIdColumn, userId) // Enforce ID filtering
         .is('read_at', null); // Only update unread ones
-      
-      // Only filter by user ID for buyer and admin
-      if (userType !== 'seller') {
-        query = query.eq(userIdColumn, userId);
-      }
-
-      const { error } = await query;
 
       if (error) {
         console.warn('Error marking all notifications as read:', error);
@@ -350,7 +330,7 @@ export class NotificationService {
       message: `New order #${params.orderNumber} from ${params.buyerName}. Total: ₱${params.total.toLocaleString()}`,
       icon: 'ShoppingBag',
       iconBg: 'bg-green-500',
-      actionUrl: `/seller/orders/${params.orderId}`,
+      actionUrl: `/seller/order/${params.orderId}`,
       actionData: { orderId: params.orderId },
       priority: 'high'
     });

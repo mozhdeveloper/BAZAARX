@@ -308,401 +308,399 @@ export function SellerOrders() {
         </SidebarBody>
       </Sidebar>
 
-      <div className="flex-1 overflow-auto bg-gray-50 px-8 py-6">
-        <div className="max-w-7xl mx-auto space-y-6">
-          {/* Header */}
-          <div className="flex items-center justify-between">
-            <div>
-              <h1
-                className="text-3xl font-bold text-gray-900"
-                style={{ fontFamily: "Inter, sans-serif" }}
-              >
-                Orders
-              </h1>
-              <p className="text-gray-500 mt-1 text-sm">
-                Manage all your customer orders from App and POS
-              </p>
-            </div>
-          </div>
-
-          {/* Modern Stats Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Total Orders - Orange */}
-            <Card className="border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-              <CardContent className="p-5">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-500 mb-1">
-                      Total Orders
-                    </p>
-                    <p className="text-3xl font-bold text-gray-900">
-                      {orderStats.total}
-                    </p>
-                  </div>
-                  <div className="h-12 w-12 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
-                    <ShoppingBag className="h-6 w-6 text-orange-600" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Pending - Yellow */}
-            <Card className="border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-              <CardContent className="p-5">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-500 mb-1">
-                      Pending
-                    </p>
-                    <p className="text-3xl font-bold text-yellow-600">
-                      {orderStats.pending}
-                    </p>
-                  </div>
-                  <div className="h-12 w-12 rounded-full bg-yellow-100 flex items-center justify-center flex-shrink-0">
-                    <Clock className="h-6 w-6 text-yellow-600" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Delivered - Green */}
-            <Card className="border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-              <CardContent className="p-5">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-500 mb-1">
-                      Delivered
-                    </p>
-                    <p className="text-3xl font-bold text-green-600">
-                      {orderStats.delivered}
-                    </p>
-                  </div>
-                  <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
-                    <CheckCircle className="h-6 w-6 text-green-600" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* POS Sales Today - Purple */}
-            <Card className="border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-              <CardContent className="p-5">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-500 mb-1">
-                      POS Sales Today
-                    </p>
-                    <p className="text-3xl font-bold text-purple-600">
-                      {orderStats.posToday}
-                    </p>
-                  </div>
-                  <div className="h-12 w-12 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
-                    <CreditCard className="h-6 w-6 text-purple-600" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Advanced Filtering Toolbar - Now a Card */}
-          <Card className="border border-gray-200 shadow-sm">
-            <CardContent className="p-4">
-              <div className="flex flex-col lg:flex-row gap-4 items-center">
-                {/* Search Input */}
-                <div className="flex-1 w-full lg:w-auto">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                    <Input
-                      type="text"
-                      placeholder="Search by Order ID, Customer name, or Email..."
-                      value={searchQuery}
-                      onChange={(e) =>
-                        setSearchQuery(e.target.value)
-                      }
-                      className="pl-10 w-full border-gray-300 focus-visible:ring-orange-500"
-                    />
-                  </div>
-                </div>
-
-                {/* Channel Filter Tabs */}
-                                <Tabs
-                                  value={channelFilter}
-                                  onValueChange={(value) =>
-                                    setChannelFilter(
-                                      value as "all" | "online" | "pos",
-                                    )
-                                  }
-                                  className="w-full lg:w-auto"
-                                >
-                  <TabsList className="grid w-full lg:w-auto grid-cols-3 bg-gray-100">
-                    <TabsTrigger
-                      value="all"
-                      className="data-[state=active]:bg-orange-500 data-[state=active]:text-white"
-                    >
-                      All Channels
-                    </TabsTrigger>
-                    <TabsTrigger
-                      value="online"
-                      className="data-[state=active]:bg-orange-500 data-[state=active]:text-white"
-                    >
-                      <Globe className="h-4 w-4 mr-1" />
-                      Online App
-                    </TabsTrigger>
-                    <TabsTrigger
-                      value="pos"
-                      className="data-[state=active]:bg-orange-500 data-[state=active]:text-white"
-                    >
-                      <StoreIcon className="h-4 w-4 mr-1" />
-                      POS / Offline
-                    </TabsTrigger>
-                  </TabsList>
-                </Tabs>
-
-                {/* Status Filter Select */}
-                <div className="w-full lg:w-auto flex gap-2">
-                  <Select
-                    value={filterStatus}
-                    onValueChange={setFilterStatus}
-                  >
-                    <SelectTrigger className="w-full lg:w-[180px] border-gray-300">
-                      <SelectValue placeholder="Filter Status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">
-                        All Status
-                      </SelectItem>
-                      <SelectItem value="pending">
-                        Pending
-                      </SelectItem>
-                      <SelectItem value="confirmed">
-                        Confirmed
-                      </SelectItem>
-                      <SelectItem value="shipped">
-                        Shipped
-                      </SelectItem>
-                      <SelectItem value="delivered">
-                        Delivered
-                      </SelectItem>
-                      <SelectItem value="cancelled">
-                        Cancelled
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-
-                  {/* Export Button */}
-                  <Button
-                    variant="outline"
-                    className="w-full lg:w-auto border-gray-300 hover:bg-gray-50"
-                  >
-                    <Download className="h-4 w-4 mr-2" />
-                    Export
-                  </Button>
-                </div>
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="p-2 md:p-8 bg-gray-50 flex-1 w-full h-full overflow-auto">
+          <div className="max-w-7xl mx-auto space-y-6">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900">
+                  Orders
+                </h1>
+                <p className="text-sm text-gray-500 mt-1">
+                  Manage all your customer orders from App and POS
+                </p>
               </div>
-            </CardContent>
-          </Card>
+            </div>
 
-          {/* Orders Table */}
-          <Card className="border border-gray-200 shadow-sm">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-gray-50 hover:bg-gray-50">
-                  <TableHead className="font-semibold text-gray-700">
-                    Order ID & Date
-                  </TableHead>
-                  <TableHead className="font-semibold text-gray-700">
-                    Customer
-                  </TableHead>
-                  <TableHead className="font-semibold text-gray-700">
-                    Channel
-                  </TableHead>
-                  <TableHead className="font-semibold text-gray-700">
-                    Status
-                  </TableHead>
-                  <TableHead className="font-semibold text-gray-700">
-                    Payment
-                  </TableHead>
-                  <TableHead className="font-semibold text-gray-700 text-right">
-                    Total
-                  </TableHead>
-                  <TableHead className="font-semibold text-gray-700 text-right">
-                    Actions
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredOrders.map((order) => (
-                  <TableRow
-                    key={order.id}
-                    className="hover:bg-gray-50 transition-colors cursor-pointer"
-                    onClick={() =>
-                      setSelectedOrder(
-                        selectedOrderNumber === (order.orderNumber || order.id)
-                          ? null
-                          : order.orderNumber || order.id
+            {/* Modern Stats Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Total Orders - Orange */}
+              <Card className="border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+                <CardContent className="p-5">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-500 mb-1">
+                        Total Orders
+                      </p>
+                      <p className="text-3xl font-bold text-gray-900">
+                        {orderStats.total}
+                      </p>
+                    </div>
+                    <div className="h-12 w-12 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
+                      <ShoppingBag className="h-6 w-6 text-orange-600" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Pending - Yellow */}
+              <Card className="border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+                <CardContent className="p-5">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-500 mb-1">
+                        Pending
+                      </p>
+                      <p className="text-3xl font-bold text-yellow-600">
+                        {orderStats.pending}
+                      </p>
+                    </div>
+                    <div className="h-12 w-12 rounded-full bg-yellow-100 flex items-center justify-center flex-shrink-0">
+                      <Clock className="h-6 w-6 text-yellow-600" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Delivered - Green */}
+              <Card className="border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+                <CardContent className="p-5">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-500 mb-1">
+                        Delivered
+                      </p>
+                      <p className="text-3xl font-bold text-green-600">
+                        {orderStats.delivered}
+                      </p>
+                    </div>
+                    <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+                      <CheckCircle className="h-6 w-6 text-green-600" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* POS Sales Today - Purple */}
+              <Card className="border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+                <CardContent className="p-5">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-500 mb-1">
+                        POS Sales Today
+                      </p>
+                      <p className="text-3xl font-bold text-purple-600">
+                        {orderStats.posToday}
+                      </p>
+                    </div>
+                    <div className="h-12 w-12 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
+                      <CreditCard className="h-6 w-6 text-purple-600" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Advanced Filtering Toolbar - Now a Card */}
+            <Card className="border border-gray-200 shadow-sm">
+              <CardContent className="p-4">
+                <div className="flex flex-col lg:flex-row gap-4 items-center">
+                  {/* Search Input */}
+                  <div className="flex-1 w-full lg:w-auto">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                      <Input
+                        type="text"
+                        placeholder="Search by Order ID, Customer name, or Email..."
+                        value={searchQuery}
+                        onChange={(e) =>
+                          setSearchQuery(e.target.value)
+                        }
+                        className="pl-10 w-full border-gray-300 focus-visible:ring-orange-500"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Channel Filter Tabs */}
+                  <Tabs
+                    value={channelFilter}
+                    onValueChange={(value) =>
+                      setChannelFilter(
+                        value as "all" | "online" | "pos",
                       )
                     }
+                    className="w-full lg:w-auto"
                   >
-                    {/* Order ID & Source */}
-                    <TableCell>
-                      <div className="flex items-center gap-2">
+                    <TabsList className="grid w-full lg:w-auto grid-cols-3 bg-gray-100">
+                      <TabsTrigger
+                        value="all"
+                        className="data-[state=active]:bg-orange-500 data-[state=active]:text-white"
+                      >
+                        All Channels
+                      </TabsTrigger>
+                      <TabsTrigger
+                        value="online"
+                        className="data-[state=active]:bg-orange-500 data-[state=active]:text-white"
+                      >
+                        <Globe className="h-4 w-4 mr-1" />
+                        Online App
+                      </TabsTrigger>
+                      <TabsTrigger
+                        value="pos"
+                        className="data-[state=active]:bg-orange-500 data-[state=active]:text-white"
+                      >
+                        <StoreIcon className="h-4 w-4 mr-1" />
+                        POS / Offline
+                      </TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+
+                  {/* Status Filter Select */}
+                  <div className="w-full lg:w-auto flex gap-2">
+                    <Select
+                      value={filterStatus}
+                      onValueChange={setFilterStatus}
+                    >
+                      <SelectTrigger className="w-full lg:w-[180px] border-gray-300">
+                        <SelectValue placeholder="Filter Status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">
+                          All Status
+                        </SelectItem>
+                        <SelectItem value="pending">
+                          Pending
+                        </SelectItem>
+                        <SelectItem value="confirmed">
+                          Confirmed
+                        </SelectItem>
+                        <SelectItem value="shipped">
+                          Shipped
+                        </SelectItem>
+                        <SelectItem value="delivered">
+                          Delivered
+                        </SelectItem>
+                        <SelectItem value="cancelled">
+                          Cancelled
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    {/* Export Button */}
+                    <Button
+                      variant="outline"
+                      className="w-full lg:w-auto border-gray-300 hover:bg-gray-50"
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Export
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Orders Table */}
+            <Card className="border border-gray-200 shadow-sm">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-gray-50 hover:bg-gray-50">
+                    <TableHead className="font-semibold text-gray-700">
+                      Order ID & Date
+                    </TableHead>
+                    <TableHead className="font-semibold text-gray-700">
+                      Customer
+                    </TableHead>
+                    <TableHead className="font-semibold text-gray-700">
+                      Channel
+                    </TableHead>
+                    <TableHead className="font-semibold text-gray-700">
+                      Status
+                    </TableHead>
+                    <TableHead className="font-semibold text-gray-700">
+                      Payment
+                    </TableHead>
+                    <TableHead className="font-semibold text-gray-700 text-right">
+                      Total
+                    </TableHead>
+                    <TableHead className="font-semibold text-gray-700 text-right">
+                      Actions
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredOrders.map((order) => (
+                    <TableRow
+                      key={order.id}
+                      className="hover:bg-gray-50 transition-colors cursor-pointer"
+                      onClick={() =>
+                        setSelectedOrder(
+                          selectedOrderNumber === (order.orderNumber || order.id)
+                            ? null
+                            : order.orderNumber || order.id
+                        )
+                      }
+                    >
+                      {/* Order ID & Source */}
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          {order.type === "ONLINE" ? (
+                            <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                              <Globe className="h-4 w-4 text-blue-600" />
+                            </div>
+                          ) : (
+                            <div className="h-8 w-8 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
+                              <StoreIcon className="h-4 w-4 text-purple-600" />
+                            </div>
+                          )}
+                          <div>
+                            <p className="font-semibold text-gray-900 text-sm">
+                              #{order.orderNumber || order.id.slice(0, 8)}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {new Date(
+                                order.orderDate,
+                              ).toLocaleDateString(
+                                "en-US",
+                                {
+                                  month: "short",
+                                  day: "numeric",
+                                  year: "numeric",
+                                },
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                      </TableCell>
+
+                      {/* Customer */}
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Avatar className="h-8 w-8">
+                            <AvatarFallback className="bg-orange-100 text-orange-600 text-xs font-medium">
+                              {order.buyerName.charAt(
+                                0,
+                              )}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="font-medium text-gray-900 text-sm">
+                              {order.buyerName}
+                            </p>
+                            {order.type ===
+                              "OFFLINE" && (
+                                <p className="text-xs text-purple-600 font-medium">
+                                  Walk-in
+                                </p>
+                              )}
+                          </div>
+                        </div>
+                      </TableCell>
+
+                      {/* Channel Badge */}
+                      <TableCell>
                         {order.type === "ONLINE" ? (
-                          <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                            <Globe className="h-4 w-4 text-blue-600" />
-                          </div>
+                          <Badge
+                            variant="outline"
+                            className="border-blue-300 text-blue-700 bg-blue-50 font-medium"
+                          >
+                            Online
+                          </Badge>
                         ) : (
-                          <div className="h-8 w-8 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
-                            <StoreIcon className="h-4 w-4 text-purple-600" />
-                          </div>
+                          <Badge
+                            variant="outline"
+                            className="border-purple-300 text-purple-700 bg-purple-50 font-medium"
+                          >
+                            POS
+                          </Badge>
                         )}
-                        <div>
-                          <p className="font-semibold text-gray-900 text-sm">
-                            #{order.orderNumber || order.id.slice(0, 8)}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {new Date(
-                              order.orderDate,
-                            ).toLocaleDateString(
-                              "en-US",
-                              {
-                                month: "short",
-                                day: "numeric",
-                                year: "numeric",
-                              },
-                            )}
-                          </p>
-                        </div>
-                      </div>
-                    </TableCell>
-
-                    {/* Customer */}
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Avatar className="h-8 w-8">
-                          <AvatarFallback className="bg-orange-100 text-orange-600 text-xs font-medium">
-                            {order.buyerName.charAt(
-                              0,
-                            )}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <p className="font-medium text-gray-900 text-sm">
-                            {order.buyerName}
-                          </p>
-                          {order.type ===
-                            "OFFLINE" && (
-                              <p className="text-xs text-purple-600 font-medium">
-                                Walk-in
-                              </p>
-                            )}
-                        </div>
-                      </div>
-                    </TableCell>
-
-                    {/* Channel Badge */}
-                    <TableCell>
-                      {order.type === "ONLINE" ? (
-                        <Badge
-                          variant="outline"
-                          className="border-blue-300 text-blue-700 bg-blue-50 font-medium"
-                        >
-                          Online
-                        </Badge>
-                      ) : (
-                        <Badge
-                          variant="outline"
-                          className="border-purple-300 text-purple-700 bg-purple-50 font-medium"
-                        >
-                          POS
-                        </Badge>
-                      )}
-                    </TableCell>
+                      </TableCell>
 
                     {/* Status */}
                     <TableCell>
                       <OrderStatusBadge status={order.status} compact />
                     </TableCell>
 
-                    {/* Payment Status */}
-                    <TableCell>
-                      <Badge
-                        variant="secondary"
-                        className={cn(
-                          "font-medium",
-                          order.paymentStatus ===
-                          "paid" &&
-                          "bg-green-100 text-green-700 hover:bg-green-100",
-                          order.paymentStatus ===
-                          "pending" &&
-                          "bg-yellow-100 text-yellow-700 hover:bg-yellow-100",
-                          order.paymentStatus ===
-                          "refunded" &&
-                          "bg-red-100 text-red-700 hover:bg-red-100",
-                        )}
-                      >
-                        {order.paymentStatus
-                          .charAt(0)
-                          .toUpperCase() +
-                          order.paymentStatus.slice(
-                            1,
+                      {/* Payment Status */}
+                      <TableCell>
+                        <Badge
+                          variant="secondary"
+                          className={cn(
+                            "font-medium",
+                            order.paymentStatus ===
+                            "paid" &&
+                            "bg-green-100 text-green-700 hover:bg-green-100",
+                            order.paymentStatus ===
+                            "pending" &&
+                            "bg-yellow-100 text-yellow-700 hover:bg-yellow-100",
+                            order.paymentStatus ===
+                            "refunded" &&
+                            "bg-red-100 text-red-700 hover:bg-red-100",
                           )}
-                      </Badge>
-                    </TableCell>
-
-                    {/* Total */}
-                    <TableCell className="text-right">
-                      <p className="font-bold text-gray-900 text-base">
-                        ₱{order.total.toLocaleString()}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {order.items.length} items
-                      </p>
-                    </TableCell>
-
-                    {/* Actions Dropdown */}
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger
-                          asChild
-                          onClick={(e) =>
-                            e.stopPropagation()
-                          }
                         >
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                          >
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent
-                          align="end"
-                          className="w-48"
-                        >
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              // UPDATED: Pass orderNumber
-                              setSelectedOrder(order.orderNumber!);
-                            }}
-                          >
-                            <Eye className="h-4 w-4 mr-2" />
-                            View Details
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
+                          {order.paymentStatus
+                            .charAt(0)
+                            .toUpperCase() +
+                            order.paymentStatus.slice(
+                              1,
+                            )}
+                        </Badge>
+                      </TableCell>
+
+                      {/* Total */}
+                      <TableCell className="text-right">
+                        <p className="font-bold text-gray-900 text-base">
+                          ₱{order.total.toLocaleString()}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {order.items.length} items
+                        </p>
+                      </TableCell>
+
+                      {/* Actions Dropdown */}
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger
+                            asChild
                             onClick={(e) =>
                               e.stopPropagation()
                             }
                           >
-                            <Printer className="h-4 w-4 mr-2" />
-                            Print Invoice
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          {order.status ===
-                            "pending" && (
-                              <>
-                                <DropdownMenuItem
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent
+                            align="end"
+                            className="w-48"
+                          >
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                // UPDATED: Pass orderNumber
+                                setSelectedOrder(order.orderNumber!);
+                              }}
+                            >
+                              <Eye className="h-4 w-4 mr-2" />
+                              View Details
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={(e) =>
+                                e.stopPropagation()
+                              }
+                            >
+                              <Printer className="h-4 w-4 mr-2" />
+                              Print Invoice
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            {order.status ===
+                              "pending" && (
+                                <>
+                                  <DropdownMenuItem
                                     onClick={(
                                       e,
                                     ) => {
@@ -712,12 +710,12 @@ export function SellerOrders() {
                                         "confirmed",
                                       );
                                     }}
-                                  className="text-green-600"
-                                >
-                                  <CheckCircle className="h-4 w-4 mr-2" />
-                                  Confirm Order
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
+                                    className="text-green-600"
+                                  >
+                                    <CheckCircle className="h-4 w-4 mr-2" />
+                                    Confirm Order
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
                                     onClick={(
                                       e,
                                     ) => {
@@ -727,193 +725,194 @@ export function SellerOrders() {
                                         "cancelled",
                                       );
                                     }}
-                                  className="text-red-600"
-                                >
-                                  <XCircle className="h-4 w-4 mr-2" />
-                                  Cancel Order
-                                </DropdownMenuItem>
-                              </>
-                            )}
-                          {order.status ===
-                            "confirmed" && (
-                              <>
+                                    className="text-red-600"
+                                  >
+                                    <XCircle className="h-4 w-4 mr-2" />
+                                    Cancel Order
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                            {order.status ===
+                              "confirmed" && (
+                                <>
+                                  <DropdownMenuItem
+                                    onClick={(
+                                      e,
+                                    ) => {
+                                      e.stopPropagation();
+                                      setTrackingModal(
+                                        {
+                                          isOpen: true,
+                                          orderId:
+                                            order.id,
+                                          trackingNumber:
+                                            "",
+                                          isLoading: false,
+                                        },
+                                      );
+                                    }}
+                                    className="text-purple-600"
+                                  >
+                                    <Truck className="h-4 w-4 mr-2" />
+                                    Mark as Shipped
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                            {order.status ===
+                              "shipped" && (
                                 <DropdownMenuItem
-                                  onClick={(
-                                    e,
-                                  ) => {
+                                  onClick={(e) => {
                                     e.stopPropagation();
-                                    setTrackingModal(
-                                      {
-                                        isOpen: true,
-                                        orderId:
-                                          order.id,
-                                        trackingNumber:
-                                          "",
-                                        isLoading: false,
-                                      },
+                                    handleMarkAsDelivered(
+                                      order.id,
                                     );
                                   }}
-                                  className="text-purple-600"
+                                  className="text-green-600"
                                 >
-                                  <Truck className="h-4 w-4 mr-2" />
-                                  Mark as Shipped
+                                  <CheckCircle className="h-4 w-4 mr-2" />
+                                  Confirm Delivered
                                 </DropdownMenuItem>
-                              </>
-                            )}
-                          {order.status ===
-                            "shipped" && (
-                              <DropdownMenuItem
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleMarkAsDelivered(
-                                    order.id,
-                                  );
-                                }}
-                                className="text-green-600"
-                              >
-                                <CheckCircle className="h-4 w-4 mr-2" />
-                                Confirm Delivered
-                              </DropdownMenuItem>
-                            )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                              )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
 
-            {/* Empty State */}
-            {filteredOrders.length === 0 && (
-              <div className="text-center py-12">
-                <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">
-                  No orders found
-                </h3>
-                <p className="text-gray-600 text-sm">
-                  {searchQuery || filterStatus !== "all"
-                    ? "Try adjusting your search or filters"
-                    : "When you receive orders, they will appear here"}
-                </p>
+              {/* Empty State */}
+              {filteredOrders.length === 0 && (
+                <div className="text-center py-12">
+                  <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">
+                    No orders found
+                  </h3>
+                  <p className="text-gray-600 text-sm">
+                    {searchQuery || filterStatus !== "all"
+                      ? "Try adjusting your search or filters"
+                      : "When you receive orders, they will appear here"}
+                  </p>
+                </div>
+              )}
+            </Card>
+
+            {/* Order Details Modal */}
+            <OrderDetailsModal
+              isOpen={!!selectedOrderNumber}
+              onClose={() => setSelectedOrder(null)}
+              order={
+                orders.find(
+                  (o) =>
+                    o.orderNumber === selectedOrderNumber ||
+                    o.id === selectedOrderNumber,
+                ) || null
+              }
+            />
+
+            {showAccessDenied && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[200] backdrop-blur-sm p-4">
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-md mx-auto border border-red-100"
+                >
+                  <div className="flex flex-col items-center text-center space-y-4">
+                    <div className="h-16 w-16 rounded-full bg-red-50 flex items-center justify-center mb-2">
+                      <AlertCircle className="h-8 w-8 text-red-600" />
+                    </div>
+
+                    <div>
+                      <h3 className="text-xl font-bold text-gray-900">Access Denied</h3>
+                      <p className="text-gray-500 mt-2 text-sm leading-relaxed">
+                        You do not have permission to view this order, or the order ID
+                        <span className="font-mono font-medium text-gray-700 bg-gray-100 px-1.5 py-0.5 rounded mx-1">
+                          {selectedOrderNumber}
+                        </span>
+                        does not exist.
+                      </p>
+                    </div>
+
+                    <div className="w-full pt-4">
+                      <Button
+                        onClick={() => setSelectedOrder(null)}
+                        className="w-full bg-gray-900 hover:bg-gray-800 text-white h-11 font-medium"
+                      >
+                        Go Back to Orders
+                      </Button>
+                    </div>
+                  </div>
+                </motion.div>
               </div>
             )}
-          </Card>
 
-          {/* Order Details Modal */}
-          <OrderDetailsModal
-            isOpen={!!selectedOrderNumber}
-            onClose={() => setSelectedOrder(null)}
-            order={
-              orders.find(
-                (o) =>
-                  o.orderNumber === selectedOrderNumber ||
-                  o.id === selectedOrderNumber,
-              ) || null
-            }
-          />
+            {/* Tracking Number Modal */}
+            {trackingModal.isOpen && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[200]">
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4"
+                >
+                  <h2 className="text-xl font-bold text-gray-900 mb-4">
+                    Enter Tracking Number
+                  </h2>
 
-          {showAccessDenied && (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[200] backdrop-blur-sm p-4">
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-md mx-auto border border-red-100"
-              >
-                <div className="flex flex-col items-center text-center space-y-4">
-                  <div className="h-16 w-16 rounded-full bg-red-50 flex items-center justify-center mb-2">
-                    <AlertCircle className="h-8 w-8 text-red-600" />
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Tracking Number
+                      </label>
+                      <Input
+                        type="text"
+                        placeholder="e.g., TRK123456789"
+                        value={trackingModal.trackingNumber}
+                        onChange={(e) =>
+                          setTrackingModal((prev) => ({
+                            ...prev,
+                            trackingNumber:
+                              e.target.value,
+                          }))
+                        }
+                        className="border-gray-300"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        This will be sent to the buyer for
+                        tracking their package
+                      </p>
+                    </div>
+
+                    <div className="flex gap-3 pt-4">
+                      <Button
+                        variant="outline"
+                        onClick={() =>
+                          setTrackingModal({
+                            isOpen: false,
+                            orderId: null,
+                            trackingNumber: "",
+                            isLoading: false,
+                          })
+                        }
+                        disabled={trackingModal.isLoading}
+                        className="flex-1"
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        onClick={handleMarkAsShipped}
+                        disabled={trackingModal.isLoading}
+                        className="flex-1 bg-orange-600 hover:bg-orange-700"
+                      >
+                        {trackingModal.isLoading
+                          ? "Processing..."
+                          : "Mark as Shipped"}
+                      </Button>
+                    </div>
                   </div>
-
-                  <div>
-                    <h3 className="text-xl font-bold text-gray-900">Access Denied</h3>
-                    <p className="text-gray-500 mt-2 text-sm leading-relaxed">
-                      You do not have permission to view this order, or the order ID
-                      <span className="font-mono font-medium text-gray-700 bg-gray-100 px-1.5 py-0.5 rounded mx-1">
-                        {selectedOrderNumber}
-                      </span>
-                      does not exist.
-                    </p>
-                  </div>
-
-                  <div className="w-full pt-4">
-                    <Button
-                      onClick={() => setSelectedOrder(null)}
-                      className="w-full bg-gray-900 hover:bg-gray-800 text-white h-11 font-medium"
-                    >
-                      Go Back to Orders
-                    </Button>
-                  </div>
-                </div>
-              </motion.div>
-            </div>
-          )}
-
-          {/* Tracking Number Modal */}
-          {trackingModal.isOpen && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[200]">
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4"
-              >
-                <h2 className="text-xl font-bold text-gray-900 mb-4">
-                  Enter Tracking Number
-                </h2>
-
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Tracking Number
-                    </label>
-                    <Input
-                      type="text"
-                      placeholder="e.g., TRK123456789"
-                      value={trackingModal.trackingNumber}
-                      onChange={(e) =>
-                        setTrackingModal((prev) => ({
-                          ...prev,
-                          trackingNumber:
-                            e.target.value,
-                        }))
-                      }
-                      className="border-gray-300"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      This will be sent to the buyer for
-                      tracking their package
-                    </p>
-                  </div>
-
-                  <div className="flex gap-3 pt-4">
-                    <Button
-                      variant="outline"
-                      onClick={() =>
-                        setTrackingModal({
-                          isOpen: false,
-                          orderId: null,
-                          trackingNumber: "",
-                          isLoading: false,
-                        })
-                      }
-                      disabled={trackingModal.isLoading}
-                      className="flex-1"
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      onClick={handleMarkAsShipped}
-                      disabled={trackingModal.isLoading}
-                      className="flex-1 bg-orange-600 hover:bg-orange-700"
-                    >
-                      {trackingModal.isLoading
-                        ? "Processing..."
-                        : "Mark as Shipped"}
-                    </Button>
-                  </div>
-                </div>
-              </motion.div>
-            </div>
-          )}
+                </motion.div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
