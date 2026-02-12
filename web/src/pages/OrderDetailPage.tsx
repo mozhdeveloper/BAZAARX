@@ -142,7 +142,7 @@ export default function OrderDetailPage() {
               .select('seller_id, seller:sellers(id, store_name)')
               .eq('id', firstItem.product_id)
               .single();
-            
+
             if (productData?.seller) {
               setSellerId((productData.seller as any).id);
               setStoreName((productData.seller as any).store_name || "Seller");
@@ -233,7 +233,7 @@ export default function OrderDetailPage() {
                   console.warn('Could not parse shipping address from notes');
                 }
               }
-              
+
               return {
                 fullName:
                   notesAddress?.fullName ||
@@ -1045,7 +1045,7 @@ export default function OrderDetailPage() {
                         </p>
                         <Button
                           onClick={() =>
-                            navigate(`/delivery-tracking/${order.id}`)
+                            navigate(`/delivery-tracking/${order.orderNumber}`)
                           }
                           className="mt-3 bg-blue-600 hover:bg-blue-700 text-white"
                           size="sm"
