@@ -63,20 +63,44 @@ class ChatService {
    * Helper: Get seller ID from order
    */
   private async getSellerIdFromOrder(orderId: string): Promise<string | null> {
-    // Get seller from order items (first product's seller)
-    const { data } = await supabase
-      .from('order_items')
-      .select(`
-        product:products (
-          seller_id
-        )
-      `)
-      .eq('order_id', orderId)
-      .limit(1)
-      .single();
+    try {
+      // Step 1: Get product ID from order items
+      const { data: orderItem, error: itemError } = await supabase
+        .from('order_items')
+        .select('product_id')
+        .eq('order_id', orderId)
+        .limit(1)
+        .single();
 
-    // Note: If products don't have seller_id, this might need adjustment
-    return (data?.product as any)?.seller_id || null;
+      if (itemError || !orderItem?.product_id) {
+        // Fallback: Try with join if 2-step fails, or maybe order_items is empty
+        const { data: joinData } = await supabase
+          .from('order_items')
+          .select(`
+            product:products (
+              seller_id
+            )
+          `)
+          .eq('order_id', orderId)
+          .limit(1)
+          .single();
+          
+        return (joinData?.product as any)?.seller_id || null;
+      }
+
+      // Step 2: Get seller ID from product
+      const { data: product, error: prodError } = await supabase
+        .from('products')
+        .select('seller_id')
+        .eq('id', orderItem.product_id)
+        .single();
+
+      if (prodError || !product) return null;
+      return product.seller_id;
+    } catch (e) {
+      console.warn('[ChatService] Error resolving seller from order:', e);
+      return null;
+    }
   }
 
   /**
@@ -205,9 +229,26 @@ class ChatService {
       .single();
 
     // Try to get seller from order if not provided
-    let resolvedSellerId = sellerId;
+    // Prioritize passed sellerId, then conv.seller_id (if migration applied), then order resolution
+    let resolvedSellerId = sellerId || conv.seller_id;
+    
     if (!resolvedSellerId && conv.order_id) {
       resolvedSellerId = await this.getSellerIdFromOrder(conv.order_id) || undefined;
+    }
+
+    // Fallback: If still no seller, try to find from messages (last resort for old chats)
+    if (!resolvedSellerId) {
+      const { data: msg } = await supabase
+        .from('messages')
+        .select('sender_id')
+        .eq('conversation_id', conv.id)
+        .eq('sender_type', 'seller')
+        .limit(1)
+        .single();
+      
+      if (msg) {
+        resolvedSellerId = msg.sender_id;
+      }
     }
 
     let seller = null;
