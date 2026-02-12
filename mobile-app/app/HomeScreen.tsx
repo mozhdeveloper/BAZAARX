@@ -14,18 +14,9 @@ import {
   TouchableOpacity,
   NativeSyntheticEvent,
   NativeScrollEvent,
-  NativeSyntheticEvent,
-  NativeScrollEvent,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import {
-  Search, Bell, Camera, Bot, X, Package, Timer, MapPin, ChevronDown, ArrowLeft, Clock,
-  MessageSquare, MessageCircle, CheckCircle2, ShoppingBag, Truck, XCircle,
-  Shirt, Smartphone, Sparkles, Sofa, Dumbbell, Gamepad2, Apple, Watch, Car, BookOpen,
-} from 'lucide-react-native';
-import type { LucideIcon } from 'lucide-react-native';
 import {
   Search, Bell, Camera, Bot, X, Package, Timer, MapPin, ChevronDown, ArrowLeft, Clock,
   MessageSquare, MessageCircle, CheckCircle2, ShoppingBag, Truck, XCircle,
