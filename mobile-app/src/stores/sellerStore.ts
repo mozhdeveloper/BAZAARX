@@ -20,14 +20,14 @@ interface Seller {
   approval_status: 'pending' | 'verified' | 'rejected';
   verified_at?: string;
   created_at?: string;
-  
+
   // Legacy fields for backward compatibility
   email?: string;
   phone?: string;
   rating?: number;
   totalSales?: number;
   storeCategory?: string[];
-  
+
   // Nested business profile (from seller_business_profiles table)
   business_profile?: {
     business_type?: string;
@@ -39,14 +39,14 @@ interface Seller {
     province?: string;
     postal_code?: string;
   };
-  
+
   // Nested payout account (from seller_payout_accounts table)
   payout_account?: {
     bank_name?: string;
     account_name?: string;
     account_number?: string;
   };
-  
+
   // Nested verification documents (from seller_verification_documents table)
   verification_documents?: {
     business_permit_url?: string;
@@ -308,14 +308,14 @@ const mapDbSellerToSeller = (s: any): Seller => {
     approval_status: (s.approval_status as Seller['approval_status']) || 'pending',
     verified_at: s.verified_at,
     created_at: s.created_at,
-    
+
     // Legacy fields for backward compatibility
     email: s.email || '',
     phone: s.phone || '',
     rating: 0, // Computed from reviews
     totalSales: 0, // Computed from orders
     storeCategory: [],
-    
+
     // Nested business profile
     business_profile: bp.business_type || bp.business_registration_number || bp.tax_id_number || bp.address_line_1 ? {
       business_type: bp.business_type || '',
@@ -327,14 +327,14 @@ const mapDbSellerToSeller = (s: any): Seller => {
       province: bp.province || '',
       postal_code: bp.postal_code || '',
     } : undefined,
-    
+
     // Nested payout account
     payout_account: pa.bank_name || pa.account_name || pa.account_number ? {
       bank_name: pa.bank_name || '',
       account_name: pa.account_name || '',
       account_number: pa.account_number || '',
     } : undefined,
-    
+
     // Nested verification documents
     verification_documents: vd.business_permit_url || vd.valid_id_url || vd.proof_of_address_url || vd.dti_registration_url || vd.tax_id_url ? {
       business_permit_url: vd.business_permit_url || '',
@@ -463,14 +463,14 @@ const mapOrderToSellerOrder = (order: any): SellerOrder => {
   const buyerProfile = order.buyer_profile; // Direct profile data, not nested
   const recipientInfo = order.recipient;
   const addressInfo = order.address;
-  
+
 
 
   // Determine buyer name - priority: buyer profile (for ONLINE) > recipient > Walk-in
   let buyerName = 'Walk-in Customer';
   let buyerEmail = '';
   let buyerPhone = '';
-  
+
   if (order.order_type === 'ONLINE') {
     // For ONLINE orders, get real customer info from buyer profile first, then recipient
     if (buyerProfile?.first_name || buyerProfile?.last_name) {
@@ -507,7 +507,7 @@ const mapOrderToSellerOrder = (order: any): SellerOrder => {
   const items = orderItems.map((item: any) => {
     const itemPrice = parseFloat(item.price?.toString() || '0');
     const itemQty = item.quantity || 1;
-    
+
     return {
       productId: String(item.product_id || ''),
       productName: safeStr(item.product_name, safeStr(item.productName, 'Unknown Product')),
@@ -520,10 +520,10 @@ const mapOrderToSellerOrder = (order: any): SellerOrder => {
   });
 
   // Always calculate total from items - this is more reliable than DB total_amount
-  const calculatedTotal = items.reduce((sum: number, item: { price: number; quantity: number }) => 
+  const calculatedTotal = items.reduce((sum: number, item: { price: number; quantity: number }) =>
     sum + (item.price * item.quantity), 0);
   const dbTotal = parseFloat(order.total_amount?.toString() || '0');
-  
+
   // Use calculated total if DB total is 0 or missing
   const total = calculatedTotal > 0 ? calculatedTotal : dbTotal;
 
@@ -538,7 +538,7 @@ const mapOrderToSellerOrder = (order: any): SellerOrder => {
       if (shipmentStatus === 'returned' || shipmentStatus === 'cancelled') return 'cancelled';
       if (shipmentStatus === 'waiting_for_seller') return 'pending';
     }
-    
+
     // Fallback to legacy status mapping
     const statusMap: Record<string, SellerOrder['status']> = {
       'pending_payment': 'pending',
@@ -567,8 +567,8 @@ const mapOrderToSellerOrder = (order: any): SellerOrder => {
 
   // Build shipping address from joined address relation or fallback to legacy fields
   const shippingAddress = {
-    fullName: recipientInfo 
-      ? `${recipientInfo.first_name || ''} ${recipientInfo.last_name || ''}`.trim() 
+    fullName: recipientInfo
+      ? `${recipientInfo.first_name || ''} ${recipientInfo.last_name || ''}`.trim()
       : buyerName,
     street: addressInfo?.address_line_1 || order.shipping_address?.street || '',
     barangay: addressInfo?.barangay || '',
@@ -660,14 +660,14 @@ export const useAuthStore = create<AuthStore>()(
             approval_status: 'pending',
             verified_at: undefined,
             created_at: new Date().toISOString(),
-            
+
             // Legacy fields
             email: sellerData.email!,
             phone: (sellerData as any).phone || '',
             rating: 0,
             totalSales: 0,
             storeCategory: (sellerData as any).storeCategory || [],
-            
+
             // Nested business profile
             business_profile: {
               business_type: (sellerData as any).businessType || '',
@@ -678,7 +678,7 @@ export const useAuthStore = create<AuthStore>()(
               province: (sellerData as any).province || '',
               postal_code: (sellerData as any).postalCode || '',
             },
-            
+
             // Nested payout account
             payout_account: {
               bank_name: (sellerData as any).bankName || '',
@@ -2311,6 +2311,7 @@ export const useSellerStore = () => {
     ordersLoading: orders.sellerOrdersLoading,
     fetchOrders: orders.fetchSellerOrders,
     updateOrderStatus: orders.updateSellerOrderStatus,
+    markOrderAsShipped: orders.markOrderAsShipped,
     addOfflineOrder: orders.addOfflineOrder,
   };
 };
