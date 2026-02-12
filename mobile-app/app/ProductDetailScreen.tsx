@@ -46,6 +46,7 @@ import CameraSearchModal from '../src/components/CameraSearchModal';
 import StoreChatModal from '../src/components/StoreChatModal';
 import { AIChatBubble } from '../src/components/AIChatBubble';
 import { AddedToCartModal } from '../src/components/AddedToCartModal';
+import { QuantityStepper } from '../src/components/QuantityStepper';
 import { useCartStore } from '../src/stores/cartStore';
 import { useWishlistStore } from '../src/stores/wishlistStore';
 import { trendingProducts } from '../src/data/products';
@@ -202,6 +203,27 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       image: matchedVariant?.thumbnail_url || matchedVariant?.image || null,
     };
   }, [hasStructuredVariants, productVariants, modalSelectedOption1, modalSelectedOption2, product.price, product.stock]);
+
+  // Main screen variant info (for accurate stock display and validation)
+  const selectedVariantInfo = useMemo(() => {
+    if (!hasStructuredVariants) {
+      return { price: product.price, stock: product.stock, image: null };
+    }
+
+    const matchedVariant = productVariants.find((v: any) => {
+      // Match by option values OR legacy color/size using main screen state
+      const option1Match = !selectedOption1 || v.option_1_value === selectedOption1 || v.color === selectedOption1;
+      const option2Match = !selectedOption2 || v.option_2_value === selectedOption2 || v.size === selectedOption2;
+      return option1Match && option2Match;
+    });
+
+    return {
+      price: matchedVariant?.price ?? product.price,
+      stock: matchedVariant?.stock ?? product.stock, // Default to product stock if no variant match found (though unlikely if options exist)
+      variantId: matchedVariant?.id,
+      image: matchedVariant?.thumbnail_url || matchedVariant?.image || null,
+    };
+  }, [hasStructuredVariants, productVariants, selectedOption1, selectedOption2, product.price, product.stock]);
 
   // Reviews State
   const [reviews, setReviews] = useState<(Review & { buyer?: { full_name: string | null; avatar_url: string | null } })[]>([]);
@@ -400,6 +422,13 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
     // Build variant info
     const selectedVariant = buildSelectedVariant();
+
+    // Validate quantity against variant stock
+    const currentStock = selectedVariantInfo.stock || 0;
+    if (quantity > currentStock) {
+      Alert.alert('Insufficient Stock', `Only ${currentStock} items available for this variant.`);
+      return;
+    }
 
     // Add to cart with variant information
     addItem({
@@ -647,7 +676,9 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
           </View>
 
           <Text style={styles.productName}>{product.name}</Text>
-          <Text style={styles.subInfo}>{product.sold} sold this month • Free Shipping Available</Text>
+          <Text style={styles.subInfo}>
+            {reviewsTotal > 0 ? `${reviewsTotal} reviews` : 'No reviews yet'} • {(product.sold || product.sales_count || 0).toLocaleString()} sold • Free Shipping Available
+          </Text>
 
           {/* Price */}
           <View style={styles.priceRow}>
@@ -659,13 +690,13 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
           <View style={styles.metaRow}>
             <Text style={[
               styles.stockText,
-              { color: (product.stock || 0) <= 5 ? '#F97316' : (product.stock || 0) === 0 ? '#EF4444' : '#10B981' }
+              { color: (selectedVariantInfo.stock || 0) <= 5 ? '#F97316' : (selectedVariantInfo.stock || 0) === 0 ? '#EF4444' : '#10B981' }
             ]}>
-              {(product.stock || 0) === 0
+              {(selectedVariantInfo.stock || 0) === 0
                 ? 'Out of Stock'
-                : (product.stock || 0) <= 5
-                  ? `Only ${product.stock} left!`
-                  : `In-Stock (${product.stock || 0})`}
+                : (selectedVariantInfo.stock || 0) <= 5
+                  ? `Only ${selectedVariantInfo.stock} left!`
+                  : `In-Stock (${selectedVariantInfo.stock || 0})`}
             </Text>
           </View>
           <View style={styles.ratingRow}>
@@ -727,21 +758,24 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
         {/* --- QUANTITY SELECTION --- */}
         <View style={styles.sectionMerged}>
           <View style={styles.quantityRow}>
-            <Pressable
-              onPress={() => setQuantity(Math.max(1, quantity - 1))}
-              style={styles.qtyBtn}
-            >
-              <Minus size={20} color={BRAND_COLOR} />
-            </Pressable>
+            {/* Import QuantityStepper at the top first, assuming it's imported as: import { QuantityStepper } from '../src/components/QuantityStepper'; */}
+            {/* Since I cannot see imports in this chunk, I will assume it's available or should be imported. */}
+            {/* Implementing manually if component import is tricky, but preferably use the component */}
 
-            <Text style={styles.qtyValue}>{quantity}</Text>
-
-            <Pressable
-              onPress={() => quantity == product.stock ? null : setQuantity(quantity + 1)}
-              style={styles.qtyBtn}
-            >
-              <Plus size={20} color={BRAND_COLOR} />
-            </Pressable>
+            <QuantityStepper
+              value={quantity}
+              onIncrement={() => {
+                if (quantity < (selectedVariantInfo.stock || 0)) {
+                  setQuantity(quantity + 1);
+                } else {
+                  Alert.alert('Limit Reached', `Only ${selectedVariantInfo.stock} items available.`);
+                }
+              }}
+              onDecrement={() => setQuantity(Math.max(1, quantity - 1))}
+              onChange={(val) => setQuantity(val)}
+              max={selectedVariantInfo.stock || 99}
+              min={1}
+            />
           </View>
         </View>
 

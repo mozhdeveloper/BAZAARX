@@ -217,22 +217,14 @@ export function VariantSelectionModal({
                 </DialogTitle>
                 {/* Product Image - Compact at top */}
                 <div className="w-full h-64 bg-gray-50 relative flex-shrink-0">
-                    {/* DEBUG VERSION INDICATOR */}
-                    <div className="absolute top-2 left-2 bg-green-500 text-white text-xs px-2 py-1 rounded font-bold z-10">
-                        NEW MODAL v2.0
-                    </div>
+
                     
                     <img
                         src={currentImage}
                         alt={product.name}
                         className="w-full h-full object-contain"
                     />
-                    <button
-                        onClick={onClose}
-                        className="absolute top-4 right-4 w-8 h-8 bg-white/90 rounded-full flex items-center justify-center hover:bg-white transition-colors"
-                    >
-                        <span className="text-gray-600 text-xl leading-none">×</span>
-                    </button>
+
                 </div>
 
                 {/* Content - Scrollable */}

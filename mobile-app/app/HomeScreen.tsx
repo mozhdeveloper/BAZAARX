@@ -175,9 +175,10 @@ export default function HomeScreen({ navigation }: Props) {
             originalPrice: row.original_price,
             image: primaryImage,
             images: images.length > 0 ? images : [primaryImage],
-            rating: 4.5,
-            sold: row.sales_count || 0,
-            seller: row.seller?.store_name || 'Verified Seller',
+            rating: ratingNum,
+            reviewCount: reviewCount,
+            sold: row.sold || 0, // Sold count calculated from order_items in productService
+            seller: sellerName,
             sellerId: row.seller_id || row.seller?.id,
             isVerified: true,
             description: row.description || '',

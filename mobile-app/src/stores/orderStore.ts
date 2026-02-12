@@ -12,7 +12,16 @@ export interface SellerOrder {
   customerName: string;
   customerEmail: string;
   customerPhone?: string;
-  shippingAddress?: string;
+  shippingAddress: {
+    fullName?: string;
+    street?: string;
+    barangay?: string;
+    city?: string;
+    province?: string;
+    region?: string;
+    postalCode?: string;
+    phone?: string;
+  };
   items: {
     productId: string;
     productName: string;
@@ -23,13 +32,33 @@ export interface SellerOrder {
     selectedSize?: string;
   }[];
   total: number;
-  status: 'pending' | 'to-ship' | 'completed' | 'cancelled';
+  status: 'pending' | 'to-ship' | 'shipped' | 'completed' | 'cancelled';
   paymentStatus: 'pending' | 'paid' | 'refunded';
   trackingNumber?: string;
   createdAt: string;
   type?: 'OFFLINE' | 'ONLINE';
   posNote?: string;
 }
+
+const parseShippingAddressFromNotes = (notes?: string | null) => {
+  if (!notes || !notes.includes('SHIPPING_ADDRESS:')) return null;
+
+  try {
+    const jsonPart = notes.split('SHIPPING_ADDRESS:')[1]?.split('|')[0];
+    if (!jsonPart) return null;
+    return JSON.parse(jsonPart) as {
+      fullName?: string;
+      street?: string;
+      barangay?: string;
+      city?: string;
+      province?: string;
+      postalCode?: string;
+      phone?: string;
+    };
+  } catch {
+    return null;
+  }
+};
 
 interface OrderStore {
   // Buyer Orders
@@ -57,6 +86,7 @@ interface OrderStore {
     total: number,
     note?: string
   ) => Promise<string>;
+  markOrderAsShipped: (orderId: string, trackingNumber: string) => Promise<void>;
 }
 
 // Dummy orders for testing - showcasing all status types with mixed payment statuses
@@ -380,15 +410,15 @@ export const useOrderStore = create<OrderStore>()(
       ordersLoading: false,
 
       fetchOrders: async (userId: string) => {
-          set({ ordersLoading: true });
-          try {
-              const orders = await orderService.getOrders(userId);
-              set({ orders: orders });
-          } catch (error) {
-              console.error('Error fetching orders:', error);
-          } finally {
-              set({ ordersLoading: false });
-          }
+        set({ ordersLoading: true });
+        try {
+          const orders = await orderService.getOrders(userId);
+          set({ orders: orders });
+        } catch (error) {
+          console.error('Error fetching orders:', error);
+        } finally {
+          set({ ordersLoading: false });
+        }
       },
 
       createOrder: async (items, shippingAddress, paymentMethod, options) => {
@@ -450,6 +480,14 @@ export const useOrderStore = create<OrderStore>()(
           paymentStatus: isPaidOrder ? 'paid' : 'pending',
           createdAt: newOrder.createdAt,
           type: 'ONLINE',
+          shippingAddress: {
+            fullName: shippingAddress.name,
+            street: shippingAddress.address,
+            city: shippingAddress.city,
+            region: shippingAddress.region,
+            postalCode: shippingAddress.postalCode,
+            phone: shippingAddress.phone,
+          },
         };
 
         // Add to seller's orders in local state
@@ -528,7 +566,7 @@ export const useOrderStore = create<OrderStore>()(
         set({ sellerOrdersLoading: true });
         try {
           const rawOrders = await orderService.getSellerOrders(actualSellerId);
-          
+
           // Map raw database orders to SellerOrder interface
           // DEFENSIVE: DB fields (product_name, buyer_name) may be objects like {name: "..."}
           // from JSONB columns or foreign key joins. Always extract string safely.
@@ -555,7 +593,7 @@ export const useOrderStore = create<OrderStore>()(
             }));
 
             // Calculate total from items (more reliable than DB total_amount which may be 0)
-            const calculatedTotal = items.reduce((sum: number, item: { price: number; quantity: number }) => 
+            const calculatedTotal = items.reduce((sum: number, item: { price: number; quantity: number }) =>
               sum + (item.price * item.quantity), 0);
             const dbTotal = parseFloat(order.total_amount?.toString() || '0');
             const total = calculatedTotal > 0 ? calculatedTotal : dbTotal;
@@ -563,10 +601,12 @@ export const useOrderStore = create<OrderStore>()(
             // Get customer info based on order type
             // ONLINE orders: buyer_profile from profiles table  
             // OFFLINE orders: recipient info or Walk-in Customer
+            const notesData = parseShippingAddressFromNotes(order.notes);
+
             let customerName = 'Walk-in Customer';
             let customerEmail = '';
             let customerPhone = '';
-            
+
             if (order.order_type === 'ONLINE') {
               const buyerProfile = order.buyer_profile;
               if (buyerProfile?.first_name || buyerProfile?.last_name) {
@@ -581,21 +621,29 @@ export const useOrderStore = create<OrderStore>()(
               const recipient = order.recipient;
               if (recipient?.first_name || recipient?.last_name) {
                 customerName = `${recipient.first_name || ''} ${recipient.last_name || ''}`.trim();
+              } else if (notesData?.fullName) {
+                customerName = notesData.fullName;
               }
+
               customerEmail = recipient?.email || '';
-              customerPhone = recipient?.phone || '';
+              customerPhone = recipient?.phone || notesData?.phone || '';
             }
 
             // Map status from database format
             const statusMap: Record<string, SellerOrder['status']> = {
               'pending_payment': 'pending',
               'pending': 'pending',
-              'confirmed': 'pending',
+              'waiting_for_seller': 'pending',
+              'confirmed': 'to-ship',
               'processing': 'to-ship',
-              'shipped': 'to-ship',
+              'ready_to_ship': 'to-ship',
+              'shipped': 'shipped',
+              'out_for_delivery': 'shipped',
               'delivered': 'completed',
+              'received': 'completed',
               'completed': 'completed',
               'cancelled': 'cancelled',
+              'returned': 'cancelled',
             };
 
             // Map payment status
@@ -606,15 +654,32 @@ export const useOrderStore = create<OrderStore>()(
               'failed': 'pending',
             };
 
+            // Enhanced Shipping Address Mapping
+            const shippingAddressObj = {
+              fullName: customerName,
+              street: order.address?.address_line_1 || notesData?.street || '',
+              barangay: order.address?.barangay || notesData?.barangay || '',
+              city: order.address?.city || notesData?.city || '',
+              province: order.address?.province || notesData?.province || '',
+              postalCode: order.address?.postal_code || notesData?.postalCode || '',
+              phone: customerPhone,
+            };
+
+            // If it's a simple string address in DB, try to put it in one field or use it as is
+            if (!order.address && typeof order.shipping_address === 'string' && order.shipping_address) {
+              shippingAddressObj.street = order.shipping_address;
+            } else if (!order.address && typeof order.shipping_address === 'object' && order.shipping_address) {
+              // Merge object if it exists
+              Object.assign(shippingAddressObj, order.shipping_address);
+            }
+
             return {
               id: order.id,
               orderId: String(order.order_number || order.id || ''),
               customerName,
               customerEmail,
               customerPhone,
-              shippingAddress: typeof order.shipping_address === 'object' 
-                ? JSON.stringify(order.shipping_address) 
-                : (order.address ? `${order.address.address_line_1 || ''}, ${order.address.city || ''}`.trim() : String(order.shipping_address || '')),
+              shippingAddress: shippingAddressObj,
               items,
               total,
               status: statusMap[order.shipment_status || order.status || 'pending'] || 'pending',
@@ -622,10 +687,10 @@ export const useOrderStore = create<OrderStore>()(
               trackingNumber: order.tracking_number,
               createdAt: order.created_at || new Date().toISOString(),
               type: order.order_type === 'OFFLINE' ? 'OFFLINE' : 'ONLINE',
-              posNote: order.notes || order.pos_note,
+              posNote: (order.notes || order.pos_note || '').replace(/SHIPPING_ADDRESS:.*$/, '').trim(),
             };
           });
-          
+
           set({ sellerOrders: mappedOrders, sellerOrdersLoading: false });
         } catch (error) {
           console.error('[OrderStore] Error fetching seller orders:', error);
@@ -638,6 +703,7 @@ export const useOrderStore = create<OrderStore>()(
         const dbStatusMap: Record<string, string> = {
           pending: 'pending',
           'to-ship': 'processing',
+          shipped: 'shipped',
           completed: 'delivered',
         };
         const dbStatus = dbStatusMap[status] || status;
@@ -668,25 +734,25 @@ export const useOrderStore = create<OrderStore>()(
         if (buyerOrder) {
           const buyerStatus =
             status === 'pending' ? 'pending' :
-            status === 'to-ship' ? 'processing' :
-            status === 'completed' ? 'delivered' :
-            'cancelled';
+              status === 'to-ship' ? 'processing' :
+                status === 'completed' ? 'delivered' :
+                  'cancelled';
 
           set((state) => ({
             orders: state.orders.map((o) =>
               o.id === buyerOrder.id
                 ? {
-                    ...o,
-                    status: buyerStatus as Order['status'],
-                    deliveryDate:
-                      buyerStatus === 'delivered'
-                        ? new Date().toLocaleDateString('en-US', {
-                            month: '2-digit',
-                            day: '2-digit',
-                            year: 'numeric',
-                          })
-                        : o.deliveryDate,
-                  }
+                  ...o,
+                  status: buyerStatus as Order['status'],
+                  deliveryDate:
+                    buyerStatus === 'delivered'
+                      ? new Date().toLocaleDateString('en-US', {
+                        month: '2-digit',
+                        day: '2-digit',
+                        year: 'numeric',
+                      })
+                      : o.deliveryDate,
+                }
                 : o
             ),
           }));
@@ -698,7 +764,7 @@ export const useOrderStore = create<OrderStore>()(
         // Get seller ID from session
         const session = await authService.getSession();
         const sellerId = session?.user?.id;
-        
+
         if (!sellerId) {
           throw new Error('Not authenticated. Please log in to create orders.');
         }
@@ -739,6 +805,13 @@ export const useOrderStore = create<OrderStore>()(
             createdAt: new Date().toISOString(),
             type: 'OFFLINE',
             posNote: note || 'In-Store Purchase',
+            shippingAddress: {
+              fullName: 'Walk-in Customer',
+              street: 'In-Store',
+              city: '',
+              province: '',
+              postalCode: '',
+            },
           };
 
           set((state) => ({
@@ -750,6 +823,48 @@ export const useOrderStore = create<OrderStore>()(
         } catch (error) {
           console.error('[OrderStore] Failed to create offline order:', error);
           throw error;
+        }
+      },
+      markOrderAsShipped: async (orderId, trackingNumber) => {
+        // Optimistically update local state
+        set((state) => ({
+          sellerOrders: state.sellerOrders.map((o) =>
+            o.orderId === orderId || o.id === orderId ? { ...o, status: 'shipped', trackingNumber } : o
+          ),
+        }));
+
+        // Get seller ID from session/cache
+        const session = await authService.getSession();
+        const sellerId = session?.user?.id;
+
+        if (!sellerId) {
+          throw new Error('Not authenticated');
+        }
+
+        // Find the actual order ID (database UUID)
+        const order = get().sellerOrders.find(o => o.orderId === orderId || o.id === orderId);
+        const actualOrderId = order?.id || orderId;
+
+        try {
+          await orderService.markOrderAsShipped(actualOrderId, trackingNumber, sellerId);
+          console.log(`[OrderStore] Order marked as shipped: ${orderId} with tracking ${trackingNumber}`);
+        } catch (error) {
+          console.error('[OrderStore] Failed to mark as shipped:', error);
+          // Revert on failure
+          await get().fetchSellerOrders();
+          throw error;
+        }
+
+        // Sync to buyer side if possible
+        const buyerOrder = get().orders.find((o) => o.transactionId === orderId);
+        if (buyerOrder) {
+          set((state) => ({
+            orders: state.orders.map((o) =>
+              o.id === buyerOrder.id
+                ? { ...o, status: 'shipped', trackingNumber }
+                : o
+            ),
+          }));
         }
       },
     }),

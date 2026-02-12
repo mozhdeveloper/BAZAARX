@@ -4,7 +4,8 @@ import { useProductQAStore } from "./productQAStore";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { authService } from "@/services/authService";
 import { productService } from "@/services/productService";
-import { orderService } from "@/services/orderService";
+import { orderReadService } from "@/services/orders/orderReadService";
+import { orderMutationService } from "@/services/orders/orderMutationService";
 import { mapDbProductToSellerProduct } from "@/utils/productMapper";
 import type {
     Database,
@@ -479,172 +480,6 @@ const mapSellerUpdatesToDb = (updates: Partial<SellerProduct>): any => {
 // Dummy data removed for database parity
 
 const dummyOrders: SellerOrder[] = [];
-
-const parseShippingAddressFromNotes = (notes?: string | null) => {
-    if (!notes || !notes.includes("SHIPPING_ADDRESS:")) return null;
-
-    try {
-        const jsonPart = notes.split("SHIPPING_ADDRESS:")[1]?.split("|")[0];
-        if (!jsonPart) return null;
-        return JSON.parse(jsonPart) as {
-            fullName?: string;
-            street?: string;
-            city?: string;
-            province?: string;
-            postalCode?: string;
-            phone?: string;
-        };
-    } catch {
-        return null;
-    }
-};
-
-const getLatestShipmentRecord = (shipments: any[]) => {
-    if (!Array.isArray(shipments) || shipments.length === 0) return null;
-
-    const sorted = [...shipments].sort((a, b) => {
-        const aDate = new Date(
-            a.delivered_at || a.shipped_at || a.created_at || 0,
-        ).getTime();
-        const bDate = new Date(
-            b.delivered_at || b.shipped_at || b.created_at || 0,
-        ).getTime();
-        return bDate - aDate;
-    });
-
-    return sorted[0];
-};
-
-const mapNormalizedShipmentStatus = (
-    paymentStatus?: PaymentStatus | string | null,
-    shipmentStatus?: ShipmentStatus | string | null,
-): SellerOrder["status"] => {
-    if (shipmentStatus === "delivered" || shipmentStatus === "received")
-        return "delivered";
-    if (shipmentStatus === "shipped" || shipmentStatus === "out_for_delivery")
-        return "shipped";
-    if (shipmentStatus === "processing" || shipmentStatus === "ready_to_ship")
-        return "confirmed";
-    if (shipmentStatus === "returned" || shipmentStatus === "failed_to_deliver")
-        return "cancelled";
-    if (paymentStatus === "refunded" || paymentStatus === "partially_refunded")
-        return "cancelled";
-    return "pending";
-};
-
-const mapNormalizedPaymentStatus = (
-    paymentStatus?: PaymentStatus | string | null,
-): SellerOrder["paymentStatus"] => {
-    if (paymentStatus === "paid") return "paid";
-    if (paymentStatus === "refunded" || paymentStatus === "partially_refunded")
-        return "refunded";
-    return "pending";
-};
-
-const buildRecipientFullName = (
-    firstName?: string | null,
-    lastName?: string | null,
-) => `${firstName || ""} ${lastName || ""}`.trim();
-
-// Helper function to map database Order to SellerOrder
-const mapOrderToSellerOrder = (order: any): SellerOrder => {
-    const orderItems = Array.isArray(order.order_items)
-        ? order.order_items
-        : [];
-    const latestShipment = getLatestShipmentRecord(order.shipments || []);
-    const notesAddress = parseShippingAddressFromNotes(order.notes);
-    const shippingAddr = order.shipping_address || order.address || {};
-    const recipient = order.recipient || {};
-
-    const items = orderItems.map((item: any) => ({
-        productId: item.product_id || "",
-        productName: item.product_name || "Unknown Product",
-        quantity: Math.max(1, Number(item.quantity || 1)),
-        price: parseFloat((item.variant?.price || item.price || 0).toString()),
-        image:
-            item.variant?.thumbnail_url ||
-            item.primary_image_url ||
-            "https://placehold.co/100?text=Product",
-        selectedVariantLabel1:
-            item.personalized_options?.variantLabel1 ||
-            item.variant?.size ||
-            undefined,
-        selectedVariantLabel2:
-            item.personalized_options?.variantLabel2 ||
-            item.variant?.color ||
-            undefined,
-    }));
-
-    const recipientName =
-        buildRecipientFullName(recipient?.first_name, recipient?.last_name) ||
-        order.buyer_name ||
-        notesAddress?.fullName ||
-        "Customer";
-
-    const computedTotal = orderItems.reduce((sum: number, item: any) => {
-        const itemPrice = (item.price || 0) - (item.price_discount || 0);
-        const shippingPrice = (item.shipping_price || 0) - (item.shipping_discount || 0);
-        return sum + itemPrice * (item.quantity || 0) + shippingPrice;
-    }, 0);
-
-    const parsedTotal = parseFloat(order.total_amount?.toString() || "0");
-
-    return {
-        id: order.id,
-        seller_id: order.seller_id,
-        buyer_id: order.buyer_id,
-        orderNumber: order.order_number,
-        buyerName: recipientName,
-        buyerEmail: recipient?.email || order.buyer_email || "unknown@example.com",
-        items,
-        total: Number.isFinite(parsedTotal) && parsedTotal > 0 ? parsedTotal : computedTotal,
-        status: mapNormalizedShipmentStatus(
-            order.payment_status,
-            order.shipment_status,
-        ),
-        paymentStatus: mapNormalizedPaymentStatus(order.payment_status),
-        orderDate: order.created_at,
-        shippingAddress: {
-            fullName: recipientName,
-            street:
-                order.shipping_street ||
-                notesAddress?.street ||
-                shippingAddr.address_line_1 ||
-                "",
-            city:
-                order.shipping_city || notesAddress?.city || shippingAddr.city || "",
-            province:
-                order.shipping_province ||
-                notesAddress?.province ||
-                shippingAddr.province ||
-                "",
-            postalCode:
-                order.shipping_postal_code ||
-                notesAddress?.postalCode ||
-                shippingAddr.postal_code ||
-                "",
-            phone:
-                order.buyer_phone ||
-                notesAddress?.phone ||
-                recipient?.phone ||
-                "",
-        },
-        trackingNumber:
-            latestShipment?.tracking_number || order.tracking_number || undefined,
-        shipmentStatusRaw: order.shipment_status || undefined,
-        paymentStatusRaw: order.payment_status || undefined,
-        shippedAt: latestShipment?.shipped_at || order.shipped_at || undefined,
-        deliveredAt:
-            latestShipment?.delivered_at || order.delivered_at || undefined,
-        rating: order.rating || undefined,
-        reviewComment: order.review_comment || undefined,
-        reviewImages: order.review_images || undefined,
-        reviewDate: order.review_date || undefined,
-        type: order.order_type === "OFFLINE" ? "OFFLINE" : "ONLINE",
-        posNote: order.pos_note || undefined,
-        notes: order.notes || undefined,
-    };
-};
 
 // Auth Store
 export const useAuthStore = create<AuthStore>()(
@@ -1613,7 +1448,7 @@ export const useProductStore = create<ProductStore>()(
                     get().checkLowStock();
 
                     console.log(
-                        `✅ Stock deducted: ${product.name} - ${quantity} units. New stock: ${newStock}. Ledger ID: ${ledgerEntry.id}`,
+                        `Stock deducted: ${product.name} - ${quantity} units. New stock: ${newStock}. Ledger ID: ${ledgerEntry.id}`,
                     );
                 } catch (error) {
                     console.error("Failed to deduct stock:", error);
@@ -1749,7 +1584,7 @@ export const useProductStore = create<ProductStore>()(
                     get().checkLowStock();
 
                     console.log(
-                        `✅ Stock adjusted: ${product.name}. Old: ${product.stock}, New: ${newQuantity}`,
+                        `Stock adjusted: ${product.name}. Old: ${product.stock}, New: ${newQuantity}`,
                     );
                 } catch (error) {
                     console.error("Failed to adjust stock:", error);
@@ -1917,7 +1752,7 @@ export const useProductStore = create<ProductStore>()(
                             }));
 
                             console.warn(
-                                `⚠️ LOW STOCK ALERT: ${product.name} - Only ${product.stock} units remaining!`,
+                                `LOW STOCK ALERT: ${product.name} - Only ${product.stock} units remaining!`,
                             );
                         }
                     }
@@ -1978,8 +1813,8 @@ export const useOrderStore = create<OrderStore>()(
 
                 try {
                     const dbOrders =
-                        await orderService.getSellerOrders(sellerId);
-                    const sellerOrders = dbOrders.map(mapOrderToSellerOrder);
+                        await orderReadService.getSellerOrders({ sellerId });
+                    const sellerOrders = dbOrders as SellerOrder[];
 
                     set({
                         orders: sellerOrders,
@@ -1988,7 +1823,7 @@ export const useOrderStore = create<OrderStore>()(
                     });
 
                     console.log(
-                        `✅ Fetched ${sellerOrders.length} orders for seller ${sellerId}`,
+                        `Fetched ${sellerOrders.length} orders for seller ${sellerId}`,
                     );
                 } catch (error) {
                     console.error("Failed to fetch orders:", error);
@@ -2038,13 +1873,23 @@ export const useOrderStore = create<OrderStore>()(
             },
 
             updateOrderStatus: async (id, status) => {
-                try {
-                    const order = get().orders.find((o) => o.id === id);
-                    if (!order) {
-                        console.error("Order not found:", id);
-                        throw new Error(`Order ${id} not found`);
-                    }
+                const order = get().orders.find((o) => o.id === id);
+                if (!order) {
+                    console.error("Order not found:", id);
+                    throw new Error(`Order ${id} not found`);
+                }
 
+                // Store previous status for rollback if needed
+                const previousStatus = order.status;
+
+                // OPTIMISTIC UPDATE: Update local state immediately for instant UI feedback
+                set((state) => ({
+                    orders: state.orders.map((o) =>
+                        o.id === id ? { ...o, status } : o,
+                    ),
+                }));
+
+                try {
                     // Validate status transition (database-ready logic)
                     const validTransitions: Record<
                         SellerOrder["status"],
@@ -2057,9 +1902,9 @@ export const useOrderStore = create<OrderStore>()(
                         cancelled: [],
                     };
 
-                    if (!validTransitions[order.status].includes(status)) {
+                    if (!validTransitions[previousStatus].includes(status)) {
                         console.warn(
-                            `Invalid status transition: ${order.status} -> ${status}`,
+                            `Invalid status transition: ${previousStatus} -> ${status}`,
                         );
                     }
 
@@ -2075,29 +1920,29 @@ export const useOrderStore = create<OrderStore>()(
 
                     const dbStatus = statusToDbMap[status] || status;
                     console.log(
-                        `📝 Mapping seller status '${status}' to database status '${dbStatus}'`,
+                        `Mapping seller status '${status}' to database status '${dbStatus}'`,
                     );
 
                     // Get seller ID from OrderStore (stored in fetchOrders)
                     let sellerId = get().sellerId;
 
                     console.log(
-                        `👤 Current seller ID from OrderStore:`,
+                        `Current seller ID from OrderStore:`,
                         sellerId,
                     );
-                    console.log(`📦 Order object:`, order);
+                    console.log(`Order object:`, order);
 
                     // Fallback: Extract seller ID from order object if store doesn't have it
                     if (!sellerId && (order as any).seller_id) {
                         sellerId = (order as any).seller_id;
                         console.log(
-                            `✅ Fallback: Using seller_id from order object: ${sellerId}`,
+                            `Fallback: Using seller_id from order object: ${sellerId}`,
                         );
                     }
 
                     if (!sellerId) {
                         console.error(
-                            "❌ No seller ID found! Cannot update database.",
+                            "No seller ID found! Cannot update database.",
                         );
                         console.error(
                             "Seller from store:",
@@ -2110,34 +1955,36 @@ export const useOrderStore = create<OrderStore>()(
                     }
 
                     console.log(
-                        `🔄 Updating order ${id} in database with seller ${sellerId}...`,
+                        `Updating order ${id} in database with seller ${sellerId}...`,
                     );
-                    const success = await orderService.updateOrderStatus(
-                        id,
-                        dbStatus,
-                        `Status updated to ${status}`,
-                        sellerId,
-                        "seller",
+                    const success = await orderMutationService.updateOrderStatus(
+                        {
+                            orderId: id,
+                            nextStatus: dbStatus,
+                            note: `Status updated to ${status}`,
+                            actorId: sellerId,
+                            actorRole: "seller",
+                        },
                     );
 
                     console.log(
-                        `📊 Database update result: ${success ? "✅ SUCCESS" : "❌ FAILED"}`,
+                        `Database update result: ${success ? "SUCCESS" : "FAILED"}`,
                     );
 
                     if (!success) {
                         console.error(
-                            "❌ Failed to update order status in database",
+                            "Failed to update order status in database",
                         );
                         throw new Error("Database update failed");
                     }
 
                     console.log(
-                        `✅ Database updated successfully with status: ${dbStatus}`,
+                        `Database updated successfully with status: ${dbStatus}`,
                     );
 
                     // Create notification for buyer if order has buyer_id
-                    console.log(`📦 Order object:`, order);
-                    console.log(`🆔 Order buyer_id:`, order.buyer_id);
+                    console.log(`Order object:`, order);
+                    console.log(`Order buyer_id:`, order.buyer_id);
 
                     if (order.buyer_id) {
                         const statusMessages: Record<string, string> = {
@@ -2162,16 +2009,16 @@ export const useOrderStore = create<OrderStore>()(
                                     .notifyBuyerOrderStatus({
                                         buyerId: order.buyer_id!,
                                         orderId: id,
-                                        orderNumber: order.orderNumber,
+                                        orderNumber: id.slice(-8),
                                         status,
                                         message,
                                     })
-                                    .catch((err) => {
-                                        console.error(
-                                            "❌ Failed to create buyer notification:",
-                                            err,
-                                        );
-                                    });
+                        .catch((refreshError) => {
+                            console.error(
+                                "Failed to refresh orders after status update:",
+                                refreshError,
+                            );
+                        });
                             },
                         );
                     } else {
@@ -2180,16 +2027,16 @@ export const useOrderStore = create<OrderStore>()(
                         );
                     }
 
-                    // Update local state
-                    set((state) => ({
-                        orders: state.orders.map((order) =>
-                            order.id === id ? { ...order, status } : order,
-                        ),
-                    }));
-
+                    // Local state already updated optimistically above
                     console.log(`✅ Order ${id} status updated to ${status}`);
                 } catch (error) {
-                    console.error("Failed to update order status:", error);
+                    // ROLLBACK: Revert local state on error
+                    console.error("Failed to update order status, rolling back:", error);
+                    set((state) => ({
+                        orders: state.orders.map((o) =>
+                            o.id === id ? { ...o, status: previousStatus } : o,
+                        ),
+                    }));
                     throw error;
                 }
             },
@@ -2274,30 +2121,36 @@ export const useOrderStore = create<OrderStore>()(
                     throw new Error("Tracking number is required");
                 }
 
-                const success = await orderService.markOrderAsShipped(
-                    id,
-                    sanitizedTrackingNumber,
+                const success = await orderMutationService.markOrderShipped({
+                    orderId: id,
+                    trackingNumber: sanitizedTrackingNumber,
                     sellerId,
-                );
+                });
                 if (!success) {
                     throw new Error("Failed to mark order as shipped");
                 }
 
                 set((state) => ({
-                    orders: state.orders.map((existing) =>
-                        existing.id === id
+                    orders: state.orders.map((existingOrder) =>
+                        existingOrder.id === id
                             ? {
-                                  ...existing,
+                                  ...existingOrder,
                                   status: "shipped",
                                   trackingNumber: sanitizedTrackingNumber,
-                                  shipmentStatusRaw: "shipped",
                                   shippedAt: new Date().toISOString(),
                               }
-                            : existing,
+                            : existingOrder,
                     ),
                 }));
 
-                await get().fetchOrders(sellerId);
+                void get()
+                    .fetchOrders(sellerId)
+                    .catch((refreshError) => {
+                        console.error(
+                            "Failed to refresh orders after marking as shipped:",
+                            refreshError,
+                        );
+                    });
             },
 
             markOrderAsDelivered: async (id) => {
@@ -2318,28 +2171,34 @@ export const useOrderStore = create<OrderStore>()(
                     );
                 }
 
-                const success = await orderService.markOrderAsDelivered(
-                    id,
+                const success = await orderMutationService.markOrderDelivered({
+                    orderId: id,
                     sellerId,
-                );
+                });
                 if (!success) {
                     throw new Error("Failed to mark order as delivered");
                 }
 
                 set((state) => ({
-                    orders: state.orders.map((existing) =>
-                        existing.id === id
+                    orders: state.orders.map((existingOrder) =>
+                        existingOrder.id === id
                             ? {
-                                  ...existing,
+                                  ...existingOrder,
                                   status: "delivered",
-                                  shipmentStatusRaw: "delivered",
                                   deliveredAt: new Date().toISOString(),
                               }
-                            : existing,
+                            : existingOrder,
                     ),
                 }));
 
-                await get().fetchOrders(sellerId);
+                void get()
+                    .fetchOrders(sellerId)
+                    .catch((refreshError) => {
+                        console.error(
+                            "Failed to refresh orders after marking as delivered:",
+                            refreshError,
+                        );
+                    });
             },
 
             deleteOrder: (id) => {

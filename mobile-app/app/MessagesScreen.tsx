@@ -124,17 +124,18 @@ export default function MessagesScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
-      
+      <StatusBar barStyle="dark-content" />
+
       {/* Edge-to-Edge Header */}
-      <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: COLORS.primary }]}>
+      <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: '#FFE5CC' }]}>
         <View style={styles.headerTop}>
-          <Pressable onPress={() => navigation.goBack()} style={styles.headerIcon}>
-            <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
-          </Pressable>
+          {/* Back button removed */}
+          <View style={styles.headerIcon} />
+
           <Text style={styles.headerTitle}>Messages</Text>
+
           <Pressable onPress={() => setShowAIChat(true)} style={styles.headerIcon}>
-            <Bot size={24} color="#FFFFFF" strokeWidth={2.5} />
+            <Bot size={24} color="#1F2937" strokeWidth={2.5} />
           </Pressable>
         </View>
       </View>
@@ -244,6 +245,8 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F9FAFB' },
   headerContainer: {
     paddingBottom: 16,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
   },
   headerTop: {
     flexDirection: 'row',
@@ -260,24 +263,31 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 20,
     fontWeight: '800',
-    color: '#FFFFFF',
+    color: '#1F2937',
     flex: 1,
     textAlign: 'center',
   },
   searchContainer: {
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#FFFFFF',
   },
   searchInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F3F4F6',
+    backgroundColor: '#FFFFFF', // Changed to White for cleaner shadow
     borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 8,
+    paddingHorizontal: 16, // Slightly wider padding
+    paddingVertical: 12, // Slightly taller
+    gap: 12, // Increased gap slightly
+
+    // Soft Shadow
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
+
   searchInput: {
     flex: 1,
     fontSize: 15,

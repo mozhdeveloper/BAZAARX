@@ -831,32 +831,45 @@ export class OrderService {
 
       if (updateError) throw updateError;
 
-      // Create or update shipment record
-      const { data: existingShipment } = await supabase
-        .from('order_shipments')
-        .select('id')
-        .eq('order_id', orderId)
-        .single();
+      // Update shipment record - non-blocking, errors won't stop the process
+      const updateShipment = async () => {
+        try {
+          const { data: existingShipments } = await supabase
+            .from('order_shipments')
+            .select('id')
+            .eq('order_id', orderId)
+            .order('created_at', { ascending: false })
+            .limit(1);
 
-      if (existingShipment) {
-        await supabase
-          .from('order_shipments')
-          .update({
-            status: 'shipped',
-            tracking_number: trackingNumber,
-            shipped_at: new Date().toISOString(),
-          })
-          .eq('id', existingShipment.id);
-      } else {
-        await supabase
-          .from('order_shipments')
-          .insert({
-            order_id: orderId,
-            status: 'shipped',
-            tracking_number: trackingNumber,
-            shipped_at: new Date().toISOString(),
-          });
-      }
+          const existingShipment = existingShipments?.[0];
+
+          if (existingShipment) {
+            await supabase
+              .from('order_shipments')
+              .update({
+                status: 'shipped',
+                tracking_number: trackingNumber,
+                shipped_at: new Date().toISOString(),
+              })
+              .eq('id', existingShipment.id);
+          } else {
+            await supabase
+              .from('order_shipments')
+              .insert({
+                order_id: orderId,
+                status: 'shipped',
+                tracking_number: trackingNumber,
+                shipped_at: new Date().toISOString(),
+              });
+          }
+        } catch (error) {
+          console.warn('[OrderService] Non-critical: Failed to update order_shipments:', error);
+          // Don't throw - order status is already updated
+        }
+      };
+
+      // Execute shipment update in parallel
+      updateShipment();
 
       const { error: historyError } = await supabase
         .from('order_status_history')
@@ -873,26 +886,26 @@ export class OrderService {
         console.warn('Failed to create status history:', historyError);
       }
 
-      // Send notification to buyer with tracking number
+      // Send notifications asynchronously (fire-and-forget for performance)
       if (order.buyer_id) {
-        // Send chat message
-        await orderNotificationService.sendStatusUpdateNotification(
-          orderId,
-          'shipped',
-          sellerId,
-          order.buyer_id,
-          trackingNumber
-        );
-
-        // Send proper notification (shows in notification bell)
-        await notificationService.notifyBuyerOrderStatus({
-          buyerId: order.buyer_id,
-          orderId: orderId,
-          orderNumber: order.order_number || orderId.substring(0, 8),
-          status: 'shipped',
-          message: `Your order #${order.order_number || orderId.substring(0, 8)} has been shipped! Tracking: ${trackingNumber}`,
-        }).catch(err => {
-          console.error('Failed to send shipped notification:', err);
+        // Don't await - send notifications in background
+        Promise.allSettled([
+          orderNotificationService.sendStatusUpdateNotification(
+            orderId,
+            'shipped',
+            sellerId,
+            order.buyer_id,
+            trackingNumber
+          ),
+          notificationService.notifyBuyerOrderStatus({
+            buyerId: order.buyer_id,
+            orderId: orderId,
+            orderNumber: order.order_number || orderId.substring(0, 8),
+            status: 'shipped',
+            message: `Your order #${order.order_number || orderId.substring(0, 8)} has been shipped! Tracking: ${trackingNumber}`,
+          }),
+        ]).catch((err) => {
+          console.error('Failed to send shipped notifications:', err);
         });
       }
 
@@ -967,14 +980,33 @@ export class OrderService {
 
       if (updateError) throw updateError;
 
-      // Update shipment record
-      await supabase
-        .from('order_shipments')
-        .update({
-          status: 'delivered',
-          delivered_at: new Date().toISOString(),
-        })
-        .eq('order_id', orderId);
+      // Update shipment record - non-blocking, errors won't stop the process
+      const updateShipment = async () => {
+        try {
+          const { data: existingShipments } = await supabase
+            .from('order_shipments')
+            .select('id')
+            .eq('order_id', orderId)
+            .order('created_at', { ascending: false })
+            .limit(1);
+
+          if (existingShipments && existingShipments.length > 0) {
+            await supabase
+              .from('order_shipments')
+              .update({
+                status: 'delivered',
+                delivered_at: new Date().toISOString(),
+              })
+              .eq('id', existingShipments[0].id);
+          }
+        } catch (error) {
+          console.warn('[OrderService] Non-critical: Failed to update order_shipments:', error);
+          // Don't throw - order status is already updated
+        }
+      };
+
+      // Execute shipment update in parallel
+      updateShipment();
 
       const { error: historyError } = await supabase
         .from('order_status_history')
@@ -991,25 +1023,25 @@ export class OrderService {
         console.warn('Failed to create status history:', historyError);
       }
 
-      // Send delivery notification to buyer
+      // Send notifications asynchronously (fire-and-forget for performance)
       if (order.buyer_id) {
-        // Send chat message
-        await orderNotificationService.sendStatusUpdateNotification(
-          orderId,
-          'delivered',
-          sellerId,
-          order.buyer_id
-        );
-
-        // Send proper notification (shows in notification bell)
-        await notificationService.notifyBuyerOrderStatus({
-          buyerId: order.buyer_id,
-          orderId: orderId,
-          orderNumber: order.order_number || orderId.substring(0, 8),
-          status: 'delivered',
-          message: `Your order #${order.order_number || orderId.substring(0, 8)} has been delivered! Enjoy your purchase!`,
-        }).catch(err => {
-          console.error('Failed to send delivered notification:', err);
+        // Don't await - send notifications in background
+        Promise.allSettled([
+          orderNotificationService.sendStatusUpdateNotification(
+            orderId,
+            'delivered',
+            sellerId,
+            order.buyer_id
+          ),
+          notificationService.notifyBuyerOrderStatus({
+            buyerId: order.buyer_id,
+            orderId: orderId,
+            orderNumber: order.order_number || orderId.substring(0, 8),
+            status: 'delivered',
+            message: `Your order #${order.order_number || orderId.substring(0, 8)} has been delivered! Enjoy your purchase!`,
+          }),
+        ]).catch((err) => {
+          console.error('Failed to send delivered notifications:', err);
         });
       }
 

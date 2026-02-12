@@ -20,14 +20,14 @@ interface Seller {
   approval_status: 'pending' | 'verified' | 'rejected';
   verified_at?: string;
   created_at?: string;
-  
+
   // Legacy fields for backward compatibility
   email?: string;
   phone?: string;
   rating?: number;
   totalSales?: number;
   storeCategory?: string[];
-  
+
   // Nested business profile (from seller_business_profiles table)
   business_profile?: {
     business_type?: string;
@@ -39,14 +39,14 @@ interface Seller {
     province?: string;
     postal_code?: string;
   };
-  
+
   // Nested payout account (from seller_payout_accounts table)
   payout_account?: {
     bank_name?: string;
     account_name?: string;
     account_number?: string;
   };
-  
+
   // Nested verification documents (from seller_verification_documents table)
   verification_documents?: {
     business_permit_url?: string;
@@ -308,14 +308,14 @@ const mapDbSellerToSeller = (s: any): Seller => {
     approval_status: (s.approval_status as Seller['approval_status']) || 'pending',
     verified_at: s.verified_at,
     created_at: s.created_at,
-    
+
     // Legacy fields for backward compatibility
     email: s.email || '',
     phone: s.phone || '',
     rating: 0, // Computed from reviews
     totalSales: 0, // Computed from orders
     storeCategory: [],
-    
+
     // Nested business profile
     business_profile: bp.business_type || bp.business_registration_number || bp.tax_id_number || bp.address_line_1 ? {
       business_type: bp.business_type || '',
@@ -327,14 +327,14 @@ const mapDbSellerToSeller = (s: any): Seller => {
       province: bp.province || '',
       postal_code: bp.postal_code || '',
     } : undefined,
-    
+
     // Nested payout account
     payout_account: pa.bank_name || pa.account_name || pa.account_number ? {
       bank_name: pa.bank_name || '',
       account_name: pa.account_name || '',
       account_number: pa.account_number || '',
     } : undefined,
-    
+
     // Nested verification documents
     verification_documents: vd.business_permit_url || vd.valid_id_url || vd.proof_of_address_url || vd.dti_registration_url || vd.tax_id_url ? {
       business_permit_url: vd.business_permit_url || '',
@@ -463,14 +463,14 @@ const mapOrderToSellerOrder = (order: any): SellerOrder => {
   const buyerProfile = order.buyer_profile; // Direct profile data, not nested
   const recipientInfo = order.recipient;
   const addressInfo = order.address;
-  
+
 
 
   // Determine buyer name - priority: buyer profile (for ONLINE) > recipient > Walk-in
   let buyerName = 'Walk-in Customer';
   let buyerEmail = '';
   let buyerPhone = '';
-  
+
   if (order.order_type === 'ONLINE') {
     // For ONLINE orders, get real customer info from buyer profile first, then recipient
     if (buyerProfile?.first_name || buyerProfile?.last_name) {
@@ -507,7 +507,7 @@ const mapOrderToSellerOrder = (order: any): SellerOrder => {
   const items = orderItems.map((item: any) => {
     const itemPrice = parseFloat(item.price?.toString() || '0');
     const itemQty = item.quantity || 1;
-    
+
     return {
       productId: String(item.product_id || ''),
       productName: safeStr(item.product_name, safeStr(item.productName, 'Unknown Product')),
@@ -520,10 +520,10 @@ const mapOrderToSellerOrder = (order: any): SellerOrder => {
   });
 
   // Always calculate total from items - this is more reliable than DB total_amount
-  const calculatedTotal = items.reduce((sum: number, item: { price: number; quantity: number }) => 
+  const calculatedTotal = items.reduce((sum: number, item: { price: number; quantity: number }) =>
     sum + (item.price * item.quantity), 0);
   const dbTotal = parseFloat(order.total_amount?.toString() || '0');
-  
+
   // Use calculated total if DB total is 0 or missing
   const total = calculatedTotal > 0 ? calculatedTotal : dbTotal;
 
@@ -538,7 +538,7 @@ const mapOrderToSellerOrder = (order: any): SellerOrder => {
       if (shipmentStatus === 'returned' || shipmentStatus === 'cancelled') return 'cancelled';
       if (shipmentStatus === 'waiting_for_seller') return 'pending';
     }
-    
+
     // Fallback to legacy status mapping
     const statusMap: Record<string, SellerOrder['status']> = {
       'pending_payment': 'pending',
@@ -567,8 +567,8 @@ const mapOrderToSellerOrder = (order: any): SellerOrder => {
 
   // Build shipping address from joined address relation or fallback to legacy fields
   const shippingAddress = {
-    fullName: recipientInfo 
-      ? `${recipientInfo.first_name || ''} ${recipientInfo.last_name || ''}`.trim() 
+    fullName: recipientInfo
+      ? `${recipientInfo.first_name || ''} ${recipientInfo.last_name || ''}`.trim()
       : buyerName,
     street: addressInfo?.address_line_1 || order.shipping_address?.street || '',
     barangay: addressInfo?.barangay || '',
@@ -660,14 +660,14 @@ export const useAuthStore = create<AuthStore>()(
             approval_status: 'pending',
             verified_at: undefined,
             created_at: new Date().toISOString(),
-            
+
             // Legacy fields
             email: sellerData.email!,
             phone: (sellerData as any).phone || '',
             rating: 0,
             totalSales: 0,
             storeCategory: (sellerData as any).storeCategory || [],
-            
+
             // Nested business profile
             business_profile: {
               business_type: (sellerData as any).businessType || '',
@@ -678,7 +678,7 @@ export const useAuthStore = create<AuthStore>()(
               province: (sellerData as any).province || '',
               postal_code: (sellerData as any).postalCode || '',
             },
-            
+
             // Nested payout account
             payout_account: {
               bank_name: (sellerData as any).bankName || '',
@@ -1775,13 +1775,23 @@ export const useOrderStore = create<OrderStore>()(
       },
 
       updateOrderStatus: async (id, status) => {
-        try {
-          const order = get().orders.find(o => o.id === id);
-          if (!order) {
-            console.error('Order not found:', id);
-            throw new Error(`Order ${id} not found`);
-          }
+        const order = get().orders.find(o => o.id === id);
+        if (!order) {
+          console.error('Order not found:', id);
+          throw new Error(`Order ${id} not found`);
+        }
 
+        // Store previous status for rollback if needed
+        const previousStatus = order.status;
+
+        // OPTIMISTIC UPDATE: Update local state immediately for instant UI feedback
+        set((state) => ({
+          orders: state.orders.map(o =>
+            o.id === id ? { ...o, status } : o
+          ),
+        }));
+
+        try {
           // Validate status transition (UI status: pending, to-ship, completed, cancelled)
           const validTransitions: Record<string, string[]> = {
             'pending': ['to-ship', 'cancelled'],
@@ -1794,9 +1804,9 @@ export const useOrderStore = create<OrderStore>()(
             'delivered': []
           };
 
-          const allowedTransitions = validTransitions[order.status] || [];
+          const allowedTransitions = validTransitions[previousStatus] || [];
           if (allowedTransitions.length > 0 && !allowedTransitions.includes(status)) {
-            console.warn(`Warning: Unusual status transition: ${order.status} -> ${status}`);
+            console.warn(`Warning: Unusual status transition: ${previousStatus} -> ${status}`);
           }
 
           // Map UI status to database shipment_status
@@ -1817,9 +1827,6 @@ export const useOrderStore = create<OrderStore>()(
           // Get seller ID from OrderStore (stored in fetchOrders)
           let sellerId = get().sellerId;
 
-          console.log(`👤 Current seller ID from OrderStore:`, sellerId);
-          console.log(`📦 Order object:`, order);
-
           // Fallback: Extract seller ID from order object if store doesn't have it
           if (!sellerId && (order as any).seller_id) {
             sellerId = (order as any).seller_id;
@@ -1828,12 +1835,10 @@ export const useOrderStore = create<OrderStore>()(
 
           if (!sellerId) {
             console.error('❌ No seller ID found! Cannot update database.');
-            console.error('Seller from store:', useAuthStore.getState().seller);
-            console.error('Order object:', order);
             throw new Error('Seller ID is required to update order status');
           }
 
-          console.log(`🔄 Updating order ${id} in database with seller ${sellerId}...`);
+          console.log(`🔄 Updating order ${id} in database...`);
           const success = await orderService.updateOrderStatus(
             id,
             dbStatus,
@@ -1842,19 +1847,13 @@ export const useOrderStore = create<OrderStore>()(
             'seller'
           );
 
-          console.log(`📊 Database update result: ${success ? '✅ SUCCESS' : '❌ FAILED'}`);
-
           if (!success) {
-            console.error('❌ Failed to update order status in database');
             throw new Error('Database update failed');
           }
 
           console.log(`✅ Database updated successfully with status: ${dbStatus}`);
 
-          // Create notification for buyer if order has buyer_id
-          console.log(`📦 Order object:`, order);
-          console.log(`🆔 Order buyer_id:`, order.buyer_id);
-
+          // Create notification for buyer if order has buyer_id (fire and forget)
           if (order.buyer_id) {
             const statusMessages: Record<string, string> = {
               'confirmed': `Your order #${id.slice(-8)} has been confirmed and is being prepared.`,
@@ -1865,9 +1864,7 @@ export const useOrderStore = create<OrderStore>()(
 
             const message = statusMessages[status] || `Order #${id.slice(-8)} status updated to ${status}`;
 
-            console.log(`🚀 Creating buyer notification for order ${id}`);
-
-            // Import notification service dynamically to avoid circular dependency
+            // Fire and forget - don't wait for notification
             import('../services/notificationService').then(({ notificationService }) => {
               notificationService.notifyBuyerOrderStatus({
                 buyerId: order.buyer_id!,
@@ -1879,20 +1876,17 @@ export const useOrderStore = create<OrderStore>()(
                 console.error('❌ Failed to create buyer notification:', err);
               });
             });
-          } else {
-            console.warn(`⚠️ No buyer_id found for order ${id}, skipping buyer notification`);
           }
-
-          // Update local state
-          set((state) => ({
-            orders: state.orders.map(order =>
-              order.id === id ? { ...order, status } : order
-            )
-          }));
 
           console.log(`✅ Order ${id} status updated to ${status}`);
         } catch (error) {
-          console.error('Failed to update order status:', error);
+          // ROLLBACK: Revert local state on error
+          console.error('Failed to update order status, rolling back:', error);
+          set((state) => ({
+            orders: state.orders.map(o =>
+              o.id === id ? { ...o, status: previousStatus } : o
+            ),
+          }));
           throw error;
         }
       },
@@ -2311,6 +2305,7 @@ export const useSellerStore = () => {
     ordersLoading: orders.sellerOrdersLoading,
     fetchOrders: orders.fetchSellerOrders,
     updateOrderStatus: orders.updateSellerOrderStatus,
+    markOrderAsShipped: orders.markOrderAsShipped,
     addOfflineOrder: orders.addOfflineOrder,
   };
 };

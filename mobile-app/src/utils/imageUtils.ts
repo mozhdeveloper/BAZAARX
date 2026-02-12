@@ -17,5 +17,9 @@ export const PLACEHOLDER_BANNER = 'https://placehold.co/600x200/f3f4f6/9ca3af?te
  * Falls back to placeholder if the input is falsy.
  */
 export function safeImageUri(uri: string | undefined | null, placeholder = PLACEHOLDER_PRODUCT): string {
-  return uri && uri.trim().length > 0 ? uri : placeholder;
+  // Check if uri is a non-empty string
+  if (typeof uri === 'string' && uri.trim().length > 0) {
+    return uri.trim();
+  }
+  return placeholder;
 }

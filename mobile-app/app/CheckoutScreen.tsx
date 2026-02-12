@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -158,13 +158,16 @@ export default function CheckoutScreen({ navigation, route }: Props) {
 
   // Determine which items to checkout: quick order takes precedence, then selected items.
   // We do NOT default to 'items' (all cart items) to avoid accidental checkout of unselected items.
-  const checkoutItems = quickOrder
-    ? [quickOrder]
-    : selectedItemsFromCart;
+  // Use useMemo to prevent recalculation on every render
+  const checkoutItems = useMemo(() => {
+    return quickOrder ? [quickOrder] : selectedItemsFromCart;
+  }, [quickOrder, selectedItemsFromCart]);
 
-  const checkoutSubtotal = quickOrder
-    ? getQuickOrderTotal()
-    : checkoutItems.reduce((sum, item) => sum + ((item.price || 0) * item.quantity), 0);
+  // Optimize subtotal calculation with useMemo
+  const checkoutSubtotal = useMemo(() => {
+    if (quickOrder) return getQuickOrderTotal();
+    return checkoutItems.reduce((sum, item) => sum + ((item.price || 0) * item.quantity), 0);
+  }, [quickOrder, checkoutItems, getQuickOrderTotal]);
 
   const isQuickCheckout = quickOrder !== null;
 
@@ -203,37 +206,48 @@ export default function CheckoutScreen({ navigation, route }: Props) {
 
 
   // Bazcoins Logic
-  const earnedBazcoins = Math.floor(checkoutSubtotal / 10);
+  const earnedBazcoins = useMemo(() => Math.floor(checkoutSubtotal / 10), [checkoutSubtotal]);
   const [useBazcoins, setUseBazcoins] = useState(false);
   const [availableBazcoins, setAvailableBazcoins] = useState(0);
-  const maxRedeemableBazcoins = Math.min(availableBazcoins, checkoutSubtotal);
-  const bazcoinDiscount = useBazcoins ? maxRedeemableBazcoins : 0;
+  const maxRedeemableBazcoins = useMemo(() => 
+    Math.min(availableBazcoins, checkoutSubtotal),
+    [availableBazcoins, checkoutSubtotal]
+  );
+  const bazcoinDiscount = useMemo(() => 
+    useBazcoins ? maxRedeemableBazcoins : 0,
+    [useBazcoins, maxRedeemableBazcoins]
+  );
 
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const subtotal = checkoutSubtotal;
-  let shippingFee = subtotal > 500 ? 0 : 50;
-  let discount = 0;
+  // Optimize total calculation with useMemo
+  const { subtotal, shippingFee, discount, total } = useMemo(() => {
+    const subtotal = checkoutSubtotal;
+    let shippingFee = subtotal > 500 ? 0 : 50;
+    let discount = 0;
 
-  // Apply voucher discount
-  if (appliedVoucher && VOUCHERS[appliedVoucher]) {
-    const voucher = VOUCHERS[appliedVoucher];
-    if (voucher.type === 'percentage') {
-      discount = Math.round(subtotal * (voucher.value / 100));
-    } else if (voucher.type === 'fixed') {
-      discount = voucher.value;
-    } else if (voucher.type === 'shipping') {
-      shippingFee = 0;
+    // Apply voucher discount
+    if (appliedVoucher && VOUCHERS[appliedVoucher]) {
+      const voucher = VOUCHERS[appliedVoucher];
+      if (voucher.type === 'percentage') {
+        discount = Math.round(subtotal * (voucher.value / 100));
+      } else if (voucher.type === 'fixed') {
+        discount = voucher.value;
+      } else if (voucher.type === 'shipping') {
+        shippingFee = 0;
+      }
     }
-  }
 
-  const total = Math.max(0, subtotal + shippingFee - discount - bazcoinDiscount);
+    const total = Math.max(0, subtotal + shippingFee - discount - bazcoinDiscount);
+    
+    return { subtotal, shippingFee, discount, total };
+  }, [checkoutSubtotal, appliedVoucher, bazcoinDiscount]);
 
   useEffect(() => {
     regions().then(res => setRegionList(res));
   }, []);
 
-  const handleApplyVoucher = () => {
+  const handleApplyVoucher = useCallback(() => {
     const code = voucherCode.trim().toUpperCase();
     if (VOUCHERS[code as keyof typeof VOUCHERS]) {
       setAppliedVoucher(code as keyof typeof VOUCHERS);
@@ -241,15 +255,15 @@ export default function CheckoutScreen({ navigation, route }: Props) {
     } else {
       Alert.alert('Invalid Voucher', 'This voucher code is not valid.');
     }
-  };
+  }, [voucherCode]);
 
-  const handleRemoveVoucher = () => {
+  const handleRemoveVoucher = useCallback(() => {
     setAppliedVoucher(null);
     setVoucherCode('');
-  };
+  }, []);
 
   // --- ADDRESS HANDLERS (from AddressesScreen) ---
-  const attemptGeocode = async (overrideAddress?: Partial<typeof newAddress>) => {
+  const attemptGeocode = useCallback(async (overrideAddress?: Partial<typeof newAddress>) => {
     const current = { ...newAddress, ...overrideAddress };
     const queryParts = [current.street, current.barangay, current.city, current.province, "Philippines"].filter(Boolean);
     if (queryParts.length < 3) return;
@@ -280,20 +294,20 @@ export default function CheckoutScreen({ navigation, route }: Props) {
     } finally {
       setIsGeocoding(false);
     }
-  };
+  }, [newAddress]);
 
-  const toggleDropdown = (name: 'region' | 'province' | 'city' | 'barangay') => {
+  const toggleDropdown = useCallback((name: 'region' | 'province' | 'city' | 'barangay') => {
     if (openDropdown === name) {
       setOpenDropdown(null);
     } else {
       setSearchText('');
       setOpenDropdown(name);
     }
-  };
+  }, [openDropdown]);
 
-  const onRegionChange = async (code: string) => {
+  const onRegionChange = useCallback(async (code: string) => {
     const name = regionList.find(i => i.region_code === code)?.region_name || '';
-    setNewAddress({ ...newAddress, region: name, province: '', city: '', barangay: '', coordinates: null });
+    setNewAddress(prev => ({ ...prev, region: name, province: '', city: '', barangay: '', coordinates: null }));
     setOpenDropdown(null);
     setIsLoadingLocation(true);
     
@@ -329,44 +343,44 @@ export default function CheckoutScreen({ navigation, route }: Props) {
     
     setBarangayList([]);
     setIsLoadingLocation(false);
-  };
+  }, [regionList]);
 
-  const onProvinceChange = async (code: string) => {
+  const onProvinceChange = useCallback(async (code: string) => {
     const name = provinceList.find(i => i.province_code === code)?.province_name || '';
-    setNewAddress({ ...newAddress, province: name, city: '', barangay: '', coordinates: null });
+    setNewAddress(prev => ({ ...prev, province: name, city: '', barangay: '', coordinates: null }));
     setOpenDropdown(null);
     setIsLoadingLocation(true);
     const cts = await cities(code);
     setCityList(cts);
     setBarangayList([]);
     setIsLoadingLocation(false);
-  };
+  }, [provinceList]);
 
-  const onCityChange = async (code: string) => {
+  const onCityChange = useCallback(async (code: string) => {
     const name = cityList.find(i => i.city_code === code)?.city_name || '';
-    setNewAddress({ ...newAddress, city: name, barangay: '', coordinates: null });
+    setNewAddress(prev => ({ ...prev, city: name, barangay: '', coordinates: null }));
     setOpenDropdown(null);
     setIsLoadingLocation(true);
     const brgys = await barangays(code);
     setBarangayList(brgys);
     setIsLoadingLocation(false);
     attemptGeocode({ city: name, barangay: '' });
-  };
+  }, [cityList, attemptGeocode]);
 
-  const onBarangayChange = (name: string) => {
-    setNewAddress({ ...newAddress, barangay: name });
+  const onBarangayChange = useCallback((name: string) => {
+    setNewAddress(prev => ({ ...prev, barangay: name }));
     setOpenDropdown(null);
     attemptGeocode({ barangay: name });
-  };
+  }, [attemptGeocode]);
 
-  const onStreetBlur = () => {
+  const onStreetBlur = useCallback(() => {
     if (newAddress.street.length > 3) {
       attemptGeocode();
     }
-  };
+  }, [newAddress.street, attemptGeocode]);
 
   // Open LocationModal (map-first flow like HomeScreen)
-  const handleOpenAddressModalForAdd = () => {
+  const handleOpenAddressModalForAdd = useCallback(() => {
     // Close the selection modal first to avoid modal stacking issues
     setShowAddressModal(false);
     
@@ -374,10 +388,10 @@ export default function CheckoutScreen({ navigation, route }: Props) {
     setTimeout(() => {
       setShowLocationModal(true);
     }, 100);
-  };
+  }, []);
 
   // Handle when location is selected from LocationModal
-  const handleLocationModalSelect = async (
+  const handleLocationModalSelect = useCallback(async (
     address: string, 
     coords?: { latitude: number; longitude: number }, 
     details?: {
@@ -481,7 +495,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
       setIsSaving(false);
       setShowLocationModal(false);
     }
-  };
+  }, [user, addresses.length]);
 
   // Legacy: Keep the old handleOpenAddressModalForAdd logic for manual form entry
   const handleOpenAddressFormDirect = async () => {
@@ -909,7 +923,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
     setMapSearchResults([]);
   };
 
-  const handleSaveAddress = async () => {
+  const handleSaveAddress = useCallback(async () => {
     if (!user) return;
     setIsSaving(true);
 
@@ -995,7 +1009,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
       Alert.alert('Error', 'Failed to save address. Please try again.');
       setIsSaving(false);
     }
-  };
+  }, [user, newAddress]);
 
   const getAddressIcon = (type: string) => {
     switch (type.toLowerCase()) {
@@ -1160,7 +1174,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
     }
   };
 
-  const handlePlaceOrder = async () => {
+  const handlePlaceOrder = useCallback(async () => {
     // Validate address
     if (!selectedAddress) {
       Alert.alert('Error', 'Please select a delivery address');
@@ -1285,7 +1299,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
         [
           {
             text: 'View Orders',
-            onPress: () => navigation.navigate('MainTabs', { screen: 'Orders', params: {} })
+            onPress: () => navigation.navigate('Orders', {})
           }
         ]
       );
@@ -1296,7 +1310,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
     } finally {
       setIsProcessing(false);
     }
-  };
+  }, [selectedAddress, checkoutItems, user, total, paymentMethod, bazcoinDiscount, earnedBazcoins, shippingFee, discount, availableBazcoins, isQuickCheckout, isGift, isAnonymous, recipientId, navigation, initializeForCurrentUser, clearQuickOrder]);
 
   const ProgressStepper = () => {
     const steps: { id: CheckoutStep; label: string }[] = [
