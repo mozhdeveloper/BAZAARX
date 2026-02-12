@@ -1930,7 +1930,6 @@ export const useOrderStore = create<OrderStore>()(
                         `Current seller ID from OrderStore:`,
                         sellerId,
                     );
-                    console.log(`Order object:`, order);
 
                     // Fallback: Extract seller ID from order object if store doesn't have it
                     if (!sellerId && (order as any).seller_id) {
@@ -2121,36 +2120,50 @@ export const useOrderStore = create<OrderStore>()(
                     throw new Error("Tracking number is required");
                 }
 
-                const success = await orderMutationService.markOrderShipped({
-                    orderId: id,
-                    trackingNumber: sanitizedTrackingNumber,
-                    sellerId,
-                });
-                if (!success) {
-                    throw new Error("Failed to mark order as shipped");
-                }
-
+                // OPTIMISTIC UPDATE: Update UI immediately
+                const previousStatus = order.status;
+                const previousTracking = order.trackingNumber;
+                
                 set((state) => ({
-                    orders: state.orders.map((existingOrder) =>
-                        existingOrder.id === id
+                    orders: state.orders.map((existing) =>
+                        existing.id === id
                             ? {
-                                  ...existingOrder,
+                                  ...existing,
                                   status: "shipped",
                                   trackingNumber: sanitizedTrackingNumber,
+                                  shipmentStatusRaw: "shipped",
                                   shippedAt: new Date().toISOString(),
                               }
-                            : existingOrder,
+                            : existing,
                     ),
                 }));
 
-                void get()
-                    .fetchOrders(sellerId)
-                    .catch((refreshError) => {
-                        console.error(
-                            "Failed to refresh orders after marking as shipped:",
-                            refreshError,
-                        );
+                try {
+                    // Sync to database in background
+                    const success = await orderMutationService.markOrderShipped({
+                        orderId: id,
+                        trackingNumber: sanitizedTrackingNumber,
+                        sellerId,
                     });
+                    if (!success) {
+                        throw new Error("Database update failed");
+                    }
+                } catch (error) {
+                    // ROLLBACK on error
+                    console.error("Failed to mark order as shipped, rolling back:", error);
+                    set((state) => ({
+                        orders: state.orders.map((existing) =>
+                            existing.id === id
+                                ? {
+                                      ...existing,
+                                      status: previousStatus,
+                                      trackingNumber: previousTracking,
+                                  }
+                                : existing,
+                        ),
+                    }));
+                    throw error;
+                }
             },
 
             markOrderAsDelivered: async (id) => {
@@ -2171,34 +2184,49 @@ export const useOrderStore = create<OrderStore>()(
                     );
                 }
 
-                const success = await orderMutationService.markOrderDelivered({
-                    orderId: id,
-                    sellerId,
-                });
-                if (!success) {
-                    throw new Error("Failed to mark order as delivered");
-                }
-
+                // OPTIMISTIC UPDATE: Update UI immediately
+                const previousStatus = order.status;
+                const previousShipmentStatus = order.shipmentStatusRaw;
+                
                 set((state) => ({
-                    orders: state.orders.map((existingOrder) =>
-                        existingOrder.id === id
+                    orders: state.orders.map((existing) =>
+                        existing.id === id
                             ? {
-                                  ...existingOrder,
+                                  ...existing,
                                   status: "delivered",
+                                  shipmentStatusRaw: "delivered",
                                   deliveredAt: new Date().toISOString(),
                               }
-                            : existingOrder,
+                            : existing,
                     ),
                 }));
 
-                void get()
-                    .fetchOrders(sellerId)
-                    .catch((refreshError) => {
-                        console.error(
-                            "Failed to refresh orders after marking as delivered:",
-                            refreshError,
-                        );
+                try {
+                    // Sync to database in background
+                    const success = await orderMutationService.markOrderDelivered({
+                        orderId: id,
+                        sellerId,
                     });
+                    if (!success) {
+                        throw new Error("Database update failed");
+                    }
+                } catch (error) {
+                    // ROLLBACK on error
+                    console.error("Failed to mark order as delivered, rolling back:", error);
+                    set((state) => ({
+                        orders: state.orders.map((existing) =>
+                            existing.id === id
+                                ? {
+                                      ...existing,
+                                      status: previousStatus,
+                                      shipmentStatusRaw: previousShipmentStatus,
+                                      deliveredAt: undefined,
+                                  }
+                                : existing,
+                        ),
+                    }));
+                    throw error;
+                }
             },
 
             deleteOrder: (id) => {

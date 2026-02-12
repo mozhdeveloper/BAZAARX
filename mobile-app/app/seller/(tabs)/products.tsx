@@ -18,6 +18,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Search, Plus, Edit, Trash2, X, Camera, Package as PackageIcon, Info, Link, Upload, FileText, Menu } from 'lucide-react-native';
 import { useSellerStore, SellerProduct } from '../../../src/stores/sellerStore';
 import { useProductQAStore } from '../../../src/stores/productQAStore';
+import { productService } from '../../../src/services/productService';
+import { supabase, isSupabaseConfigured } from '../../../src/lib/supabase';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { File, Paths } from 'expo-file-system';
@@ -34,6 +36,43 @@ const generateUUID = (): string => {
     const v = c === 'x' ? r : (r & 0x3 | 0x8);
     return v.toString(16);
   });
+};
+
+interface CategoryOption {
+  id: string;
+  name: string;
+}
+
+interface EditableVariant {
+  id: string;
+  name?: string;
+  option1Value?: string;
+  option2Value?: string;
+  price: number;
+  stock: number;
+}
+
+const FALLBACK_CATEGORIES: CategoryOption[] = [
+  { id: 'electronics', name: 'Electronics' },
+  { id: 'fashion', name: 'Fashion' },
+  { id: 'home-garden', name: 'Home & Garden' },
+  { id: 'sports', name: 'Sports' },
+  { id: 'books', name: 'Books' },
+  { id: 'beauty', name: 'Beauty' },
+  { id: 'automotive', name: 'Automotive' },
+  { id: 'toys', name: 'Toys' },
+  { id: 'health', name: 'Health' },
+  { id: 'food-beverage', name: 'Food & Beverage' },
+];
+
+const asText = (value: unknown): string => {
+  if (typeof value === 'string') return value;
+  if (value && typeof value === 'object' && 'name' in value) {
+    const name = (value as { name?: unknown }).name;
+    return typeof name === 'string' ? name : '';
+  }
+  if (value === null || value === undefined) return '';
+  return String(value);
 };
 
 export default function SellerProductsScreen() {
@@ -61,6 +100,9 @@ export default function SellerProductsScreen() {
   const [currentSizeInput, setCurrentSizeInput] = useState('');
   const [bulkPreviewProducts, setBulkPreviewProducts] = useState<SellerProduct[]>([]);
   const [isPreviewMode, setIsPreviewMode] = useState(false);
+  const [categories, setCategories] = useState<CategoryOption[]>([]);
+  const [loadingCategories, setLoadingCategories] = useState(true);
+  const [editVariants, setEditVariants] = useState<EditableVariant[]>([]);
   
   // Form state for adding products
   const [formData, setFormData] = useState({
@@ -78,18 +120,32 @@ export default function SellerProductsScreen() {
   // NEW STATE: Store the generated variants
   const [variants, setVariants] = useState<Variant[]>([]);
 
-  const categories = [
-    'Electronics',
-    'Fashion',
-    'Beauty',
-    'Food',
-    'Home & Living',
-    'Sports',
-    'Books',
-    'Toys',
-    'Accessories',
-    'Others',
-  ];
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        if (isSupabaseConfigured()) {
+          const { data, error } = await supabase
+            .from('categories')
+            .select('id, name')
+            .order('sort_order', { ascending: true });
+
+          if (!error && data && data.length > 0) {
+            setCategories(data.map((item) => ({ id: item.id, name: item.name })));
+            return;
+          }
+        }
+
+        setCategories(FALLBACK_CATEGORIES);
+      } catch (fetchError) {
+        console.error('Failed to fetch categories:', fetchError);
+        setCategories(FALLBACK_CATEGORIES);
+      } finally {
+        setLoadingCategories(false);
+      }
+    };
+
+    fetchCategories();
+  }, []);
 
   const resetForm = () => {
     setFormData({
@@ -105,8 +161,15 @@ export default function SellerProductsScreen() {
     });
 
     setVariants([]); // Clear variants
+    setEditVariants([]);
     setCurrentColorInput('');
     setCurrentSizeInput('');
+  };
+
+  const closeEditModal = () => {
+    setIsEditModalOpen(false);
+    setEditingProduct(null);
+    setEditVariants([]);
   };
 
   const handleOpenAddModal = () => {
@@ -234,9 +297,10 @@ export default function SellerProductsScreen() {
 
     try {
       const validImages = formData.images.filter(img => img.trim() !== '');
-      const validColors = formData.colors.filter(color => color.trim() !== '');
-      const validSizes = formData.sizes.filter(size => size.trim() !== '');
-      const firstImage = validImages[0] || 'https://placehold.co/400x400?text=' + encodeURIComponent(formData.name);
+      const hasOption1Values = variants.some((variant) => Boolean(variant.option1 && variant.option1 !== '-'));
+      const hasOption2Values = variants.some((variant) => Boolean(variant.option2 && variant.option2 !== '-'));
+      const selectedCategory = (categories.length > 0 ? categories : FALLBACK_CATEGORIES)
+        .find((category) => category.name === formData.category);
 
       const newProduct: SellerProduct = {
         sellerId: seller?.id,  
@@ -260,7 +324,11 @@ export default function SellerProductsScreen() {
         adminReclassifiedCategory: undefined,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-      };
+        category_id: selectedCategory?.id || null,
+        variant_label_1: hasOption1Values ? 'Color' : null,
+        variant_label_2: hasOption2Values ? 'Size' : null,
+        variants: variants.length > 0 ? variants : undefined,
+      } as any;
 
       // Add to seller store first - this inserts into Supabase and returns the DB ID
       const dbProductId = await addProduct(newProduct);
@@ -297,53 +365,121 @@ export default function SellerProductsScreen() {
   };
 
   const handleEditProduct = (product: SellerProduct) => {
+    const categoryName = asText(product.category);
+
     setEditingProduct(product);
     setFormData({
-      name: product.name,
+      name: asText(product.name),
       description: product.description || '',
       price: product.price.toString(),
       originalPrice: product.originalPrice?.toString() || '',
       stock: product.stock.toString(),
-      category: product.category,
+      category: categoryName,
       images: product.images,
       colors: product.colors && product.colors.length > 0 ? product.colors : [''],
       sizes: product.sizes && product.sizes.length > 0 ? product.sizes : [''],
     });
     setIsEditModalOpen(true);
+
+    productService
+      .getProductById(product.id)
+      .then((details) => {
+        const detailedVariants = Array.isArray((details as any)?.variants)
+          ? (details as any).variants
+          : [];
+
+        setEditVariants(
+          detailedVariants.map((variant: any) => ({
+            id: variant.id,
+            name: variant.variant_name || undefined,
+            option1Value: variant.option_1_value || variant.size || undefined,
+            option2Value: variant.option_2_value || variant.color || undefined,
+            price: Number(variant.price ?? product.price ?? 0),
+            stock: Number(variant.stock ?? 0),
+          })),
+        );
+      })
+      .catch((variantError) => {
+        console.error('Failed to load variants for editing:', variantError);
+        setEditVariants([]);
+      });
   };
 
-  const handleUpdateProduct = () => {
-    if (!validateForm() || !editingProduct) return;
+  const validateEditForm = () => {
+    if (!formData.name.trim()) {
+      Alert.alert('Validation Error', 'Product name is required');
+      return false;
+    }
+    if (!formData.description.trim()) {
+      Alert.alert('Validation Error', 'Product description is required');
+      return false;
+    }
+    if (!formData.price || parseFloat(formData.price) <= 0) {
+      Alert.alert('Validation Error', 'Please enter a valid price');
+      return false;
+    }
+
+    if (editVariants.length > 0) {
+      if (editVariants.some((variant) => variant.stock < 0 || variant.price < 0)) {
+        Alert.alert('Validation Error', 'Variant stock and price cannot be negative');
+        return false;
+      }
+    } else if (!formData.stock || parseInt(formData.stock, 10) < 0) {
+      Alert.alert('Validation Error', 'Please enter a valid stock quantity');
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleUpdateProduct = async () => {
+    if (!validateEditForm() || !editingProduct) return;
 
     try {
       const validImages = formData.images.filter(img => img.trim() !== '');
       const validColors = formData.colors.filter(color => color.trim() !== '');
       const validSizes = formData.sizes.filter(size => size.trim() !== '');
-      const firstImage = validImages[0] || editingProduct.images[0];
+      const totalVariantStock = editVariants.reduce((sum, variant) => sum + variant.stock, 0);
+      const selectedCategory = (categories.length > 0 ? categories : FALLBACK_CATEGORIES)
+        .find((category) => category.name === formData.category);
 
-      const updatedProduct: SellerProduct = {
+      if (editVariants.length > 0) {
+        await productService.updateVariants(
+          editVariants.map((variant) => ({
+            id: variant.id,
+            price: variant.price,
+            stock: variant.stock,
+          })),
+        );
+      }
+
+      const updatedProduct = {
         ...editingProduct,
         name: formData.name.trim(),
         description: formData.description.trim(),
         price: parseFloat(formData.price),
         originalPrice: formData.originalPrice ? parseFloat(formData.originalPrice) : undefined,
-        stock: parseInt(formData.stock),
+        stock: editVariants.length > 0 ? totalVariantStock : parseInt(formData.stock, 10),
         category: formData.category,
+        category_id: selectedCategory?.id || null,
         images: validImages,
         colors: validColors.length > 0 ? validColors : undefined,
         sizes: validSizes.length > 0 ? validSizes : undefined,
-      };
+      } as SellerProduct & { category_id?: string | null };
 
       if (editingProduct) {
-        updateProduct(editingProduct.id, updatedProduct);
+        await updateProduct(editingProduct.id, updatedProduct);
+      }
+
+      if (seller?.id) {
+        await fetchProducts({ sellerId: seller.id });
       }
 
       Alert.alert(
         'Product Updated',
         'Your product has been updated successfully.',
         [{ text: 'OK', onPress: () => {
-          setIsEditModalOpen(false);
-          setEditingProduct(null);
+          closeEditModal();
           resetForm();
         }}]
       );
@@ -365,6 +501,7 @@ export default function SellerProductsScreen() {
       const csvString = await FileSystem.readAsStringAsync(fileUri);
 
       const rows = csvString.split('\n').filter((row: string) => row.trim() !== '');
+      const defaultCategoryName = (categories.length > 0 ? categories : FALLBACK_CATEGORIES)[0]?.name || 'Electronics';
       
       // Parse rows into temporary preview state
       const parsedProducts: SellerProduct[] = rows.slice(1).map((row: string, index: number) => {
@@ -381,7 +518,7 @@ export default function SellerProductsScreen() {
           price: isNaN(price) ? 0 : price,
           originalPrice: columns[3] ? parseFloat(columns[3]) : undefined,
           stock: isNaN(stock) ? 0 : stock,
-          category: columns[5]?.trim() || 'Others',
+          category: columns[5]?.trim() || defaultCategoryName,
           isActive: true,
           sales: 0,
           rating: 0,
@@ -471,6 +608,10 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
   };
 
   const showCSVFormat = () => {
+    const categoryList = (categories.length > 0 ? categories : FALLBACK_CATEGORIES)
+      .map((category) => category.name)
+      .join(', ');
+
     Alert.alert(
       'CSV Format Guide',
       'Your CSV file must have these columns in order:\n\n' +
@@ -484,14 +625,15 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
       'Example:\n' +
       'iPhone 15 Pro,Latest Apple phone,59999,65999,50,Electronics,https://example.com/iphone.jpg\n' +
       'Samsung Galaxy S24,Flagship Android,54999,,30,Electronics,https://example.com/samsung.jpg\n\n' +
-      'Categories: Electronics, Fashion, Beauty, Food, Home & Living, Sports, Books, Toys, Accessories, Others',
+      `Categories: ${categoryList}`,
       [{ text: 'Got it' }]
     );
   };
 
   const filteredProducts = products.filter((product) => {
-    const name = typeof product.name === 'object' ? (product.name as any)?.name || '' : String(product.name || '');
-    return name.toLowerCase().includes(searchQuery.toLowerCase());
+    const productName = asText(product.name);
+    const matchesSeller = !seller?.id || product.sellerId === seller.id;
+    return matchesSeller && productName.toLowerCase().includes(searchQuery.toLowerCase());
   });
 
   const renderProductCard = ({ item }: { item: SellerProduct }) => (
@@ -499,11 +641,11 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
       <Image source={{ uri: item.images?.[0] || 'https://placehold.co/100x100?text=No+Image' }} style={styles.productImage} />
       
       <View style={styles.productInfo}>
-        <View style={styles.productHeader}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.productName} numberOfLines={1}>{typeof item.name === 'object' ? (item.name as any)?.name || '' : String(item.name || '')}</Text>
-            <Text style={styles.productCategory}>{typeof item.category === 'object' ? (item.category as any)?.name || '' : String(item.category || '')}</Text>
-          </View>
+          <View style={styles.productHeader}>
+            <View style={{ flex: 1 }}>
+            <Text style={styles.productName} numberOfLines={1}>{asText(item.name)}</Text>
+            <Text style={styles.productCategory}>{asText(item.category)}</Text>
+            </View>
           <View style={[styles.statusBadge, { backgroundColor: item.isActive ? '#DCFCE7' : '#F3F4F6' }]}>
             <Text style={[styles.statusText, { color: item.isActive ? '#16A34A' : '#6B7280' }]}>
               {item.isActive ? 'Active' : 'Inactive'}
@@ -553,11 +695,11 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
       <Image source={{ uri: item.images?.[0] || 'https://placehold.co/100x100?text=No+Image' }} style={styles.productImage} />
       
       <View style={styles.productInfo}>
-        <View style={styles.productHeader}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.productName} numberOfLines={1}>{typeof item.name === 'object' ? (item.name as any)?.name || '' : String(item.name || '')}</Text>
-            <Text style={styles.productCategory}>{typeof item.category === 'object' ? (item.category as any)?.name || '' : String(item.category || '')}</Text>
-          </View>
+          <View style={styles.productHeader}>
+            <View style={{ flex: 1 }}>
+            <Text style={styles.productName} numberOfLines={1}>{asText(item.name)}</Text>
+            <Text style={styles.productCategory}>{asText(item.category)}</Text>
+            </View>
         </View>
 
         <View style={styles.productMeta}>
@@ -672,7 +814,7 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
         visible={isEditModalOpen}
         transparent={true}
         animationType="slide"
-        onRequestClose={() => setIsEditModalOpen(false)}
+        onRequestClose={closeEditModal}
       >
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -681,7 +823,7 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
           <TouchableOpacity 
             style={styles.modalOverlay} 
             activeOpacity={1}
-            onPress={() => setIsEditModalOpen(false)}
+            onPress={closeEditModal}
           >
             <TouchableOpacity 
               style={styles.bottomSheet}
@@ -694,7 +836,7 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
               {/* Modal Header */}
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Edit Product</Text>
-                <TouchableOpacity onPress={() => setIsEditModalOpen(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <TouchableOpacity onPress={closeEditModal} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                   <X size={24} color="#6B7280" strokeWidth={2.5} />
                 </TouchableOpacity>
               </View>
@@ -830,32 +972,36 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
                 {/* Category Pills */}
                 <View style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>Category *</Text>
-                  <ScrollView 
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.pillContainer}
-                  >
-                    {categories.map((item) => (
-                      <TouchableOpacity
-                        key={item}
-                        style={[
-                          styles.pillChip,
-                          formData.category === item && styles.pillChipSelected,
-                        ]}
-                        onPress={() => setFormData({ ...formData, category: item })}
-                        activeOpacity={0.7}
-                      >
-                        <Text
+                  {loadingCategories ? (
+                    <Text style={styles.categoryLoadingText}>Loading categories...</Text>
+                  ) : (
+                    <ScrollView 
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.pillContainer}
+                    >
+                      {(categories.length > 0 ? categories : FALLBACK_CATEGORIES).map((item) => (
+                        <TouchableOpacity
+                          key={item.id}
                           style={[
-                            styles.pillChipText,
-                            formData.category === item && styles.pillChipTextSelected,
+                            styles.pillChip,
+                            formData.category === item.name && styles.pillChipSelected,
                           ]}
+                          onPress={() => setFormData({ ...formData, category: item.name })}
+                          activeOpacity={0.7}
                         >
-                          {item}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
+                          <Text
+                            style={[
+                              styles.pillChipText,
+                              formData.category === item.name && styles.pillChipTextSelected,
+                            ]}
+                          >
+                            {item.name}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  )}
                 </View>
 
                 {/* Price & Original Price Row */}
@@ -884,18 +1030,73 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
                   </View>
                 </View>
 
-                {/* Stock Quantity */}
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Stock Quantity *</Text>
-                  <TextInput
-                    style={styles.modernInput}
-                    placeholder="0"
-                    value={formData.stock}
-                    onChangeText={(text) => setFormData({ ...formData, stock: text })}
-                    placeholderTextColor="#9CA3AF"
-                    keyboardType="number-pad"
-                  />
-                </View>
+                {editVariants.length > 0 ? (
+                  <View style={styles.variantEditorCard}>
+                    <Text style={styles.variantEditorTitle}>Variants ({editVariants.length})</Text>
+                    <Text style={styles.variantEditorSubtitle}>
+                      Total Stock: {editVariants.reduce((sum, variant) => sum + variant.stock, 0)}
+                    </Text>
+
+                    {editVariants.map((variant, index) => (
+                      <View key={variant.id} style={styles.variantEditorRow}>
+                        <View style={styles.variantEditorInfo}>
+                          <Text style={styles.variantEditorName} numberOfLines={1}>
+                            {variant.name || [variant.option1Value, variant.option2Value].filter(Boolean).join(' - ') || `Variant ${index + 1}`}
+                          </Text>
+                        </View>
+
+                        <View style={styles.variantInputsRow}>
+                          <TextInput
+                            style={styles.variantInput}
+                            value={String(variant.price)}
+                            onChangeText={(value) => {
+                              const parsedPrice = parseFloat(value);
+                              setEditVariants((prev) =>
+                                prev.map((item) =>
+                                  item.id === variant.id
+                                    ? { ...item, price: Number.isNaN(parsedPrice) ? 0 : parsedPrice }
+                                    : item,
+                                ),
+                              );
+                            }}
+                            placeholder="Price"
+                            keyboardType="decimal-pad"
+                            placeholderTextColor="#9CA3AF"
+                          />
+                          <TextInput
+                            style={styles.variantInput}
+                            value={String(variant.stock)}
+                            onChangeText={(value) => {
+                              const parsedStock = parseInt(value, 10);
+                              setEditVariants((prev) =>
+                                prev.map((item) =>
+                                  item.id === variant.id
+                                    ? { ...item, stock: Number.isNaN(parsedStock) ? 0 : parsedStock }
+                                    : item,
+                                ),
+                              );
+                            }}
+                            placeholder="Stock"
+                            keyboardType="number-pad"
+                            placeholderTextColor="#9CA3AF"
+                          />
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                ) : (
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Stock Quantity *</Text>
+                    <TextInput
+                      style={styles.modernInput}
+                      placeholder="0"
+                      value={formData.stock}
+                      onChangeText={(text) => setFormData({ ...formData, stock: text })}
+                      placeholderTextColor="#9CA3AF"
+                      keyboardType="number-pad"
+                    />
+                  </View>
+                )}
 
                 {/* Others Card with Colors and Variations */}
                 <View style={styles.sectionCard}>
@@ -981,7 +1182,7 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
               <View style={styles.modalFooter}>
                 <TouchableOpacity
                   style={styles.cancelButton}
-                  onPress={() => setIsEditModalOpen(false)}
+                  onPress={closeEditModal}
                   activeOpacity={0.7}
                 >
                   <Text style={styles.cancelButtonText}>Cancel</Text>
@@ -1554,6 +1755,66 @@ const styles = StyleSheet.create({
   },
   pillChipTextSelected: {
     color: '#FFFFFF',
+  },
+  categoryLoadingText: {
+    fontSize: 13,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  variantEditorCard: {
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+  },
+  variantEditorTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  variantEditorSubtitle: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 4,
+    marginBottom: 10,
+  },
+  variantEditorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 8,
+  },
+  variantEditorInfo: {
+    flex: 1,
+    minWidth: 0,
+  },
+  variantEditorName: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1F2937',
+  },
+  variantInputsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  variantInput: {
+    width: 82,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    fontSize: 13,
+    color: '#111827',
+    backgroundColor: '#FFFFFF',
   },
   // QA Note
   qaNote: {
