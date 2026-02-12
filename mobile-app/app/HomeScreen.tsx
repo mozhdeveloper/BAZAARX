@@ -28,7 +28,7 @@ import CameraSearchModal from '../src/components/CameraSearchModal';
 import AIChatModal from '../src/components/AIChatModal';
 import LocationModal from '../src/components/LocationModal';
 import ProductRequestModal from '../src/components/ProductRequestModal';
-// REMOVED: import { NotificationsModal } from '../src/components/NotificationsModal';
+// Removed NotificationsModal import
 import type { CompositeScreenProps } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -64,7 +64,7 @@ const categories: { id: string; name: string; Icon: LucideIcon }[] = [
   { id: 'books', name: 'Books', Icon: BookOpen },
 ];
 
-const CATEGORY_ITEM_WIDTH = (width - 40 - 40) / 5;
+const CATEGORY_ITEM_WIDTH = (width - 40 - 40) / 5; // 5 columns, 20px padding each side, 10px gaps
 
 const CategoryItem = ({ label, Icon }: { label: string; Icon: LucideIcon }) => (
   <View style={styles.categoryItm}>
@@ -82,15 +82,14 @@ export default function HomeScreen({ navigation }: Props) {
 
   const [activeTab, setActiveTab] = useState<'Home' | 'Category'>('Home');
   const [showAIChat, setShowAIChat] = useState(false);
-  // REMOVED: const [showNotifications, setShowNotifications] = useState(false);
+  // Removed showNotifications state
   const [showGuestModal, setShowGuestModal] = useState(false);
   const [showCameraSearch, setShowCameraSearch] = useState(false);
   const [showProductRequest, setShowProductRequest] = useState(false);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [sellers, setSellers] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-
-  // Only track count for badge
+  // Removed local notifications array state as we only need count here
   const [unreadCount, setUnreadCount] = useState(0);
 
   // LOCATION STATE
@@ -122,7 +121,7 @@ export default function HomeScreen({ navigation }: Props) {
       brand: 'Fashion Hub',
       tag: 'NEW ARRIVAL',
       image: 'https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=400',
-      color: '#059669'
+      color: '#059669' // Green
     },
     {
       id: '3',
@@ -130,14 +129,16 @@ export default function HomeScreen({ navigation }: Props) {
       brand: 'TechZone',
       tag: 'FLASH DEAL',
       image: 'https://images.unsplash.com/photo-1550009158-9ebf69173e03?w=400',
-      color: '#DC2626'
+      color: '#DC2626' // Red
     }
   ];
 
   const { products: sellerProducts = [], seller } = useSellerStore();
   const PLACEHOLDER_IMAGE = 'https://placehold.co/400x400/e5e7eb/6b7280?text=No+Image';
 
-  // Product Loading Logic (kept same as before)
+  // Display name logic
+  const username = user?.name ? user.name.split(' ')[0] : 'Guest';
+
   const filteredProducts = searchQuery.trim()
     ? dbProducts.filter(p => (p.name || '').toLowerCase().includes(searchQuery.toLowerCase()))
     : [];
@@ -175,18 +176,21 @@ export default function HomeScreen({ navigation }: Props) {
             originalPrice: row.original_price,
             image: primaryImage,
             images: images.length > 0 ? images : [primaryImage],
-            rating: ratingNum,
-            reviewCount: reviewCount,
-            sold: row.sold || 0, // Sold count calculated from order_items in productService
-            seller: sellerName,
+            rating: typeof row.rating === 'number' ? row.rating : 0,
+            reviewCount: row.reviewCount || 0,
+            sold: row.sold || 0,
+            seller: row.seller?.store_name || 'Verified Seller',
             sellerId: row.seller_id || row.seller?.id,
+            sellerRating: 4.9,
+            sellerVerified: !!row.seller?.verified_at,
+            isFreeShipping: !!row.is_free_shipping,
             isVerified: true,
+            location: row.seller?.business_profile?.city || 'Philippines',
             description: row.description || '',
             category: row.category?.name || row.category || '',
             stock: row.stock || 0,
           } as Product;
         });
-        // Remove duplicates if any
         const uniqueMapped = Array.from(new Map(mapped.map(item => [item.id, item])).values());
         setDbProducts(uniqueMapped);
       } catch (e: any) {
@@ -207,48 +211,58 @@ export default function HomeScreen({ navigation }: Props) {
     fetchSellers();
   }, []);
 
-  // LOAD NOTIFICATIONS (Badge Count Only)
-  const loadNotificationCount = useCallback(async () => {
+  // --- FETCH NOTIFICATIONS ---
+  const loadNotifications = useCallback(async () => {
     if (!user?.id || isGuest) return;
     try {
-      // Just fetch recent ones to count unread or create a specific count method
       const data = await notificationService.getNotifications(user.id, 'buyer', 20);
-      const unread = data.filter(n => !n.is_read).length;
-      setUnreadCount(unread);
+      setUnreadCount(data.filter(n => !n.is_read).length);
     } catch (error) {
       console.error('[HomeScreen] Error loading notifications:', error);
     }
   }, [user?.id, isGuest]);
 
-  // Refresh badge on focus (optional but good UX)
   useEffect(() => {
+    // Refresh count on focus
     const unsubscribe = navigation.addListener('focus', () => {
-      loadNotificationCount();
+      loadNotifications();
     });
-    loadNotificationCount();
+    loadNotifications();
     return unsubscribe;
-  }, [navigation, loadNotificationCount]);
+  }, [navigation, loadNotifications]);
 
-  // Location Loading Logic (kept same)
+  // ... (Location logic skipped for brevity, keeping existing) ...
   useEffect(() => {
     const loadSavedLocation = async () => {
       try {
         const savedAddress = await AsyncStorage.getItem('currentDeliveryAddress');
         const savedCoords = await AsyncStorage.getItem('currentDeliveryCoordinates');
-
         if (savedAddress) setDeliveryAddress(savedAddress);
         if (savedCoords) setDeliveryCoordinates(JSON.parse(savedCoords));
-      } catch (e) {
-        console.error('[HomeScreen] Error loading from AsyncStorage:', e);
+      } catch (e) { console.error(e); }
+
+      if (user?.id) {
+        try {
+          const savedLocation = await addressService.getCurrentDeliveryLocation(user.id);
+          if (savedLocation) {
+            const formatted = savedLocation.city ? `${savedLocation.street}, ${savedLocation.city}` : savedLocation.street;
+            setDeliveryAddress(formatted);
+            if (savedLocation.coordinates) setDeliveryCoordinates(savedLocation.coordinates);
+          }
+        } catch (e) { console.error(e); }
       }
     };
     loadSavedLocation();
   }, [user]);
 
-  const handleSelectLocation = async (address: string, coords?: { latitude: number; longitude: number }, details?: any) => {
+  const handleSelectLocation = async (address: string, coords?: any, details?: any) => {
     setDeliveryAddress(address);
     if (coords) setDeliveryCoordinates(coords);
-    await AsyncStorage.setItem('currentDeliveryAddress', address);
+    try {
+      await AsyncStorage.setItem('currentDeliveryAddress', address);
+      if (coords) await AsyncStorage.setItem('currentDeliveryCoordinates', JSON.stringify(coords));
+      if (user?.id) await addressService.saveCurrentDeliveryLocation(user.id, address, coords || null, details);
+    } catch (e) { console.error(e); }
   };
 
   useEffect(() => {
@@ -315,7 +329,7 @@ export default function HomeScreen({ navigation }: Props) {
           </View>
         )}
 
-        {/* 2. SEARCH BAR */}
+        {/* 2. PERSISTENT SEARCH BAR */}
         <View style={styles.searchBarWrapper}>
           <View style={[styles.searchBarInner, { backgroundColor: '#FFFFFF' }]}>
             <Search size={18} color="#9CA3AF" />
@@ -520,9 +534,6 @@ export default function HomeScreen({ navigation }: Props) {
         )}
       </ScrollView>
 
-      {/* --- MODALS --- */}
-      {/* REMOVED: NotificationsModal */}
-
       <ProductRequestModal visible={showProductRequest} onClose={() => setShowProductRequest(false)} />
       <AIChatModal visible={showAIChat} onClose={() => setShowAIChat(false)} />
       <CameraSearchModal visible={showCameraSearch} onClose={() => setShowCameraSearch(false)} />
@@ -541,6 +552,8 @@ export default function HomeScreen({ navigation }: Props) {
           message="Sign up to view your notifications."
         />
       )}
+
+      {/* Modal code removed */}
     </LinearGradient >
   );
 }
@@ -566,10 +579,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#FFE5CC'
   },
-  notifBadgeText: { color: '#FFFFFF', fontSize: 12, fontWeight: '900' },
+  notifBadgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '900' },
   searchBarWrapper: { flexDirection: 'row', alignItems: 'center', marginBottom: 2 },
   searchBarInner: { flex: 1, flexDirection: 'row', alignItems: 'center', borderRadius: 12, paddingHorizontal: 15, height: 48, gap: 10 },
   searchInput: { flex: 1, fontSize: 14 },
+  searchBackBtn: { padding: 4 },
   contentScroll: { flex: 1 },
   carouselContainer: { marginVertical: 10 },
   promoBox: {
@@ -589,7 +603,13 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     position: 'relative'
   },
-  promoBorder: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 6 },
+  promoBorder: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 6,
+  },
   promoTextPart: { flex: 0.65 },
   promoBadge: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4, marginBottom: 8 },
   promoBadgeText: { color: '#FFF', fontSize: 10, fontWeight: '900' },
