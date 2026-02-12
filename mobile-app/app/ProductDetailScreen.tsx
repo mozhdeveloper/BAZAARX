@@ -47,7 +47,6 @@ import StoreChatModal from '../src/components/StoreChatModal';
 import { AIChatBubble } from '../src/components/AIChatBubble';
 import { AddedToCartModal } from '../src/components/AddedToCartModal';
 import { QuantityStepper } from '../src/components/QuantityStepper';
-import { QuantityStepper } from '../src/components/QuantityStepper';
 import { useCartStore } from '../src/stores/cartStore';
 import { useWishlistStore } from '../src/stores/wishlistStore';
 import { trendingProducts } from '../src/data/products';
