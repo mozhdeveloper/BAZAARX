@@ -296,6 +296,10 @@ export class ProductService {
             stock,
             thumbnail_url
           ),
+          reviews (
+            id,
+            rating
+          ),
           seller:sellers!products_seller_id_fkey (
             id,
             store_name,

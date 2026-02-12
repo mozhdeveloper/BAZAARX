@@ -648,9 +648,9 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
           </View>
            <View style={styles.ratingRow}>
               {Array.from({ length: 5 }).map((_, i) => (
-                <Star key={i} size={14} color={i < 4 ? '#F59E0B' : '#E5E7EB'} fill={i < 4 ? '#F59E0B' : '#E5E7EB'} />
+                <Star key={i} size={14} color={i < Math.round(averageRating) ? '#F59E0B' : '#E5E7EB'} fill={i < Math.round(averageRating) ? '#F59E0B' : '#E5E7EB'} />
               ))}
-              <Text style={styles.ratingValue}>4.8 ({(product.sold ?? 0).toLocaleString()})</Text>
+              <Text style={styles.ratingValue}>{averageRating > 0 ? averageRating.toFixed(1) : '0.0'} ({reviewsTotal})</Text>
               <Text style={styles.questionsLink}>14 Questions</Text>
            </View>
            
