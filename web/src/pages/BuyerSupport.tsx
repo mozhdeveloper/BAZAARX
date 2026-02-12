@@ -40,24 +40,28 @@ export function BuyerSupport() {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     // Submit ticket to store
-    const ticketId = submitTicket({
-      buyerName: profile
-        ? `${profile.firstName} ${profile.lastName}`
-        : "Guest User",
-      buyerId: profile?.id,
-      email: profile?.email || "guest@example.com",
-      subject: ticket.subject,
-      description: ticket.description,
-      category: ticket.category,
-      proof: ticket.proof,
-    });
+    try {
+      const ticketId = await submitTicket({
+        buyerName: profile
+          ? `${profile.firstName} ${profile.lastName}`
+          : "Guest User",
+        buyerId: profile?.id,
+        email: profile?.email || "guest@example.com",
+        subject: ticket.subject,
+        description: ticket.description,
+        category: ticket.category,
+        proof: ticket.proof,
+      });
 
-    setGeneratedTicketId(ticketId);
-    setIsSubmitted(true);
+      setGeneratedTicketId(ticketId);
+      setIsSubmitted(true);
+    } catch (error) {
+      console.error("Ticket submission failed:", error);
+    }
   };
 
   const handleCloseModal = () => {
