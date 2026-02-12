@@ -283,33 +283,28 @@ export default function ChatScreen({
       )}
 
       {/* Input Area */}
-      <View style={[styles.inputContainer, { paddingBottom: insets.bottom + 8 }]}>
-        <Pressable style={styles.attachButton}>
-          <ImageIcon size={20} color="#6B7280" strokeWidth={2} />
-        </Pressable>
-        <TextInput
-          style={styles.textInput}
-          placeholder="Type a message..."
-          placeholderTextColor="#9CA3AF"
-          value={newMessage}
-          onChangeText={setNewMessage}
-          multiline
-          maxLength={1000}
-        />
-        <Pressable
-          style={[
-            styles.sendButton,
-            (!newMessage.trim() || sending) && styles.sendButtonDisabled,
-          ]}
-          onPress={handleSend}
-          disabled={!newMessage.trim() || sending}
-        >
-          {sending ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
-          ) : (
-            <Send size={20} color={COLORS.primary} strokeWidth={2.5} style={{ marginLeft: 2 }} />
-          )}
-        </Pressable>
+      <View style={[styles.inputContainer, { paddingBottom: insets.bottom + 12 }]}>
+        <View style={styles.inputBar}>
+          <TextInput
+            style={styles.input}
+            value={newMessage}
+            onChangeText={setNewMessage}
+            placeholder="Type a message..."
+            placeholderTextColor="#9CA3AF"
+            multiline
+            maxLength={1000}
+          />
+          <Pressable
+            onPress={() => handleSend()}
+            style={[
+              styles.sendButton,
+              !newMessage.trim() && styles.sendButtonDisabled,
+            ]}
+            disabled={!newMessage.trim()}
+          >
+            <Send size={20} color={COLORS.primary} strokeWidth={2.5} />
+          </Pressable>
+        </View>
       </View>
     </KeyboardAvoidingView>
   );
@@ -441,57 +436,47 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
   },
   inputContainer: {
-    position: 'absolute',
-    bottom: 20,
-    left: 16,
-    right: 16,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 32,
-    gap: 12,
-    borderTopWidth: 0,
-    // Shadow for depth
+    paddingTop: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
     elevation: 8,
-    zIndex: 100,
   },
-  attachButton: {
-    padding: 10,
-    marginBottom: 2, // Align with input text
+  inputBar: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 12,
   },
-  textInput: {
+  input: {
     flex: 1,
-    backgroundColor: '#F3F4F6', // Light Gray
-    borderRadius: 24, // Fully rounded
+    backgroundColor: '#F2F2F2',
+    borderRadius: 999,
     paddingHorizontal: 20,
-    paddingVertical: 12, // More padding
+    paddingVertical: 12,
     fontSize: 15,
     color: '#1F2937',
     maxHeight: 100,
+    letterSpacing: -0.1,
   },
   sendButton: {
-    width: 48, // Larger button
+    width: 48,
     height: 48,
-    borderRadius: 24, // Circular
-    backgroundColor: '#FFE5CC', // Peach background
-    alignItems: 'center',
+    borderRadius: 24,
+    backgroundColor: '#FFE5CC',
     justifyContent: 'center',
-    // Shadow for button
+    alignItems: 'center',
     shadowColor: '#FFE5CC',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.5,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
     shadowRadius: 8,
-    elevation: 4,
+    elevation: 6,
   },
   sendButtonDisabled: {
-    backgroundColor: '#F3F4F6',
-    shadowOpacity: 0,
-    elevation: 0,
+    backgroundColor: '#FFE5CC',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
   },
 });
