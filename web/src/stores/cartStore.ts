@@ -124,6 +124,7 @@ interface CartStore {
   markNotificationRead: (notificationId: string) => void;
   clearNotifications: () => void;
   getUnreadNotifications: () => OrderNotification[];
+  hydrateBuyerOrders: (orders: Order[]) => void;
   updateOrderWithReturnRequest: (orderId: string, returnRequest: Order['returnRequest']) => void;
   updateOrderWithReview: (orderId: string, review: Order['review']) => void;
 }
@@ -801,6 +802,12 @@ export const useCartStore = create<CartStore>()(
 
       getUnreadNotifications: () => {
         return get().notifications.filter(n => !n.read);
+      },
+      hydrateBuyerOrders: (orders: Order[]) => {
+        set((state) => ({
+          ...state,
+          orders,
+        }));
       },
       // Simulate realistic order progression
       simulateOrderProgression: (orderId: string) => {

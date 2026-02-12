@@ -31,54 +31,14 @@ import ReturnRefundModal from "../components/ReturnRefundModal";
 import { ReviewModal } from "../components/ReviewModal";
 import { cn } from "../lib/utils";
 import { useToast } from "../hooks/use-toast";
-import { orderService } from "../services/orderService";
-
-const parseAddressFromNotes = (notes?: string | null) => {
-  if (!notes || !notes.includes("SHIPPING_ADDRESS:")) return null;
-
-  try {
-    const jsonPart = notes.split("SHIPPING_ADDRESS:")[1]?.split("|")[0];
-    if (!jsonPart) return null;
-
-    return JSON.parse(jsonPart) as {
-      fullName?: string;
-      street?: string;
-      city?: string;
-      province?: string;
-      postalCode?: string;
-      phone?: string;
-    };
-  } catch {
-    return null;
-  }
-};
-
-const mapBuyerOrderStatus = (
-  status?: string,
-): "pending" | "confirmed" | "shipped" | "delivered" | "cancelled" | "returned" | "reviewed" => {
-  switch (status) {
-    case "reviewed":
-      return "reviewed";
-    case "confirmed":
-    case "processing":
-      return "confirmed";
-    case "shipped":
-      return "shipped";
-    case "delivered":
-      return "delivered";
-    case "cancelled":
-      return "cancelled";
-    case "returned":
-      return "returned";
-    default:
-      return "pending";
-  }
-};
+import { orderReadService } from "../services/orders/orderReadService";
+import { orderMutationService } from "../services/orders/orderMutationService";
+import { OrderStatusBadge } from "../components/orders/OrderStatusBadge";
 
 export default function OrdersPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { orders, updateOrderStatus, updateOrderWithReturnRequest } =
+  const { orders, updateOrderStatus, updateOrderWithReturnRequest, hydrateBuyerOrders } =
     useCartStore();
   const { addToCart, profile, initializeCart } = useBuyerStore();
   const { toast } = useToast();
@@ -209,130 +169,16 @@ export default function OrdersPage() {
 
     setIsLoading(true);
     try {
-      const buyerOrders = await orderService.getBuyerOrders(profile.id);
-
-      const mappedOrders = buyerOrders.map((order: any) => {
-        const notesAddress = parseAddressFromNotes(order.notes);
-        const createdAt = new Date(order.created_at);
-        const shippedAt = order.shipped_at
-          ? new Date(order.shipped_at)
-          : undefined;
-        const deliveredAt = order.delivered_at
-          ? new Date(order.delivered_at)
-          : undefined;
-
-        const rawItems = Array.isArray(order.order_items) ? order.order_items : [];
-        const fallbackStoreName =
-          order.store_name ||
-          rawItems.find((item: any) => item?.seller_name)?.seller_name ||
-          "Unknown Store";
-        const fallbackSellerId =
-          order.seller_id ||
-          rawItems.find((item: any) => item?.seller_id)?.seller_id ||
-          null;
-
-        const items = rawItems.map((item: any) => {
-          const variantData = item.variant;
-          const personalized = (item.personalized_options || {}) as Record<
-            string,
-            string | undefined
-          >;
-          const variantLabel1 = personalized.variantLabel1 || variantData?.size;
-          const variantLabel2 = personalized.variantLabel2 || variantData?.color;
-          const variantParts = [];
-
-          if (variantData?.variant_name) {
-            variantParts.push(variantData.variant_name);
-          }
-          if (variantLabel1) {
-            variantParts.push(`Size: ${variantLabel1}`);
-          }
-          if (variantLabel2) {
-            variantParts.push(`Color: ${variantLabel2}`);
-          }
-
-          return {
-            id: item.product_id || item.id,
-            orderItemId: item.id,
-            name: item.product_name,
-            image:
-              variantData?.thumbnail_url ||
-              item.primary_image_url ||
-              "https://placehold.co/100?text=Product",
-            price: item.price || variantData?.price || 0,
-            quantity: item.quantity || 1,
-            seller: item.seller_name || fallbackStoreName,
-            sellerId: item.seller_id || fallbackSellerId,
-            selectedVariant: variantData
-              ? {
-                  id: variantData.id,
-                  name: variantData.variant_name,
-                  size: variantData.size,
-                  color: variantData.color,
-                }
-              : null,
-            variantDisplay: variantParts.length > 0 ? variantParts.join(" / ") : null,
-            rating: 5,
-            category: "General",
-          };
-        });
-
-        const numericTotal = Number(order.total_amount || 0);
-        const computedTotal = items.reduce(
-          (sum: number, item: any) => sum + item.price * item.quantity,
-          0,
-        );
-
-        return {
-          id: order.order_number || order.id,
-          dbId: order.id,
-          orderNumber: order.order_number,
-          createdAt,
-          date: createdAt.toLocaleDateString("en-US", {
-            year: "numeric",
-            month: "short",
-            day: "numeric",
-          }),
-          status: mapBuyerOrderStatus(order.status),
-          isPaid: order.payment_status === "paid",
-          paymentStatus: order.payment_status,
-          shipmentStatus: order.shipment_status,
-          total: numericTotal > 0 ? numericTotal : computedTotal,
-          estimatedDelivery:
-            deliveredAt ||
-            (shippedAt
-              ? new Date(shippedAt.getTime() + 2 * 24 * 60 * 60 * 1000)
-              : new Date(createdAt.getTime() + 3 * 24 * 60 * 60 * 1000)),
-          shippedAt,
-          deliveredAt,
-          items,
-          shippingAddress: {
-            fullName: order.buyer_name || notesAddress?.fullName || "Customer",
-            street: order.shipping_street || notesAddress?.street || "",
-            city: order.shipping_city || notesAddress?.city || "",
-            province: order.shipping_province || notesAddress?.province || "",
-            postalCode:
-              order.shipping_postal_code || notesAddress?.postalCode || "",
-            phone: order.buyer_phone || notesAddress?.phone || "",
-          },
-          paymentMethod: {
-            type: "cod",
-            details: "",
-          },
-          trackingNumber: order.tracking_number || undefined,
-          storeName: fallbackStoreName,
-          sellerId: fallbackSellerId,
-          order_type: order.order_type,
-        };
+      const buyerOrders = await orderReadService.getBuyerOrders({
+        buyerId: profile.id,
       });
-
-      useCartStore.setState({ orders: mappedOrders as any });
+      hydrateBuyerOrders(buyerOrders as any);
     } catch (err) {
       console.error("Error fetching orders:", err);
     } finally {
       setIsLoading(false);
     }
-  }, [profile?.id]);
+  }, [hydrateBuyerOrders, profile?.id]);
 
   const handleCancelOrder = async () => {
     if (!orderToCancel?.dbId || !cancelReason) return;
@@ -340,22 +186,25 @@ export default function OrdersPage() {
     const reason = cancelReason === "Other" ? otherReason : cancelReason;
 
     try {
-      const success = await orderService.cancelOrder(
-        orderToCancel.dbId,
+      const success = await orderMutationService.cancelOrder({
+        orderId: orderToCancel.dbId,
         reason,
-        profile?.id,
-      );
+        cancelledBy: profile?.id,
+        changedByRole: profile?.id ? "buyer" : null,
+      });
       if (!success) {
         throw new Error("Failed to cancel order");
       }
 
-      await loadBuyerOrders();
+      updateOrderStatus(orderToCancel.id, "cancelled");
 
       toast({
         title: "Order Cancelled",
         description: "Your order has been moved to the Cancelled list.",
       });
       setStatusFilter("cancelled");
+
+      void loadBuyerOrders();
     } catch (e) {
       console.error("Error canceling order:", e);
       toast({
@@ -417,48 +266,6 @@ export default function OrdersPage() {
      Database.types.ts says: pending_payment, paid, processing, ready_to_ship, shipped...
      UI statuses seem to be: pending, confirmed, shipped, delivered, cancelled.
   */
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case "pending":
-        return <Clock className="w-4 h-4 text-yellow-500" />;
-      case "confirmed":
-        return <Package className="w-4 h-4 text-blue-500" />;
-      case "shipped":
-        return <Truck className="w-4 h-4 text-purple-500" />;
-      case "delivered":
-        return <CheckCircle className="w-4 h-4 text-green-500" />;
-      case "returned":
-        return <RotateCcw className="w-4 h-4 text-orange-500" />;
-      case "cancelled":
-        return <XCircle className="w-4 h-4 text-red-500" />;
-      case "reviewed":
-        return <Star className="w-4 h-4 text-yellow-500" />;
-      default:
-        return <Package className="w-4 h-4 text-gray-500" />;
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "pending":
-        return "text-yellow-700 bg-yellow-100 border-yellow-200";
-      case "confirmed":
-        return "text-blue-700 bg-blue-100 border-blue-200";
-      case "shipped":
-        return "text-purple-700 bg-purple-100 border-purple-200";
-      case "delivered":
-        return "text-green-700 bg-green-100 border-green-200";
-      case "returned":
-        return "text-orange-700 bg-orange-100 border-orange-200";
-      case "cancelled":
-        return "text-red-700 bg-red-100 border-red-200";
-      case "reviewed":
-        return "text-yellow-700 bg-yellow-100 border-yellow-200";
-      default:
-        return "text-gray-700 bg-gray-100 border-gray-200";
-    }
-  };
 
   // Helper to convert createdAt to timestamp (handles both Date objects and strings)
   const getTimestamp = (date: Date | string): number => {
@@ -658,12 +465,7 @@ export default function OrdersPage() {
                       </div>
 
                       <div className="flex items-center gap-2 sm:gap-3 self-end sm:self-auto">
-                        <div
-                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border ${getStatusColor(order.status)}`}
-                        >
-                          {getStatusIcon(order.status)}
-                          <span className="capitalize">Reviewed</span>
-                        </div>
+                        <OrderStatusBadge status={order.status} compact />
                         <span className="hidden sm:inline text-xs text-gray-300">|</span>
                         <span className="text-sm text-gray-500 font-mono hidden sm:inline">{order.orderNumber || order.id}</span>
                       </div>
@@ -779,16 +581,7 @@ export default function OrdersPage() {
                             In-Store
                           </span>
                         )}
-                        <div
-                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border ${getStatusColor(order.status)}`}
-                        >
-                          {getStatusIcon(order.status)}
-                          <span className="capitalize">
-                            {order.status === "pending"
-                              ? "Pending Payment"
-                              : order.status}
-                          </span>
-                        </div>
+                        <OrderStatusBadge status={order.status} compact />
                         <span className="hidden sm:inline text-xs text-gray-300">|</span>
                         <span className="text-sm text-gray-500 font-mono hidden sm:inline">{order.orderNumber || order.id}</span>
                       </div>
@@ -1062,12 +855,10 @@ export default function OrdersPage() {
             </div>
 
             {/* Status */}
-            <div
-              className={`inline-flex items-center gap-2 px-3 py-2 rounded-full text-sm font-medium border mb-6 ${getStatusColor(selectedOrderData.status)}`}
-            >
-              {getStatusIcon(selectedOrderData.status)}
-              <span className="capitalize">{selectedOrderData.status}</span>
-            </div>
+            <OrderStatusBadge
+              status={selectedOrderData.status}
+              className="mb-6"
+            />
 
             {/* Items */}
             <div className="mb-6">

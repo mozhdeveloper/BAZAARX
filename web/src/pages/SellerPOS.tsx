@@ -36,7 +36,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { orderService } from '@/services/orderService';
+import { orderMutationService } from '@/services/orders/orderMutationService';
 
 interface CartItem {
   productId: string;
@@ -227,10 +227,10 @@ export function SellerPOS() {
       const receiptNote = note;
       
       // Save to Supabase using orderService
-      const result = await orderService.createPOSOrder(
-        seller.id,
-        seller.storeName || seller.businessName || 'Store',
-        cart.map(item => ({
+      const result = await orderMutationService.createPOSOrder({
+        sellerId: seller.id,
+        sellerName: seller.storeName || seller.businessName || 'Store',
+        items: cart.map(item => ({
           productId: item.productId,
           productName: item.productName,
           quantity: item.quantity,
@@ -240,9 +240,9 @@ export function SellerPOS() {
           selectedVariantLabel2: item.selectedVariantLabel2
         })),
         total,
-        receiptNote,
-        buyerEmail.trim() || undefined // Pass optional buyer email for points
-      );
+        note: receiptNote,
+        buyerEmail: buyerEmail.trim() || undefined
+      });
 
       if (!result) {
         throw new Error('Failed to create order');

@@ -10,9 +10,41 @@
 import { authService } from '../services/authService';
 import { productService } from '../services/productService';
 import { cartService } from '../services/cartService';
-import { orderService } from '../services/orderService';
+import { orderReadService } from '../services/orders/orderReadService';
+import { orderMutationService } from '../services/orders/orderMutationService';
 import { qaService } from '../services/qaService';
 import { chatService } from '../services/chatService';
+
+const orderApi = {
+  getBuyerOrders: (buyerId: string) => orderReadService.getBuyerOrders({ buyerId }),
+  getSellerOrders: (sellerId: string) => orderReadService.getSellerOrders({ sellerId }),
+  getOrderTrackingSnapshot: (orderIdOrNumber: string, buyerId?: string) =>
+    orderReadService.getOrderTracking({ orderIdOrNumber, buyerId }),
+  createPOSOrder: (
+    sellerId: string,
+    sellerName: string,
+    items: {
+      productId: string;
+      productName: string;
+      quantity: number;
+      price: number;
+      image: string;
+      selectedVariantLabel1?: string;
+      selectedVariantLabel2?: string;
+    }[],
+    total: number,
+    note?: string,
+    buyerEmail?: string,
+  ) =>
+    orderMutationService.createPOSOrder({
+      sellerId,
+      sellerName,
+      items,
+      total,
+      note,
+      buyerEmail,
+    }),
+};
 
 // ============================================================================
 // TYPES FOR TEST RESULTS
@@ -270,26 +302,27 @@ export const testOrderService = async (
     // Test 1: Get buyer orders
     tests.push(
       await runTest(
-        'getBuyerOrders - retrieves orders with payment_status/shipment_status',
-        () => orderService.getBuyerOrders(testBuyerId),
+        'getBuyerOrders - retrieves typed buyer snapshots',
+        () => orderApi.getBuyerOrders(testBuyerId),
         (orders) => Array.isArray(orders)
       )
     );
 
     tests.push(
       await runTest(
-        'getBuyerOrders - includes buyer compatibility mapping fields',
-        () => orderService.getBuyerOrders(testBuyerId),
+        'getBuyerOrders - includes snapshot status/amount/item fields',
+        () => orderApi.getBuyerOrders(testBuyerId),
         (orders) =>
           Array.isArray(orders) &&
           orders.every((order) =>
             typeof order === 'object' &&
             order !== null &&
-            'payment_status' in order &&
-            'shipment_status' in order &&
+            'paymentStatus' in order &&
+            'shipmentStatus' in order &&
             'status' in order &&
-            'total_amount' in order &&
-            'order_items' in order
+            'total' in order &&
+            'items' in order &&
+            'dbId' in order
           )
       )
     );
@@ -299,35 +332,34 @@ export const testOrderService = async (
     // Test 2: Get seller orders
     tests.push(
       await runTest(
-        'getSellerOrders - retrieves seller orders from order_items',
-        () => orderService.getSellerOrders(testSellerId),
+        'getSellerOrders - retrieves typed seller snapshots',
+        () => orderApi.getSellerOrders(testSellerId),
         (orders) => Array.isArray(orders)
       )
     );
 
     tests.push(
       await runTest(
-        'getSellerOrders - includes normalized shipment/payment compatibility fields',
-        () => orderService.getSellerOrders(testSellerId),
+        'getSellerOrders - includes normalized shipment/payment snapshot fields',
+        () => orderApi.getSellerOrders(testSellerId),
         (orders) =>
           Array.isArray(orders) &&
           orders.every((order) =>
             typeof order === 'object' &&
             order !== null &&
-            'payment_status' in order &&
-            'shipment_status' in order &&
+            'paymentStatus' in order &&
             'status' in order
           )
       )
     );
 
-    const sellerOrders = await orderService.getSellerOrders(testSellerId);
+    const sellerOrders = await orderApi.getSellerOrders(testSellerId);
     const orderForTracking = sellerOrders[0];
     if (orderForTracking) {
       tests.push(
         await runTest(
           'getOrderTrackingSnapshot - returns tracking snapshot for seller order',
-          () => orderService.getOrderTrackingSnapshot(orderForTracking.id),
+          () => orderApi.getOrderTrackingSnapshot(orderForTracking.id),
           (snapshot) =>
             snapshot === null ||
             (typeof snapshot === 'object' &&
@@ -341,7 +373,7 @@ export const testOrderService = async (
   tests.push(
     await runTest(
       'getOrderTrackingSnapshot - returns null for unknown order',
-      () => orderService.getOrderTrackingSnapshot('00000000-0000-0000-0000-000000000000'),
+      () => orderApi.getOrderTrackingSnapshot('00000000-0000-0000-0000-000000000000'),
       (snapshot) =>
         snapshot === null ||
         (typeof snapshot === 'object' &&
@@ -355,7 +387,7 @@ export const testOrderService = async (
     await runTest(
       'createPOSOrder - creates offline order with new schema',
       () =>
-        orderService.createPOSOrder(
+        orderApi.createPOSOrder(
           testSellerId || 'test-seller',
           'Test Store',
           [
@@ -578,7 +610,7 @@ export const testBuyerFlow = async (buyerId: string): Promise<void> => {
     
     // Step 5: Get orders
     console.log('\n5️⃣ Getting order history...');
-    const orders = await orderService.getBuyerOrders(buyerId);
+    const orders = await orderApi.getBuyerOrders(buyerId);
     console.log(`   Found ${orders.length} orders`);
     
     // Step 6: Get conversations
@@ -617,7 +649,7 @@ export const testSellerFlow = async (sellerId: string): Promise<void> => {
     
     // Step 4: Get seller orders
     console.log('\n4️⃣ Getting seller orders...');
-    const orders = await orderService.getSellerOrders(sellerId);
+    const orders = await orderApi.getSellerOrders(sellerId);
     console.log(`   Found ${orders.length} orders`);
     
     console.log('\n✅ Seller flow test completed successfully!');
