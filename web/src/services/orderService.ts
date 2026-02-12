@@ -242,6 +242,78 @@ export class OrderService {
         }
     }
 
+    private getOrderNumberLabel(orderNumber: string | null | undefined, orderId: string) {
+        return orderNumber || orderId.substring(0, 8);
+    }
+
+    private buildBuyerStatusMessage(
+        status: string,
+        orderNumberLabel: string,
+        trackingNumber?: string,
+    ) {
+        const statusMessages: Record<string, string> = {
+            confirmed: `Your order #${orderNumberLabel} has been confirmed by the seller.`,
+            processing: `Your order #${orderNumberLabel} is now being prepared.`,
+            shipped: `Your order #${orderNumberLabel} has been shipped!`,
+            delivered: `Your order #${orderNumberLabel} has been delivered!`,
+            cancelled: `Your order #${orderNumberLabel} has been cancelled.`,
+        };
+
+        if (status === "shipped" && trackingNumber) {
+            return `Your order #${orderNumberLabel} has been shipped! Tracking: ${trackingNumber}`;
+        }
+
+        return (
+            statusMessages[status] ||
+            `Your order #${orderNumberLabel} status has been updated to ${status}.`
+        );
+    }
+
+    private dispatchStatusNotifications(params: {
+        orderId: string;
+        status: string;
+        sellerId: string;
+        buyerId: string;
+        orderNumber: string | null | undefined;
+        trackingNumber?: string;
+    }) {
+        const { orderId, status, sellerId, buyerId, orderNumber, trackingNumber } =
+            params;
+        const orderNumberLabel = this.getOrderNumberLabel(orderNumber, orderId);
+        const message = this.buildBuyerStatusMessage(
+            status,
+            orderNumberLabel,
+            trackingNumber,
+        );
+
+        // Notifications are non-blocking to keep order mutations responsive.
+        void (async () => {
+            await orderNotificationService
+                .sendStatusUpdateNotification(
+                    orderId,
+                    status,
+                    sellerId,
+                    buyerId,
+                    trackingNumber,
+                )
+                .catch((error) => {
+                    console.error("Failed to send order chat notification:", error);
+                });
+
+            await notificationService
+                .notifyBuyerOrderStatus({
+                    buyerId,
+                    orderId,
+                    orderNumber: orderNumberLabel,
+                    status,
+                    message,
+                })
+                .catch((error) => {
+                    console.error("Failed to send buyer notification:", error);
+                });
+        })();
+    }
+
     /**
      * Create a POS (Point of Sale) offline order
      * Updated for new normalized schema - uses payment_status/shipment_status
@@ -1096,10 +1168,13 @@ export class OrderService {
         }
 
         try {
-            const order = await this.getOrderById(orderId);
-            if (!order) {
-                throw new Error("Order not found");
-            }
+            const { data: order, error: fetchError } = await supabase
+                .from("orders")
+                .select("id, buyer_id, order_number")
+                .eq("id", orderId)
+                .single();
+
+            if (fetchError || !order) throw new Error("Order not found");
 
             const newStatuses = LEGACY_STATUS_MAP[status] || DEFAULT_LEGACY_STATUS;
 
@@ -1127,7 +1202,10 @@ export class OrderService {
 
             if (historyError) throw historyError;
 
-            const sellerId = await this.resolveOrderSellerId(orderId);
+            const sellerId =
+                userRole === "seller" && userId
+                    ? userId
+                    : await this.resolveOrderSellerId(orderId);
 
             if (userRole === "seller" && order.buyer_id && sellerId) {
                 await orderNotificationService.sendStatusUpdateNotification(
@@ -1136,7 +1214,7 @@ export class OrderService {
                     sellerId,
                     order.buyer_id,
                 );
-
+                
                 const statusMessages: Record<string, string> = {
                     confirmed: `Your order #${order.order_number} has been confirmed by the seller.`,
                     processing: `Your order #${order.order_number} is now being prepared.`,
@@ -1153,8 +1231,7 @@ export class OrderService {
                     .notifyBuyerOrderStatus({
                         buyerId: order.buyer_id,
                         orderId: orderId,
-                        orderNumber:
-                            order.order_number,
+                        orderNumber: order.order_number,
                         status: status,
                         message: message,
                     })
@@ -1201,10 +1278,11 @@ export class OrderService {
                 .from("orders")
                 .select(
                     `
-          *,
+          id,
+          buyer_id,
+          order_number,
+          shipment_status,
           order_items (
-            id,
-            product_id,
             product:products!order_items_product_id_fkey (
               seller_id
             )
@@ -1353,9 +1431,11 @@ export class OrderService {
                 .from("orders")
                 .select(
                     `
-                    *,
+                    id,
+                    buyer_id,
+                    order_number,
+                    shipment_status,
                     order_items (
-                        product_id,
                         product:products!order_items_product_id_fkey (
                             seller_id
                         )

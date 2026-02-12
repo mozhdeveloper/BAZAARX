@@ -19,6 +19,7 @@ import {
     AccordionTrigger,
 } from "@/components/ui/accordion";
 import { useOrderStore, SellerOrder } from "@/stores/sellerStore";
+import { OrderStatusBadge } from "@/components/orders/OrderStatusBadge";
 
 interface OrderDetailsModalProps {
     isOpen: boolean;
@@ -206,7 +207,10 @@ export function OrderDetailsModal({
                                 </h2>
                                 <div className="flex flex-wrap items-center gap-4 text-xs">
                                     <div className="flex items-center gap-2">
-                                        {getStatusBadge(order.status)}
+                                        <OrderStatusBadge
+                                            status={order.status}
+                                            compact
+                                        />
                                     </div>
                                     <div className="flex items-center gap-2 text-gray-500">
                                         <span className="font-medium text-gray-400">
