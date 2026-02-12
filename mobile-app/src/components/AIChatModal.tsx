@@ -385,7 +385,7 @@ export default function AIChatModal({ visible, onClose }: AIChatModalProps) {
               ]}
               disabled={!inputText.trim()}
             >
-              <Send size={20} color="#FFFFFF" strokeWidth={2.5} />
+              <Send size={20} color={COLORS.primary} strokeWidth={2.5} />
             </Pressable>
           </View>
         </View>
@@ -672,17 +672,17 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: COLORS.primary,
+    backgroundColor: '#FFE5CC',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowColor: '#FFE5CC',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
     shadowRadius: 8,
     elevation: 6,
   },
   sendButtonDisabled: {
-    backgroundColor: '#D1D5DB',
+    backgroundColor: '#FFE5CC',
     shadowColor: '#000',
     shadowOpacity: 0.1,
   },
