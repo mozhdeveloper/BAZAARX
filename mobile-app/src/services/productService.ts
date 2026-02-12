@@ -54,6 +54,7 @@ export class ProductService {
     try {
       // New normalized query with proper joins
       // Includes variant_label_1/2 for dynamic variant labels
+      // Includes reviews for rating calculation
       let query = supabase
         .from('products')
         .select(`
@@ -83,6 +84,14 @@ export class ProductService {
             price,
             stock,
             thumbnail_url
+          ),
+          reviews (
+            id,
+            rating
+          ),
+          order_items (
+            id,
+            quantity
           ),
           seller:sellers!products_seller_id_fkey (
             id,
@@ -158,6 +167,7 @@ export class ProductService {
   /**
    * Transform product from DB to include legacy fields
    * Also handles dynamic variant labels (variant_label_1, variant_label_2)
+   * Calculates rating from reviews and sold count from order_items
    */
   private transformProduct(product: any): ProductWithSeller {
     const primaryImage = product.images?.find((img: ProductImage) => img.is_primary) || product.images?.[0];
@@ -171,6 +181,17 @@ export class ProductService {
     // Extract option_1 and option_2 values for dynamic variant support
     const option1Values = [...new Set(product.variants?.map((v: ProductVariant) => (v as any).option_1_value).filter(Boolean) || [])] as string[];
     const option2Values = [...new Set(product.variants?.map((v: ProductVariant) => (v as any).option_2_value).filter(Boolean) || [])] as string[];
+
+    // Calculate average rating from reviews
+    const reviews = product.reviews || [];
+    const reviewCount = reviews.length;
+    const averageRating = reviewCount > 0
+      ? Math.round((reviews.reduce((sum: number, r: any) => sum + (r.rating || 0), 0) / reviewCount) * 10) / 10
+      : 0;
+
+    // Calculate sold count from order_items
+    const orderItems = product.order_items || [];
+    const soldCount = orderItems.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0);
 
     // Extract seller info
     const businessProfile = Array.isArray(product.seller?.business_profile)
@@ -197,6 +218,11 @@ export class ProductService {
       variant_label_2: product.variant_label_2,
       option1Values: option1Values,
       option2Values: option2Values,
+      // Rating calculated from reviews
+      rating: averageRating,
+      review_count: reviewCount,
+      // Sold count calculated from order_items
+      sold: soldCount,
       // Seller info for legacy code
       seller: product.seller ? {
         ...product.seller,
@@ -262,6 +288,14 @@ export class ProductService {
             price,
             stock,
             thumbnail_url
+          ),
+          reviews (
+            id,
+            rating
+          ),
+          order_items (
+            id,
+            quantity
           ),
           seller:sellers!products_seller_id_fkey (
             id,
