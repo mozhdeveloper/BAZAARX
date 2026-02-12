@@ -77,7 +77,7 @@ const AdminVouchers: React.FC = () => {
     maxDiscount: 0 as number,
     usageLimit: 1000,
     startDate: new Date(),
-    endDate: new Date(new Date().getTime() + 30 * 24 * 60 * 60 * 1000),
+    endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Default to 30 days later
     isActive: true,
     applicableTo: 'all' as 'all' | 'category' | 'seller' | 'product',
     targetIds: [] as string[]
@@ -153,18 +153,33 @@ const AdminVouchers: React.FC = () => {
     });
   };
 
+  const validateDates = () => {
+    const start = new Date(formData.startDate).getTime();
+    const end = new Date(formData.endDate).getTime();
+
+    if (end <= start) {
+      alert('End date must be after start date');
+      return false;
+    }
+    return true;
+  };
+
   const handleAddVoucher = async () => {
+    if (!validateDates()) return;
+
     try {
       await addVoucher(formData);
       setShowAddDialog(false);
       resetForm();
     } catch (error) {
       console.error('Error adding voucher:', error);
+      alert('Failed to add voucher. Please check inputs.');
     }
   };
 
   const handleEditVoucher = async () => {
     if (!selectedVoucher) return;
+    if (!validateDates()) return;
 
     try {
       await updateVoucher(selectedVoucher.id, formData);
@@ -173,6 +188,7 @@ const AdminVouchers: React.FC = () => {
       resetForm();
     } catch (error) {
       console.error('Error updating voucher:', error);
+      alert('Failed to update voucher. Please check inputs.');
     }
   };
 
@@ -715,6 +731,7 @@ const AdminVouchers: React.FC = () => {
                     type="date"
                     value={formData.endDate instanceof Date ? formData.endDate.toISOString().split('T')[0] : ''}
                     onChange={(e) => setFormData(prev => ({ ...prev, endDate: new Date(e.target.value) }))}
+                    min={formData.startDate instanceof Date ? formData.startDate.toISOString().split('T')[0] : undefined}
                   />
                 </div>
               </div>
