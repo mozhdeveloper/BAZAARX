@@ -417,10 +417,15 @@ const mapDbProductToSellerProduct = (p: any): SellerProduct => {
  * - Optional: description, brand, sku, specifications, weight, etc.
  * - Images and variants go to separate tables
  */
-const buildProductInsert = (product: Omit<SellerProduct, 'id' | 'createdAt' | 'updatedAt' | 'sales' | 'rating' | 'reviews'>, sellerId: string): any => ({
+const buildProductInsert = (
+  product: Omit<SellerProduct, 'id' | 'createdAt' | 'updatedAt' | 'sales' | 'rating' | 'reviews'>,
+  sellerId: string,
+  categoryId: string,
+): any => ({
   name: product.name,
   description: product.description,
   price: product.price,
+  category_id: categoryId,
   brand: null,
   sku: null,
   seller_id: sellerId,
@@ -433,6 +438,64 @@ const buildProductInsert = (product: Omit<SellerProduct, 'id' | 'createdAt' | 'u
   variant_label_1: (product as any).variant_label_1 || null,
   variant_label_2: (product as any).variant_label_2 || null,
 });
+
+const resolveCategoryIdByName = async (categoryName: string): Promise<string | null> => {
+  if (!isSupabaseConfigured()) {
+    return null;
+  }
+
+  const normalizedName = categoryName.trim();
+  if (!normalizedName) {
+    return null;
+  }
+
+  const slug = normalizedName
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+
+  try {
+    const { data: byName, error: byNameError } = await supabase
+      .from('categories')
+      .select('id')
+      .eq('name', normalizedName)
+      .maybeSingle();
+
+    if (byNameError) throw byNameError;
+    if (byName?.id) return byName.id;
+
+    const { data: bySlug, error: bySlugError } = await supabase
+      .from('categories')
+      .select('id')
+      .eq('slug', slug)
+      .maybeSingle();
+
+    if (bySlugError) throw bySlugError;
+    if (bySlug?.id) return bySlug.id;
+
+    const { data: created, error: createError } = await supabase
+      .from('categories')
+      .insert({ name: normalizedName, slug })
+      .select('id')
+      .single();
+
+    if (createError) {
+      const { data: existingBySlug } = await supabase
+        .from('categories')
+        .select('id')
+        .eq('slug', slug)
+        .maybeSingle();
+
+      if (existingBySlug?.id) return existingBySlug.id;
+      throw createError;
+    }
+
+    return created?.id || null;
+  } catch (error) {
+    console.error('Failed to resolve category ID:', error);
+    return null;
+  }
+};
 
 /**
  * Map seller product updates to database updates
@@ -1013,7 +1076,12 @@ export const useProductStore = create<ProductStore>()(
 
           // Use Supabase if configured
           if (isSupabaseConfigured()) {
-            const insertData = buildProductInsert(product, resolvedSellerId);
+            const categoryId = await resolveCategoryIdByName(product.category);
+            if (!categoryId) {
+              throw new Error('Failed to resolve category. Please try again.');
+            }
+
+            const insertData = buildProductInsert(product, resolvedSellerId, categoryId);
             const created = await productService.createProduct(insertData);
             if (!created) {
               throw new Error('Failed to create product in database');
@@ -1146,18 +1214,34 @@ export const useProductStore = create<ProductStore>()(
           let addedProducts: SellerProduct[] = [];
 
           if (isSupabaseConfigured()) {
-            const productsToInsert = bulkProducts.map(p => buildProductInsert({
-              name: p.name,
-              description: p.description,
-              price: p.price,
-              originalPrice: p.originalPrice,
-              stock: p.stock,
-              category: p.category,
-              images: [p.imageUrl],
-              isActive: true,
-              sellerId: resolvedSellerId,
-              vendorSubmittedCategory: p.category
-            } as any, resolvedSellerId));
+            const uniqueCategories = [...new Set(bulkProducts.map(p => p.category))];
+            const categoryMap: Record<string, string> = {};
+
+            for (const categoryName of uniqueCategories) {
+              const categoryId = await resolveCategoryIdByName(categoryName);
+              if (categoryId) categoryMap[categoryName] = categoryId;
+            }
+
+            const productsToInsert = bulkProducts
+              .filter((p) => categoryMap[p.category])
+              .map((p) =>
+                buildProductInsert({
+                  name: p.name,
+                  description: p.description,
+                  price: p.price,
+                  originalPrice: p.originalPrice,
+                  stock: p.stock,
+                  category: p.category,
+                  images: [p.imageUrl],
+                  isActive: true,
+                  sellerId: resolvedSellerId,
+                  vendorSubmittedCategory: p.category
+                } as any, resolvedSellerId, categoryMap[p.category]),
+              );
+
+            if (productsToInsert.length === 0) {
+              throw new Error('No valid products to upload: categories could not be resolved.');
+            }
 
             const dbProducts = await productService.createProducts(productsToInsert);
             if (!dbProducts) throw new Error('Failed to create products in database');
@@ -1246,6 +1330,18 @@ export const useProductStore = create<ProductStore>()(
           // Use Supabase if configured
           if (isSupabaseConfigured()) {
             const updateData = mapSellerUpdatesToDb(updates);
+
+            const categoryName = updates.category;
+            if (typeof categoryName === 'string' && categoryName.trim().length > 0) {
+              const categoryId = await resolveCategoryIdByName(categoryName);
+              if (!categoryId) {
+                throw new Error('Failed to resolve category. Please try again.');
+              }
+              updateData.category_id = categoryId;
+            } else if ((updates as any).category_id !== undefined) {
+              updateData.category_id = (updates as any).category_id;
+            }
+
             const updated = await productService.updateProduct(id, updateData);
             if (!updated) {
               throw new Error('Failed to update product in database');
