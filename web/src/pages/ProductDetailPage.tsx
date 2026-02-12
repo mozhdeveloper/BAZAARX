@@ -217,6 +217,33 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
     const [replyText, setReplyText] = useState("");
     const [reviewFilter, setReviewFilter] = useState("all");
 
+    const handleQuantityInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const val = parseInt(e.target.value) || 0;
+        const currentVariant = getSelectedVariant();
+        const maxStock = currentVariant?.stock || normalizedProduct?.stock || 0;
+
+        if (val > maxStock) {
+            if (maxStock > 0) {
+                toast({
+                    title: "Limited Stock",
+                    description: `Only ${maxStock} items available for this selection.`,
+                    variant: "destructive",
+                });
+            }
+            setQuantity(maxStock);
+        } else {
+            setQuantity(val);
+        }
+    };
+
+    const handleQuantityBlur = () => {
+        const currentVariant = getSelectedVariant();
+        const maxStock = currentVariant?.stock || normalizedProduct?.stock || 0;
+        if (quantity < 1 && maxStock > 0) {
+            setQuantity(1);
+        }
+    };
+
     // Set chat target for floating bubble when viewing product
     useEffect(() => {
         if (normalizedProduct && currentSeller) {
@@ -812,9 +839,13 @@ export default function ProductDetailPage({ }: ProductDetailPageProps) {
                                 >
                                     <Minus className="w-4 h-4" />
                                 </button>
-                                <span className="font-semibold text-gray-900 text-lg">
-                                    {quantity}
-                                </span>
+                                <input
+                                    type="number"
+                                    value={quantity}
+                                    onChange={handleQuantityInput}
+                                    onBlur={handleQuantityBlur}
+                                    className="w-12 text-center font-semibold text-gray-900 text-lg bg-transparent border-none focus:outline-none focus:ring-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                />
                                 <button
                                     onClick={() => {
                                         const currentVariant =

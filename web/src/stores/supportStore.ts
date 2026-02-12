@@ -1,10 +1,12 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { isSupabaseConfigured, supabase } from '../lib/supabase';
 
 export type TicketStatus = 'Open' | 'In Review' | 'Resolved' | 'Closed';
 
 export interface SupportTicket {
     id: string;
+    dbId?: string;
     buyerName: string;
     buyerId?: string;
     email: string;
@@ -29,7 +31,7 @@ export interface TicketReply {
 
 interface SupportStore {
     tickets: SupportTicket[];
-    submitTicket: (ticket: Omit<SupportTicket, 'id' | 'createdAt' | 'status'>) => string;
+    submitTicket: (ticket: Omit<SupportTicket, 'id' | 'createdAt' | 'status' | 'dbId'>) => Promise<string>;
     updateTicketStatus: (ticketId: string, status: TicketStatus) => void;
     addTicketReply: (ticketId: string, reply: Omit<TicketReply, 'id' | 'timestamp' | 'ticketId'>) => void;
     getTicketsByBuyer: (buyerEmail: string) => SupportTicket[];
@@ -92,13 +94,56 @@ export const useSupportStore = create<SupportStore>()(
                 }
             ],
 
-            submitTicket: (ticketData) => {
+            submitTicket: async (ticketData) => {
                 const ticketId = generateTicketId();
+                const createdAt = new Date().toISOString().split('T')[0];
+                let dbId: string | undefined;
+
+                if (isSupabaseConfigured()) {
+                    let userId = ticketData.buyerId;
+                    if (!userId) {
+                        const { data } = await supabase.auth.getUser();
+                        userId = data.user?.id;
+                    }
+
+                    if (userId) {
+                        const { data: category } = await supabase
+                            .from('ticket_categories')
+                            .select('id')
+                            .eq('name', ticketData.category)
+                            .maybeSingle();
+
+                        const { data: inserted, error } = await supabase
+                            .from('support_tickets')
+                            .insert({
+                                user_id: userId,
+                                category_id: category?.id ?? null,
+                                priority: 'normal',
+                                status: 'open',
+                                subject: ticketData.subject,
+                                description: ticketData.description,
+                                order_id: null,
+                                assigned_to: null
+                            })
+                            .select('id')
+                            .single();
+
+                        if (!error) {
+                            dbId = inserted?.id;
+                        } else {
+                            console.error('Supabase ticket insert failed:', error);
+                        }
+                    } else {
+                        console.warn('Support ticket not synced: missing user id.');
+                    }
+                }
+
                 const newTicket: SupportTicket = {
                     ...ticketData,
                     id: ticketId,
+                    dbId,
                     status: 'Open',
-                    createdAt: new Date().toISOString().split('T')[0],
+                    createdAt,
                     replies: []
                 };
 

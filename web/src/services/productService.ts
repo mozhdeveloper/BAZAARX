@@ -96,6 +96,10 @@ export class ProductService {
             id,
             rating
           ),
+          order_items (
+            id,
+            quantity
+          ),
           seller:sellers!products_seller_id_fkey (
             id,
             store_name,
@@ -192,6 +196,10 @@ export class ProductService {
                   ) / totalRatings
                 : 0;
 
+        // Calculate sold count from order_items
+        const orderItems = product.order_items || [];
+        const soldCount = orderItems.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0);
+
         return {
             ...product,
             // Legacy compatibility fields
@@ -207,6 +215,8 @@ export class ProductService {
             // Rating from reviews
             rating: Math.round(averageRating * 10) / 10, // Round to 1 decimal
             reviewCount: totalRatings,
+            // Sold count calculated from order_items
+            sold: soldCount,
             // Seller info
             sellerName: product.seller?.store_name,
             sellerLocation: product.seller?.business_profile?.city,
@@ -299,6 +309,10 @@ export class ProductService {
           reviews (
             id,
             rating
+          ),
+          order_items (
+            id,
+            quantity
           ),
           seller:sellers!products_seller_id_fkey (
             id,
