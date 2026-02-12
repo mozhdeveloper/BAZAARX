@@ -255,7 +255,7 @@ export default function ProfileScreen({ navigation }: Props) {
 
   const settingsMenuItems = [
     { icon: CreditCard, label: 'Payment Methods', onPress: () => navigation.navigate('PaymentMethods') },
-    { icon: Bell, label: 'Notifications', onPress: () => navigation.navigate('Notifications') },
+    { icon: Bell, label: 'Notifications', onPress: () => navigation.navigate('NotificationSettings') },
     { icon: Settings, label: 'Account Settings', onPress: () => navigation.navigate('Settings') },
   ];
 
