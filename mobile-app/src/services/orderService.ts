@@ -47,6 +47,78 @@ const getStatusFromNew = (paymentStatus: PaymentStatus, shipmentStatus: Shipment
   return 'pending_payment';
 };
 
+// Helper to map DB Order to UI Order
+const mapDbOrderToOrder = (dbOrder: any) => {
+  if (!dbOrder) return null;
+
+  // Map shipment_status to UI status
+  const statusMap: Record<string, string> = {
+    'pending': 'pending',
+    'waiting_for_seller': 'pending',
+    'processing': 'processing',
+    'ready_to_ship': 'processing',
+    'shipped': 'shipped',
+    'out_for_delivery': 'shipped',
+    'delivered': 'delivered',
+    'received': 'delivered',
+    'cancelled': 'cancelled',
+    'returned': 'cancelled',
+    'failed_to_deliver': 'shipped',
+  };
+
+  const recipient = dbOrder.recipient || {};
+  const address = dbOrder.shipping_address || {};
+
+  // Construct full address string
+  const fullAddress = [
+    address.address_line_1,
+    address.address_line_2,
+    address.barangay,
+    address.city,
+    address.province,
+    address.postal_code
+  ].filter(Boolean).join(', ');
+
+  return {
+    ...dbOrder,
+    id: dbOrder.id,
+    transactionId: dbOrder.order_number, // UI expects transactionId
+    status: statusMap[dbOrder.shipment_status] || 'pending',
+    isPaid: dbOrder.payment_status === 'paid',
+    total: dbOrder.total_amount || 0,
+    shippingFee: 0, // Default or calculate if tracked
+    createdAt: dbOrder.created_at,
+    
+    // Map Items with nested product/variant info
+    items: (dbOrder.order_items || []).map((item: any) => ({
+      id: item.id,
+      name: item.product_name || item.product?.name || 'Unknown Product',
+      price: item.price,
+      quantity: item.quantity,
+      image: item.primary_image_url || item.variant?.thumbnail_url || 'https://placehold.co/100',
+      variant: item.variant ? {
+        name: item.variant.variant_name,
+        size: item.variant.size,
+        color: item.variant.color
+      } : undefined,
+      storeName: item.product?.seller?.store_name || 'Seller'
+    })),
+
+    // Map Address
+    shippingAddress: {
+      name: `${recipient.first_name || ''} ${recipient.last_name || ''}`.trim() || 'Customer',
+      phone: recipient.phone || '',
+      address: fullAddress || 'No address provided',
+      city: address.city || '',
+      province: address.province || '',
+      postalCode: address.postal_code || '',
+    },
+    
+    // Legacy support fields if needed
+    buyer_name: `${recipient.first_name || ''} ${recipient.last_name || ''}`.trim(),
+  };
+};
+
 export class OrderService {
   private mockOrders: Order[] = [];
 
@@ -492,23 +564,43 @@ export class OrderService {
   /**
    * Get a single order by ID or order number
    */
-  async getOrderById(orderId: string): Promise<Order | null> {
+  async getOrderById(orderId: string): Promise<any | null> {
     if (!isSupabaseConfigured()) {
       return this.mockOrders.find(o => o.id === orderId) || null;
     }
 
     try {
-      // Check if orderId is a UUID or order_number
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(orderId);
 
+      // Deep fetch to populate all necessary UI fields
       const { data, error } = await supabase
         .from('orders')
-        .select('*, order_items(*)')
+        .select(`
+          *,
+          order_items (
+            id, product_id, product_name, primary_image_url, quantity, price, 
+            variant:product_variants (
+              id, variant_name, size, color, thumbnail_url
+            ),
+            product:products (
+              id, name, seller:sellers ( store_name )
+            )
+          ),
+          recipient:order_recipients (*),
+          shipping_address:shipping_addresses (*)
+        `)
         .eq(isUuid ? 'id' : 'order_number', orderId)
         .single();
 
-      if (error) throw error;
-      return data;
+      if (error) {
+        // If single() fails because row missing, it returns error code PGRST116
+        if (error.code === 'PGRST116') return null;
+        throw error;
+      }
+
+      // Map the DB result to the UI Order interface
+      return mapDbOrderToOrder(data);
+
     } catch (error) {
       console.error('Error fetching order:', error);
       throw new Error('Failed to fetch order details');

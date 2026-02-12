@@ -208,7 +208,7 @@ export function NotificationsDropdown() {
               onClick={handleMarkAllAsRead}
               className="text-xs font-medium text-orange-600 hover:text-orange-700 hover:underline transition-colors"
             >
-              Mark all read
+              Mark all as read
             </button>
           )}
         </div>
@@ -243,7 +243,7 @@ export function NotificationsDropdown() {
                       "group flex gap-4 p-4 border-b border-gray-100 cursor-pointer transition-all",
                       // Apply specific hover color requested: #FFD4A3
                       "hover:bg-[#E8E9EB]",
-                      !n.is_read ? "bg-white" : "bg-white"
+                      !n.is_read ? "bg-white" : "bg-gray-50"
                     )}
                   >
                     {/* Icon Box */}
