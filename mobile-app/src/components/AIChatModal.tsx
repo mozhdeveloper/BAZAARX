@@ -276,9 +276,9 @@ export default function AIChatModal({ visible, onClose }: AIChatModalProps) {
         keyboardVerticalOffset={0}
       >
         {/* Universal Header - Edge to Edge Orange */}
-        <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
+        <View style={[styles.header, { paddingTop: 16 }]}>
           <Pressable onPress={onClose} style={styles.backButton}>
-            <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
+            <ArrowLeft size={24} color='#1F2937' strokeWidth={2.5} />
           </Pressable>
           <Text style={styles.headerTitle}>AI Assistant</Text>
           <Pressable onPress={handleClearChat} style={styles.menuButton}>
@@ -406,9 +406,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingBottom: 16,
-    backgroundColor: COLORS.primary,
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
+    backgroundColor: '#FFE5CC',
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
   },
   backButton: {
     width: 40,
@@ -420,7 +420,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 20,
     fontWeight: '800',
-    color: '#FFFFFF',
+    color: '#1F2937',
     textAlign: 'center',
     letterSpacing: -0.5,
     marginHorizontal: 16,
@@ -432,7 +432,7 @@ const styles = StyleSheet.create({
   clearText: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: '#1F2937',
     letterSpacing: -0.2,
   },
   // Messages Area
@@ -459,7 +459,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 18,
     borderRadius: 999,
-    marginBottom: 10,
+    marginBottom: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,
@@ -510,7 +510,7 @@ const styles = StyleSheet.create({
   aiMessageContent: {
     backgroundColor: '#FFFFFF',
     paddingVertical: 14,
-    paddingHorizontal: 18,
+    paddingHorizontal: 14,
     borderRadius: 20,
     borderBottomLeftRadius: 6,
     shadowColor: '#000',

@@ -278,7 +278,7 @@ export default function HomeScreen({ navigation }: Props) {
             images: images.length > 0 ? images : [primaryImage],
             rating: ratingNum,
             reviewCount: reviewCount,
-            sold: row.sales_count || row.reviewCount || 0, // Use review count as proxy for sold
+            sold: row.sold || 0, // Sold count calculated from order_items in productService
             seller: sellerName,
             sellerId: row.seller_id || row.seller?.id,
             seller_id: row.seller_id || row.seller?.id,

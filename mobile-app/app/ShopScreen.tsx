@@ -131,8 +131,8 @@ export default function ShopScreen({ navigation, route }: Props) {
               originalPrice: typeof row.original_price === 'number' ? row.original_price : parseFloat(row.original_price || '0'),
               image: primaryImage,
               images: images.length > 0 ? images : [primaryImage],
-              rating: row.rating ?? 4.5,
-              sold: row.sales_count ?? 0,
+              rating: row.rating ?? 0, // Rating calculated from reviews
+              sold: row.sold ?? 0, // Sold count calculated from order_items
               seller: row.seller?.store_name || 'Verified Seller',
               seller_id: row.seller_id,
               sellerId: row.seller_id,
