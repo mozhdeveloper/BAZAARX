@@ -29,31 +29,8 @@ import {
 } from '@/components/ui/dialog';
 import { useToast } from "@/hooks/use-toast";
 
-// Dummy voucher codes
-const VOUCHERS = {
-  WELCOME10: {
-    type: "percentage",
-    value: 10,
-    description: "10% off your order",
-    minPurchase: 0,
-  },
-  SAVE50: { type: "fixed", value: 50, description: "₱50 off", minPurchase: 0 },
-  FREESHIP: { type: "shipping", value: 0, description: "Free shipping", minPurchase: 0 },
-  NEWYEAR25: {
-    type: "percentage",
-    value: 25,
-    description: "25% off New Year Special",
-    minPurchase: 0,
-  },
-  FLASH100: { type: "fixed", value: 100, description: "₱100 flash discount", minPurchase: 0 },
-  FLASH500: {
-    type: "fixed",
-    value: 500,
-    description: "₱500 off on purchases ₱3000 and above",
-    minPurchase: 3000,
-  },
-} as const;
 import { useCartStore } from "../stores/cartStore";
+import { Voucher } from "../stores/buyerStore";
 import { Address, useBuyerStore } from "../stores/buyerStore";
 import { Button } from "../components/ui/button";
 import Header from "../components/Header";
@@ -135,6 +112,7 @@ export default function CheckoutPage() {
     updateRegistryItem, // Destructure this
     buyAgainItems,
     clearBuyAgainItems,
+    validateVoucherDetailed,
   } = useBuyerStore();
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
   const [addressView, setAddressView] = useState<'list' | 'add' | 'edit'>('list');
@@ -282,9 +260,7 @@ export default function CheckoutPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Partial<CheckoutFormData>>({});
   const [voucherCode, setVoucherCode] = useState("");
-  const [appliedVoucher, setAppliedVoucher] = useState<
-    keyof typeof VOUCHERS | null
-  >(null);
+  const [appliedVoucher, setAppliedVoucher] = useState<Voucher | null>(null);
 
   const totalPrice = checkoutTotal;
 
@@ -303,12 +279,12 @@ export default function CheckoutPage() {
     if (confirmedAddress) {
       // Note: shipping_addresses table doesn't store name/phone separately
       // They may be embedded in the street field as "Name, Phone, Street"
-      let fullName = confirmedAddress.fullName 
+      let fullName = confirmedAddress.fullName
         || `${confirmedAddress.firstName || ''} ${confirmedAddress.lastName || ''}`.trim()
         || (profile ? `${profile.firstName || ''} ${profile.lastName || ''}`.trim() : '');
       let phone = confirmedAddress.phone || profile?.phone || '';
       let street = confirmedAddress.street || '';
-      
+
       // Try to parse name and phone from street if they look embedded
       // Format: "Name, Phone, Street..."
       const streetParts = street.split(', ');
@@ -324,14 +300,14 @@ export default function CheckoutPage() {
           street = streetParts.slice(2).join(', ');
         }
       }
-      
+
       console.log('📍 Syncing formData from confirmedAddress:', {
         confirmedAddress,
         derivedFullName: fullName,
         derivedPhone: phone,
         derivedStreet: street
       });
-      
+
       setFormData(prev => ({
         ...prev,
         fullName: fullName || prev.fullName,
@@ -361,47 +337,72 @@ export default function CheckoutPage() {
   let discount = 0;
 
   // Apply voucher discount
-  if (appliedVoucher && VOUCHERS[appliedVoucher]) {
-    const voucher = VOUCHERS[appliedVoucher];
-    if (voucher.type === "percentage") {
-      discount = Math.round(totalPrice * (voucher.value / 100));
-    } else if (voucher.type === "fixed") {
-      discount = voucher.value;
-    } else if (voucher.type === "shipping") {
+  if (appliedVoucher) {
+    if (appliedVoucher.type === "percentage") {
+      const percentageDiscount = totalPrice * (appliedVoucher.value / 100);
+      discount = appliedVoucher.maxDiscount
+        ? Math.min(percentageDiscount, appliedVoucher.maxDiscount)
+        : Math.round(percentageDiscount);
+    } else if (appliedVoucher.type === "fixed") {
+      discount = Math.min(appliedVoucher.value, totalPrice);
+    } else if (appliedVoucher.type === "shipping") {
       shippingFee = 0;
     }
   }
 
   // VAT calculation (12%)
   const tax = Math.round(totalPrice * 0.12);
-  
+
   // Item-level savings (Original price vs Current price)
   const itemSavings = checkoutItems.reduce((sum, item) => {
     const original = item.originalPrice || item.price;
     const current = item.selectedVariant?.price || item.price;
     return sum + (Math.max(0, original - current) * item.quantity);
   }, 0);
-  
+
   const couponSavings = discount + bazcoinDiscount;
   const grandTotalSavings = itemSavings + couponSavings;
 
   // Final total calculation including Bazcoins
   const finalTotal = Math.max(0, totalPrice + shippingFee + tax - couponSavings);
 
-  const handleApplyVoucher = () => {
+  const handleApplyVoucher = async () => {
     const code = voucherCode.trim().toUpperCase();
-    const voucher = VOUCHERS[code as keyof typeof VOUCHERS];
-    if (voucher) {
-      if (totalPrice < (voucher.minPurchase || 0)) {
+
+    try {
+      const { voucher, errorCode } = await validateVoucherDetailed(code, null);
+
+      if (voucher) {
+        setAppliedVoucher(voucher);
+        setVoucherCode("");
         toast({
-          title: "Minimum purchase not met",
-          description: `Minimum purchase ₱${(voucher.minPurchase || 0).toLocaleString()} required.`,
+          title: "Voucher Applied!",
+          description: `${voucher.description}`,
         });
-        return;
+      } else {
+        const errorDescriptionMap: Record<string, string> = {
+          NOT_FOUND: "Voucher code not found. Please check and try again.",
+          INACTIVE: "This voucher is currently inactive.",
+          NOT_STARTED: "This voucher is not active yet.",
+          EXPIRED: "This voucher has expired.",
+          MIN_ORDER_NOT_MET: "This voucher does not meet the minimum purchase requirement.",
+          SELLER_MISMATCH: "This voucher is only valid for specific seller items.",
+          UNKNOWN: "Unable to validate voucher right now. Please try again.",
+        };
+
+        toast({
+          title: "Invalid Voucher",
+          description: errorDescriptionMap[errorCode || "UNKNOWN"],
+          variant: "destructive",
+        });
       }
-      setAppliedVoucher(code as keyof typeof VOUCHERS);
-    } else {
-      alert("Invalid voucher code. Please try again.");
+    } catch (error) {
+      console.error("Error applying voucher:", error);
+      toast({
+        title: "Error",
+        description: "Failed to apply voucher. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -412,12 +413,12 @@ export default function CheckoutPage() {
 
   const validateForm = () => {
     const newErrors: any = {};
-    
+
     // Before validation, try to extract phone from street if it's embedded
     let phoneToValidate = formData.phone || '';
     let fullNameToValidate = formData.fullName || '';
     let streetToValidate = formData.street || '';
-    
+
     // If phone is empty, try to parse from street "Name, Phone, Street" format
     if (!phoneToValidate.trim() && streetToValidate) {
       const parts = streetToValidate.split(', ');
@@ -430,7 +431,7 @@ export default function CheckoutPage() {
             fullNameToValidate = parts[0];
           }
           streetToValidate = parts.slice(2).join(', ');
-          
+
           // Update formData with parsed values
           setFormData(prev => ({
             ...prev,
@@ -438,7 +439,7 @@ export default function CheckoutPage() {
             phone: phoneToValidate,
             street: streetToValidate
           }));
-          
+
           console.log('📱 Parsed phone from street:', { phoneToValidate, fullNameToValidate, streetToValidate });
         }
       }
@@ -478,7 +479,7 @@ export default function CheckoutPage() {
     }
 
     console.log('📝 Form validation check:', {
-      formData: { fullName: fullNameToValidate, phone: phoneToValidate, street: streetToValidate?.substring(0,30) },
+      formData: { fullName: fullNameToValidate, phone: phoneToValidate, street: streetToValidate?.substring(0, 30) },
       errors: newErrors,
       hasErrors: Object.keys(newErrors).length > 0
     });
@@ -543,7 +544,7 @@ export default function CheckoutPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     console.log('🛒 Place Order clicked');
     console.log('  - selectedAddress:', selectedAddress?.id);
     console.log('  - confirmedAddress:', confirmedAddress?.id);
@@ -551,7 +552,7 @@ export default function CheckoutPage() {
       fullName: formData.fullName,
       street: formData.street?.substring(0, 30) + '...',
       city: formData.city,
-      province: formData.province, 
+      province: formData.province,
       postalCode: formData.postalCode,
       phone: formData.phone,
       paymentMethod: formData.paymentMethod
@@ -570,7 +571,7 @@ export default function CheckoutPage() {
       });
       return;
     }
-    
+
     console.log('✅ Form validation passed, proceeding with checkout...');
 
     setIsLoading(true);
@@ -678,7 +679,7 @@ export default function CheckoutPage() {
 
       // Clear local stores
       const cartStoreState = useCartStore.getState();
-      
+
       // Only clear cart/selected items if we're NOT in Buy Again mode (since Buy Again bypassed the cart)
       if (!isBuyAgainMode) {
         cartStoreState.clearCart();
@@ -1112,32 +1113,32 @@ export default function CheckoutPage() {
                   {checkoutItems.map((item) => {
                     const variant = item.selectedVariant as any;
                     const itemPrice = variant?.price || item.price;
-                    
+
                     // Build variant display from available fields
                     let variantParts: string[] = [];
                     if (variant) {
                       // Check name fields (variant_name from DB, name from local)
                       const variantName = variant.variant_name || variant.name;
                       if (variantName) variantParts.push(variantName);
-                      
+
                       // Add size if available
                       if (variant.size) variantParts.push(`Size: ${variant.size}`);
-                      
+
                       // Add color if available
                       if (variant.color) variantParts.push(`Color: ${variant.color}`);
-                      
+
                       // Add option values if available
                       if (variant.option_1_value) variantParts.push(variant.option_1_value);
                       if (variant.option_2_value) variantParts.push(variant.option_2_value);
-                      
+
                       // Fallback to SKU or ID if nothing else
                       if (variantParts.length === 0) {
                         if (variant.sku) variantParts.push(`SKU: ${variant.sku}`);
-                        else if (variant.id) variantParts.push(`#${variant.id.slice(0,8)}`);
+                        else if (variant.id) variantParts.push(`#${variant.id.slice(0, 8)}`);
                       }
                     }
                     const variantInfo = variantParts.length > 0 ? variantParts.join(' / ') : null;
-                    
+
                     console.log('📦 Order Summary Item:', {
                       name: item.name,
                       price: item.price,
@@ -1145,7 +1146,7 @@ export default function CheckoutPage() {
                       variantInfo,
                       itemPrice
                     });
-                    
+
                     return (
                       <div key={`${item.id}-${variant?.id || 'no-variant'}`} className="flex justify-between text-sm">
                         <div className="flex-1">
@@ -1182,10 +1183,10 @@ export default function CheckoutPage() {
                         <Tag className="w-4 h-4 text-[var(--brand-primary)]" />
                         <div>
                           <p className="text-sm font-bold text-[var(--brand-primary)]">
-                            {appliedVoucher}
+                            {appliedVoucher.code}
                           </p>
                           <p className="text-xs text-gray-600">
-                            {VOUCHERS[appliedVoucher].description}
+                            {appliedVoucher.description}
                           </p>
                         </div>
                       </div>
@@ -1551,37 +1552,37 @@ export default function CheckoutPage() {
                         postalCode: location.postalCode || newAddr.postalCode,
                         coordinates: location.coordinates,
                       };
-                      
+
                       // Try to auto-select dropdowns based on map data
                       // Match region (handle Metro Manila / NCR specially)
                       const regionToMatch = location.region || location.province || '';
-                      const isMetroManila = regionToMatch.toLowerCase().includes('metro manila') || 
-                                           regionToMatch.toLowerCase().includes('ncr') ||
-                                           regionToMatch.toLowerCase() === 'manila' ||
-                                           ['makati', 'quezon city', 'pasig', 'taguig', 'mandaluyong', 'paranaque', 'pasay', 'marikina', 'muntinlupa', 'las pinas', 'valenzuela', 'caloocan', 'malabon', 'navotas', 'san juan', 'pateros'].some(city => 
-                                             location.city?.toLowerCase().includes(city)
-                                           );
-                      
+                      const isMetroManila = regionToMatch.toLowerCase().includes('metro manila') ||
+                        regionToMatch.toLowerCase().includes('ncr') ||
+                        regionToMatch.toLowerCase() === 'manila' ||
+                        ['makati', 'quezon city', 'pasig', 'taguig', 'mandaluyong', 'paranaque', 'pasay', 'marikina', 'muntinlupa', 'las pinas', 'valenzuela', 'caloocan', 'malabon', 'navotas', 'san juan', 'pateros'].some(city =>
+                          location.city?.toLowerCase().includes(city)
+                        );
+
                       if (regionToMatch || isMetroManila) {
-                        let matchedRegion = regionList.find(r => 
+                        let matchedRegion = regionList.find(r =>
                           r.region_name?.toLowerCase().includes(regionToMatch?.toLowerCase()) ||
                           regionToMatch?.toLowerCase().includes(r.region_name?.toLowerCase())
                         );
-                        
+
                         // If Metro Manila area, force match to NCR
                         if (!matchedRegion && isMetroManila) {
-                          matchedRegion = regionList.find(r => 
+                          matchedRegion = regionList.find(r =>
                             r.region_name?.toLowerCase().includes('ncr') ||
                             r.region_name?.toLowerCase().includes('national capital')
                           );
                         }
-                        
+
                         if (matchedRegion) {
                           updatedAddr.region = matchedRegion.region_name;
                           // Load provinces for this region
                           const provs = await provinces(matchedRegion.region_code);
                           setProvinceList(provs);
-                          
+
                           // For Metro Manila/NCR, load ALL cities from all districts
                           if (isMetroManila) {
                             let allCities: any[] = [];
@@ -1590,23 +1591,23 @@ export default function CheckoutPage() {
                               allCities = [...allCities, ...provCities];
                             }
                             setCityList(allCities);
-                            
+
                             // Match city
                             if (location.city) {
-                              const matchedCity = allCities.find((c: any) => 
+                              const matchedCity = allCities.find((c: any) =>
                                 c.city_name?.toLowerCase().includes(location.city?.toLowerCase()) ||
                                 location.city?.toLowerCase().includes(c.city_name?.toLowerCase().replace('city of ', ''))
                               );
-                              
+
                               if (matchedCity) {
                                 updatedAddr.city = matchedCity.city_name;
                                 // Load barangays for this city
                                 const brgys = await barangays(matchedCity.city_code);
                                 setBarangayList(brgys);
-                                
+
                                 // Match barangay
                                 if (location.barangay) {
-                                  const matchedBarangay = brgys.find((b: any) => 
+                                  const matchedBarangay = brgys.find((b: any) =>
                                     b.brgy_name?.toLowerCase().includes(location.barangay?.toLowerCase()) ||
                                     location.barangay?.toLowerCase().includes(b.brgy_name?.toLowerCase())
                                   );
@@ -1620,36 +1621,36 @@ export default function CheckoutPage() {
                             // Non-Metro Manila: Match province first
                             const provinceToMatch = location.province || '';
                             let matchedProvince = null;
-                          
+
                             if (provinceToMatch) {
-                              matchedProvince = provs.find((p: any) => 
+                              matchedProvince = provs.find((p: any) =>
                                 p.province_name?.toLowerCase().includes(provinceToMatch?.toLowerCase()) ||
                                 provinceToMatch?.toLowerCase().includes(p.province_name?.toLowerCase())
                               );
-                            
+
                               if (matchedProvince) {
                                 updatedAddr.province = matchedProvince.province_name;
                                 // Load cities for this province
                                 const cts = await cities(matchedProvince.province_code);
                                 setCityList(cts);
-                                
+
                                 // Match city
                                 const cityToMatch = location.city || '';
                                 if (cityToMatch) {
-                                  const matchedCity = cts.find((c: any) => 
+                                  const matchedCity = cts.find((c: any) =>
                                     c.city_name?.toLowerCase().includes(cityToMatch?.toLowerCase()) ||
                                     cityToMatch?.toLowerCase().includes(c.city_name?.toLowerCase())
                                   );
-                                  
+
                                   if (matchedCity) {
                                     updatedAddr.city = matchedCity.city_name;
                                     // Load barangays for this city
                                     const brgys = await barangays(matchedCity.city_code);
                                     setBarangayList(brgys);
-                                    
+
                                     // Match barangay
                                     if (location.barangay) {
-                                      const matchedBarangay = brgys.find((b: any) => 
+                                      const matchedBarangay = brgys.find((b: any) =>
                                         b.brgy_name?.toLowerCase().includes(location.barangay?.toLowerCase()) ||
                                         location.barangay?.toLowerCase().includes(b.brgy_name?.toLowerCase())
                                       );
@@ -1664,7 +1665,7 @@ export default function CheckoutPage() {
                           }
                         }
                       }
-                      
+
                       // Autofill name and phone from profile if not already set
                       if (!updatedAddr.firstName && profile?.firstName) {
                         updatedAddr.firstName = profile.firstName;
@@ -1675,10 +1676,10 @@ export default function CheckoutPage() {
                       if (!updatedAddr.phone && profile?.phone) {
                         updatedAddr.phone = profile.phone;
                       }
-                      
+
                       setNewAddr(updatedAddr);
                       setShowMapPicker(false);
-                      
+
                       // Show toast with autofill summary
                       const filledFields = [];
                       if (updatedAddr.firstName || updatedAddr.lastName) filledFields.push('Name');
@@ -1689,7 +1690,7 @@ export default function CheckoutPage() {
                       if (updatedAddr.barangay) filledFields.push('Barangay');
                       if (updatedAddr.street) filledFields.push('Street');
                       if (updatedAddr.postalCode) filledFields.push('Postal Code');
-                      
+
                       if (filledFields.length > 0) {
                         toast({
                           title: "📍 Location Selected",
@@ -1760,8 +1761,8 @@ export default function CheckoutPage() {
                   {/* Region Select */}
                   <div className="space-y-1">
                     <Label className="text-xs">Region</Label>
-                    <Select 
-                      value={regionList.find(r => r.region_name === newAddr.region)?.region_code} 
+                    <Select
+                      value={regionList.find(r => r.region_name === newAddr.region)?.region_code}
                       onValueChange={onRegionChange}
                     >
                       <SelectTrigger className="w-full">
@@ -1778,9 +1779,9 @@ export default function CheckoutPage() {
                   {/* Province Select */}
                   <div className="space-y-1">
                     <Label className="text-xs">Province</Label>
-                    <Select 
+                    <Select
                       value={provinceList.find(p => p.province_name === newAddr.province)?.province_code}
-                      onValueChange={onProvinceChange} 
+                      onValueChange={onProvinceChange}
                       disabled={!newAddr.region}
                     >
                       <SelectTrigger className="w-full">
@@ -1798,9 +1799,9 @@ export default function CheckoutPage() {
                     {/* City Select */}
                     <div className="space-y-1">
                       <Label className="text-xs">City / Municipality</Label>
-                      <Select 
+                      <Select
                         value={cityList.find(c => c.city_name === newAddr.city)?.city_code}
-                        onValueChange={onCityChange} 
+                        onValueChange={onCityChange}
                         disabled={!newAddr.province}
                       >
                         <SelectTrigger className="w-full">
@@ -1817,9 +1818,9 @@ export default function CheckoutPage() {
                     {/* Barangay Select */}
                     <div className="space-y-1">
                       <Label className="text-xs">Barangay</Label>
-                      <Select 
+                      <Select
                         value={barangayList.find(b => b.brgy_name === newAddr.barangay)?.brgy_code}
-                        onValueChange={(v) => setNewAddr({ ...newAddr, barangay: barangayList.find(b => b.brgy_code === v)?.brgy_name })} 
+                        onValueChange={(v) => setNewAddr({ ...newAddr, barangay: barangayList.find(b => b.brgy_code === v)?.brgy_name })}
                         disabled={!newAddr.city}
                       >
                         <SelectTrigger className="w-full">

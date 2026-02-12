@@ -122,6 +122,20 @@ export interface Voucher {
   isActive: boolean;
 }
 
+export type VoucherValidationErrorCode =
+  | 'NOT_FOUND'
+  | 'INACTIVE'
+  | 'NOT_STARTED'
+  | 'EXPIRED'
+  | 'MIN_ORDER_NOT_MET'
+  | 'SELLER_MISMATCH'
+  | 'UNKNOWN';
+
+export interface VoucherValidationResult {
+  voucher: Voucher | null;
+  errorCode: VoucherValidationErrorCode | null;
+}
+
 export interface Review {
   id: string;
   productId: string;
@@ -258,6 +272,7 @@ interface BuyerStore {
   appliedVouchers: { [sellerId: string]: Voucher }; // Per seller vouchers
   platformVoucher: Voucher | null; // Platform-wide voucher
   validateVoucher: (code: string, sellerId?: string) => Promise<Voucher | null>;
+  validateVoucherDetailed: (code: string, sellerId?: string) => Promise<VoucherValidationResult>;
   applyVoucher: (voucher: Voucher, sellerId?: string) => void;
   removeVoucher: (sellerId?: string) => void;
   calculateDiscount: (subtotal: number, voucher: Voucher) => number;
@@ -899,62 +914,107 @@ export const useBuyerStore = create<BuyerStore>()(persist(
     },
 
     // Voucher System
-    availableVouchers: [
-      {
-        id: 'voucher-1',
-        code: 'WELCOME20',
-        title: '20% Off Welcome Voucher',
-        description: 'Get 20% off your first order',
-        type: 'percentage',
-        value: 20,
-        minOrderValue: 500,
-        maxDiscount: 200,
-        validFrom: new Date('2024-01-01'),
-        validTo: new Date('2025-12-31'),
-        usageLimit: 1000,
-        used: 150,
-        isActive: true
-      },
-      {
-        id: 'voucher-2',
-        code: 'FREESHIP',
-        title: 'Free Shipping Voucher',
-        description: 'Free shipping on orders over ₱800',
-        type: 'shipping',
-        value: 100,
-        minOrderValue: 800,
-        validFrom: new Date('2024-01-01'),
-        validTo: new Date('2025-12-31'),
-        usageLimit: 500,
-        used: 75,
-        isActive: true
-      }
-    ],
+    availableVouchers: [],
 
     appliedVouchers: {},
     platformVoucher: null,
 
+    loadVouchers: async () => {
+      try {
+        const { voucherService } = await import('../services/voucherService');
+        const dbVouchers = await voucherService.getAllVouchers();
+
+        // Map database vouchers to buyer store format
+        const mappedVouchers = dbVouchers.map(v => ({
+          id: v.id,
+          code: v.code,
+          title: v.title,
+          description: v.description || '',
+          type: v.voucher_type,
+          value: v.value,
+          minOrderValue: v.min_order_value,
+          maxDiscount: v.max_discount || undefined,
+          validFrom: new Date(v.claimable_from),
+          validTo: new Date(v.claimable_until),
+          usageLimit: v.usage_limit || 0,
+          used: 0, // TODO: Track actual usage from buyer_vouchers
+          isActive: v.is_active,
+          sellerId: v.seller_id || undefined
+        }));
+
+        set({ availableVouchers: mappedVouchers });
+      } catch (error) {
+        console.error('Error loading vouchers:', error);
+        set({ availableVouchers: [] });
+      }
+    },
+
     validateVoucher: async (code, sellerId) => {
-      const { availableVouchers, cartItems, groupedCart } = get();
-      const voucher = availableVouchers.find(v =>
-        v.code.toLowerCase() === code.toLowerCase() &&
-        v.isActive &&
-        new Date() >= v.validFrom &&
-        new Date() <= v.validTo &&
-        v.used < v.usageLimit &&
-        (!v.sellerId || v.sellerId === sellerId)
-      );
+      const result = await get().validateVoucherDetailed(code, sellerId);
+      return result.voucher;
+    },
 
-      if (!voucher) return null;
+    validateVoucherDetailed: async (code, sellerId) => {
+      try {
+        const { voucherService } = await import('../services/voucherService');
+        const { cartItems } = get();
 
-      // Check minimum order value
-      const relevantTotal = sellerId
-        ? groupedCart[sellerId]?.subtotal || 0
-        : cartItems.reduce((total, item) => total + (item.selectedVariant?.price || item.price) * item.quantity, 0);
+        // Calculate order total based on SELECTED items only
+        const relevantTotal = sellerId
+          ? cartItems
+            .filter(item => item.sellerId === sellerId && item.selected)
+            .reduce((total, item) => total + (item.selectedVariant?.price || item.price) * item.quantity, 0)
+          : cartItems
+            .filter(item => item.selected)
+            .reduce((total, item) => total + (item.selectedVariant?.price || item.price) * item.quantity, 0);
 
-      if (relevantTotal < voucher.minOrderValue) return null;
+        // Validate voucher against database (with reason codes)
+        const validation = await voucherService.validateVoucherDetailed(code, relevantTotal);
+        const dbVoucher = validation.voucher;
+        if (!dbVoucher) {
+          return {
+            voucher: null,
+            errorCode: validation.errorCode as VoucherValidationErrorCode
+          };
+        }
 
-      return voucher;
+        // Check seller restriction
+        if (dbVoucher.seller_id && dbVoucher.seller_id !== sellerId) {
+          return {
+            voucher: null,
+            errorCode: 'SELLER_MISMATCH'
+          };
+        }
+
+        // Map to buyer store format
+        const mappedVoucher: Voucher = {
+          id: dbVoucher.id,
+          code: dbVoucher.code,
+          title: dbVoucher.title,
+          description: dbVoucher.description || '',
+          type: dbVoucher.voucher_type,
+          value: dbVoucher.value,
+          minOrderValue: dbVoucher.min_order_value,
+          maxDiscount: dbVoucher.max_discount || undefined,
+          validFrom: new Date(dbVoucher.claimable_from),
+          validTo: new Date(dbVoucher.claimable_until),
+          usageLimit: dbVoucher.usage_limit || 0,
+          used: 0,
+          isActive: dbVoucher.is_active,
+          sellerId: dbVoucher.seller_id || undefined
+        };
+
+        return {
+          voucher: mappedVoucher,
+          errorCode: null
+        };
+      } catch (error) {
+        console.error('Error validating voucher:', error);
+        return {
+          voucher: null,
+          errorCode: 'UNKNOWN'
+        };
+      }
     },
 
     applyVoucher: (voucher, sellerId) => {
