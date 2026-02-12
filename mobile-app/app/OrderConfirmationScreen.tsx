@@ -38,7 +38,7 @@ export default function OrderConfirmationScreen({ route, navigation }: Props) {
   };
 
   const handleViewAllOrders = () => {
-    navigation.navigate('MainTabs', { screen: 'Orders', params: {} });
+    navigation.navigate('Orders', {});
   };
 
   return (

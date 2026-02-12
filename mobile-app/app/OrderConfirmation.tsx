@@ -20,7 +20,7 @@ export default function OrderConfirmation({ navigation, route }: Props) {
   const { order } = route.params as { order: Order };
   
   const handleViewPurchases = () => {
-    navigation.navigate('MainTabs', { screen: 'Orders', params: {} });
+    navigation.navigate('Orders', {});
   };
 
   const handleViewOrderStatus = () => {

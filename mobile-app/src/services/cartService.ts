@@ -25,6 +25,9 @@ export class CartService {
   /**
    * Get existing cart for a buyer
    * New schema: carts table only has id, buyer_id, created_at, updated_at
+   * 
+   * FIXED: Handle multiple carts by getting the most recent one
+   * Also cleans up duplicate carts to prevent future issues
    */
   async getCart(buyerId: string): Promise<Cart | null> {
     if (!isSupabaseConfigured()) {
@@ -33,14 +36,45 @@ export class CartService {
     }
 
     try {
-      const { data: cart, error } = await supabase
+      // Get all carts for this buyer to check for duplicates
+      const { data: carts, error } = await supabase
         .from('carts')
         .select('*')
         .eq('buyer_id', buyerId)
-        .maybeSingle();
+        .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return cart;
+
+      // If no carts, return null
+      if (!carts || carts.length === 0) {
+        return null;
+      }
+
+      // If multiple carts exist (data corruption), use the most recent and clean up
+      if (carts.length > 1) {
+        console.warn(`[CartService] Found ${carts.length} carts for buyer ${buyerId}, cleaning up duplicates...`);
+        
+        const mostRecentCart = carts[0];
+        const duplicateCartIds = carts.slice(1).map(c => c.id);
+
+        // Delete duplicate carts (keep the most recent)
+        try {
+          await supabase
+            .from('carts')
+            .delete()
+            .in('id', duplicateCartIds);
+          
+          console.log(`[CartService] ✅ Cleaned up ${duplicateCartIds.length} duplicate cart(s)`);
+        } catch (deleteError) {
+          console.error('[CartService] Failed to clean up duplicate carts:', deleteError);
+          // Continue anyway - we'll use the most recent cart
+        }
+
+        return mostRecentCart;
+      }
+
+      // Single cart found - normal case
+      return carts[0];
     } catch (error) {
       console.error('Error getting cart:', error);
       throw new Error('Failed to retrieve cart.');

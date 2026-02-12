@@ -1285,7 +1285,7 @@ export default function CheckoutScreen({ navigation, route }: Props) {
         [
           {
             text: 'View Orders',
-            onPress: () => navigation.navigate('MainTabs', { screen: 'Orders', params: {} })
+            onPress: () => navigation.navigate('Orders', {})
           }
         ]
       );
