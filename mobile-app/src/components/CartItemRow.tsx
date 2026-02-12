@@ -9,6 +9,7 @@ interface CartItemRowProps {
   item: CartItem;
   onIncrement: () => void;
   onDecrement: () => void;
+  onChange: (val: number) => void;
   onRemove: () => void;
 }
 
@@ -16,6 +17,7 @@ export const CartItemRow: React.FC<CartItemRowProps> = ({
   item,
   onIncrement,
   onDecrement,
+  onChange,
   onRemove,
 }) => {
   return (
@@ -59,15 +61,25 @@ export const CartItemRow: React.FC<CartItemRowProps> = ({
         <Text style={styles.seller} numberOfLines={1}>
           {item.seller}
         </Text>
-        <Text style={[styles.price, (!!item.originalPrice && item.originalPrice > (item.price || 0)) ? { color: '#EF4444' } : null]}>
-          ₱{(item.price ?? 0).toLocaleString()}
-        </Text>
+        <View style={styles.priceContainer}>
+          <Text style={[styles.price, (!!item.originalPrice && item.originalPrice > (item.price || 0)) ? { color: '#EF4444' } : null]}>
+            ₱{(item.price ?? 0).toLocaleString()}
+          </Text>
+          {!!item.originalPrice && item.originalPrice > (item.price || 0) && (
+            <Text style={styles.originalPrice}>
+              ₱{item.originalPrice.toLocaleString()}
+            </Text>
+          )}
+        </View>
 
         <View style={styles.actionsContainer}>
           <QuantityStepper
             value={item.quantity}
             onIncrement={onIncrement}
             onDecrement={onDecrement}
+            onChange={onChange}
+            max={item.stock} // Pass correct stock limit
+            min={1}
           />
 
           <Pressable onPress={onRemove} style={styles.removeButton}>
@@ -116,14 +128,26 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '800',
     color: '#FF5722',
-    marginBottom: 12,
+    marginBottom: 0,
     letterSpacing: -0.5,
+  },
+  priceContainer: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 8,
+    marginBottom: 12,
+  },
+  originalPrice: {
+    fontSize: 13,
+    color: '#9CA3AF',
+    textDecorationLine: 'line-through',
+    fontWeight: '500',
   },
   actionsContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 8, // Added spacing to prevent overlap with price
+    gap: 16, // Explicit gap between stepper and delete icon
+    marginTop: 8,
   },
   removeButton: {
     padding: 8,
