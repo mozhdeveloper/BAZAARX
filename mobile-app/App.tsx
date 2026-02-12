@@ -33,6 +33,7 @@ import FindRegistryScreen from './app/FindRegistryScreen';
 import AddressesScreen from './app/AddressesScreen';
 import SettingsScreen from './app/SettingsScreen';
 import NotificationsScreen from './app/NotificationsScreen';
+import NotificationSettingsScreen from './app/NotificationSettingsScreen';
 import PaymentMethodsScreen from './app/PaymentMethodsScreen';
 import HelpCenterScreen from './app/HelpCenterScreen';
 import PrivacyPolicyScreen from './app/PrivacyPolicyScreen';
@@ -108,6 +109,7 @@ export type RootStackParamList = {
   Addresses: undefined;
   Settings: undefined;
   Notifications: undefined;
+  NotificationSettings: undefined;
   PaymentMethods: undefined;
   HelpSupport: { activeTab?: 'tickets' | 'faq' } | undefined;
   PrivacyPolicy: undefined;
@@ -315,6 +317,7 @@ export default function App() {
             <Stack.Screen name="Addresses" component={AddressesScreen} />
             <Stack.Screen name="Settings" component={SettingsScreen} />
             <Stack.Screen name="Notifications" component={NotificationsScreen} />
+            <Stack.Screen name="NotificationSettings" component={NotificationSettingsScreen} />
             <Stack.Screen name="PaymentMethods" component={PaymentMethodsScreen} />
             <Stack.Screen name="AllStores" component={AllStoresScreen} />
             <Stack.Screen name="StoreDetail" component={StoreDetailScreen} />
