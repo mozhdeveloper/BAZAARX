@@ -676,7 +676,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
           </View>
 
           <Text style={styles.productName}>{product.name}</Text>
-          <Text style={styles.subInfo}>{product.sold} sold this month • Free Shipping Available</Text>
+          <Text style={styles.subInfo}>{reviewsTotal > 0 ? `${reviewsTotal} reviews` : 'No reviews yet'} • Free Shipping Available</Text>
 
           {/* Price */}
           <View style={styles.priceRow}>

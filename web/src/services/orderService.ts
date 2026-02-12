@@ -1250,29 +1250,43 @@ export class OrderService {
 
             if (updateError) throw updateError;
 
-            const { data: existingShipment } = await supabase
-                .from("order_shipments")
-                .select("id")
-                .eq("order_id", orderId)
-                .single();
+            // Update shipment record - non-blocking, errors won't stop the process
+            const updateShipment = async () => {
+                try {
+                    const { data: existingShipments } = await supabase
+                        .from("order_shipments")
+                        .select("id")
+                        .eq("order_id", orderId)
+                        .order("created_at", { ascending: false })
+                        .limit(1);
 
-            if (existingShipment) {
-                await supabase
-                    .from("order_shipments")
-                    .update({
-                        status: "shipped",
-                        tracking_number: trackingNumber,
-                        shipped_at: new Date().toISOString(),
-                    })
-                    .eq("id", existingShipment.id);
-            } else {
-                await supabase.from("order_shipments").insert({
-                    order_id: orderId,
-                    status: "shipped",
-                    tracking_number: trackingNumber,
-                    shipped_at: new Date().toISOString(),
-                });
-            }
+                    const existingShipment = existingShipments?.[0];
+
+                    if (existingShipment) {
+                        await supabase
+                            .from("order_shipments")
+                            .update({
+                                status: "shipped",
+                                tracking_number: trackingNumber,
+                                shipped_at: new Date().toISOString(),
+                            })
+                            .eq("id", existingShipment.id);
+                    } else {
+                        await supabase.from("order_shipments").insert({
+                            order_id: orderId,
+                            status: "shipped",
+                            tracking_number: trackingNumber,
+                            shipped_at: new Date().toISOString(),
+                        });
+                    }
+                } catch (error) {
+                    console.warn("[OrderService] Non-critical: Failed to update order_shipments:", error);
+                    // Don't throw - order status is already updated
+                }
+            };
+
+            // Execute shipment update in parallel with other operations
+            updateShipment();
 
             await supabase.from("order_status_history").insert({
                 order_id: orderId,
@@ -1283,30 +1297,27 @@ export class OrderService {
                 metadata: { tracking_number: trackingNumber },
             });
 
+            // Send notifications asynchronously (fire-and-forget for performance)
             if (order.buyer_id) {
-                await orderNotificationService.sendStatusUpdateNotification(
-                    orderId,
-                    "shipped",
-                    sellerId,
-                    order.buyer_id,
-                    trackingNumber,
-                );
-
-                await notificationService
-                    .notifyBuyerOrderStatus({
+                // Don't await - send notifications in background
+                Promise.allSettled([
+                    orderNotificationService.sendStatusUpdateNotification(
+                        orderId,
+                        "shipped",
+                        sellerId,
+                        order.buyer_id,
+                        trackingNumber,
+                    ),
+                    notificationService.notifyBuyerOrderStatus({
                         buyerId: order.buyer_id,
                         orderId: orderId,
-                        orderNumber:
-                            order.order_number,
+                        orderNumber: order.order_number,
                         status: "shipped",
                         message: `Your order #${order.order_number} has been shipped! Tracking: ${trackingNumber}`,
-                    })
-                    .catch((err) => {
-                        console.error(
-                            "Failed to send shipped notification:",
-                            err,
-                        );
-                    });
+                    }),
+                ]).catch((err) => {
+                    console.error("Failed to send shipped notifications:", err);
+                });
             }
 
             return true;
@@ -1384,13 +1395,33 @@ export class OrderService {
 
             if (updateError) throw updateError;
 
-            await supabase
-                .from("order_shipments")
-                .update({
-                    status: "delivered",
-                    delivered_at: new Date().toISOString(),
-                })
-                .eq("order_id", orderId);
+            // Update shipment record - non-blocking, errors won't stop the process
+            const updateShipment = async () => {
+                try {
+                    const { data: existingShipments } = await supabase
+                        .from("order_shipments")
+                        .select("id")
+                        .eq("order_id", orderId)
+                        .order("created_at", { ascending: false })
+                        .limit(1);
+
+                    if (existingShipments && existingShipments.length > 0) {
+                        await supabase
+                            .from("order_shipments")
+                            .update({
+                                status: "delivered",
+                                delivered_at: new Date().toISOString(),
+                            })
+                            .eq("id", existingShipments[0].id);
+                    }
+                } catch (error) {
+                    console.warn("[OrderService] Non-critical: Failed to update order_shipments:", error);
+                    // Don't throw - order status is already updated
+                }
+            };
+
+            // Execute shipment update in parallel
+            updateShipment();
 
             await supabase.from("order_status_history").insert({
                 order_id: orderId,
@@ -1401,29 +1432,26 @@ export class OrderService {
                 metadata: { delivered_at: new Date().toISOString() },
             });
 
+            // Send notifications asynchronously (fire-and-forget for performance)
             if (order.buyer_id) {
-                await orderNotificationService.sendStatusUpdateNotification(
-                    orderId,
-                    "delivered",
-                    sellerId,
-                    order.buyer_id,
-                );
-
-                await notificationService
-                    .notifyBuyerOrderStatus({
+                // Don't await - send notifications in background
+                Promise.allSettled([
+                    orderNotificationService.sendStatusUpdateNotification(
+                        orderId,
+                        "delivered",
+                        sellerId,
+                        order.buyer_id,
+                    ),
+                    notificationService.notifyBuyerOrderStatus({
                         buyerId: order.buyer_id,
                         orderId: orderId,
-                        orderNumber:
-                            (order as any).order_number,
+                        orderNumber: (order as any).order_number,
                         status: "delivered",
                         message: `Your order #${(order as any).order_number} has been delivered! Enjoy your purchase!`,
-                    })
-                    .catch((err) => {
-                        console.error(
-                            "Failed to send delivered notification:",
-                            err,
-                        );
-                    });
+                    }),
+                ]).catch((err) => {
+                    console.error("Failed to send delivered notifications:", err);
+                });
             }
 
             return true;

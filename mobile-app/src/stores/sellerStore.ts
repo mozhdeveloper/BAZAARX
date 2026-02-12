@@ -1775,13 +1775,23 @@ export const useOrderStore = create<OrderStore>()(
       },
 
       updateOrderStatus: async (id, status) => {
-        try {
-          const order = get().orders.find(o => o.id === id);
-          if (!order) {
-            console.error('Order not found:', id);
-            throw new Error(`Order ${id} not found`);
-          }
+        const order = get().orders.find(o => o.id === id);
+        if (!order) {
+          console.error('Order not found:', id);
+          throw new Error(`Order ${id} not found`);
+        }
 
+        // Store previous status for rollback if needed
+        const previousStatus = order.status;
+
+        // OPTIMISTIC UPDATE: Update local state immediately for instant UI feedback
+        set((state) => ({
+          orders: state.orders.map(o =>
+            o.id === id ? { ...o, status } : o
+          ),
+        }));
+
+        try {
           // Validate status transition (UI status: pending, to-ship, completed, cancelled)
           const validTransitions: Record<string, string[]> = {
             'pending': ['to-ship', 'cancelled'],
@@ -1794,9 +1804,9 @@ export const useOrderStore = create<OrderStore>()(
             'delivered': []
           };
 
-          const allowedTransitions = validTransitions[order.status] || [];
+          const allowedTransitions = validTransitions[previousStatus] || [];
           if (allowedTransitions.length > 0 && !allowedTransitions.includes(status)) {
-            console.warn(`Warning: Unusual status transition: ${order.status} -> ${status}`);
+            console.warn(`Warning: Unusual status transition: ${previousStatus} -> ${status}`);
           }
 
           // Map UI status to database shipment_status
@@ -1817,9 +1827,6 @@ export const useOrderStore = create<OrderStore>()(
           // Get seller ID from OrderStore (stored in fetchOrders)
           let sellerId = get().sellerId;
 
-          console.log(`👤 Current seller ID from OrderStore:`, sellerId);
-          console.log(`📦 Order object:`, order);
-
           // Fallback: Extract seller ID from order object if store doesn't have it
           if (!sellerId && (order as any).seller_id) {
             sellerId = (order as any).seller_id;
@@ -1828,12 +1835,10 @@ export const useOrderStore = create<OrderStore>()(
 
           if (!sellerId) {
             console.error('❌ No seller ID found! Cannot update database.');
-            console.error('Seller from store:', useAuthStore.getState().seller);
-            console.error('Order object:', order);
             throw new Error('Seller ID is required to update order status');
           }
 
-          console.log(`🔄 Updating order ${id} in database with seller ${sellerId}...`);
+          console.log(`🔄 Updating order ${id} in database...`);
           const success = await orderService.updateOrderStatus(
             id,
             dbStatus,
@@ -1842,19 +1847,13 @@ export const useOrderStore = create<OrderStore>()(
             'seller'
           );
 
-          console.log(`📊 Database update result: ${success ? '✅ SUCCESS' : '❌ FAILED'}`);
-
           if (!success) {
-            console.error('❌ Failed to update order status in database');
             throw new Error('Database update failed');
           }
 
           console.log(`✅ Database updated successfully with status: ${dbStatus}`);
 
-          // Create notification for buyer if order has buyer_id
-          console.log(`📦 Order object:`, order);
-          console.log(`🆔 Order buyer_id:`, order.buyer_id);
-
+          // Create notification for buyer if order has buyer_id (fire and forget)
           if (order.buyer_id) {
             const statusMessages: Record<string, string> = {
               'confirmed': `Your order #${id.slice(-8)} has been confirmed and is being prepared.`,
@@ -1865,9 +1864,7 @@ export const useOrderStore = create<OrderStore>()(
 
             const message = statusMessages[status] || `Order #${id.slice(-8)} status updated to ${status}`;
 
-            console.log(`🚀 Creating buyer notification for order ${id}`);
-
-            // Import notification service dynamically to avoid circular dependency
+            // Fire and forget - don't wait for notification
             import('../services/notificationService').then(({ notificationService }) => {
               notificationService.notifyBuyerOrderStatus({
                 buyerId: order.buyer_id!,
@@ -1879,20 +1876,17 @@ export const useOrderStore = create<OrderStore>()(
                 console.error('❌ Failed to create buyer notification:', err);
               });
             });
-          } else {
-            console.warn(`⚠️ No buyer_id found for order ${id}, skipping buyer notification`);
           }
-
-          // Update local state
-          set((state) => ({
-            orders: state.orders.map(order =>
-              order.id === id ? { ...order, status } : order
-            )
-          }));
 
           console.log(`✅ Order ${id} status updated to ${status}`);
         } catch (error) {
-          console.error('Failed to update order status:', error);
+          // ROLLBACK: Revert local state on error
+          console.error('Failed to update order status, rolling back:', error);
+          set((state) => ({
+            orders: state.orders.map(o =>
+              o.id === id ? { ...o, status: previousStatus } : o
+            ),
+          }));
           throw error;
         }
       },

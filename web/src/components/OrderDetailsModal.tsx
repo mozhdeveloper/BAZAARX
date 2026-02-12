@@ -49,6 +49,10 @@ export function OrderDetailsModal({
         isLoading: false,
     });
 
+    const [showStatusOverride, setShowStatusOverride] = useState(false);
+    const [overrideStatus, setOverrideStatus] = useState<SellerOrder["status"]>("pending");
+    const [isOverriding, setIsOverriding] = useState(false);
+
     if (!isOpen || !order) return null;
 
     const handleStatusUpdate = async (
@@ -123,6 +127,22 @@ export function OrderDetailsModal({
         } catch (error) {
             console.error("Error marking delivered:", error);
             alert("Failed to mark as delivered.");
+        }
+    };
+
+    const handleOverrideStatus = async () => {
+        if (!window.confirm(`Force change order status to ${overrideStatus}?`)) return;
+        
+        setIsOverriding(true);
+        try {
+            await updateOrderStatus(order.id, overrideStatus);
+            setShowStatusOverride(false);
+            alert("Order status changed successfully!");
+        } catch (error) {
+            console.error("Failed to override status:", error);
+            alert("Failed to change status.");
+        } finally {
+            setIsOverriding(false);
         }
     };
 
@@ -482,6 +502,56 @@ export function OrderDetailsModal({
 
                         {/* Sticky Action Buttons at Bottom */}
                         <div className="sticky bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-6 py-4 shadow-lg z-20">
+                            {/* Status Override Section */}
+                            {showStatusOverride ? (
+                                <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <span className="text-sm font-semibold text-yellow-900">⚠️ Force Status Change</span>
+                                        <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            onClick={() => setShowStatusOverride(false)}
+                                        >
+                                            <X className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                    <div className="space-y-3">
+                                        <select
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                                            value={overrideStatus}
+                                            onChange={(e) => setOverrideStatus(e.target.value as SellerOrder["status"])}
+                                        >
+                                            <option value="pending">Pending</option>
+                                            <option value="confirmed">Confirmed</option>
+                                            <option value="shipped">Shipped</option>
+                                            <option value="delivered">Delivered</option>
+                                            <option value="cancelled">Cancelled</option>
+                                        </select>
+                                        <Button
+                                            size="sm"
+                                            className="w-full bg-yellow-600 hover:bg-yellow-700 text-white"
+                                            onClick={handleOverrideStatus}
+                                            disabled={isOverriding}
+                                        >
+                                            {isOverriding ? (
+                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                            ) : (
+                                                "Confirm Status Change"
+                                            )}
+                                        </Button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="w-full mb-4 text-yellow-700 hover:text-yellow-800 hover:bg-yellow-50 border-yellow-300"
+                                    onClick={() => setShowStatusOverride(true)}
+                                >
+                                    Override Status (Force Change)
+                                </Button>
+                            )}
+
                             <div className="flex flex-col sm:flex-row gap-3">
                                 {order.status === "pending" && (
                                     <>
