@@ -139,7 +139,7 @@ function App() {
             }
           />
           <Route
-            path="/delivery-tracking/:orderId"
+            path="/delivery-tracking/:orderNumber"
             element={
               // <ProtectedBuyerRoute>
               <DeliveryTrackingPage />
