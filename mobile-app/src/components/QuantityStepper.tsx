@@ -1,11 +1,12 @@
-import React from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, TextInput, Pressable, StyleSheet, Alert } from 'react-native';
 import { Minus, Plus } from 'lucide-react-native';
 
 interface QuantityStepperProps {
   value: number;
   onIncrement: () => void;
   onDecrement: () => void;
+  onChange?: (newValue: number) => void; // New prop for manual input
   min?: number;
   max?: number;
 }
@@ -14,11 +15,46 @@ export const QuantityStepper: React.FC<QuantityStepperProps> = ({
   value,
   onIncrement,
   onDecrement,
+  onChange,
   min = 1,
   max = 99,
 }) => {
+  const [inputValue, setInputValue] = useState(value.toString());
   const canDecrement = value > min;
   const canIncrement = value < max;
+
+  // Sync internal input state with external value prop
+  useEffect(() => {
+    setInputValue(value.toString());
+  }, [value]);
+
+  const handleTextChange = (text: string) => {
+    // allow empty string for typing experience
+    if (text === '') {
+      setInputValue('');
+      return;
+    }
+    // Only allow numbers
+    const numericValue = text.replace(/[^0-9]/g, '');
+    setInputValue(numericValue);
+  };
+
+  const handleBlur = () => {
+    let newValue = parseInt(inputValue || '0', 10);
+
+    // validate constraints
+    if (isNaN(newValue) || newValue < min) {
+      newValue = min;
+    } else if (newValue > max) {
+      Alert.alert('Limit Reached', `Only ${max} items available.`);
+      newValue = max;
+    }
+
+    setInputValue(newValue.toString());
+    if (onChange) {
+      onChange(newValue);
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -35,7 +71,15 @@ export const QuantityStepper: React.FC<QuantityStepperProps> = ({
       </Pressable>
 
       <View style={styles.valueContainer}>
-        <Text style={styles.value}>{value}</Text>
+        <TextInput
+          style={[styles.input, value > max && styles.inputError]} // highlight if over max (edge case)
+          value={inputValue}
+          onChangeText={handleTextChange}
+          onBlur={handleBlur}
+          keyboardType="numeric"
+          selectTextOnFocus
+          maxLength={3} // limit digit length
+        />
       </View>
 
       <Pressable
@@ -79,13 +123,19 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFF5F0',
   },
   valueContainer: {
-    minWidth: 36,
+    minWidth: 40, // Increased width for input
     alignItems: 'center',
     justifyContent: 'center',
   },
-  value: {
+  input: {
     fontSize: 15,
     fontWeight: '800',
     color: '#1F2937',
+    textAlign: 'center',
+    padding: 0,
+    minWidth: 40,
   },
+  inputError: {
+    color: '#EF4444',
+  }
 });

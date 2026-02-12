@@ -163,18 +163,18 @@ export class ProductService {
     const primaryImage = product.images?.find((img: ProductImage) => img.is_primary) || product.images?.[0];
     const images = product.images?.map((img: ProductImage) => img.image_url).filter(Boolean) || [];
     const totalStock = product.variants?.reduce((sum: number, v: ProductVariant) => sum + (v.stock || 0), 0) || product.stock || 0;
-    
+
     // Extract colors and sizes from variants for legacy support
     const colors = [...new Set(product.variants?.map((v: ProductVariant) => v.color).filter(Boolean) || [])] as string[];
     const sizes = [...new Set(product.variants?.map((v: ProductVariant) => v.size).filter(Boolean) || [])] as string[];
-    
+
     // Extract option_1 and option_2 values for dynamic variant support
     const option1Values = [...new Set(product.variants?.map((v: ProductVariant) => (v as any).option_1_value).filter(Boolean) || [])] as string[];
     const option2Values = [...new Set(product.variants?.map((v: ProductVariant) => (v as any).option_2_value).filter(Boolean) || [])] as string[];
-    
+
     // Extract seller info
-    const businessProfile = Array.isArray(product.seller?.business_profile) 
-      ? product.seller.business_profile[0] 
+    const businessProfile = Array.isArray(product.seller?.business_profile)
+      ? product.seller.business_profile[0]
       : product.seller?.business_profile;
 
     return {
@@ -202,6 +202,8 @@ export class ProductService {
         ...product.seller,
         business_profile: businessProfile,
       } : undefined,
+      // Ensure originalPrice is mapped from original_price
+      originalPrice: product.original_price,
     };
   }
 
