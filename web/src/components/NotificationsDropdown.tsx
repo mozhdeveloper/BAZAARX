@@ -166,10 +166,11 @@ export function NotificationsDropdown() {
   const handleNotificationClickLocal = (n: OrderNotification) => {
     markNotificationRead(n.id);
     setOpen(false);
+    const targetId = n.orderNumber || n.orderId;
     if (n.type === "shipped" || n.type === "delivered") {
-      navigate(`/delivery-tracking/${n.orderId}`);
+      navigate(`/delivery-tracking/${targetId}`);
     } else {
-      navigate(`/order/${n.orderId}`);
+      navigate(`/order/${targetId}`);
     }
   };
 
@@ -241,8 +242,8 @@ export function NotificationsDropdown() {
                     className={cn(
                       "group flex gap-4 p-4 border-b border-gray-100 cursor-pointer transition-all",
                       // Apply specific hover color requested: #FFD4A3
-                      "hover:bg-[#FFD4A3]",
-                      !n.is_read ? "bg-white" : "bg-gray-50/30"
+                      "hover:bg-[#E8E9EB]",
+                      !n.is_read ? "bg-white" : "bg-white"
                     )}
                   >
                     {/* Icon Box */}
@@ -263,7 +264,7 @@ export function NotificationsDropdown() {
                         )}>
                           {n.title}
                         </p>
-                        {!n.is_read && <span className="w-2 h-2 rounded-full bg-orange-500 flex-shrink-0 mt-1" />}
+                        {!n.is_read && <span className="w-2.5 h-2.5 rounded-full bg-orange-500 flex-shrink-0 mt-1" />}
                       </div>
                       <p className={cn(
                         "text-xs line-clamp-2",
@@ -289,8 +290,8 @@ export function NotificationsDropdown() {
                     className={cn(
                       "group flex gap-4 p-4 border-b border-gray-100 cursor-pointer transition-all",
                       // Apply specific hover color requested: #FFD4A3
-                      "hover:bg-[#FFD4A3]",
-                      !n.read ? "bg-white" : "bg-gray-50/30"
+                      "hover:bg-[#E8E9EB]",
+                      !n.read ? "bg-white" : "bg-white"
                     )}
                   >
                     <div className={cn(

@@ -376,7 +376,7 @@ export class CartService {
       .select('id')
       .eq('cart_id', cartId)
       .eq('product_id', productId);
-    
+
     if (items && items.length > 0) {
       await this.removeFromCart(items[0].id);
     }
@@ -388,7 +388,7 @@ export class CartService {
       .select('id')
       .eq('cart_id', cartId)
       .eq('product_id', productId);
-    
+
     if (items && items.length > 0) {
       await this.updateCartItemQuantity(items[0].id, quantity);
     }

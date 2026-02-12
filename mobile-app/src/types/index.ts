@@ -65,6 +65,8 @@ export interface Product {
   isFreeShipping?: boolean;
   isVerified?: boolean;
   seller?: string;
+  seller_avatar?: string | null;
+  sellerAvatar?: string;
   sellerId?: string; // Alias for seller_id
   sellerRating?: number;
   sellerVerified?: boolean;

@@ -121,14 +121,11 @@ export default function CartScreen({ navigation }: any) {
       end={{ x: 1, y: 0 }}
       style={styles.container}
     >
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle="dark-content" backgroundColor="#FFE5CC" />
 
       {/* HEADER */}
-      <View style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}>
+      <View style={[styles.headerContainer, { paddingTop: insets.top + 5 }]}>
         <View style={styles.headerTop}>
-          <Pressable onPress={() => navigation.goBack()} style={styles.headerIcon}>
-            <ArrowLeft size={24} color="#1F2937" strokeWidth={2.5} />
-          </Pressable>
           <Text style={styles.headerTitle}>My Cart</Text>
           <View style={styles.clearTextWrapper}>
             <Pressable onPress={clearCart}>
@@ -190,6 +187,7 @@ export default function CartScreen({ navigation }: any) {
                         item={item}
                         onIncrement={() => updateQuantity(item.id, item.quantity + 1)}
                         onDecrement={() => item.quantity > 1 && updateQuantity(item.id, item.quantity - 1)}
+                        onChange={(val) => updateQuantity(item.id, val)}
                         onRemove={() => removeItem(item.id)}
                       />
                     </View>
@@ -201,40 +199,16 @@ export default function CartScreen({ navigation }: any) {
             </View>
           );
         })}
-
-        {/* ORDER SUMMARY CARD */}
-        {items.length > 0 && (
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryTitle}>Order Summary</Text>
-            {totalSavings > 0 && (
-              <View style={styles.savingsBanner}>
-                <View style={styles.savingsIconContainer}>
-                  <Flame size={14} color="#FFF" fill="#FFF" />
-                </View>
-                <Text style={styles.savingsBannerText}>
-                  You're saving <Text style={{ fontWeight: '800' }}>₱{totalSavings.toLocaleString()}</Text> on this order!
-                </Text>
-              </View>
-            )}
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Subtotal</Text>
-              <Text style={styles.summaryValue}>₱{subtotal.toLocaleString()}</Text>
-            </View>
-            <View style={styles.dashedDivider} />
-            <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Total Payment</Text>
-              <Text style={[styles.totalValue, { color: BRAND_PRIMARY }]}>₱{total.toLocaleString()}</Text>
-            </View>
-          </View>
-        )}
       </ScrollView>
 
       {/* FLOATING ACTION BAR */}
-      <View style={[styles.bottomBar, { bottom: insets.bottom + 55 }]}>
+      <View style={[styles.bottomBar, { bottom: insets.bottom + 80 }]}>
         <View style={styles.bottomBarContent}>
           <View>
-            <Text style={styles.totalInfoLabel}>Grand Total</Text>
             <Text style={[styles.totalInfoPrice, { color: BRAND_PRIMARY }]}>₱{total.toLocaleString()}</Text>
+            {totalSavings > 0 && (
+              <Text style={styles.savingsText}>Saved: ₱{totalSavings.toLocaleString()}</Text>
+            )}
           </View>
           <Pressable
             disabled={selectedIds.length === 0}
@@ -271,8 +245,8 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFFFFF' }, // Match standard white bg
   headerContainer: {
     paddingHorizontal: 20,
-    paddingBottom: 25,
-    backgroundColor: '#FFFFFF',
+    paddingBottom: 15,
+    backgroundColor: '#FFE5CC',
     borderBottomLeftRadius: 32,
     borderBottomRightRadius: 32,
     shadowColor: '#000',
@@ -288,11 +262,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     position: 'relative',
     height: 40,
-  },
-  headerIcon: {
-    position: 'absolute',
-    left: 0,
-    padding: 4
   },
   headerTitle: { fontSize: 20, fontWeight: '800', color: '#1F2937' },
   clearTextWrapper: {
@@ -325,9 +294,9 @@ const styles = StyleSheet.create({
   // NEW CARD STYLE FOR SELLER GROUP
   sellerCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+    borderRadius: 10,
     marginHorizontal: 16,
-    marginBottom: 16,
+    marginBottom: 12,
     paddingVertical: 12,
     elevation: 2,
     shadowColor: '#000',
@@ -343,7 +312,7 @@ const styles = StyleSheet.create({
   },
   headerCheckbox: { marginRight: 10 },
   storeInfo: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  sellerName: { fontSize: 15, fontWeight: '700', color: '#1F2937' },
+  sellerName: { fontSize: 16, fontWeight: '700', color: '#1F2937' },
 
   cardDivider: { height: 1, backgroundColor: '#F3F4F6', marginBottom: 4 },
 
@@ -351,27 +320,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
-    paddingVertical: 4,
+    paddingVertical: 3,
   },
   itemCheckbox: { padding: 8 },
   itemSeparator: { height: 1, backgroundColor: '#F9FAFB', marginLeft: 50, marginVertical: 4 }, // Indented divider
 
-  // SUMMARY CARD
-  summaryCard: {
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: 16,
-    marginTop: 8,
-    borderRadius: 16,
-    padding: 20,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-  },
-  summaryTitle: { fontSize: 16, fontWeight: '800', color: '#1F2937', marginBottom: 16 },
-  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
-  summaryLabel: { fontSize: 14, color: '#6B7280' },
-  summaryValue: { fontSize: 14, fontWeight: '600', color: '#1F2937' },
   savingsBanner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -403,10 +356,11 @@ const styles = StyleSheet.create({
   totalValue: { fontSize: 22, fontWeight: '900' },
 
   // BOTTOM BAR
-  bottomBar: { position: 'absolute', left: 16, right: 16, backgroundColor: '#FFFFFF', borderRadius: 35, elevation: 20, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 25, paddingVertical: 6 },
+  bottomBar: { position: 'absolute', left: 16, right: 16, backgroundColor: '#FFFFFF', borderRadius: 15, elevation: 15, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 20, paddingVertical: 3 },
   bottomBarContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 24, paddingVertical: 12 },
   totalInfoLabel: { fontSize: 12, color: '#9CA3AF', fontWeight: '700', textTransform: 'uppercase' },
   totalInfoPrice: { fontSize: 24, fontWeight: '900' },
-  checkoutBtn: { paddingHorizontal: 30, paddingVertical: 16, borderRadius: 100 },
+  checkoutBtn: { paddingHorizontal: 20, paddingVertical: 12, borderRadius: 15 },
   checkoutBtnText: { color: '#FFF', fontWeight: '800', fontSize: 16 },
+  savingsText: { fontSize: 12, color: '#DC2626', fontWeight: '600', marginTop: 2 },
 });

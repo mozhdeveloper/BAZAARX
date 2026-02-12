@@ -13,17 +13,17 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { Package, ShoppingCart, Bell, X, Search, ChevronDown, Menu, RefreshCw, Edit3, Eye, Truck, CheckCircle, XCircle } from 'lucide-react-native';
+import { Package, ShoppingCart, Bell, X, Search, ChevronDown, Menu, RefreshCw, Eye, Truck, CheckCircle, XCircle, MapPin, User, Phone } from 'lucide-react-native';
 import { useSellerStore } from '../../../src/stores/sellerStore';
 import { useReturnStore } from '../../../src/stores/returnStore';
 import SellerDrawer from '../../../src/components/SellerDrawer';
 import { safeImageUri } from '../../../src/utils/imageUtils';
 
-type OrderStatus = 'all' | 'pending' | 'to-ship' | 'completed' | 'cancelled' | 'returns' | 'refunds';
+type OrderStatus = 'all' | 'pending' | 'to-ship' | 'shipped' | 'completed' | 'cancelled' | 'returns' | 'refunds';
 type ChannelFilter = 'all' | 'online' | 'pos';
 
 export default function SellerOrdersScreen() {
-  const { orders = [], updateOrderStatus, seller, fetchOrders, ordersLoading } = useSellerStore();
+  const { orders = [], updateOrderStatus, markOrderAsShipped, seller, fetchOrders, ordersLoading } = useSellerStore();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const [drawerVisible, setDrawerVisible] = useState(false);
@@ -31,28 +31,22 @@ export default function SellerOrdersScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [channelFilter, setChannelFilter] = useState<ChannelFilter>('all');
   const [refreshing, setRefreshing] = useState(false);
-  
+
   // Edit modal state
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editedCustomerName, setEditedCustomerName] = useState('');
-  const [editedCustomerEmail, setEditedCustomerEmail] = useState('');
-  const [editedNote, setEditedNote] = useState('');
-  const [isSaving, setIsSaving] = useState(false);
+  const [trackingModalVisible, setTrackingModalVisible] = useState(false);
+  const [trackingNumber, setTrackingNumber] = useState('');
+  const [isUpdating, setIsUpdating] = useState(false);
 
-  // Open edit modal
+  // Open modal
   const openEditModal = (order: any) => {
-    console.log('[Orders] Opening edit modal for order:', {
+    console.log('[Orders] Opening details modal for order:', {
       orderId: order.orderId,
       status: order.status,
       customerName: order.customerName,
     });
     setSelectedOrder(order);
-    setEditedCustomerName(order.customerName || '');
-    setEditedCustomerEmail(order.customerEmail || '');
-    setEditedNote(order.posNote || '');
-    setIsEditing(false);
     setEditModalVisible(true);
   };
 
@@ -60,150 +54,53 @@ export default function SellerOrdersScreen() {
   const closeEditModal = () => {
     setEditModalVisible(false);
     setSelectedOrder(null);
-    setIsEditing(false);
-  };
-
-  // Toggle edit mode
-  const toggleEditMode = () => {
-    if (isEditing) {
-      // Cancel editing - reset values
-      setEditedCustomerName(selectedOrder?.customerName || '');
-      setEditedCustomerEmail(selectedOrder?.customerEmail || '');
-      setEditedNote(selectedOrder?.posNote || '');
-    }
-    setIsEditing(!isEditing);
-  };
-
-  // Save edited order details to database
-  // Note: orders table does NOT have buyer_name/buyer_email columns!
-  // For POS (OFFLINE) orders: use order_recipients table for customer info
-  // For ONLINE orders: customer info comes from buyers → profiles (read-only)
-  const handleSaveOrderDetails = async () => {
-    if (!selectedOrder) return;
-    
-    setIsSaving(true);
-    try {
-      // Import supabase directly for the update
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!;
-      const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
-      const supabase = createClient(supabaseUrl, supabaseKey);
-      
-      // Get current order to check for existing recipient
-      const { data: currentOrder, error: fetchError } = await supabase
-        .from('orders')
-        .select('recipient_id, order_type')
-        .eq('id', selectedOrder.id)
-        .single();
-        
-      if (fetchError) {
-        console.error('[Orders] Failed to fetch order:', fetchError);
-        throw fetchError;
-      }
-      
-      // Only allow editing customer details for OFFLINE (POS) orders
-      // ONLINE orders have customer info from verified buyer profile
-      if (currentOrder.order_type === 'ONLINE') {
-        // For ONLINE orders, only update the notes field
-        const { error } = await supabase
-          .from('orders')
-          .update({
-            notes: editedNote,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', selectedOrder.id);
-          
-        if (error) throw error;
-      } else {
-        // For OFFLINE (POS) orders, update or create recipient record
-        // Parse name into first/last
-        const nameParts = editedCustomerName.trim().split(' ');
-        const firstName = nameParts[0] || '';
-        const lastName = nameParts.slice(1).join(' ') || '';
-        
-        if (currentOrder.recipient_id) {
-          // Update existing recipient
-          const { error: recipientError } = await supabase
-            .from('order_recipients')
-            .update({
-              first_name: firstName,
-              last_name: lastName,
-              email: editedCustomerEmail || null,
-            })
-            .eq('id', currentOrder.recipient_id);
-            
-          if (recipientError) throw recipientError;
-        } else {
-          // Create new recipient and link to order
-          const { data: newRecipient, error: createError } = await supabase
-            .from('order_recipients')
-            .insert({
-              first_name: firstName,
-              last_name: lastName,
-              email: editedCustomerEmail || null,
-            })
-            .select('id')
-            .single();
-            
-          if (createError) throw createError;
-          
-          // Link recipient to order
-          const { error: linkError } = await supabase
-            .from('orders')
-            .update({ 
-              recipient_id: newRecipient.id,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', selectedOrder.id);
-            
-          if (linkError) throw linkError;
-        }
-        
-        // Update order notes (uses pos_note for POS orders)
-        const { error: noteError } = await supabase
-          .from('orders')
-          .update({
-            pos_note: editedNote,
-            notes: editedNote, // Also update general notes for compatibility
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', selectedOrder.id);
-          
-        if (noteError) throw noteError;
-      }
-      
-      console.log('[Orders] ✅ Order details updated in database');
-      
-      // Update local state
-      setSelectedOrder({
-        ...selectedOrder,
-        customerName: editedCustomerName,
-        customerEmail: editedCustomerEmail,
-        posNote: editedNote,
-      });
-      
-      // Refresh orders list
-      await fetchOrders(seller?.id);
-      
-      setIsEditing(false);
-      alert('Order details saved successfully!');
-    } catch (error) {
-      console.error('[Orders] Error saving order:', error);
-      alert('Failed to save changes. Please try again.');
-    } finally {
-      setIsSaving(false);
-    }
   };
 
   // Handle status update from modal
-  const handleStatusUpdate = async (newStatus: 'pending' | 'to-ship' | 'completed' | 'cancelled') => {
+  const handleStatusUpdate = async (newStatus: 'pending' | 'to-ship' | 'shipped' | 'completed' | 'cancelled') => {
     if (selectedOrder) {
+      if (newStatus === 'shipped') {
+        setTrackingNumber('');
+        setTrackingModalVisible(true);
+        return;
+      }
+
       console.log(`[Orders] Updating order ${selectedOrder.orderId} from ${selectedOrder.status} to ${newStatus}`);
       await updateOrderStatus(selectedOrder.orderId, newStatus);
       // Update local selected order state
       setSelectedOrder({ ...selectedOrder, status: newStatus });
       // Refresh orders
       await fetchOrders(seller?.id);
+    }
+  };
+
+  const handleTrackingSubmit = async () => {
+    if (!trackingNumber.trim()) {
+      alert('Please enter a tracking number');
+      return;
+    }
+
+    if (selectedOrder) {
+      setIsUpdating(true);
+      try {
+        console.log(`[Orders] Marking order ${selectedOrder.orderId} as shipped with tracking: ${trackingNumber}`);
+        await markOrderAsShipped(selectedOrder.orderId, trackingNumber);
+
+        // Update local state
+        setSelectedOrder({
+          ...selectedOrder,
+          status: 'shipped',
+          trackingNumber: trackingNumber
+        });
+
+        setTrackingModalVisible(false);
+        await fetchOrders(seller?.id);
+      } catch (error) {
+        console.error('[Orders] Failed to mark as shipped:', error);
+        alert('Failed to update tracking number');
+      } finally {
+        setIsUpdating(false);
+      }
     }
   };
 
@@ -244,8 +141,8 @@ export default function SellerOrdersScreen() {
     selectedTab === 'returns'
       ? pendingReturnRequests
       : selectedTab === 'refunds'
-      ? refundRequests
-      : [];
+        ? refundRequests
+        : [];
 
   // Channel counts for tabs
   const channelCounts = {
@@ -258,6 +155,7 @@ export default function SellerOrdersScreen() {
     all: orders.length,
     pending: orders.filter(o => o.status === 'pending').length,
     'to-ship': orders.filter(o => o.status === 'to-ship').length,
+    shipped: orders.filter(o => o.status === 'shipped').length,
     completed: orders.filter(o => o.status === 'completed').length,
     cancelled: orders.filter(o => o.status === 'cancelled').length,
     returns: pendingReturnRequests.length,
@@ -268,16 +166,16 @@ export default function SellerOrdersScreen() {
     const matchesTab =
       selectedTab === 'all'
         ? true
-        : selectedTab === 'pending' || selectedTab === 'to-ship' || selectedTab === 'completed' || selectedTab === 'cancelled'
-        ? order.status === selectedTab
-        : true;
-    
+        : ['pending', 'to-ship', 'shipped', 'completed', 'cancelled'].includes(selectedTab)
+          ? order.status === selectedTab
+          : true;
+
     // Channel filter
-    const matchesChannel = 
-      channelFilter === 'all' ? true : 
-      channelFilter === 'pos' ? order.type === 'OFFLINE' : 
-      (order.type === 'ONLINE' || !order.type);
-    
+    const matchesChannel =
+      channelFilter === 'all' ? true :
+        channelFilter === 'pos' ? order.type === 'OFFLINE' :
+          (order.type === 'ONLINE' || !order.type);
+
     const q = searchQuery.trim().toLowerCase();
     const matchesSearch = !q ? true : (
       (order.orderId && String(order.orderId).toLowerCase().includes(q)) ||
@@ -292,6 +190,8 @@ export default function SellerOrdersScreen() {
     switch (status) {
       case 'completed':
         return '#10B981';
+      case 'shipped':
+        return '#3B82F6'; // Blue for shipped
       case 'to-ship':
         return '#FF5722';
       case 'pending':
@@ -307,6 +207,8 @@ export default function SellerOrdersScreen() {
     switch (status) {
       case 'completed':
         return '#D1FAE5';
+      case 'shipped':
+        return '#DBEAFE'; // Light blue for shipped
       case 'to-ship':
         return '#FFF5F0';
       case 'pending':
@@ -382,7 +284,7 @@ export default function SellerOrdersScreen() {
             contentContainerStyle={styles.segmentedScrollContent}
           >
             {(
-              ['all', 'pending', 'to-ship', 'completed', 'cancelled', 'returns', 'refunds'] as OrderStatus[]
+              ['all', 'pending', 'to-ship', 'shipped', 'completed', 'cancelled', 'returns', 'refunds'] as OrderStatus[]
             ).map((tab) => (
               <Pressable
                 key={tab}
@@ -574,8 +476,8 @@ export default function SellerOrdersScreen() {
         ) : (
           <View style={styles.ordersList}>
             {filteredOrders.map((order) => (
-              <Pressable 
-                key={order.id} 
+              <Pressable
+                key={order.id}
                 style={styles.orderCard}
                 onPress={() => openEditModal(order)}
               >
@@ -650,8 +552,8 @@ export default function SellerOrdersScreen() {
                     <Text style={styles.totalLabel}>Total Amount</Text>
                     <Text style={styles.totalAmount}>
                       ₱{(
-                        order.total > 0 
-                          ? order.total 
+                        order.total > 0
+                          ? order.total
                           : order.items.reduce((sum: number, item: any) => sum + ((item.price || 0) * (item.quantity || 1)), 0)
                       ).toLocaleString()}
                     </Text>
@@ -680,265 +582,304 @@ export default function SellerOrdersScreen() {
           <View style={styles.editModalContent}>
             {/* Modal Header */}
             <View style={styles.editModalHeader}>
-              <Text style={styles.editModalTitle}>
-                {isEditing ? 'Edit Order' : 'Order Details'}
-              </Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                {selectedOrder?.status !== 'completed' && selectedOrder?.status !== 'cancelled' && (
-                  <Pressable 
-                    onPress={toggleEditMode} 
-                    style={[
-                      styles.editToggleButton,
-                      isEditing && styles.editToggleButtonActive
-                    ]}
-                  >
-                    <Edit3 size={18} color={isEditing ? '#FFFFFF' : '#FF5722'} />
-                    <Text style={[
-                      styles.editToggleText,
-                      isEditing && styles.editToggleTextActive
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginRight: 12 }}>
+                  <Text style={styles.modalOrderId}>Order #{String(selectedOrder?.orderId || selectedOrder?.id || '').toUpperCase()}</Text>
+                  {selectedOrder && (
+                    <View style={[
+                      styles.statusBadge,
+                      { backgroundColor: getStatusBgColor(selectedOrder.status) }
                     ]}>
-                      {isEditing ? 'Cancel' : 'Edit'}
-                    </Text>
-                  </Pressable>
-                )}
-                <Pressable onPress={closeEditModal} style={styles.closeButton}>
-                  <X size={24} color="#6B7280" />
-                </Pressable>
+                      <Text style={[
+                        styles.statusText,
+                        { color: getStatusColor(selectedOrder.status), fontSize: 11 }
+                      ]}>
+                        {String(selectedOrder.status || 'pending').replace('-', ' ').toUpperCase()}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={styles.modalOrderDate}>
+                  {selectedOrder?.createdAt && new Date(selectedOrder.createdAt).toLocaleDateString('en-US', {
+                    year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                  })}
+                </Text>
               </View>
+              <Pressable onPress={closeEditModal} style={styles.closeButton}>
+                <X size={24} color="#6B7280" />
+              </Pressable>
             </View>
 
             {selectedOrder && (
-              <ScrollView style={styles.editModalBody} showsVerticalScrollIndicator={false}>
-                {/* Order ID and Type */}
-                <View style={styles.editSection}>
-                  <Text style={styles.editSectionTitle}>Order Information</Text>
-                  <View style={styles.editInfoRow}>
-                    <Text style={styles.editLabel}>Order ID</Text>
-                    <Text style={styles.editValue}>{String(selectedOrder.orderId || selectedOrder.id || '')}</Text>
-                  </View>
-                  <View style={styles.editInfoRow}>
-                    <Text style={styles.editLabel}>Type</Text>
-                    <View style={[
-                      styles.typeBadge,
-                      { backgroundColor: selectedOrder.type === 'OFFLINE' ? '#FEF3C7' : '#DBEAFE' }
-                    ]}>
-                      <Text style={[
-                        styles.typeBadgeText,
-                        { color: selectedOrder.type === 'OFFLINE' ? '#D97706' : '#2563EB' }
-                      ]}>
-                        {selectedOrder.type === 'OFFLINE' ? 'Walk-in / POS' : 'Online Order'}
-                      </Text>
-                    </View>
-                  </View>
-                  <View style={styles.editInfoRow}>
-                    <Text style={styles.editLabel}>Date</Text>
-                    <Text style={styles.editValue}>
-                      {new Date(selectedOrder.createdAt).toLocaleDateString('en-US', {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
-                    </Text>
-                  </View>
-                </View>
+              <>
+                <ScrollView style={styles.editModalBody} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
 
-                {/* Customer Info - Editable */}
-                <View style={styles.editSection}>
-                  <Text style={styles.editSectionTitle}>Customer</Text>
-                  {isEditing ? (
-                    <>
-                      <View style={styles.editInputGroup}>
-                        <Text style={styles.editInputLabel}>Customer Name</Text>
-                        <TextInput
-                          style={styles.editInput}
-                          value={editedCustomerName}
-                          onChangeText={setEditedCustomerName}
-                          placeholder="Enter customer name"
-                          placeholderTextColor="#9CA3AF"
-                        />
+                  <View style={[styles.detailCard, { marginTop: 0 }]}>
+                    <View style={styles.detailCardHeader}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <Text style={styles.detailCardTitle}>Order Summary</Text>
                       </View>
-                      <View style={styles.editInputGroup}>
-                        <Text style={styles.editInputLabel}>Email</Text>
-                        <TextInput
-                          style={styles.editInput}
-                          value={editedCustomerEmail}
-                          onChangeText={setEditedCustomerEmail}
-                          placeholder="Enter email"
-                          placeholderTextColor="#9CA3AF"
-                          keyboardType="email-address"
-                          autoCapitalize="none"
-                        />
-                      </View>
-                      <View style={styles.editInputGroup}>
-                        <Text style={styles.editInputLabel}>Order Note</Text>
-                        <TextInput
-                          style={[styles.editInput, { height: 80, textAlignVertical: 'top' }]}
-                          value={editedNote}
-                          onChangeText={setEditedNote}
-                          placeholder="Add a note for this order"
-                          placeholderTextColor="#9CA3AF"
-                          multiline
-                          numberOfLines={3}
-                        />
-                      </View>
-                    </>
-                  ) : (
-                    <>
-                      <View style={styles.editInfoRow}>
-                        <Text style={styles.editLabel}>Name</Text>
-                        <Text style={styles.editValue}>{String(selectedOrder.customerName || '')}</Text>
-                      </View>
-                      <View style={styles.editInfoRow}>
-                        <Text style={styles.editLabel}>Email</Text>
-                        <Text style={styles.editValue}>{String(selectedOrder.customerEmail || 'N/A')}</Text>
-                      </View>
-                      {selectedOrder.posNote && (
-                        <View style={styles.editInfoRow}>
-                          <Text style={styles.editLabel}>Note</Text>
-                          <Text style={styles.editValue}>{String(selectedOrder.posNote || '')}</Text>
+                    </View>
+                    <View style={styles.detailCardContent}>
+                      {/* Items List */}
+                      {selectedOrder.items.map((item: any, index: number) => (
+                        <View key={index} style={styles.summaryItemRow}>
+                          <Image source={{ uri: safeImageUri(item.image) }} style={styles.summaryItemImage} />
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.summaryItemName} numberOfLines={2}>{String(item.productName || 'Unknown Product')}</Text>
+                            {(item.selectedColor || item.selectedSize) && (
+                              <Text style={styles.summaryItemVariant}>
+                                {item.selectedColor ? item.selectedColor : ''}
+                                {item.selectedColor && item.selectedSize ? ' • ' : ''}
+                                {item.selectedSize ? item.selectedSize : ''}
+                              </Text>
+                            )}
+                          </View>
+                          <View style={{ alignItems: 'flex-end' }}>
+                            <Text style={styles.summaryItemPrice}>₱{(item.price || 0).toLocaleString()}</Text>
+                            <Text style={styles.summaryItemQty}>x{item.quantity}</Text>
+                          </View>
                         </View>
-                      )}
-                    </>
-                  )}
-                </View>
+                      ))}
 
-                {/* Save Button when editing */}
-                {isEditing && (
-                  <Pressable
-                    style={[styles.saveButton, isSaving && styles.saveButtonDisabled]}
-                    onPress={handleSaveOrderDetails}
-                    disabled={isSaving}
-                  >
-                    {isSaving ? (
-                      <ActivityIndicator color="#FFFFFF" size="small" />
-                    ) : (
-                      <>
-                        <CheckCircle size={20} color="#FFFFFF" />
-                        <Text style={styles.saveButtonText}>Save Changes</Text>
-                      </>
-                    )}
-                  </Pressable>
-                )}
+                      {/* Divider */}
+                      <View style={styles.summaryDivider} />
 
-                {/* Order Items */}
-                <View style={styles.editSection}>
-                  <Text style={styles.editSectionTitle}>Items ({selectedOrder.items.length})</Text>
-                  {selectedOrder.items.map((item: any, index: number) => (
-                    <View key={index} style={styles.editItemRow}>
-                      <Image source={{ uri: safeImageUri(item.image) }} style={styles.editItemImage} />
-                      <View style={styles.editItemInfo}>
-                        <Text style={styles.editItemName} numberOfLines={2}>{String(item.productName || 'Unknown Product')}</Text>
-                        <Text style={styles.editItemDetails}>
-                          {item.selectedColor && `Color: ${item.selectedColor}`}
-                          {item.selectedColor && item.selectedSize && ' | '}
-                          {item.selectedSize && `Size: ${item.selectedSize}`}
+                      {/* Breakdown */}
+                      <View style={styles.breakdownRow}>
+                        <Text style={styles.breakdownLabel}>Subtotal</Text>
+                        <Text style={styles.breakdownValue}>
+                          ₱{(selectedOrder.total > 0 ? selectedOrder.total : selectedOrder.items.reduce((sum: number, item: any) => sum + ((item.price || 0) * (item.quantity || 1)), 0)).toLocaleString()}
                         </Text>
-                        <Text style={styles.editItemPrice}>
-                          ₱{(item.price || 0).toLocaleString()} × {item.quantity}
+                      </View>
+                      <View style={styles.breakdownRow}>
+                        <Text style={styles.breakdownLabel}>Tax (0%)</Text>
+                        <Text style={styles.breakdownValue}>₱0.00</Text>
+                      </View>
+                      <View style={[styles.breakdownRow, { marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#F3F4F6' }]}>
+                        <Text style={styles.totalLabelLarge}>Total Amount</Text>
+                        <Text style={styles.totalValueLarge}>
+                          ₱{(selectedOrder.total > 0 ? selectedOrder.total : selectedOrder.items.reduce((sum: number, item: any) => sum + ((item.price || 0) * (item.quantity || 1)), 0)).toLocaleString()}
                         </Text>
                       </View>
                     </View>
-                  ))}
-                </View>
-
-                {/* Total - Calculate from items if order.total is 0 */}
-                <View style={styles.editSection}>
-                  <View style={styles.editTotalRow}>
-                    <Text style={styles.editTotalLabel}>Total Amount</Text>
-                    <Text style={styles.editTotalValue}>
-                      ₱{(
-                        selectedOrder.total > 0 
-                          ? selectedOrder.total 
-                          : selectedOrder.items.reduce((sum: number, item: any) => sum + ((item.price || 0) * (item.quantity || 1)), 0)
-                      ).toLocaleString()}
-                    </Text>
                   </View>
-                </View>
 
-                {/* Current Status */}
-                <View style={styles.editSection}>
-                  <Text style={styles.editSectionTitle}>Current Status</Text>
-                  <View style={[
-                    styles.currentStatusBadge,
-                    { backgroundColor: getStatusBgColor(selectedOrder.status) }
-                  ]}>
-                    <Text style={[
-                      styles.currentStatusText,
-                      { color: getStatusColor(selectedOrder.status) }
-                    ]}>
-                      {String(selectedOrder.status || 'pending').replace('-', ' ').toUpperCase()}
-                    </Text>
+                  <View style={styles.detailCard}>
+                    <View style={styles.detailCardHeader}>
+                      <Text style={styles.detailCardTitle}>Customer</Text>
+                    </View>
+                    <View style={styles.detailCardContent}>
+                      <Text style={styles.customerNameLarge}>
+                        {selectedOrder.customerName || 'Walk-in Customer'}
+                      </Text>
+                      <Text style={styles.customerEmailText}>
+                        {selectedOrder.customerEmail || 'No email provided'}
+                      </Text>
+                    </View>
                   </View>
-                </View>
 
-                {/* Update Status Actions */}
+                  {/* Delivery Information */}
+                  <View style={styles.detailCard}>
+                    <View style={styles.detailCardHeader}>
+                      <Text style={styles.detailCardTitle}>Delivery Information</Text>
+                    </View>
+                    <View style={styles.detailCardContent}>
+                      <View style={{ flexDirection: 'row', gap: 12 }}>
+                        <View style={{ padding: 8, backgroundColor: '#F3F4F6', borderRadius: 8, height: 36, width: 36, alignItems: 'center', justifyContent: 'center' }}>
+                          <Package size={18} color="#9CA3AF" />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.deliveryLabel}>Ship to</Text>
+                          <Text style={styles.addressText}>
+                            {[
+                              selectedOrder.shippingAddress?.street,
+                              selectedOrder.shippingAddress?.barangay,
+                              selectedOrder.shippingAddress?.city,
+                              selectedOrder.shippingAddress?.province,
+                              selectedOrder.shippingAddress?.postalCode
+                            ].filter(Boolean).join(', ') || 'No address provided'}
+                          </Text>
+                          <Text style={styles.addressCountry}>Philippines</Text>
+
+                          {(selectedOrder.shippingAddress?.phone || selectedOrder.customerPhone) && (
+                            <View style={styles.contactContainer}>
+                              <View style={styles.phoneRow}>
+                                <Phone size={14} color="#9CA3AF" />
+                                <Text style={styles.phoneText}>
+                                  {selectedOrder.shippingAddress?.phone || selectedOrder.customerPhone}
+                                </Text>
+                              </View>
+                            </View>
+                          )}
+                        </View>
+                      </View>
+
+                      {/* Shipment Status / Dynamic based on status */}
+                      <View style={styles.trackingContainer}>
+                        {selectedOrder.status === 'completed' ? (
+                          <View style={styles.shipmentPending}>
+                            <View style={{ padding: 8, backgroundColor: '#D1FAE5', borderRadius: 8, height: 36, width: 36, alignItems: 'center', justifyContent: 'center' }}>
+                              <CheckCircle size={18} color="#10B981" />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <Text style={[styles.pendingTitle, { color: '#059669' }]}>Delivered Successfully</Text>
+                              <Text style={styles.pendingText}>This order has been received by the customer.</Text>
+                            </View>
+                          </View>
+                        ) : selectedOrder.status === 'shipped' ? (
+                          <View>
+                            <View style={{ flexDirection: 'row', gap: 12, marginBottom: 12 }}>
+                              <View style={{ padding: 8, backgroundColor: '#DBEAFE', borderRadius: 8, height: 36, width: 36, alignItems: 'center', justifyContent: 'center' }}>
+                                <Truck size={18} color="#3B82F6" />
+                              </View>
+                              <View style={{ flex: 1 }}>
+                                <Text style={[styles.pendingTitle, { color: '#2563EB' }]}>In Transit</Text>
+                                <Text style={styles.pendingText}>The package is currently with the courier for delivery.</Text>
+                                {selectedOrder.trackingNumber && (
+                                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 }}>
+                                    <Text style={[styles.pendingText, { color: '#6B7280', flex: 0 }]}>Tracking Number:</Text>
+                                    <Text style={{ fontWeight: '600', color: '#1F2937', fontSize: 14 }}>{selectedOrder.trackingNumber}</Text>
+                                  </View>
+                                )}
+                              </View>
+                            </View>
+                          </View>
+                        ) : selectedOrder.status === 'to-ship' ? (
+                          <View style={styles.shipmentPending}>
+                            <View style={{ padding: 8, backgroundColor: '#FFF5F0', borderRadius: 8, height: 36, width: 36, alignItems: 'center', justifyContent: 'center' }}>
+                              <Package size={18} color="#FF5722" />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <Text style={[styles.pendingTitle, { color: '#E44E1F' }]}>Preparing for Shipment</Text>
+                              <Text style={styles.pendingText}>Please pack the items and prepare the shipping label.</Text>
+                            </View>
+                          </View>
+                        ) : selectedOrder.status === 'cancelled' ? (
+                          <View style={styles.shipmentPending}>
+                            <View style={{ padding: 8, backgroundColor: '#FEE2E2', borderRadius: 8, height: 36, width: 36, alignItems: 'center', justifyContent: 'center' }}>
+                              <XCircle size={18} color="#DC2626" />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <Text style={[styles.pendingTitle, { color: '#DC2626' }]}>Shipment Cancelled</Text>
+                              <Text style={styles.pendingText}>The order has been cancelled and will not be shipped.</Text>
+                            </View>
+                          </View>
+                        ) : (
+                          <View style={styles.shipmentPending}>
+                            <View style={{ padding: 8, backgroundColor: '#FEF3C7', borderRadius: 8, height: 36, width: 36, alignItems: 'center', justifyContent: 'center' }}>
+                              <RefreshCw size={18} color="#F59E0B" />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <Text style={[styles.pendingTitle, { color: '#B45309' }]}>Awaiting Confirmation</Text>
+                              <Text style={styles.pendingText}>Please review and confirm the order to start processing.</Text>
+                            </View>
+                          </View>
+                        )}
+                      </View>
+                    </View>
+                  </View>
+
+
+                </ScrollView>
+
+                {/* Sticky Action Footer */}
                 {selectedOrder.status !== 'completed' && selectedOrder.status !== 'cancelled' ? (
-                  <View style={styles.editSection}>
-                    <Text style={styles.editSectionTitle}>Update Status</Text>
-                    <View style={styles.statusActionsGrid}>
-                      {selectedOrder.status === 'pending' && (
-                        <>
-                          <Pressable
-                            style={[styles.statusActionButton, { backgroundColor: '#FF5722' }]}
-                            onPress={() => handleStatusUpdate('to-ship')}
-                          >
-                            <Truck size={20} color="#FFFFFF" />
-                            <Text style={styles.statusActionText}>Mark as To Ship</Text>
-                          </Pressable>
-                          <Pressable
-                            style={[styles.statusActionButton, { backgroundColor: '#EF4444' }]}
-                            onPress={() => handleStatusUpdate('cancelled')}
-                          >
-                            <XCircle size={20} color="#FFFFFF" />
-                            <Text style={styles.statusActionText}>Cancel Order</Text>
-                          </Pressable>
-                        </>
-                      )}
-                      {selectedOrder.status === 'to-ship' && (
-                        <>
-                          <Pressable
-                            style={[styles.statusActionButton, { backgroundColor: '#10B981' }]}
-                            onPress={() => handleStatusUpdate('completed')}
-                          >
-                            <CheckCircle size={20} color="#FFFFFF" />
-                            <Text style={styles.statusActionText}>Mark as Delivered</Text>
-                          </Pressable>
-                          <Pressable
-                            style={[styles.statusActionButton, { backgroundColor: '#EF4444' }]}
-                            onPress={() => handleStatusUpdate('cancelled')}
-                          >
-                            <XCircle size={20} color="#FFFFFF" />
-                            <Text style={styles.statusActionText}>Cancel Order</Text>
-                          </Pressable>
-                        </>
-                      )}
-                    </View>
+                  <View style={styles.stickyFooter}>
+                    {selectedOrder.status === 'pending' && (
+                      <View style={styles.footerActionRow}>
+                        <Pressable
+                          style={[styles.footerButton, { backgroundColor: '#FF5722' }]}
+                          onPress={() => handleStatusUpdate('to-ship')}
+                        >
+                          <Text style={styles.footerButtonText}>Confirm Order</Text>
+                        </Pressable>
+                        <Pressable
+                          style={[styles.footerButton, styles.footerButtonOutline]}
+                          onPress={() => handleStatusUpdate('cancelled')}
+                        >
+                          <Text style={[styles.footerButtonText, { color: '#EF4444' }]}>Cancel</Text>
+                        </Pressable>
+                      </View>
+                    )}
+                    {selectedOrder.status === 'to-ship' && (
+                      <View style={styles.footerActionRow}>
+                        <Pressable
+                          style={[styles.footerButton, { backgroundColor: '#FF5722' }]}
+                          onPress={() => handleStatusUpdate('shipped')}
+                        >
+                          <Text style={styles.footerButtonText}>Ship Order</Text>
+                        </Pressable>
+                        <Pressable
+                          style={[styles.footerButton, styles.footerButtonOutline]}
+                          onPress={() => handleStatusUpdate('cancelled')}
+                        >
+                          <Text style={[styles.footerButtonText, { color: '#EF4444' }]}>Cancel</Text>
+                        </Pressable>
+                      </View>
+                    )}
+                    {selectedOrder.status === 'shipped' && (
+                      <View style={styles.footerActionRow}>
+                        <Pressable
+                          style={[styles.footerButton, { backgroundColor: '#10B981' }]}
+                          onPress={() => handleStatusUpdate('completed')}
+                        >
+                          <Text style={styles.footerButtonText}>Mark as Delivered</Text>
+                        </Pressable>
+                      </View>
+                    )}
                   </View>
-                ) : (
-                  <View style={styles.editSection}>
-                    <Text style={styles.editSectionTitle}>Order Status</Text>
-                    <View style={[styles.finalStatusBadge, { 
-                      backgroundColor: selectedOrder.status === 'completed' ? '#D1FAE5' : '#FEE2E2' 
-                    }]}>
-                      <Text style={[styles.finalStatusText, { 
-                        color: selectedOrder.status === 'completed' ? '#10B981' : '#EF4444' 
-                      }]}>
-                        {selectedOrder.status === 'completed' ? '✓ Order Completed' : '✗ Order Cancelled'}
-                      </Text>
-                      <Text style={styles.finalStatusSubtext}>
-                        {selectedOrder.status === 'completed' 
-                          ? 'This order has been successfully delivered' 
-                          : 'This order has been cancelled'}
-                      </Text>
-                    </View>
-                  </View>
-                )}
-
-                <View style={{ height: 20 }} />
-              </ScrollView>
+                ) : null}
+              </>
             )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Tracking Number Input Modal */}
+      <Modal
+        visible={trackingModalVisible}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setTrackingModalVisible(false)}
+      >
+        <View style={styles.promptOverlay}>
+          <View style={styles.promptContent}>
+            <View style={styles.promptHeader}>
+              <Text style={styles.promptTitle}>Enter Tracking Number</Text>
+              <Text style={styles.promptSubtitle}>Please provide the tracking details for this shipment.</Text>
+            </View>
+
+            <View style={styles.promptBody}>
+              <TextInput
+                style={styles.promptInput}
+                value={trackingNumber}
+                onChangeText={setTrackingNumber}
+                placeholder="e.g. BAX-12345678"
+                autoFocus
+                placeholderTextColor="#9CA3AF"
+              />
+            </View>
+
+            <View style={styles.promptFooter}>
+              <Pressable
+                style={[styles.promptButton, styles.promptButtonOutline]}
+                onPress={() => setTrackingModalVisible(false)}
+              >
+                <Text style={[styles.promptButtonText, { color: '#6B7280' }]}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.promptButton, styles.promptButtonPrimary]}
+                onPress={handleTrackingSubmit}
+                disabled={isUpdating}
+              >
+                {isUpdating ? (
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                ) : (
+                  <Text style={styles.promptButtonText}>Confirm Shipment</Text>
+                )}
+              </Pressable>
+            </View>
           </View>
         </View>
       </Modal>
@@ -960,7 +901,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 4,
-    borderBottomLeftRadius: 20, 
+    borderBottomLeftRadius: 20,
     borderBottomRightRadius: 20,
   },
   headerContent: {
@@ -1619,6 +1560,314 @@ const styles = StyleSheet.create({
   saveButtonText: {
     fontSize: 16,
     fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  // New Styles for Detailed View
+  detailCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    marginBottom: 16,
+    overflow: 'hidden',
+  },
+  detailCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    backgroundColor: '#F9FAFB',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+    gap: 8,
+  },
+  detailCardTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#000000ff',
+  },
+  detailCardContent: {
+    padding: 16,
+  },
+  customerNameLarge: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: 4,
+  },
+  customerEmailText: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  customerPhoneText: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  deliveryLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 8,
+  },
+  addressText: {
+    fontSize: 14,
+    color: '#4B5563',
+    lineHeight: 20,
+    marginBottom: 4,
+  },
+  addressCountry: {
+    fontSize: 14,
+    color: '#4B5563',
+    marginBottom: 12,
+  },
+  contactContainer: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  phoneRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  phoneText: {
+    fontSize: 14,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  trackingContainer: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  shipmentPending: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  pendingTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#9CA3AF',
+    marginBottom: 2,
+  },
+  pendingText: {
+    fontSize: 14,
+    color: '#4B5563',
+    flex: 1,
+  },
+  // Modal Hero Header
+  modalHero: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+    marginTop: 4,
+  },
+  modalOrderId: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#111827',
+    marginBottom: 2,
+  },
+  modalOrderDate: {
+    fontSize: 13,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+
+  // Summary Items
+  summaryItemRow: {
+    flexDirection: 'row',
+    marginBottom: 16,
+    gap: 12,
+  },
+  summaryItemImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+    backgroundColor: '#F3F4F6',
+  },
+  summaryItemName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginBottom: 2,
+    lineHeight: 20,
+  },
+  summaryItemVariant: {
+    fontSize: 12,
+    color: '#6B7280',
+  },
+  summaryItemPrice: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1F2937',
+  },
+  summaryItemQty: {
+    fontSize: 12,
+    color: '#6B7280',
+  },
+  summaryDivider: {
+    height: 1,
+    backgroundColor: '#F3F4F6',
+    marginVertical: 12,
+  },
+
+  // Breakdown
+  breakdownRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  breakdownLabel: {
+    fontSize: 13,
+    color: '#6B7280',
+  },
+  breakdownValue: {
+    fontSize: 13,
+    color: '#1F2937',
+    fontWeight: '500',
+  },
+  totalLabelLarge: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  totalValueLarge: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#FF5722',
+  },
+
+  // Sticky Footer
+  stickyFooter: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+    padding: 16,
+    paddingBottom: 20, // Extra padding for safety
+    elevation: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+  },
+  footerActionRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  footerButton: {
+    flex: 1,
+    height: 48,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  footerButtonOutline: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#EF4444',
+    shadowOpacity: 0.05,
+  },
+  footerButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  // Prompt Modal Styles
+  promptOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  promptContent: {
+    width: '100%',
+    maxWidth: 340,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+    elevation: 8,
+  },
+  promptHeader: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  promptIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#FFF5F0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  promptTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: 8,
+  },
+  promptSubtitle: {
+    fontSize: 14,
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  promptBody: {
+    marginBottom: 24,
+  },
+  promptInput: {
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    height: 48,
+    fontSize: 16,
+    color: '#1F2937',
+    fontWeight: '500',
+  },
+  promptFooter: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  promptButton: {
+    flex: 1,
+    height: 48,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  promptButtonPrimary: {
+    backgroundColor: '#FF5722',
+  },
+  promptButtonOutline: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  promptButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
     color: '#FFFFFF',
   },
 });

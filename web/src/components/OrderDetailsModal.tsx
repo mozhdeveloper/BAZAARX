@@ -130,32 +130,32 @@ export function OrderDetailsModal({
         switch (status) {
             case "delivered":
                 return (
-                    <div className="inline-flex items-center bg-blue-50 text-blue-700 gap-1 rounded-full px-3 py-1 text-xs font-normal">
-                        <CheckCircle className="w-3 h-3" /> Delivered
+                    <div className="inline-flex items-center bg-green-50 text-green-700 gap-1 rounded-full px-3 py-1 text-xs font-medium border border-green-100">
+                        <CheckCircle className="w-3" /> Delivered
                     </div>
                 );
             case "shipped":
                 return (
-                    <div className="inline-flex items-center bg-purple-50 text-purple-700 gap-1 rounded-full px-3 py-1 text-xs font-normal">
-                        <Truck className="w-3 h-3" /> Shipped
+                    <div className="inline-flex items-center bg-blue-50 text-blue-700 gap-1 rounded-full px-3 py-1 text-xs font-medium border border-blue-100">
+                        <Truck className="w-3" /> Shipped
                     </div>
                 );
             case "cancelled":
                 return (
-                    <div className="inline-flex items-center bg-red-50 text-red-700 gap-1 rounded-full px-3 py-1 text-xs font-normal">
-                        <XCircle className="w-3 h-3" /> Cancelled
+                    <div className="inline-flex items-center bg-red-50 text-red-700 gap-1 rounded-full px-3 py-1 text-xs font-medium border border-red-100">
+                        <XCircle className="w-3" /> Cancelled
                     </div>
                 );
             case "confirmed":
                 return (
-                    <div className="inline-flex items-center bg-green-50 text-green-700 gap-1 rounded-full px-3 py-1 text-xs font-normal">
-                        <CheckCircle className="w-3 h-3" /> Confirmed
+                    <div className="inline-flex items-center bg-orange-50 text-orange-700 gap-1 rounded-full px-3 py-1 text-xs font-medium border border-orange-100">
+                        <Package className="w-3" /> Confirmed
                     </div>
                 );
             default:
                 return (
-                    <div className="inline-flex items-center bg-orange-50 text-orange-700 gap-1 rounded-full px-3 py-1 text-xs font-normal">
-                        <Clock className="w-3 h-3" /> Pending
+                    <div className="inline-flex items-center bg-amber-50 text-amber-700 gap-1 rounded-full px-3 py-1 text-xs font-medium border border-amber-100">
+                        <Clock className="w-3" /> Pending
                     </div>
                 );
         }
@@ -257,15 +257,15 @@ export function OrderDetailsModal({
                                                         </h4>
                                                         {(item.selectedVariantLabel2 ||
                                                             item.selectedVariantLabel1) && (
-                                                            <p className="text-xs text-gray-500 mt-0.5 truncate">
-                                                                {
-                                                                    item.selectedVariantLabel1
-                                                                }{" "}
-                                                                {item.selectedVariantLabel2
-                                                                    ? `• ${item.selectedVariantLabel2}`
-                                                                    : ""}
-                                                            </p>
-                                                        )}
+                                                                <p className="text-xs text-gray-500 mt-0.5 truncate">
+                                                                    {
+                                                                        item.selectedVariantLabel1
+                                                                    }{" "}
+                                                                    {item.selectedVariantLabel2
+                                                                        ? `• ${item.selectedVariantLabel2}`
+                                                                        : ""}
+                                                                </p>
+                                                            )}
                                                     </div>
                                                     <div className="text-right flex flex-col justify-center">
                                                         <p className="text-sm font-medium text-gray-900">
@@ -353,7 +353,7 @@ export function OrderDetailsModal({
                                                     <span className="block text-sm font-semibold text-gray-900 mb-1">
                                                         Ship to
                                                     </span>
-                                                    <span className="block text-xs text-gray-600 leading-relaxed">
+                                                    <span className="block text-sm text-gray-600 leading-relaxed">
                                                         {order.shippingAddress
                                                             ?.street ||
                                                             "No street provided"}
@@ -378,76 +378,102 @@ export function OrderDetailsModal({
                                                     </span>
                                                     {order.shippingAddress
                                                         ?.phone && (
-                                                        <div className="flex items-center gap-1.5 mt-2">
-                                                            <Phone className="w-3 h-3 text-gray-400" />
-                                                            <span className="text-xs text-gray-600 font-medium">
-                                                                {
-                                                                    order
-                                                                        .shippingAddress
-                                                                        .phone
-                                                                }
-                                                            </span>
-                                                        </div>
-                                                    )}
+                                                            <div className="flex items-center gap-1.5 mt-2">
+                                                                <Phone className="w-3 h-3 text-gray-400" />
+                                                                <span className="text-sm text-gray-600 font-medium">
+                                                                    {
+                                                                        order
+                                                                            .shippingAddress
+                                                                            .phone
+                                                                    }
+                                                                </span>
+                                                            </div>
+                                                        )}
                                                 </div>
                                             </div>
 
-                                            {/* Tracking Info Block */}
-                                            {order.trackingNumber ? (
-                                                <div className="pt-4 border-t border-gray-50">
+                                            {/* Shipment Status / Dynamic based on status */}
+                                            <div className="pt-4 border-t border-gray-100">
+                                                {order.status === "delivered" ? (
                                                     <div className="flex items-start gap-4">
-                                                        <div className="p-2 bg-white border border-gray-100 rounded-lg text-gray-500 mt-0.5 shadow-sm">
-                                                            <Truck className="w-4 h-4" />
+                                                        <div className="p-2 bg-green-50 border border-green-100 rounded-lg text-green-600 mt-0.5 shadow-sm">
+                                                            <CheckCircle className="w-4 h-4" />
                                                         </div>
-                                                        <div className="flex-1 space-y-2">
-                                                            <div>
-                                                                <span className="block text-sm font-semibold text-gray-900">
-                                                                    Shipped with
-                                                                    Standard
-                                                                    Delivery
+                                                        <div className="flex-1">
+                                                            <span className="block text-sm font-semibold text-green-700">
+                                                                Delivered Successfully
+                                                            </span>
+                                                            <p className="text-sm text-green-600/80 leading-relaxed mt-0.5">
+                                                                This order has been received by the customer.
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                ) : order.status === "shipped" ? (
+                                                    <div className="space-y-4">
+                                                        <div className="flex items-start gap-4">
+                                                            <div className="p-2 bg-blue-50 border border-blue-100 rounded-lg text-blue-600 mt-0.5 shadow-sm">
+                                                                <Truck className="w-4 h-4" />
+                                                            </div>
+                                                            <div className="flex-1">
+                                                                <span className="block text-sm font-semibold text-blue-700">
+                                                                    In Transit
                                                                 </span>
-                                                                <div className="flex items-center gap-2 mt-1">
-                                                                    <span className="text-xs text-gray-500">
-                                                                        Status:
-                                                                    </span>
-                                                                    <span className="text-xs text-purple-600 font-medium bg-purple-50 px-1.5 py-0.5 rounded">
-                                                                        {
-                                                                            order.status
-                                                                        }
-                                                                    </span>
-                                                                </div>
-                                                                <div className="flex items-center gap-2 mt-1">
-                                                                    <span className="text-xs text-gray-500">
-                                                                        Tracking
-                                                                        number:
-                                                                    </span>
-                                                                    <span className="text-xs font-medium text-gray-900 underline decoration-gray-300 decoration-dotted cursor-pointer">
-                                                                        {
-                                                                            order.trackingNumber
-                                                                        }
-                                                                    </span>
-                                                                </div>
+                                                                <p className="text-sm text-gray-600 leading-relaxed mt-0.5">
+                                                                    The package is currently with the courier for delivery.
+                                                                </p>
+                                                                {order.trackingNumber && (
+                                                                    <div className="flex items-center gap-2 mt-2">
+                                                                        <span className="text-sm text-gray-500">Tracking number:</span>
+                                                                        <span className="text-sm font-semibold text-gray-900">{order.trackingNumber}</span>
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         </div>
                                                     </div>
-                                                </div>
-                                            ) : (
-                                                <div className="flex items-start gap-4 pt-4 border-t border-gray-50">
-                                                    <div className="p-2 bg-white border border-gray-100 rounded-lg text-gray-400 mt-0.5 shadow-sm">
-                                                        <Truck className="w-4 h-4" />
+                                                ) : order.status === "confirmed" ? (
+                                                    <div className="flex items-start gap-4">
+                                                        <div className="p-2 bg-orange-50 border border-orange-100 rounded-lg text-orange-600 mt-0.5 shadow-sm">
+                                                            <Package className="w-4 h-4" />
+                                                        </div>
+                                                        <div className="flex-1">
+                                                            <span className="block text-sm font-semibold text-orange-700">
+                                                                Preparing for Shipment
+                                                            </span>
+                                                            <p className="text-sm text-gray-600 leading-relaxed mt-0.5">
+                                                                Please pack the items and prepare the shipping label.
+                                                            </p>
+                                                        </div>
                                                     </div>
-                                                    <div>
-                                                        <span className="block text-sm font-semibold text-gray-400 mb-0.5">
-                                                            Shipment Pending
-                                                        </span>
-                                                        <span className="block text-xs text-gray-400 leading-relaxed">
-                                                            Details will appear
-                                                            here once the order
-                                                            is shipped.
-                                                        </span>
+                                                ) : order.status === "cancelled" ? (
+                                                    <div className="flex items-start gap-4">
+                                                        <div className="p-2 bg-red-50 border border-red-100 rounded-lg text-red-600 mt-0.5 shadow-sm">
+                                                            <XCircle className="w-4 h-4" />
+                                                        </div>
+                                                        <div className="flex-1">
+                                                            <span className="block text-sm font-semibold text-red-700">
+                                                                Shipment Cancelled
+                                                            </span>
+                                                            <p className="text-sm text-red-600/80 leading-relaxed mt-0.5">
+                                                                The order has been cancelled and will not be shipped.
+                                                            </p>
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            )}
+                                                ) : (
+                                                    <div className="flex items-start gap-4">
+                                                        <div className="p-2 bg-amber-50 border border-amber-100 rounded-lg text-amber-600 mt-0.5 shadow-sm">
+                                                            <Clock className="w-4 h-4" />
+                                                        </div>
+                                                        <div className="flex-1">
+                                                            <span className="block text-sm font-semibold text-amber-700">
+                                                                Awaiting Confirmation
+                                                            </span>
+                                                            <p className="text-sm text-gray-600 leading-relaxed mt-0.5">
+                                                                Please review and confirm the order to start processing.
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
                                     </AccordionContent>
                                 </AccordionItem>
@@ -523,10 +549,10 @@ export function OrderDetailsModal({
                                 )}
                                 {(order.status === "delivered" ||
                                     order.status === "cancelled") && (
-                                    <div className="w-full text-center text-sm text-gray-400 italic py-3 bg-gray-50 rounded-lg border border-gray-100">
-                                        No further actions required.
-                                    </div>
-                                )}
+                                        <div className="w-full text-center text-sm text-gray-400 italic py-3 bg-gray-50 rounded-lg border border-gray-100">
+                                            No further actions required.
+                                        </div>
+                                    )}
                             </div>
                         </div>
                     </motion.div>

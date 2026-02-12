@@ -85,6 +85,7 @@ export interface Order {
 export interface OrderNotification {
   id: string;
   orderId: string;
+  orderNumber?: string;
   type:
   | 'seller_confirmed'
   | 'shipped'
@@ -118,8 +119,8 @@ interface CartStore {
   getOrderById: (orderId: string) => Order | undefined;
   updateOrderStatus: (orderId: string, status: Order['status']) => void;
   simulateOrderProgression: (orderId: string) => void;
-  addNotification: (orderId: string, type: OrderNotification['type'], message: string) => void;
-  addSellerNotification: (orderId: string, type: 'seller_new_order' | 'seller_cancellation_request' | 'seller_return_request' | 'seller_return_approved' | 'seller_return_rejected', message: string) => void;
+  addNotification: (orderId: string, type: OrderNotification['type'], message: string, orderNumber?: string) => void;
+  addSellerNotification: (orderId: string, type: 'seller_new_order' | 'seller_cancellation_request' | 'seller_return_request' | 'seller_return_approved' | 'seller_return_rejected', message: string, orderNumber?: string) => void;
   markNotificationRead: (notificationId: string) => void;
   clearNotifications: () => void;
   getUnreadNotifications: () => OrderNotification[];
@@ -655,7 +656,8 @@ export const useCartStore = create<CartStore>()(
                 get().addSellerNotification(
                   orderId,
                   'seller_new_order',
-                  `New order #${newOrder.orderNumber} from ${orderData.shippingAddress.fullName}. Total: ₱${sellerTotal.toLocaleString()}`
+                  `New order #${newOrder.orderNumber} from ${orderData.shippingAddress.fullName}. Total: ₱${sellerTotal.toLocaleString()}`,
+                  newOrder.orderNumber
                 );
 
                 // Save notification to database if we have seller_id
@@ -745,17 +747,18 @@ export const useCartStore = create<CartStore>()(
           }
 
           if (notificationType) {
-            get().addNotification(orderId, notificationType, notificationMessage);
+            get().addNotification(orderId, notificationType, notificationMessage, order.orderNumber);
           }
         }
       },
-      addNotification: (orderId, type, message) => {
+      addNotification: (orderId, type, message, orderNumber) => {
         const notificationId = `notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
         set((state) => ({
           notifications: [
             {
               id: notificationId,
               orderId,
+              orderNumber,
               type,
               message,
               timestamp: new Date(),
@@ -766,13 +769,14 @@ export const useCartStore = create<CartStore>()(
         }));
       },
 
-      addSellerNotification: (orderId, type, message) => {
+      addSellerNotification: (orderId, type, message, orderNumber) => {
         const notificationId = `notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
         set((state) => ({
           notifications: [
             {
               id: notificationId,
               orderId,
+              orderNumber,
               type,
               message,
               timestamp: new Date(),
