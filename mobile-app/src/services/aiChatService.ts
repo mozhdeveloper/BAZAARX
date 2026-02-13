@@ -275,31 +275,37 @@ class AIChatService {
 
   /**
    * Get or create a conversation for a specific product
+   * Note: Since ai_conversations doesn't have metadata column, we store product_id in the title
+   * Format: "product:{productId}:{productName}"
    */
   async getOrCreateProductConversation(
     userId: string,
     productId: string,
     productName: string
-  ): Promise<{ id: string; metadata?: any } | null> {
+  ): Promise<{ id: string; product_id?: string; product_name?: string } | null> {
     try {
+      // Title format to identify product-specific conversations
+      const titlePrefix = `product:${productId}:`;
+      
       // Try to find existing conversation for this product
       const { data: existing, error: findError } = await supabase
         .from('ai_conversations')
         .select('*')
         .eq('user_id', userId)
         .eq('user_type', 'buyer')
+        .ilike('title', `${titlePrefix}%`)
         .order('last_message_at', { ascending: false })
-        .limit(10); // Check last 10 conversations
+        .limit(1);
 
-      if (!findError && existing) {
-        // Find conversation with matching product_id in metadata
-        const found = existing.find((conv: any) => 
-          conv.metadata?.product_id === productId
-        );
-        
-        if (found) {
-          return found;
-        }
+      if (!findError && existing && existing.length > 0) {
+        const conv = existing[0];
+        // Parse product info from title
+        const parts = conv.title?.split(':') || [];
+        return {
+          id: conv.id,
+          product_id: parts[1] || productId,
+          product_name: parts.slice(2).join(':') || productName,
+        };
       }
 
       // Create new conversation for this product
@@ -308,11 +314,7 @@ class AIChatService {
         .insert({
           user_id: userId,
           user_type: 'buyer',
-          title: `Chat about ${productName}`,
-          metadata: {
-            product_id: productId,
-            product_name: productName,
-          },
+          title: `${titlePrefix}${productName}`,
           last_message_at: new Date().toISOString(),
         })
         .select()
@@ -323,7 +325,11 @@ class AIChatService {
         return null;
       }
 
-      return newConv;
+      return {
+        id: newConv.id,
+        product_id: productId,
+        product_name: productName,
+      };
     } catch (error) {
       console.error('[AIChatService] Error in getOrCreateProductConversation:', error);
       return null;
