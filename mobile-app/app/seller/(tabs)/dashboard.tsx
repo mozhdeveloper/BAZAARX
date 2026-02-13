@@ -741,7 +741,7 @@ const styles = StyleSheet.create({
   floatingMessageButton: {
     position: 'absolute',
     right: 20,
-    bottom: 90,
+    bottom: 20,
     width: 60,
     height: 60,
     borderRadius: 30,

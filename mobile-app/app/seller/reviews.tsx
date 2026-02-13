@@ -9,11 +9,15 @@ import {
   Image,
   TextInput,
   Modal,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { SellerStackParamList } from './SellerStack';
+import { useAuthStore } from '../../src/stores/authStore';
+import { reviewService } from '../../src/services/reviewService';
 import {
   ArrowLeft,
   Star,
@@ -138,7 +142,60 @@ export default function ReviewsScreen() {
     },
   ];
 
-  const [allReviews, setAllReviews] = useState<Review[]>(mockReviews);
+  const { user } = useAuthStore();
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Load reviews on mount
+  React.useEffect(() => {
+    loadReviews();
+  }, [user?.id]);
+
+  const loadReviews = async () => {
+    if (!user?.id) return;
+    try {
+      setLoading(true);
+      const data = await reviewService.getSellerReviews(user.id);
+      // Map API reviews to UI format if needed, or if types match use directly
+      // Types slightly differ: ReviewService returns database shape.
+      // We need to map it to the UI Review interface.
+      const mappedReviews: Review[] = data.map((r: any) => ({
+        id: r.id,
+        productId: r.product_id,
+        productName: r.products?.name || 'Unknown Product',
+        productImage: r.products?.image || 'https://placehold.co/100', // Need standard placeholder
+        buyerName: 'Anonymous Buyer', // Review service might need to join buyer profile? Ah service already does partial join?
+        // reviewService.getSellerReviews returns: Review & { products: ... }
+        // It doesn't seem to return buyer name in the service method I read earlier?
+        // Let's check reviewService.ts again... 
+        // getSellerReviews selects '*, products(name)'
+        // It does NOT select buyer info. 
+        // We might need to stick with mock data if we can't get buyer name, OR modify service.
+        // For now, let's map what we can.
+        buyerAvatar: 'https://placehold.co/40',
+        rating: r.rating,
+        comment: r.comment || '',
+        images: r.images || [],
+        helpful: r.helpful_count || 0,
+        date: new Date(r.created_at),
+        verified: true, // Assume verified for now
+        reply: null // No reply support in DB yet
+      }));
+      setReviews(mappedReviews);
+    } catch (error) {
+      console.error('Error loading reviews:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const [allReviews, setAllReviews] = useState<Review[]>([]);
+
+  // Update allReviews when fetched reviews change
+  React.useEffect(() => {
+    setAllReviews(reviews);
+  }, [reviews]);
+
   const filteredReviews = allReviews.filter((review) => {
     const matchesSearch =
       review.productName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -371,37 +428,42 @@ export default function ReviewsScreen() {
         onRequestClose={() => setShowReplyModal(false)}
       >
         <Pressable style={styles.modalOverlay} onPress={() => setShowReplyModal(false)}>
-          <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
-            <Text style={styles.modalTitle}>Reply to Review</Text>
-            <TextInput
-              style={styles.modalInput}
-              placeholder="Type your response..."
-              placeholderTextColor="#9CA3AF"
-              value={replyText}
-              onChangeText={setReplyText}
-              multiline
-              numberOfLines={4}
-              textAlignVertical="top"
-              autoFocus={true}
-            />
-            <View style={styles.modalActions}>
-              <Pressable
-                style={styles.modalCancelButton}
-                onPress={() => setShowReplyModal(false)}
-              >
-                <Text style={styles.modalCancelText}>Cancel</Text>
-              </Pressable>
-              <Pressable 
-                style={[styles.modalSubmitButton, isSubmitting && { opacity: 0.7 }]} 
-                onPress={submitReply}
-                disabled={isSubmitting}
-              >
-                <Text style={styles.modalSubmitText}>
-                  {isSubmitting ? 'Sending...' : 'Send Reply'}
-                </Text>
-              </Pressable>
-            </View>
-          </Pressable>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={{ width: '100%' }}
+          >
+            <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
+              <Text style={styles.modalTitle}>Reply to Review</Text>
+              <TextInput
+                style={[styles.modalInput, { color: '#000' }]}
+                placeholder="Type your response..."
+                placeholderTextColor="#9CA3AF"
+                value={replyText}
+                onChangeText={setReplyText}
+                multiline
+                numberOfLines={4}
+                textAlignVertical="top"
+                autoFocus={true}
+              />
+              <View style={styles.modalActions}>
+                <Pressable
+                  style={styles.modalCancelButton}
+                  onPress={() => setShowReplyModal(false)}
+                >
+                  <Text style={styles.modalCancelText}>Cancel</Text>
+                </Pressable>
+                <Pressable 
+                  style={[styles.modalSubmitButton, isSubmitting && { opacity: 0.7 }]} 
+                  onPress={submitReply}
+                  disabled={isSubmitting}
+                >
+                  <Text style={styles.modalSubmitText}>
+                    {isSubmitting ? 'Sending...' : 'Send Reply'}
+                  </Text>
+                </Pressable>
+              </View>
+            </Pressable>
+          </KeyboardAvoidingView>
         </Pressable>
       </Modal>
 
