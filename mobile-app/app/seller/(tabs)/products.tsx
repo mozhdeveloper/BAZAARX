@@ -364,6 +364,14 @@ export default function SellerProductsScreen() {
     );
   };
 
+  const handleToggleProductStatus = async (id: string) => {
+    try {
+      await toggleProductStatus(id);
+    } catch (error) {
+      Alert.alert('Update Failed', error instanceof Error ? error.message : 'Failed to update product status');
+    }
+  };
+
   const handleEditProduct = (product: SellerProduct) => {
     const categoryName = asText(product.category);
 
@@ -664,7 +672,7 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
         <View style={styles.productActions}>
           <Switch
             value={item.isActive}
-            onValueChange={() => toggleProductStatus(item.id)}
+            onValueChange={() => handleToggleProductStatus(item.id)}
             trackColor={{ false: '#E5E7EB', true: '#FF5722' }}
             thumbColor="#FFFFFF"
             ios_backgroundColor="#E5E7EB"
