@@ -181,7 +181,8 @@ export default function OrdersScreen({ navigation, route }: Props) {
           } : it.selected_variant || null;
 
           return {
-            id: p.id || it.product_id,
+            id: it.id || `${order.id}_${it.product_id}`, // order_item id for unique identification
+            productId: p.id || it.product_id, // actual product id for reviews
             name: productName,
             price: priceNum,
             originalPrice: typeof p.original_price === 'number' ? p.original_price : undefined,
@@ -304,7 +305,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
       case 'completed':
         baseOrders = dbOrders.filter(o =>
           o.status === 'delivered' &&
-          !returnRequests.some(req => req.orderId === o.id)
+          !returnRequests.some(req => req.orderId === ((o as any).orderId || o.id))
         );
         break;
       case 'cancelled':

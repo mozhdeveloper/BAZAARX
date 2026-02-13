@@ -86,8 +86,8 @@ export default function HistoryScreen({ navigation }: Props) {
                 || 'https://placehold.co/100?text=Product';
               
               return {
-                id: it.id,
-                productId: it.product_id,
+                id: it.id || `${order.id}_${it.product_id}`, // order_item id
+                productId: it.product_id, // actual product id for reviews
                 name: it.product_name || it.product?.name || 'Product',
                 price: it.price || 0,
                 image: primaryImage,

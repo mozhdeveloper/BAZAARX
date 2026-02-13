@@ -140,11 +140,18 @@ export class SellerService {
                 .eq('id', sellerId)
                 .single();
 
-            if (error) throw error;
+            // Handle "not found" as null, not error
+            if (error) {
+                if (error.code === 'PGRST116') {
+                    // No rows returned
+                    return null;
+                }
+                throw error;
+            }
             return this.transformSeller(data);
         } catch (error) {
             console.error('Error fetching seller:', error);
-            throw new Error('Failed to fetch seller information.');
+            return null; // Return null instead of throwing to avoid UI crashes
         }
     }
 

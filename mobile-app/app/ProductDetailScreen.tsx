@@ -517,14 +517,18 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   }
 
   const handleVisitStore = () => {
+    const sellerId = product.seller_id || product.sellerId;
+    if (!sellerId) {
+      Alert.alert('Store Unavailable', 'Store information is not available for this product.');
+      return;
+    }
     navigation.push('StoreDetail', {
       store: {
-        id: product.seller_id || 'store_1',
-        name: product.seller || 'TechHub Manila Official',
-        image: 'https://images.unsplash.com/photo-1472851294608-41551b33fcc3?w=150', // Mock Store Image
-        rating: product.sellerRating || 4.9,
-        followers: 1250,
-        description: 'Official distributor of premium tech gadgets.'
+        id: sellerId,
+        name: product.seller || 'Store',
+        image: product.seller_avatar || product.sellerAvatar || null,
+        rating: product.sellerRating || 0,
+        verified: product.sellerVerified || false,
       }
     });
   };
@@ -593,7 +597,11 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
               </View>
             )}
           </Pressable>
-          <Pressable style={styles.iconButton} onPress={() => setShowMenu(true)}>
+          <Pressable 
+            style={[styles.iconButton, { padding: 8, marginLeft: 4 }]} 
+            onPress={() => setShowMenu(true)}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
             <View style={{ gap: 3 }}>
               <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: '#FFF' }} />
               <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: '#FFF' }} />
