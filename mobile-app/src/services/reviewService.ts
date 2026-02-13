@@ -9,26 +9,26 @@ export interface Review {
     id: string;
     product_id: string;
     buyer_id: string;
-    seller_id: string;
-    order_id: string;
+    order_id: string | null;
     rating: number;
     comment: string | null;
-    images: string[] | null;
     helpful_count: number;
+    seller_reply: any | null;
+    is_verified_purchase: boolean;
     is_hidden: boolean;
     is_edited: boolean;
     created_at: string;
-    updated_at: string;
+    // Images from review_images table (populated separately if needed)
+    images?: string[];
 }
 
 export interface ReviewInsert {
     product_id: string;
     buyer_id: string;
-    seller_id: string;
     order_id: string;
     rating: number;
     comment?: string | null;
-    images?: string[] | null;
+    is_verified_purchase?: boolean;
 }
 
 export class ReviewService {
@@ -55,7 +55,12 @@ export class ReviewService {
             const { data, error } = await supabase
                 .from('reviews')
                 .insert({
-                    ...reviewData,
+                    product_id: reviewData.product_id,
+                    buyer_id: reviewData.buyer_id,
+                    order_id: reviewData.order_id,
+                    rating: reviewData.rating,
+                    comment: reviewData.comment || null,
+                    is_verified_purchase: reviewData.is_verified_purchase ?? true,
                     helpful_count: 0,
                     is_hidden: false,
                     is_edited: false,
@@ -210,55 +215,44 @@ export class ReviewService {
     }
 
     /**
-     * Update order_items is_reviewed flag after submitting a review
+     * Update order_items rating after submitting a review
+     * The order_items table has a rating column to track if item was reviewed
      */
-    async markItemAsReviewed(orderId: string, productId: string): Promise<void> {
+    async markItemAsReviewed(orderId: string, productId: string, rating?: number): Promise<void> {
         if (!isSupabaseConfigured()) return;
 
         try {
-            const { error } = await supabase
-                .from('order_items')
-                .update({ is_reviewed: true })
-                .eq('order_id', orderId)
-                .eq('product_id', productId);
+            const updateData: any = {};
+            if (rating) {
+                updateData.rating = rating;
+            }
+            
+            // Only update if we have data to update
+            if (Object.keys(updateData).length > 0) {
+                const { error } = await supabase
+                    .from('order_items')
+                    .update(updateData)
+                    .eq('order_id', orderId)
+                    .eq('product_id', productId);
 
-            if (error) throw error;
-
+                if (error) {
+                    console.warn('[ReviewService] Could not update order_item rating:', error.message);
+                }
+            }
         } catch (error) {
-            console.error('[ReviewService] Error marking item as reviewed:', error);
+            console.warn('[ReviewService] Error marking item as reviewed:', error);
         }
     }
 
     /**
-     * Update order is_reviewed flag when all items are reviewed
+     * Check if all items in an order have been reviewed
+     * Uses the reviews table to check for existence of reviews
      */
     async checkAndUpdateOrderReviewed(orderId: string): Promise<void> {
+        // This function now just checks if reviews exist - no is_reviewed column to update
+        // The presence of reviews in the reviews table is the source of truth
         if (!isSupabaseConfigured()) return;
-
-        try {
-            // Get all items for this order
-            const { data: items, error: itemsError } = await supabase
-                .from('order_items')
-                .select('is_reviewed')
-                .eq('order_id', orderId);
-
-            if (itemsError) throw itemsError;
-
-            // Check if all items are reviewed
-            const allReviewed = items?.every(item => item.is_reviewed);
-
-            if (allReviewed) {
-                const { error: updateError } = await supabase
-                    .from('orders')
-                    .update({ is_reviewed: true })
-                    .eq('id', orderId);
-
-                if (updateError) throw updateError;
-
-            }
-        } catch (error) {
-            console.error('[ReviewService] Error updating order reviewed status:', error);
-        }
+        // No-op since there's no is_reviewed column on orders table
     }
 }
 

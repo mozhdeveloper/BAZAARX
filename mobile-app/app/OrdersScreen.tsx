@@ -396,28 +396,30 @@ export default function OrdersScreen({ navigation, route }: Props) {
     if (!selectedOrder || !user?.id) return;
 
     try {
-      const item = selectedOrder.items.find(i => i.id === productId);
+      // Get the real order UUID (orderId), not order_number
+      const realOrderId = (selectedOrder as any).orderId || selectedOrder.id;
+      
+      // Find item by productId (now correctly passed from ReviewModal)
+      const item = selectedOrder.items.find(i => 
+        (i as any).productId === productId || i.id === productId
+      );
       if (!item) throw new Error('Product not found');
 
-      const sellerId = item.sellerId || (item as any).seller_id;
-      if (!sellerId) throw new Error('Seller information missing');
-
-      // Create review
+      // Create review (no seller_id - not in reviews table)
       await reviewService.createReview({
         product_id: productId,
         buyer_id: user.id,
-        seller_id: sellerId,
-        order_id: selectedOrder.id,
+        order_id: realOrderId,
         rating,
         comment: review || null,
-        images: null,
+        is_verified_purchase: true,
       });
 
-      // Mark item as reviewed
-      await reviewService.markItemAsReviewed(selectedOrder.id, productId);
+      // Mark item as reviewed with rating
+      await reviewService.markItemAsReviewed(realOrderId, productId, rating);
 
-      // Check if all items reviewed
-      await reviewService.checkAndUpdateOrderReviewed(selectedOrder.id);
+      // Check if all items reviewed (no-op now since no is_reviewed column)
+      await reviewService.checkAndUpdateOrderReviewed(realOrderId);
 
       Alert.alert('Success', 'Your review has been submitted.');
     } catch (error: any) {
