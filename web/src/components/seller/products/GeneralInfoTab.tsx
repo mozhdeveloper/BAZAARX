@@ -161,30 +161,26 @@ export function GeneralInfoTab({
                         htmlFor="stock"
                         className="block text-sm font-semibold text-gray-800 mb-1"
                     >
-                        Stock Quantity {variantConfigs.length === 0 && "*"}
+                        Base Stock Quantity {variantConfigs.length === 0 && "*"}
                     </label>
-                    {variantConfigs.length > 0 ? (
-                        <div className="w-full rounded-xl border border-green-200 bg-green-50 px-3 py-3 text-sm">
-                            <span className="text-green-700 font-medium">
-                                Using variant stock: {getTotalVariantStock()}{" "}
-                                total
-                            </span>
-                            <p className="text-xs text-green-600 mt-1">
-                                Set individual stock levels in the variant
-                                matrix below
-                            </p>
-                        </div>
-                    ) : (
-                        <input
-                            type="number"
-                            id="stock"
-                            name="stock"
-                            value={formData.stock}
-                            onChange={handleChange}
-                            className="w-full rounded-xl border border-gray-200 px-3 py-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                            placeholder="0"
-                            required={variantConfigs.length === 0}
-                        />
+                    <input
+                        type="number"
+                        id="stock"
+                        name="stock"
+                        value={formData.stock}
+                        onChange={handleChange}
+                        className="w-full rounded-xl border border-gray-200 px-3 py-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                        placeholder="0"
+                        required={variantConfigs.length === 0}
+                    />
+                    {variantConfigs.length > 0 && (
+                        <p className="text-xs text-green-700 mt-1">
+                            Base variant stock: {parseInt(formData.stock) || 0} •
+                            Custom variants stock: {getTotalVariantStock()} • Total:
+                            {" "}
+                            {(parseInt(formData.stock) || 0) +
+                                getTotalVariantStock()}
+                        </p>
                     )}
                     {errors.stock && (
                         <p className="text-sm text-red-600">{errors.stock}</p>
