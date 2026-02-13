@@ -180,7 +180,8 @@ export default function HomeScreen({ navigation }: Props) {
             reviewCount: row.reviewCount || 0,
             sold: row.sold || 0,
             seller: row.seller?.store_name || 'Verified Seller',
-            sellerId: row.seller_id || row.seller?.id,
+            seller_id: row.seller_id || row.seller?.id, // snake_case for DB compat
+            sellerId: row.seller_id || row.seller?.id,  // camelCase alias
             sellerRating: 4.9,
             sellerVerified: !!row.seller?.verified_at,
             isFreeShipping: !!row.is_free_shipping,

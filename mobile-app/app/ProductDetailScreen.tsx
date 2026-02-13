@@ -1098,7 +1098,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
         visible={showChat}
         onClose={() => setShowChat(false)}
         storeName={product.seller || 'Store'}
-        sellerId={product.seller_id}
+        sellerId={product.seller_id || product.sellerId}
       />
 
       {showGuestModal && (

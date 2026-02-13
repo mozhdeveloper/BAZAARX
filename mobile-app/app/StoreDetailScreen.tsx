@@ -147,7 +147,9 @@ export default function StoreDetailScreen() {
                             rating: (p as any).rating || 5.0,
                             sold: (p as any).sales_count || 0,
                             category: categoryName,
-                            sellerId: (p as any).seller_id,
+                            seller_id: (p as any).seller_id, // snake_case for DB compat
+                            sellerId: (p as any).seller_id,  // camelCase alias
+                            seller: storeData.name,
                             sellerName: storeData.name,
                             sellerLocation: storeData.location
                         };
