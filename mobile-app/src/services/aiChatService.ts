@@ -274,6 +274,143 @@ class AIChatService {
   private conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }> = [];
 
   /**
+   * Get or create a conversation for a specific product
+   */
+  async getOrCreateProductConversation(
+    userId: string,
+    productId: string,
+    productName: string
+  ): Promise<{ id: string; metadata?: any } | null> {
+    try {
+      // Try to find existing conversation for this product
+      const { data: existing, error: findError } = await supabase
+        .from('ai_conversations')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('user_type', 'buyer')
+        .order('last_message_at', { ascending: false })
+        .limit(10); // Check last 10 conversations
+
+      if (!findError && existing) {
+        // Find conversation with matching product_id in metadata
+        const found = existing.find((conv: any) => 
+          conv.metadata?.product_id === productId
+        );
+        
+        if (found) {
+          return found;
+        }
+      }
+
+      // Create new conversation for this product
+      const { data: newConv, error: createError } = await supabase
+        .from('ai_conversations')
+        .insert({
+          user_id: userId,
+          user_type: 'buyer',
+          title: `Chat about ${productName}`,
+          metadata: {
+            product_id: productId,
+            product_name: productName,
+          },
+          last_message_at: new Date().toISOString(),
+        })
+        .select()
+        .single();
+
+      if (createError) {
+        console.error('[AIChatService] Error creating conversation:', createError);
+        return null;
+      }
+
+      return newConv;
+    } catch (error) {
+      console.error('[AIChatService] Error in getOrCreateProductConversation:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get messages for a conversation
+   */
+  async getMessages(conversationId: string): Promise<Array<{ id: string; sender: 'user' | 'ai'; message: string; created_at: string; metadata?: any }> | null> {
+    try {
+      const { data, error } = await supabase
+        .from('ai_messages')
+        .select('*')
+        .eq('conversation_id', conversationId)
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        console.error('[AIChatService] Error fetching messages:', error);
+        return null;
+      }
+
+      return data || [];
+    } catch (error) {
+      console.error('[AIChatService] Error in getMessages:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Send a message and save to history (overloaded for both DB and AI)
+   */
+  async sendMessage(
+    conversationIdOrText: string,
+    senderOrContext: 'user' | 'ai' | ChatContext,
+    messageOrMetadata?: string | any,
+    metadata?: any
+  ): Promise<any> {
+    // If first arg is a UUID and second is user/ai, it's a DB save
+    if (typeof senderOrContext === 'string' && (senderOrContext === 'user' || senderOrContext === 'ai')) {
+      return this.saveMessageToDb(conversationIdOrText, senderOrContext, messageOrMetadata as string, metadata);
+    } else {
+      // Otherwise, it's the AI chat API call
+      return this.sendAIMessage(conversationIdOrText, senderOrContext as ChatContext);
+    }
+  }
+
+  /**
+   * Save message to database
+   */
+  async saveMessageToDb(
+    conversationId: string,
+    sender: 'user' | 'ai',
+    message: string,
+    metadata?: any
+  ): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('ai_messages')
+        .insert({
+          conversation_id: conversationId,
+          sender,
+          message,
+          metadata: metadata || null,
+        });
+
+      if (error) {
+        console.error('[AIChatService] Error saving message:', error);
+        return false;
+      }
+
+      // Update conversation's last_message_at
+      await supabase
+        .from('ai_conversations')
+        .update({
+          last_message_at: new Date().toISOString(),
+        })
+        .eq('id', conversationId);
+
+      return true;
+    } catch (error) {
+      console.error('[AIChatService] Error in saveMessageToDb:', error);
+      return false;
+    }
+  }
+
+  /**
    * Fetch complete product details from database
    */
   async getProductDetails(productId: string): Promise<ProductContext | null> {
@@ -640,7 +777,7 @@ ${r.recentReviews.slice(0, 3).map(rev => `- **${rev.buyerName}** (⭐${rev.ratin
   /**
    * Send message to Gemini AI and get professional response
    */
-  async sendMessage(
+  async sendAIMessage(
     userMessage: string,
     context: ChatContext
   ): Promise<{ response: string; suggestTalkToSeller: boolean }> {

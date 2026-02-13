@@ -904,6 +904,11 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
       {/* --- BOTTOM ACTIONS (Matches Screenshot) --- */}
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
+        <Pressable style={styles.chatSellerBtn} onPress={() => setShowChat(true)}>
+          <MessageCircle size={20} color="#10B981" style={{ marginRight: 8 }} />
+          <Text style={styles.chatSellerText}>Chat Seller</Text>
+        </Pressable>
+        
         <Pressable style={styles.addToCartBtn} onPress={handleAddToCart}>
           <ShoppingCart size={20} color={BRAND_COLOR} style={{ marginRight: 8 }} />
           <Text style={styles.addToCartText}>Add to Cart</Text>
@@ -1292,8 +1297,13 @@ const styles = StyleSheet.create({
     position: 'absolute', bottom: 0, left: 0, right: 0,
     backgroundColor: '#FFF', flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: 16, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F3F4F6',
-    gap: 12, elevation: 8,
+    gap: 8, elevation: 8,
   },
+  chatSellerBtn: {
+    height: 48, paddingHorizontal: 12, flexDirection: 'row', justifyContent: 'center', alignItems: 'center',
+    borderRadius: 24, borderWidth: 2, borderColor: '#10B981', backgroundColor: '#FFF',
+  },
+  chatSellerText: { color: '#10B981', fontWeight: '700', fontSize: 14 },
   addToCartBtn: {
     flex: 1, height: 48, flexDirection: 'row', justifyContent: 'center', alignItems: 'center',
     borderRadius: 24, borderWidth: 2, borderColor: BRAND_COLOR, backgroundColor: '#FFF',
