@@ -500,7 +500,7 @@ export default function SellerOrdersScreen() {
               <Pressable
                 key={order.id}
                 style={styles.orderCard}
-                onPress={() => openEditModal(order)}
+                onPress={() => (navigation as any).navigate('SellerOrderDetail', { orderId: order.id })}
               >
                 <View style={styles.orderHeader}>
                   <View style={{ flex: 1, marginRight: 10 }}>
