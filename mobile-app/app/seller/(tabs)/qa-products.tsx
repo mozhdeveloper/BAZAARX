@@ -77,7 +77,7 @@ export default function SellerProductQAScreen() {
       const vendorName = seller.store_name;
       return p.vendor.toLowerCase() === vendorName.toLowerCase();
     }
-    return true; // Show all if no filter criteria
+    return false; // Strict filtering: if it doesn't match sellerId or vendor, don't show it
   });
 
   console.log('[QA Products] qaProducts:', qaProducts.length, 'sellerQAProducts:', sellerQAProducts.length);

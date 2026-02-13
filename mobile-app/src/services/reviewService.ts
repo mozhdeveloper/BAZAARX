@@ -177,10 +177,12 @@ export class ReviewService {
         }
 
         try {
+            // Perform inner join on products to filter by seller_id
+            // The reviews table doesn't have seller_id directly, so we filter via product
             const { data, error } = await supabase
                 .from('reviews')
-                .select('*, products(name)')
-                .eq('seller_id', sellerId)
+                .select('*, products!inner(name, seller_id)')
+                .eq('products.seller_id', sellerId)
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
