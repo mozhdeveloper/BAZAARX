@@ -1386,15 +1386,40 @@ export const useProductStore = create<ProductStore>()(
       },
 
       toggleProductStatus: async (id) => {
-        try {
-          const product = get().products.find(p => p.id === id);
-          if (!product) {
-            throw new Error('Product not found');
-          }
+        const previousProduct = get().products.find((p) => p.id === id);
+        if (!previousProduct) {
+          throw new Error('Product not found');
+        }
 
-          const newStatus = !product.isActive;
-          await get().updateProduct(id, { isActive: newStatus });
+        const newStatus = !previousProduct.isActive;
+
+        set((state) => ({
+          products: state.products.map((product) =>
+            product.id === id
+              ? {
+                ...product,
+                isActive: newStatus,
+                updatedAt: new Date().toISOString(),
+              }
+              : product,
+          ),
+        }));
+
+        try {
+          if (isSupabaseConfigured()) {
+            if (newStatus) {
+              await productService.enableProduct(id);
+            } else {
+              await productService.disableProduct(id);
+            }
+          }
         } catch (error) {
+          set((state) => ({
+            products: state.products.map((product) =>
+              product.id === id ? previousProduct : product,
+            ),
+          }));
+
           console.error('Error toggling product status:', error);
           throw error;
         }
