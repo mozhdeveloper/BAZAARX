@@ -1152,6 +1152,14 @@ export const useProductStore = create<ProductStore>()(
             };
           }
 
+          // Keep UI stock in sync immediately after creation.
+          // products table does not store aggregated stock, so the first mapped
+          // product row can show 0 until the next full fetch.
+          newProduct = {
+            ...newProduct,
+            stock: Number(product.stock ?? newProduct.stock ?? 0),
+          };
+
           set((state) => ({ products: [...state.products, newProduct] }));
 
           // Create ledger entry for initial stock
