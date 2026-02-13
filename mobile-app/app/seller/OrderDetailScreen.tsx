@@ -6,22 +6,16 @@ import {
     ScrollView,
     Pressable,
     Image,
-    TextInput,
-    Modal,
     ActivityIndicator,
     Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import {
-    ArrowLeft, X, Package, Truck, CheckCircle, XCircle,
-    RefreshCw, Phone, User,
-    MapPin
-} from 'lucide-react-native';
+import { ArrowLeft, MapPin, Phone, User, Mail } from 'lucide-react-native';
 import { useSellerStore } from '../../src/stores/sellerStore';
 import { safeImageUri } from '../../src/utils/imageUtils';
+import TrackingModal from '../../src/components/seller/TrackingModal';
 
-// Fix for TS Error: Define valid status union
 type OrderStatus = 'pending' | 'to-ship' | 'shipped' | 'completed' | 'cancelled';
 
 export default function SellerOrderDetailScreen() {
@@ -30,29 +24,21 @@ export default function SellerOrderDetailScreen() {
     const route = useRoute<any>();
     const { orderId } = route.params;
 
-    const {
-        orders = [],
-        updateOrderStatus,
-        markOrderAsShipped,
-        seller,
-        fetchOrders
-    } = useSellerStore();
-
+    const { orders = [], updateOrderStatus, markOrderAsShipped, seller, fetchOrders } = useSellerStore();
     const [order, setOrder] = useState<any>(null);
+    const [loading, setLoading] = useState(true);
+
     const [trackingModalVisible, setTrackingModalVisible] = useState(false);
     const [trackingNumber, setTrackingNumber] = useState('');
     const [isUpdating, setIsUpdating] = useState(false);
-    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const loadOrder = async () => {
             let foundOrder = orders.find(o => o.id === orderId || o.orderId === orderId);
-
             if (!foundOrder && seller?.id) {
                 await fetchOrders(seller.id);
                 foundOrder = orders.find(o => o.id === orderId || o.orderId === orderId);
             }
-
             setOrder(foundOrder);
             setLoading(false);
         };
@@ -60,6 +46,7 @@ export default function SellerOrderDetailScreen() {
     }, [orderId, orders]);
 
     const handleStatusUpdate = async (newStatus: OrderStatus) => {
+        // If marking as shipped, intercept and show the modal
         if (newStatus === 'shipped') {
             setTrackingNumber('');
             setTrackingModalVisible(true);
@@ -67,13 +54,11 @@ export default function SellerOrderDetailScreen() {
         }
 
         try {
-            setIsUpdating(true);
             await updateOrderStatus(orderId, newStatus);
             if (seller?.id) await fetchOrders(seller.id);
+            Alert.alert("Success", `Order updated to ${newStatus.replace('-', ' ')}`);
         } catch (error) {
             Alert.alert('Error', 'Failed to update status');
-        } finally {
-            setIsUpdating(false);
         }
     };
 
@@ -83,228 +68,217 @@ export default function SellerOrderDetailScreen() {
             return;
         }
 
+        setIsUpdating(true);
         try {
-            setIsUpdating(true);
+            // Fix: Removed the third argument (seller?.id) to match the expected 2 arguments
             await markOrderAsShipped(orderId, trackingNumber);
+
             setTrackingModalVisible(false);
             if (seller?.id) await fetchOrders(seller.id);
+            Alert.alert("Success", "Order marked as shipped with tracking number.");
         } catch (error) {
-            Alert.alert('Error', 'Failed to mark as shipped');
+            console.error('[OrderDetail] Failed to mark as shipped:', error);
+            Alert.alert('Error', 'Failed to update tracking number');
         } finally {
             setIsUpdating(false);
         }
     };
 
-    // Helper functions for original styling
-    const getStatusColor = (status: string) => {
+    const getStatusStyles = (status: string) => {
         switch (status) {
-            case 'completed': return '#10B981';
-            case 'shipped': return '#3B82F6';
-            case 'to-ship': return '#FF5722';
-            case 'pending': return '#FBBF24';
-            case 'cancelled': return '#DC2626';
-            default: return '#6B7280';
-        }
-    };
-
-    const getStatusBgColor = (status: string) => {
-        switch (status) {
-            case 'completed': return '#D1FAE5';
-            case 'shipped': return '#DBEAFE';
-            case 'to-ship': return '#FFF5F0';
-            case 'pending': return '#FEF3C7';
-            case 'cancelled': return '#FEE2E2';
-            default: return '#F3F4F6';
+            case 'completed': return { color: '#10B981', bg: '#D1FAE5' };
+            case 'shipped': return { color: '#3B82F6', bg: '#DBEAFE' };
+            case 'to-ship': return { color: '#FF5722', bg: '#FFF5F0' };
+            case 'pending': return { color: '#FBBF24', bg: '#FEF3C7' };
+            case 'cancelled': return { color: '#DC2626', bg: '#FEE2E2' };
+            default: return { color: '#6B7280', bg: '#F3F4F6' };
         }
     };
 
     if (loading) return <ActivityIndicator style={styles.loader} color="#FF5722" />;
     if (!order) return <View style={styles.empty}><Text>Order not found</Text></View>;
 
+    const statusStyle = getStatusStyles(order.status);
+
     return (
-        <View style={[styles.container, { paddingTop: insets.top }]}>
-            {/* Ported Modal Header Design */}
-            <View style={styles.editModalHeader}>
-                <View style={{ flex: 1 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginRight: 12 }}>
-                        <Text style={styles.modalOrderId}>Order #{String(order.orderId || order.id).toUpperCase()}</Text>
-                        <View style={[styles.statusBadge, { backgroundColor: getStatusBgColor(order.status) }]}>
-                            <Text style={[styles.statusText, { color: getStatusColor(order.status) }]}>
-                                {String(order.status).replace('-', ' ').toUpperCase()}
-                            </Text>
-                        </View>
-                    </View>
-                    <Text style={styles.modalOrderDate}>
-                        {new Date(order.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
-                    </Text>
+        <View style={styles.container}>
+            {/* Themed Header */}
+            <View style={[styles.customHeader, { paddingTop: insets.top + 10 }]}>
+                <View style={styles.headerRow}>
+                    <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
+                        <ArrowLeft size={24} color="#1F2937" />
+                    </Pressable>
+                    <Text style={styles.headerTitle}>#{String(order.orderId || order.id).toUpperCase()}</Text>
+                    <View style={{ width: 40 }} />
                 </View>
-                <Pressable onPress={() => navigation.goBack()} style={styles.closeButton}>
-                    <ArrowLeft size={24} color="#6B7280" />
-                </Pressable>
             </View>
 
-            <ScrollView style={styles.editModalBody} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
-                {/* Original Order Summary Card */}
-                <View style={[styles.detailCard, { marginTop: 0 }]}>
-                    <View style={styles.detailCardHeader}>
-                        <Text style={styles.detailCardTitle}>Order Summary</Text>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 140 }}>
+                {/* Status Row */}
+                <View style={styles.statusSection}>
+                    <View style={styles.dateTimeContainer}>
+                        <Text style={styles.dateLabel}>
+                            {new Date(order.createdAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                        </Text>
+                        <Text style={styles.timeLabel}>
+                            {new Date(order.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                        </Text>
                     </View>
+                    <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}>
+                        <Text style={[styles.statusText, { color: statusStyle.color }]}>
+                            {String(order.status).replace('-', ' ').toUpperCase()}
+                        </Text>
+                    </View>
+                </View>
+
+                {/* Summary Card */}
+                <View style={styles.detailCard}>
+                    <View style={styles.detailCardHeader}><Text style={styles.detailCardTitle}>Order Summary</Text></View>
                     <View style={styles.detailCardContent}>
                         {order.items.map((item: any, index: number) => (
-                            <View key={index} style={styles.summaryItemRow}>
-                                <Image source={{ uri: safeImageUri(item.image) }} style={styles.summaryItemImage} />
+                            <View key={index} style={styles.itemRow}>
+                                <Image source={{ uri: safeImageUri(item.image) }} style={styles.itemImage} />
                                 <View style={{ flex: 1 }}>
-                                    <Text style={styles.summaryItemName} numberOfLines={2}>{item.productName || item.name}</Text>
-                                    <Text style={styles.summaryItemQty}>x{item.quantity}</Text>
+                                    <Text style={styles.itemName}>{item.productName || item.name}</Text>
+                                    <Text style={styles.itemQty}>Quantity: {item.quantity}</Text>
                                 </View>
-                                <Text style={styles.summaryItemPrice}>₱{(item.price || 0).toLocaleString()}</Text>
+                                <Text style={styles.itemPrice}>₱{(item.price || 0).toLocaleString()}</Text>
                             </View>
                         ))}
-                        <View style={styles.summaryDivider} />
-                        <View style={[styles.breakdownRow, { marginTop: 8 }]}>
-                            <Text style={styles.totalLabelLarge}>Total Amount</Text>
-                            <Text style={styles.totalValueLarge}>₱{order.total.toLocaleString()}</Text>
+                        <View style={styles.divider} />
+                        <View style={styles.totalRow}>
+                            <Text style={styles.totalLabel}>Total Amount</Text>
+                            <Text style={styles.totalValue}>₱{order.total.toLocaleString()}</Text>
                         </View>
                     </View>
                 </View>
 
-                {/* Customer Information Card */}
+                {/* Customer Information */}
                 <View style={styles.detailCard}>
-                    <View style={styles.detailCardHeader}><Text style={styles.detailCardTitle}>Customer</Text></View>
+                    <View style={styles.detailCardHeader}><Text style={styles.detailCardTitle}>Customer Details</Text></View>
                     <View style={styles.detailCardContent}>
-                        <Text style={styles.customerNameLarge}>{order.customerName || 'Walk-in'}</Text>
-                        <Text style={styles.customerEmailText}>{order.customerEmail || 'No email provided'}</Text>
+                        <View style={styles.infoLine}><User size={16} color="#9CA3AF" /><Text style={styles.custName}>{order.customerName || 'Walk-in'}</Text></View>
+                        <View style={[styles.infoLine, { marginTop: 8 }]}><Mail size={16} color="#9CA3AF" /><Text style={styles.custEmail}>{order.customerEmail || 'No email provided'}</Text></View>
                     </View>
                 </View>
 
-                {/* Delivery Information Card */}
+                {/* Delivery Information */}
                 <View style={styles.detailCard}>
-                    <View style={styles.detailCardHeader}>
-                        <Text style={styles.detailCardTitle}>Delivery Information</Text>
-                    </View>
+                    <View style={styles.detailCardHeader}><Text style={styles.detailCardTitle}>Delivery Information</Text></View>
                     <View style={styles.detailCardContent}>
-                        <View style={styles.shipmentPending}>
-                            <MapPin size={18} color="#9CA3AF" />
-                            <Text style={styles.addressText}>
-                                {typeof order.shippingAddress === 'string'
-                                    ? order.shippingAddress
-                                    : order.shippingAddress
-                                        ? [
-                                            order.shippingAddress.street,
-                                            order.shippingAddress.barangay,
-                                            order.shippingAddress.city,
-                                            order.shippingAddress.province,
-                                            order.shippingAddress.postalCode
-                                        ].filter(Boolean).join(', ')
-                                        : 'In-store Pickup'
-                                }
+                        <View style={styles.infoLine}>
+                            <MapPin size={16} color="#9CA3AF" />
+                            <Text style={styles.infoText}>
+                                {typeof order.shippingAddress === 'string' ? order.shippingAddress :
+                                    order.shippingAddress ? [order.shippingAddress.street, order.shippingAddress.city].filter(Boolean).join(', ') :
+                                        'In-store Pickup'}
                             </Text>
                         </View>
-
-                        {/* Render Phone if it exists within the address object */}
-                        {typeof order.shippingAddress === 'object' && order.shippingAddress?.phone && (
-                            <View style={[styles.shipmentPending, { marginTop: 8 }]}>
-                                <Phone size={16} color="#9CA3AF" />
-                                <Text style={styles.addressText}>{order.shippingAddress.phone}</Text>
-                            </View>
-                        )}
                     </View>
                 </View>
             </ScrollView>
 
-            {/* Ported Sticky Footer with Original Logic */}
+            {/* Sticky Footer Buttons */}
             {order.status !== 'completed' && order.status !== 'cancelled' && (
-                <View style={styles.stickyFooter}>
+                <View style={[styles.stickyFooter, { paddingBottom: insets.bottom + 16 }]}>
                     <View style={styles.footerActionRow}>
                         {order.status === 'pending' && (
-                            <Pressable style={[styles.footerButton, { backgroundColor: '#FF5722' }]} onPress={() => handleStatusUpdate('to-ship')}>
-                                <Text style={styles.footerButtonText}>Confirm Order</Text>
+                            <Pressable style={[styles.primaryButton, { backgroundColor: '#FF5722' }]} onPress={() => handleStatusUpdate('to-ship')}>
+                                <Text style={styles.buttonText}>Confirm Order</Text>
                             </Pressable>
                         )}
                         {order.status === 'to-ship' && (
-                            <Pressable style={[styles.footerButton, { backgroundColor: '#FF5722' }]} onPress={() => handleStatusUpdate('shipped')}>
-                                <Text style={styles.footerButtonText}>Ship Order</Text>
+                            <Pressable style={[styles.primaryButton, { backgroundColor: '#FF5722' }]} onPress={() => handleStatusUpdate('shipped')}>
+                                <Text style={styles.buttonText}>Ship Order</Text>
                             </Pressable>
                         )}
                         {order.status === 'shipped' && (
-                            <Pressable style={[styles.footerButton, { backgroundColor: '#10B981' }]} onPress={() => handleStatusUpdate('completed')}>
-                                <Text style={styles.footerButtonText}>Mark as Delivered</Text>
+                            <Pressable style={[styles.primaryButton, { backgroundColor: '#10B981' }]} onPress={() => handleStatusUpdate('completed')}>
+                                <Text style={styles.buttonText}>Mark as Delivered</Text>
                             </Pressable>
                         )}
-                        <Pressable style={[styles.footerButton, styles.footerButtonOutline]} onPress={() => handleStatusUpdate('cancelled')}>
-                            <Text style={[styles.footerButtonText, { color: '#EF4444' }]}>Cancel</Text>
+                        <Pressable style={styles.cancelButton} onPress={() => handleStatusUpdate('cancelled')}>
+                            <Text style={styles.cancelButtonText}>Cancel</Text>
                         </Pressable>
                     </View>
                 </View>
             )}
 
-            {/* Tracking Prompt Modal */}
-            <Modal visible={trackingModalVisible} transparent animationType="fade">
-                <View style={styles.promptOverlay}>
-                    <View style={styles.promptContent}>
-                        <Text style={styles.promptTitle}>Enter Tracking Number</Text>
-                        <TextInput
-                            style={styles.promptInput}
-                            value={trackingNumber}
-                            onChangeText={setTrackingNumber}
-                            placeholder="e.g. BAX-12345"
-                            autoFocus
-                        />
-                        <View style={styles.promptFooter}>
-                            <Pressable style={[styles.promptButton, styles.promptButtonOutline]} onPress={() => setTrackingModalVisible(false)}>
-                                <Text>Cancel</Text>
-                            </Pressable>
-                            <Pressable style={[styles.promptButton, styles.promptButtonPrimary]} onPress={handleTrackingSubmit}>
-                                <Text style={{ color: '#fff' }}>Confirm</Text>
-                            </Pressable>
-                        </View>
-                    </View>
-                </View>
-            </Modal>
+            <TrackingModal
+                visible={trackingModalVisible}
+                onClose={() => setTrackingModalVisible(false)}
+                trackingNumber={trackingNumber}
+                setTrackingNumber={setTrackingNumber}
+                onSubmit={handleTrackingSubmit}
+                isUpdating={isUpdating}
+            />
         </View>
     );
 }
 
-// Copy the styles directly from your original orders.tsx styles
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#F5F5F7' },
+    container: { flex: 1, backgroundColor: '#F9FAFB' },
     loader: { flex: 1, justifyContent: 'center' },
     empty: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-    editModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#F3F4F6', backgroundColor: '#fff' },
-    modalOrderId: { fontSize: 18, fontWeight: '800', color: '#111827' },
-    modalOrderDate: { fontSize: 13, color: '#6B7280' },
-    statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 100 },
-    statusText: { fontSize: 11, fontWeight: '700' },
-    closeButton: { padding: 4 },
-    editModalBody: { padding: 20 },
-    detailCard: { backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB', marginBottom: 16, overflow: 'hidden' },
+    customHeader: {
+        backgroundColor: '#FFE5D9',
+        borderBottomLeftRadius: 24,
+        borderBottomRightRadius: 24,
+        paddingBottom: 15,
+        elevation: 2,
+    },
+    headerRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16 },
+    backButton: { padding: 8 },
+    headerTitle: { flex: 1, fontSize: 18, fontWeight: '800', color: '#1F2937', textAlign: 'center' },
+    statusSection: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 20,
+        marginVertical: 20,
+    },
+    dateTimeContainer: { flex: 1 },
+    dateLabel: { fontSize: 14, fontWeight: '700', color: '#1F2937' },
+    timeLabel: { fontSize: 12, color: '#6B7280', marginTop: 2 },
+    statusBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
+    statusText: { fontSize: 11, fontWeight: '800' },
+    detailCard: { backgroundColor: '#FFF', borderRadius: 16, marginHorizontal: 16, marginBottom: 16, borderWidth: 1, borderColor: '#E5E7EB', overflow: 'hidden' },
     detailCardHeader: { padding: 12, backgroundColor: '#F9FAFB', borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
-    detailCardTitle: { fontSize: 14, fontWeight: '600', color: '#000' },
+    detailCardTitle: { fontSize: 13, fontWeight: '700', color: '#4B5563' },
     detailCardContent: { padding: 16 },
-    summaryItemRow: { flexDirection: 'row', marginBottom: 16, gap: 12 },
-    summaryItemImage: { width: 48, height: 48, borderRadius: 8, backgroundColor: '#F3F4F6' },
-    summaryItemName: { fontSize: 14, fontWeight: '600', flex: 1 },
-    summaryItemPrice: { fontSize: 14, fontWeight: '600' },
-    summaryItemQty: { fontSize: 12, color: '#6B7280' },
-    summaryDivider: { height: 1, backgroundColor: '#F3F4F6', marginVertical: 12 },
-    breakdownRow: { flexDirection: 'row', justifyContent: 'space-between' },
-    totalLabelLarge: { fontSize: 16, fontWeight: '700' },
-    totalValueLarge: { fontSize: 18, fontWeight: '800', color: '#FF5722' },
-    customerNameLarge: { fontSize: 16, fontWeight: '700' },
-    customerEmailText: { fontSize: 14, color: '#6B7280' },
-    addressText: { fontSize: 14, color: '#4B5563', flex: 1, marginLeft: 8 },
-    shipmentPending: { flexDirection: 'row', alignItems: 'center' },
-    stickyFooter: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#FFFFFF', borderTopWidth: 1, borderTopColor: '#E5E7EB', padding: 16, paddingBottom: 30 },
+    itemRow: { flexDirection: 'row', gap: 12, marginBottom: 12 },
+    itemImage: { width: 54, height: 54, borderRadius: 12, backgroundColor: '#F3F4F6' },
+    itemName: { fontSize: 14, fontWeight: '600', color: '#1F2937' },
+    itemQty: { fontSize: 12, color: '#6B7280', marginTop: 2 },
+    itemPrice: { fontSize: 15, fontWeight: '700', color: '#1F2937' },
+    divider: { height: 1, backgroundColor: '#F3F4F6', marginVertical: 12 },
+    totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    totalLabel: { fontSize: 15, fontWeight: '800' },
+    totalValue: { fontSize: 19, fontWeight: '900', color: '#FF5722' },
+    custName: { fontSize: 14, fontWeight: '700', color: '#1F2937' },
+    custEmail: { fontSize: 13, color: '#6B7280' },
+    infoLine: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    infoText: { fontSize: 13, color: '#4B5563', flex: 1 },
+    // Sticky Footer Styles
+    stickyFooter: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        backgroundColor: '#FFF',
+        borderTopWidth: 1,
+        borderTopColor: '#E5E7EB',
+        paddingHorizontal: 20,
+        paddingTop: 16,
+        elevation: 10,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: -3 },
+        shadowOpacity: 0.1,
+        shadowRadius: 5,
+    },
     footerActionRow: { flexDirection: 'row', gap: 12 },
-    footerButton: { flex: 1, height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-    footerButtonOutline: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#EF4444' },
-    footerButtonText: { fontSize: 15, fontWeight: '700', color: '#FFFFFF' },
-    promptOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
-    promptContent: { width: '100%', maxWidth: 340, backgroundColor: '#FFFFFF', borderRadius: 20, padding: 24 },
-    promptTitle: { fontSize: 18, fontWeight: '700', marginBottom: 16 },
-    promptInput: { backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12, paddingHorizontal: 16, height: 48, marginBottom: 20 },
-    promptFooter: { flexDirection: 'row', gap: 12 },
-    promptButton: { flex: 1, height: 48, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
-    promptButtonPrimary: { backgroundColor: '#FF5722' },
-    promptButtonOutline: { borderWidth: 1, borderColor: '#E5E7EB' },
+    primaryButton: { flex: 2, height: 50, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+    buttonText: { color: '#FFF', fontSize: 15, fontWeight: '700' },
+    cancelButton: { flex: 1, height: 50, borderRadius: 12, borderWidth: 1, borderColor: '#DC2626', justifyContent: 'center', alignItems: 'center' },
+    cancelButtonText: { color: '#DC2626', fontSize: 15, fontWeight: '700' }
 });

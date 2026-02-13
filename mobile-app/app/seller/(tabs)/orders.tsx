@@ -7,1184 +7,268 @@ import {
   Pressable,
   Image,
   TextInput,
-  Modal,
   ActivityIndicator,
   RefreshControl,
+  Modal,
+  Alert,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { Package, ShoppingCart, Bell, X, Search, ChevronDown, Menu, RefreshCw, Eye, Truck, CheckCircle, XCircle, MapPin, User, Phone, FileText, Download } from 'lucide-react-native';
+import { Bell, X, Search, Menu, Download, ChevronRight, ChevronDown, Check } from 'lucide-react-native';
 import { useSellerStore } from '../../../src/stores/sellerStore';
-import { useReturnStore } from '../../../src/stores/returnStore';
-import SellerDrawer from '../../../src/components/SellerDrawer';
-import OrderDetailsModal from '../../../src/components/seller/OrderDetailsModal';
-import TrackingModal from '../../../src/components/seller/TrackingModal';
 import { safeImageUri } from '../../../src/utils/imageUtils';
 
-type OrderStatus = 'all' | 'pending' | 'to-ship' | 'shipped' | 'completed' | 'cancelled' | 'returns' | 'refunds';
+// Distinguish between UI filters and actual DB states
+type DBStatus = 'pending' | 'to-ship' | 'shipped' | 'completed' | 'cancelled';
+type OrderStatus = 'all' | DBStatus;
 type ChannelFilter = 'all' | 'online' | 'pos';
 
 export default function SellerOrdersScreen() {
-  const { orders = [], updateOrderStatus, markOrderAsShipped, seller, fetchOrders, ordersLoading } = useSellerStore();
+  const { orders = [], seller, fetchOrders, ordersLoading, updateOrderStatus } = useSellerStore();
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation();
-  const [drawerVisible, setDrawerVisible] = useState(false);
-  const [selectedTab, setSelectedTab] = useState<OrderStatus>('all');
-  const [searchQuery, setSearchQuery] = useState('');
+  const navigation = useNavigation<any>();
+
+  const [selectedStatus, setSelectedStatus] = useState<OrderStatus>('all');
   const [channelFilter, setChannelFilter] = useState<ChannelFilter>('all');
+  const [searchQuery, setSearchQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
 
-  // Edit modal state
-  const [editModalVisible, setEditModalVisible] = useState(false);
-  const [selectedOrder, setSelectedOrder] = useState<any>(null);
-  const [trackingModalVisible, setTrackingModalVisible] = useState(false);
-  const [trackingNumber, setTrackingNumber] = useState('');
-  const [isUpdating, setIsUpdating] = useState(false);
-  const [statusDropdownVisible, setStatusDropdownVisible] = useState(false);
+  const [showChannelMenu, setShowChannelMenu] = useState(false);
+  const [showStatusMenu, setShowStatusMenu] = useState(false);
 
-  // Open modal
-  const openEditModal = (order: any) => {
-    console.log('[Orders] Opening details modal for order:', {
-      orderId: order.orderId,
-      status: order.status,
-      customerName: order.customerName,
-    });
-    setSelectedOrder(order);
-    setEditModalVisible(true);
-  };
-
-  // Close edit modal
-  const closeEditModal = () => {
-    setEditModalVisible(false);
-    setSelectedOrder(null);
-  };
-
-  // Handle status update from modal
-  const handleStatusUpdate = async (newStatus: 'pending' | 'to-ship' | 'shipped' | 'completed' | 'cancelled') => {
-    if (selectedOrder) {
-      if (newStatus === 'shipped') {
-        setTrackingNumber('');
-        setTrackingModalVisible(true);
-        return;
-      }
-
-      console.log(`[Orders] Updating order ${selectedOrder.orderId} from ${selectedOrder.status} to ${newStatus}`);
-      await updateOrderStatus(selectedOrder.orderId, newStatus);
-      // Update local selected order state
-      setSelectedOrder({ ...selectedOrder, status: newStatus });
-      // Refresh orders
-      await fetchOrders(seller?.id);
-    }
-  };
-
-  const handleTrackingSubmit = async () => {
-    if (!trackingNumber.trim()) {
-      alert('Please enter a tracking number');
-      return;
-    }
-
-    if (selectedOrder) {
-      setIsUpdating(true);
-      try {
-        console.log(`[Orders] Marking order ${selectedOrder.orderId} as shipped with tracking: ${trackingNumber}`);
-        await markOrderAsShipped(selectedOrder.orderId, trackingNumber);
-
-        // Update local state
-        setSelectedOrder({
-          ...selectedOrder,
-          status: 'shipped',
-          trackingNumber: trackingNumber
-        });
-
-        setTrackingModalVisible(false);
-        await fetchOrders(seller?.id);
-      } catch (error) {
-        console.error('[Orders] Failed to mark as shipped:', error);
-        alert('Failed to update tracking number');
-      } finally {
-        setIsUpdating(false);
-      }
-    }
-  };
-
-  // Fetch orders from database on mount
   useEffect(() => {
-    if (seller?.id) {
-      fetchOrders(seller.id);
-    }
+    if (seller?.id) fetchOrders(seller.id);
   }, [seller?.id]);
 
-
-
-  // Pull-to-refresh handler
   const onRefresh = async () => {
     setRefreshing(true);
-    try {
-      await fetchOrders(seller?.id);
-    } finally {
-      setRefreshing(false);
-    }
-  };
-
-  const getReturnRequestsBySeller = useReturnStore((state) => state.getReturnRequestsBySeller);
-  const returnRequests = seller ? getReturnRequestsBySeller(seller.store_name) : [];
-  const pendingReturnRequests = returnRequests.filter(
-    (req) => req.status === 'pending_review' || req.status === 'seller_response_required'
-  );
-  const refundRequests = returnRequests.filter(
-    (req) =>
-      req.status === 'approved' ||
-      req.status === 'refund_processing' ||
-      req.status === 'refunded' ||
-      req.status === 'item_returned'
-  );
-
-  const isReturnTab = selectedTab === 'returns' || selectedTab === 'refunds';
-  const currentReturnRequests =
-    selectedTab === 'returns'
-      ? pendingReturnRequests
-      : selectedTab === 'refunds'
-        ? refundRequests
-        : [];
-
-  // Status counts for dropdown - Refined to reflect selected channel
-  const orderCounts = {
-    all: channelFilter === 'all' ? orders.length :
-      channelFilter === 'pos' ? orders.filter(o => o.type === 'OFFLINE').length :
-        orders.filter(o => o.type === 'ONLINE' || !o.type).length,
-    pending: channelFilter === 'all' ? orders.filter(o => o.status === 'pending').length :
-      channelFilter === 'pos' ? orders.filter(o => o.status === 'pending' && o.type === 'OFFLINE').length :
-        orders.filter(o => o.status === 'pending' && (o.type === 'ONLINE' || !o.type)).length,
-    'to-ship': channelFilter === 'all' ? orders.filter(o => o.status === 'to-ship').length :
-      channelFilter === 'pos' ? orders.filter(o => o.status === 'to-ship' && o.type === 'OFFLINE').length :
-        orders.filter(o => o.status === 'to-ship' && (o.type === 'ONLINE' || !o.type)).length,
-    shipped: channelFilter === 'all' ? orders.filter(o => o.status === 'shipped').length :
-      channelFilter === 'pos' ? orders.filter(o => o.status === 'shipped' && o.type === 'OFFLINE').length :
-        orders.filter(o => o.status === 'shipped' && (o.type === 'ONLINE' || !o.type)).length,
-    completed: channelFilter === 'all' ? orders.filter(o => o.status === 'completed').length :
-      channelFilter === 'pos' ? orders.filter(o => o.status === 'completed' && o.type === 'OFFLINE').length :
-        orders.filter(o => o.status === 'completed' && (o.type === 'ONLINE' || !o.type)).length,
-    cancelled: channelFilter === 'all' ? orders.filter(o => o.status === 'cancelled').length :
-      channelFilter === 'pos' ? orders.filter(o => o.status === 'cancelled' && o.type === 'OFFLINE').length :
-        orders.filter(o => o.status === 'cancelled' && (o.type === 'ONLINE' || !o.type)).length,
-    returns: channelFilter === 'pos' ? 0 : pendingReturnRequests.length,
-    refunds: channelFilter === 'pos' ? 0 : refundRequests.length,
+    if (seller?.id) await fetchOrders(seller.id);
+    setRefreshing(false);
   };
 
   const filteredOrders = orders.filter((order) => {
-    const matchesTab =
-      selectedTab === 'all'
-        ? true
-        : ['pending', 'to-ship', 'shipped', 'completed', 'cancelled'].includes(selectedTab)
-          ? order.status === selectedTab
-          : true;
-
-    // Channel filter
-    const matchesChannel =
-      channelFilter === 'all' ? true :
-        channelFilter === 'pos' ? order.type === 'OFFLINE' :
-          (order.type === 'ONLINE' || !order.type);
-
-    const q = searchQuery.trim().toLowerCase();
-    const matchesSearch = !q ? true : (
-      (order.orderId && String(order.orderId).toLowerCase().includes(q)) ||
-      (order.customerName && String(order.customerName).toLowerCase().includes(q)) ||
-      (order.customerEmail && String(order.customerEmail).toLowerCase().includes(q))
-    );
-
-    return matchesTab && matchesChannel && matchesSearch;
+    const matchesStatus = selectedStatus === 'all' || order.status === selectedStatus;
+    const matchesChannel = channelFilter === 'all'
+      ? true
+      : channelFilter === 'pos' ? order.type === 'OFFLINE' : (order.type === 'ONLINE' || !order.type);
+    const q = searchQuery.toLowerCase().trim();
+    return matchesStatus && matchesChannel && (!q || [order.orderId, order.customerName].some(f => String(f || '').toLowerCase().includes(q)));
   });
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return '#10B981';
-      case 'shipped':
-        return '#3B82F6'; // Blue for shipped
-      case 'to-ship':
-        return '#FF5722';
-      case 'pending':
-        return '#FBBF24';
-      case 'cancelled':
-        return '#DC2626';
-      default:
-        return '#6B7280';
-    }
+  const getStatusConfig = (status: string) => {
+    const configs: Record<string, { color: string; action: string | null; next: DBStatus | null }> = {
+      pending: { color: '#FBBF24', action: 'Confirm', next: 'to-ship' },
+      'to-ship': { color: '#FF5722', action: 'Ship Now', next: 'shipped' },
+      shipped: { color: '#3B82F6', action: 'Delivered', next: 'completed' },
+      completed: { color: '#10B981', action: null, next: null },
+      cancelled: { color: '#DC2626', action: null, next: null },
+    };
+    return configs[status] || { color: '#6B7280', action: null, next: null };
   };
 
-  const getStatusBgColor = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return '#D1FAE5';
-      case 'shipped':
-        return '#DBEAFE'; // Light blue for shipped
-      case 'to-ship':
-        return '#FFF5F0';
-      case 'pending':
-        return '#FEF3C7';
-      case 'cancelled':
-        return '#FEE2E2';
-      default:
-        return '#F3F4F6';
-    }
-  };
+  const handleQuickAction = (orderId: string, nextStatus: DBStatus | null) => {
+    if (!nextStatus) return;
 
-  // Null guard for seller
-  if (!seller) {
-    return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <Text style={{ fontSize: 16, color: '#9CA3AF' }}>Loading seller information...</Text>
-      </View>
+    Alert.alert(
+      "Confirm Action",
+      `Are you sure you want to mark this order as ${nextStatus.replace('-', ' ')}?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Confirm",
+          onPress: async () => {
+            try {
+              await updateOrderStatus(orderId, nextStatus);
+              if (seller?.id) fetchOrders(seller.id);
+            } catch (error) {
+              Alert.alert("Error", "Failed to update order status.");
+            }
+          }
+        }
+      ]
     );
-  }
+  };
+
+  const SelectionModal = ({ visible, onClose, options, current, onSelect, title }: any) => (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={styles.modalOverlay} onPress={onClose}>
+        <View style={styles.modalContainer}>
+          <Text style={styles.modalTitle}>{title}</Text>
+          {options.map((opt: string) => (
+            <Pressable key={opt} style={styles.optionItem} onPress={() => onSelect(opt)}>
+              <Text style={[styles.optionText, current === opt && styles.optionTextActive]}>
+                {opt.toUpperCase().replace('-', ' ')}
+              </Text>
+              {current === opt && <Check size={18} color="#FF5722" />}
+            </Pressable>
+          ))}
+        </View>
+      </Pressable>
+    </Modal>
+  );
 
   return (
     <View style={styles.container}>
-      {statusDropdownVisible && (
-        <Pressable
-          style={styles.dropdownOverlay}
-          onPress={() => setStatusDropdownVisible(false)}
-        />
-      )}
-      {/* Seller Drawer */}
-      <SellerDrawer visible={drawerVisible} onClose={() => setDrawerVisible(false)} />
-
-      {/* Immersive Edge-to-Edge Header */}
       <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <View style={styles.headerContent}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            <Pressable style={styles.iconContainer} onPress={() => setDrawerVisible(true)}>
-              <Menu size={24} color="#FFFFFF" strokeWidth={2} />
-            </Pressable>
-            <View style={{ flex: 1 }}>
+          <View style={styles.headerLeft}>
+            <Pressable style={styles.iconContainer}><Menu size={24} color="#1F2937" /></Pressable>
+            <View>
               <Text style={styles.headerTitle}>Orders</Text>
               <Text style={styles.headerSubtitle}>Order Management</Text>
             </View>
           </View>
+          <Pressable style={styles.notificationButton} onPress={() => navigation.getParent()?.navigate('Notifications')}>
+            <Bell size={22} color="#1F2937" strokeWidth={2.5} />
+            <View style={styles.notificationBadge} />
+          </Pressable>
         </View>
+      </View>
 
-        {/* Search Bar */}
+      <View style={styles.searchSection}>
         <View style={styles.searchBar}>
-          <Search size={20} color="#9CA3AF" strokeWidth={2} />
+          <Search size={20} color="#9CA3AF" />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search orders..."
+            placeholder="Search Order ID or Name..."
             value={searchQuery}
             onChangeText={setSearchQuery}
             placeholderTextColor="#9CA3AF"
           />
-          {searchQuery.length > 0 && (
-            <Pressable onPress={() => setSearchQuery('')}>
-              <X size={20} color="#9CA3AF" />
+          {searchQuery.length > 0 && <Pressable onPress={() => setSearchQuery('')}><X size={20} color="#9CA3AF" /></Pressable>}
+        </View>
+      </View>
+
+      <View style={styles.actionRow}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.actionScroll}>
+          <View style={styles.filterItem}>
+            <Text style={styles.rowLabel}>CHANNEL:</Text>
+            <Pressable style={styles.dropdownPill} onPress={() => setShowChannelMenu(true)}>
+              <Text style={styles.pillLabel}>{channelFilter.toUpperCase()}</Text>
+              <ChevronDown size={14} color="#6B7280" />
             </Pressable>
-          )}
-        </View>
-
-        {/* Notification (aligned to search end) */}
-        <Pressable
-          style={[styles.notificationButton, { position: 'absolute', right: 20, top: insets.top + 20 }]}
-          onPress={() => navigation.getParent()?.navigate('Notifications')}
-        >
-          <Bell size={22} color="#FFFFFF" strokeWidth={2.5} />
-          <View style={styles.notificationBadge} />
-        </Pressable>
-      </View>
-
-      <View style={styles.channelFilterRow}>
-        <Pressable
-          style={[styles.channelTab, channelFilter === 'all' && styles.channelTabActive]}
-          onPress={() => setChannelFilter('all')}
-        >
-          <Text style={[styles.channelTabText, channelFilter === 'all' && styles.channelTabTextActive]}>
-            All Channels
-          </Text>
-        </Pressable>
-        <View style={styles.channelSeparator} />
-        <Pressable
-          style={[styles.channelTab, channelFilter === 'online' && styles.channelTabActive]}
-          onPress={() => setChannelFilter('online')}
-        >
-          <Text style={[styles.channelTabText, channelFilter === 'online' && styles.channelTabTextActive]}>
-            Online App
-          </Text>
-        </Pressable>
-        <View style={styles.channelSeparator} />
-        <Pressable
-          style={[styles.channelTab, channelFilter === 'pos' && styles.channelTabActive]}
-          onPress={() => setChannelFilter('pos')}
-        >
-          <Text style={[styles.channelTabText, channelFilter === 'pos' && styles.channelTabTextActive]}>
-            POS / Offline
-          </Text>
-        </Pressable>
-      </View>
-
-      {/* Status Dropdown */}
-      <View style={[styles.segmentedControlRow, { zIndex: 1000 }]}>
-        <View style={styles.filterActionRow}>
-          <Pressable
-            style={styles.statusDropdownTrigger}
-            onPress={() => setStatusDropdownVisible(!statusDropdownVisible)}
-          >
-            <View style={styles.statusDropdownLeft}>
-              <Text style={styles.statusDropdownLabel}>
-                {selectedTab === 'all' ? 'All Orders' :
-                  selectedTab === 'to-ship' ? 'To Ship' :
-                    selectedTab.charAt(0).toUpperCase() + selectedTab.slice(1).replace('-', ' ')}
-              </Text>
-              <View style={styles.statusCountBadge}>
-                <Text style={styles.statusCountText}>({orderCounts[selectedTab]})</Text>
-              </View>
-            </View>
-            <ChevronDown size={18} color="#6B7280" />
+          </View>
+          <View style={styles.filterItem}>
+            <Text style={styles.rowLabel}>STATUS:</Text>
+            <Pressable style={styles.dropdownPill} onPress={() => setShowStatusMenu(true)}>
+              <Text style={styles.pillLabel}>{selectedStatus.toUpperCase().replace('-', ' ')}</Text>
+              <ChevronDown size={14} color="#6B7280" />
+            </Pressable>
+          </View>
+          <Pressable style={styles.exportButton}>
+            <Download size={18} color="#FF5722" />
+            <Text style={styles.exportButtonText}>EXPORT DATA</Text>
           </Pressable>
-
-          <Pressable
-            style={styles.exportButton}
-            onPress={() => {/* Export Logic */ }}
-          >
-            <Download size={18} color="#FF5722" strokeWidth={2.5} />
-            <Text style={styles.exportButtonText}>Export</Text>
-          </Pressable>
-        </View>
-
-        {statusDropdownVisible && (
-          <View style={styles.statusDropdownMenu}>
-            <ScrollView
-              showsVerticalScrollIndicator={false}
-              nestedScrollEnabled={true}
-            >
-              {(['all', 'pending', 'to-ship', 'shipped', 'completed', 'cancelled', 'returns', 'refunds'] as OrderStatus[]).map((tab) => (
-                <Pressable
-                  key={tab}
-                  style={[
-                    styles.statusOptionItem,
-                    selectedTab === tab && styles.statusOptionItemActive
-                  ]}
-                  onPress={() => {
-                    setSelectedTab(tab);
-                    setStatusDropdownVisible(false);
-                  }}
-                >
-                  <Text style={[
-                    styles.statusOptionLabel,
-                    selectedTab === tab && styles.statusOptionLabelActive
-                  ]}>
-                    {tab === 'all' ? 'All Orders' :
-                      tab === 'to-ship' ? 'To Ship' :
-                        tab.charAt(0).toUpperCase() + tab.slice(1).replace('-', ' ')}
-                  </Text>
-                  <Text style={[
-                    styles.statusOptionBadgeText,
-                    selectedTab === tab && styles.statusOptionBadgeTextActive
-                  ]}>
-                    ({orderCounts[tab]})
-                  </Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-          </View>
-        )}
+        </ScrollView>
       </View>
 
-      <ScrollView
-        style={styles.scrollView}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollViewContent}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing || ordersLoading}
-            onRefresh={onRefresh}
-            colors={['#FF5722']}
-            tintColor="#FF5722"
-          />
-        }
-      >
-        {ordersLoading && orders.length === 0 ? (
-          <View style={styles.emptyState}>
-            <ActivityIndicator size="large" color="#FF5722" />
-            <Text style={styles.emptyStateTitle}>Loading orders...</Text>
-          </View>
-        ) : isReturnTab ? (
-          currentReturnRequests.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Package size={64} color="#D1D5DB" strokeWidth={1.5} />
-              <Text style={styles.emptyStateTitle}>
-                {selectedTab === 'returns' ? 'No return requests' : 'No refund requests'}
-              </Text>
-              <Text style={styles.emptyStateText}>
-                {selectedTab === 'returns'
-                  ? 'Return requests from buyers will appear here'
-                  : 'Refund-related requests will appear here'}
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.ordersList}>
-              {currentReturnRequests.map((req) => (
-                <Pressable
-                  key={req.id}
-                  style={styles.orderCard}
-                  onPress={() =>
-                    navigation.getParent()?.navigate('ReturnDetail', {
-                      returnId: req.id,
-                    })
-                  }
-                >
-                  <View style={styles.orderHeader}>
-                    <View style={{ flex: 1, marginRight: 10 }}>
-                      <Text style={styles.orderId} numberOfLines={1} ellipsizeMode="tail">
-                        Order #{req.orderId}
-                      </Text>
-                      <Text
-                        style={styles.customerName}
-                        numberOfLines={1}
-                        ellipsizeMode="tail"
-                      >
-                        Reason: {req.reason.split('_').join(' ')}
-                      </Text>
-                    </View>
-                    <View
-                      style={[
-                        styles.statusBadge,
-                        {
-                          backgroundColor:
-                            selectedTab === 'returns' ? '#FEF3C7' : '#E0F2FE',
-                        },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.statusText,
-                          {
-                            color: selectedTab === 'returns' ? '#D97706' : '#0369A1',
-                          },
-                        ]}
-                      >
-                        {req.status.split('_').join(' ').toUpperCase()}
-                      </Text>
-                    </View>
-                  </View>
-                  <View style={styles.orderFooter}>
-                    <View>
-                      <Text style={styles.totalLabel}>Request Date</Text>
-                      <Text style={styles.customerEmail}>
-                        {new Date(req.createdAt).toLocaleDateString()}
-                      </Text>
-                    </View>
-                    <View>
-                      <Text style={styles.totalLabel}>Amount</Text>
-                      <Text style={styles.totalAmount}>
-                        ₱{req.amount.toLocaleString()}
-                      </Text>
-                    </View>
-                  </View>
-                </Pressable>
-              ))}
-            </View>
-          )
-        ) : filteredOrders.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Package size={64} color="#D1D5DB" strokeWidth={1.5} />
-            <Text style={styles.emptyStateTitle}>
-              No {selectedTab === 'all' ? '' : selectedTab} orders
-            </Text>
-            <Text style={styles.emptyStateText}>
-              {selectedTab === 'all'
-                ? 'Orders will appear here once customers make purchases'
-                : `No orders with "${selectedTab.replace('-', ' ')}" status`}
-            </Text>
-          </View>
-        ) : (
-          <View style={styles.ordersList}>
-            {filteredOrders.map((order) => (
-              <Pressable
-                key={order.id}
-                style={styles.orderCard}
-                onPress={() => (navigation as any).navigate('SellerOrderDetail', { orderId: order.id })}
-              >
-                <View style={styles.orderHeader}>
-                  <View style={{ flex: 1, marginRight: 10 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <View style={{ flexShrink: 1 }}>
-                        <Text
-                          style={styles.orderId}
-                          numberOfLines={1}
-                          ellipsizeMode="tail"
-                        >
-                          {String(order.orderId || order.id || '')}
-                        </Text>
-                      </View>
-                      <View style={{ marginLeft: 8, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                        {order.type === 'OFFLINE' && (
-                          <View style={styles.walkInBadge}>
-                            <Text style={styles.walkInBadgeText}>Walk-in</Text>
-                          </View>
-                        )}
-                        {order.type === 'ONLINE' && (
-                          <View style={styles.onlineBadge}>
-                            <Text style={styles.onlineBadgeText}>Online</Text>
-                          </View>
-                        )}
+      <ScrollView refreshControl={<RefreshControl refreshing={refreshing || ordersLoading} onRefresh={onRefresh} colors={['#FF5722']} />} contentContainerStyle={styles.scrollViewContent}>
+        <View style={styles.ordersList}>
+          {filteredOrders.map((order) => {
+            const config = getStatusConfig(order.status);
+            const isWalkIn = order.type === 'OFFLINE';
+            return (
+              <Pressable key={order.id} style={styles.orderCard} onPress={() => navigation.navigate('SellerOrderDetail', { orderId: order.id })}>
+                <View style={[styles.channelBar, { backgroundColor: isWalkIn ? '#8B5CF6' : '#3B82F6' }]} />
+                <View style={styles.cardContent}>
+                  <View style={styles.cardHeader}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.orderId} numberOfLines={1}>#{String(order.orderId || order.id).toUpperCase()}</Text>
+                      <View style={styles.infoRow}>
+                        <Text style={styles.customerName} numberOfLines={1}>{order.customerName || 'Walk-in'}</Text>
+                        <Text style={styles.orderDate}> • {new Date(order.createdAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</Text>
                       </View>
                     </View>
-                    <Text style={styles.customerName}>
-                      {String(order.customerName || 'Walk-in')}{' '}
-                      <Text style={styles.orderDateLight}>
-                        | {new Date(order.createdAt).toLocaleDateString('en-US', {
-                          month: 'long', day: 'numeric', year: 'numeric'
-                        })}
-                      </Text>
-                    </Text>
+                    <Text style={[styles.statusWord, { color: config.color }]}>{order.status.toUpperCase()}</Text>
                   </View>
-                  <View
-                    style={[
-                      styles.statusBadge,
-                      { backgroundColor: getStatusBgColor(order.status), flexShrink: 0 },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.statusText,
-                        { color: getStatusColor(order.status) },
-                      ]}
-                    >
-                      {String(order.status || 'pending').replace('-', ' ').toUpperCase()}
-                    </Text>
-                  </View>
-                </View>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  style={styles.thumbnailsScroll}
-                >
-                  {order.items.map((item, index) => (
-                    <View key={index} style={styles.thumbnailContainer}>
-                      <Image source={{ uri: safeImageUri(item.image) }} style={styles.thumbnail} />
-                      <View style={styles.quantityBadge}>
-                        <Text style={styles.quantityText}>x{item.quantity}</Text>
-                      </View>
+                  <View style={styles.cardBody}>
+                    <View style={styles.thumbnailStack}>
+                      {order.items.slice(0, 2).map((item: any, i: number) => (
+                        <View key={i} style={styles.thumbWrapper}>
+                          <Image source={{ uri: safeImageUri(item.image) }} style={styles.thumbnail} />
+                          <View style={styles.qtyBadge}><Text style={styles.qtyText}>x{item.quantity}</Text></View>
+                        </View>
+                      ))}
+                      {order.items.length > 2 && <View style={styles.moreItemsBox}><Text style={styles.moreItemsText}>+{order.items.length - 2}</Text></View>}
                     </View>
-                  ))}
-                </ScrollView>
-                <View style={styles.orderFooter}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <Text style={styles.totalLabel}>Total Amount</Text>
-                    <Text style={styles.totalAmount}>
-                      ₱{(
-                        order.total > 0
-                          ? order.total
-                          : order.items.reduce((sum: number, item: any) => sum + ((item.price || 0) * (item.quantity || 1)), 0)
-                      ).toLocaleString()}
-                    </Text>
+                    <View style={styles.priceGroup}>
+                      <Text style={styles.totalValue}>₱{order.total.toLocaleString()}</Text>
+                      <Text style={styles.totalLabel}>Total Amount</Text>
+                    </View>
                   </View>
-                  <View style={styles.viewDetailsHint}>
-                    <Text style={styles.viewDetailsText}>View details</Text>
+                  <View style={styles.cardFooter}>
+                    <View style={styles.detailsBtn}><Text style={styles.detailsBtnText}>View Details</Text><ChevronRight size={14} color="#9CA3AF" /></View>
+                    {config.action && (
+                      <Pressable style={styles.actionBtn} onPress={() => handleQuickAction(order.id, config.next)}>
+                        <Text style={styles.actionBtnText}>{config.action}</Text>
+                      </Pressable>
+                    )}
                   </View>
                 </View>
               </Pressable>
-            ))}
-          </View>
-        )}
-
-        <View style={{ height: 100 }} />
+            );
+          })}
+        </View>
       </ScrollView>
 
-      <OrderDetailsModal
-        visible={editModalVisible}
-        order={selectedOrder}
-        onClose={closeEditModal}
-        onStatusUpdate={handleStatusUpdate}
-      />
-
-      <TrackingModal
-        visible={trackingModalVisible}
-        onClose={() => setTrackingModalVisible(false)}
-        trackingNumber={trackingNumber}
-        setTrackingNumber={setTrackingNumber}
-        onSubmit={handleTrackingSubmit}
-        isUpdating={isUpdating}
-      />
-
+      <SelectionModal visible={showChannelMenu} onClose={() => setShowChannelMenu(false)} title="Select Channel" options={['all', 'online', 'pos']} current={channelFilter} onSelect={(val: ChannelFilter) => { setChannelFilter(val); setShowChannelMenu(false); }} />
+      <SelectionModal visible={showStatusMenu} onClose={() => setShowStatusMenu(false)} title="Select Status" options={['all', 'pending', 'to-ship', 'shipped', 'completed', 'cancelled']} current={selectedStatus} onSelect={(val: OrderStatus) => { setSelectedStatus(val); setShowStatusMenu(false); }} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F5F5F7',
-  },
-  header: {
-    backgroundColor: '#FF5722',
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 4,
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
-  },
-  headerContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  menuButton: {
-    padding: 4,
-  },
-  headerTitleContainer: {
-    gap: 2,
-  },
-  headerTitle: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: 0.3,
-  },
-  headerSubtitle: {
-    fontSize: 13,
-    color: '#FFFFFF',
-    opacity: 0.9,
-    fontWeight: '500',
-  },
-  notificationButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-    zIndex: 5,
-    marginRight: 0,
-  },
-  notificationBadge: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    width: 10,
-    height: 10,
-    borderRadius: 6,
-    backgroundColor: '#EF4444',
-    borderWidth: 1.5,
-    borderColor: '#FF5722',
-  },
-  iconContainer: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    padding: 12,
-    borderRadius: 12,
-  },
-  segmentedControl: {
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  // Header search
-  searchBar: {
-    marginTop: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    height: 48,
-    gap: 8,
-    marginBottom: 0,
-    marginHorizontal: 0,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 15,
-    color: '#1F2937',
-  },
-  // Segmented + Filter Row
-  segmentedControlRow: {
-    paddingHorizontal: 20,
-    paddingTop: 4,
-    backgroundColor: 'transparent',
-  },
-  filterActionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  statusDropdownTrigger: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  statusDropdownLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  statusIndicator: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  statusDropdownLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
-  },
-  statusCountBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    borderRadius: 4,
-  },
-  statusCountText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#6B7280',
-  },
-  exportButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    gap: 6,
-  },
-  exportButtonText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#FF5722',
-  },
-  // Status Modal Styles
-  statusDropdownMenu: {
-    position: 'absolute',
-    top: 50,
-    left: 20, // Align exactly with the left padding of segmentedControlRow
-    width: 250,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    paddingVertical: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    zIndex: 2000,
-    maxHeight: 400,
-  },
-  statusModalContent: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    width: 280,
-    marginTop: 180, // Estimated position below filter bar
-    marginLeft: 20,
-    maxHeight: '50%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-    elevation: 20,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  statusModalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  statusModalTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  statusOptionsList: {
-    padding: 8,
-  },
-  statusOptionItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 12,
-    borderRadius: 10,
-    marginBottom: 4,
-  },
-  statusOptionItemActive: {
-    backgroundColor: '#FFF5F0',
-  },
-  statusOptionLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  statusOptionLabel: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#4B5563',
-  },
-  statusOptionLabelActive: {
-    color: '#FF5722',
-    fontWeight: '700',
-  },
-  statusOptionBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  statusOptionBadgeActive: {
-  },
-  statusOptionBadgeText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#6B7280',
-  },
-  statusOptionBadgeTextActive: {
-    color: '#FF5722',
-  },
-  segmentDivider: {
-    width: 1,
-    height: 36,
-    backgroundColor: '#E5E7EB',
-    marginHorizontal: 12,
-  },
-  filterWrapper: {
-    position: 'relative',
-  },
-  filterDropdownButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: '#FF5722',
-    borderRadius: 10,
-  },
-  filterDropdownButtonText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  filterDropdownMenu: {
-    position: 'absolute',
-    top: 48,
-    right: 0,
-    width: 140,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    paddingVertical: 6,
-    paddingHorizontal: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 3,
-    zIndex: 1000,
-  },
-  filterDropdownItem: {
-    paddingVertical: 8,
-    paddingHorizontal: 8,
-    borderRadius: 6,
-  },
-  filterDropdownItemText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
-  },
-  filterDropdownItemTextSelected: {
-    color: '#FF5722',
-  },
-  dropdownOverlay: {
-    position: 'absolute',
-    top: -100, // Cover the header area too
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'transparent',
-    zIndex: 900,
-  },
-  segmentedScrollContent: {
-    paddingHorizontal: 20,
-    gap: 8,
-  },
-  segmentButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    borderRadius: 100,
-    backgroundColor: '#F3F4F6',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  segmentButtonActive: {
-    backgroundColor: '#FF5722',
-  },
-  segmentButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#6B7280',
-  },
-  segmentButtonTextActive: {
-    color: '#FFFFFF',
-  },
-  countBadge: {
-    backgroundColor: '#E5E7EB',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
-    minWidth: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  countBadgeActive: {
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-  },
-  countBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#374151',
-  },
-  countBadgeTextActive: {
-    color: '#FFFFFF',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollViewContent: {
-    paddingBottom: 100,
-  },
-  ordersList: {
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 20,
-  },
-  orderCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  orderHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 16,
-  },
-  orderId: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginBottom: 4,
-  },
-  customerName: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#4B5563',
-    marginBottom: 2,
-  },
-  customerEmail: {
-    fontSize: 12,
-    color: '#9CA3AF',
-  },
-  orderDateLight: {
-    fontWeight: '400',
-    color: '#9CA3AF',
-  },
-  posNote: {
-    fontSize: 12,
-    color: '#6B7280',
-    fontStyle: 'italic',
-  },
-  walkInBadge: {
-    backgroundColor: '#8B5CF6',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  walkInBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  onlineBadge: {
-    backgroundColor: '#3B82F6',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  onlineBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 100,
-  },
-  statusText: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  thumbnailsScroll: {
-    marginBottom: 16,
-  },
-  thumbnailContainer: {
-    marginRight: 8,
-    position: 'relative',
-  },
-  thumbnail: {
-    width: 60,
-    height: 60,
-    borderRadius: 8,
-    backgroundColor: '#F5F5F7',
-  },
-  quantityBadge: {
-    position: 'absolute',
-    top: -4,
-    right: -4,
-    backgroundColor: '#FF5722',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-  },
-  quantityText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  orderFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
-  },
-  totalLabel: {
-    fontSize: 12,
-    color: '#5c5e60ff',
-  },
-  totalAmount: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#FF5722',
-  },
-  actionButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  actionButtonText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 80,
-  },
-  emptyStateTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  emptyStateText: {
-    fontSize: 14,
-    color: '#6B7280',
-    textAlign: 'center',
-    paddingHorizontal: 40,
-  },
-  emptyText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  emptySubtext: {
-    fontSize: 14,
-    color: '#6B7280',
-    textAlign: 'center',
-    paddingHorizontal: 40,
-  },
-  // Channel filter tabs
-  channelFilterRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 8,
-    backgroundColor: 'transparent',
-  },
-  channelTab: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 12,
-  },
-  channelSeparator: {
-    width: 1,
-    height: 14,
-    backgroundColor: '#D1D5DB',
-    marginHorizontal: 8,
-  },
-  channelTabActive: {
-  },
-  channelTabText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#6B7280',
-  },
-  channelTabTextActive: {
-    color: '#FF5722',
-    fontWeight: '800',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-start',
-  },
-  viewDetailsHint: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  viewDetailsText: {
-    fontSize: 12,
-    color: '#73767cff',
-    fontWeight: '500',
-  },
+  container: { flex: 1, backgroundColor: '#F5F5F7' },
+  header: { backgroundColor: '#FFE5CC', paddingHorizontal: 20, paddingBottom: 20, borderBottomLeftRadius: 24, borderBottomRightRadius: 24, elevation: 3 },
+  headerContent: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  iconContainer: { backgroundColor: 'rgba(0,0,0,0.05)', padding: 10, borderRadius: 12 },
+  headerTitle: { fontSize: 22, fontWeight: '800', color: '#1F2937' },
+  headerSubtitle: { fontSize: 13, color: '#4B5563', fontWeight: '500' },
+  notificationButton: { position: 'relative' },
+  notificationBadge: { position: 'absolute', top: 0, right: 0, width: 10, height: 10, borderRadius: 5, backgroundColor: '#EF4444', borderWidth: 2, borderColor: '#FFE5CC' },
+  searchSection: { paddingHorizontal: 20, marginTop: 15 },
+  searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderRadius: 12, paddingHorizontal: 12, height: 48, borderWidth: 1, borderColor: '#E5E7EB' },
+  searchInput: { flex: 1, fontSize: 15, color: '#1F2937', marginLeft: 8 },
+  actionRow: { paddingVertical: 15 },
+  actionScroll: { paddingHorizontal: 20, gap: 15, alignItems: 'center' },
+  filterItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  rowLabel: { fontSize: 10, fontWeight: '800', color: '#9CA3AF' },
+  dropdownPill: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', paddingHorizontal: 10, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: '#E5E7EB', gap: 6 },
+  pillLabel: { fontSize: 11, fontWeight: '700', color: '#374151' },
+  exportButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', paddingHorizontal: 15, paddingVertical: 8, borderRadius: 10, borderStyle: 'dashed', borderWidth: 1, borderColor: '#FF5722', gap: 8 },
+  exportButtonText: { fontSize: 11, fontWeight: '800', color: '#FF5722' },
+  scrollViewContent: { paddingBottom: 40 },
+  ordersList: { paddingHorizontal: 20 },
+  orderCard: { backgroundColor: '#FFF', borderRadius: 18, marginBottom: 15, flexDirection: 'row', overflow: 'hidden', elevation: 3 },
+  channelBar: { width: 6, height: '100%' },
+  cardContent: { flex: 1, padding: 18 },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 15 },
+  orderId: { fontSize: 16, fontWeight: '800', color: '#1F2937' },
+  infoRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
+  customerName: { fontSize: 14, fontWeight: '600', color: '#4B5563', maxWidth: 120 },
+  orderDate: { fontSize: 13, color: '#9CA3AF' },
+  statusWord: { fontSize: 12, fontWeight: '900' },
+  cardBody: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 15, borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#F3F4F6' },
+  thumbnailStack: { flexDirection: 'row', gap: 12 },
+  thumbWrapper: { position: 'relative' },
+  thumbnail: { width: 60, height: 60, borderRadius: 12, backgroundColor: '#F9FAFB' },
+  qtyBadge: { position: 'absolute', top: -8, right: -8, backgroundColor: '#FF5722', paddingHorizontal: 6, borderRadius: 12, borderWidth: 2.5, borderColor: '#FFF', zIndex: 10 },
+  qtyText: { fontSize: 10, fontWeight: '900', color: '#FFF' },
+  moreItemsBox: { width: 60, height: 60, borderRadius: 12, backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center', borderStyle: 'dashed', borderWidth: 1, borderColor: '#D1D5DB' },
+  moreItemsText: { fontSize: 16, fontWeight: '700', color: '#9CA3AF' },
+  priceGroup: { alignItems: 'flex-end' },
+  totalValue: { fontSize: 22, fontWeight: '900', color: '#1F2937' },
+  totalLabel: { fontSize: 10, color: '#9CA3AF', marginTop: 4 },
+  cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 15 },
+  detailsBtn: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  detailsBtnText: { fontSize: 14, color: '#9CA3AF', fontWeight: '600' },
+  actionBtn: { paddingHorizontal: 18, paddingVertical: 10, borderRadius: 10, backgroundColor: '#FF5722' },
+  actionBtnText: { color: '#FFF', fontSize: 12, fontWeight: '800' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
+  modalContainer: { backgroundColor: '#FFF', width: '80%', borderRadius: 20, padding: 20 },
+  modalTitle: { fontSize: 18, fontWeight: '800', marginBottom: 15, color: '#1F2937' },
+  optionItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
+  optionText: { fontSize: 15, color: '#4B5563', fontWeight: '600' },
+  optionTextActive: { color: '#FF5722', fontWeight: '800' },
 });
