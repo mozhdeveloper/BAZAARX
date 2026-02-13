@@ -236,6 +236,9 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   const [newListName, setNewListName] = useState('');
   const [isCreatingList, setIsCreatingList] = useState(false);
 
+  // Menu State
+  const [showMenu, setShowMenu] = useState(false);
+
   // Use product images if available, otherwise mock an array with the main image
   const productImages = product.images || [product.image, product.image, product.image, product.image, product.image];
 
@@ -476,6 +479,33 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     await Share.share({ message: `Check out ${product.name} on BazaarX! ₱${product.price}` });
   };
 
+  const handleMenuAction = (action: string) => {
+    setShowMenu(false);
+    switch (action) {
+      case 'share':
+        handleShare();
+        break;
+      case 'wishlist':
+        handleWishlistAction();
+        break;
+      case 'report':
+        Alert.alert(
+          'Report Product',
+          'Why are you reporting this product?',
+          [
+            { text: 'Inappropriate content', onPress: () => Alert.alert('Thank you', 'Your report has been submitted.') },
+            { text: 'Counterfeit/Fake', onPress: () => Alert.alert('Thank you', 'Your report has been submitted.') },
+            { text: 'Misleading information', onPress: () => Alert.alert('Thank you', 'Your report has been submitted.') },
+            { text: 'Cancel', style: 'cancel' },
+          ]
+        );
+        break;
+      case 'store':
+        handleVisitStore();
+        break;
+    }
+  };
+
   const handleChat = () => {
     const { isGuest } = useAuthStore.getState();
     if (isGuest) {
@@ -563,7 +593,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
               </View>
             )}
           </Pressable>
-          <Pressable style={styles.iconButton} onPress={() => { /* Menu Action */ }}>
+          <Pressable style={styles.iconButton} onPress={() => setShowMenu(true)}>
             <View style={{ gap: 3 }}>
               <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: '#FFF' }} />
               <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: '#FFF' }} />
@@ -1070,6 +1100,40 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
           message={guestModalMessage || "Please log in to perform this action."}
         />
       )}
+
+      {/* Product Menu Modal */}
+      <Modal
+        visible={showMenu}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowMenu(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setShowMenu(false)}>
+          <View style={styles.menuOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={styles.menuContainer}>
+                <Pressable style={styles.menuItem} onPress={() => handleMenuAction('share')}>
+                  <Share2 size={20} color="#374151" />
+                  <Text style={styles.menuItemText}>Share Product</Text>
+                </Pressable>
+                <Pressable style={styles.menuItem} onPress={() => handleMenuAction('wishlist')}>
+                  <Heart size={20} color="#374151" />
+                  <Text style={styles.menuItemText}>{isFavorite ? 'Remove from Wishlist' : 'Add to Wishlist'}</Text>
+                </Pressable>
+                <Pressable style={styles.menuItem} onPress={() => handleMenuAction('store')}>
+                  <MapPin size={20} color="#374151" />
+                  <Text style={styles.menuItemText}>Visit Store</Text>
+                </Pressable>
+                <View style={styles.menuDivider} />
+                <Pressable style={styles.menuItem} onPress={() => handleMenuAction('report')}>
+                  <X size={20} color="#EF4444" />
+                  <Text style={[styles.menuItemText, { color: '#EF4444' }]}>Report Product</Text>
+                </Pressable>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
 
       {/* Added to Cart Success Modal */}
       <AddedToCartModal
@@ -1608,6 +1672,43 @@ const styles = StyleSheet.create({
     height: 60,
     borderRadius: 8,
     marginRight: 8,
+  },
+  // Menu Modal Styles
+  menuOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-start',
+    alignItems: 'flex-end',
+    paddingTop: 100,
+    paddingRight: 16,
+  },
+  menuContainer: {
+    backgroundColor: '#FFF',
+    borderRadius: 12,
+    paddingVertical: 8,
+    minWidth: 200,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 12,
+  },
+  menuItemText: {
+    fontSize: 15,
+    color: '#374151',
+    fontWeight: '500',
+  },
+  menuDivider: {
+    height: 1,
+    backgroundColor: '#E5E7EB',
+    marginVertical: 4,
   },
 });
 

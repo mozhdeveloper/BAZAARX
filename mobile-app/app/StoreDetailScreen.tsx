@@ -86,14 +86,22 @@ export default function StoreDetailScreen() {
                     });
                 }
 
-                // Fetch follower count
-                const count = await sellerService.getFollowerCount(store.id);
-                setFollowerCount(count);
+                // Fetch follower count (non-critical, don't throw)
+                try {
+                    const count = await sellerService.getFollowerCount(store.id);
+                    setFollowerCount(count);
+                } catch (e) {
+                    console.warn('Could not fetch follower count:', e);
+                }
 
-                // Check if following
+                // Check if following (only for logged-in buyers)
                 if (user?.id && !isGuest) {
-                    const following = await sellerService.checkIsFollowing(user.id, store.id);
-                    setIsFollowing(following);
+                    try {
+                        const following = await sellerService.checkIsFollowing(user.id, store.id);
+                        setIsFollowing(following);
+                    } catch (e) {
+                        console.warn('Could not check follow status:', e);
+                    }
                 }
             } catch (error) {
                 console.error('Error fetching store data:', error);
@@ -118,23 +126,39 @@ export default function StoreDetailScreen() {
 
                 if (products && products.length > 0) {
                     // Map database products to display format
-                    const mappedProducts = products.map(p => ({
-                        id: p.id,
-                        name: p.name,
-                        price: p.price,
-                        originalPrice: (p as any).original_price || p.price,
-                        image: (p as any).images?.[0]?.image_url || (p as any).images?.[0] || 'https://images.unsplash.com/photo-1560393464-5c69a73c5770?w=400&h=400&fit=crop',
-                        rating: (p as any).rating || 5.0,
-                        sold: (p as any).sales_count || 0,
-                        category: (p as any).category || 'General',
-                        sellerId: (p as any).seller_id,
-                        sellerName: storeData.name,
-                        sellerLocation: storeData.location
-                    }));
+                    const mappedProducts = products.map(p => {
+                        // Get primary image or first image
+                        const primaryImage = (p as any).images?.find((img: any) => img.is_primary)?.image_url 
+                            || (p as any).images?.[0]?.image_url 
+                            || (p as any).images?.[0] 
+                            || 'https://placehold.co/400?text=Product';
+                        
+                        // Get category name from join
+                        const categoryName = typeof (p as any).category === 'object' 
+                            ? (p as any).category?.name 
+                            : ((p as any).category || 'General');
+                        
+                        return {
+                            id: p.id,
+                            name: p.name,
+                            price: p.price,
+                            originalPrice: (p as any).original_price || p.price,
+                            image: primaryImage,
+                            rating: (p as any).rating || 5.0,
+                            sold: (p as any).sales_count || 0,
+                            category: categoryName,
+                            sellerId: (p as any).seller_id,
+                            sellerName: storeData.name,
+                            sellerLocation: storeData.location
+                        };
+                    });
                     setRealProducts(mappedProducts);
+                } else {
+                    setRealProducts([]);
                 }
             } catch (error) {
                 console.error('Error fetching store products:', error);
+                setRealProducts([]); // Set empty on error instead of leaving stale data
             } finally {
                 setProductsLoading(false);
             }

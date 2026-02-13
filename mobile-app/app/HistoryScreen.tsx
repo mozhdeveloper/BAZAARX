@@ -42,7 +42,7 @@ export default function HistoryScreen({ navigation }: Props) {
   const orders = useOrderStore((state) => state.orders);
   const addItem = useCartStore((state) => state.addItem);
 
-  // Fetche delivered orders from supabase
+  // Fetch delivered/received orders from supabase
   useEffect(() => {
     const loadHistory = async () => {
       if (!user?.id) return;
@@ -54,34 +54,60 @@ export default function HistoryScreen({ navigation }: Props) {
             *,
             items:order_items (
               *,
-              product:products (*)
+              product:products (
+                *,
+                images:product_images (image_url, is_primary)
+              ),
+              variant:product_variants (*)
             )
           `)
           .eq('buyer_id', user.id)
-          .eq('status', 'delivered') // Strictly history
+          .in('shipment_status', ['delivered', 'received']) // Completed orders for history
           .order('created_at', { ascending: false });
 
         if (error) throw error;
 
-        const mapped: Order[] = (data || []).map((order: any) => ({
-          id: order.id,
-          transactionId: order.order_number || order.id,
-          items: (order.items || []).map((it: any) => ({
-            id: it.product?.id,
-            name: it.product?.name || 'Product',
-            price: it.unit_price,
-            image: it.product?.primary_image || '',
-            quantity: it.quantity,
-            selectedVariant: it.selected_variant,
-          })),
-          total: order.total_amount,
-          shippingFee: order.shipping_cost || 0,
-          status: 'delivered',
-          isPaid: true,
-          scheduledDate: new Date(order.created_at).toLocaleDateString(),
-          createdAt: order.created_at,
-          paymentMethod: order.payment_method?.type || 'Paid',
-        })) as Order[];
+        const mapped: Order[] = (data || []).map((order: any) => {
+          // Calculate total from order items
+          const items = order.items || [];
+          const calculatedTotal = items.reduce((sum: number, it: any) => {
+            return sum + ((it.price || 0) * (it.quantity || 1));
+          }, 0);
+
+          return {
+            id: order.id,
+            orderId: order.id,
+            transactionId: order.order_number || order.id,
+            items: items.map((it: any) => {
+              // Get primary image or first image
+              const primaryImage = it.product?.images?.find((img: any) => img.is_primary)?.image_url
+                || it.product?.images?.[0]?.image_url
+                || it.primary_image_url
+                || 'https://placehold.co/100?text=Product';
+              
+              return {
+                id: it.id,
+                productId: it.product_id,
+                name: it.product_name || it.product?.name || 'Product',
+                price: it.price || 0,
+                image: primaryImage,
+                quantity: it.quantity || 1,
+                selectedVariant: it.variant ? {
+                  size: it.variant.size,
+                  color: it.variant.color,
+                  variantId: it.variant.id
+                } : undefined,
+              };
+            }),
+            total: calculatedTotal,
+            shippingFee: items.reduce((sum: number, it: any) => sum + (it.shipping_price || 0), 0),
+            status: 'delivered' as const,
+            isPaid: order.payment_status === 'paid',
+            scheduledDate: new Date(order.created_at).toLocaleDateString(),
+            createdAt: order.created_at,
+            paymentMethod: 'Paid',
+          };
+        }) as Order[];
 
         setDbOrders(mapped);
       } catch (e) {
