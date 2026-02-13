@@ -24,7 +24,11 @@ interface VariantFormProps {
         variant?: string;
         variants?: string;
     };
-    setErrors: (errors: any | ((prev: any) => any)) => void;
+    setErrors: (
+        errors:
+            | Record<string, string>
+            | ((prev: Record<string, string>) => Record<string, string>),
+    ) => void;
     addVariant: () => void;
 }
 
@@ -41,14 +45,6 @@ export function VariantForm({
     setErrors,
     addVariant,
 }: VariantFormProps) {
-    // Calculate remaining stock available for allocation
-    const totalStock = parseInt(formData.stock) || 0;
-    const allocatedStock = variantConfigs.reduce(
-        (sum, variant) => sum + (variant.stock || 0),
-        0,
-    );
-    const remainingStock = totalStock - allocatedStock;
-
     return (
         <div className="space-y-4">
             {/* Add New Variant Form */}
@@ -129,20 +125,10 @@ export function VariantForm({
                         <div>
                             <label className="text-xs font-medium text-gray-500">
                                 Stock *
-                                {totalStock > 0 && (
-                                    <span className="text-gray-600">
-                                        ({remainingStock} left)
-                                    </span>
-                                )}
                             </label>
                             <input
                                 type="number"
                                 min="0"
-                                max={
-                                    remainingStock >= 0
-                                        ? remainingStock
-                                        : undefined
-                                }
                                 value={newVariant.stock || 0}
                                 onChange={(e) =>
                                     setNewVariant((prev) => ({
