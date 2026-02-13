@@ -110,7 +110,7 @@ CREATE TABLE public.cart_items (
 );
 CREATE TABLE public.carts (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
-  buyer_id uuid,
+  buyer_id uuid UNIQUE,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT carts_pkey PRIMARY KEY (id),

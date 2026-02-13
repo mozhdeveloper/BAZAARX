@@ -25,6 +25,7 @@ import { reviewService } from '../src/services/reviewService';
 import { useAuthStore } from '../src/stores/authStore';
 import { safeImageUri } from '../src/utils/imageUtils';
 import ReviewModal from '../src/components/ReviewModal';
+import { BuyerBottomNav } from '../src/components/BuyerBottomNav';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'OrderDetail'>;
 
@@ -544,6 +545,9 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
           </KeyboardAvoidingView>
         </SafeAreaView>
       </Modal>
+
+      {/* Bottom Navigation */}
+      <BuyerBottomNav />
     </LinearGradient>
   );
 }

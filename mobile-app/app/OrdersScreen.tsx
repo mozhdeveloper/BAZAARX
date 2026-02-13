@@ -28,6 +28,7 @@ import { GuestLoginModal } from '../src/components/GuestLoginModal';
 import { OrderCard } from '../src/components/OrderCard';
 import ReviewModal from '../src/components/ReviewModal';
 import { reviewService } from '../src/services/reviewService';
+import { BuyerBottomNav } from '../src/components/BuyerBottomNav';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
@@ -770,6 +771,9 @@ export default function OrdersScreen({ navigation, route }: Props) {
         onClose={() => setShowRatingModal(false)}
         onSubmit={handleSubmitReview}
       />
+
+      {/* Bottom Navigation */}
+      <BuyerBottomNav />
     </LinearGradient>
   );
 }
