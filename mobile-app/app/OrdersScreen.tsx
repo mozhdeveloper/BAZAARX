@@ -327,9 +327,16 @@ export default function OrdersScreen({ navigation, route }: Props) {
     return [...baseOrders].sort((a, b) => {
       const dateA = new Date(a.createdAt).getTime();
       const dateB = new Date(b.createdAt).getTime();
-      return sortOrder === 'latest' ? dateB - dateA : dateA - dateB;
+      // Primary sort by date, secondary sort by transaction ID for deterministic order
+      if (dateA !== dateB) {
+        return sortOrder === 'latest' ? dateB - dateA : dateA - dateB;
+      }
+      // If same date, sort by transaction ID descending (higher number = more recent)
+      return sortOrder === 'latest' 
+        ? b.transactionId.localeCompare(a.transactionId) 
+        : a.transactionId.localeCompare(b.transactionId);
     });
-  }, [activeTab, dbOrders, selectedStatus, searchQuery, sortOrder]);
+  }, [activeTab, dbOrders, selectedStatus, searchQuery, sortOrder, returnRequests]);
 
   const handleBuyAgain = (order: Order) => {
     if (order.items.length > 0) {
@@ -350,17 +357,20 @@ export default function OrdersScreen({ navigation, route }: Props) {
           text: 'Confirm',
           onPress: async () => {
             try {
+              // Use shipment_status column (orders table doesn't have 'status' column)
+              // Use orderId (real UUID) not id (which may be order_number)
+              const realOrderId = (order as any).orderId || order.id;
               const { error } = await supabase
                 .from('orders')
-                .update({ status: 'delivered' })
-                .eq('id', order.id);
+                .update({ shipment_status: 'received' })
+                .eq('id', realOrderId);
 
               if (error) throw error;
 
-              updateOrderStatus(order.id, 'delivered');
+              updateOrderStatus(realOrderId, 'delivered');
 
               setDbOrders(prev => prev.map(o =>
-                o.id === order.id ? { ...o, status: 'delivered' } : o
+                ((o as any).orderId || o.id) === realOrderId ? { ...o, status: 'delivered' } : o
               ));
 
               Alert.alert('Success', 'Order marked as received!');

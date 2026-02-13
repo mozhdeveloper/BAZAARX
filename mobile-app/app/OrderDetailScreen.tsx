@@ -86,16 +86,18 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
           text: 'Yes, Received',
           onPress: async () => {
             try {
-              // 1. Update Supabase
+              // 1. Update Supabase - use shipment_status column
+              // Use orderId (real UUID) not id (which may be order_number)
+              const realOrderId = (order as any).orderId || order.id;
               const { error } = await supabase
                 .from('orders')
-                .update({ status: 'delivered' })
-                .eq('id', order.id);
+                .update({ shipment_status: 'received' })
+                .eq('id', realOrderId);
 
               if (error) throw error;
 
               // 2. Update Local Store
-              updateOrderStatus(order.id, 'delivered');
+              updateOrderStatus(realOrderId, 'delivered');
 
               // 3. Update local order param (if needed for UI immediate reflection)
               // But we are showing review modal immediately

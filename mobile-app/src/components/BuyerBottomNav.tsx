@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Pressable, StyleSheet, Platform } from 'react-native';
+import { View, Pressable, StyleSheet, Text } from 'react-native';
 import { Home, Store, ShoppingCart, MessageCircle, User } from 'lucide-react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -41,7 +41,7 @@ export function BuyerBottomNav({ activeTab }: BuyerBottomNavProps) {
   const currentActive = activeTab || route.name;
 
   return (
-    <View style={[styles.container, { paddingBottom: insets.bottom + 10 }]}>
+    <View style={[styles.container, { height: 70 + insets.bottom, paddingBottom: 10 + insets.bottom }]}>
       {navItems.map((item) => {
         const Icon = item.icon;
         const isActive = currentActive === item.tabScreen || currentActive === item.name;
@@ -54,11 +54,15 @@ export function BuyerBottomNav({ activeTab }: BuyerBottomNavProps) {
             accessibilityLabel={item.name}
             accessibilityRole="button"
           >
-            <Icon
-              size={24}
-              color={isActive ? COLORS.primary : '#9CA3AF'}
-              strokeWidth={isActive ? 2.5 : 2}
-            />
+            <View style={styles.iconContainer}>
+              <Icon
+                size={24}
+                color={isActive ? COLORS.primary : '#9CA3AF'}
+              />
+            </View>
+            <Text style={[styles.label, isActive && styles.labelActive]}>
+              {item.name}
+            </Text>
           </Pressable>
         );
       })}
@@ -76,7 +80,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    paddingTop: 12,
+    paddingTop: 10,
     borderTopWidth: 1,
     borderTopColor: '#E5E7EB',
     shadowColor: '#000',
@@ -88,8 +92,20 @@ const styles = StyleSheet.create({
   navItem: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    flex: 1,
+  },
+  iconContainer: {
+    marginTop: 2,
+  },
+  label: {
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 2,
+    marginBottom: 2,
+    color: '#9CA3AF',
+  },
+  labelActive: {
+    color: COLORS.primary,
   },
 });
 
