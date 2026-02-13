@@ -32,8 +32,10 @@ export interface TicketReply {
 interface SupportStore {
     tickets: SupportTicket[];
     submitTicket: (ticket: Omit<SupportTicket, 'id' | 'createdAt' | 'status' | 'dbId'>) => Promise<string>;
+    loadTickets: () => Promise<void>;
     updateTicketStatus: (ticketId: string, status: TicketStatus) => void;
     addTicketReply: (ticketId: string, reply: Omit<TicketReply, 'id' | 'timestamp' | 'ticketId'>) => void;
+    sendAdminReply: (ticketId: string, message: string, adminName?: string) => Promise<void>;
     getTicketsByBuyer: (buyerEmail: string) => SupportTicket[];
 }
 
@@ -41,6 +43,27 @@ interface SupportStore {
 const generateTicketId = (): string => {
     const num = Math.floor(10000 + Math.random() * 90000);
     return `BX-${num}`;
+};
+
+const mapDbStatusToUi = (status: string): TicketStatus => {
+    const map: Record<string, TicketStatus> = {
+        open: 'Open',
+        in_progress: 'In Review',
+        waiting_response: 'In Review',
+        resolved: 'Resolved',
+        closed: 'Closed'
+    };
+    return map[status] ?? 'Open';
+};
+
+const mapUiStatusToDb = (status: TicketStatus): string => {
+    const map: Record<TicketStatus, string> = {
+        Open: 'open',
+        'In Review': 'in_progress',
+        Resolved: 'resolved',
+        Closed: 'closed'
+    };
+    return map[status] ?? 'open';
 };
 
 export const useSupportStore = create<SupportStore>()(
@@ -93,6 +116,73 @@ export const useSupportStore = create<SupportStore>()(
                     replies: []
                 }
             ],
+
+            loadTickets: async () => {
+                if (!isSupabaseConfigured()) return;
+
+                try {
+                    const { data, error } = await supabase
+                        .from('support_tickets')
+                        .select(`
+                            id,
+                            user_id,
+                            category:ticket_categories(name),
+                            priority,
+                            status,
+                            subject,
+                            description,
+                            order_id,
+                            assigned_to,
+                            resolved_at,
+                            created_at,
+                            updated_at,
+                            ticket_messages ( id, sender_id, sender_type, message, created_at, is_internal_note ),
+                            profiles:profiles!support_tickets_user_id_fkey ( first_name, last_name, email )
+                        `)
+                        .order('created_at', { ascending: false });
+
+                    if (error) {
+                        console.error('Failed to fetch support tickets:', error);
+                        return;
+                    }
+
+                    const mapped: SupportTicket[] = (data || []).map((row: any) => {
+                        const nameParts = [row?.profiles?.first_name, row?.profiles?.last_name].filter(Boolean);
+                        const buyerName = nameParts.length ? nameParts.join(' ') : 'Buyer';
+                        const email = row?.profiles?.email || 'unknown@bazaarx.com';
+                        const replies: TicketReply[] = (row.ticket_messages || [])
+                            .filter((msg: any) => !msg.is_internal_note)
+                            .sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+                            .map((msg: any) => ({
+                                id: msg.id,
+                                ticketId: row.id,
+                                senderId: msg.sender_id,
+                                senderName: msg.sender_type === 'admin' ? 'Admin Team' : buyerName,
+                                senderType: msg.sender_type === 'admin' ? 'admin' : 'buyer',
+                                message: msg.message,
+                                timestamp: msg.created_at
+                            }));
+
+                        return {
+                            id: row.id,
+                            dbId: row.id,
+                            buyerName,
+                            buyerId: row.user_id,
+                            email,
+                            subject: row.subject,
+                            description: row.description,
+                            status: mapDbStatusToUi(row.status),
+                            createdAt: row.created_at,
+                            category: row?.category?.name || 'General',
+                            replies
+                        } as SupportTicket;
+                    });
+
+                    set({ tickets: mapped });
+                } catch (err) {
+                    console.error('Error loading tickets from Supabase:', err);
+                }
+            },
 
             submitTicket: async (ticketData) => {
                 const ticketId = generateTicketId();
@@ -155,6 +245,19 @@ export const useSupportStore = create<SupportStore>()(
             },
 
             updateTicketStatus: (ticketId, status) => {
+                if (isSupabaseConfigured()) {
+                    const dbStatus = mapUiStatusToDb(status);
+                    supabase
+                        .from('support_tickets')
+                        .update({ status: dbStatus, updated_at: new Date().toISOString() })
+                        .eq('id', ticketId)
+                        .then(({ error }) => {
+                            if (error) {
+                                console.error('Failed to update ticket status in Supabase:', error);
+                            }
+                        });
+                }
+
                 set((state) => ({
                     tickets: state.tickets.map((ticket) =>
                         ticket.id === ticketId ? { ...ticket, status } : ticket
@@ -168,6 +271,47 @@ export const useSupportStore = create<SupportStore>()(
                     ...replyData,
                     id: replyId,
                     ticketId,
+                    timestamp: new Date().toISOString()
+                };
+
+                set((state) => ({
+                    tickets: state.tickets.map((ticket) =>
+                        ticket.id === ticketId
+                            ? { ...ticket, replies: [...(ticket.replies || []), newReply] }
+                            : ticket
+                    )
+                }));
+            },
+
+            sendAdminReply: async (ticketId, message, adminName = 'Admin Team') => {
+                if (!message.trim()) return;
+
+                let senderId = 'admin-local';
+
+                if (isSupabaseConfigured()) {
+                    const { data: userData } = await supabase.auth.getUser();
+                    senderId = userData.user?.id || senderId;
+
+                    const { error } = await supabase.from('ticket_messages').insert({
+                        ticket_id: ticketId,
+                        sender_id: senderId,
+                        sender_type: 'admin',
+                        message,
+                        is_internal_note: false
+                    });
+
+                    if (error) {
+                        console.error('Failed to post admin reply to Supabase:', error);
+                    }
+                }
+
+                const newReply: TicketReply = {
+                    id: `reply-${Date.now()}`,
+                    ticketId,
+                    senderId,
+                    senderName: adminName,
+                    senderType: 'admin',
+                    message,
                     timestamp: new Date().toISOString()
                 };
 
