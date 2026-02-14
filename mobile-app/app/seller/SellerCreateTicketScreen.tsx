@@ -1,56 +1,31 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, Alert, ActivityIndicator, Modal, FlatList } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, ChevronDown, Paperclip, Store, Search, X } from 'lucide-react-native';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { RootStackParamList } from '../../App';
+import { ArrowLeft, ChevronDown, Paperclip } from 'lucide-react-native';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { COLORS } from '../../src/constants/theme';
 import { TicketService } from '../../services/TicketService';
 import { useAuthStore } from '../../src/stores/authStore';
 import type { TicketCategoryDb, TicketPriority } from '../types/ticketTypes';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'CreateTicket'>;
-
-interface SellerOption {
-  id: string;
-  store_name: string;
-  owner_name: string | null;
-}
-
-export default function CreateTicketScreen({ navigation, route }: Props) {
+export default function SellerCreateTicketScreen() {
+  const navigation = useNavigation<NativeStackNavigationProp<any>>();
   const insets = useSafeAreaInsets();
-  const { initialSubject, initialDescription, sellerId: initialSellerId } = (route.params as any) || {};
   const { user } = useAuthStore();
 
-  const [subject, setSubject] = useState(initialSubject || '');
-  const [description, setDescription] = useState(initialDescription || '');
+  const [subject, setSubject] = useState('');
+  const [description, setDescription] = useState('');
   const [categories, setCategories] = useState<TicketCategoryDb[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<TicketCategoryDb | null>(null);
   const [showcategoryPicker, setShowCategoryPicker] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingCategories, setLoadingCategories] = useState(true);
-
-  // Store selection
-  const [sellers, setSellers] = useState<SellerOption[]>([]);
-  const [selectedSeller, setSelectedSeller] = useState<SellerOption | null>(null);
-  const [showStorePicker, setShowStorePicker] = useState(false);
-  const [storeSearchQuery, setStoreSearchQuery] = useState('');
-
-  // Priority
   const [priority, setPriority] = useState<TicketPriority>('normal');
 
   useEffect(() => {
     loadCategories();
-    loadSellers();
   }, []);
-
-  useEffect(() => {
-    // If a sellerId was passed, find and select that seller
-    if (initialSellerId && sellers.length > 0) {
-      const seller = sellers.find(s => s.id === initialSellerId);
-      if (seller) setSelectedSeller(seller);
-    }
-  }, [initialSellerId, sellers]);
 
   const loadCategories = async () => {
     try {
@@ -63,15 +38,6 @@ export default function CreateTicketScreen({ navigation, route }: Props) {
       console.error('Error loading categories:', error);
     } finally {
       setLoadingCategories(false);
-    }
-  };
-
-  const loadSellers = async () => {
-    try {
-      const sellerList = await TicketService.getSellers();
-      setSellers(sellerList);
-    } catch (error) {
-      console.error('Error loading sellers:', error);
     }
   };
 
@@ -96,10 +62,9 @@ export default function CreateTicketScreen({ navigation, route }: Props) {
         description,
         categoryId: selectedCategory?.id || null,
         priority,
-        sellerId: selectedSeller?.id || null,
       });
       Alert.alert('Success', 'Ticket created successfully!', [
-        { text: 'OK', onPress: () => navigation.navigate('HelpSupport', { activeTab: 'tickets' }) }
+        { text: 'OK', onPress: () => navigation.goBack() }
       ]);
     } catch (error) {
       console.error('Error creating ticket:', error);
@@ -109,11 +74,6 @@ export default function CreateTicketScreen({ navigation, route }: Props) {
     }
   };
 
-  const filteredSellers = sellers.filter(s => 
-    s.store_name.toLowerCase().includes(storeSearchQuery.toLowerCase()) ||
-    (s.owner_name?.toLowerCase().includes(storeSearchQuery.toLowerCase()))
-  );
-
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Header */}
@@ -121,31 +81,10 @@ export default function CreateTicketScreen({ navigation, route }: Props) {
         <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
           <ArrowLeft size={28} color="#1F2937" />
         </Pressable>
-        <Text style={styles.headerTitle}>Create New Ticket</Text>
+        <Text style={styles.headerTitle}>Create Support Ticket</Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
-        {/* Store Selection (Optional) */}
-        <Text style={styles.label}>Report about a store (optional)</Text>
-        <Pressable
-          style={styles.pickerButton}
-          onPress={() => setShowStorePicker(true)}
-        >
-          <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-            <Store size={20} color="#6B7280" style={{ marginRight: 8 }} />
-            <Text style={[styles.pickerButtonText, !selectedSeller && { color: '#9CA3AF' }]}>
-              {selectedSeller ? selectedSeller.store_name : 'Select a store (optional)'}
-            </Text>
-          </View>
-          {selectedSeller ? (
-            <Pressable onPress={() => setSelectedSeller(null)} hitSlop={8}>
-              <X size={20} color="#9CA3AF" />
-            </Pressable>
-          ) : (
-            <ChevronDown size={24} color="#6B7280" />
-          )}
-        </Pressable>
-
         {/* Category Selection */}
         <Text style={styles.label}>What can we help you with?</Text>
         {loadingCategories ? (
@@ -235,7 +174,6 @@ export default function CreateTicketScreen({ navigation, route }: Props) {
           <Paperclip size={20} color="#6B7280" />
           <Text style={styles.attachButtonText}>Attach Photo or Screenshot</Text>
         </Pressable>
-
       </ScrollView>
 
       {/* Footer / Submit Button */}
@@ -252,90 +190,6 @@ export default function CreateTicketScreen({ navigation, route }: Props) {
           )}
         </Pressable>
       </View>
-
-      {/* Store Picker Modal */}
-      <Modal
-        visible={showStorePicker}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setShowStorePicker(false)}
-      >
-        <View style={[styles.modalContainer, { paddingTop: insets.top }]}>
-          <View style={styles.modalHeader}>
-            <Pressable onPress={() => setShowStorePicker(false)}>
-              <X size={24} color="#374151" />
-            </Pressable>
-            <Text style={styles.modalTitle}>Select Store</Text>
-            <View style={{ width: 24 }} />
-          </View>
-          
-          <View style={styles.searchContainer}>
-            <Search size={20} color="#9CA3AF" />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search stores..."
-              placeholderTextColor="#9CA3AF"
-              value={storeSearchQuery}
-              onChangeText={setStoreSearchQuery}
-            />
-          </View>
-
-          <FlatList
-            data={filteredSellers}
-            keyExtractor={(item) => item.id}
-            ListHeaderComponent={
-              <Pressable
-                style={[
-                  styles.storeItem,
-                  styles.generalOption,
-                  !selectedSeller && styles.storeItemSelected
-                ]}
-                onPress={() => {
-                  setSelectedSeller(null);
-                  setShowStorePicker(false);
-                  setStoreSearchQuery('');
-                }}
-              >
-                <View style={[styles.storeIcon, { backgroundColor: '#F3F4F6' }]}>
-                  <Store size={24} color="#9CA3AF" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.storeName}>General Issue (No specific store)</Text>
-                  <Text style={styles.storeOwner}>Submit a general support ticket</Text>
-                </View>
-              </Pressable>
-            }
-            renderItem={({ item }) => (
-              <Pressable
-                style={[
-                  styles.storeItem,
-                  selectedSeller?.id === item.id && styles.storeItemSelected
-                ]}
-                onPress={() => {
-                  setSelectedSeller(item);
-                  setShowStorePicker(false);
-                  setStoreSearchQuery('');
-                }}
-              >
-                <View style={styles.storeIcon}>
-                  <Store size={24} color={COLORS.primary} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.storeName}>{item.store_name}</Text>
-                  {item.owner_name && (
-                    <Text style={styles.storeOwner}>by {item.owner_name}</Text>
-                  )}
-                </View>
-              </Pressable>
-            )}
-            ListEmptyComponent={
-              <View style={styles.emptyContainer}>
-                <Text style={styles.emptyText}>No stores found</Text>
-              </View>
-            }
-          />
-        </View>
-      </Modal>
     </View>
   );
 }
@@ -413,7 +267,7 @@ const styles = StyleSheet.create({
     color: '#374151',
   },
   pickerItemTextSelected: {
-    color: '#E65100', // Deep Orange
+    color: COLORS.primary,
     fontWeight: '600',
   },
   input: {
@@ -427,6 +281,32 @@ const styles = StyleSheet.create({
   },
   textArea: {
     height: 150,
+  },
+  priorityContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  priorityButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#F9FAFB',
+  },
+  priorityButtonSelected: {
+    backgroundColor: '#FEF3E8',
+    borderColor: COLORS.primary,
+  },
+  priorityButtonText: {
+    fontSize: 14,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  priorityButtonTextSelected: {
+    color: COLORS.primary,
+    fontWeight: '600',
   },
   attachButton: {
     marginTop: 24,
@@ -471,110 +351,5 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '700',
-  },
-  // Priority styles
-  priorityContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  priorityButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    backgroundColor: '#F9FAFB',
-  },
-  priorityButtonSelected: {
-    backgroundColor: '#FEF3E8',
-    borderColor: COLORS.primary,
-  },
-  priorityButtonText: {
-    fontSize: 14,
-    color: '#6B7280',
-    fontWeight: '500',
-  },
-  priorityButtonTextSelected: {
-    color: COLORS.primary,
-    fontWeight: '600',
-  },
-  // Modal styles
-  modalContainer: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    margin: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#F9FAFB',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  searchInput: {
-    flex: 1,
-    marginLeft: 12,
-    fontSize: 16,
-    color: '#111827',
-  },
-  storeItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  storeItemSelected: {
-    backgroundColor: '#FEF3E8',
-  },
-  generalOption: {
-    borderBottomWidth: 2,
-    borderBottomColor: '#E5E7EB',
-  },
-  storeIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#FEF3E8',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  storeName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#111827',
-  },
-  storeOwner: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginTop: 2,
-  },
-  emptyContainer: {
-    padding: 32,
-    alignItems: 'center',
-  },
-  emptyText: {
-    fontSize: 16,
-    color: '#9CA3AF',
   },
 });

@@ -163,7 +163,7 @@ export default function SellerDrawer({ visible, onClose }: SellerDrawerProps) {
       label: 'Account',
       items: [
         { icon: Settings, label: 'Settings', route: 'Settings', inTab: true },
-        { icon: LifeBuoy, label: 'Support', route: 'TicketList' },
+        { icon: LifeBuoy, label: 'Help Center', route: 'SellerHelpCenter' },
       ],
     },
   ];

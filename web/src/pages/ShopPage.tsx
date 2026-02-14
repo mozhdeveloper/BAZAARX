@@ -136,9 +136,10 @@ export default function ShopPage() {
   }, []);
 
   useEffect(() => {
-    // Fetch initial products
+    // Fetch initial products - only approved and active products
     const filters = {
       isActive: true,
+      approvalStatus: 'approved',
     };
     fetchProducts(filters);
 

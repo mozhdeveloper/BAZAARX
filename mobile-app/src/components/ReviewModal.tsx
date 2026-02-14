@@ -89,7 +89,7 @@ export default function ReviewModal({ visible, order, onClose, onSubmit }: Revie
   };
 
   const handleSubmit = async () => {
-    if (!selectedItemId) return;
+    if (!selectedItemId || !order) return;
     
     setSubmitting(true);
     try {

@@ -9,7 +9,7 @@ import {
   Upload,
   Package,
 } from "lucide-react";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "../components/Header";
 import { BazaarFooter } from "../components/ui/bazaar-footer";
@@ -28,11 +28,18 @@ export function BuyerSupport() {
     description: "",
     category: "General",
     proof: null,
+    sellerId: null,
+    sellerStoreName: "",
   });
   const [chatMessage, setChatMessage] = useState("");
   const navigate = useNavigate();
-  const { submitTicket } = useSupportStore();
+  const { submitTicket, fetchCategories, categories } = useSupportStore();
   const { profile } = useBuyerStore();
+
+  // Fetch categories on mount
+  useEffect(() => {
+    fetchCategories();
+  }, [fetchCategories]);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -42,23 +49,34 @@ export function BuyerSupport() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!profile?.id) {
+      console.error("User not logged in");
+      return;
+    }
+
+    // Find category ID from name
+    const category = categories.find(c => c.name === ticket.category);
 
     // Submit ticket to store
     try {
       const ticketId = await submitTicket({
-        buyerName: profile
-          ? `${profile.firstName} ${profile.lastName}`
-          : "Guest User",
-        buyerId: profile?.id,
-        email: profile?.email || "guest@example.com",
+        userId: profile.id,
+        userName: `${profile.firstName || ''} ${profile.lastName || ''}`.trim() || 'User',
+        userEmail: profile?.email || "",
         subject: ticket.subject,
         description: ticket.description,
-        category: ticket.category,
-        proof: ticket.proof,
+        categoryId: category?.id,
+        categoryName: ticket.category,
+        priority: "normal",
+        sellerId: ticket.sellerId || undefined,
+        sellerStoreName: ticket.sellerStoreName || undefined,
       });
 
-      setGeneratedTicketId(ticketId);
-      setIsSubmitted(true);
+      if (ticketId) {
+        setGeneratedTicketId(ticketId);
+        setIsSubmitted(true);
+      }
     } catch (error) {
       console.error("Ticket submission failed:", error);
     }
@@ -72,6 +90,8 @@ export function BuyerSupport() {
       setTicket({
         subject: "",
         description: "",
+        sellerId: null,
+        sellerStoreName: "",
         category: "General",
         proof: null,
       });
@@ -269,6 +289,7 @@ export function BuyerSupport() {
           isSubmitted={isSubmitted}
           ticket={ticket}
           generatedTicketId={generatedTicketId}
+          buyerId={profile?.id || ''}
           onClose={handleCloseModal}
           onSubmit={handleSubmit}
           onFileUpload={handleFileUpload}
