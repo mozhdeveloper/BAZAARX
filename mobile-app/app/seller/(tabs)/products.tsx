@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -26,7 +26,7 @@ import { File, Paths } from 'expo-file-system';
 import * as FileSystem from 'expo-file-system/legacy'; //
 import * as Sharing from 'expo-sharing';
 import SellerDrawer from '../../../src/components/SellerDrawer';
-import { useNavigation } from '@react-navigation/native'; // Import Navigation
+import { useNavigation, useFocusEffect } from '@react-navigation/native'; // Import Navigation
 import VariantManager, { Variant } from '../../../src/components/VariantManager'; 
 
 // Generate a proper UUID for product IDs
@@ -86,6 +86,14 @@ export default function SellerProductsScreen() {
     }
     // Don't fetch all products - only fetch seller-specific products
   }, [seller?.id, fetchProducts]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (seller?.id) {
+        fetchProducts({ sellerId: seller.id });
+      }
+    }, [seller?.id, fetchProducts]),
+  );
   const insets = useSafeAreaInsets();
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);

@@ -1131,28 +1131,20 @@ export function AddProduct() {
             newErrors.price = "Price must be greater than 0";
         }
 
-        // If using variant stock, check that at least one variant has stock
-        if (variantConfigs.length > 0) {
-            const totalVariantStock = getTotalVariantStock();
-            if (totalVariantStock <= 0) {
-                newErrors.variants = "At least one variant must have stock";
-            }
+        const baseStock = parseInt(formData.stock) || 0;
+        const totalStock = baseStock + getTotalVariantStock();
 
-            // Check that all stock is allocated to variants
-            const totalStock = parseInt(formData.stock) || 0;
-            const allocatedStock = variantConfigs.reduce(
-                (sum, variant) => sum + (variant.stock || 0),
-                0,
-            );
-            const remainingStock = totalStock - allocatedStock;
-
-            if (remainingStock > 0) {
-                newErrors.variants = `You have ${remainingStock} unit(s) of stock not allocated to any variant. Please allocate all stock to variants or reduce the total stock quantity.`;
-            } else if (remainingStock < 0) {
-                newErrors.variants = `You have over-allocated stock by ${Math.abs(remainingStock)} unit(s). Total variant stock cannot exceed the total product stock.`;
-            }
-        } else if (!formData.stock || parseInt(formData.stock) < 0) {
+        if (baseStock < 0) {
             newErrors.stock = "Stock cannot be negative";
+        }
+
+        if (variantConfigs.length > 0) {
+            if (totalStock <= 0) {
+                newErrors.variants =
+                    "Total stock must be greater than 0. Add stock to base variant or custom variants.";
+            }
+        } else if (baseStock <= 0) {
+            newErrors.stock = "Stock must be greater than 0";
         }
 
         if (!formData.category) {
@@ -1177,11 +1169,27 @@ export function AddProduct() {
         setIsSubmitting(true);
 
         try {
-            // Calculate total stock - from variants if using variant stock, else from form
-            const totalStock =
+            const baseStock = parseInt(formData.stock) || 0;
+            const customVariantStock = getTotalVariantStock();
+            const totalStock = baseStock + customVariantStock;
+
+            const baseVariant =
+                variantConfigs.length > 0 && baseStock > 0
+                    ? {
+                          id: `base-${Date.now()}`,
+                          variantLabel1Value: "",
+                          variantLabel2Value: "",
+                          stock: baseStock,
+                          price: parseInt(formData.price) || 0,
+                          sku: `${(formData.name || "ITEM").substring(0, 3).toUpperCase()}-BASE`,
+                          image: "",
+                      }
+                    : null;
+
+            const variantsForSubmit =
                 variantConfigs.length > 0
-                    ? getTotalVariantStock()
-                    : parseInt(formData.stock);
+                    ? [...(baseVariant ? [baseVariant] : []), ...variantConfigs]
+                    : undefined;
 
             const productData = {
                 name: formData.name.trim(),
@@ -1207,8 +1215,7 @@ export function AddProduct() {
                         ? secondAttributeName
                         : undefined,
                 // Pass variant configurations for database creation
-                variants:
-                    variantConfigs.length > 0 ? variantConfigs : undefined,
+                variants: variantsForSubmit,
             };
 
             await addProduct(productData);

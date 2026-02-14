@@ -74,7 +74,7 @@ export default function SellerNotificationsScreen() {
   const navigation = useNavigation();
   const router = useRouter();
   const { seller } = useSellerStore();
-  
+
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
@@ -151,24 +151,25 @@ export default function SellerNotificationsScreen() {
 
   const handleNotificationPress = async (n: Notification) => {
     // Mark as read immediately for UI responsiveness
-    if (!n.is_read) {
-      await handleMarkAsRead(n.id);
-    }
+    if (!n.is_read) await handleMarkAsRead(n.id);
 
     // Navigation Logic
-    // We use navigation.navigate instead of router.push because the app uses a manual
-    // React Navigation stack (SellerStack) and tab navigator (SellerTabs),
-    // and route names with spaces (e.g. 'QA Products') are used.
     if (n.type === 'seller_new_order' || n.type.includes('order')) {
-      (navigation as any).navigate('SellerTabs', { screen: 'Orders' });
+      const orderId = n.action_data?.orderId;
+      if (orderId) {
+        // Navigate directly to the details screen
+        (navigation as any).navigate('SellerOrderDetail', { orderId });
+      } else {
+        (navigation as any).navigate('SellerTabs', { screen: 'Orders' });
+      }
     } else if (
-      n.type === 'product_sample_request' || 
+      n.type === 'product_sample_request' ||
       n.type === 'product_rejected' ||
       n.type.includes('qa')
     ) {
       (navigation as any).navigate('SellerTabs', { screen: 'QA Products' });
     } else if (
-      n.type === 'product_approved' || 
+      n.type === 'product_approved' ||
       n.type === 'product_revision_requested'
     ) {
       (navigation as any).navigate('SellerTabs', { screen: 'Products' });
@@ -333,26 +334,26 @@ export default function SellerNotificationsScreen() {
                 </Text>
                 {(notification.priority === 'high' ||
                   notification.priority === 'urgent') && (
-                  <View
-                    style={[
-                      styles.priorityBadge,
-                      notification.priority === 'urgent'
-                        ? styles.priorityUrgent
-                        : styles.priorityHigh,
-                    ]}
-                  >
-                    <Text
+                    <View
                       style={[
-                        styles.priorityText,
+                        styles.priorityBadge,
                         notification.priority === 'urgent'
-                          ? styles.priorityTextUrgent
-                          : styles.priorityTextHigh,
+                          ? styles.priorityUrgent
+                          : styles.priorityHigh,
                       ]}
                     >
-                      {notification.priority === 'urgent' ? 'Urgent' : 'High Priority'}
-                    </Text>
-                  </View>
-                )}
+                      <Text
+                        style={[
+                          styles.priorityText,
+                          notification.priority === 'urgent'
+                            ? styles.priorityTextUrgent
+                            : styles.priorityTextHigh,
+                        ]}
+                      >
+                        {notification.priority === 'urgent' ? 'Urgent' : 'High Priority'}
+                      </Text>
+                    </View>
+                  )}
               </View>
               {!notification.is_read && <View style={styles.unreadDot} />}
             </Pressable>

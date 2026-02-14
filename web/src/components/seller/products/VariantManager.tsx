@@ -1,7 +1,6 @@
 import { VariantList } from "./VariantList";
 import { VariantForm } from "./VariantForm";
 import { VariantConfig } from "@/types";
-import { AlertTriangle } from "lucide-react";
 
 interface VariantManagerProps {
     firstAttributeName: string;
@@ -32,7 +31,11 @@ interface VariantManagerProps {
             | Partial<VariantConfig>
             | ((prev: Partial<VariantConfig>) => Partial<VariantConfig>),
     ) => void;
-    setErrors: (errors: any | ((prev: any) => any)) => void;
+    setErrors: (
+        errors:
+            | Record<string, string>
+            | ((prev: Record<string, string>) => Record<string, string>),
+    ) => void;
     addVariant: () => void;
 }
 
@@ -55,13 +58,9 @@ export function VariantManager({
     setErrors,
     addVariant,
 }: VariantManagerProps) {
-    // Calculate stock allocation status
-    const totalStock = parseInt(formData.stock) || 0;
-    const allocatedStock = variantConfigs.reduce(
-        (sum, variant) => sum + (variant.stock || 0),
-        0,
-    );
-    const remainingStock = totalStock - allocatedStock;
+    const baseStock = parseInt(formData.stock) || 0;
+    const customVariantStock = getTotalVariantStock();
+    const totalStock = baseStock + customVariantStock;
 
     return (
         <div className="space-y-4">
@@ -76,16 +75,19 @@ export function VariantManager({
                         stock and pricing
                     </p>
                 </div>
-                {variantConfigs.length > 0 && (
+                {(variantConfigs.length > 0 || baseStock > 0) && (
                     <div className="text-right">
                         <p className="text-sm font-medium text-gray-700">
                             Total Stock:{" "}
                             <span className="text-orange-600 font-bold">
-                                {getTotalVariantStock()}
+                                {totalStock}
                             </span>
                         </p>
                         <p className="text-xs text-gray-500">
-                            {variantConfigs.length} variant(s)
+                            Base: {baseStock} • Custom variants: {customVariantStock}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                            {variantConfigs.length + (baseStock > 0 ? 1 : 0)} total variant item(s)
                         </p>
                         {/* Show price range only if variants have different prices */}
                         {variantConfigs.length > 1 &&
@@ -107,49 +109,6 @@ export function VariantManager({
                     </div>
                 )}
             </div>
-
-            {/* Stock Allocation Warning */}
-            {variantConfigs.length > 0 && remainingStock !== 0 && (
-                <div
-                    className={`rounded-lg border p-4 flex items-start gap-3 ${
-                        remainingStock > 0
-                            ? "bg-yellow-50 border-yellow-200"
-                            : "bg-red-50 border-red-200"
-                    }`}
-                >
-                    <AlertTriangle
-                        className={`h-5 w-5 flex-shrink-0 ${
-                            remainingStock > 0
-                                ? "text-yellow-600"
-                                : "text-red-600"
-                        }`}
-                    />
-                    <div className="flex-1">
-                        <h4
-                            className={`text-sm font-semibold ${
-                                remainingStock > 0
-                                    ? "text-yellow-800"
-                                    : "text-red-800"
-                            }`}
-                        >
-                            {remainingStock > 0
-                                ? "Stock Not Fully Allocated"
-                                : "Stock Over-Allocated"}
-                        </h4>
-                        <p
-                            className={`text-sm mt-1 ${
-                                remainingStock > 0
-                                    ? "text-yellow-700"
-                                    : "text-red-700"
-                            }`}
-                        >
-                            {remainingStock > 0
-                                ? `You have ${remainingStock} unit(s) of stock not allocated to any variant. Please allocate all stock to variants before submitting.`
-                                : `You have over-allocated stock by ${Math.abs(remainingStock)} unit(s). Total variant stock cannot exceed the total product stock.`}
-                        </p>
-                    </div>
-                </div>
-            )}
 
             {/* Variants List & Unsaved Preview */}
             <VariantList
