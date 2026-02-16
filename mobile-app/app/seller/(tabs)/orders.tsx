@@ -17,6 +17,7 @@ import { useNavigation } from '@react-navigation/native';
 import { Bell, X, Search, Menu, Download, ChevronRight, ChevronDown, Check } from 'lucide-react-native';
 import { useSellerStore } from '../../../src/stores/sellerStore';
 import { safeImageUri } from '../../../src/utils/imageUtils';
+import SellerDrawer from '../../../src/components/SellerDrawer';
 
 // Distinguish between UI filters and actual DB states
 type DBStatus = 'pending' | 'to-ship' | 'shipped' | 'completed' | 'cancelled';
@@ -32,6 +33,7 @@ export default function SellerOrdersScreen() {
   const [channelFilter, setChannelFilter] = useState<ChannelFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  const [drawerVisible, setDrawerVisible] = useState(false);
 
   const [showChannelMenu, setShowChannelMenu] = useState(false);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
@@ -109,10 +111,11 @@ export default function SellerOrdersScreen() {
 
   return (
     <View style={styles.container}>
+      <SellerDrawer visible={drawerVisible} onClose={() => setDrawerVisible(false)} />
       <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <View style={styles.headerContent}>
           <View style={styles.headerLeft}>
-            <Pressable style={styles.iconContainer}><Menu size={24} color="#1F2937" /></Pressable>
+            <Pressable style={styles.iconContainer} onPress={() => setDrawerVisible(true)}><Menu size={24} color="#1F2937" /></Pressable>
             <View>
               <Text style={styles.headerTitle}>Orders</Text>
               <Text style={styles.headerSubtitle}>Order Management</Text>

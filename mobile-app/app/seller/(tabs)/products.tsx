@@ -27,7 +27,7 @@ import * as FileSystem from 'expo-file-system/legacy'; //
 import * as Sharing from 'expo-sharing';
 import SellerDrawer from '../../../src/components/SellerDrawer';
 import { useNavigation, useFocusEffect } from '@react-navigation/native'; // Import Navigation
-import VariantManager, { Variant } from '../../../src/components/VariantManager'; 
+import VariantManager, { Variant } from '../../../src/components/VariantManager';
 
 // Generate a proper UUID for product IDs
 const generateUUID = (): string => {
@@ -111,7 +111,7 @@ export default function SellerProductsScreen() {
   const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [loadingCategories, setLoadingCategories] = useState(true);
   const [editVariants, setEditVariants] = useState<EditableVariant[]>([]);
-  
+
   // Form state for adding products
   const [formData, setFormData] = useState({
     name: '',
@@ -188,7 +188,7 @@ export default function SellerProductsScreen() {
   const handlePickImage = async (index: number) => {
     try {
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      
+
       if (!permissionResult.granted) {
         Alert.alert('Permission Required', 'Please allow access to your photo library to upload images.');
         return;
@@ -311,14 +311,14 @@ export default function SellerProductsScreen() {
         .find((category) => category.name === formData.category);
 
       const newProduct: SellerProduct = {
-        sellerId: seller?.id,  
+        sellerId: seller?.id,
         id: generateUUID(), // Use proper UUID for database compatibility
         name: formData.name.trim(),
         description: formData.description.trim(),
         price: parseFloat(formData.price),
         originalPrice: formData.originalPrice ? parseFloat(formData.originalPrice) : undefined,
-        stock: variants.length > 0 
-          ? variants.reduce((acc, v) => acc + (parseInt(v.stock) || 0), 0) 
+        stock: variants.length > 0
+          ? variants.reduce((acc, v) => acc + (parseInt(v.stock) || 0), 0)
           : parseInt(formData.stock),
         category: formData.category,
         images: validImages,
@@ -349,7 +349,7 @@ export default function SellerProductsScreen() {
         'Your product has been added and submitted for quality review. Track its status in the QA Products tab.',
         [{ text: 'OK', onPress: () => setIsAddModalOpen(false) }]
       );
-      
+
       resetForm();
     } catch (error) {
       Alert.alert('Error', error instanceof Error ? error.message : 'Failed to add product');
@@ -494,10 +494,12 @@ export default function SellerProductsScreen() {
       Alert.alert(
         'Product Updated',
         'Your product has been updated successfully.',
-        [{ text: 'OK', onPress: () => {
-          closeEditModal();
-          resetForm();
-        }}]
+        [{
+          text: 'OK', onPress: () => {
+            closeEditModal();
+            resetForm();
+          }
+        }]
       );
     } catch (error) {
       Alert.alert('Error', error instanceof Error ? error.message : 'Failed to update product');
@@ -518,12 +520,12 @@ export default function SellerProductsScreen() {
 
       const rows = csvString.split('\n').filter((row: string) => row.trim() !== '');
       const defaultCategoryName = (categories.length > 0 ? categories : FALLBACK_CATEGORIES)[0]?.name || 'Electronics';
-      
+
       // Parse rows into temporary preview state
       const parsedProducts: SellerProduct[] = rows.slice(1).map((row: string, index: number) => {
         // Handles commas inside quotes
         const columns = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
-        
+
         const price = parseFloat(columns[2]);
         const stock = parseInt(columns[4]);
 
@@ -564,7 +566,7 @@ export default function SellerProductsScreen() {
     for (const product of bulkPreviewProducts) {
       // Convert preview ID to actual UUID for database compatibility
       const finalProduct = { ...product, id: generateUUID() };
-      
+
       // Add to seller store - this inserts into Supabase and returns the DB ID
       const dbProductId = await addProduct(finalProduct);
       // Add to product QA flow using the database product ID
@@ -586,13 +588,13 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
 
       // Create file in cache directory
       const file = new File(Paths.cache, 'product-upload-template.csv');
-      
+
       // Write CSV content to file
       await file.write(csvContent);
 
       // Check if sharing is available
       const isAvailable = await Sharing.isAvailableAsync();
-      
+
       if (isAvailable) {
         // Share/Download the file
         await Sharing.shareAsync(file.uri, {
@@ -600,7 +602,7 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
           dialogTitle: 'Download Product Upload Template',
           UTI: 'public.comma-separated-values-text',
         });
-        
+
         Alert.alert(
           'Template Ready',
           'CSV template is ready to download. Fill in your product details and upload when ready.',
@@ -655,13 +657,13 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
   const renderProductCard = ({ item }: { item: SellerProduct }) => (
     <View style={styles.productCard}>
       <Image source={{ uri: item.images?.[0] || 'https://placehold.co/100x100?text=No+Image' }} style={styles.productImage} />
-      
+
       <View style={styles.productInfo}>
-          <View style={styles.productHeader}>
-            <View style={{ flex: 1 }}>
+        <View style={styles.productHeader}>
+          <View style={{ flex: 1 }}>
             <Text style={styles.productName} numberOfLines={1}>{asText(item.name)}</Text>
             <Text style={styles.productCategory}>{asText(item.category)}</Text>
-            </View>
+          </View>
           <View style={[styles.statusBadge, { backgroundColor: item.isActive ? '#DCFCE7' : '#F3F4F6' }]}>
             <Text style={[styles.statusText, { color: item.isActive ? '#16A34A' : '#6B7280' }]}>
               {item.isActive ? 'Active' : 'Inactive'}
@@ -686,7 +688,7 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
             ios_backgroundColor="#E5E7EB"
           />
           <View style={styles.actionButtons}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.editButton}
               onPress={() => handleEditProduct(item)}
               activeOpacity={0.7}
@@ -709,13 +711,13 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
   const renderPreviewCard = (item: SellerProduct) => (
     <View style={styles.productCard}>
       <Image source={{ uri: item.images?.[0] || 'https://placehold.co/100x100?text=No+Image' }} style={styles.productImage} />
-      
+
       <View style={styles.productInfo}>
-          <View style={styles.productHeader}>
-            <View style={{ flex: 1 }}>
+        <View style={styles.productHeader}>
+          <View style={{ flex: 1 }}>
             <Text style={styles.productName} numberOfLines={1}>{asText(item.name)}</Text>
             <Text style={styles.productCategory}>{asText(item.category)}</Text>
-            </View>
+          </View>
         </View>
 
         <View style={styles.productMeta}>
@@ -743,36 +745,43 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
   return (
     <View style={styles.container}>
       <SellerDrawer visible={drawerVisible} onClose={() => setDrawerVisible(false)} />
-            
+
       {/* Bright Orange Edge-to-Edge Header */}
       <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <View style={styles.headerRow}>
-          <TouchableOpacity style={{ backgroundColor: 'rgba(255,255,255,0.2)', padding: 12, borderRadius: 12 }} onPress={() => setDrawerVisible(true)}>
-            <Menu size={24} color="#FFFFFF" strokeWidth={2} />
+          <TouchableOpacity
+            style={styles.iconContainer}
+            onPress={() => setDrawerVisible(true)}
+          >
+            <Menu size={24} color="#1F2937" strokeWidth={2} />
           </TouchableOpacity>
+
           <View style={styles.headerTextContainer}>
             <Text style={styles.headerTitle}>Inventory</Text>
             <Text style={styles.headerSubtitle}>Manage your products</Text>
           </View>
+
           <View style={styles.headerActions}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.bulkButton}
               onPress={() => setIsBulkUploadModalOpen(true)}
               activeOpacity={0.8}
             >
-              <Upload size={20} color="#FFFFFF" strokeWidth={2.5} />
+              <Upload size={20} color="#FF5722" strokeWidth={2.5} />
             </TouchableOpacity>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.addButton}
-              onPress={() => navigation.navigate('AddProduct' as never)} // Navigates to new screen
+              onPress={() => navigation.navigate('AddProduct' as never)}
             >
               <Plus size={18} color="#FFFFFF" strokeWidth={2.5} />
               <Text style={styles.addButtonText}>Add</Text>
             </TouchableOpacity>
           </View>
         </View>
+      </View>
 
-        {/* Search Bar Embedded in Header */}
+      {/* Search Bar moved out of Header (Matches Orders Screen) */}
+      <View style={styles.searchSection}>
         <View style={styles.searchBar}>
           <Search size={20} color="#9CA3AF" strokeWidth={2} />
           <TextInput
@@ -836,12 +845,12 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.modalContainer}
         >
-          <TouchableOpacity 
-            style={styles.modalOverlay} 
+          <TouchableOpacity
+            style={styles.modalOverlay}
             activeOpacity={1}
             onPress={closeEditModal}
           >
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.bottomSheet}
               activeOpacity={1}
               onPress={(e) => e.stopPropagation()}
@@ -858,7 +867,7 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
               </View>
 
               {/* Modal Body */}
-              <ScrollView 
+              <ScrollView
                 style={styles.modalScrollView}
                 showsVerticalScrollIndicator={true}
                 contentContainerStyle={styles.scrollContent}
@@ -991,7 +1000,7 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
                   {loadingCategories ? (
                     <Text style={styles.categoryLoadingText}>Loading categories...</Text>
                   ) : (
-                    <ScrollView 
+                    <ScrollView
                       horizontal
                       showsHorizontalScrollIndicator={false}
                       contentContainerStyle={styles.pillContainer}
@@ -1144,7 +1153,7 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
                         <Plus size={20} color="#FF5722" strokeWidth={2.5} />
                       </TouchableOpacity>
                     </View>
-                    
+
                     {/* Colors Pills - Only shows saved items */}
                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                       {formData.colors.filter(c => c.trim()).map((color, index) => (
@@ -1178,7 +1187,7 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
                         <Plus size={20} color="#FF5722" strokeWidth={2.5} />
                       </TouchableOpacity>
                     </View>
-                    
+
                     {/* Variations Pills - Only shows saved items */}
                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                       {formData.sizes.filter(s => s.trim()).map((size, index) => (
@@ -1227,12 +1236,12 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.modalContainer}
         >
-          <TouchableOpacity 
-            style={styles.modalOverlay} 
+          <TouchableOpacity
+            style={styles.modalOverlay}
             activeOpacity={1}
             onPress={() => setIsBulkUploadModalOpen(false)}
           >
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.bottomSheet, styles.bulkUploadSheet]}
               activeOpacity={1}
               onPress={(e) => e.stopPropagation()}
@@ -1249,7 +1258,7 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
               </View>
 
               {/* Modal Body */}
-              <ScrollView 
+              <ScrollView
                 style={styles.modalScrollView}
                 showsVerticalScrollIndicator={true}
                 contentContainerStyle={styles.bulkUploadScrollContent}
@@ -1285,7 +1294,7 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
                         <FileText size={20} color="#FF5722" strokeWidth={2.5} />
                         <Text style={styles.csvHeaderText}>CSV Format Requirements</Text>
                       </View>
-                      
+
                       <Text style={styles.csvDescription}>
                         Your CSV file must include these 7 columns in order:
                       </Text>
@@ -1335,7 +1344,7 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
                       <Text style={styles.csvHelpButtonText}>Show CSV Format Help</Text>
                     </TouchableOpacity>
                   </View>
-                )}               
+                )}
               </ScrollView>
             </TouchableOpacity>
           </TouchableOpacity>
@@ -1352,21 +1361,21 @@ const styles = StyleSheet.create({
   },
   // Bright Orange Edge-to-Edge Header
   header: {
-    backgroundColor: '#FF5722',
+    backgroundColor: '#FFE5CC', // Peach Background
     paddingHorizontal: 20,
     paddingBottom: 20,
-    borderBottomLeftRadius: 20, 
-    borderBottomRightRadius: 20,
+    borderBottomLeftRadius: 24, // Consistent rounding
+    borderBottomRightRadius: 24,
+    elevation: 3,
   },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 11,
-    marginBottom: 16,
+    gap: 12,
   },
   iconContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    padding: 12,
+    backgroundColor: 'rgba(0,0,0,0.05)', // Subtle dark overlay
+    padding: 10,
     borderRadius: 12,
   },
   headerTextContainer: {
@@ -1374,30 +1383,49 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 22,
-    fontWeight: '700',
-    color: '#FFFFFF',
+    fontWeight: '800',
+    color: '#1F2937', // Dark Charcoal
   },
   headerSubtitle: {
     fontSize: 13,
-    color: 'rgba(255, 255, 255, 0.9)',
+    color: '#4B5563', // Gray Subtitle
+    fontWeight: '500',
     marginTop: 2,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  bulkButton: {
+    backgroundColor: '#FFFFFF',
+    padding: 10,
+    borderRadius: 10,
+    height: 36,
+    width: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   addButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    backgroundColor: '#FF5722', // Primary Action Brand Color
     paddingVertical: 8,
     paddingHorizontal: 12,
-    borderRadius: 18,
-    height: 36,
+    borderRadius: 10,
+    elevation: 2,
   },
   addButtonText: {
     fontSize: 14,
     fontWeight: '700',
     color: '#FFFFFF',
   },
-  // Search Bar (Embedded in Header)
+  // New Search Section (similar to orders.tsx)
+  searchSection: {
+    paddingHorizontal: 20,
+    marginTop: 15,
+  },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1405,6 +1433,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 12,
     height: 48,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
     gap: 8,
   },
   searchInput: {
@@ -1886,21 +1916,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
   },
-  // Header Actions Container
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  bulkButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-    padding: 10,
-    borderRadius: 10,
-    height: 36,
-    width: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   previewHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -2125,35 +2140,35 @@ const styles = StyleSheet.create({
     color: '#0284C7',
   },
   variationPillOrange: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  gap: 8,
-  backgroundColor: '#FFF7ED',
-  paddingHorizontal: 12,
-  paddingVertical: 8,
-  borderRadius: 20,
-  borderWidth: 1,
-  borderColor: '#FFEDD5',
-},
-variationTextOrange: {
-  fontSize: 14,
-  color: '#EA580C',
-  fontWeight: '600',
-},
-variationPillBlue: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  gap: 8,
-  backgroundColor: '#F0F9FF',
-  paddingHorizontal: 12,
-  paddingVertical: 8,
-  borderRadius: 20,
-  borderWidth: 1,
-  borderColor: '#E0F2FE',
-},
-variationTextBlue: {
-  fontSize: 14,
-  color: '#0284C7',
-  fontWeight: '600',
-},
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FFF7ED',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#FFEDD5',
+  },
+  variationTextOrange: {
+    fontSize: 14,
+    color: '#EA580C',
+    fontWeight: '600',
+  },
+  variationPillBlue: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#F0F9FF',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#E0F2FE',
+  },
+  variationTextBlue: {
+    fontSize: 14,
+    color: '#0284C7',
+    fontWeight: '600',
+  },
 });
