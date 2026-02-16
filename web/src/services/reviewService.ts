@@ -24,7 +24,6 @@ export class ReviewService {
                 helpful_count: 0,
                 is_hidden: false,
                 is_edited: false,
-                images: reviewData.images || [],
             } as Review;
             this.mockReviews.push(newReview);
             return newReview;
@@ -52,7 +51,18 @@ export class ReviewService {
         productId: string,
         page: number = 1,
         limit: number = 5
-    ): Promise<{ reviews: (Review & { buyer?: { full_name: string | null; avatar_url: string | null } })[]; total: number }> {
+    ): Promise<{
+        reviews: (Review & {
+            buyer?: { full_name: string | null; avatar_url: string | null };
+            review_images?: {
+                id: string;
+                image_url: string;
+                sort_order: number;
+                uploaded_at: string;
+            }[];
+        })[];
+        total: number;
+    }> {
         if (!isSupabaseConfigured()) {
             const productReviews = this.mockReviews.filter(r => r.product_id === productId && !r.is_hidden);
             const start = (page - 1) * limit;
@@ -69,7 +79,9 @@ export class ReviewService {
             // First try with buyer profile join
             let { data, error, count } = await supabase
                 .from('reviews')
-                .select('*', { count: 'exact' })
+                .select('*, review_images(id, image_url, sort_order, uploaded_at)', {
+                    count: 'exact',
+                })
                 .eq('product_id', productId)
                 .eq('is_hidden', false)
                 .order('created_at', { ascending: false })
@@ -101,7 +113,18 @@ export class ReviewService {
         try {
             const { data, error } = await supabase
                 .from('reviews')
-                .select('*, products(name, images)') // Join with products to show item details
+                .select(`
+                    *,
+                    product:products!reviews_product_id_fkey (
+                        name
+                    ),
+                    review_images (
+                        id,
+                        image_url,
+                        sort_order,
+                        uploaded_at
+                    )
+                `)
                 .eq('buyer_id', buyerId)
                 .order('created_at', { ascending: false });
 
@@ -118,18 +141,37 @@ export class ReviewService {
      */
     async getSellerReviews(sellerId: string): Promise<(Review & { 
         buyer?: { full_name: string | null; avatar_url: string | null };
-        product?: { name: string | null; images: string[] | null };
+        product?: { id?: string; seller_id?: string | null; name: string | null };
+        review_images?: {
+            id: string;
+            image_url: string;
+            sort_order: number;
+            uploaded_at: string;
+        }[];
     })[]> {
         if (!isSupabaseConfigured()) {
-            return this.mockReviews.filter(r => r.seller_id === sellerId);
+            return this.mockReviews;
         }
 
         try {
             const { data, error } = await supabase
                 .from('reviews')
-                .select('*')
-                .eq('seller_id', sellerId)
+                .select(`
+                    *,
+                    review_images (
+                        id,
+                        image_url,
+                        sort_order,
+                        uploaded_at
+                    ),
+                    product:products!reviews_product_id_fkey (
+                        id,
+                        seller_id,
+                        name
+                    )
+                `)
                 .eq('is_hidden', false)
+                .eq('product.seller_id', sellerId)
                 .order('created_at', { ascending: false });
 
             if (error) {
@@ -146,17 +188,31 @@ export class ReviewService {
     /**
      * Check if a buyer has already reviewed a specific product in an order
      */
-    async hasReviewForProduct(orderId: string, productId: string): Promise<boolean> {
+    async hasReviewForProduct(
+        orderId: string,
+        productId: string,
+        buyerId?: string,
+    ): Promise<boolean> {
         if (!isSupabaseConfigured()) {
-            return this.mockReviews.some(r => r.order_id === orderId && r.product_id === productId);
+            return this.mockReviews.some((r) =>
+                r.order_id === orderId &&
+                r.product_id === productId &&
+                (!buyerId || r.buyer_id === buyerId),
+            );
         }
 
         try {
-            const { count, error } = await supabase
+            let query = supabase
                 .from('reviews')
                 .select('id', { count: 'exact', head: true })
                 .eq('order_id', orderId)
                 .eq('product_id', productId);
+
+            if (buyerId) {
+                query = query.eq('buyer_id', buyerId);
+            }
+
+            const { count, error } = await query;
 
             if (error) throw error;
             return (count || 0) > 0;

@@ -131,11 +131,34 @@ export default function AddProductScreen() {
 
     try {
       const validImages = formData.images.filter(img => img.trim() !== '');
-      
-      // Calculate total stock: Sum of variants OR manual input
-      const totalStock = showVariants && variants.length > 0
+
+      const baseStock = parseInt(formData.stock) || 0;
+      const customVariantStock = showVariants
         ? variants.reduce((acc, v) => acc + (parseInt(v.stock) || 0), 0)
-        : parseInt(formData.stock);
+        : 0;
+
+      // Total stock is base stock + variant stock
+      const totalStock = baseStock + customVariantStock;
+
+      if (totalStock <= 0) {
+        Alert.alert('Error', 'Total stock must be greater than 0');
+        return;
+      }
+
+      const baseVariant: Variant | null = showVariants && baseStock > 0
+        ? {
+            id: `base-${Date.now()}`,
+            option1: '-',
+            option2: '-',
+            price: formData.price || '0',
+            stock: baseStock.toString(),
+            sku: `${(formData.name || 'ITEM').substring(0, 3).toUpperCase()}-BASE`,
+          }
+        : null;
+
+      const variantsForSubmit = showVariants
+        ? [...(baseVariant ? [baseVariant] : []), ...variants]
+        : undefined;
 
       // Determine variant labels based on what's being used
       let variantLabel1 = null;
@@ -175,7 +198,7 @@ export default function AddProductScreen() {
         // Pass variant labels and variants to addProduct
         variant_label_1: variantLabel1,
         variant_label_2: variantLabel2,
-        variants: showVariants && variants.length > 0 ? variants : undefined,
+        variants: variantsForSubmit && variantsForSubmit.length > 0 ? variantsForSubmit : undefined,
       } as any;
 
       const dbProductId = await addProduct(newProduct);
@@ -312,19 +335,25 @@ export default function AddProductScreen() {
                 </View>
              )}
 
-             {/* STOCK INPUT: Show ONLY if variants are NOT active */}
-             {!showVariants && (
-                 <View style={{ marginTop: 12 }}>
-                    <Text style={styles.label}>Stock Quantity</Text>
-                    <TextInput 
-                        style={styles.input} 
-                        keyboardType="numeric"
-                        placeholder="e.g. 50"
-                        value={formData.stock}
-                        onChangeText={t => setFormData({...formData, stock: t})}
-                    />
-                 </View>
-             )}
+             {/* STOCK INPUT: Always available as base variant stock */}
+             <View style={{ marginTop: 12 }}>
+                <Text style={styles.label}>{showVariants ? 'Base Stock Quantity' : 'Stock Quantity'}</Text>
+                {showVariants && (
+                    <Text style={styles.hint}>This stock is used by the base variant (no attributes).</Text>
+                )}
+                <TextInput 
+                    style={styles.input} 
+                    keyboardType="numeric"
+                    placeholder="e.g. 50"
+                    value={formData.stock}
+                    onChangeText={t => setFormData({...formData, stock: t})}
+                />
+                {showVariants && (
+                    <Text style={styles.hint}>
+                        Total stock preview: {(parseInt(formData.stock) || 0) + variants.reduce((sum, v) => sum + (parseInt(v.stock) || 0), 0)}
+                    </Text>
+                )}
+             </View>
              
              {/* VARIATIONS INPUT */}
              <View style={{ marginTop: 12 }}>
@@ -402,6 +431,7 @@ export default function AddProductScreen() {
                 <VariantManager 
                     productName={formData.name}
                     basePrice={formData.price}
+                    baseStock={formData.stock}
                     availableSizes={formData.sizes}
                     availableColors={formData.colors}
                     onVariantsChange={(newVariants, labels) => {
@@ -411,12 +441,8 @@ export default function AddProductScreen() {
                             color: v.option1 === '-' ? '' : v.option1, 
                             size: v.option2 === '-' ? '' : v.option2,  
                         }));
-                        
+
                         setVariants(mappedVariants);
-                        
-                        // Auto-calculate Total Stock
-                        const total = mappedVariants.reduce((sum, v) => sum + (parseInt(v.stock)||0), 0);
-                        if (total > 0) setFormData({...formData, stock: total.toString()});
                     }}
                 />
                 
@@ -429,7 +455,6 @@ export default function AddProductScreen() {
                             { text: "Remove", style: "destructive", onPress: () => {
                                 setShowVariants(false);
                                 setVariants([]);
-                                setFormData({...formData, stock: ''}); // Reset stock so user enters it manually
                             }}
                         ]);
                     }}

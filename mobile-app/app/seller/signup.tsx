@@ -74,9 +74,9 @@ export default function SellerSignupScreen() {
             setStoreStatus('checking');
             try {
                 const { data, error: fetchError } = await supabase
-                    .from('profiles')
-                    .select('full_name')
-                    .eq('full_name', formData.storeName.trim())
+                    .from('sellers')
+                    .select('store_name')
+                    .ilike('store_name', formData.storeName.trim())
                     .maybeSingle();
 
                 if (fetchError) throw fetchError;

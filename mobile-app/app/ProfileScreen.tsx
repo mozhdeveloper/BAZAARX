@@ -3,7 +3,7 @@ import { View, Text, ScrollView, Pressable, StyleSheet, Alert, StatusBar, Modal,
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
-import { User, MapPin, CreditCard, Bell, HelpCircle, Shield, ChevronRight, Store, Star, Package, Heart, Settings, Edit2, Power, X, Camera, RotateCcw, Clock, Gift } from 'lucide-react-native';
+import { User, MapPin, CreditCard, Bell, HelpCircle, Shield, ChevronRight, Store, Star, Package, Heart, Settings, Edit2, Power, X, Camera, RotateCcw, Clock, Gift, Truck } from 'lucide-react-native';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -227,6 +227,59 @@ export default function ProfileScreen({ navigation }: Props) {
     wishlistCount: wishlistItems.length,
   };
 
+  // 1. Add state for dynamic counts
+  const [orderCounts, setOrderCounts] = React.useState({
+    toPay: 0,
+    toShip: 0,
+    toReceive: 0,
+    toReview: 0,
+  });
+
+  // 2. Fetch counts from Supabase shipment_status
+  React.useEffect(() => {
+    if (!user?.id || isGuest) return;
+
+    const fetchOrderCounts = async () => {
+      try {
+        const { data: orders, error } = await supabase
+          .from('orders')
+          .select('shipment_status')
+          .eq('buyer_id', user.id);
+
+        if (!error && orders) {
+          const counts = { toPay: 0, toShip: 0, toReceive: 0, toReview: 0 };
+          
+          orders.forEach(order => {
+            const status = order.shipment_status?.toLowerCase();
+            if (['pending', 'pending_payment'].includes(status)) counts.toPay++;
+            else if (['processing', 'ready_to_ship'].includes(status)) counts.toShip++;
+            else if (['shipped', 'out_for_delivery'].includes(status)) counts.toReceive++;
+            else if (['delivered', 'received'].includes(status)) counts.toReview++;
+          });
+          setOrderCounts(counts);
+        }
+      } catch (e) {
+        console.error('Error fetching badge counts:', e);
+      }
+    };
+
+    fetchOrderCounts();
+  }, [user?.id, isGuest]);
+
+  const OrderStatusItem = ({ icon: Icon, label, badge, onPress }: any) => (
+    <Pressable style={styles.statusItem} onPress={onPress}>
+      <View>
+        <Icon size={28} color="#1F2937" strokeWidth={1.5} />
+        {badge > 0 && (
+          <View style={styles.badgeContainer}>
+            <Text style={styles.badgeText}>{badge > 99 ? '99+' : badge}</Text>
+          </View>
+        )}
+      </View>
+      <Text style={styles.statusLabel}>{label}</Text>
+    </Pressable>
+  );
+
   const handleLogout = () => {
     Alert.alert(
       'Logout',
@@ -246,7 +299,6 @@ export default function ProfileScreen({ navigation }: Props) {
   };
 
   const accountMenuItems = [
-    { icon: Package, label: 'My Orders', onPress: () => navigation.navigate('Orders', { initialTab: 'toPay' }) },
     { icon: Clock, label: 'History', onPress: () => navigation.navigate('History') },
     { icon: Gift, label: 'Wishlist', onPress: () => navigation.navigate('Wishlist') },
     { icon: MapPin, label: 'My Addresses', onPress: () => navigation.navigate('Addresses') },
@@ -422,6 +474,44 @@ export default function ProfileScreen({ navigation }: Props) {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        {/* NEW DEDICATED ORDERS SECTION */}
+          <View style={styles.menuGroup}>
+            <View style={styles.activityHeader}>
+                <Text style={styles.groupTitle}>My orders</Text>
+                <Pressable onPress={() => navigation.navigate('Orders', { initialTab: 'toPay' })}>
+                  <Text style={styles.viewAllText}>View all {'>'}</Text>
+                </Pressable>
+            </View>
+            <View style={styles.card}>
+              <View style={styles.orderStatusRow}>
+                <OrderStatusItem 
+                  icon={CreditCard} 
+                  label="To Pay" 
+                  badge={orderCounts.toPay} 
+                  onPress={() => navigation.navigate('Orders', { initialTab: 'toPay' })} 
+                />
+                <OrderStatusItem 
+                  icon={Package} 
+                  label="To Ship" 
+                  badge={orderCounts.toShip} 
+                  onPress={() => navigation.navigate('Orders', { initialTab: 'toShip' })} 
+                />
+                <OrderStatusItem 
+                  icon={Truck} 
+                  label="To Receive" 
+                  badge={orderCounts.toReceive} 
+                  onPress={() => navigation.navigate('Orders', { initialTab: 'toReceive' })} 
+                />
+                <OrderStatusItem 
+                  icon={Star} 
+                  label="To Review" 
+                  badge={orderCounts.toReview} 
+                  onPress={() => navigation.navigate('Orders', { initialTab: 'completed' })} 
+                />
+              </View>
+            </View>
+          </View>
+          
 
         {/* 3. MENU GROUPS (Neat White Cards) */}
         <View style={styles.menuGroup}>
@@ -438,8 +528,6 @@ export default function ProfileScreen({ navigation }: Props) {
             ))}
           </View>
         </View>
-
-
 
         <View style={styles.menuGroup}>
           <Text style={styles.groupTitle}>Settings</Text>
@@ -567,15 +655,24 @@ export default function ProfileScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F9FAFB' },
+  container: { 
+    flex: 1, 
+    backgroundColor: '#F9FAFB' 
+  },
   header: {
     paddingHorizontal: 25,
-    paddingBottom: 40,
+    paddingBottom: 20,
     borderBottomLeftRadius: 30,
     borderBottomRightRadius: 30,
   },
-  profileHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 25 },
-  avatarWrapper: { position: 'relative' },
+  profileHeader: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    marginBottom: 20 
+  },
+  avatarWrapper: { 
+    position: 'relative' 
+  },
   avatarCircle: {
     width: 90,
     height: 90,
@@ -586,7 +683,6 @@ const styles = StyleSheet.create({
     shadowColor: '#000',
     shadowOpacity: 0.1,
     shadowRadius: 10,
-
     elevation: 5,
     overflow: 'hidden',
   },
@@ -607,10 +703,23 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: COLORS.primary
   },
-  headerInfo: { marginLeft: 20 },
-  userName: { fontSize: 24, fontWeight: '800', color: '#FFFFFF', marginBottom: 4 },
-  userSub: { fontSize: 13, color: 'rgba(255,255,255,0.85)', fontWeight: '500' },
+  headerInfo: { 
+    marginLeft: 20 
+  },
+  userName: { 
+    fontSize: 24, 
+    fontWeight: '800', 
+    color: '#000',
+    marginBottom: 4 
+  },
+  userSub: { 
+    fontSize: 13, 
+    color: '#000',
+    fontWeight: '600',
+    opacity: 0.7 
+  },
 
+  // Stats Card
   statsCard: {
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',
@@ -619,22 +728,66 @@ const styles = StyleSheet.create({
     shadowColor: '#000',
     shadowOpacity: 0.05,
     shadowRadius: 15,
-    elevation: 4
+    elevation: 4,
+    marginBottom: 5,
   },
   statBox: { flex: 1, alignItems: 'center' },
   statVal: { fontSize: 20, fontWeight: '800', marginBottom: 2 },
   statLab: { fontSize: 12, color: '#9CA3AF', fontWeight: '600' },
   statDivider: { width: 1, height: '50%', backgroundColor: '#F3F4F6', alignSelf: 'center' },
 
-  scrollContent: { paddingHorizontal: 20, paddingBottom: 40, paddingTop: 20 },
+  // Content Spacing
+  scrollContent: { 
+    paddingHorizontal: 20, 
+    paddingBottom: 60, 
+    paddingTop: 10 
+  },
+  sectionContainer: { 
+    marginBottom: 25 
+  },
+  activityHeader: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    paddingHorizontal: 0,
+  },
+  viewAllText: { fontSize: 14, color: '#9CA3AF', fontWeight: '500', marginBottom: 9, marginEnd: 10 },
+  groupTitle: { 
+    fontSize: 13, 
+    fontWeight: '700', 
+    color: '#9CA3AF', 
+    textTransform: 'uppercase', 
+    letterSpacing: 1, 
+    marginLeft: 16, 
+    marginBottom: 10 
+  },
+
+  // Order Status Row
+  orderStatusRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 20 },
+  statusItem: { flex: 1, alignItems: 'center' },
+  statusLabel: { fontSize: 12, color: '#111827', fontWeight: '500', marginTop: 8 },
+  badgeContainer: { 
+    position: 'absolute', top: -8, right: -12, backgroundColor: '#FF4D4D', 
+    borderRadius: 10, minWidth: 20, height: 20, justifyContent: 'center', 
+    alignItems: 'center', borderWidth: 2, borderColor: '#FFF', zIndex: 1 
+  },
+  badgeText: { color: '#FFF', fontSize: 10, fontWeight: '800' },
+
+  // Menu Groups
   menuGroup: { marginBottom: 25 },
-  groupTitle: { fontSize: 13, fontWeight: '700', color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 1, marginLeft: 10, marginBottom: 10 },
-  card: { backgroundColor: '#FFF', borderRadius: 20, paddingHorizontal: 15, shadowColor: '#000', shadowOpacity: 0.02, shadowRadius: 10, elevation: 2 },
+  card: { 
+    backgroundColor: '#FFF', borderRadius: 20, paddingHorizontal: 15, 
+    shadowColor: '#000', shadowOpacity: 0.02, shadowRadius: 10, elevation: 2 
+  },
   menuItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 15 },
   borderBottom: { borderBottomWidth: 1, borderBottomColor: '#F9FAFB' },
-  iconContainer: { width: 38, height: 38, borderRadius: 10, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center', marginRight: 15 },
+  iconContainer: { 
+    width: 38, height: 38, borderRadius: 10, backgroundColor: '#F3F4F6', 
+    alignItems: 'center', justifyContent: 'center', marginRight: 15 
+  },
   menuLabel: { flex: 1, fontSize: 15, fontWeight: '600', color: '#374151' },
 
+  // Footer & Logout (FIXED MISSING PROPERTIES)
   logoutBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -644,26 +797,41 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     gap: 10,
     borderWidth: 1,
-    borderColor: '#FEE2E2'
+    borderColor: '#FEE2E2',
+    marginTop: 10
   },
   logoutText: { fontSize: 16, fontWeight: '700', color: '#EF4444' },
-
   footer: { alignItems: 'center', marginTop: 30, gap: 4 },
   versionText: { fontSize: 12, color: '#D1D5DB', fontWeight: '600' },
   footerText: { fontSize: 12, color: '#D1D5DB', fontWeight: '500' },
 
-  // Modal Styles
+  // Modal Styles (FIXED MISSING PROPERTIES)
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalContent: { backgroundColor: '#FFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '90%' },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
+  modalHeader: { 
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', 
+    padding: 20, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' 
+  },
   modalTitle: { fontSize: 18, fontWeight: '800', color: '#1F2937' },
   avatarSection: { alignItems: 'center', marginBottom: 20 },
-  avatarContainer: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center', marginBottom: 8, overflow: 'hidden' },
+  avatarContainer: { 
+    width: 80, height: 80, borderRadius: 40, backgroundColor: '#F3F4F6', 
+    alignItems: 'center', justifyContent: 'center', marginBottom: 8, overflow: 'hidden' 
+  },
   avatarImageLarge: { width: '100%', height: '100%' },
-  cameraBadge: { position: 'absolute', bottom: 0, right: 0, width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#FFF' },
+  cameraBadge: { 
+    position: 'absolute', bottom: 0, right: 0, width: 24, height: 24, 
+    borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#FFF' 
+  },
   changePhotoText: { fontSize: 13, color: '#6B7280', fontWeight: '600' },
   inputLabel: { fontSize: 13, fontWeight: '700', color: '#374151', marginBottom: 6, marginTop: 10 },
-  input: { backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12, paddingHorizontal: 15, paddingVertical: 12, fontSize: 15, color: '#1F2937' },
-  saveButton: { marginTop: 30, paddingVertical: 15, borderRadius: 16, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
+  input: { 
+    backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#E5E7EB', 
+    borderRadius: 12, paddingHorizontal: 15, paddingVertical: 12, fontSize: 15, color: '#1F2937' 
+  },
+  saveButton: { 
+    marginTop: 30, paddingVertical: 15, borderRadius: 16, alignItems: 'center', 
+    justifyContent: 'center', elevation: 3 
+  },
   saveButtonText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
 });

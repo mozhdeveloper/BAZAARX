@@ -5,6 +5,7 @@ import { ArrowLeft, CreditCard, Plus, Trash2, Check, Building2 } from 'lucide-re
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import { COLORS } from '../src/constants/theme';
+import { BuyerBottomNav } from '../src/components/BuyerBottomNav';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'PaymentMethods'>;
 
@@ -257,6 +258,9 @@ export default function PaymentMethodsScreen({ navigation }: Props) {
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* Bottom Navigation */}
+      <BuyerBottomNav />
     </View>
   );
 }

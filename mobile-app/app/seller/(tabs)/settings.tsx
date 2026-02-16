@@ -662,27 +662,25 @@ export default function SellerSettingsScreen() {
       {/* Immersive Edge-to-Edge Header */}
       <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <View style={styles.headerContent}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <View style={styles.headerLeft}>
             <Pressable style={styles.iconContainer} onPress={() => setDrawerVisible(true)}>
-              <Menu size={24} color="#FFFFFF" strokeWidth={2} />
+              <Menu size={24} color="#1F2937" strokeWidth={2} />
             </Pressable>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.headerTitle}>Store Settings</Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center', opacity: 0.9 }}>
-                <Store size={12} color="#FFF" style={{ marginRight: 6 }} />
-                <Text style={styles.headerSubtitle}>Seller Mode • Manage your store</Text>
+            <View>
+              <Text style={styles.headerTitle} numberOfLines={1}>Store Settings</Text>
+              <View style={styles.subtitleRow}>
+                <Store size={12} color="#4B5563" style={{ marginRight: 6 }} />
+                <Text style={styles.headerSubtitle} numberOfLines={1}>
+                  Seller Mode • Manage your store
+                </Text>
               </View>
             </View>
           </View>
+          <Pressable style={styles.notificationButton} onPress={() => navigation.getParent()?.navigate('Notifications')}>
+            <Bell size={22} color="#1F2937" strokeWidth={2.5} />
+            <View style={styles.notificationBadge} />
+          </Pressable>
         </View>
-        {/* Notification positioned absolutely to prevent cutoff */}
-        <Pressable
-          style={[styles.notificationButton, { position: 'absolute', right: 20, top: insets.top + 20 }]}
-          onPress={() => navigation.getParent()?.navigate('Notifications')}
-        >
-          <Bell size={22} color="#FFFFFF" strokeWidth={2.5} />
-          <View style={styles.notificationBadge} />
-        </Pressable>
       </View>
 
       <ScrollView
@@ -867,58 +865,44 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F5F7',
   },
   header: {
-    backgroundColor: '#FF5722',
+    backgroundColor: '#FFE5CC', // Peach Background
     paddingHorizontal: 20,
-    paddingBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 4,
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
+    paddingBottom: 20,
+    borderBottomLeftRadius: 24, // Consistent rounding
+    borderBottomRightRadius: 24,
+    elevation: 3,
   },
   headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
   iconContainer: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    padding: 12,
+    backgroundColor: 'rgba(0,0,0,0.05)', // Subtle dark overlay
+    padding: 10,
     borderRadius: 12,
   },
   headerTitle: {
     fontSize: 22,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: 0.3,
+    fontWeight: '800', // Bold Charcoal text
+    color: '#1F2937',
+  },
+  subtitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   headerSubtitle: {
     fontSize: 13,
-    color: '#FFFFFF',
-    opacity: 0.9,
+    color: '#4B5563', // Gray Subtitle
     fontWeight: '500',
   },
-  notificationButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-    zIndex: 5,
-  },
-  notificationBadge: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    width: 10,
-    height: 10,
-    borderRadius: 10,
-    backgroundColor: '#EF4444',
-    borderWidth: 1.5,
-    borderColor: '#FF5722',
-  },
+  notificationButton: { position: 'relative' },
+  notificationBadge: { position: 'absolute', top: 0, right: 0, width: 10, height: 10, borderRadius: 5, backgroundColor: '#EF4444', borderWidth: 2, borderColor: '#FFE5CC' },
   scrollView: {
     flex: 1,
   },

@@ -50,7 +50,11 @@ interface AttributesTabProps {
             | Partial<VariantConfig>
             | ((prev: Partial<VariantConfig>) => Partial<VariantConfig>),
     ) => void;
-    setErrors: (errors: any | ((prev: any) => any)) => void;
+    setErrors: (
+        errors:
+            | Record<string, string>
+            | ((prev: Record<string, string>) => Record<string, string>),
+    ) => void;
     addVariant: () => void;
 }
 

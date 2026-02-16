@@ -9,6 +9,7 @@ import { useWishlistStore, WishlistItem } from '../src/stores/wishlistStore';
 import { useAuthStore } from '../src/stores/authStore';
 import { GuestLoginModal } from '../src/components/GuestLoginModal';
 import { COLORS } from '../src/constants/theme';
+import { BuyerBottomNav } from '../src/components/BuyerBottomNav';
 
 const { width } = Dimensions.get('window');
 
@@ -486,6 +487,9 @@ export default function WishlistScreen() {
                     setSelectedCategoryId(null); // Go back home
                 }}
             />
+
+            {/* Bottom Navigation */}
+            <BuyerBottomNav />
         </LinearGradient>
     );
 }

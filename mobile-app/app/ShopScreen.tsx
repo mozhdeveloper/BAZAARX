@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Search, SlidersHorizontal, X, Check, Camera, ShoppingCart, Star, CheckCircle2 } from 'lucide-react-native';
+import { Search, SlidersHorizontal, X, Check, Camera, Star, CheckCircle2 } from 'lucide-react-native';
 import MultiSlider from '@ptomasroos/react-native-multi-slider';
 import CameraSearchModal from '../src/components/CameraSearchModal';
 import { ProductCard } from '../src/components/ProductCard';
@@ -26,7 +26,6 @@ import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList, TabParamList } from '../App';
 import type { Product } from '../src/types';
-import { useCartStore } from '../src/stores/cartStore';
 import { COLORS } from '../src/constants/theme';
 
 type Props = CompositeScreenProps<
@@ -36,14 +35,209 @@ type Props = CompositeScreenProps<
 
 const { width } = Dimensions.get('window');
 
-const categories = [
-  { id: 'all', name: 'All' },
-  { id: 'electronics', name: 'Electronics' },
-  { id: 'fashion', name: 'Fashion' },
-  { id: 'home-garden', name: 'Home & Garden' },
-  { id: 'beauty', name: 'Beauty' },
-  { id: 'sports', name: 'Sports' },
+type CategoryChip = {
+  id: string;
+  name: string;
+  slug: string;
+  key: string;
+  matchKeys: string[];
+};
+
+const PLACEHOLDER_IMAGE = 'https://placehold.co/400x400/e5e7eb/6b7280?text=Product';
+
+const CATEGORY_ALIAS_MAP: Record<string, string[]> = {
+  'home-living': ['home-garden', 'home-and-garden'],
+  'home-garden': ['home-living', 'home-and-living'],
+  'beauty-health': ['beauty', 'beauty-personal', 'health-beauty'],
+  'beauty-personal': ['beauty', 'beauty-health', 'beauty-and-health'],
+  'sports-outdoors': ['sports'],
+  'toys-games': ['toys', 'games'],
+  'books-stationery': ['books', 'books-media'],
+  'books-media': ['books', 'books-stationery'],
+  'food-beverages': ['food', 'food-beverage', 'food-drinks'],
+  'food-drinks': ['food', 'food-beverage', 'food-beverages'],
+};
+
+const FALLBACK_CATEGORY_DATA = [
+  { id: 'all', name: 'All', slug: 'all' },
+  { id: 'electronics', name: 'Electronics', slug: 'electronics' },
+  { id: 'fashion', name: 'Fashion', slug: 'fashion' },
+  { id: 'home-living', name: 'Home & Living', slug: 'home-living' },
+  { id: 'beauty', name: 'Beauty', slug: 'beauty' },
+  { id: 'sports', name: 'Sports', slug: 'sports' },
 ];
+
+const normalizeCategoryKey = (value?: string | null): string => {
+  if (!value) return '';
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+};
+
+const expandCategoryAliases = (key: string): string[] => {
+  if (!key) return [];
+
+  const expanded = new Set<string>([key]);
+  const directAliases = CATEGORY_ALIAS_MAP[key] || [];
+  directAliases.forEach((alias) => expanded.add(normalizeCategoryKey(alias)));
+
+  Object.entries(CATEGORY_ALIAS_MAP).forEach(([canonical, aliases]) => {
+    const normalizedAliases = aliases.map((alias) => normalizeCategoryKey(alias));
+    if (normalizedAliases.includes(key)) {
+      expanded.add(normalizeCategoryKey(canonical));
+      normalizedAliases.forEach((alias) => expanded.add(alias));
+    }
+  });
+
+  return Array.from(expanded).filter(Boolean);
+};
+
+const buildCategoryChip = (raw: { id: string; name: string; slug?: string | null }): CategoryChip => {
+  const normalizedSlug = normalizeCategoryKey(raw.slug || raw.name);
+  const normalizedName = normalizeCategoryKey(raw.name);
+  const key = normalizedSlug || normalizedName || 'all';
+
+  const matchSet = new Set<string>([key, normalizedName].filter(Boolean));
+  [key, normalizedName].forEach((seed) => {
+    expandCategoryAliases(seed).forEach((alias) => matchSet.add(alias));
+  });
+
+  return {
+    id: raw.id,
+    name: raw.name,
+    slug: raw.slug || key,
+    key,
+    matchKeys: Array.from(matchSet),
+  };
+};
+
+const DEFAULT_CATEGORY_CHIPS: CategoryChip[] = FALLBACK_CATEGORY_DATA.map(buildCategoryChip);
+
+const resolveCategoryKey = (input: string | undefined, chips: CategoryChip[]): string => {
+  const normalizedInput = normalizeCategoryKey(input);
+  if (!normalizedInput || normalizedInput === 'all') return 'all';
+
+  const exact = chips.find((chip) => chip.matchKeys.includes(normalizedInput));
+  if (exact) return exact.key;
+
+  const expandedInput = expandCategoryAliases(normalizedInput);
+  const aliased = chips.find((chip) => expandedInput.some((candidate) => chip.matchKeys.includes(candidate)));
+
+  return aliased?.key || 'all';
+};
+
+const categoryMatches = (
+  selectedKey: string,
+  productCategory: string | undefined,
+  chips: CategoryChip[],
+): boolean => {
+  if (selectedKey === 'all') return true;
+
+  const productKey = normalizeCategoryKey(productCategory);
+  if (!productKey) return false;
+
+  const selectedChip = chips.find((chip) => chip.key === selectedKey);
+  if (!selectedChip) return productKey === selectedKey;
+
+  if (selectedChip.matchKeys.includes(productKey)) return true;
+
+  const productAliases = expandCategoryAliases(productKey);
+  return productAliases.some((alias) => selectedChip.matchKeys.includes(alias));
+};
+
+const toNumber = (value: unknown, fallback = 0): number => {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : fallback;
+  if (typeof value === 'string') {
+    const parsed = parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+  return fallback;
+};
+
+const normalizeProductForShop = (row: any): Product => {
+  const rawImages: any[] = Array.isArray(row.images) ? row.images : [];
+  const imageUrls = rawImages
+    .map((img: any) => (typeof img === 'string' ? img : img?.image_url))
+    .filter((url: unknown): url is string => typeof url === 'string' && url.length > 0);
+
+  const primaryImage =
+    rawImages.find((img: any) => typeof img === 'object' && img?.is_primary)?.image_url ||
+    row.primary_image_url ||
+    row.primary_image ||
+    row.image ||
+    imageUrls[0] ||
+    PLACEHOLDER_IMAGE;
+
+  const rawVariants: any[] = Array.isArray(row.variants) ? row.variants : [];
+  const variants = rawVariants.map((v: any) => ({
+    id: v.id,
+    product_id: row.id,
+    sku: v.sku,
+    variant_name:
+      v.variant_name ||
+      `${v.option_1_value || v.color || ''} ${v.option_2_value || v.size || ''}`.trim() ||
+      'Variant',
+    size: v.size,
+    color: v.color,
+    option_1_value: v.option_1_value,
+    option_2_value: v.option_2_value,
+    price: toNumber(v.price, toNumber(row.price, 0)),
+    stock: toNumber(v.stock, 0),
+    thumbnail_url: v.thumbnail_url,
+  }));
+
+  const colors = Array.from(new Set(variants.map((v: any) => v.color).filter(Boolean))) as string[];
+  const sizes = Array.from(new Set(variants.map((v: any) => v.size).filter(Boolean))) as string[];
+  const option1Values = Array.from(
+    new Set(variants.map((v: any) => v.option_1_value || v.color).filter(Boolean)),
+  ) as string[];
+  const option2Values = Array.from(
+    new Set(variants.map((v: any) => v.option_2_value || v.size).filter(Boolean)),
+  ) as string[];
+
+  const originalPriceRaw = row.originalPrice ?? row.original_price;
+  const originalPrice = toNumber(originalPriceRaw, 0);
+
+  const categoryName = typeof row.category === 'string' ? row.category : row.category?.name || '';
+
+  return {
+    id: row.id,
+    name: row.name ?? 'Unknown Product',
+    price: toNumber(row.price, 0),
+    originalPrice: originalPrice > 0 ? originalPrice : undefined,
+    original_price: originalPrice > 0 ? originalPrice : undefined,
+    image: primaryImage,
+    images: imageUrls.length > 0 ? imageUrls : [primaryImage],
+    rating: toNumber(row.rating, 0),
+    review_count: toNumber(row.review_count ?? row.reviewCount, 0),
+    sold: toNumber(row.sold ?? row.sales_count, 0),
+    sales_count: toNumber(row.sold ?? row.sales_count, 0),
+    seller: row.seller?.store_name || row.sellerName || 'Verified Seller',
+    seller_id: row.seller_id || row.seller?.id,
+    sellerId: row.seller_id || row.seller?.id,
+    sellerVerified: !!row.seller?.verified_at || row.seller?.approval_status === 'verified',
+    sellerRating: toNumber(row.seller?.rating ?? row.sellerRating, 0),
+    category: categoryName,
+    category_id: row.category_id || row.category?.id,
+    description: row.description,
+    created_at: row.created_at,
+    variants,
+    colors,
+    sizes,
+    variant_label_1: row.variant_label_1,
+    variant_label_2: row.variant_label_2,
+    option1Values,
+    option2Values,
+    stock:
+      row.stock != null
+        ? toNumber(row.stock, 0)
+        : variants.reduce((sum: number, variant: any) => sum + toNumber(variant.stock, 0), 0),
+    isFreeShipping: !!(row.is_free_shipping ?? row.isFreeShipping),
+  };
+};
 
 const sortOptions = [
   { value: 'relevance', label: 'Best Match' },
@@ -55,16 +249,18 @@ const sortOptions = [
 
 export default function ShopScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
-  const cartItems = useCartStore((state) => state.items);
   const BRAND_COLOR = COLORS.primary;
 
   const [dbProducts, setDbProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [sellers, setSellers] = useState<any[]>([]);
+  const [categoryChips, setCategoryChips] = useState<CategoryChip[]>(DEFAULT_CATEGORY_CHIPS);
 
   const { searchQuery: initialSearchQuery, customResults, category: initialCategory } = route.params || {};
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery || '');
-  const [selectedCategory, setSelectedCategory] = useState(initialCategory || 'all');
+  const [selectedCategory, setSelectedCategory] = useState(() =>
+    resolveCategoryKey(initialCategory, DEFAULT_CATEGORY_CHIPS),
+  );
   const [selectedSort, setSelectedSort] = useState('relevance');
 
   const [minPrice, setMinPrice] = useState('0');
@@ -78,86 +274,68 @@ export default function ShopScreen({ navigation, route }: Props) {
   const [isSearchFocused, setIsSearchFocused] = useState(false);
 
   useEffect(() => {
+    if (typeof route.params?.searchQuery === 'string') {
+      setSearchQuery(route.params.searchQuery);
+    }
+  }, [route.params?.searchQuery]);
+
+  useEffect(() => {
+    setSelectedCategory(resolveCategoryKey(route.params?.category, categoryChips));
+  }, [route.params?.category, categoryChips]);
+
+  useEffect(() => {
     const loadData = async () => {
       setIsLoading(true);
       try {
-        // Fetching through your new ProductService
-        const productsData = await productService.getProducts({
-          isActive: true,
-          approvalStatus: 'approved'
-        });
+        const [productsResult, categoriesResult, sellersResult] = await Promise.allSettled([
+          productService.getProducts({
+            isActive: true,
+            approvalStatus: 'approved',
+          }),
+          productService.getCategories(),
+          supabase
+            .from('sellers')
+            .select('id, store_name, verified_at, approval_status')
+            .order('created_at', { ascending: false }),
+        ]);
 
-        // Fetch sellers directly for the store section
-        const { data: sellersData } = await supabase
-          .from('sellers')
-          .select('*')
-          .order('rating', { ascending: false });
-
-        if (productsData) {
-          const mapped: Product[] = productsData.map((row: any) => {
-            // Extract images from product_images relation
-            const images = row.images?.map((img: any) => img.image_url).filter(Boolean) || [];
-            const primaryImage = row.images?.find((img: any) => img.is_primary)?.image_url
-              || images[0]
-              || 'https://via.placeholder.com/300';
-
-            // Extract variants from product_variants relation
-            const variants = row.variants?.map((v: any) => ({
-              id: v.id,
-              product_id: row.id,
-              sku: v.sku,
-              variant_name: v.variant_name || `${v.color || ''} ${v.size || ''}`.trim(),
-              size: v.size,
-              color: v.color,
-              option_1_value: v.option_1_value,
-              option_2_value: v.option_2_value,
-              price: v.price,
-              stock: v.stock,
-              thumbnail_url: v.thumbnail_url,
-            })) || [];
-
-            // Extract unique colors and sizes for legacy support
-            const colors = [...new Set(variants.map((v: any) => v.color).filter(Boolean))] as string[];
-            const sizes = [...new Set(variants.map((v: any) => v.size).filter(Boolean))] as string[];
-
-            // Extract option values for dynamic variant support
-            const option1Values = [...new Set(variants.map((v: any) => v.option_1_value).filter(Boolean))] as string[];
-            const option2Values = [...new Set(variants.map((v: any) => v.option_2_value).filter(Boolean))] as string[];
-
-            return {
-              id: row.id,
-              name: row.name ?? 'Unknown Product',
-              price: typeof row.price === 'number' ? row.price : parseFloat(row.price || '0'),
-              originalPrice: typeof row.original_price === 'number' ? row.original_price : parseFloat(row.original_price || '0'),
-              image: primaryImage,
-              images: images.length > 0 ? images : [primaryImage],
-              rating: row.rating ?? 0, // Rating calculated from reviews
-              sold: row.sold ?? 0, // Sold count calculated from order_items
-              seller: row.seller?.store_name || 'Verified Seller',
-              seller_id: row.seller_id,
-              sellerId: row.seller_id,
-              sellerVerified: !!row.seller?.verified_at,
-              sellerRating: row.seller?.rating || 4.8,
-              category: row.category?.name ?? '',
-              description: row.description,
-              created_at: row.created_at,
-              variants: variants,
-              colors: colors,
-              sizes: sizes,
-              // Dynamic variant labels from database
-              variant_label_1: row.variant_label_1,
-              variant_label_2: row.variant_label_2,
-              option1Values: option1Values,
-              option2Values: option2Values,
-              stock: row.stock ?? variants.reduce((sum: number, v: any) => sum + (v.stock || 0), 0),
-            };
-          });
-          // Deduplicate by ID to prevent key errors
-          const uniqueMapped = Array.from(new Map(mapped.map(item => [item.id, item])).values());
+        if (productsResult.status === 'fulfilled') {
+          const mapped: Product[] = (productsResult.value || []).map((row: any) => normalizeProductForShop(row));
+          const uniqueMapped = Array.from(new Map(mapped.map((item) => [item.id, item])).values());
           setDbProducts(uniqueMapped);
+        } else {
+          console.error('[ShopScreen] Failed loading products:', productsResult.reason);
+          setDbProducts([]);
         }
 
-        if (sellersData) setSellers(sellersData);
+        if (categoriesResult.status === 'fulfilled') {
+          const mappedChips = (categoriesResult.value || []).map((category: any) =>
+            buildCategoryChip({
+              id: category.id,
+              name: category.name,
+              slug: category.slug,
+            }),
+          );
+
+          const chipsWithAll = [DEFAULT_CATEGORY_CHIPS[0], ...mappedChips];
+          const deduped = Array.from(new Map(chipsWithAll.map((chip) => [chip.key, chip])).values());
+          setCategoryChips(deduped.length > 1 ? deduped : DEFAULT_CATEGORY_CHIPS);
+        } else {
+          console.error('[ShopScreen] Failed loading categories:', categoriesResult.reason);
+          setCategoryChips(DEFAULT_CATEGORY_CHIPS);
+        }
+
+        if (sellersResult.status === 'fulfilled') {
+          if (sellersResult.value.error) {
+            console.error('[ShopScreen] Failed loading sellers:', sellersResult.value.error);
+            setSellers([]);
+          } else {
+            setSellers(sellersResult.value.data || []);
+          }
+        } else {
+          console.error('[ShopScreen] Failed loading sellers:', sellersResult.reason);
+          setSellers([]);
+        }
       } catch (err) {
         console.error('[ShopScreen] Error loading data:', err);
       } finally {
@@ -174,23 +352,31 @@ export default function ShopScreen({ navigation, route }: Props) {
   };
 
   const filteredProducts = useMemo(() => {
-    if (customResults && customResults.length > 0) return customResults;
+    const sourceProducts = customResults && customResults.length > 0 ? customResults : dbProducts;
 
-    // 1. Filter first
-    let filtered = dbProducts.filter(p => {
-      // Safely handle potential undefined values
-      const pName = p.name || '';
-      const pCategory = p.category || '';
-      const pPrice = p.price ?? 0; // Default to 0 if undefined
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+    const min = toNumber(minPrice, 0);
+    const max = toNumber(maxPrice, 100000);
 
-      const nameMatch = pName.toLowerCase().includes(searchQuery.toLowerCase());
-      const categoryMatch = selectedCategory === 'all' || pCategory.toLowerCase().replace(/\s+/g, '-') === selectedCategory;
-      const priceMatch = pPrice >= parseFloat(minPrice) && pPrice <= parseFloat(maxPrice);
+    let filtered = sourceProducts.filter((product) => {
+      const productName = (product.name || '').toLowerCase();
+      const productCategory = product.category || '';
+      const productSeller = (product.seller || '').toLowerCase();
+      const productPrice = toNumber(product.price, 0);
 
-      return nameMatch && categoryMatch && priceMatch;
+      const searchMatch =
+        normalizedQuery.length === 0 ||
+        productName.includes(normalizedQuery) ||
+        productCategory.toLowerCase().includes(normalizedQuery) ||
+        productSeller.includes(normalizedQuery);
+
+      const categoryMatch = categoryMatches(selectedCategory, productCategory, categoryChips);
+      const priceMatch = productPrice >= min && productPrice <= max;
+
+      return searchMatch && categoryMatch && priceMatch;
     });
 
-    // 2. Sort safely using (price ?? 0)
+    // Sort safely
     if (selectedSort === 'price-low') {
       filtered.sort((a, b) => (a.price ?? 0) - (b.price ?? 0));
     } else if (selectedSort === 'price-high') {
@@ -202,17 +388,31 @@ export default function ShopScreen({ navigation, route }: Props) {
     }
 
     return filtered;
-  }, [dbProducts, searchQuery, selectedCategory, selectedSort, customResults, minPrice, maxPrice]);
+  }, [dbProducts, searchQuery, selectedCategory, selectedSort, customResults, minPrice, maxPrice, categoryChips]);
 
   const verifiedStores = useMemo(() => {
     return (sellers || [])
-      .map(s => ({
-        id: s.id,
-        name: s.store_name || 'Store',
-        verified: !!s.verified_at,
-        rating: s.rating || 4.8,
-        products: dbProducts.filter(p => p.seller_id === s.id || p.sellerId === s.id).slice(0, 2).map(p => p.image),
-      }))
+      .map((seller) => {
+        const storeProducts = dbProducts
+          .filter((product) => product.seller_id === seller.id || product.sellerId === seller.id)
+          .slice(0, 2);
+
+        const productRatings = storeProducts.map((product) => toNumber(product.rating, 0)).filter((rating) => rating > 0);
+        const computedRating =
+          productRatings.length > 0
+            ? Math.round((productRatings.reduce((sum, rating) => sum + rating, 0) / productRatings.length) * 10) / 10
+            : 4.8;
+
+        return {
+          id: seller.id,
+          name: seller.store_name || 'Store',
+          verified: !!seller.verified_at || seller.approval_status === 'verified',
+          rating: computedRating,
+          products: storeProducts
+            .map((product) => product.image)
+            .filter((image: unknown): image is string => typeof image === 'string' && image.length > 0),
+        };
+      })
       .filter(s => s.products.length > 0);
   }, [sellers, dbProducts]);
 
@@ -261,13 +461,13 @@ export default function ShopScreen({ navigation, route }: Props) {
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryScroll}>
-          {categories.map((cat) => (
+          {categoryChips.map((cat) => (
             <Pressable
-              key={cat.id}
-              style={[styles.chip, selectedCategory === cat.id && { backgroundColor: BRAND_COLOR, borderColor: BRAND_COLOR }]}
-              onPress={() => setSelectedCategory(cat.id)}
+              key={cat.key}
+              style={[styles.chip, selectedCategory === cat.key && { backgroundColor: BRAND_COLOR, borderColor: BRAND_COLOR }]}
+              onPress={() => setSelectedCategory(cat.key)}
             >
-              <Text style={[styles.chipText, selectedCategory === cat.id && { color: '#FFF' }]}>{cat.name}</Text>
+              <Text style={[styles.chipText, selectedCategory === cat.key && { color: '#FFF' }]}>{cat.name}</Text>
             </Pressable>
           ))}
         </ScrollView>
