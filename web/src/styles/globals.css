@@ -15,35 +15,63 @@
     --popover-foreground: hsl(222.2 84% 4.9%);
 
     /* Brand Colors (Hex for custom usage) */
-    --brand-primary: #FF6A00;
-    --brand-primary-dark: #D94F00;
-    --brand-accent: #2563EB;
+    --brand-primary: #FB8C00;
+    /* Primary Action */
+    --brand-primary-dark: #E67E00;
+    /* Darker Primary */
+    --brand-accent: #F59E0B;
+    /* Secondary Accent */
+    --brand-accent-light: #FFE0B2;
+    /* Tertiary Accent */
+    --brand-wash: #FFF6E5;
+    /* Main Background (Light Cream) */
+    --brand-wash-gold: #FFE0A3;
+    /* Warm Pastel Gold */
+    --brand-wash-beige: #FFD89A;
+    /* Soft Beige-Gold */
+    --bg-secondary: #FFFBF0;
+    /* Warm Ivory (Cards) */
 
     /* Brand Colors (HSL for Tailwind compatibility) */
-    --primary: hsl(24 100% 50%);
+    --primary: hsl(33 98% 49%);
+    /* #FB8C00 */
     --primary-foreground: hsl(0 0% 98%);
-    --secondary: hsl(210 40% 96.1%);
-    --secondary-foreground: hsl(222.2 47.4% 11.2%);
-    --muted: hsl(210 40% 96.1%);
-    --muted-foreground: hsl(215.4 16.3% 46.9%);
-    --accent: hsl(210 40% 96.1%);
-    --accent-foreground: hsl(222.2 47.4% 11.2%);
-    --destructive: hsl(0 72% 51%);
-    --destructive-foreground: hsl(210 40% 98%);
-    --border: hsl(214.3 31.8% 91.4%);
-    --btn-border: hsl(214.3 31.8% 91.4%);
-    --input: hsl(214.3 31.8% 91.4%);
-    --ring: hsl(24 100% 50%);
+    --secondary: hsl(36 100% 85%);
+    /* #FFE0B2 */
+    --secondary-foreground: hsl(15 70% 28%);
+    --muted: hsl(36 100% 94%);
+    --muted-foreground: hsl(25 24% 65%);
+    --accent: hsl(38 92% 50%);
+    /* #F59E0B */
+    --accent-foreground: hsl(15 70% 28%);
+    --destructive: hsl(0 75% 50%);
+    /* #DC2626 */
+    --destructive-foreground: hsl(0 0% 98%);
+    --border: hsl(33 100% 90%);
+    /* Subtle cream border */
+    --btn-border: hsl(33 100% 85%);
+    --input: hsl(33 100% 90%);
+    --ring: hsl(33 98% 49%);
 
     /* Status Colors */
     --color-success: #22C55E;
-    --color-error: #EF4444;
-    --color-pending: #FFBF00;
+    --color-error: #DC2626;
+    /* Urgent Red */
+    --color-pending: #F59E0B;
 
     /* Text Colors */
-    --text-primary: #0F172A;
-    --text-secondary: #6B7280;
-    --text-muted: #9CA3AF;
+    --text-primary: #78350F;
+    /* Soft Warm Brown (Body) */
+    --text-headline: #7C2D12;
+    /* Rich Warm Brown (Headlines) */
+    --text-accent: #EA580C;
+    /* Vibrant Dark Orange */
+    --text-secondary: #78350F;
+    /* Mapping body to secondary for now */
+    --text-muted: #A8A29E;
+    /* Warm Gray (Meta) */
+    --price-standard: #EA580C;
+    --price-flash: #DC2626;
 
     /* Radius */
     --radius: 0.5rem;
@@ -51,6 +79,7 @@
     --radius-sm: 4px;
     --radius-md: 8px;
     --radius-lg: 12px;
+    /* 12px for standard product look */
     --radius-xl: 16px;
     --radius-full: 9999px;
 
@@ -67,9 +96,11 @@
     --spacing-xl: 48px;
 
     /* Shadows */
-    --shadow-small: 0 2px 4px rgba(0, 17, 44, 0.1);
-    --shadow-medium: 0 4px 8px rgba(0, 17, 44, 0.1);
-    --shadow-large: 0 24px 48px -36px rgba(0, 17, 44, 0.1);
+    --shadow-small: 0 2px 4px rgba(124, 45, 18, 0.05);
+    --shadow-medium: 0 4px 8px rgba(124, 45, 18, 0.1);
+    --shadow-large: 0 24px 48px -36px rgba(124, 45, 18, 0.15);
+    --shadow-golden-glow: 0 6px 12px rgba(245, 158, 11, 0.2);
+    /* #F59E0B at 20% */
   }
 
   * {
@@ -117,6 +148,18 @@
   .scrollbar-hide {
     -ms-overflow-style: none;
     scrollbar-width: none;
+  }
+
+  .bg-main-gradient {
+    background: linear-gradient(135deg, #FFF6E5 0%, #FFE0A3 50%, #FFD89A 100%);
+  }
+
+  .bg-gold-band {
+    background: linear-gradient(to right, #FFF6E5, #FFE0A3, #FFF6E5);
+  }
+
+  .shadow-golden {
+    box-shadow: var(--shadow-golden-glow);
   }
 
   @keyframes slide-in-right {
