@@ -352,6 +352,42 @@ CREATE TABLE public.payment_methods (
   CONSTRAINT payment_methods_pkey PRIMARY KEY (id),
   CONSTRAINT payment_methods_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id)
 );
+CREATE TABLE public.pos_settings (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  seller_id uuid NOT NULL UNIQUE,
+  accept_cash boolean DEFAULT true,
+  accept_card boolean DEFAULT false,
+  accept_gcash boolean DEFAULT false,
+  accept_maya boolean DEFAULT false,
+  barcode_scanner_enabled boolean DEFAULT false,
+  sound_enabled boolean DEFAULT true,
+  multi_branch_enabled boolean DEFAULT false,
+  default_branch text DEFAULT 'Main'::text,
+  tax_enabled boolean DEFAULT false,
+  tax_rate numeric DEFAULT 12.00,
+  tax_name text DEFAULT 'VAT'::text,
+  tax_inclusive boolean DEFAULT true,
+  receipt_header text DEFAULT ''::text,
+  receipt_footer text DEFAULT 'Thank you for shopping!'::text,
+  show_logo_on_receipt boolean DEFAULT true,
+  receipt_template text DEFAULT 'standard'::text,
+  auto_print_receipt boolean DEFAULT true,
+  printer_type text DEFAULT 'thermal'::text,
+  cash_drawer_enabled boolean DEFAULT false,
+  default_opening_cash numeric DEFAULT 0,
+  staff_tracking_enabled boolean DEFAULT false,
+  require_staff_login boolean DEFAULT false,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  scanner_type text DEFAULT 'camera'::text CHECK (scanner_type = ANY (ARRAY['camera'::text, 'usb'::text, 'bluetooth'::text])),
+  auto_add_on_scan boolean DEFAULT true,
+  logo_url text,
+  printer_name text,
+  enable_low_stock_alert boolean DEFAULT true,
+  low_stock_threshold integer DEFAULT 10,
+  CONSTRAINT pos_settings_pkey PRIMARY KEY (id),
+  CONSTRAINT pos_settings_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.sellers(id)
+);
 CREATE TABLE public.product_approvals (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   assessment_id uuid NOT NULL,
@@ -547,6 +583,14 @@ CREATE TABLE public.review_images (
   CONSTRAINT review_images_pkey PRIMARY KEY (id),
   CONSTRAINT review_images_review_id_fkey FOREIGN KEY (review_id) REFERENCES public.reviews(id)
 );
+CREATE TABLE public.review_votes (
+  review_id uuid NOT NULL,
+  buyer_id uuid NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT review_votes_pkey PRIMARY KEY (review_id, buyer_id),
+  CONSTRAINT review_votes_review_id_fkey FOREIGN KEY (review_id) REFERENCES public.reviews(id),
+  CONSTRAINT review_votes_buyer_id_fkey FOREIGN KEY (buyer_id) REFERENCES public.profiles(id)
+);
 CREATE TABLE public.reviews (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   product_id uuid NOT NULL,
@@ -561,10 +605,13 @@ CREATE TABLE public.reviews (
   is_edited boolean NOT NULL DEFAULT false,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  order_item_id uuid,
+  variant_snapshot jsonb CHECK (variant_snapshot IS NULL OR jsonb_typeof(variant_snapshot) = 'object'::text),
   CONSTRAINT reviews_pkey PRIMARY KEY (id),
   CONSTRAINT reviews_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id),
   CONSTRAINT reviews_buyer_id_fkey FOREIGN KEY (buyer_id) REFERENCES public.buyers(id),
-  CONSTRAINT reviews_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id)
+  CONSTRAINT reviews_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id),
+  CONSTRAINT reviews_order_item_id_fkey FOREIGN KEY (order_item_id) REFERENCES public.order_items(id)
 );
 CREATE TABLE public.seller_business_profiles (
   seller_id uuid NOT NULL,
