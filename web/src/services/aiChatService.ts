@@ -383,7 +383,13 @@ class AIChatService {
       let query = supabase
         .from('reviews')
         .select(`
-          rating, comment, created_at, buyer_id
+          rating,
+          comment,
+          created_at,
+          buyer_id,
+          product:products!reviews_product_id_fkey (
+            seller_id
+          )
         `)
         .eq('is_hidden', false)
         .order('created_at', { ascending: false })
@@ -392,7 +398,7 @@ class AIChatService {
       if (productId) {
         query = query.eq('product_id', productId);
       } else if (sellerId) {
-        query = query.eq('seller_id', sellerId);
+        query = query.eq('product.seller_id', sellerId);
       } else {
         return null;
       }
@@ -407,13 +413,18 @@ class AIChatService {
       // Get rating distribution
       const ratingQuery = supabase
         .from('reviews')
-        .select('rating')
+        .select(`
+          rating,
+          product:products!reviews_product_id_fkey (
+            seller_id
+          )
+        `)
         .eq('is_hidden', false);
 
       if (productId) {
         ratingQuery.eq('product_id', productId);
       } else if (sellerId) {
-        ratingQuery.eq('seller_id', sellerId);
+        ratingQuery.eq('product.seller_id', sellerId);
       }
 
       const { data: allRatings } = await ratingQuery;

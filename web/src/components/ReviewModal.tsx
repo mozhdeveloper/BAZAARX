@@ -5,10 +5,12 @@ import { Button } from "./ui/button";
 import { useBuyerStore } from "../stores/buyerStore";
 import { orderMutationService } from "../services/orders/orderMutationService";
 import { supabase } from "../lib/supabase";
+import { validateImageFile } from "../utils/storage";
 
 interface ReviewModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onSubmitted?: () => void;
   orderId: string;
   displayOrderId?: string;
   sellerId?: string;
@@ -23,6 +25,7 @@ interface ReviewModalProps {
 export function ReviewModal({
   isOpen,
   onClose,
+  onSubmitted,
   orderId,
   displayOrderId,
   sellerId,
@@ -33,9 +36,34 @@ export function ReviewModal({
   const [hoveredRating, setHoveredRating] = useState(0);
   const [reviewText, setReviewText] = useState("");
   const [images, setImages] = useState<string[]>([]);
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const { addReview } = useBuyerStore();
+
+  const revokeBlobUrls = (urls: string[]) => {
+    urls.forEach((url) => {
+      if (url.startsWith("blob:")) {
+        URL.revokeObjectURL(url);
+      }
+    });
+  };
+
+  const resetForm = () => {
+    revokeBlobUrls(images);
+    setRating(0);
+    setHoveredRating(0);
+    setReviewText("");
+    setImages([]);
+    setImageFiles([]);
+    setSubmitted(false);
+  };
+
+  const handleClose = () => {
+    if (isSubmitting) return;
+    resetForm();
+    onClose();
+  };
 
   const handleSubmit = async () => {
     if (rating === 0) {
@@ -58,13 +86,18 @@ export function ReviewModal({
         return;
       }
 
+      const persistableImages = images.filter((image) =>
+        /^https?:\/\//i.test(image),
+      );
+
       // Submit review to Supabase using our service
       const success = await orderMutationService.submitOrderReview({
         orderId,
         buyerId,
         rating,
         comment: reviewText || "Great product!",
-        images,
+        images: persistableImages,
+        imageFiles,
       });
 
       if (!success) {
@@ -83,7 +116,7 @@ export function ReviewModal({
           buyerAvatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${buyerId}`,
           rating,
           comment: reviewText || "Great product!",
-          images: images,
+          images: persistableImages,
           verified: true,
         });
       });
@@ -91,6 +124,8 @@ export function ReviewModal({
       console.log(
         `✅ Review submitted successfully for order ${orderId}: ${rating} stars`,
       );
+
+      onSubmitted?.();
 
       setSubmitted(true);
       setIsSubmitting(false);
@@ -107,22 +142,59 @@ export function ReviewModal({
     }
   };
 
-  const resetForm = () => {
-    setRating(0);
-    setHoveredRating(0);
-    setReviewText("");
-    setImages([]);
-    setSubmitted(false);
-  };
-
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (files) {
-      const newImages = Array.from(files).map((file) =>
-        URL.createObjectURL(file),
-      );
-      setImages((prev) => [...prev, ...newImages].slice(0, 5)); // Max 5 images
+    if (!files) {
+      return;
     }
+
+    const remainingSlots = Math.max(0, 5 - imageFiles.length);
+
+    if (remainingSlots <= 0) {
+      e.target.value = "";
+      return;
+    }
+
+    const selected = Array.from(files).slice(0, remainingSlots);
+    const acceptedFiles: File[] = [];
+    const validationErrors: string[] = [];
+
+    selected.forEach((file) => {
+      const validation = validateImageFile(file);
+      if (!validation.valid) {
+        validationErrors.push(
+          `${file.name}: ${validation.error || "Invalid image file"}`,
+        );
+        return;
+      }
+
+      acceptedFiles.push(file);
+    });
+
+    if (validationErrors.length > 0) {
+      alert(validationErrors.join("\n"));
+    }
+
+    if (acceptedFiles.length > 0) {
+      const previewUrls = acceptedFiles.map((file) => URL.createObjectURL(file));
+      setImageFiles((prev) => [...prev, ...acceptedFiles].slice(0, 5));
+      setImages((prev) => [...prev, ...previewUrls].slice(0, 5));
+    }
+
+    e.target.value = "";
+  };
+
+  const handleRemoveImage = (index: number) => {
+    setImages((prev) => {
+      const imageUrl = prev[index];
+      if (imageUrl?.startsWith("blob:")) {
+        URL.revokeObjectURL(imageUrl);
+      }
+
+      return prev.filter((_, i) => i !== index);
+    });
+
+    setImageFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
   return (
@@ -134,7 +206,7 @@ export function ReviewModal({
           exit={{ opacity: 0 }}
           className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 p-4"
           onClick={() => {
-            if (!submitted) onClose();
+            if (!submitted) handleClose();
           }}
         >
           <motion.div
@@ -149,7 +221,7 @@ export function ReviewModal({
                 {/* Header */}
                 <div className="relative p-6 bg-gradient-to-r from-orange-500 to-red-500 text-white">
                   <button
-                    onClick={onClose}
+                    onClick={handleClose}
                     className="absolute top-4 right-4 p-2 hover:bg-white/20 rounded-full transition-colors"
                     disabled={isSubmitting}
                   >
@@ -323,9 +395,7 @@ export function ReviewModal({
                             className="w-20 h-20 object-cover rounded-lg border-2 border-gray-200"
                           />
                           <button
-                            onClick={() =>
-                              setImages(images.filter((_, i) => i !== index))
-                            }
+                            onClick={() => handleRemoveImage(index)}
                             className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                             disabled={isSubmitting}
                           >
@@ -348,7 +418,8 @@ export function ReviewModal({
                       )}
                     </div>
                     <p className="text-xs text-gray-500">
-                      You can add up to 5 photos
+                      You can add up to 5 photos. Images are uploaded securely
+                      to review storage when you submit.
                     </p>
                   </div>
 

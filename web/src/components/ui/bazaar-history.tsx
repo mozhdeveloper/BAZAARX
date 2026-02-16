@@ -5,8 +5,8 @@ const BazaarHistory: React.FC = () => {
   return (
     <section className="bg-transparent">
       <HeroScrollVideo
-        title={<span className="font-fondamento font-bold tracking-wider">bāzār</span>}
-        subtitle={<span className="font-fondamento text-white">بازار</span>}
+        title={<span className="font-fondamento font-bold tracking-wider text-[#FB8C00]">bāzār</span>}
+        subtitle={<span className="font-fondamento text-[#7C2D12]">بازار</span>}
         media={'/bazaar.mp4'}
         overlay={{
           caption: "ORIGIN",
@@ -34,12 +34,12 @@ const BazaarHistory: React.FC = () => {
         overlayRevealDelay={0.3}
         smoothScroll={true}
         className="!hsv-root-bazaar"
-        bgTransition={{ from: '#D94F00', to: '#FFFFFF' }}
+        bgTransition={{ from: '#FFF6E5', to: '#FFF6E5' }}
         style={{
-          ['--accent' as any]: '#ffffff',
-          ['--accent-2' as any]: '#FF8A4D',
-          ['--text' as any]: '#ffffff',
-          ['--subtitle-color' as any]: '#ffffff',
+          ['--accent' as any]: '#FB8C00',
+          ['--accent-2' as any]: '#EA580C',
+          ['--text' as any]: '#7C2D12',
+          ['--subtitle-color' as any]: '#EA580C',
         }}
       />
     </section>

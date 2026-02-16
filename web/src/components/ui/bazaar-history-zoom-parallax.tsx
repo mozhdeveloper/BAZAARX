@@ -18,61 +18,66 @@ export default function BazaarHistoryZoomParallax() {
   const carouselImages = [...images, ...images];
 
   return (
-    <section className="bg-[#D94F00] text-white h-screen overflow-hidden">
-      <div className="flex flex-col md:flex-row h-full">
-        {/* Left Section: Static Text */}
-        <div className="w-full md:w-1/2 h-[40%] md:h-full flex flex-col justify-center px-6 sm:px-8 md:px-10 lg:px-16 xl:px-20 py-8 md:py-0 z-10 bg-[#D94F00] shadow-xl md:shadow-none">
-          <div className="max-w-xl">
-            {/* Decorative vertical divider (Top) */}
-            <div className="w-px h-16 sm:h-24 md:h-32 bg-gradient-to-b from-transparent via-white/50 to-transparent mb-4 sm:mb-6"></div>
+    <div className="h-[200vh] relative">
+      <motion.section className="sticky top-0 bg-[var(--brand-wash)] text-gray-900 h-screen overflow-hidden">
+        <div className="flex flex-col md:flex-row h-full">
+          {/* Left Section: Static Text */}
+          <div className="w-full md:w-1/2 h-[40%] md:h-full flex flex-col justify-center px-6 sm:px-8 md:px-10 lg:px-16 xl:px-20 py-8 md:py-0 z-10 bg-[var(--brand-wash)] shadow-xl md:shadow-none">
+            <div className="max-w-3xl w-full">
+              {/* Decorative horizontal divider (Top) */}
+              <div className="w-full h-[2px] bg-gradient-to-r from-transparent via-[var(--brand-primary)] to-transparent mb-[8vh] sm:mb-[15vh]"></div>
 
-            <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-extrabold tracking-tight leading-tight mb-4 sm:mb-6 font-fondamento text-white">
-              Centers of Exchange
-            </h2>
+              <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-extrabold tracking-tight leading-tight mb-[4vh] sm:mb-[6vh] font-fondamento text-[var(--brand-primary)] whitespace-nowrap">
+                Centers of Exchange
+              </h2>
 
-            <p className="text-sm sm:text-base md:text-lg lg:text-xl leading-relaxed text-white/90 mb-4 sm:mb-6 text-justify">
-              As Persia became a key crossroads of the Silk Road, bazaars evolved
-              into international trade hubs. Goods, ideas, and traditions flowed
-              through their arcades, supported by surrounding mosques,
-              bathhouses, schools, and caravanserais. These spaces shaped not
-              only economic exchange, but also social interaction and political
-              influence.
-            </p>
+              <p className="text-sm sm:text-base md:text-lg lg:text-2xl leading-relaxed text-[var(--text-primary)] mb-[8vh] sm:mb-[15vh] text-justify">
+                As Persia became a key crossroads of the Silk Road, bazaars evolved
+                into international trade hubs. Goods, ideas, and traditions flowed
+                through their arcades, supported by surrounding mosques,
+                bathhouses, schools, and caravanserais. These spaces shaped not
+                only economic exchange, but also social interaction and political
+                influence.
+              </p>
 
-            {/* Decorative vertical divider (Bottom) */}
-            <div className="w-px h-16 sm:h-24 md:h-32 bg-gradient-to-b from-transparent via-white/50 to-transparent"></div>
+              {/* Decorative horizontal divider (Bottom) */}
+              <div className="w-full h-[2px] bg-gradient-to-r from-transparent via-[var(--brand-primary)] to-transparent"></div>
+            </div>
+          </div>
+
+          {/* Right Section: Auto-Scrolling Carousel */}
+          <div className="w-full md:w-1/2 h-[60%] md:h-full relative overflow-hidden bg-[var(--brand-wash)]">
+            {/* Gradients to fade edges */}
+            <div className="absolute top-0 left-0 right-0 h-20 bg-gradient-to-b from-[var(--brand-wash)] to-transparent z-10 pointer-events-none"></div>
+            <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-[var(--brand-wash)] to-transparent z-10 pointer-events-none"></div>
+
+            <style>{`
+              @keyframes scroll-vertical {
+                from { transform: translateY(0); }
+                to { transform: translateY(-50%); }
+              }
+              .carousel-animate {
+                animation: scroll-vertical 40s linear infinite;
+              }
+              .carousel-animate:hover {
+                animation-play-state: paused;
+              }
+            `}</style>
+
+            <div className="carousel-animate flex flex-col gap-6 p-6 md:p-10 cursor-pointer">
+              {carouselImages.map((image, index) => (
+                <div key={index} className="w-full shrink-0">
+                  <img
+                    src={image.src}
+                    alt={image.alt}
+                    className="w-full h-64 md:h-80 lg:h-96 object-cover rounded-xl shadow-2xl hover:scale-[1.02] transition-transform duration-500"
+                  />
+                </div>
+              ))}
+            </div>
           </div>
         </div>
-
-        {/* Right Section: Auto-Scrolling Carousel */}
-        <div className="w-full md:w-1/2 h-[60%] md:h-full relative overflow-hidden bg-[#D94F00]">
-          {/* Gradients to fade edges */}
-          <div className="absolute top-0 left-0 right-0 h-20 bg-gradient-to-b from-[#D94F00] to-transparent z-10 pointer-events-none"></div>
-          <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-[#D94F00] to-transparent z-10 pointer-events-none"></div>
-
-          <motion.div
-            className="flex flex-col gap-6 p-6 md:p-10"
-            animate={{
-              y: ["0%", "-50%"],
-            }}
-            transition={{
-              duration: 40, // Adjust speed here (higher = slower)
-              ease: "linear",
-              repeat: Infinity,
-            }}
-          >
-            {carouselImages.map((image, index) => (
-              <div key={index} className="w-full shrink-0">
-                <img
-                  src={image.src}
-                  alt={image.alt}
-                  className="w-full h-64 md:h-80 lg:h-96 object-cover rounded-xl shadow-2xl hover:scale-[1.02] transition-transform duration-500"
-                />
-              </div>
-            ))}
-          </motion.div>
-        </div>
-      </div>
-    </section>
+      </motion.section>
+    </div>
   );
 }

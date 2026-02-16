@@ -64,7 +64,7 @@ const socialLinks = [
 
 export function BazaarFooter() {
   return (
-    <footer className="bg-gray-50 pt-16 pb-0 overflow-hidden min-h-screen flex flex-col items-center">
+    <footer className="bg-[var(--brand-wash)] pt-16 pb-0 overflow-hidden min-h-screen flex flex-col items-center">
       <div className="flex flex-col justify-between w-fit max-w-full px-4 lg:px-8 flex-1 h-full min-h-screen">
         <div className="w-full flex flex-col lg:flex-row justify-between gap-12 lg:gap-20 mt-12 mb-auto">
 
@@ -75,16 +75,16 @@ export function BazaarFooter() {
               {socialLinks.map(({ icon: Icon, href }, i) => (
                 <a
                   href={href}
-                  className="group flex items-center justify-center w-10 h-10 rounded-full border border-gray-300 hover:border-orange-500 transition-colors duration-300"
+                  className="group flex items-center justify-center w-10 h-10 rounded-full border border-[var(--brand-accent-light)] hover:border-[var(--brand-primary)] transition-colors duration-300"
                   key={i}
                 >
-                  <Icon className="w-5 h-5 text-gray-600 group-hover:text-orange-600 transition-colors" />
+                  <Icon className="w-5 h-5 text-[var(--text-primary)] group-hover:text-[var(--brand-primary-dark)] transition-colors" />
                 </a>
               ))}
             </div>
 
             {/* Contact Info */}
-            <div className="flex flex-col gap-4 text-[#1a2b3b]/60 text-xs font-medium leading-relaxed">
+            <div className="flex flex-col gap-4 text-[var(--text-primary)] text-xs font-medium leading-relaxed">
               <p>
                 123 Global Trade Blvd,<br />
                 Commerce City, World 10101
@@ -102,15 +102,15 @@ export function BazaarFooter() {
           <div className="flex flex-wrap justify-start lg:justify-end gap-x-12 gap-y-10 lg:gap-x-24 mt-28">
             {footerLinks.map((item, i) => (
               <div key={i} className="min-w-[140px]">
-                <h3 className="mb-4 text-xs font-bold text-orange-600 uppercase tracking-widest">
+                <h3 className="mb-4 text-xs font-bold text-[var(--brand-primary)] uppercase tracking-widest">
                   {item.title}
                 </h3>
-                <ul className="space-y-2.5 text-[#1a2b3b]/60 text-xs font-medium">
+                <ul className="space-y-2.5 text-[var(--text-primary)] text-xs font-medium opacity-80">
                   {item.links.map((link) => (
                     <li key={link.label}>
                       <a
                         href={link.href}
-                        className="hover:text-orange-600 transition-colors block"
+                        className="hover:text-[var(--brand-primary)] transition-colors block"
                       >
                         {link.label}
                       </a>
@@ -129,10 +129,10 @@ export function BazaarFooter() {
               <div className="absolute -top-6 left-1 text-[10px] uppercase tracking-[0.2em] text-gray-500 whitespace-nowrap">
                 © BazaarX {new Date().getFullYear()}
               </div>
-              <h1 className="font-fondamento text-[12vw] -mb-4 leading-none text-[#FF6A00] tracking-tighter cursor-default select-none transition-all duration-300">
+              <h1 className="font-fondamento text-[12vw] -mb-4 leading-none text-[var(--brand-primary)] tracking-tighter cursor-default select-none transition-all duration-300">
                 BazaarX
               </h1>
-              <span className="text-orange-500 font-bold text-[10px] lg:text-sm uppercase tracking-[0.2em] whitespace-nowrap mb-1 lg:mb-3">
+              <span className="text-[var(--brand-primary)] font-bold text-[10px] lg:text-sm uppercase tracking-[0.2em] whitespace-nowrap mb-1 lg:mb-3">
                 From global factories directly to your doorstep
               </span>
             </div>

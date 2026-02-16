@@ -3,7 +3,7 @@ import { View, Text, ScrollView, Pressable, StyleSheet, Alert, StatusBar, Modal,
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
-import { User, MapPin, CreditCard, Bell, HelpCircle, Shield, ChevronRight, Store, Star, Package, Heart, Settings, Edit2, Power, X, Camera, RotateCcw, Clock, Gift, Truck } from 'lucide-react-native';
+import { User, MapPin, CreditCard, Bell, HelpCircle, Shield, ChevronRight, Store, Star, Package, Heart, Settings, Edit2, Power, X, Camera, RotateCcw, Clock, Gift, Truck, Wallet } from 'lucide-react-native';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -426,102 +426,96 @@ export default function ProfileScreen({ navigation }: Props) {
     >
       <StatusBar barStyle="dark-content" />
 
-      {/* 1. BRANDED ORANGE HEADER */}
-      <LinearGradient
-        colors={['#FFF6E5', '#FFE0A3', '#FFD89A']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 1 }}
-        style={[styles.header, { paddingTop: insets.top + 20 }]}
-      >
-        <View style={styles.profileHeader}>
-          <View style={styles.avatarWrapper}>
-            <View style={styles.avatarCircle}>
-              {user?.avatar ? (
-                <Image source={{ uri: user.avatar }} style={styles.avatarImage} />
-              ) : (
-                <User size={50} color={BRAND_COLOR} strokeWidth={1.5} />
-              )}
-            </View>
-            <Pressable style={styles.editBtn} onPress={openEditModal}>
-              <Edit2 size={14} color={BRAND_COLOR} strokeWidth={2.5} />
-            </Pressable>
-          </View>
-          <View style={styles.headerInfo}>
-            <Text style={styles.userName}>{profile.firstName} {profile.lastName}</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2, opacity: 0.9 }}>
-              <User size={12} color="#FFF" style={{ marginRight: 6 }} />
-              <Text style={{ color: '#FFF', fontSize: 13, fontWeight: '600', letterSpacing: 0.5 }}>Buyer Account</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* 2. STATS ROW (Integrated into Header Design) */}
-        <View style={styles.statsCard}>
-          <Pressable
-            style={({ pressed }) => [styles.statBox, pressed && { opacity: 0.7 }]}
-            onPress={() => navigation.navigate('Orders', { initialTab: 'toPay' })}
-          >
-            <Text style={[styles.statVal, { color: BRAND_COLOR }]}>{profile.totalOrders}</Text>
-            <Text style={styles.statLab}>Orders</Text>
-          </Pressable>
-          <View style={styles.statDivider} />
-          <Pressable
-            style={({ pressed }) => [styles.statBox, pressed && { opacity: 0.7 }]}
-            onPress={() => navigation.navigate('Wishlist')}
-          >
-            <Text style={[styles.statVal, { color: BRAND_COLOR }]}>{profile.wishlistCount}</Text>
-            <Text style={styles.statLab}>Wishlist</Text>
-          </Pressable>
-          <View style={styles.statDivider} />
-          <Pressable
-            style={({ pressed }) => [styles.statBox, pressed && { opacity: 0.7 }]}
-            onPress={() => Alert.alert('Bazcoins', `You have ${profile.loyaltyPoints} Bazcoins available to redeem!`)}
-          >
-            <Text style={[styles.statVal, { color: '#EAB308' }]}>{profile.loyaltyPoints}</Text>
-            <Text style={styles.statLab}>Bazcoins</Text>
-          </Pressable>
-        </View>
-      </LinearGradient>
-
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        {/* NEW DEDICATED ORDERS SECTION */}
-          <View style={styles.menuGroup}>
-            <View style={styles.activityHeader}>
-                <Text style={styles.groupTitle}>My orders</Text>
-                <Pressable onPress={() => navigation.navigate('Orders', { initialTab: 'toPay' })}>
-                  <Text style={styles.viewAllText}>View all {'>'}</Text>
-                </Pressable>
+        {/* 1. BRANDED ORANGE HEADER */}
+        <View style={[styles.header, { paddingTop: insets.top + 20 }]}>
+          <View style={styles.profileHeader}>
+            <View style={styles.avatarWrapper}>
+              <View style={styles.avatarCircle}>
+                {user?.avatar ? (
+                  <Image source={{ uri: user.avatar }} style={styles.avatarImage} />
+                ) : (
+                  <User size={50} color={BRAND_COLOR} strokeWidth={1.5} />
+                )}
+              </View>
+              <Pressable style={styles.editBtn} onPress={openEditModal}>
+                <Edit2 size={14} color={BRAND_COLOR} strokeWidth={2.5} />
+              </Pressable>
             </View>
-            <View style={styles.card}>
-              <View style={styles.orderStatusRow}>
-                <OrderStatusItem 
-                  icon={CreditCard} 
-                  label="To Pay" 
-                  badge={orderCounts.toPay} 
-                  onPress={() => navigation.navigate('Orders', { initialTab: 'toPay' })} 
-                />
-                <OrderStatusItem 
-                  icon={Package} 
-                  label="To Ship" 
-                  badge={orderCounts.toShip} 
-                  onPress={() => navigation.navigate('Orders', { initialTab: 'toShip' })} 
-                />
-                <OrderStatusItem 
-                  icon={Truck} 
-                  label="To Receive" 
-                  badge={orderCounts.toReceive} 
-                  onPress={() => navigation.navigate('Orders', { initialTab: 'toReceive' })} 
-                />
-                <OrderStatusItem 
-                  icon={Star} 
-                  label="To Review" 
-                  badge={orderCounts.toReview} 
-                  onPress={() => navigation.navigate('Orders', { initialTab: 'completed' })} 
-                />
+            <View style={styles.headerInfo}>
+              <Text style={styles.userName}>{profile.firstName} {profile.lastName}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2, opacity: 0.9 }}>
+                <User size={12} color="#FFF" style={{ marginRight: 6 }} />
+                <Text style={{ color: '#FFF', fontSize: 13, fontWeight: '600', letterSpacing: 0.5 }}>Buyer Account</Text>
               </View>
             </View>
           </View>
-          
+
+          {/* 2. STATS ROW (Integrated into Header Design) */}
+          <View style={styles.statsCard}>
+            <Pressable
+              style={({ pressed }) => [styles.statBox, pressed && { opacity: 0.7 }]}
+              onPress={() => navigation.navigate('Orders', { initialTab: 'toPay' })}
+            >
+              <Text style={[styles.statVal, { color: BRAND_COLOR }]}>{profile.totalOrders}</Text>
+              <Text style={styles.statLab}>Orders</Text>
+            </Pressable>
+            <View style={styles.statDivider} />
+            <Pressable
+              style={({ pressed }) => [styles.statBox, pressed && { opacity: 0.7 }]}
+              onPress={() => navigation.navigate('Wishlist')}
+            >
+              <Text style={[styles.statVal, { color: BRAND_COLOR }]}>{profile.wishlistCount}</Text>
+              <Text style={styles.statLab}>Wishlist</Text>
+            </Pressable>
+            <View style={styles.statDivider} />
+            <Pressable
+              style={({ pressed }) => [styles.statBox, pressed && { opacity: 0.7 }]}
+              onPress={() => Alert.alert('Bazcoins', `You have ${profile.loyaltyPoints} Bazcoins available to redeem!`)}
+            >
+              <Text style={[styles.statVal, { color: '#EAB308' }]}>{profile.loyaltyPoints}</Text>
+              <Text style={styles.statLab}>Bazcoins</Text>
+            </Pressable>
+          </View>
+        </View>
+        {/* My Purchases Section */}
+        <View style={styles.purchasesContainer}>
+          <View style={styles.purchasesHeader}>
+            <Text style={styles.purchasesTitle}>My Purchases</Text>
+            <Pressable
+              style={styles.viewHistoryBtn}
+              onPress={() => navigation.navigate('Orders', { initialTab: 'toPay' })}
+            >
+              <Text style={styles.viewHistoryText}>View Purchase History</Text>
+              <ChevronRight size={16} color="#9CA3AF" />
+            </Pressable>
+          </View>
+
+          <View style={styles.purchasesGrid}>
+            {[
+              { label: 'To Pay', tab: 'toPay', icon: Wallet },
+              { label: 'To Ship', tab: 'toShip', icon: Package },
+              { label: 'To Receive', tab: 'toReceive', icon: Truck },
+              { label: 'To Rate', tab: 'completed', icon: Star, badge: 1 },
+            ].map((item, idx) => (
+              <Pressable
+                key={idx}
+                style={styles.purchaseItem}
+                onPress={() => navigation.navigate('Orders', { initialTab: item.tab as any })}
+              >
+                <View style={styles.iconWrapper}>
+                  <item.icon size={23} color={BRAND_COLOR} strokeWidth={2} />
+                  {item.badge && (
+                    <View style={styles.badge}>
+                      <Text style={styles.badgeText}>{item.badge}</Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={styles.purchaseLabel}>{item.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
 
         {/* 3. MENU GROUPS (Neat White Cards) */}
         <View style={styles.menuGroup}>
@@ -529,7 +523,7 @@ export default function ProfileScreen({ navigation }: Props) {
           <View style={styles.card}>
             {accountMenuItems.map((item, i) => (
               <Pressable key={i} style={[styles.menuItem, i !== accountMenuItems.length - 1 && styles.borderBottom]} onPress={item.onPress}>
-                <View style={[styles.iconContainer, { backgroundColor: '#FFF5F0' }]}>
+                <View style={styles.iconContainer}>
                   <item.icon size={20} color={BRAND_COLOR} strokeWidth={2} />
                 </View>
                 <Text style={styles.menuLabel}>{item.label}</Text>
@@ -545,7 +539,7 @@ export default function ProfileScreen({ navigation }: Props) {
             {settingsMenuItems.map((item, i) => (
               <Pressable key={i} style={[styles.menuItem, i !== settingsMenuItems.length - 1 && styles.borderBottom]} onPress={item.onPress}>
                 <View style={styles.iconContainer}>
-                  <item.icon size={20} color="#6B7280" strokeWidth={2} />
+                  <item.icon size={20} color={BRAND_COLOR} strokeWidth={2} />
                 </View>
                 <Text style={styles.menuLabel}>{item.label}</Text>
                 <ChevronRight size={18} color="#D1D5DB" />
@@ -560,32 +554,31 @@ export default function ProfileScreen({ navigation }: Props) {
             {supportMenuItems.map((item, i) => (
               <Pressable key={i} style={[styles.menuItem, i !== supportMenuItems.length - 1 && styles.borderBottom]} onPress={item.onPress}>
                 <View style={styles.iconContainer}>
-                  <item.icon size={20} color="#6B7280" strokeWidth={2} />
+                  <item.icon size={20} color={BRAND_COLOR} strokeWidth={2} />
                 </View>
                 <Text style={styles.menuLabel}>{item.label}</Text>
                 <ChevronRight size={18} color="#D1D5DB" />
               </Pressable>
             ))}
           </View>
-
         </View>
 
         {/* 3.5 SELLING SWITCH (Moved to Footer) */}
         <Pressable
-          style={[styles.logoutBtn, { marginBottom: 15, borderColor: '#FED7AA', backgroundColor: '#FFF7ED' }]}
+          style={[styles.logoutBtn, { marginBottom: 15, borderRadius: 10, backgroundColor: BRAND_COLOR, shadowOpacity: 0.1, elevation: 2, borderWidth: 0 }]}
           onPress={handleSellerSwitch}
           disabled={isSwitching}
         >
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <View style={[styles.iconContainer, { width: 32, height: 32, backgroundColor: '#FFEDD5', margin: 0, marginRight: 0 }]}>
+            <View style={[styles.iconContainer, { width: 32, height: 32, backgroundColor: 'rgba(255,255,255,0.2)', margin: 0, marginRight: 0 }]}>
               {isSwitching ? (
-                <ActivityIndicator size="small" color={BRAND_COLOR} />
+                <ActivityIndicator size="small" color="#FFF" />
               ) : (
-                <Store size={18} color={BRAND_COLOR} strokeWidth={2.5} />
+                <Store size={18} color="#FFF" strokeWidth={2.5} />
               )}
             </View>
             <View>
-              <Text style={[styles.logoutText, { color: BRAND_COLOR, fontSize: 16 }]}>
+              <Text style={[styles.logoutText, { color: '#FFF', fontSize: 16 }]}>
                 {isSwitching ? 'Checking Account...' : (isSeller ? 'Switch to Seller Mode' : 'Start Selling')}
               </Text>
             </View>
@@ -603,7 +596,6 @@ export default function ProfileScreen({ navigation }: Props) {
           <Text style={styles.footerText}>Member since {profile.memberSince}</Text>
         </View>
       </ScrollView>
-
 
       {/* EDIT PROFILE MODAL */}
       <Modal visible={editModalVisible} animationType="slide" transparent={true} onRequestClose={() => setEditModalVisible(false)}>
@@ -670,8 +662,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFBF0' 
   },
   header: {
-    paddingHorizontal: 25,
-    paddingBottom: 20,
+    paddingHorizontal: 20,
+    paddingBottom: 25,
     borderBottomLeftRadius: 30,
     borderBottomRightRadius: 30,
   },
@@ -684,8 +676,8 @@ const styles = StyleSheet.create({
     position: 'relative' 
   },
   avatarCircle: {
-    width: 90,
-    height: 90,
+    width: 80,
+    height: 80,
     borderRadius: 45,
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
@@ -704,8 +696,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 0,
     right: 0,
-    width: 32,
-    height: 32,
+    width: 28,
+    height: 28,
     borderRadius: 16,
     backgroundColor: '#FFF',
     alignItems: 'center',
@@ -713,27 +705,13 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: COLORS.primary
   },
-  headerInfo: { 
-    marginLeft: 20 
-  },
-  userName: { 
-    fontSize: 24, 
-    fontWeight: '800', 
-    color: '#000',
-    marginBottom: 4 
-  },
-  userSub: { 
-    fontSize: 13, 
-    color: '#000',
-    fontWeight: '600',
-    opacity: 0.7 
-  },
-
-  // Stats Card
+  headerInfo: { marginLeft: 20 },
+  userName: { fontSize: 24, fontWeight: '800', color: '#FFFFFF', marginBottom: 4 },
+  userSub: { fontSize: 13, color: 'rgba(255,255,255,0.85)', fontWeight: '500' },
   statsCard: {
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
+    borderRadius: 10,
     paddingVertical: 20,
     shadowColor: '#F59E0B',
     shadowOpacity: 0.2, // Increased for gold glow
@@ -746,55 +724,90 @@ const styles = StyleSheet.create({
   statLab: { fontSize: 12, color: '#9CA3AF', fontWeight: '600' },
   statDivider: { width: 1, height: '50%', backgroundColor: '#F3F4F6', alignSelf: 'center' },
 
-  // Content Spacing
-  scrollContent: { 
-    paddingHorizontal: 20, 
-    paddingBottom: 60, 
-    paddingTop: 10 
+  scrollContent: { paddingBottom: 40 },
+  purchasesContainer: {
+    backgroundColor: '#FFF',
+    borderRadius: 10,
+    padding: 20,
+    marginHorizontal: 20,
+    marginBottom: 15,
+    marginTop: 0,
+    shadowColor: '#000',
+    shadowOpacity: 0.02,
+    shadowRadius: 10,
+    elevation: 2,
   },
-  sectionContainer: { 
-    marginBottom: 25 
+  purchasesHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
   },
-  activityHeader: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    alignItems: 'center', 
-    paddingHorizontal: 0,
+  purchasesTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1F2937',
   },
-  viewAllText: { fontSize: 14, color: '#9CA3AF', fontWeight: '500', marginBottom: 9, marginEnd: 10 },
-  groupTitle: { 
-    fontSize: 13, 
-    fontWeight: '700', 
-    color: '#9CA3AF', 
-    textTransform: 'uppercase', 
-    letterSpacing: 1, 
-    marginLeft: 16, 
-    marginBottom: 10 
+  viewHistoryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
-
-  // Order Status Row
-  orderStatusRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 20 },
-  statusItem: { flex: 1, alignItems: 'center' },
-  statusLabel: { fontSize: 12, color: '#111827', fontWeight: '500', marginTop: 8 },
-  badgeContainer: { 
-    position: 'absolute', top: -8, right: -12, backgroundColor: '#FF4D4D', 
-    borderRadius: 10, minWidth: 20, height: 20, justifyContent: 'center', 
-    alignItems: 'center', borderWidth: 2, borderColor: '#FFF', zIndex: 1 
+  viewHistoryText: {
+    fontSize: 13,
+    color: '#6B7280',
+    fontWeight: '500',
   },
-  badgeText: { color: '#FFF', fontSize: 10, fontWeight: '800' },
-
-  // Menu Groups
-  menuGroup: { marginBottom: 25 },
-  card: { 
-    backgroundColor: '#FFF', borderRadius: 20, paddingHorizontal: 15, 
-    shadowColor: '#000', shadowOpacity: 0.02, shadowRadius: 10, elevation: 2 
+  purchasesGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 5,
   },
+  purchaseItem: {
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  iconWrapper: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 48,
+    height: 48,
+    backgroundColor: '#FFF5F0',
+    borderRadius: 14,
+  },
+  badge: {
+    position: 'absolute',
+    top: -5,
+    right: -5,
+    backgroundColor: '#EF4444',
+    borderRadius: 10,
+    width: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#FFF',
+    zIndex: 1,
+  },
+  badgeText: {
+    color: '#FFF',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  purchaseLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#374151',
+  },
+  menuGroup: { marginBottom: 15, paddingHorizontal: 20 },
+  groupTitle: { fontSize: 13, fontWeight: '700', color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 1, marginLeft: 10, marginBottom: 10 },
+  card: { backgroundColor: '#FFF', borderRadius: 10, paddingHorizontal: 15, shadowColor: '#000', shadowOpacity: 0.02, shadowRadius: 10, elevation: 2 },
   menuItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 15 },
   borderBottom: { borderBottomWidth: 1, borderBottomColor: '#F9FAFB' },
-  iconContainer: { 
-    width: 38, height: 38, borderRadius: 10, backgroundColor: '#F3F4F6', 
-    alignItems: 'center', justifyContent: 'center', marginRight: 15 
-  },
+  iconContainer: { width: 38, height: 38, borderRadius: 10, backgroundColor: '#FFF5F0', alignItems: 'center', justifyContent: 'center', marginRight: 15 },
   menuLabel: { flex: 1, fontSize: 15, fontWeight: '600', color: '#374151' },
 
   // Footer & Logout (FIXED MISSING PROPERTIES)
@@ -803,12 +816,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#FFF',
+    marginHorizontal: 20,
     paddingVertical: 16,
-    borderRadius: 20,
+    borderRadius: 30,
     gap: 10,
-    borderWidth: 1,
-    borderColor: '#FEE2E2',
-    marginTop: 10
+    borderWidth: 0,
   },
   logoutText: { fontSize: 16, fontWeight: '700', color: '#EF4444' },
   footer: { alignItems: 'center', marginTop: 30, gap: 4 },

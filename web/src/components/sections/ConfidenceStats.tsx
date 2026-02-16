@@ -9,7 +9,7 @@ const ConfidenceStats: React.FC = () => {
                 whileInView={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2, duration: 0.8 }}
                 viewport={{ once: true }}
-                className="mt-6 grid grid-cols-2 lg:grid-cols-4 gap-12 border-t border-orange-100 pt-16"
+                className="mt-6 grid grid-cols-2 lg:grid-cols-4 gap-12 border-t border-[var(--brand-primary)]/10 pt-16"
             >
                 {[
                     { label: "24/7", sub: "Customer Support" },
@@ -19,7 +19,7 @@ const ConfidenceStats: React.FC = () => {
                 ].map((stat, i) => (
                     <div key={i} className="text-center">
                         <div className="text-4xl font-black text-[var(--brand-primary)] mb-1">{stat.label}</div>
-                        <div className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-[0.2em]">{stat.sub}</div>
+                        <div className="text-xs font-bold text-[var(--text-primary)] uppercase tracking-[0.2em]">{stat.sub}</div>
                     </div>
                 ))}
             </motion.div>

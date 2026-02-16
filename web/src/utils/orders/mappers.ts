@@ -1,4 +1,11 @@
-import type { OrderDetailSnapshot, BuyerOrderSnapshot, OrderTrackingSnapshot, SellerOrderSnapshot } from "@/types/orders";
+import type {
+  BuyerOrderSnapshot,
+  OrderDetailSnapshot,
+  OrderReviewSnapshot,
+  OrderTrackingSnapshot,
+  SellerOrderReviewSnapshot,
+  SellerOrderSnapshot,
+} from "@/types/orders";
 import { buildPersonName, parseLegacyShippingAddressFromNotes } from "@/utils/orders/legacy";
 import {
   mapNormalizedToBuyerUiStatus,
@@ -57,6 +64,75 @@ const mapOrderItems = (orderItems: any[], fallbackStoreName: string, fallbackSel
     };
   });
 
+const isHttpUrl = (value: unknown): value is string =>
+  typeof value === "string" && /^https?:\/\//i.test(value.trim());
+
+const mapReviewImages = (review: any): string[] => {
+  if (!Array.isArray(review?.review_images)) {
+    return [];
+  }
+
+  return review.review_images
+    .slice()
+    .sort((a: any, b: any) => Number(a?.sort_order || 0) - Number(b?.sort_order || 0))
+    .map((image: any) => (typeof image === "string" ? image : image?.image_url))
+    .filter(isHttpUrl);
+};
+
+const mapOrderReviews = (order: any): OrderReviewSnapshot[] => {
+  const joinedReviews = Array.isArray(order?.reviews) ? order.reviews : [];
+
+  const normalized = joinedReviews
+    .filter((review: any) => Boolean(review) && review.is_hidden !== true)
+    .map((review: any) => {
+      const submittedAt = new Date(
+        review.created_at || review.updated_at || order.updated_at || order.created_at || Date.now(),
+      );
+
+      return {
+        id: review.id,
+        productId: review.product_id || null,
+        rating: Number(review.rating || 0),
+        comment: review.comment || "",
+        images: mapReviewImages(review),
+        submittedAt,
+      } satisfies OrderReviewSnapshot;
+    })
+    .sort((a, b) => b.submittedAt.getTime() - a.submittedAt.getTime());
+
+  if (normalized.length > 0) {
+    return normalized;
+  }
+
+  if (!order?.is_reviewed) {
+    return [];
+  }
+
+  return [
+    {
+      id: `legacy-${order.id || order.order_number || "review"}`,
+      productId: null,
+      rating: Number(order.rating || 5),
+      comment: order.review_comment || "",
+      images: Array.isArray(order.review_images)
+        ? order.review_images.filter(isHttpUrl)
+        : [],
+      submittedAt: new Date(order.review_date || order.updated_at || order.created_at || Date.now()),
+    },
+  ];
+};
+
+const mapSellerOrderReviews = (order: any): SellerOrderReviewSnapshot[] => {
+  return mapOrderReviews(order).map((review) => ({
+    id: review.id,
+    productId: review.productId,
+    rating: review.rating,
+    comment: review.comment,
+    images: review.images,
+    submittedAt: review.submittedAt.toISOString(),
+  }));
+};
+
 export const mapOrderRowToBuyerSnapshot = (order: any): BuyerOrderSnapshot => {
   const notesAddress = parseLegacyShippingAddressFromNotes(order.notes);
   const recipient = order.recipient || {};
@@ -72,6 +148,8 @@ export const mapOrderRowToBuyerSnapshot = (order: any): BuyerOrderSnapshot => {
     order.seller_id || rawItems.find((item: any) => item?.seller_id)?.seller_id || null;
 
   const items = mapOrderItems(rawItems, fallbackStoreName, fallbackSellerId);
+  const reviews = mapOrderReviews(order);
+  const latestReview = reviews[0];
 
   const numericTotal = Number(order.total_amount || 0);
   const computedTotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
@@ -90,7 +168,7 @@ export const mapOrderRowToBuyerSnapshot = (order: any): BuyerOrderSnapshot => {
       order.payment_status,
       order.shipment_status,
       Boolean(order.cancellation_reason || order.cancelled_at),
-      Boolean(order.is_reviewed),
+      reviews.length > 0,
     ),
     isPaid: order.payment_status === "paid",
     paymentStatus: order.payment_status,
@@ -141,14 +219,8 @@ export const mapOrderRowToBuyerSnapshot = (order: any): BuyerOrderSnapshot => {
     storeName: fallbackStoreName,
     sellerId: fallbackSellerId,
     order_type: order.order_type,
-    review: order.is_reviewed
-      ? {
-          rating: Number(order.rating || 5),
-          comment: order.review_comment || "",
-          images: Array.isArray(order.review_images) ? order.review_images : [],
-          submittedAt: new Date(order.review_date || order.updated_at || order.created_at),
-        }
-      : undefined,
+    review: latestReview,
+    reviews: reviews.length > 0 ? reviews : undefined,
   };
 };
 
@@ -182,6 +254,15 @@ export const mapOrderRowToSellerSnapshot = (order: any): SellerOrderSnapshot => 
   }, 0);
 
   const parsedTotal = parseFloat(order.total_amount?.toString() || "0");
+  const reviews = mapSellerOrderReviews(order);
+  const latestReview = reviews[0];
+  const legacyReviewImages = Array.isArray(order.review_images)
+    ? order.review_images.filter(isHttpUrl)
+    : [];
+  const resolvedReviewImages =
+    latestReview?.images && latestReview.images.length > 0
+      ? latestReview.images
+      : legacyReviewImages;
 
   return {
     id: order.id,
@@ -208,10 +289,13 @@ export const mapOrderRowToSellerSnapshot = (order: any): SellerOrderSnapshot => 
     paymentStatusRaw: order.payment_status || undefined,
     shippedAt: latestShipment?.shipped_at || order.shipped_at || undefined,
     deliveredAt: latestShipment?.delivered_at || order.delivered_at || undefined,
-    rating: order.rating || undefined,
-    reviewComment: order.review_comment || undefined,
-    reviewImages: order.review_images || undefined,
-    reviewDate: order.review_date || undefined,
+    rating:
+      latestReview?.rating ||
+      (typeof order.rating === "number" ? order.rating : undefined),
+    reviewComment: latestReview?.comment || order.review_comment || undefined,
+    reviewImages: resolvedReviewImages.length > 0 ? resolvedReviewImages : undefined,
+    reviewDate: latestReview?.submittedAt || order.review_date || undefined,
+    reviews: reviews.length > 0 ? reviews : undefined,
     type: order.order_type === "OFFLINE" ? "OFFLINE" : "ONLINE",
     posNote: order.pos_note || undefined,
     notes: order.notes || undefined,
@@ -240,7 +324,10 @@ export const mapOrderRowToOrderDetailSnapshot = (orderData: any): OrderDetailSna
       dbId: orderData.id,
     },
     buyer_id: orderData.buyer_id,
-    is_reviewed: Boolean(orderData.is_reviewed),
+    is_reviewed: Boolean(
+      buyerSnapshot.review ||
+        (Array.isArray(buyerSnapshot.reviews) && buyerSnapshot.reviews.length > 0),
+    ),
     shipping_cost: Number(orderData.shipping_cost || 0),
     sellerId: orderData.seller_id || null,
     storeName: orderData.store_name || "Seller",
