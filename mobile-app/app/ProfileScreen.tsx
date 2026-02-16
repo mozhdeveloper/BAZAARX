@@ -227,6 +227,59 @@ export default function ProfileScreen({ navigation }: Props) {
     wishlistCount: wishlistItems.length,
   };
 
+  // 1. Add state for dynamic counts
+  const [orderCounts, setOrderCounts] = React.useState({
+    toPay: 0,
+    toShip: 0,
+    toReceive: 0,
+    toReview: 0,
+  });
+
+  // 2. Fetch counts from Supabase shipment_status
+  React.useEffect(() => {
+    if (!user?.id || isGuest) return;
+
+    const fetchOrderCounts = async () => {
+      try {
+        const { data: orders, error } = await supabase
+          .from('orders')
+          .select('shipment_status')
+          .eq('buyer_id', user.id);
+
+        if (!error && orders) {
+          const counts = { toPay: 0, toShip: 0, toReceive: 0, toReview: 0 };
+          
+          orders.forEach(order => {
+            const status = order.shipment_status?.toLowerCase();
+            if (['pending', 'pending_payment'].includes(status)) counts.toPay++;
+            else if (['processing', 'ready_to_ship'].includes(status)) counts.toShip++;
+            else if (['shipped', 'out_for_delivery'].includes(status)) counts.toReceive++;
+            else if (['delivered', 'received'].includes(status)) counts.toReview++;
+          });
+          setOrderCounts(counts);
+        }
+      } catch (e) {
+        console.error('Error fetching badge counts:', e);
+      }
+    };
+
+    fetchOrderCounts();
+  }, [user?.id, isGuest]);
+
+  const OrderStatusItem = ({ icon: Icon, label, badge, onPress }: any) => (
+    <Pressable style={styles.statusItem} onPress={onPress}>
+      <View>
+        <Icon size={28} color="#1F2937" strokeWidth={1.5} />
+        {badge > 0 && (
+          <View style={styles.badgeContainer}>
+            <Text style={styles.badgeText}>{badge > 99 ? '99+' : badge}</Text>
+          </View>
+        )}
+      </View>
+      <Text style={styles.statusLabel}>{label}</Text>
+    </Pressable>
+  );
+
   const handleLogout = () => {
     Alert.alert(
       'Logout',
@@ -300,13 +353,18 @@ export default function ProfileScreen({ navigation }: Props) {
   if (isGuest) {
     return (
       <LinearGradient
-        colors={['#FFE5CC', '#FFE5CC']}
+        colors={['#FFFBF0', '#FFFBF0']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
         style={styles.container}
       >
         <StatusBar barStyle="dark-content" />
-        <View style={[styles.header, { paddingTop: insets.top + 20 }]}>
+        <LinearGradient
+          colors={['#FFF6E5', '#FFE0A3', '#FFD89A']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+          style={[styles.header, { paddingTop: insets.top + 20 }]}
+        >
           <View style={styles.profileHeader}>
             <View style={styles.avatarWrapper}>
               <View style={styles.avatarCircle}>
@@ -318,7 +376,7 @@ export default function ProfileScreen({ navigation }: Props) {
               <Text style={styles.userSub}>Welcome to BazaarX!</Text>
             </View>
           </View>
-        </View>
+        </LinearGradient>
 
         <ScrollView contentContainerStyle={styles.scrollContent}>
           {/* Main Actions for Guest */}
@@ -361,7 +419,7 @@ export default function ProfileScreen({ navigation }: Props) {
 
   return (
     <LinearGradient
-      colors={['#FFE5CC', '#FFE5CC']}
+      colors={['#FFFBF0', '#FFFBF0']}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 0 }}
       style={styles.container}
@@ -599,15 +657,24 @@ export default function ProfileScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F9FAFB' },
+  container: { 
+    flex: 1, 
+    backgroundColor: '#FFFBF0' 
+  },
   header: {
     paddingHorizontal: 20,
     paddingBottom: 25,
     borderBottomLeftRadius: 30,
     borderBottomRightRadius: 30,
   },
-  profileHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 25 },
-  avatarWrapper: { position: 'relative' },
+  profileHeader: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    marginBottom: 20 
+  },
+  avatarWrapper: { 
+    position: 'relative' 
+  },
   avatarCircle: {
     width: 80,
     height: 80,
@@ -646,10 +713,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 10,
     paddingVertical: 20,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
+    shadowColor: '#F59E0B',
+    shadowOpacity: 0.2, // Increased for gold glow
     shadowRadius: 15,
-    elevation: 4
+    elevation: 6,
+    marginBottom: 5,
   },
   statBox: { flex: 1, alignItems: 'center' },
   statVal: { fontSize: 20, fontWeight: '800', marginBottom: 2 },
@@ -742,6 +810,7 @@ const styles = StyleSheet.create({
   iconContainer: { width: 38, height: 38, borderRadius: 10, backgroundColor: '#FFF5F0', alignItems: 'center', justifyContent: 'center', marginRight: 15 },
   menuLabel: { flex: 1, fontSize: 15, fontWeight: '600', color: '#374151' },
 
+  // Footer & Logout (FIXED MISSING PROPERTIES)
   logoutBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -754,23 +823,37 @@ const styles = StyleSheet.create({
     borderWidth: 0,
   },
   logoutText: { fontSize: 16, fontWeight: '700', color: '#EF4444' },
-
   footer: { alignItems: 'center', marginTop: 30, gap: 4 },
   versionText: { fontSize: 12, color: '#D1D5DB', fontWeight: '600' },
   footerText: { fontSize: 12, color: '#D1D5DB', fontWeight: '500' },
 
-  // Modal Styles
+  // Modal Styles (FIXED MISSING PROPERTIES)
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalContent: { backgroundColor: '#FFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '90%' },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
+  modalHeader: { 
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', 
+    padding: 20, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' 
+  },
   modalTitle: { fontSize: 18, fontWeight: '800', color: '#1F2937' },
   avatarSection: { alignItems: 'center', marginBottom: 20 },
-  avatarContainer: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center', marginBottom: 8, overflow: 'hidden' },
+  avatarContainer: { 
+    width: 80, height: 80, borderRadius: 40, backgroundColor: '#F3F4F6', 
+    alignItems: 'center', justifyContent: 'center', marginBottom: 8, overflow: 'hidden' 
+  },
   avatarImageLarge: { width: '100%', height: '100%' },
-  cameraBadge: { position: 'absolute', bottom: 0, right: 0, width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#FFF' },
+  cameraBadge: { 
+    position: 'absolute', bottom: 0, right: 0, width: 24, height: 24, 
+    borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#FFF' 
+  },
   changePhotoText: { fontSize: 13, color: '#6B7280', fontWeight: '600' },
   inputLabel: { fontSize: 13, fontWeight: '700', color: '#374151', marginBottom: 6, marginTop: 10 },
-  input: { backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12, paddingHorizontal: 15, paddingVertical: 12, fontSize: 15, color: '#1F2937' },
-  saveButton: { marginTop: 30, paddingVertical: 15, borderRadius: 16, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
+  input: { 
+    backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#E5E7EB', 
+    borderRadius: 12, paddingHorizontal: 15, paddingVertical: 12, fontSize: 15, color: '#1F2937' 
+  },
+  saveButton: { 
+    marginTop: 30, paddingVertical: 15, borderRadius: 16, alignItems: 'center', 
+    justifyContent: 'center', elevation: 3 
+  },
   saveButtonText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
 });

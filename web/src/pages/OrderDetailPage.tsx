@@ -306,17 +306,25 @@ export default function OrderDetailPage() {
     {
       status: "shipped",
       label: "Shipped",
-      completed: order.status === "shipped" || order.status === "delivered",
+      completed:
+        order.status === "shipped" ||
+        order.status === "delivered" ||
+        order.status === "reviewed",
       date:
-        order.status === "shipped" || order.status === "delivered"
+        order.status === "shipped" ||
+        order.status === "delivered" ||
+        order.status === "reviewed"
           ? order.createdAt
           : null,
     },
     {
       status: "delivered",
       label: "Delivered",
-      completed: order.status === "delivered",
-      date: order.status === "delivered" ? order.estimatedDelivery : null,
+      completed: order.status === "delivered" || order.status === "reviewed",
+      date:
+        order.status === "delivered" || order.status === "reviewed"
+          ? order.estimatedDelivery
+          : null,
     },
   ];
 
@@ -937,7 +945,8 @@ export default function OrderDetailPage() {
                         <p className="font-semibold text-gray-900">
                           ₱{(item.price * item.quantity).toLocaleString()}
                         </p>
-                        {order.status === "delivered" &&
+                        {(order.status === "delivered" ||
+                          order.status === "reviewed") &&
                           !dbOrder?.is_reviewed && (
                             <Button
                               variant="outline"
@@ -949,7 +958,8 @@ export default function OrderDetailPage() {
                               Review
                             </Button>
                           )}
-                        {order.status === "delivered" &&
+                        {(order.status === "delivered" ||
+                          order.status === "reviewed") &&
                           dbOrder?.is_reviewed && (
                             <div className="mt-2 flex items-center gap-1 text-sm text-green-600">
                               <CheckCircle className="w-4 h-4" />
@@ -1173,7 +1183,8 @@ export default function OrderDetailPage() {
                       Your package is on the way!
                     </p>
                   )}
-                  {order.status === "delivered" && (
+                  {(order.status === "delivered" ||
+                    order.status === "reviewed") && (
                     <p className="text-sm text-green-700 flex items-center gap-2">
                       <CheckCircle className="w-4 h-4" />
                       Package delivered successfully!

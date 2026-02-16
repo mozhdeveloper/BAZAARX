@@ -1,11 +1,14 @@
 import React from "react";
 import { CheckCircle, Upload, X } from "lucide-react";
+import { StoreSelector } from "./StoreSelector";
 
 export interface TicketData {
   subject: string;
   description: string;
   category: string;
   proof: File | null;
+  sellerId: string | null;
+  sellerStoreName: string;
 }
 
 interface BuyerTicketModalProps {
@@ -13,6 +16,7 @@ interface BuyerTicketModalProps {
   isSubmitted: boolean;
   ticket: TicketData;
   generatedTicketId: string;
+  buyerId: string;
   onClose: () => void;
   onSubmit: (e: React.FormEvent) => void;
   onFileUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
@@ -26,6 +30,7 @@ export function BuyerTicketModal({
   isSubmitted,
   ticket,
   generatedTicketId,
+  buyerId,
   onClose,
   onSubmit,
   onFileUpload,
@@ -95,6 +100,14 @@ export function BuyerTicketModal({
                   <option value="Product Quality">Product Quality</option>
                 </select>
               </div>
+
+              <StoreSelector
+                buyerId={buyerId}
+                selectedSellerId={ticket.sellerId || undefined}
+                onSelectStore={(sellerId, storeName) => 
+                  onTicketChange({ sellerId, sellerStoreName: storeName })
+                }
+              />
 
               <div>
                 <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">

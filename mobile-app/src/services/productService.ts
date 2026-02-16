@@ -32,6 +32,45 @@ export class ProductService {
     return ProductService.instance;
   }
 
+  private async ensureCategoryId(
+    payload: ProductInsert & { category?: string; category_name?: string },
+  ): Promise<ProductInsert> {
+    let categoryId = payload.category_id || null;
+
+    if (!categoryId) {
+      const categoryName = payload.category || payload.category_name;
+      if (typeof categoryName === 'string' && categoryName.trim().length > 0) {
+        categoryId = await this.getOrCreateCategoryByName(categoryName);
+      }
+    }
+
+    if (!categoryId) {
+      const { data: defaultCategory, error } = await supabase
+        .from('categories')
+        .select('id')
+        .order('sort_order', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throw error;
+      categoryId = defaultCategory?.id || null;
+    }
+
+    if (!categoryId) {
+      throw new Error('Category is required and could not be resolved.');
+    }
+
+    const { category, category_name, ...rest } = payload as ProductInsert & {
+      category?: string;
+      category_name?: string;
+    };
+
+    return {
+      ...rest,
+      category_id: categoryId,
+    } as ProductInsert;
+  }
+
   /**
    * Fetch products with optional filters
    * Updated for new normalized schema with separate images/variants tables
@@ -332,9 +371,11 @@ export class ProductService {
     }
 
     try {
+      const payload = await this.ensureCategoryId(product as ProductInsert & { category?: string; category_name?: string });
+
       const { data, error } = await supabase
         .from('products')
-        .insert(product)
+        .insert(payload)
         .select()
         .single();
 
@@ -357,9 +398,16 @@ export class ProductService {
     }
 
     try {
+      const payloads: ProductInsert[] = [];
+
+      for (const product of products) {
+        const payload = await this.ensureCategoryId(product as ProductInsert & { category?: string; category_name?: string });
+        payloads.push(payload);
+      }
+
       const { data, error } = await supabase
         .from('products')
-        .insert(products)
+        .insert(payloads)
         .select();
 
       if (error) throw error;
@@ -647,6 +695,76 @@ export class ProductService {
     } catch (error) {
       console.error('Stock addition failed:', error);
       throw new Error('Failed to add stock.');
+    }
+  }
+
+  /**
+   * Fetch all categories from DB
+   */
+  async getCategories(): Promise<Category[]> {
+    if (!isSupabaseConfigured()) {
+      console.warn('Supabase not configured - cannot fetch categories');
+      return [];
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('categories')
+        .select('*')
+        .order('sort_order', { ascending: true });
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get or create category by name
+   * Returns category_id for products table FK
+   */
+  async getOrCreateCategoryByName(name: string): Promise<string | null> {
+    if (!isSupabaseConfigured()) {
+      console.warn('Supabase not configured');
+      return null;
+    }
+
+    try {
+      const trimmedName = name.trim();
+      if (!trimmedName) return null;
+
+      const { data: existing, error: findError } = await supabase
+        .from('categories')
+        .select('id')
+        .eq('name', trimmedName)
+        .single();
+
+      if (existing) {
+        return existing.id;
+      }
+
+      if (findError && findError.code !== 'PGRST116') {
+        throw findError;
+      }
+
+      const slug = trimmedName
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '');
+
+      const { data: created, error: createError } = await supabase
+        .from('categories')
+        .insert({ name: trimmedName, slug })
+        .select('id')
+        .single();
+
+      if (createError) throw createError;
+      return created?.id || null;
+    } catch (error) {
+      console.error('Error getting/creating category:', error);
+      return null;
     }
   }
 

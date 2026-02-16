@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -18,14 +18,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Search, Plus, Edit, Trash2, X, Camera, Package as PackageIcon, Info, Link, Upload, FileText, Menu } from 'lucide-react-native';
 import { useSellerStore, SellerProduct } from '../../../src/stores/sellerStore';
 import { useProductQAStore } from '../../../src/stores/productQAStore';
+import { productService } from '../../../src/services/productService';
+import { supabase, isSupabaseConfigured } from '../../../src/lib/supabase';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { File, Paths } from 'expo-file-system';
 import * as FileSystem from 'expo-file-system/legacy'; //
 import * as Sharing from 'expo-sharing';
 import SellerDrawer from '../../../src/components/SellerDrawer';
-import { useNavigation } from '@react-navigation/native'; // Import Navigation
-import VariantManager, { Variant } from '../../../src/components/VariantManager'; 
+import { useNavigation, useFocusEffect } from '@react-navigation/native'; // Import Navigation
+import VariantManager, { Variant } from '../../../src/components/VariantManager';
 
 // Generate a proper UUID for product IDs
 const generateUUID = (): string => {
@@ -34,6 +36,43 @@ const generateUUID = (): string => {
     const v = c === 'x' ? r : (r & 0x3 | 0x8);
     return v.toString(16);
   });
+};
+
+interface CategoryOption {
+  id: string;
+  name: string;
+}
+
+interface EditableVariant {
+  id: string;
+  name?: string;
+  option1Value?: string;
+  option2Value?: string;
+  price: number;
+  stock: number;
+}
+
+const FALLBACK_CATEGORIES: CategoryOption[] = [
+  { id: 'electronics', name: 'Electronics' },
+  { id: 'fashion', name: 'Fashion' },
+  { id: 'home-garden', name: 'Home & Garden' },
+  { id: 'sports', name: 'Sports' },
+  { id: 'books', name: 'Books' },
+  { id: 'beauty', name: 'Beauty' },
+  { id: 'automotive', name: 'Automotive' },
+  { id: 'toys', name: 'Toys' },
+  { id: 'health', name: 'Health' },
+  { id: 'food-beverage', name: 'Food & Beverage' },
+];
+
+const asText = (value: unknown): string => {
+  if (typeof value === 'string') return value;
+  if (value && typeof value === 'object' && 'name' in value) {
+    const name = (value as { name?: unknown }).name;
+    return typeof name === 'string' ? name : '';
+  }
+  if (value === null || value === undefined) return '';
+  return String(value);
 };
 
 export default function SellerProductsScreen() {
@@ -47,6 +86,14 @@ export default function SellerProductsScreen() {
     }
     // Don't fetch all products - only fetch seller-specific products
   }, [seller?.id, fetchProducts]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (seller?.id) {
+        fetchProducts({ sellerId: seller.id });
+      }
+    }, [seller?.id, fetchProducts]),
+  );
   const insets = useSafeAreaInsets();
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -61,7 +108,10 @@ export default function SellerProductsScreen() {
   const [currentSizeInput, setCurrentSizeInput] = useState('');
   const [bulkPreviewProducts, setBulkPreviewProducts] = useState<SellerProduct[]>([]);
   const [isPreviewMode, setIsPreviewMode] = useState(false);
-  
+  const [categories, setCategories] = useState<CategoryOption[]>([]);
+  const [loadingCategories, setLoadingCategories] = useState(true);
+  const [editVariants, setEditVariants] = useState<EditableVariant[]>([]);
+
   // Form state for adding products
   const [formData, setFormData] = useState({
     name: '',
@@ -78,18 +128,32 @@ export default function SellerProductsScreen() {
   // NEW STATE: Store the generated variants
   const [variants, setVariants] = useState<Variant[]>([]);
 
-  const categories = [
-    'Electronics',
-    'Fashion',
-    'Beauty',
-    'Food',
-    'Home & Living',
-    'Sports',
-    'Books',
-    'Toys',
-    'Accessories',
-    'Others',
-  ];
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        if (isSupabaseConfigured()) {
+          const { data, error } = await supabase
+            .from('categories')
+            .select('id, name')
+            .order('sort_order', { ascending: true });
+
+          if (!error && data && data.length > 0) {
+            setCategories(data.map((item) => ({ id: item.id, name: item.name })));
+            return;
+          }
+        }
+
+        setCategories(FALLBACK_CATEGORIES);
+      } catch (fetchError) {
+        console.error('Failed to fetch categories:', fetchError);
+        setCategories(FALLBACK_CATEGORIES);
+      } finally {
+        setLoadingCategories(false);
+      }
+    };
+
+    fetchCategories();
+  }, []);
 
   const resetForm = () => {
     setFormData({
@@ -105,8 +169,15 @@ export default function SellerProductsScreen() {
     });
 
     setVariants([]); // Clear variants
+    setEditVariants([]);
     setCurrentColorInput('');
     setCurrentSizeInput('');
+  };
+
+  const closeEditModal = () => {
+    setIsEditModalOpen(false);
+    setEditingProduct(null);
+    setEditVariants([]);
   };
 
   const handleOpenAddModal = () => {
@@ -117,7 +188,7 @@ export default function SellerProductsScreen() {
   const handlePickImage = async (index: number) => {
     try {
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      
+
       if (!permissionResult.granted) {
         Alert.alert('Permission Required', 'Please allow access to your photo library to upload images.');
         return;
@@ -234,19 +305,20 @@ export default function SellerProductsScreen() {
 
     try {
       const validImages = formData.images.filter(img => img.trim() !== '');
-      const validColors = formData.colors.filter(color => color.trim() !== '');
-      const validSizes = formData.sizes.filter(size => size.trim() !== '');
-      const firstImage = validImages[0] || 'https://placehold.co/400x400?text=' + encodeURIComponent(formData.name);
+      const hasOption1Values = variants.some((variant) => Boolean(variant.option1 && variant.option1 !== '-'));
+      const hasOption2Values = variants.some((variant) => Boolean(variant.option2 && variant.option2 !== '-'));
+      const selectedCategory = (categories.length > 0 ? categories : FALLBACK_CATEGORIES)
+        .find((category) => category.name === formData.category);
 
       const newProduct: SellerProduct = {
-        sellerId: seller?.id,  
+        sellerId: seller?.id,
         id: generateUUID(), // Use proper UUID for database compatibility
         name: formData.name.trim(),
         description: formData.description.trim(),
         price: parseFloat(formData.price),
         originalPrice: formData.originalPrice ? parseFloat(formData.originalPrice) : undefined,
-        stock: variants.length > 0 
-          ? variants.reduce((acc, v) => acc + (parseInt(v.stock) || 0), 0) 
+        stock: variants.length > 0
+          ? variants.reduce((acc, v) => acc + (parseInt(v.stock) || 0), 0)
           : parseInt(formData.stock),
         category: formData.category,
         images: validImages,
@@ -260,7 +332,11 @@ export default function SellerProductsScreen() {
         adminReclassifiedCategory: undefined,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-      };
+        category_id: selectedCategory?.id || null,
+        variant_label_1: hasOption1Values ? 'Color' : null,
+        variant_label_2: hasOption2Values ? 'Size' : null,
+        variants: variants.length > 0 ? variants : undefined,
+      } as any;
 
       // Add to seller store first - this inserts into Supabase and returns the DB ID
       const dbProductId = await addProduct(newProduct);
@@ -273,7 +349,7 @@ export default function SellerProductsScreen() {
         'Your product has been added and submitted for quality review. Track its status in the QA Products tab.',
         [{ text: 'OK', onPress: () => setIsAddModalOpen(false) }]
       );
-      
+
       resetForm();
     } catch (error) {
       Alert.alert('Error', error instanceof Error ? error.message : 'Failed to add product');
@@ -296,56 +372,134 @@ export default function SellerProductsScreen() {
     );
   };
 
+  const handleToggleProductStatus = async (id: string) => {
+    try {
+      await toggleProductStatus(id);
+    } catch (error) {
+      Alert.alert('Update Failed', error instanceof Error ? error.message : 'Failed to update product status');
+    }
+  };
+
   const handleEditProduct = (product: SellerProduct) => {
+    const categoryName = asText(product.category);
+
     setEditingProduct(product);
     setFormData({
-      name: product.name,
+      name: asText(product.name),
       description: product.description || '',
       price: product.price.toString(),
       originalPrice: product.originalPrice?.toString() || '',
       stock: product.stock.toString(),
-      category: product.category,
+      category: categoryName,
       images: product.images,
       colors: product.colors && product.colors.length > 0 ? product.colors : [''],
       sizes: product.sizes && product.sizes.length > 0 ? product.sizes : [''],
     });
     setIsEditModalOpen(true);
+
+    productService
+      .getProductById(product.id)
+      .then((details) => {
+        const detailedVariants = Array.isArray((details as any)?.variants)
+          ? (details as any).variants
+          : [];
+
+        setEditVariants(
+          detailedVariants.map((variant: any) => ({
+            id: variant.id,
+            name: variant.variant_name || undefined,
+            option1Value: variant.option_1_value || variant.size || undefined,
+            option2Value: variant.option_2_value || variant.color || undefined,
+            price: Number(variant.price ?? product.price ?? 0),
+            stock: Number(variant.stock ?? 0),
+          })),
+        );
+      })
+      .catch((variantError) => {
+        console.error('Failed to load variants for editing:', variantError);
+        setEditVariants([]);
+      });
   };
 
-  const handleUpdateProduct = () => {
-    if (!validateForm() || !editingProduct) return;
+  const validateEditForm = () => {
+    if (!formData.name.trim()) {
+      Alert.alert('Validation Error', 'Product name is required');
+      return false;
+    }
+    if (!formData.description.trim()) {
+      Alert.alert('Validation Error', 'Product description is required');
+      return false;
+    }
+    if (!formData.price || parseFloat(formData.price) <= 0) {
+      Alert.alert('Validation Error', 'Please enter a valid price');
+      return false;
+    }
+
+    if (editVariants.length > 0) {
+      if (editVariants.some((variant) => variant.stock < 0 || variant.price < 0)) {
+        Alert.alert('Validation Error', 'Variant stock and price cannot be negative');
+        return false;
+      }
+    } else if (!formData.stock || parseInt(formData.stock, 10) < 0) {
+      Alert.alert('Validation Error', 'Please enter a valid stock quantity');
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleUpdateProduct = async () => {
+    if (!validateEditForm() || !editingProduct) return;
 
     try {
       const validImages = formData.images.filter(img => img.trim() !== '');
       const validColors = formData.colors.filter(color => color.trim() !== '');
       const validSizes = formData.sizes.filter(size => size.trim() !== '');
-      const firstImage = validImages[0] || editingProduct.images[0];
+      const totalVariantStock = editVariants.reduce((sum, variant) => sum + variant.stock, 0);
+      const selectedCategory = (categories.length > 0 ? categories : FALLBACK_CATEGORIES)
+        .find((category) => category.name === formData.category);
 
-      const updatedProduct: SellerProduct = {
+      if (editVariants.length > 0) {
+        await productService.updateVariants(
+          editVariants.map((variant) => ({
+            id: variant.id,
+            price: variant.price,
+            stock: variant.stock,
+          })),
+        );
+      }
+
+      const updatedProduct = {
         ...editingProduct,
         name: formData.name.trim(),
         description: formData.description.trim(),
         price: parseFloat(formData.price),
         originalPrice: formData.originalPrice ? parseFloat(formData.originalPrice) : undefined,
-        stock: parseInt(formData.stock),
+        stock: editVariants.length > 0 ? totalVariantStock : parseInt(formData.stock, 10),
         category: formData.category,
+        category_id: selectedCategory?.id || null,
         images: validImages,
         colors: validColors.length > 0 ? validColors : undefined,
         sizes: validSizes.length > 0 ? validSizes : undefined,
-      };
+      } as SellerProduct & { category_id?: string | null };
 
       if (editingProduct) {
-        updateProduct(editingProduct.id, updatedProduct);
+        await updateProduct(editingProduct.id, updatedProduct);
+      }
+
+      if (seller?.id) {
+        await fetchProducts({ sellerId: seller.id });
       }
 
       Alert.alert(
         'Product Updated',
         'Your product has been updated successfully.',
-        [{ text: 'OK', onPress: () => {
-          setIsEditModalOpen(false);
-          setEditingProduct(null);
-          resetForm();
-        }}]
+        [{
+          text: 'OK', onPress: () => {
+            closeEditModal();
+            resetForm();
+          }
+        }]
       );
     } catch (error) {
       Alert.alert('Error', error instanceof Error ? error.message : 'Failed to update product');
@@ -365,12 +519,13 @@ export default function SellerProductsScreen() {
       const csvString = await FileSystem.readAsStringAsync(fileUri);
 
       const rows = csvString.split('\n').filter((row: string) => row.trim() !== '');
-      
+      const defaultCategoryName = (categories.length > 0 ? categories : FALLBACK_CATEGORIES)[0]?.name || 'Electronics';
+
       // Parse rows into temporary preview state
       const parsedProducts: SellerProduct[] = rows.slice(1).map((row: string, index: number) => {
         // Handles commas inside quotes
         const columns = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
-        
+
         const price = parseFloat(columns[2]);
         const stock = parseInt(columns[4]);
 
@@ -381,7 +536,7 @@ export default function SellerProductsScreen() {
           price: isNaN(price) ? 0 : price,
           originalPrice: columns[3] ? parseFloat(columns[3]) : undefined,
           stock: isNaN(stock) ? 0 : stock,
-          category: columns[5]?.trim() || 'Others',
+          category: columns[5]?.trim() || defaultCategoryName,
           isActive: true,
           sales: 0,
           rating: 0,
@@ -411,7 +566,7 @@ export default function SellerProductsScreen() {
     for (const product of bulkPreviewProducts) {
       // Convert preview ID to actual UUID for database compatibility
       const finalProduct = { ...product, id: generateUUID() };
-      
+
       // Add to seller store - this inserts into Supabase and returns the DB ID
       const dbProductId = await addProduct(finalProduct);
       // Add to product QA flow using the database product ID
@@ -433,13 +588,13 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
 
       // Create file in cache directory
       const file = new File(Paths.cache, 'product-upload-template.csv');
-      
+
       // Write CSV content to file
       await file.write(csvContent);
 
       // Check if sharing is available
       const isAvailable = await Sharing.isAvailableAsync();
-      
+
       if (isAvailable) {
         // Share/Download the file
         await Sharing.shareAsync(file.uri, {
@@ -447,7 +602,7 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
           dialogTitle: 'Download Product Upload Template',
           UTI: 'public.comma-separated-values-text',
         });
-        
+
         Alert.alert(
           'Template Ready',
           'CSV template is ready to download. Fill in your product details and upload when ready.',
@@ -471,6 +626,10 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
   };
 
   const showCSVFormat = () => {
+    const categoryList = (categories.length > 0 ? categories : FALLBACK_CATEGORIES)
+      .map((category) => category.name)
+      .join(', ');
+
     Alert.alert(
       'CSV Format Guide',
       'Your CSV file must have these columns in order:\n\n' +
@@ -484,25 +643,26 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
       'Example:\n' +
       'iPhone 15 Pro,Latest Apple phone,59999,65999,50,Electronics,https://example.com/iphone.jpg\n' +
       'Samsung Galaxy S24,Flagship Android,54999,,30,Electronics,https://example.com/samsung.jpg\n\n' +
-      'Categories: Electronics, Fashion, Beauty, Food, Home & Living, Sports, Books, Toys, Accessories, Others',
+      `Categories: ${categoryList}`,
       [{ text: 'Got it' }]
     );
   };
 
   const filteredProducts = products.filter((product) => {
-    const name = typeof product.name === 'object' ? (product.name as any)?.name || '' : String(product.name || '');
-    return name.toLowerCase().includes(searchQuery.toLowerCase());
+    const productName = asText(product.name);
+    const matchesSeller = !seller?.id || product.sellerId === seller.id;
+    return matchesSeller && productName.toLowerCase().includes(searchQuery.toLowerCase());
   });
 
   const renderProductCard = ({ item }: { item: SellerProduct }) => (
     <View style={styles.productCard}>
       <Image source={{ uri: item.images?.[0] || 'https://placehold.co/100x100?text=No+Image' }} style={styles.productImage} />
-      
+
       <View style={styles.productInfo}>
         <View style={styles.productHeader}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.productName} numberOfLines={1}>{typeof item.name === 'object' ? (item.name as any)?.name || '' : String(item.name || '')}</Text>
-            <Text style={styles.productCategory}>{typeof item.category === 'object' ? (item.category as any)?.name || '' : String(item.category || '')}</Text>
+            <Text style={styles.productName} numberOfLines={1}>{asText(item.name)}</Text>
+            <Text style={styles.productCategory}>{asText(item.category)}</Text>
           </View>
           <View style={[styles.statusBadge, { backgroundColor: item.isActive ? '#DCFCE7' : '#F3F4F6' }]}>
             <Text style={[styles.statusText, { color: item.isActive ? '#16A34A' : '#6B7280' }]}>
@@ -522,13 +682,13 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
         <View style={styles.productActions}>
           <Switch
             value={item.isActive}
-            onValueChange={() => toggleProductStatus(item.id)}
+            onValueChange={() => handleToggleProductStatus(item.id)}
             trackColor={{ false: '#E5E7EB', true: '#FF5722' }}
             thumbColor="#FFFFFF"
             ios_backgroundColor="#E5E7EB"
           />
           <View style={styles.actionButtons}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.editButton}
               onPress={() => handleEditProduct(item)}
               activeOpacity={0.7}
@@ -551,12 +711,12 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
   const renderPreviewCard = (item: SellerProduct) => (
     <View style={styles.productCard}>
       <Image source={{ uri: item.images?.[0] || 'https://placehold.co/100x100?text=No+Image' }} style={styles.productImage} />
-      
+
       <View style={styles.productInfo}>
         <View style={styles.productHeader}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.productName} numberOfLines={1}>{typeof item.name === 'object' ? (item.name as any)?.name || '' : String(item.name || '')}</Text>
-            <Text style={styles.productCategory}>{typeof item.category === 'object' ? (item.category as any)?.name || '' : String(item.category || '')}</Text>
+            <Text style={styles.productName} numberOfLines={1}>{asText(item.name)}</Text>
+            <Text style={styles.productCategory}>{asText(item.category)}</Text>
           </View>
         </View>
 
@@ -585,36 +745,43 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
   return (
     <View style={styles.container}>
       <SellerDrawer visible={drawerVisible} onClose={() => setDrawerVisible(false)} />
-            
+
       {/* Bright Orange Edge-to-Edge Header */}
       <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <View style={styles.headerRow}>
-          <TouchableOpacity style={{ backgroundColor: 'rgba(255,255,255,0.2)', padding: 12, borderRadius: 12 }} onPress={() => setDrawerVisible(true)}>
-            <Menu size={24} color="#FFFFFF" strokeWidth={2} />
+          <TouchableOpacity
+            style={styles.iconContainer}
+            onPress={() => setDrawerVisible(true)}
+          >
+            <Menu size={24} color="#1F2937" strokeWidth={2} />
           </TouchableOpacity>
+
           <View style={styles.headerTextContainer}>
             <Text style={styles.headerTitle}>Inventory</Text>
             <Text style={styles.headerSubtitle}>Manage your products</Text>
           </View>
+
           <View style={styles.headerActions}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.bulkButton}
               onPress={() => setIsBulkUploadModalOpen(true)}
               activeOpacity={0.8}
             >
-              <Upload size={20} color="#FFFFFF" strokeWidth={2.5} />
+              <Upload size={20} color="#FF5722" strokeWidth={2.5} />
             </TouchableOpacity>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.addButton}
-              onPress={() => navigation.navigate('AddProduct' as never)} // Navigates to new screen
+              onPress={() => navigation.navigate('AddProduct' as never)}
             >
               <Plus size={18} color="#FFFFFF" strokeWidth={2.5} />
               <Text style={styles.addButtonText}>Add</Text>
             </TouchableOpacity>
           </View>
         </View>
+      </View>
 
-        {/* Search Bar Embedded in Header */}
+      {/* Search Bar moved out of Header (Matches Orders Screen) */}
+      <View style={styles.searchSection}>
         <View style={styles.searchBar}>
           <Search size={20} color="#9CA3AF" strokeWidth={2} />
           <TextInput
@@ -672,18 +839,18 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
         visible={isEditModalOpen}
         transparent={true}
         animationType="slide"
-        onRequestClose={() => setIsEditModalOpen(false)}
+        onRequestClose={closeEditModal}
       >
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.modalContainer}
         >
-          <TouchableOpacity 
-            style={styles.modalOverlay} 
+          <TouchableOpacity
+            style={styles.modalOverlay}
             activeOpacity={1}
-            onPress={() => setIsEditModalOpen(false)}
+            onPress={closeEditModal}
           >
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.bottomSheet}
               activeOpacity={1}
               onPress={(e) => e.stopPropagation()}
@@ -694,13 +861,13 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
               {/* Modal Header */}
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Edit Product</Text>
-                <TouchableOpacity onPress={() => setIsEditModalOpen(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <TouchableOpacity onPress={closeEditModal} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                   <X size={24} color="#6B7280" strokeWidth={2.5} />
                 </TouchableOpacity>
               </View>
 
               {/* Modal Body */}
-              <ScrollView 
+              <ScrollView
                 style={styles.modalScrollView}
                 showsVerticalScrollIndicator={true}
                 contentContainerStyle={styles.scrollContent}
@@ -830,32 +997,36 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
                 {/* Category Pills */}
                 <View style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>Category *</Text>
-                  <ScrollView 
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.pillContainer}
-                  >
-                    {categories.map((item) => (
-                      <TouchableOpacity
-                        key={item}
-                        style={[
-                          styles.pillChip,
-                          formData.category === item && styles.pillChipSelected,
-                        ]}
-                        onPress={() => setFormData({ ...formData, category: item })}
-                        activeOpacity={0.7}
-                      >
-                        <Text
+                  {loadingCategories ? (
+                    <Text style={styles.categoryLoadingText}>Loading categories...</Text>
+                  ) : (
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.pillContainer}
+                    >
+                      {(categories.length > 0 ? categories : FALLBACK_CATEGORIES).map((item) => (
+                        <TouchableOpacity
+                          key={item.id}
                           style={[
-                            styles.pillChipText,
-                            formData.category === item && styles.pillChipTextSelected,
+                            styles.pillChip,
+                            formData.category === item.name && styles.pillChipSelected,
                           ]}
+                          onPress={() => setFormData({ ...formData, category: item.name })}
+                          activeOpacity={0.7}
                         >
-                          {item}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
+                          <Text
+                            style={[
+                              styles.pillChipText,
+                              formData.category === item.name && styles.pillChipTextSelected,
+                            ]}
+                          >
+                            {item.name}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  )}
                 </View>
 
                 {/* Price & Original Price Row */}
@@ -884,18 +1055,73 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
                   </View>
                 </View>
 
-                {/* Stock Quantity */}
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Stock Quantity *</Text>
-                  <TextInput
-                    style={styles.modernInput}
-                    placeholder="0"
-                    value={formData.stock}
-                    onChangeText={(text) => setFormData({ ...formData, stock: text })}
-                    placeholderTextColor="#9CA3AF"
-                    keyboardType="number-pad"
-                  />
-                </View>
+                {editVariants.length > 0 ? (
+                  <View style={styles.variantEditorCard}>
+                    <Text style={styles.variantEditorTitle}>Variants ({editVariants.length})</Text>
+                    <Text style={styles.variantEditorSubtitle}>
+                      Total Stock: {editVariants.reduce((sum, variant) => sum + variant.stock, 0)}
+                    </Text>
+
+                    {editVariants.map((variant, index) => (
+                      <View key={variant.id} style={styles.variantEditorRow}>
+                        <View style={styles.variantEditorInfo}>
+                          <Text style={styles.variantEditorName} numberOfLines={1}>
+                            {variant.name || [variant.option1Value, variant.option2Value].filter(Boolean).join(' - ') || `Variant ${index + 1}`}
+                          </Text>
+                        </View>
+
+                        <View style={styles.variantInputsRow}>
+                          <TextInput
+                            style={styles.variantInput}
+                            value={String(variant.price)}
+                            onChangeText={(value) => {
+                              const parsedPrice = parseFloat(value);
+                              setEditVariants((prev) =>
+                                prev.map((item) =>
+                                  item.id === variant.id
+                                    ? { ...item, price: Number.isNaN(parsedPrice) ? 0 : parsedPrice }
+                                    : item,
+                                ),
+                              );
+                            }}
+                            placeholder="Price"
+                            keyboardType="decimal-pad"
+                            placeholderTextColor="#9CA3AF"
+                          />
+                          <TextInput
+                            style={styles.variantInput}
+                            value={String(variant.stock)}
+                            onChangeText={(value) => {
+                              const parsedStock = parseInt(value, 10);
+                              setEditVariants((prev) =>
+                                prev.map((item) =>
+                                  item.id === variant.id
+                                    ? { ...item, stock: Number.isNaN(parsedStock) ? 0 : parsedStock }
+                                    : item,
+                                ),
+                              );
+                            }}
+                            placeholder="Stock"
+                            keyboardType="number-pad"
+                            placeholderTextColor="#9CA3AF"
+                          />
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                ) : (
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Stock Quantity *</Text>
+                    <TextInput
+                      style={styles.modernInput}
+                      placeholder="0"
+                      value={formData.stock}
+                      onChangeText={(text) => setFormData({ ...formData, stock: text })}
+                      placeholderTextColor="#9CA3AF"
+                      keyboardType="number-pad"
+                    />
+                  </View>
+                )}
 
                 {/* Others Card with Colors and Variations */}
                 <View style={styles.sectionCard}>
@@ -927,7 +1153,7 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
                         <Plus size={20} color="#FF5722" strokeWidth={2.5} />
                       </TouchableOpacity>
                     </View>
-                    
+
                     {/* Colors Pills - Only shows saved items */}
                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                       {formData.colors.filter(c => c.trim()).map((color, index) => (
@@ -961,7 +1187,7 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
                         <Plus size={20} color="#FF5722" strokeWidth={2.5} />
                       </TouchableOpacity>
                     </View>
-                    
+
                     {/* Variations Pills - Only shows saved items */}
                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                       {formData.sizes.filter(s => s.trim()).map((size, index) => (
@@ -981,7 +1207,7 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
               <View style={styles.modalFooter}>
                 <TouchableOpacity
                   style={styles.cancelButton}
-                  onPress={() => setIsEditModalOpen(false)}
+                  onPress={closeEditModal}
                   activeOpacity={0.7}
                 >
                   <Text style={styles.cancelButtonText}>Cancel</Text>
@@ -1010,12 +1236,12 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.modalContainer}
         >
-          <TouchableOpacity 
-            style={styles.modalOverlay} 
+          <TouchableOpacity
+            style={styles.modalOverlay}
             activeOpacity={1}
             onPress={() => setIsBulkUploadModalOpen(false)}
           >
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.bottomSheet, styles.bulkUploadSheet]}
               activeOpacity={1}
               onPress={(e) => e.stopPropagation()}
@@ -1032,7 +1258,7 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
               </View>
 
               {/* Modal Body */}
-              <ScrollView 
+              <ScrollView
                 style={styles.modalScrollView}
                 showsVerticalScrollIndicator={true}
                 contentContainerStyle={styles.bulkUploadScrollContent}
@@ -1068,7 +1294,7 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
                         <FileText size={20} color="#FF5722" strokeWidth={2.5} />
                         <Text style={styles.csvHeaderText}>CSV Format Requirements</Text>
                       </View>
-                      
+
                       <Text style={styles.csvDescription}>
                         Your CSV file must include these 7 columns in order:
                       </Text>
@@ -1118,7 +1344,7 @@ Sample Product,This is a sample product description,999,1299,100,Electronics,htt
                       <Text style={styles.csvHelpButtonText}>Show CSV Format Help</Text>
                     </TouchableOpacity>
                   </View>
-                )}               
+                )}
               </ScrollView>
             </TouchableOpacity>
           </TouchableOpacity>
@@ -1135,21 +1361,21 @@ const styles = StyleSheet.create({
   },
   // Bright Orange Edge-to-Edge Header
   header: {
-    backgroundColor: '#FF5722',
+    backgroundColor: '#FFE5CC', // Peach Background
     paddingHorizontal: 20,
     paddingBottom: 20,
-    borderBottomLeftRadius: 20, 
-    borderBottomRightRadius: 20,
+    borderBottomLeftRadius: 24, // Consistent rounding
+    borderBottomRightRadius: 24,
+    elevation: 3,
   },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 11,
-    marginBottom: 16,
+    gap: 12,
   },
   iconContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    padding: 12,
+    backgroundColor: 'rgba(0,0,0,0.05)', // Subtle dark overlay
+    padding: 10,
     borderRadius: 12,
   },
   headerTextContainer: {
@@ -1157,30 +1383,49 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 22,
-    fontWeight: '700',
-    color: '#FFFFFF',
+    fontWeight: '800',
+    color: '#1F2937', // Dark Charcoal
   },
   headerSubtitle: {
     fontSize: 13,
-    color: 'rgba(255, 255, 255, 0.9)',
+    color: '#4B5563', // Gray Subtitle
+    fontWeight: '500',
     marginTop: 2,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  bulkButton: {
+    backgroundColor: '#FFFFFF',
+    padding: 10,
+    borderRadius: 10,
+    height: 36,
+    width: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   addButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    backgroundColor: '#FF5722', // Primary Action Brand Color
     paddingVertical: 8,
     paddingHorizontal: 12,
-    borderRadius: 18,
-    height: 36,
+    borderRadius: 10,
+    elevation: 2,
   },
   addButtonText: {
     fontSize: 14,
     fontWeight: '700',
     color: '#FFFFFF',
   },
-  // Search Bar (Embedded in Header)
+  // New Search Section (similar to orders.tsx)
+  searchSection: {
+    paddingHorizontal: 20,
+    marginTop: 15,
+  },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1188,6 +1433,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 12,
     height: 48,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
     gap: 8,
   },
   searchInput: {
@@ -1555,6 +1802,66 @@ const styles = StyleSheet.create({
   pillChipTextSelected: {
     color: '#FFFFFF',
   },
+  categoryLoadingText: {
+    fontSize: 13,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  variantEditorCard: {
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+  },
+  variantEditorTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  variantEditorSubtitle: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 4,
+    marginBottom: 10,
+  },
+  variantEditorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 8,
+  },
+  variantEditorInfo: {
+    flex: 1,
+    minWidth: 0,
+  },
+  variantEditorName: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1F2937',
+  },
+  variantInputsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  variantInput: {
+    width: 82,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    fontSize: 13,
+    color: '#111827',
+    backgroundColor: '#FFFFFF',
+  },
   // QA Note
   qaNote: {
     flexDirection: 'row',
@@ -1608,21 +1915,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: '#FFFFFF',
-  },
-  // Header Actions Container
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  bulkButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-    padding: 10,
-    borderRadius: 10,
-    height: 36,
-    width: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   previewHeader: {
     flexDirection: 'row',
@@ -1848,35 +2140,35 @@ const styles = StyleSheet.create({
     color: '#0284C7',
   },
   variationPillOrange: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  gap: 8,
-  backgroundColor: '#FFF7ED',
-  paddingHorizontal: 12,
-  paddingVertical: 8,
-  borderRadius: 20,
-  borderWidth: 1,
-  borderColor: '#FFEDD5',
-},
-variationTextOrange: {
-  fontSize: 14,
-  color: '#EA580C',
-  fontWeight: '600',
-},
-variationPillBlue: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  gap: 8,
-  backgroundColor: '#F0F9FF',
-  paddingHorizontal: 12,
-  paddingVertical: 8,
-  borderRadius: 20,
-  borderWidth: 1,
-  borderColor: '#E0F2FE',
-},
-variationTextBlue: {
-  fontSize: 14,
-  color: '#0284C7',
-  fontWeight: '600',
-},
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FFF7ED',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#FFEDD5',
+  },
+  variationTextOrange: {
+    fontSize: 14,
+    color: '#EA580C',
+    fontWeight: '600',
+  },
+  variationPillBlue: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#F0F9FF',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#E0F2FE',
+  },
+  variationTextBlue: {
+    fontSize: 14,
+    color: '#0284C7',
+    fontWeight: '600',
+  },
 });

@@ -110,7 +110,7 @@ CREATE TABLE public.cart_items (
 );
 CREATE TABLE public.carts (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
-  buyer_id uuid,
+  buyer_id uuid UNIQUE,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT carts_pkey PRIMARY KEY (id),
@@ -706,11 +706,13 @@ CREATE TABLE public.support_tickets (
   resolved_at timestamp with time zone,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  seller_id uuid,
   CONSTRAINT support_tickets_pkey PRIMARY KEY (id),
   CONSTRAINT support_tickets_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id),
   CONSTRAINT support_tickets_category_id_fkey FOREIGN KEY (category_id) REFERENCES public.ticket_categories(id),
   CONSTRAINT support_tickets_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id),
-  CONSTRAINT support_tickets_assigned_to_fkey FOREIGN KEY (assigned_to) REFERENCES public.admins(id)
+  CONSTRAINT support_tickets_assigned_to_fkey FOREIGN KEY (assigned_to) REFERENCES public.admins(id),
+  CONSTRAINT support_tickets_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.sellers(id)
 );
 CREATE TABLE public.ticket_categories (
   id uuid NOT NULL DEFAULT gen_random_uuid(),

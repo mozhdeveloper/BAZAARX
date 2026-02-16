@@ -1,10 +1,14 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet, Linking, StatusBar, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, ScrollView, Pressable, StyleSheet, Linking, StatusBar, ActivityIndicator, RefreshControl } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, MessageCircle, Mail, Phone, Clock, ChevronRight, FileText, Headphones, Ticket } from 'lucide-react-native';
+import { ArrowLeft, MessageCircle, Mail, Phone, Clock, ChevronRight, FileText, Headphones, Ticket, Store } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import { COLORS } from '../src/constants/theme';
+import { TicketService } from '../services/TicketService';
+import { useAuthStore } from '../src/stores/authStore';
+import type { Ticket as TicketType } from './types/ticketTypes';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'HelpSupport'>;
 
@@ -17,59 +21,57 @@ interface FAQ {
 
 export default function HelpCenterScreen({ navigation, route }: Props) {
   const [activeTab, setActiveTab] = useState<'faq' | 'tickets'>('faq');
-  const [tickets, setTickets] = useState<any[]>([]);
+  const [tickets, setTickets] = useState<TicketType[]>([]);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [expandedFaq, setExpandedFaq] = useState<string | null>(null);
   const insets = useSafeAreaInsets();
+  const { user } = useAuthStore();
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (route.params?.activeTab) {
       setActiveTab(route.params.activeTab);
     }
   }, [route.params?.activeTab]);
 
-  React.useEffect(() => {
-    if (activeTab === 'tickets') {
+  useEffect(() => {
+    if (activeTab === 'tickets' && user?.id) {
       loadTickets();
     }
-  }, [activeTab]);
+  }, [activeTab, user?.id]);
 
   const loadTickets = async () => {
+    if (!user?.id) return;
+    
     setLoading(true);
-    // Simulate fetching
-    setTimeout(() => {
-      const MOCK_TICKETS = [
-        {
-          id: 'TKT-1001',
-          category: 'Order',
-          subject: 'Missing item in delivery',
-          status: 'in_progress',
-          updatedAt: new Date(Date.now() - 3600000).toISOString(),
-        },
-        {
-          id: 'TKT-1002',
-          category: 'Account',
-          subject: 'Cannot update profile picture',
-          status: 'open',
-          updatedAt: new Date(Date.now() - 43200000).toISOString(),
-        },
-        {
-          id: 'TKT-1003',
-          category: 'Payment',
-          subject: 'Refund not received',
-          status: 'resolved',
-          updatedAt: new Date(Date.now() - 86400000 * 5).toISOString(),
-        }
-      ];
-      setTickets(MOCK_TICKETS);
+    try {
+      const fetchedTickets = await TicketService.fetchTickets(user.id);
+      setTickets(fetchedTickets);
+    } catch (error) {
+      console.error('Error loading tickets:', error);
+    } finally {
       setLoading(false);
-    }, 500);
+    }
   };
+
+  const onRefresh = useCallback(async () => {
+    if (!user?.id) return;
+    setRefreshing(true);
+    try {
+      const fetchedTickets = await TicketService.fetchTickets(user.id);
+      setTickets(fetchedTickets);
+    } catch (error) {
+      console.error('Error refreshing tickets:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [user?.id]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'open': return '#3B82F6'; // Blue
       case 'in_progress': return '#F59E0B'; // Amber
+      case 'waiting_response': return '#8B5CF6'; // Purple
       case 'resolved': return '#10B981'; // Green
       case 'closed': return '#6B7280'; // Gray
       default: return '#6B7280';
@@ -77,8 +79,11 @@ export default function HelpCenterScreen({ navigation, route }: Props) {
   };
 
   const getStatusLabel = (status: string) => {
-    return status.replace('_', ' ').toUpperCase();
+    return status.replace(/_/g, ' ').toUpperCase();
   };
+
+  // Count open tickets for badge
+  const openTicketCount = tickets.filter(t => t.status === 'open' || t.status === 'in_progress' || t.status === 'waiting_response').length;
 
 
   const faqs: FAQ[] = [
@@ -163,17 +168,22 @@ export default function HelpCenterScreen({ navigation, route }: Props) {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
+      <StatusBar barStyle="dark-content" />
       {/* Header */}
-      <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: COLORS.primary }]}>
+      <LinearGradient
+        colors={['#FFF6E5', '#FFE0A3', '#FFD89A']} // Pastel Gold Header
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+        style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}
+      >
         <View style={styles.headerTop}>
           <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-            <ArrowLeft size={24} color="#FFF" strokeWidth={2.5} />
+            <ArrowLeft size={24} color="#7C2D12" strokeWidth={2.5} />
           </Pressable>
           <Text style={styles.headerTitle}>Help & Support</Text>
           <View style={{ width: 40 }} />
         </View>
-      </View>
+      </LinearGradient>
 
       {/* Tabs */}
       <View style={styles.tabContainer}>
@@ -187,11 +197,26 @@ export default function HelpCenterScreen({ navigation, route }: Props) {
           style={[styles.tabButton, activeTab === 'tickets' && styles.activeTabButton]}
           onPress={() => setActiveTab('tickets')}
         >
-          <Text style={[styles.tabText, activeTab === 'tickets' && styles.activeTabText]}>My Tickets</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Text style={[styles.tabText, activeTab === 'tickets' && styles.activeTabText]}>My Tickets</Text>
+            {openTicketCount > 0 && (
+              <View style={styles.ticketBadge}>
+                <Text style={styles.ticketBadgeText}>{openTicketCount}</Text>
+              </View>
+            )}
+          </View>
         </Pressable>
       </View>
 
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+      <ScrollView 
+        style={styles.scrollView} 
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          activeTab === 'tickets' ? (
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />
+          ) : undefined
+        }
+      >
         {activeTab === 'faq' ? (
           <>
             {/* Hero Section */}
@@ -327,7 +352,7 @@ export default function HelpCenterScreen({ navigation, route }: Props) {
                   onPress={() => navigation.navigate('TicketDetail', { ticketId: ticket.id })}
                 >
                   <View style={styles.ticketHeader}>
-                    <Text style={styles.ticketId}>{ticket.id}</Text>
+                    <Text style={styles.ticketId}>{ticket.id.substring(0, 8).toUpperCase()}</Text>
                     <View style={[styles.statusBadge, { backgroundColor: `${getStatusColor(ticket.status)}20` }]}>
                       <Text style={[styles.statusText, { color: getStatusColor(ticket.status) }]}>
                         {getStatusLabel(ticket.status)}
@@ -335,8 +360,14 @@ export default function HelpCenterScreen({ navigation, route }: Props) {
                     </View>
                   </View>
                   <Text style={styles.ticketSubject}>{ticket.subject}</Text>
+                  {ticket.sellerStoreName && (
+                    <View style={styles.storeInfo}>
+                      <Store size={14} color="#6B7280" />
+                      <Text style={styles.storeName}>{ticket.sellerStoreName}</Text>
+                    </View>
+                  )}
                   <View style={styles.ticketFooter}>
-                    <Text style={styles.ticketCategory}>{ticket.category}</Text>
+                    <Text style={styles.ticketCategory}>{ticket.categoryName || 'General'}</Text>
                     <Text style={styles.ticketDate}>
                       {new Date(ticket.updatedAt).toLocaleDateString()}
                     </Text>
@@ -363,7 +394,7 @@ export default function HelpCenterScreen({ navigation, route }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFFBF0', // Warm Ivory
   },
   headerContainer: {
     paddingHorizontal: 20,
@@ -379,7 +410,7 @@ const styles = StyleSheet.create({
   },
   headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headerIconButton: { padding: 4 },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFF' },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: '#7C2D12' },
   tabContainer: {
     flexDirection: 'row',
     backgroundColor: '#FFF',
@@ -400,7 +431,7 @@ const styles = StyleSheet.create({
     borderBottomColor: 'transparent',
   },
   activeTabButton: {
-    borderBottomColor: COLORS.primary,
+    borderBottomColor: '#FB8C00', // Warm Orange
   },
   tabText: {
     fontSize: 16,
@@ -408,7 +439,7 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
   },
   activeTabText: {
-    color: COLORS.primary,
+    color: '#7C2D12', // Warm Brown
   },
   scrollView: {
     flex: 1,
@@ -701,5 +732,34 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     marginTop: 8,
     textAlign: 'center',
-  }
+  },
+  ticketBadge: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
+    paddingHorizontal: 6,
+  },
+  ticketBadgeText: {
+    color: '#FFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  storeInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  storeName: {
+    marginLeft: 6,
+    fontSize: 13,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
 });

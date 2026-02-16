@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,9 +7,8 @@ import {
   StyleSheet,
   Image,
   Alert,
-  ScrollView,
 } from 'react-native';
-import { Plus, X, Upload, Barcode, Tag, Box, Layers, Edit2, Trash2, Check, ChevronDown } from 'lucide-react-native';
+import { Plus, Upload, Box, Layers, Edit2, Trash2, Check, ChevronDown } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 
 export type Variant = {
@@ -26,12 +25,13 @@ export type Variant = {
 type Props = {
   productName: string;
   basePrice?: string;
+  baseStock?: string;
   availableSizes?: string[];
   availableColors?: string[];
   onVariantsChange: (variants: Variant[], labels: { option1: string, option2: string }) => void;
 };
 
-export default function VariantManager({ productName, basePrice, availableSizes = [], availableColors = [], onVariantsChange }: Props) {
+export default function VariantManager({ productName, basePrice, baseStock, availableSizes = [], availableColors = [], onVariantsChange }: Props) {
   // --- LABELS ---
   const label1 = 'Color';
   const label2 = 'Size/Variation';
@@ -151,6 +151,10 @@ export default function VariantManager({ productName, basePrice, availableSizes 
     onVariantsChange(variants, { option1: label1, option2: label2 });
   }, [variants]);
 
+  const baseVariantStock = parseInt(baseStock || '0') || 0;
+  const customVariantStock = variants.reduce((sum, v) => sum + (parseInt(v.stock) || 0), 0);
+  const totalStock = baseVariantStock + customVariantStock;
+
   // Render dropdown selector
   const renderDropdownSelector = (
     label: string,
@@ -220,13 +224,36 @@ export default function VariantManager({ productName, basePrice, availableSizes 
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>Manage Variants</Text>
           <Text style={styles.headerSubtitle}>
-            {variants.length > 0 
-              ? `${variants.length} variant(s) • Total stock: ${variants.reduce((sum, v) => sum + (parseInt(v.stock) || 0), 0)}`
+            {variants.length > 0 || baseVariantStock > 0
+              ? `${variants.length + (baseVariantStock > 0 ? 1 : 0)} variant(s) • Total stock: ${totalStock}`
               : 'Add individual variants with stock and pricing'
             }
           </Text>
         </View>
       </View>
+
+      {/* BASE VARIANT (mirrors general stock) */}
+      {baseVariantStock > 0 && (
+        <View style={[styles.variantCard, styles.baseVariantCard]}>
+          <View style={styles.cardTop}>
+            <View style={[styles.uploadBox, styles.baseUploadBox]}>
+              <Box size={18} color="#15803D" />
+            </View>
+
+            <View style={styles.nameContainer}>
+              <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
+                <View style={styles.baseTag}>
+                  <Text style={styles.baseTagText}>Base Variant</Text>
+                </View>
+              </View>
+              <Text style={styles.variantMeta}>
+                Stock: {baseVariantStock} • ₱{basePrice || '0'}
+              </Text>
+              <Text style={styles.skuText}>Mirrors general stock (no attributes)</Text>
+            </View>
+          </View>
+        </View>
+      )}
 
       {/* EXISTING VARIANTS LIST */}
       {variants.map((v) => (
@@ -479,12 +506,16 @@ const styles = StyleSheet.create({
 
   // Variant Card
   variantCard: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12, padding: 12, marginBottom: 12 },
+  baseVariantCard: { borderColor: '#BBF7D0', backgroundColor: '#F0FDF4' },
   cardTop: { flexDirection: 'row', gap: 12, alignItems: 'center' },
   uploadBox: { width: 48, height: 48, borderRadius: 8, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#E5E7EB' },
+  baseUploadBox: { backgroundColor: '#DCFCE7', borderColor: '#86EFAC' },
   variantImage: { width: 48, height: 48, borderRadius: 8 },
   nameContainer: { flex: 1, gap: 4 },
   variantMeta: { fontSize: 13, color: '#6B7280' },
   skuText: { fontSize: 11, color: '#9CA3AF' },
+  baseTag: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#DCFCE7', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: '#86EFAC' },
+  baseTagText: { fontSize: 12, color: '#15803D', fontWeight: '600' },
   
   // Tags
   tagOrange: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#FFF7ED', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: '#FFEDD5' },

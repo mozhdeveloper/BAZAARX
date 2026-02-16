@@ -66,18 +66,158 @@ let MOCK_TICKETS: Ticket[] = [
   }
 ];
 
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+interface DbTicket {
+  id: string;
+  user_id: string;
+  category_id: string | null;
+  priority: TicketPriority;
+  status: TicketStatus;
+  subject: string;
+  description: string;
+  order_id: string | null;
+  seller_id: string | null;
+  assigned_to: string | null;
+  resolved_at: string | null;
+  created_at: string;
+  updated_at: string;
+  category?: {
+    id: string;
+    name: string;
+  };
+  seller?: {
+    id: string;
+    store_name: string | null;
+  };
+  messages?: DbTicketMessage[];
+}
+
+// Helper to map database ticket to app ticket
+function mapDbTicketToTicket(dbTicket: DbTicket, currentUserId?: string): Ticket {
+  return {
+    id: dbTicket.id,
+    userId: dbTicket.user_id,
+    categoryId: dbTicket.category_id,
+    categoryName: dbTicket.category?.name || null,
+    subject: dbTicket.subject,
+    description: dbTicket.description,
+    status: dbTicket.status,
+    priority: dbTicket.priority,
+    orderId: dbTicket.order_id,
+    sellerId: dbTicket.seller_id,
+    sellerStoreName: dbTicket.seller?.store_name || null,
+    createdAt: dbTicket.created_at,
+    updatedAt: dbTicket.updated_at,
+    resolvedAt: dbTicket.resolved_at,
+    messages: (dbTicket.messages || [])
+      .filter(m => !m.is_internal_note) // Don't show internal notes to users
+      .map(m => ({
+        id: m.id,
+        ticketId: m.ticket_id,
+        senderId: m.sender_id,
+        senderType: m.sender_type,
+        senderName: m.sender_id === currentUserId 
+          ? 'You' 
+          : m.sender?.first_name 
+            ? `${m.sender.first_name} ${m.sender.last_name || ''}`.trim()
+            : 'Support Agent',
+        message: m.message,
+        isInternal: m.is_internal_note,
+        createdAt: m.created_at,
+      }))
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()),
+  };
+}
 
 export const TicketService = {
-  async fetchTickets(): Promise<Ticket[]> {
-    await delay(800); // Simulate network
-    return [...MOCK_TICKETS].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+  /**
+   * Fetch all tickets for the current user
+   */
+  async fetchTickets(userId: string): Promise<Ticket[]> {
+    if (!isSupabaseConfigured()) {
+      console.warn('Supabase not configured');
+      return [];
+    }
+
+    const { data, error } = await supabase
+      .from('support_tickets')
+      .select(`
+        *,
+        category:ticket_categories!support_tickets_category_id_fkey (
+          id,
+          name
+        ),
+        seller:sellers (
+          id,
+          store_name
+        ),
+        messages:ticket_messages (
+          id,
+          ticket_id,
+          sender_id,
+          sender_type,
+          message,
+          is_internal_note,
+          created_at,
+          sender:profiles!ticket_messages_sender_id_fkey (
+            first_name,
+            last_name
+          )
+        )
+      `)
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching tickets:', error);
+      throw error;
+    }
+
+    return (data || []).map(ticket => mapDbTicketToTicket(ticket as DbTicket, userId));
   },
 
-  async getTicketDetails(ticketId: string): Promise<Ticket | null> {
-    await delay(500);
-    const ticket = MOCK_TICKETS.find((t) => t.id === ticketId);
-    return ticket || null;
+  /**
+   * Get a single ticket by ID
+   */
+  async getTicketDetails(ticketId: string, currentUserId?: string): Promise<Ticket | null> {
+    if (!isSupabaseConfigured()) {
+      return null;
+    }
+
+    const { data, error } = await supabase
+      .from('support_tickets')
+      .select(`
+        *,
+        category:ticket_categories!support_tickets_category_id_fkey (
+          id,
+          name
+        ),
+        seller:sellers (
+          id,
+          store_name
+        ),
+        messages:ticket_messages (
+          id,
+          ticket_id,
+          sender_id,
+          sender_type,
+          message,
+          is_internal_note,
+          created_at,
+          sender:profiles!ticket_messages_sender_id_fkey (
+            first_name,
+            last_name
+          )
+        )
+      `)
+      .eq('id', ticketId)
+      .single();
+
+    if (error) {
+      console.error('Error fetching ticket details:', error);
+      return null;
+    }
+
+    return data ? mapDbTicketToTicket(data as DbTicket, currentUserId) : null;
   },
 
   async createTicket(data: { category: TicketCategory; subject: string; description: string; priority: any; images?: string[] }): Promise<Ticket> {
@@ -108,16 +248,95 @@ export const TicketService = {
     return newTicket;
   },
 
-  async sendMessage(ticketId: string, message: string): Promise<TicketMessage> {
-    await delay(600);
-    const formattedMessage: TicketMessage = {
-      id: `msg-${Date.now()}`,
-      ticketId,
-      senderId: 'user-1',
+  /**
+   * Send a message on a ticket
+   */
+  async sendMessage(ticketId: string, senderId: string, message: string): Promise<TicketMessage | null> {
+    if (!isSupabaseConfigured()) {
+      return null;
+    }
+
+    const { data, error } = await supabase
+      .from('ticket_messages')
+      .insert({
+        ticket_id: ticketId,
+        sender_id: senderId,
+        sender_type: 'user',
+        message: message,
+        is_internal_note: false
+      })
+      .select(`
+        *,
+        sender:profiles!ticket_messages_sender_id_fkey (
+          first_name,
+          last_name
+        )
+      `)
+      .single();
+
+    if (error) {
+      console.error('Error sending message:', error);
+      throw error;
+    }
+
+    // Update ticket's updated_at timestamp
+    await supabase
+      .from('support_tickets')
+      .update({ updated_at: new Date().toISOString() })
+      .eq('id', ticketId);
+
+    if (!data) return null;
+
+    return {
+      id: data.id,
+      ticketId: data.ticket_id,
+      senderId: data.sender_id,
+      senderType: data.sender_type,
       senderName: 'You',
-      message,
-      createdAt: new Date().toISOString(),
+      message: data.message,
+      isInternal: data.is_internal_note,
+      createdAt: data.created_at,
     };
+  },
+
+  /**
+   * Get all ticket categories
+   */
+  async getCategories(): Promise<TicketCategoryDb[]> {
+    if (!isSupabaseConfigured()) {
+      return [];
+    }
+
+    const { data, error } = await supabase
+      .from('ticket_categories')
+      .select('id, name, description')
+      .order('name');
+
+    if (error) {
+      console.error('Error fetching categories:', error);
+      return [];
+    }
+
+    return data || [];
+  },
+
+  /**
+   * Get all sellers (for store selection when creating a ticket about a store)
+   */
+  async getSellers(): Promise<{ id: string; store_name: string; owner_name: string | null }[]> {
+    if (!isSupabaseConfigured()) {
+      return [];
+    }
+
+    const { data, error } = await supabase
+      .from('sellers')
+      .select('id, store_name, owner_name, approval_status')
+      .order('store_name');
+
+    if (error) {
+      console.error('Error fetching sellers:', error);
+      return [];
+    }
 
     const ticketIndex = MOCK_TICKETS.findIndex((t) => t.id === ticketId);
     if (ticketIndex !== -1) {

@@ -19,6 +19,7 @@ import { useAuthStore } from '../src/stores/authStore';
 import { COLORS } from '../src/constants/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
+import { BuyerBottomNav } from '../src/components/BuyerBottomNav';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Notifications'>;
 
@@ -238,6 +239,9 @@ export default function NotificationsScreen({ navigation }: Props) {
           )}
         </ScrollView>
       )}
+
+      {/* Bottom Navigation */}
+      <BuyerBottomNav />
     </View>
   );
 }
@@ -288,7 +292,7 @@ const styles = StyleSheet.create({
   // Content
   scrollView: { flex: 1, backgroundColor: '#FFFFFF' },
   centerContent: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF' },
-  scrollContent: { paddingBottom: 40 },
+  scrollContent: { paddingBottom: 100 }, // Extra padding for bottom nav
 
   // Empty State
   emptyState: { alignItems: 'center', marginTop: 80, paddingHorizontal: 40 },

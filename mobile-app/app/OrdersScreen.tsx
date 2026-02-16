@@ -28,6 +28,7 @@ import { GuestLoginModal } from '../src/components/GuestLoginModal';
 import { OrderCard } from '../src/components/OrderCard';
 import ReviewModal from '../src/components/ReviewModal';
 import { reviewService } from '../src/services/reviewService';
+import { BuyerBottomNav } from '../src/components/BuyerBottomNav';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
@@ -180,7 +181,8 @@ export default function OrdersScreen({ navigation, route }: Props) {
           } : it.selected_variant || null;
 
           return {
-            id: p.id || it.product_id,
+            id: it.id || `${order.id}_${it.product_id}`, // order_item id for unique identification
+            productId: p.id || it.product_id, // actual product id for reviews
             name: productName,
             price: priceNum,
             originalPrice: typeof p.original_price === 'number' ? p.original_price : undefined,
@@ -303,7 +305,7 @@ export default function OrdersScreen({ navigation, route }: Props) {
       case 'completed':
         baseOrders = dbOrders.filter(o =>
           o.status === 'delivered' &&
-          !returnRequests.some(req => req.orderId === o.id)
+          !returnRequests.some(req => req.orderId === ((o as any).orderId || o.id))
         );
         break;
       case 'cancelled':
@@ -326,9 +328,16 @@ export default function OrdersScreen({ navigation, route }: Props) {
     return [...baseOrders].sort((a, b) => {
       const dateA = new Date(a.createdAt).getTime();
       const dateB = new Date(b.createdAt).getTime();
-      return sortOrder === 'latest' ? dateB - dateA : dateA - dateB;
+      // Primary sort by date, secondary sort by transaction ID for deterministic order
+      if (dateA !== dateB) {
+        return sortOrder === 'latest' ? dateB - dateA : dateA - dateB;
+      }
+      // If same date, sort by transaction ID descending (higher number = more recent)
+      return sortOrder === 'latest' 
+        ? b.transactionId.localeCompare(a.transactionId) 
+        : a.transactionId.localeCompare(b.transactionId);
     });
-  }, [activeTab, dbOrders, selectedStatus, searchQuery, sortOrder]);
+  }, [activeTab, dbOrders, selectedStatus, searchQuery, sortOrder, returnRequests]);
 
   const handleBuyAgain = (order: Order) => {
     if (order.items.length > 0) {
@@ -349,17 +358,20 @@ export default function OrdersScreen({ navigation, route }: Props) {
           text: 'Confirm',
           onPress: async () => {
             try {
+              // Use shipment_status column (orders table doesn't have 'status' column)
+              // Use orderId (real UUID) not id (which may be order_number)
+              const realOrderId = (order as any).orderId || order.id;
               const { error } = await supabase
                 .from('orders')
-                .update({ status: 'delivered' })
-                .eq('id', order.id);
+                .update({ shipment_status: 'received' })
+                .eq('id', realOrderId);
 
               if (error) throw error;
 
-              updateOrderStatus(order.id, 'delivered');
+              updateOrderStatus(realOrderId, 'delivered');
 
               setDbOrders(prev => prev.map(o =>
-                o.id === order.id ? { ...o, status: 'delivered' } : o
+                ((o as any).orderId || o.id) === realOrderId ? { ...o, status: 'delivered' } : o
               ));
 
               Alert.alert('Success', 'Order marked as received!');
@@ -385,28 +397,30 @@ export default function OrdersScreen({ navigation, route }: Props) {
     if (!selectedOrder || !user?.id) return;
 
     try {
-      const item = selectedOrder.items.find(i => i.id === productId);
+      // Get the real order UUID (orderId), not order_number
+      const realOrderId = (selectedOrder as any).orderId || selectedOrder.id;
+      
+      // Find item by productId (now correctly passed from ReviewModal)
+      const item = selectedOrder.items.find(i => 
+        (i as any).productId === productId || i.id === productId
+      );
       if (!item) throw new Error('Product not found');
 
-      const sellerId = item.sellerId || (item as any).seller_id;
-      if (!sellerId) throw new Error('Seller information missing');
-
-      // Create review
+      // Create review (no seller_id - not in reviews table)
       await reviewService.createReview({
         product_id: productId,
         buyer_id: user.id,
-        seller_id: sellerId,
-        order_id: selectedOrder.id,
+        order_id: realOrderId,
         rating,
         comment: review || null,
-        images: null,
+        is_verified_purchase: true,
       });
 
-      // Mark item as reviewed
-      await reviewService.markItemAsReviewed(selectedOrder.id, productId);
+      // Mark item as reviewed with rating
+      await reviewService.markItemAsReviewed(realOrderId, productId, rating);
 
-      // Check if all items reviewed
-      await reviewService.checkAndUpdateOrderReviewed(selectedOrder.id);
+      // Check if all items reviewed (no-op now since no is_reviewed column)
+      await reviewService.checkAndUpdateOrderReviewed(realOrderId);
 
       Alert.alert('Success', 'Your review has been submitted.');
     } catch (error: any) {
@@ -574,58 +588,61 @@ export default function OrdersScreen({ navigation, route }: Props) {
 
   if (isGuest) {
     return (
+    <View style={styles.container}>
       <LinearGradient
-        colors={['#FFE5CC', '#FFE5CC']}
+        colors={['#FFF6E5', '#FFE0A3', '#FFD89A']} // Pastel Gold Header
         start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-        style={styles.container}
+        end={{ x: 0, y: 1 }}
+        style={[styles.headerContainer, { paddingTop: 60 }]}
       >
-        <View style={[styles.headerContainer, { paddingTop: 60 }]}>
-          <View style={styles.headerTop}>
-            <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-              <ArrowLeft size={24} color="#1F2937" strokeWidth={2.5} />
-            </Pressable>
-            <Text style={styles.headerTitle}>My Orders</Text>
-            <View style={{ width: 40 }} />
-          </View>
+        <View style={styles.headerTop}>
+          <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
+            <ArrowLeft size={24} color="#7C2D12" strokeWidth={2.5} />
+          </Pressable>
+          <Text style={styles.headerTitle}>My Orders</Text>
+          <View style={{ width: 40 }} />
         </View>
-        <GuestLoginModal
-          visible={true}
-          onClose={() => navigation.navigate('MainTabs', { screen: 'Home' })} // Explicit navigation
-          message="Sign up to track your orders."
-          hideCloseButton={true}
-          cancelText="Go back to Home"
-        />
       </LinearGradient>
+      <GuestLoginModal
+        visible={true}
+        onClose={() => navigation.navigate('MainTabs', { screen: 'Home' })} // Explicit navigation
+        message="Sign up to track your orders."
+        hideCloseButton={true}
+        cancelText="Go back to Home"
+      />
+    </View>
     );
   }
 
   return (
-    <LinearGradient
-      colors={['#FFE5CC', '#FFE5CC']}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 0 }}
+    <View
       style={styles.container}
     >
       <StatusBar barStyle="dark-content" />
 
       {/* Header with Title only */}
-      <View style={[styles.headerContainer, { paddingTop: insets.top + 10, paddingBottom: 15 }]}>
+      {/* Header with Title only */}
+      <LinearGradient
+        colors={['#FFF6E5', '#FFE0A3', '#FFD89A']} // Pastel Gold Header
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+        style={[styles.headerContainer, { paddingTop: insets.top + 10, paddingBottom: 15 }]}
+      >
         <View style={styles.headerTop}>
           <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-            <ArrowLeft size={24} color="#1F2937" strokeWidth={2.5} />
+            <ArrowLeft size={24} color="#7C2D12" strokeWidth={2.5} />
           </Pressable>
           <Text style={styles.headerTitle}>My Orders</Text>
           <View style={styles.headerActions}>
             <Pressable style={styles.headerIconButton} onPress={() => setShowFilterModal(true)}>
-              <Filter size={22} color="#1F2937" strokeWidth={2.5} />
+              <Filter size={22} color="#7C2D12" strokeWidth={2.5} />
             </Pressable>
             <Pressable style={styles.headerIconButton} onPress={() => setShowSearchModal(true)}>
-              <Search size={22} color="#1F2937" strokeWidth={2.5} />
+              <Search size={22} color="#7C2D12" strokeWidth={2.5} />
             </Pressable>
           </View>
         </View>
-      </View>
+      </LinearGradient>
 
       {/* White Tab Bar - Sticky look */}
       <View style={styles.tabsWrapper}>
@@ -770,14 +787,17 @@ export default function OrdersScreen({ navigation, route }: Props) {
         onClose={() => setShowRatingModal(false)}
         onSubmit={handleSubmitReview}
       />
-    </LinearGradient>
+
+      {/* Bottom Navigation */}
+      <BuyerBottomNav />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFFBF0', // Warm Ivory
   },
   headerContainer: {
     paddingHorizontal: 20,

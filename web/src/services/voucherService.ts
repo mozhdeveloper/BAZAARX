@@ -6,7 +6,9 @@ export type VoucherValidationErrorCode =
     | 'INACTIVE'
     | 'NOT_STARTED'
     | 'EXPIRED'
-    | 'MIN_ORDER_NOT_MET';
+    | 'MIN_ORDER_NOT_MET'
+    | 'ALREADY_USED'
+    | 'SELLER_MISMATCH';
 
 export interface VoucherValidationResult {
     voucher: Voucher | null;
@@ -120,11 +122,13 @@ export const deleteVoucher = async (id: string): Promise<void> => {
  * Validate if a voucher can be used
  * @param code - Voucher code
  * @param orderTotal - Total order amount
+ * @param buyerId - Optional buyer ID for per-customer limit check (claim_limit)
  * @returns Detailed voucher validation result
  */
 export const validateVoucherDetailed = async (
     code: string,
-    orderTotal: number
+    orderTotal: number,
+    buyerId?: string | null
 ): Promise<VoucherValidationResult> => {
     const voucher = await getVoucherByCode(code);
 
@@ -155,6 +159,22 @@ export const validateVoucherDetailed = async (
         return { voucher: null, errorCode: 'MIN_ORDER_NOT_MET' };
     }
 
+    // Check per-customer use limit (claim_limit = max uses per customer)
+    if (voucher.claim_limit != null && buyerId) {
+        const { count, error } = await supabase
+            .from('order_vouchers')
+            .select('*', { count: 'exact', head: true })
+            .eq('voucher_id', voucher.id)
+            .eq('buyer_id', buyerId);
+
+        if (error) {
+            console.error('Error checking voucher usage:', error);
+            // On DB error, allow use (fail open) to avoid blocking checkout
+        } else if (count != null && count >= voucher.claim_limit) {
+            return { voucher: null, errorCode: 'ALREADY_USED' };
+        }
+    }
+
     // All checks passed
     return { voucher, errorCode: null };
 };
@@ -163,13 +183,15 @@ export const validateVoucherDetailed = async (
  * Validate if a voucher can be used
  * @param code - Voucher code
  * @param orderTotal - Total order amount
+ * @param buyerId - Optional buyer ID for per-customer limit check (claim_limit)
  * @returns Voucher if valid, null if invalid
  */
 export const validateVoucher = async (
     code: string,
-    orderTotal: number
+    orderTotal: number,
+    buyerId?: string | null
 ): Promise<Voucher | null> => {
-    const result = await validateVoucherDetailed(code, orderTotal);
+    const result = await validateVoucherDetailed(code, orderTotal, buyerId);
     return result.voucher;
 };
 
