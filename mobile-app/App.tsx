@@ -144,8 +144,8 @@ function MainTabs() {
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: '#FF6A00',
-        tabBarInactiveTintColor: '#9CA3AF',
+        tabBarActiveTintColor: '#F4A300', // Golden Orange
+        tabBarInactiveTintColor: '#92400E', // Warm Brown
         tabBarStyle: {
           position: 'absolute',
           bottom: 0,
@@ -155,9 +155,9 @@ function MainTabs() {
           paddingBottom: 10 + insets.bottom,
           paddingTop: 10,
           borderTopWidth: 1,
-          borderTopColor: '#E5E7EB',
-          backgroundColor: '#FFFFFF',
-          shadowColor: '#000',
+          borderTopColor: '#FFE0A3', // Pastel Gold
+          backgroundColor: '#FFF9E5', // Pale Warm Cream
+          shadowColor: '#F4A300', // Golden Shadow
           shadowOffset: { width: 0, height: -2 },
           shadowOpacity: 0.1,
           shadowRadius: 8,

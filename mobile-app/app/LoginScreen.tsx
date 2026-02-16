@@ -178,7 +178,7 @@ export default function LoginScreen({ navigation }: Props) {
             <View style={styles.inputContainer}>
               <Text style={styles.label}>Email Address</Text>
               <View style={styles.inputWrapper}>
-                <Mail size={20} color="#9CA3AF" style={styles.inputIcon} />
+                <Mail size={20} color="#EA580C" style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Enter your email"
@@ -196,7 +196,7 @@ export default function LoginScreen({ navigation }: Props) {
             <View style={styles.inputContainer}>
               <Text style={styles.label}>Password</Text>
               <View style={styles.inputWrapper}>
-                <Lock size={20} color="#9CA3AF" style={styles.inputIcon} />
+                <Lock size={20} color="#EA580C" style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Enter your password"
@@ -231,7 +231,7 @@ export default function LoginScreen({ navigation }: Props) {
               disabled={isLoading}
             >
               <LinearGradient
-                colors={['#FF6A00', '#FF8C42']}
+                colors={['#FB8C00', '#FFA000']} // Warm Orange Gradient
                 style={styles.buttonGradient}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
@@ -323,7 +323,7 @@ export default function LoginScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FFFBF0', // Warm Ivory
   },
   keyboardView: {
     flex: 1,
@@ -349,13 +349,13 @@ const styles = StyleSheet.create({
   brandName: {
     fontSize: 32,
     fontWeight: '800',
-    color: '#111827',
+    color: '#7C2D12', // Warm Brown
     marginBottom: 8,
   },
   welcomeText: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#111827',
+    color: '#7C2D12', // Warm Brown
     marginBottom: 4,
   },
   subtitle: {

@@ -69,25 +69,30 @@ export default function FlashSaleScreen({ navigation, route }: Props) {
 
     return (
         <LinearGradient
-            colors={['#FFE5CC', '#FFE5CC']}
+            colors={['#FFF6E5', '#FFE0A3', '#FFD89A']}
             start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
+            end={{ x: 0, y: 1 }}
             style={styles.container}
         >
             <View style={{ flex: 1, paddingTop: insets.top }}>
-                <StatusBar barStyle="light-content" />
+                <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
 
                 {/* Header */}
-                <View style={styles.header}>
+                <LinearGradient
+                    colors={['#FFF6E5', '#FFE0A3', '#FFD89A']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 0, y: 1 }}
+                    style={styles.header}
+                >
                     <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
-                        <ArrowLeft size={24} color="#1F2937" />
+                        <ArrowLeft size={24} color="#7C2D12" />
                     </Pressable>
                     <View style={styles.headerCenter}>
-                        <Zap size={20} color={COLORS.primary} fill={COLORS.primary} />
-                        <Text style={styles.headerTitle}>Flash Sale</Text>
+                        <Zap size={20} color="#7C2D12" fill="#7C2D12" />
+                        <Text style={[styles.headerTitle, { color: '#7C2D12' }]}>Flash Sale</Text>
                     </View>
                     <View style={styles.timerRow}>
-                        <Timer size={16} color="#1F2937" />
+                        <Timer size={16} color="#7C2D12" />
                         <View style={styles.timerBox}>
                             <Text style={styles.timerDigit}>{pad(timeLeft.hours)}</Text>
                         </View>
@@ -100,7 +105,7 @@ export default function FlashSaleScreen({ navigation, route }: Props) {
                             <Text style={styles.timerDigit}>{pad(timeLeft.seconds)}</Text>
                         </View>
                     </View>
-                </View>
+                </LinearGradient>
 
                 {/* Products Grid */}
                 <ScrollView
@@ -123,6 +128,7 @@ export default function FlashSaleScreen({ navigation, route }: Props) {
                                 <View key={product.id} style={styles.productCard}>
                                     <ProductCard
                                         product={product}
+                                        variant="flash"
                                         onPress={() => navigation.navigate('ProductDetail', { product })}
                                     />
                                 </View>
@@ -136,10 +142,11 @@ export default function FlashSaleScreen({ navigation, route }: Props) {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#F9FAFB' },
+    container: { flex: 1 },
     header: {
         paddingHorizontal: 20,
-        paddingVertical: 16,
+        paddingBottom: 12, // Reduced due to gradient
+        paddingTop: 12,
         flexDirection: 'row',
         alignItems: 'center',
     },
@@ -153,10 +160,10 @@ const styles = StyleSheet.create({
         paddingVertical: 3,
         borderRadius: 4,
     },
-    timerDigit: { color: COLORS.primary, fontSize: 14, fontWeight: '800' },
-    timerSep: { color: '#1F2937', fontSize: 14, fontWeight: '800' },
+    timerDigit: { color: '#7C2D12', fontSize: 14, fontWeight: '800' },
+    timerSep: { color: '#7C2D12', fontSize: 14, fontWeight: '800' },
     scrollContent: { flex: 1 },
-    gridContainer: { padding: 16 },
+    gridContainer: { padding: 20 },
     loadingContainer: { alignItems: 'center', paddingVertical: 60 },
     loadingText: { fontSize: 16, color: '#6B7280' },
     emptyContainer: { alignItems: 'center', paddingVertical: 60, gap: 12 },
@@ -164,13 +171,6 @@ const styles = StyleSheet.create({
     grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
     productCard: {
         width: (width - 48) / 2,
-        marginBottom: 16,
-        backgroundColor: '#FFF',
-        borderRadius: 16,
-        elevation: 4,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 6,
+        marginBottom: 12,
     },
 });

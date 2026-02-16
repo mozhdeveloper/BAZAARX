@@ -418,14 +418,19 @@ export default function ShopScreen({ navigation, route }: Props) {
 
   return (
     <LinearGradient
-      colors={['#FFE5CC', '#FFE5CC']}
+      colors={['#FFF6E5', '#FFE0A3', '#FFD89A']}
       start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 0 }}
+      end={{ x: 0, y: 1 }}
       style={styles.container}
     >
       <StatusBar barStyle="light-content" />
 
-      <View style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}>
+      <LinearGradient
+        colors={['#FFF6E5', '#FFE0A3', '#FFD89A']} // Pastel Gold Header
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+        style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}
+      >
         <View style={styles.headerTop}>
           <View style={[styles.searchBarWrapper, isSearchFocused && { marginRight: 10 }]}>
             <View style={styles.searchBarInner}>
@@ -457,7 +462,7 @@ export default function ShopScreen({ navigation, route }: Props) {
             </View>
           )}
         </View>
-      </View>
+      </LinearGradient>
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryScroll}>
@@ -606,8 +611,8 @@ export default function ShopScreen({ navigation, route }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F9FAFB' },
-  headerContainer: { paddingHorizontal: 20, borderBottomLeftRadius: 20, borderBottomRightRadius: 20, paddingBottom: 10 },
+  container: { flex: 1 },
+  headerContainer: { paddingHorizontal: 20, borderBottomLeftRadius: 30, borderBottomRightRadius: 20, paddingBottom: 15 },
   headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
   searchBarWrapper: { flex: 1, flexDirection: 'row', alignItems: 'center' },
   searchBarInner: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 12, paddingHorizontal: 15, height: 48, gap: 10 },
@@ -622,7 +627,7 @@ const styles = StyleSheet.create({
   chipText: { fontSize: 13, fontWeight: '600', color: '#9CA3AF' },
   storesSection: { marginTop: 5 },
   sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20 },
-  sectionTitle: { fontSize: 18, fontWeight: '800', color: '#1F2937' },
+  sectionTitle: { fontSize: 19, fontWeight: '900', color: '#D97706' },
   storesScroll: { paddingHorizontal: 20, paddingVertical: 15, gap: 15 },
   storeCard: { width: 260, backgroundColor: '#FFF', borderRadius: 16, padding: 16, elevation: 3, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 5 },
   storeHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
@@ -635,8 +640,8 @@ const styles = StyleSheet.create({
   storeProducts: { flexDirection: 'row', gap: 8 },
   storeProductThumb: { flex: 1, height: 60, borderRadius: 8, backgroundColor: '#F3F4F6' },
   productsSection: { paddingHorizontal: 20, marginTop: 15 },
-  productsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginTop: 15 },
-  cardWrapper: { width: '48%', marginBottom: 15 },
+  productsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', paddingHorizontal: 0 },
+  cardWrapper: { width: (width - 48) / 2, marginBottom: 12 },
   emptyBox: { width: '100%', alignItems: 'center', paddingVertical: 40 },
   emptyTitle: { fontSize: 16, fontWeight: '800', color: '#1F2937' },
   emptyText: { fontSize: 13, color: '#6B7280', marginTop: 5 },

@@ -14,6 +14,7 @@ import {
   Modal,
   ActivityIndicator,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, MapPin, CreditCard, Shield, Tag, X, ChevronDown, Check, Plus, ShieldCheck, ChevronRight, Home, Briefcase, MapPinned, Building2, Move, Search, ChevronUp } from 'lucide-react-native';
 import MapView, { Marker, Region, PROVIDER_GOOGLE, PROVIDER_DEFAULT } from 'react-native-maps';
@@ -1367,22 +1368,31 @@ export default function CheckoutScreen({ navigation, route }: Props) {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['left', 'right']}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={{ flex: 1 }}
-      >
-        {/* Edge-to-Edge Orange Header */}
-        <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
-          <View style={styles.headerTop}>
-            <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
-              <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
-            </Pressable>
-            <Text style={styles.headerTitle}>Checkout</Text>
-            <View style={{ width: 36 }} />
-          </View>
-        </View>
+    <LinearGradient
+      colors={['#FFFBF0', '#FFFBF0']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 0 }}
+      style={{ flex: 1 }}
+    >
+      <SafeAreaView style={{ flex: 1 }} edges={['top', 'left', 'right']}>
+        {/* Header */}
+        <LinearGradient
+          colors={['#FFF6E5', '#FFE0A3', '#FFD89A']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+          style={styles.header}
+        >
+          <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
+            <ArrowLeft size={24} color="#7C2D12" />
+          </Pressable>
+          <Text style={[styles.headerTitle, { color: '#7C2D12' }]}>Checkout</Text>
+          <View style={{ width: 24 }} />
+        </LinearGradient>
 
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={{ flex: 1 }}
+        >
         <ScrollView
           style={styles.scrollContainer}
           contentContainerStyle={{ paddingBottom: 120 + insets.bottom }}
@@ -2158,7 +2168,8 @@ export default function CheckoutScreen({ navigation, route }: Props) {
           initialCoordinates={selectedAddress?.coordinates || null}
         />
       </KeyboardAvoidingView>
-    </SafeAreaView>
+      </SafeAreaView> 
+    </LinearGradient>
   );
 
   // --- STRICTLY FORMATTED DROPDOWN (inside CheckoutScreen) ---
@@ -2511,20 +2522,19 @@ const checkoutStyles = StyleSheet.create({
 });
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F5F5F7',
-  },
+  // container: { // Replaced by gradient wrapper
+  //   flex: 1,
+  //   backgroundColor: COLORS.gray100,
+  // },
   header: {
-    backgroundColor: COLORS.primary,
-    paddingBottom: 16, // Increased slightly for better proportion with rounded corners
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    // backgroundColor: COLORS.white, // Replaced by gradient
+    // borderBottomWidth: 1,
+    // borderBottomColor: COLORS.gray200,
   },
   headerTop: {
     flexDirection: 'row',

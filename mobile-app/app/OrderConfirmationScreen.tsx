@@ -192,7 +192,7 @@ export default function OrderConfirmationScreen({ route, navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FFFBF0', // Warm Ivory
   },
   scrollContent: {
     padding: 20,

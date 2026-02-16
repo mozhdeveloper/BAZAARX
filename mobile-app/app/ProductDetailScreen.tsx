@@ -17,6 +17,8 @@ import {
   FlatList,
   ActivityIndicator,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ArrowLeft,
@@ -40,6 +42,7 @@ import {
   Gift,
   Edit3,
   MapPin, // Added for seller location
+  User, // Added missing import
 } from 'lucide-react-native';
 import { ProductCard } from '../src/components/ProductCard';
 import CameraSearchModal from '../src/components/CameraSearchModal';
@@ -572,46 +575,64 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={BRAND_COLOR} />
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" translucent={false} />
 
-      {/* --- HEADER (Matches Screenshot) --- */}
-      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-        <Pressable onPress={() => navigation.goBack()} style={styles.iconButton}>
-          <ArrowLeft size={24} color="#FFF" />
-        </Pressable>
-
-        <Pressable style={styles.headerSearchBar} onPress={() => setIsSearchFocused(true)}>
-          <Search size={18} color="#9CA3AF" />
-          <Text style={styles.headerSearchText}>Search product...</Text>
-          <View style={styles.cameraIcon}>
-            <Camera size={16} color={BRAND_COLOR} />
-          </View>
-        </Pressable>
-
-        <View style={styles.headerRight}>
-          <Pressable onPress={() => navigation.navigate('MainTabs', { screen: 'Cart' })} style={styles.iconButton}>
-            <ShoppingCart size={24} color="#FFF" />
+      {/* --- TOP BRANDING BAR --- */}
+      <View style={{ 
+        flexDirection: 'row', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        paddingHorizontal: 16, 
+        paddingTop: insets.top + 10,
+        backgroundColor: '#FFFFFF',
+        paddingBottom: 10
+      }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <Image
+            source={require('../assets/BazaarX.png')}
+            style={{ width: 38, height: 38, marginRight: 6 }}
+            resizeMode="contain"
+          />
+          <Text style={{ fontSize: 24, fontWeight: '900', color: '#FB8C00' }}>BazaarX</Text>
+        </View>
+        
+        <View style={{ flexDirection: 'row', gap: 12 }}>
+          <Pressable onPress={() => navigation.navigate('MainTabs', { screen: 'Cart' })} style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: '#F9FAFB', alignItems: 'center', justifyContent: 'center' }}>
+            <ShoppingCart size={20} color="#78350F" />
             {cartItemCount > 0 && (
-              <View style={styles.badge}>
+              <View style={[styles.badge, { right: -2, top: -2 }]}>
                 <Text style={styles.badgeText}>{cartItemCount}</Text>
               </View>
             )}
           </Pressable>
-          <Pressable 
-            style={[styles.iconButton, { padding: 8, marginLeft: 4 }]} 
-            onPress={() => setShowMenu(true)}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <View style={{ gap: 3 }}>
-              <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: '#FFF' }} />
-              <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: '#FFF' }} />
-              <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: '#FFF' }} />
-            </View>
-          </Pressable>
         </View>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
+        
+        {/* --- BACK BUTTON & NAV --- */}
+        <View style={{ paddingHorizontal: 16, paddingVertical: 10 }}>
+          <Pressable onPress={() => navigation.goBack()} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#F9FAFB', alignItems: 'center', justifyContent: 'center' }}>
+            <ArrowLeft size={22} color="#78350F" />
+          </Pressable>
+        </View>
+
+        {/* --- TITLE & RATINGS (Moved Top) --- */}
+        <View style={{ paddingHorizontal: 16 }}>
+          <Text style={styles.productName}>{product.name}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 15 }}>
+            <View style={{ flexDirection: 'row', gap: 2, marginRight: 8 }}>
+              {[1, 2, 3, 4, 5].map((s) => (
+                <Star key={s} size={15} color="#FBBF24" fill="#FBBF24" />
+              ))}
+            </View>
+            <Text style={{ fontSize: 14, fontWeight: '700', color: '#1F2937' }}>4.8</Text>
+            <Text style={{ fontSize: 13, color: '#9CA3AF', marginHorizontal: 8 }}>|</Text>
+            <Text style={{ fontSize: 13, color: '#6B7280' }}>2.3k Reviews</Text>
+            <Text style={{ fontSize: 13, color: '#9CA3AF', marginHorizontal: 8 }}>|</Text>
+            <Text style={{ fontSize: 13, color: '#6B7280' }}>5.8k Sold</Text>
+          </View>
+        </View>
 
         {/* --- IMAGE CAROUSEL --- */}
         <View style={styles.imageContainer}>
@@ -621,7 +642,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
             showsHorizontalScrollIndicator={false}
             onScroll={(e) => {
               const contentOffsetX = e.nativeEvent.contentOffset.x;
-              const index = Math.round(contentOffsetX / (width || 1));
+              const index = Math.round(contentOffsetX / (width - 32 || 1));
               setCurrentImageIndex(index);
             }}
             scrollEventThrottle={16}
@@ -630,122 +651,31 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
               <Image key={index} source={{ uri: img }} style={styles.productImage} />
             ))}
           </ScrollView>
-
-          {/* Page Indicator (Top Left) */}
           <View style={styles.pageIndicator}>
-            <Text style={styles.pageText}>{currentImageIndex + 1}/{productImages.length}</Text>
+             <Text style={styles.pageText}>{currentImageIndex + 1}/{productImages.length}</Text>
           </View>
-
-          {/* Share Icon */}
-          <Pressable
-            style={styles.shareFab}
-            onPress={handleShare}
-          >
-            <Share2 size={20} color={BRAND_COLOR} />
-          </Pressable>
-
-          {/* Wishlist / Bookmark FAB */}
-          <Pressable
-            style={styles.heartFab}
-            onPress={() => handleWishlistAction()}
-          >
-            {isFavorite ? (
-              <Heart size={20} color="#EF4444" fill="#EF4444" />
-            ) : (
-              <Heart size={20} color={BRAND_COLOR} strokeWidth={2.5} />
-            )}
-          </Pressable>
-
-          {/* Inline Wishlist Dropdown */}
-          {showWishlistDropdown && !isFavorite && (
-            <View style={styles.wishlistDropdown}>
-              <Text style={styles.dropdownHeader}>Save to List</Text>
-
-              {categories.map((cat) => (
-                <Pressable
-                  key={cat.id}
-                  style={styles.dropdownItem}
-                  onPress={() => handleWishlistAction(cat.id)}
-                >
-                  <FolderHeart size={16} color="#4B5563" />
-                  <Text style={styles.dropdownItemText}>{cat.name}</Text>
-                </Pressable>
-              ))}
-
-              <View style={styles.dropdownDivider} />
-
-              {isCreatingList ? (
-                <View style={styles.createListRow}>
-                  <TextInput
-                    style={styles.createListInput}
-                    placeholder="List Name"
-                    value={newListName}
-                    onChangeText={setNewListName}
-                    autoFocus
-                  />
-                  <Pressable onPress={handleCreateList}>
-                    <PlusCircle size={20} color={BRAND_COLOR} />
-                  </Pressable>
-                </View>
-              ) : (
-                <Pressable
-                  style={styles.dropdownItem}
-                  onPress={() => setIsCreatingList(true)}
-                >
-                  <PlusCircle size={16} color={BRAND_COLOR} />
-                  <Text style={[styles.dropdownItemText, { color: BRAND_COLOR, fontWeight: '700' }]}>Create New List</Text>
-                </Pressable>
-              )}
-            </View>
-          )}
         </View>
 
-        {/* --- PRODUCT INFO CARD --- */}
-        <View style={styles.infoCard}>
-          {/* Tags */}
-          <View style={styles.tagRow}>
-            <View style={[styles.tag, { backgroundColor: '#EDE9FE' }]}>
-              <Star size={12} color="#7C3AED" fill="#7C3AED" />
-              <Text style={[styles.tagText, { color: '#7C3AED' }]}>Bestseller</Text>
+        <View style={{ padding: 16 }}>
+          {/* Price & Heart */}
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
+            <View style={styles.priceRow}>
+              <Text style={styles.currentPrice}>₱{(product.price ?? 0).toLocaleString()}</Text>
             </View>
-            <View style={[styles.tag, { backgroundColor: '#FEE2E2' }]}>
-              <Text style={[styles.tagText, { color: '#EF4444' }]}>15% OFF</Text>
-            </View>
+            <Pressable onPress={() => handleWishlistAction()} style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#F9FAFB', alignItems: 'center', justifyContent: 'center' }}>
+              <Heart size={24} color="#FB8C00" strokeWidth={1.5} fill={isFavorite ? "#FB8C00" : "transparent"} />
+            </Pressable>
           </View>
 
-          <Text style={styles.productName}>{product.name}</Text>
-          <Text style={styles.subInfo}>
-            {reviewsTotal > 0 ? `${reviewsTotal} reviews` : 'No reviews yet'} • {(product.sold || product.sales_count || 0).toLocaleString()} sold • Free Shipping Available
+          <Text style={{ fontSize: 15, color: '#4B5563', lineHeight: 24, marginBottom: 15 }}>
+            {product.description || "High-quality wireless earbuds with touch controls and a charging case. Great sound and long battery life."}
           </Text>
 
-          {/* Price */}
-          <View style={styles.priceRow}>
-            <Text style={styles.currentPrice}>₱{(product.price ?? 0).toLocaleString()}</Text>
-            <Text style={styles.originalPrice}>₱{originalPrice.toLocaleString()}</Text>
+          <View style={{ backgroundColor: '#FFF7ED', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, alignSelf: 'flex-start', marginBottom: 20 }}>
+            <Text style={{ fontSize: 14, fontWeight: '700', color: '#FB8C00' }}>Free Shipping</Text>
           </View>
 
-          {/* Stock & Ratings */}
-          <View style={styles.metaRow}>
-            <Text style={[
-              styles.stockText,
-              { color: (selectedVariantInfo.stock || 0) <= 5 ? '#F97316' : (selectedVariantInfo.stock || 0) === 0 ? '#EF4444' : '#10B981' }
-            ]}>
-              {(selectedVariantInfo.stock || 0) === 0
-                ? 'Out of Stock'
-                : (selectedVariantInfo.stock || 0) <= 5
-                  ? `Only ${selectedVariantInfo.stock} left!`
-                  : `In-Stock (${selectedVariantInfo.stock || 0})`}
-            </Text>
-          </View>
-          <View style={styles.ratingRow}>
-            {Array.from({ length: 5 }).map((_, i) => (
-              <Star key={i} size={14} color={i < Math.round(averageRating) ? '#F59E0B' : '#E5E7EB'} fill={i < Math.round(averageRating) ? '#F59E0B' : '#E5E7EB'} />
-            ))}
-            <Text style={styles.ratingValue}>{averageRating > 0 ? averageRating.toFixed(1) : '0.0'} ({reviewsTotal})</Text>
-            <Text style={styles.questionsLink}>14 Questions</Text>
-          </View>
-
-          {/* --- OPTION 1 SELECTION (Dynamic - e.g., Color, Material) --- */}
+          {/* --- VARIANT SELECTION (Restored/Restyled) --- */}
           {hasOption1 && (
             <View style={styles.variantSection}>
               <Text style={styles.variantLabel}>{variantLabel1}: <Text style={styles.variantSelected}>{selectedOption1}</Text></Text>
@@ -755,13 +685,13 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                     key={`${value}-${index}`}
                     style={[
                       styles.colorOption,
-                      { backgroundColor: variantLabel1.toLowerCase() === 'color' ? getColorHex(value) : '#F3F4F6' },
+                      { backgroundColor: variantLabel1.toLowerCase() === 'color' ? getColorHex(value) : '#F9FAFB' },
                       selectedOption1 === value && styles.colorOptionSelected,
                     ]}
                     onPress={() => setSelectedOption1(value)}
                   >
                     {variantLabel1.toLowerCase() !== 'color' && (
-                      <Text style={[styles.optionText, selectedOption1 === value && { color: '#FFF' }]}>{value}</Text>
+                       <Text style={[styles.optionText, selectedOption1 === value && { color: BRAND_COLOR }]}>{value}</Text>
                     )}
                   </Pressable>
                 ))}
@@ -769,7 +699,6 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
             </View>
           )}
 
-          {/* --- OPTION 2 SELECTION (Dynamic - e.g., Size, Style) --- */}
           {hasOption2 && (
             <View style={styles.variantSection}>
               <Text style={styles.variantLabel}>{variantLabel2}: <Text style={styles.variantSelected}>{selectedOption2}</Text></Text>
@@ -792,139 +721,66 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
               </View>
             </View>
           )}
-        </View>
-        {/* --- QUANTITY SELECTION --- */}
-        <View style={styles.sectionMerged}>
+
           <View style={styles.quantityRow}>
-            {/* Import QuantityStepper at the top first, assuming it's imported as: import { QuantityStepper } from '../src/components/QuantityStepper'; */}
-            {/* Since I cannot see imports in this chunk, I will assume it's available or should be imported. */}
-            {/* Implementing manually if component import is tricky, but preferably use the component */}
-
-            <QuantityStepper
-              value={quantity}
-              onIncrement={() => {
-                if (quantity < (selectedVariantInfo.stock || 0)) {
-                  setQuantity(quantity + 1);
-                } else {
-                  Alert.alert('Limit Reached', `Only ${selectedVariantInfo.stock} items available.`);
-                }
-              }}
-              onDecrement={() => setQuantity(Math.max(1, quantity - 1))}
-              onChange={(val) => setQuantity(val)}
-              max={selectedVariantInfo.stock || 99}
-              min={1}
-            />
-          </View>
-        </View>
-
-        {/* --- SELLER INFO --- */}
-        <Pressable onPress={handleVisitStore} style={styles.sellerSectionMerged}>
-          <View style={styles.sellerHeader}>
-            <View style={styles.sellerAvatarContainer}>
-              <Image
-                source={{ uri: product.seller_avatar || product.sellerAvatar || 'https://images.unsplash.com/photo-1472851294608-41551b33fcc3?w=150' }}
-                style={styles.sellerAvatar}
-              />
-            </View>
-            <View style={styles.sellerInfo}>
-              <View style={styles.sellerNameRow}>
-                <Text style={styles.sellerName}>{product.seller || 'TechHub Manila'}</Text>
-                <BadgeCheck size={14} color={BRAND_COLOR} fill="#FFF" />
-              </View>
-              <View style={styles.sellerMetaRow}>
-                <MapPin size={12} color="#6B7280" style={{ marginRight: 4 }} />
-                <Text style={styles.sellerMetaText}>{product.location || 'Metro Manila'}</Text>
-                <View style={styles.sellerMetaDivider} />
-                <Star size={12} fill="#F59E0B" color="#F59E0B" style={{ marginRight: 4 }} />
-                <Text style={styles.sellerMetaText}>4.9 (1.2k)</Text>
-              </View>
-            </View>
-            <ChevronRight size={20} color="#9CA3AF" />
-          </View>
-        </Pressable>
-
-        {/* --- TABS --- */}
-        <View style={styles.tabContainer}>
-          <View style={styles.tabHeader}>
-            {(['details', 'support', 'ratings'] as const).map((tab) => (
-              <Pressable
-                key={tab}
-                onPress={() => setActiveTab(tab)}
-                style={[styles.tabBtn, activeTab === tab && styles.activeTabBtn]}
+            <Text style={{ fontSize: 17, fontWeight: '800', color: '#1F2937' }}>Quantity</Text>
+            <View style={styles.qtyPill}>
+              <Pressable 
+                onPress={() => setQuantity(Math.max(1, quantity - 1))}
+                style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' }}
               >
-                <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>
-                  {tab === 'ratings' ? `Ratings (${reviewsTotal})` : tab.charAt(0).toUpperCase() + tab.slice(1)}
-                </Text>
+                <Minus size={22} color="#FB8C00" />
               </Pressable>
-            ))}
+              <Text style={styles.qtyValue}>{quantity}</Text>
+              <Pressable 
+                onPress={() => {
+                  if (quantity < (selectedVariantInfo.stock || 0)) {
+                    setQuantity(quantity + 1);
+                  } else {
+                    Alert.alert('Limit Reached', `Only ${selectedVariantInfo.stock} items available.`);
+                  }
+                }}
+                style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' }}
+              >
+                <Plus size={22} color="#FB8C00" />
+              </Pressable>
+            </View>
           </View>
-
-          <View style={styles.tabContent}>
-            {activeTab === 'ratings' && (
-              <View>
-                {isLoadingReviews ? (
-                  <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="small" color={BRAND_COLOR} />
-                    <Text style={styles.loadingText}>Loading reviews...</Text>
-                  </View>
-                ) : reviews.length > 0 ? (
-                  <>
-                    <Text style={styles.reviewSummary}>
-                      {averageRating || product.rating || 4.8} out of 5 stars based on {reviewsTotal} {reviewsTotal === 1 ? 'review' : 'reviews'}.
-                    </Text>
-                    {reviews.map((review) => (
-                      <View key={review.id} style={styles.reviewCard}>
-                        <Image
-                          source={{ uri: review.buyer?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150' }}
-                          style={styles.reviewerAvatar}
-                        />
-                        <View style={styles.reviewContent}>
-                          <Text style={styles.reviewerName}>{review.buyer?.full_name || 'Anonymous Buyer'}</Text>
-                          <View style={styles.reviewRatingRow}>
-                            {Array.from({ length: 5 }).map((_, i) => (
-                              <Star key={i} size={12} color={i < review.rating ? '#FBBF24' : '#E5E7EB'} fill={i < review.rating ? '#FBBF24' : '#E5E7EB'} />
-                            ))}
-                            <Text style={styles.reviewDate}>{formatReviewDate(review.created_at)}</Text>
-                          </View>
-                          <Text style={styles.reviewText}>{review.comment || 'No comment provided.'}</Text>
-                          {review.images && review.images.length > 0 && (
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.reviewImagesContainer}>
-                              {review.images.map((img, idx) => (
-                                <Image key={idx} source={{ uri: img }} style={styles.reviewImage} />
-                              ))}
-                            </ScrollView>
-                          )}
-                        </View>
-                      </View>
-                    ))}
-                  </>
-                ) : (
-                  <View style={styles.noReviewsContainer}>
-                    <Star size={40} color="#E5E7EB" />
-                    <Text style={styles.noReviewsText}>No reviews yet</Text>
-                    <Text style={styles.noReviewsSubtext}>Be the first to review this product!</Text>
-                  </View>
-                )}
-              </View>
-            )}
-            {activeTab === 'details' && (
-              <Text style={styles.textContent}>
-                {product.description || 'High-fidelity sound with detailed staging. Ergonomic design for long-listening comfort.'}
-                {'\n\n'}
-                Features:
-                {'\n'}• Active Noise Cancellation
-                {'\n'}• 24-Hour Battery Life
-                {'\n'}• Water Resistant (IPX4)
-              </Text>
-            )}
-            {activeTab === 'support' && (
-              <Text style={styles.textContent}>
-                We offer a 7-day return policy for defective items. Please contact our support team for assistance.
-              </Text>
-            )}
-          </View>
+          <Text style={{ fontSize: 13, color: '#9CA3AF', marginTop: 5, textAlign: 'right' }}>{selectedVariantInfo.stock} In Stock</Text>
         </View>
 
+        {/* --- RATINGS SECTION --- */}
+        <View style={{ paddingHorizontal: 16, marginTop: 24 }}>
+          <Text style={styles.sectionTitle}>Ratings & Reviews</Text>
+          {isLoadingReviews ? (
+              <ActivityIndicator size="small" color="#FB8C00" style={{ marginVertical: 20 }} />
+          ) : reviews.length > 0 ? (
+            <>
+              <Text style={{ fontSize: 14, color: '#6B7280', marginBottom: 15 }}>
+                {averageRating || 4.8} out of 5 stars ({reviewsTotal} Reviews)
+              </Text>
+              {reviews.slice(0, 3).map((review) => (
+                <View key={review.id} style={styles.reviewCard}>
+                  <Image
+                    source={{ uri: review.buyer?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150' }}
+                    style={styles.reviewerAvatar}
+                  />
+                  <View style={styles.reviewContent}>
+                    <Text style={styles.reviewerName}>{review.buyer?.full_name || 'Anonymous Buyer'}</Text>
+                    <View style={styles.reviewRatingRow}>
+                      {Array.from({ length: 5 }).map((_, i) => (
+                        <Star key={i} size={10} color={i < review.rating ? '#FBBF24' : '#E5E7EB'} fill={i < review.rating ? '#FBBF24' : '#E5E7EB'} />
+                      ))}
+                    </View>
+                    <Text style={styles.reviewText}>{review.comment}</Text>
+                  </View>
+                </View>
+              ))}
+            </>
+          ) : (
+            <Text style={{ color: '#9CA3AF', marginVertical: 10 }}>No reviews yet</Text>
+          )}
+        </View>
 
         {/* --- RECOMMENDATIONS --- */}
         <View style={styles.recommendations}>
@@ -940,15 +796,14 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
       </ScrollView>
 
-      {/* --- BOTTOM ACTIONS (Matches Screenshot) --- */}
+      {/* --- BOTTOM ACTIONS (SOLID ORANGE) --- */}
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
         <Pressable style={styles.chatSellerBtn} onPress={() => setShowChat(true)}>
-          <MessageCircle size={20} color="#10B981" style={{ marginRight: 8 }} />
-          <Text style={styles.chatSellerText}>Chat Seller</Text>
+           <MessageCircle size={22} color="#FFF" />
         </Pressable>
         
         <Pressable style={styles.addToCartBtn} onPress={handleAddToCart}>
-          <ShoppingCart size={20} color={BRAND_COLOR} style={{ marginRight: 8 }} />
+          <ShoppingCart size={20} color="#FFF" style={{ marginRight: 8 }} />
           <Text style={styles.addToCartText}>Add to Cart</Text>
         </Pressable>
 
@@ -1103,9 +958,9 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
       {showGuestModal && (
         <GuestLoginModal
-          visible={true}
+          visible={showGuestModal}
+          message={guestModalMessage}
           onClose={() => setShowGuestModal(false)}
-          message={guestModalMessage || "Please log in to perform this action."}
         />
       )}
 
@@ -1196,18 +1051,17 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F9FAFB' },
+  container: { flex: 1, backgroundColor: '#FFFFFF' },
 
   // Header
   header: {
-    backgroundColor: BRAND_COLOR,
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
+    // backgroundColor: BRAND_COLOR, // Replaced by gradient
+    paddingBottom: 12,
+    paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    zIndex: 10,
   },
   headerSearchBar: {
     flex: 1,
@@ -1236,26 +1090,28 @@ const styles = StyleSheet.create({
   },
   badge: {
     position: 'absolute', top: -4, right: -4,
-    backgroundColor: '#FFF',
+    backgroundColor: '#FF8A00',
     borderRadius: 10, width: 16, height: 16,
     justifyContent: 'center', alignItems: 'center',
   },
-  badgeText: { color: BRAND_COLOR, fontSize: 10, fontWeight: 'bold' },
+  badgeText: { color: '#FFF', fontSize: 10, fontWeight: 'bold' },
 
   // Image Area
   imageContainer: {
-    width: width,
-    height: width, // Square aspect ratio
-    position: 'relative',
-    backgroundColor: '#FFF',
-    zIndex: 1,
+    width: width - 32,
+    height: width - 32,
+    marginHorizontal: 16,
+    borderRadius: 30, // Increased radius
+    overflow: 'hidden',
+    backgroundColor: '#F9FAFB',
+    marginTop: 10
   },
-  productImage: { width: width, height: width, resizeMode: 'cover' },
+  productImage: { width: width - 32, height: width - 32, resizeMode: 'cover' },
   pageIndicator: {
     position: 'absolute', top: 16, left: 16,
-    backgroundColor: '#FFF',
+    backgroundColor: 'rgba(255,255,255,0.8)',
     paddingHorizontal: 10, paddingVertical: 4,
-    borderRadius: 12, elevation: 2,
+    borderRadius: 12,
   },
   pageText: { color: '#1F2937', fontSize: 12, fontWeight: '700' },
 
@@ -1282,23 +1138,19 @@ const styles = StyleSheet.create({
 
   // Info Card
   infoCard: {
-    backgroundColor: '#FFF',
-    padding: 20,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    marginTop: -24,
+    padding: 16,
     zIndex: 2,
     marginBottom: -12,
   },
   tagRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
   tag: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, gap: 4 },
   tagText: { fontSize: 11, fontWeight: '700' },
-  productName: { fontSize: 18, fontWeight: '800', color: '#111827', marginBottom: 4, lineHeight: 26 },
+  productName: { fontSize: 24, fontWeight: '800', color: '#431407', marginBottom: 8, lineHeight: 32 },
   subInfo: { fontSize: 12, color: '#6B7280', marginBottom: 16 },
 
   priceRow: { flexDirection: 'row', alignItems: 'baseline', gap: 8, marginBottom: 8 },
-  currentPrice: { fontSize: 28, fontWeight: '900', color: '#111827' },
-  originalPrice: { fontSize: 16, color: '#9CA3AF', textDecorationLine: 'line-through' },
+  currentPrice: { fontSize: 32, fontWeight: '900', color: '#FB8C00' },
+  originalPrice: { fontSize: 16, color: '#9CA3AF', textDecorationLine: 'line-through', marginLeft: 8 },
 
   metaRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
   stockText: { fontSize: 13, color: '#10B981', fontWeight: '700' },
@@ -1309,9 +1161,24 @@ const styles = StyleSheet.create({
   // Selectors
   section: { backgroundColor: '#FFF', padding: 16, marginBottom: 8 },
   sectionMerged: { backgroundColor: '#FFF', paddingHorizontal: 16, marginBottom: 8, paddingTop: 0 }, // Added paddingTop: 0
-  quantityRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 24, paddingVertical: 12 },
-  qtyBtn: { width: 44, height: 44, borderRadius: 22, borderWidth: 1.5, borderColor: BRAND_COLOR, justifyContent: 'center', alignItems: 'center' },
-  qtyValue: { fontSize: 20, fontWeight: '700', color: '#111827' },
+  quantityRow: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    paddingVertical: 12,
+    marginTop: 10
+  },
+  qtyPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFBF0',
+    borderRadius: 30, // More rounded
+    borderWidth: 1,
+    borderColor: '#FFE0B2',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  qtyValue: { fontSize: 18, fontWeight: '700', color: '#431407', paddingHorizontal: 20 },
 
   // Seller Info
   sellerSection: { backgroundColor: '#FFF', padding: 12, marginBottom: 8, marginHorizontal: 16, borderRadius: 16, elevation: 2, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4 },
@@ -1359,33 +1226,33 @@ const styles = StyleSheet.create({
   reviewText: { fontSize: 14, color: '#4B5563', lineHeight: 20 },
 
   // Recommendations
-  recommendations: { padding: 16 },
-  sectionTitle: { fontSize: 18, fontWeight: '800', color: '#111827', marginBottom: 12 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  gridItem: { width: (width - 44) / 2 },
+  recommendations: { paddingHorizontal: 20, paddingTop: 16 },
+  sectionTitle: { fontSize: 19, fontWeight: '900', color: '#B45309', marginBottom: 12 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+  gridItem: { width: (width - 48) / 2, marginBottom: 12 },
 
   // Bottom Bar
   bottomBar: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
     backgroundColor: '#FFF', flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: 16, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F3F4F6',
-    gap: 8, elevation: 8,
+    gap: 8, elevation: 8, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10,
   },
   chatSellerBtn: {
-    height: 48, paddingHorizontal: 12, flexDirection: 'row', justifyContent: 'center', alignItems: 'center',
-    borderRadius: 24, borderWidth: 2, borderColor: '#10B981', backgroundColor: '#FFF',
+    height: 50, paddingHorizontal: 16, justifyContent: 'center', alignItems: 'center',
+    borderRadius: 15, backgroundColor: '#FB8C00', // Solid Orange
   },
-  chatSellerText: { color: '#10B981', fontWeight: '700', fontSize: 14 },
+  chatSellerText: { color: '#FFF', fontWeight: '700', fontSize: 14 },
   addToCartBtn: {
-    flex: 1, height: 48, flexDirection: 'row', justifyContent: 'center', alignItems: 'center',
-    borderRadius: 24, borderWidth: 2, borderColor: BRAND_COLOR, backgroundColor: '#FFF',
+    flex: 1, height: 50, flexDirection: 'row', justifyContent: 'center', alignItems: 'center',
+    borderRadius: 15, backgroundColor: '#FB8C00', // Solid Orange
   },
-  addToCartText: { color: BRAND_COLOR, fontWeight: '700', fontSize: 16 },
+  addToCartText: { color: '#FFF', fontWeight: '700', fontSize: 15 },
   buyNowBtn: {
-    flex: 1, height: 48, justifyContent: 'center', alignItems: 'center',
-    borderRadius: 24, backgroundColor: BRAND_COLOR,
+    flex: 1, height: 50, justifyContent: 'center', alignItems: 'center',
+    borderRadius: 15, backgroundColor: '#FB8C00', // Solid Orange
   },
-  buyNowText: { color: '#FFF', fontWeight: '700', fontSize: 16 },
+  buyNowText: { color: '#FFF', fontWeight: '700', fontSize: 15 },
 
   // Wishlist Dropdown
   wishlistDropdown: {

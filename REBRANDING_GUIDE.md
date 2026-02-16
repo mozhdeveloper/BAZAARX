@@ -1,101 +1,105 @@
-# BazaarX Rebranding Guide
+# BazaarrX Rebranding Guide: Pastel Gold & Soft UI
 
-This document defines the exact visual style for the BazaarX rebranding, based on the approved "Warm & Vibrant" design mockup.
+## 1. Core Theme Identity
 
-## 1. Core Visual Theme
+- **Name:** Pastel Gold / Warm Radiance
+- **Concept:** A warm, inviting, and premium aesthetic using soft gold gradients, warm oranges, and rich browns. The interface should feel "glowing" rather than flat.
+- **Key Characteristics:**
+  - **Soft Gradients:** No flat backgrounds; gentle flows from creamy yellow to warm gold.
+  - **Gold Aura:** Elements should have golden shadows/glows, not black/gray shadows.
+  - **Warm Typography:** Text should be warm brown or golden orange, never pure black.
 
-The new theme abandons the "Solid Orange Header" approach for a **cleaner, softer aesthetic**.
-
-- **Backgrounds**: Warm, continuous gradients (Cream/Peach) instead of flat grays.
-- **Headers**: Transparent/blended with the background.
-- **Shadows**: Soft, diffused, warm-tinted shadows.
+---
 
 ## 2. Color Palette
 
-### Backgrounds & Gradients
+### Primary Backgrounds
 
-- **App Background (Global)**:
-  - _Web/Mobile Body_: `linear-gradient(180deg, #FFF8F0 0%, #FFF5EC 100%)`
-  - _Description_: A very subtle warm cream gradient. It is NOT white.
-- **Hero Banner / Accent Gradient**:
-  - _Gradient_: `linear-gradient(135deg, #FFCBA4 0%, #FF8A00 100%)` (Soft Peach to Vibrant Orange)
-  - _Used for_: "Super Deals" banner background, Primary Buttons.
+- **Main Screen Gradient:**
+  - Start: `#FFF6E5` (Light Creamy Yellow)
+  - Middle: `#FFE0A3` (Warm Pastel Gold)
+  - End: `#FFD89A` (Soft Beige-Gold)
+- **Flash Sale Band (Separation Gradient):**
+  - Flow: `#FFF6E5` -> `#FFE0A3` -> `#FFF6E5` (Light Cream -> Gold -> Light Cream) to create a distinct "gold band".
 
-### Primary Colors
+### Interaction & Accents
 
-- **Brand Primary**: `#FF8A00` (Vibrant Orange - slightly softer than pure neon orange)
-- **Accents**: `#FFB800` (Golden Yellow - used for stars/secondary highlights)
+- **Primary Action (Buttons/Active State):** `#FB8C00` (Warm Orange) - _Replaces sharp Yellow/Amber_.
+- **Secondary Accent (Icons/Highlights):** `#F59E0B` (Bright Golden Amber).
+- **Tertiary Accent (Inactive/Subtle):** `#FFE0B2` (Pale Gold).
 
-### Typography & Text Colors
+### Typography Colors
 
-The text is **not** pure black. It uses deep warm browns to maintain harmony with the orange theme.
+- **Headlines (Dark):** `#7C2D12` (Rich Warm Brown).
+- **Headlines (Accent):** `#EA580C` / `#D97706` (Vibrant Dark Orange/Golden Orange).
+- **Body Text:** `#78350F` (Soft Warm Brown).
+- **Subtext/Meta:** `#A8A29E` (Warm Gray).
+- **Price (Standard):** `#EA580C` (Vibrant Orange).
+- **Price (Flash Sale):** `#DC2626` (Urgent Red).
 
-- **Headings (Primary)**: `#431407` (Deep Brown)
-  - _Usage_: Section titles ("Popular Picks"), Price tags.
-- **Subheadings (Secondary)**: `#EA580C` (Dark Orange)
-  - _Usage_: "Super Deals" title, "Trending Products" header, "See All" links.
-- **Body Text**: `#78350F` (Medium Brown)
-  - _Usage_: Product descriptions, secondary info.
-- **Input Placeholders**: `#9CA3AF` (Warm Gray).
+---
 
-## 3. UI Components
+## 3. Component Styles
 
-### 3.1. Header & Navigation
+### A. Product Cards (Standard)
 
-- **Header Style**: **Transparent**. No solid background color.
-- **Header Icons**: Outlined, stroke color `#FF8A00` (Orange).
-- **Search Bar**:
-  - Background: `#FFFFFF` (White).
-  - Border: `#FED7AA` (Very light orange) or None with Shadow.
-  - Shadow: `0px 4px 15px rgba(255, 138, 0, 0.1)` (Soft orange glow).
-  - Shape: Fully rounded (Pill).
+- **Background:** `#FFFBF0` (Warm Ivory) - _Not pure white_.
+- **Image Placeholder:** `#FFF6E5` (Pale Cream).
+- **Border:** None (Clean floating look).
+- **Radius:** `12px` (Tighter look).
+- **Shadow:** **Golden Glow**
+  - Color: `#F59E0B`
+  - Opacity: `0.2`
+  - Radius: `12`
+  - Elevation: `6`
+- **Typography:**
+  - Title: `#7C2D12` (Rich Warm Brown)
+  - Price: `#EA580C` (Vibrant Orange)
 
-### 3.2. Categories & Icons
+### B. Product Cards (Flash Sale Variant)
 
-- **Icon Container**:
-  - Shape: Rounded Square (Squircle) - `borderRadius: 16px` (Mobile) / `1.5rem` (Web).
-  - Background: `#FFEDD5` (Pale Orange/Peach).
-- **Icon Graphic**:
-  - Style: **Filled** or **Duotone**.
-  - Color: `#EA580C` (Dark Orange) or `#FF8A00`.
-  - _Note_: The icons in the mockup are minimal and vector-based.
+- **Distinction:** Emphasizes Urgency.
+- **Price & Badge:** `#DC2626` (Bright Red).
+- **Progress Bar:**
+  - Track: `#FEE2E2` (Pale Red)
+  - Fill: `#EF4444` (Red)
+- **Icon:** Includes **Flame Icon** (`#DC2626`).
+- **Border:** None (Removed to maintain clean look).
 
-### 3.3. Product Cards
+### C. Carousel & Promotions ("Gold Aura")
 
-- **Shape**: `borderRadius: 20px`.
-- **Background**: `#FFFFFF` (White).
-- **Shadow**: `0px 8px 20px rgba(0, 0, 0, 0.05)` (Very soft elevation).
-- **Layout**: Image takes distinct top half; Text details in bottom half.
-- **Price Tag**: Bold, `#431407` (Deep Brown).
+- **Card Style:**
+  - Border: `#FDE68A` (Light Gold)
+  - Shadow: `#FFB703` (Strong Gold Glow)
+  - Offset: `0px 10px` (Dropdown Effect).
+  - Opacity: `0.4`.
+- **Navigation:** Dynamic routing to `Shop` or `FlashSale` screens.
+- **Buttons:** `#FB8C00` (Warm Orange) with soft shadow.
 
-### 3.4. Buttons (Primary)
+### D. Category Icons ("Glowing Icons")
 
-- **Background**: Gradient (`linear-gradient(to right, #FF9900, #FF6A00)`).
-- **Text**: White, Rounded Sans-serif (`700` weight).
-- **Shadow**: `0px 4px 12px rgba(255, 106, 0, 0.4)`.
-- **Shape**: Pill (`borderRadius: 9999px`).
+- **Container:**
+  - Fill: `#FFF8E1` (Amber 50 - Warm Base).
+  - Border: `#FDE68A` (Amber 200 - Gold Rim).
+  - Shadow: `#F59E0B` (Amber 500) - Strong Glow.
+- **Icon:** `#F59E0B` (Bright Amber).
 
-## 4. Implementation Rules
+---
 
-### Mobile (`app/`)
+## 4. UI Layout Principles
 
-1.  **Status Bar**: Dark content (since background is light).
-2.  **SafeArea**: Apply `backgroundColor: #FFF8F0` to matches the gradient start.
-3.  **Icons**: Use `Lucide-React-Native` with `color="#FF8A00"` for header icons.
+- **Floating Layers:** Sections (like Flash Sale) should use gradients or transparency to "float" on the background rather than being boxed in white containers.
+- **Spacing:**
+  - Headers should have comfortable top padding (`paddingTop: 20`) to breathe.
+  - Lists should generally be edge-to-edge or wide-padded (`marginHorizontal: 20`).
+- **Roundedness:**
+  - Cards: `borderRadius: 20-24`
+  - Buttons: `borderRadius: 20` (Pill shape)
 
-### Web (`tailwind.config.js`)
+---
 
-1.  **Extend Colors**:
-    ```js
-    colors: {
-        brand: {
-            bg: '#FFF8F0',
-            primary: '#FF8A00',
-            dark: '#EA580C',
-            text: '#431407',
-            muted: '#78350F',
-            surface: '#FFEDD5' // Check usage
-        }
-    }
-    ```
-2.  **Font**: Ensure `Poppins` or `Nunito` is loaded for that rounded, friendly look.
+## 5. Iconography
+
+- **Set:** `MaterialCommunityIcons` / `Lucide React Native`.
+- **Style:** Filled/Solid for primary actions, thicker strokes for UI elements.
+- **Color:** Consistently **Amber/Gold** (`#F59E0B`) or **Warm Brown** (`#92400E`).
