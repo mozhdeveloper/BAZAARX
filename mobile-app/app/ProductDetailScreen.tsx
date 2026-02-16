@@ -57,6 +57,7 @@ import { COLORS } from '../src/constants/theme';
 import { useAuthStore } from '../src/stores/authStore';
 import { GuestLoginModal } from '../src/components/GuestLoginModal';
 import { reviewService, Review } from '../src/services/reviewService';
+import { productService } from '../src/services/productService';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 
@@ -113,11 +114,30 @@ const formatReviewDate = (dateString: string): string => {
 
 export default function ProductDetailScreen({ route, navigation }: Props) {
   const insets = useSafeAreaInsets();
-  const { product } = route.params;
+  const { product: initialProduct } = route.params;
+  const [product, setProduct] = useState(initialProduct);
   const { user, isGuest } = useAuthStore();
 
   // State
   const [activeTab, setActiveTab] = useState<'details' | 'support' | 'ratings'>('details');
+
+  // Fetch full product details if variants are missing
+  useEffect(() => {
+    const fetchFullProduct = async () => {
+      // Re-fetch only if we don't have variants or structured variants but id exists
+      if (product.id && (!product.variants || product.variants.length === 0)) {
+        try {
+          const fullProduct = await productService.getProductById(product.id);
+          if (fullProduct) {
+            setProduct(fullProduct as any);
+          }
+        } catch (error) {
+          console.error('[ProductDetail] Error fetching full product:', error);
+        }
+      }
+    };
+    fetchFullProduct();
+  }, [product.id]);
 
   // Structured variants from product_variants table
   const productVariants = product.variants || [];
@@ -575,29 +595,35 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" translucent={false} />
+      <StatusBar barStyle="dark-content" backgroundColor="#FFF6E5" translucent={false} />
 
-      {/* --- TOP BRANDING BAR --- */}
-      <View style={{ 
-        flexDirection: 'row', 
-        justifyContent: 'space-between', 
-        alignItems: 'center', 
-        paddingHorizontal: 16, 
-        paddingTop: insets.top + 10,
-        backgroundColor: '#FFFFFF',
-        paddingBottom: 10
-      }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <Image
-            source={require('../assets/BazaarX.png')}
-            style={{ width: 38, height: 38, marginRight: 6 }}
-            resizeMode="contain"
-          />
-          <Text style={{ fontSize: 24, fontWeight: '900', color: '#FB8C00' }}>BazaarX</Text>
-        </View>
-        
-        <View style={{ flexDirection: 'row', gap: 12 }}>
-          <Pressable onPress={() => navigation.navigate('MainTabs', { screen: 'Cart' })} style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: '#F9FAFB', alignItems: 'center', justifyContent: 'center' }}>
+      {/* --- HEADER SECTION (Branding Only) --- */}
+      <LinearGradient
+        colors={['#FFF6E5', '#FFE0A3', '#FFD89A']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+        style={{ 
+          paddingTop: insets.top + 10,
+          paddingBottom: 40, 
+          zIndex: 10,
+        }}
+      >
+        <View style={{ 
+          flexDirection: 'row', 
+          justifyContent: 'space-between', 
+          alignItems: 'center', 
+          paddingHorizontal: 20,
+        }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Image
+              source={require('../assets/BazaarX.png')}
+              style={{ width: 38, height: 38, marginRight: 6 }}
+              resizeMode="contain"
+            />
+            <Text style={{ fontSize: 24, fontWeight: '900', color: '#FB8C00' }}>BazaarX</Text>
+          </View>
+          
+          <Pressable onPress={() => navigation.navigate('MainTabs', { screen: 'Cart' })} style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: 'rgba(255,255,255,0.6)', alignItems: 'center', justifyContent: 'center' }}>
             <ShoppingCart size={20} color="#78350F" />
             {cartItemCount > 0 && (
               <View style={[styles.badge, { right: -2, top: -2 }]}>
@@ -606,30 +632,39 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
             )}
           </Pressable>
         </View>
-      </View>
+      </LinearGradient>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
-        
-        {/* --- BACK BUTTON & NAV --- */}
-        <View style={{ paddingHorizontal: 16, paddingVertical: 10 }}>
-          <Pressable onPress={() => navigation.goBack()} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#F9FAFB', alignItems: 'center', justifyContent: 'center' }}>
-            <ArrowLeft size={22} color="#78350F" />
+      <ScrollView 
+        showsVerticalScrollIndicator={false} 
+        style={{ 
+          flex: 1, 
+          backgroundColor: '#FFF8F0', // Cream background
+          marginTop: -30, // Overlap the header
+          borderTopLeftRadius: 36,
+          borderTopRightRadius: 36,
+          zIndex: 11,
+          elevation: 5,
+          // Removed overflow: 'hidden' to allow card shadows
+        }}
+        contentContainerStyle={{ paddingBottom: 140, paddingTop: 25 }}
+      >
+        {/* Back Button & Title Area strictly inside Rounded Container */}
+        <View style={{ paddingHorizontal: 20, marginBottom: 15 }}>
+          <Pressable onPress={() => navigation.goBack()} style={{ marginBottom: 15 }}>
+            <ArrowLeft size={24} color="#78350F" strokeWidth={2.5} />
           </Pressable>
-        </View>
-
-        {/* --- TITLE & RATINGS (Moved Top) --- */}
-        <View style={{ paddingHorizontal: 16 }}>
-          <Text style={styles.productName}>{product.name}</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 15 }}>
+          
+          <Text style={[styles.productName, { color: '#431407' }]}>{product.name}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <View style={{ flexDirection: 'row', gap: 2, marginRight: 8 }}>
               {[1, 2, 3, 4, 5].map((s) => (
-                <Star key={s} size={15} color="#FBBF24" fill="#FBBF24" />
+                <Star key={s} size={15} color="#FB8C00" fill="#FB8C00" />
               ))}
             </View>
-            <Text style={{ fontSize: 14, fontWeight: '700', color: '#1F2937' }}>4.8</Text>
-            <Text style={{ fontSize: 13, color: '#9CA3AF', marginHorizontal: 8 }}>|</Text>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: '#B45309' }}>4.8</Text>
+            <Text style={{ fontSize: 13, color: 'rgba(120, 53, 15, 0.4)', marginHorizontal: 8 }}>|</Text>
             <Text style={{ fontSize: 13, color: '#6B7280' }}>2.3k Reviews</Text>
-            <Text style={{ fontSize: 13, color: '#9CA3AF', marginHorizontal: 8 }}>|</Text>
+            <Text style={{ fontSize: 13, color: 'rgba(120, 53, 15, 0.4)', marginHorizontal: 8 }}>|</Text>
             <Text style={{ fontSize: 13, color: '#6B7280' }}>5.8k Sold</Text>
           </View>
         </View>
@@ -662,20 +697,12 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
             <View style={styles.priceRow}>
               <Text style={styles.currentPrice}>₱{(product.price ?? 0).toLocaleString()}</Text>
             </View>
-            <Pressable onPress={() => handleWishlistAction()} style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#F9FAFB', alignItems: 'center', justifyContent: 'center' }}>
-              <Heart size={24} color="#FB8C00" strokeWidth={1.5} fill={isFavorite ? "#FB8C00" : "transparent"} />
+            <Pressable onPress={() => handleWishlistAction()} style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#FFF7ED', alignItems: 'center', justifyContent: 'center', elevation: 2, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 4 }}>
+              <Gift size={24} color="#FB8C00" strokeWidth={1.5} fill={isFavorite ? "#FB8C00" : "transparent"} />
             </Pressable>
           </View>
 
-          <Text style={{ fontSize: 15, color: '#4B5563', lineHeight: 24, marginBottom: 15 }}>
-            {product.description || "High-quality wireless earbuds with touch controls and a charging case. Great sound and long battery life."}
-          </Text>
-
-          <View style={{ backgroundColor: '#FFF7ED', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, alignSelf: 'flex-start', marginBottom: 20 }}>
-            <Text style={{ fontSize: 14, fontWeight: '700', color: '#FB8C00' }}>Free Shipping</Text>
-          </View>
-
-          {/* --- VARIANT SELECTION (Restored/Restyled) --- */}
+          {/* --- VARIANT SELECTION (Restored/Restyled & Repositioned) --- */}
           {hasOption1 && (
             <View style={styles.variantSection}>
               <Text style={styles.variantLabel}>{variantLabel1}: <Text style={styles.variantSelected}>{selectedOption1}</Text></Text>
@@ -746,7 +773,15 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
               </Pressable>
             </View>
           </View>
-          <Text style={{ fontSize: 13, color: '#9CA3AF', marginTop: 5, textAlign: 'right' }}>{selectedVariantInfo.stock} In Stock</Text>
+          <Text style={{ fontSize: 13, color: '#9CA3AF', marginTop: 5, textAlign: 'right', marginBottom: 15 }}>{selectedVariantInfo.stock} In Stock</Text>
+
+          <Text style={{ fontSize: 15, color: '#4B5563', lineHeight: 24, marginBottom: 15 }}>
+            {product.description || "High-quality wireless earbuds with touch controls and a charging case. Great sound and long battery life."}
+          </Text>
+
+          <View style={{ backgroundColor: '#FFF7ED', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, alignSelf: 'flex-start', marginBottom: 20 }}>
+            <Text style={{ fontSize: 14, fontWeight: '700', color: '#FB8C00' }}>Free Shipping</Text>
+          </View>
         </View>
 
         {/* --- RATINGS SECTION --- */}
@@ -782,12 +817,17 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
           )}
         </View>
 
-        {/* --- RECOMMENDATIONS --- */}
+        {/* --- RECOMMENDATIONS (Matches Home Grid) --- */}
         <View style={styles.recommendations}>
-          <Text style={styles.sectionTitle}>You Might Also Like</Text>
-          <View style={styles.grid}>
+          <View style={styles.recommendationHeader}>
+            <Text style={styles.sectionTitle}>You Might Also Like</Text>
+            <Pressable onPress={() => navigation.navigate('MainTabs', { screen: 'Shop', params: {} })}>
+              <Text style={styles.gridSeeAll}>View All</Text>
+            </Pressable>
+          </View>
+          <View style={styles.gridBody}>
             {relatedProducts.map((p) => (
-              <View key={p.id} style={styles.gridItem}>
+              <View key={p.id} style={styles.itemBoxContainerVertical}>
                 <ProductCard product={p} onPress={() => navigation.push('ProductDetail', { product: p })} />
               </View>
             ))}
@@ -964,6 +1004,106 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
         />
       )}
 
+      {/* Wishlist Dropdown Modal */}
+      <Modal
+        visible={showWishlistDropdown}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowWishlistDropdown(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setShowWishlistDropdown(false)}>
+          <View style={{ flex: 1 }}>
+            <TouchableWithoutFeedback>
+              <View style={{
+                position: 'absolute',
+                top: 280,
+                right: 16,
+                backgroundColor: '#FFF',
+                borderRadius: 12,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.15,
+                shadowRadius: 12,
+                elevation: 8,
+                minWidth: 220,
+                maxWidth: 280,
+              }}>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: '#1F2937', marginBottom: 8, paddingHorizontal: 16, paddingTop: 12 }}>Save to Wishlist</Text>
+                <ScrollView style={{ maxHeight: 180 }}>
+                  {categories.map((cat) => (
+                    <Pressable
+                      key={cat.id}
+                      style={styles.menuItem}
+                      onPress={() => handleWishlistAction(cat.id)}
+                    >
+                      <FolderHeart size={18} color="#FB8C00" />
+                      <Text style={styles.menuItemText}>{cat.name}</Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+                <View style={styles.menuDivider} />
+                {isCreatingList ? (
+                  <View style={{ paddingHorizontal: 12, paddingVertical: 8 }}>
+                    <TextInput
+                      style={{
+                        borderWidth: 1,
+                        borderColor: '#E5E7EB',
+                        borderRadius: 6,
+                        paddingHorizontal: 10,
+                        paddingVertical: 6,
+                        fontSize: 13,
+                        marginBottom: 6,
+                      }}
+                      placeholder="List name"
+                      value={newListName}
+                      onChangeText={setNewListName}
+                      autoFocus
+                    />
+                    <View style={{ flexDirection: 'row', gap: 6 }}>
+                      <Pressable
+                        onPress={() => {
+                          setIsCreatingList(false);
+                          setNewListName('');
+                        }}
+                        style={{
+                          flex: 1,
+                          paddingVertical: 6,
+                          borderRadius: 6,
+                          backgroundColor: '#F3F4F6',
+                          alignItems: 'center',
+                        }}
+                      >
+                        <Text style={{ color: '#6B7280', fontWeight: '600', fontSize: 13 }}>Cancel</Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={handleCreateList}
+                        style={{
+                          flex: 1,
+                          paddingVertical: 6,
+                          borderRadius: 6,
+                          backgroundColor: '#FB8C00',
+                          alignItems: 'center',
+                        }}
+                      >
+                        <Text style={{ color: '#FFF', fontWeight: '600', fontSize: 13 }}>Create</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                ) : (
+                  <Pressable
+                    style={styles.menuItem}
+                    onPress={() => setIsCreatingList(true)}
+                  >
+                    <PlusCircle size={18} color="#FB8C00" />
+                    <Text style={[styles.menuItemText, { color: '#FB8C00' }]}>Create New List</Text>
+                  </Pressable>
+                )}
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
       {/* Product Menu Modal */}
       <Modal
         visible={showMenu}
@@ -1051,7 +1191,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFFFFF' },
+  container: { flex: 1, backgroundColor: '#FFD89A' },
 
   // Header
   header: {
@@ -1159,8 +1299,8 @@ const styles = StyleSheet.create({
   questionsLink: { fontSize: 13, color: '#8B5CF6', fontWeight: '600', marginLeft: 'auto' },
 
   // Selectors
-  section: { backgroundColor: '#FFF', padding: 16, marginBottom: 8 },
-  sectionMerged: { backgroundColor: '#FFF', paddingHorizontal: 16, marginBottom: 8, paddingTop: 0 }, // Added paddingTop: 0
+  section: { backgroundColor: 'transparent', padding: 16, marginBottom: 8 },
+  sectionMerged: { backgroundColor: 'transparent', paddingHorizontal: 16, marginBottom: 8, paddingTop: 0 }, // Added paddingTop: 0
   quantityRow: { 
     flexDirection: 'row', 
     justifyContent: 'space-between', 
@@ -1181,8 +1321,8 @@ const styles = StyleSheet.create({
   qtyValue: { fontSize: 18, fontWeight: '700', color: '#431407', paddingHorizontal: 20 },
 
   // Seller Info
-  sellerSection: { backgroundColor: '#FFF', padding: 12, marginBottom: 8, marginHorizontal: 16, borderRadius: 16, elevation: 2, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4 },
-  sellerSectionMerged: { backgroundColor: '#FFF', paddingHorizontal: 16, paddingVertical: 12, marginBottom: 8 },
+  sellerSection: { backgroundColor: '#FFFFFF', padding: 12, marginBottom: 8, marginHorizontal: 16, borderRadius: 16, elevation: 1, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4 },
+  sellerSectionMerged: { backgroundColor: 'transparent', paddingHorizontal: 16, paddingVertical: 12, marginBottom: 8 },
   sellerHeader: { flexDirection: 'row', alignItems: 'center' },
   sellerAvatarContainer: {
     width: 48, height: 48, borderRadius: 24, overflow: 'hidden', marginRight: 12,
@@ -1206,7 +1346,7 @@ const styles = StyleSheet.create({
   benefitsRow: { flexDirection: 'row', gap: 12, marginTop: 12 }, // Moved benefits out of header if needed, but removed from JSX for now
 
   // Tabs
-  tabContainer: { backgroundColor: '#FFF', paddingHorizontal: 16, paddingTop: 16, marginBottom: 8 },
+  tabContainer: { backgroundColor: 'transparent', paddingHorizontal: 16, paddingTop: 16, marginBottom: 8 },
   tabHeader: { flexDirection: 'row', gap: 24, marginBottom: 16 },
   tabBtn: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20 },
   activeTabBtn: { backgroundColor: BRAND_COLOR },
@@ -1225,32 +1365,34 @@ const styles = StyleSheet.create({
   reviewDate: { fontSize: 12, color: '#9CA3AF' },
   reviewText: { fontSize: 14, color: '#4B5563', lineHeight: 20 },
 
-  // Recommendations
-  recommendations: { paddingHorizontal: 20, paddingTop: 16 },
-  sectionTitle: { fontSize: 19, fontWeight: '900', color: '#B45309', marginBottom: 12 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-  gridItem: { width: (width - 48) / 2, marginBottom: 12 },
+  recommendations: { paddingHorizontal: 20, paddingTop: 24, marginBottom: 20 },
+  recommendationHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  sectionTitle: { fontSize: 18, fontWeight: '900', color: '#D97706' }, // Matched Home page orange
+  gridSeeAll: { fontSize: 14, fontWeight: '700', color: COLORS.primary },
+  gridBody: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+  itemBoxContainerVertical: { width: (width - 48) / 2, marginBottom: 12 },
 
   // Bottom Bar
   bottomBar: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
-    backgroundColor: '#FFF', flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 16, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F3F4F6',
-    gap: 8, elevation: 8, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10,
+    backgroundColor: '#FFF8F0', flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 16, paddingTop: 15, paddingBottom: 15,
+    gap: 12, elevation: 20, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 15,
+    zIndex: 100, // Highest priority to stay on top
   },
   chatSellerBtn: {
-    height: 50, paddingHorizontal: 16, justifyContent: 'center', alignItems: 'center',
-    borderRadius: 15, backgroundColor: '#FB8C00', // Solid Orange
+    height: 52, paddingHorizontal: 18, justifyContent: 'center', alignItems: 'center',
+    borderRadius: 26, backgroundColor: '#FB8C00', // Solid Orange Pill
   },
   chatSellerText: { color: '#FFF', fontWeight: '700', fontSize: 14 },
   addToCartBtn: {
-    flex: 1, height: 50, flexDirection: 'row', justifyContent: 'center', alignItems: 'center',
-    borderRadius: 15, backgroundColor: '#FB8C00', // Solid Orange
+    flex: 1, height: 52, flexDirection: 'row', justifyContent: 'center', alignItems: 'center',
+    borderRadius: 26, backgroundColor: '#FB8C00', // Solid Orange Pill
   },
-  addToCartText: { color: '#FFF', fontWeight: '700', fontSize: 15 },
+  addToCartText: { color: '#FFF', fontWeight: '800', fontSize: 15 },
   buyNowBtn: {
-    flex: 1, height: 50, justifyContent: 'center', alignItems: 'center',
-    borderRadius: 15, backgroundColor: '#FB8C00', // Solid Orange
+    flex: 1, height: 52, justifyContent: 'center', alignItems: 'center',
+    borderRadius: 26, backgroundColor: '#EA580C', // Slightly darker orange for contrast
   },
   buyNowText: { color: '#FFF', fontWeight: '700', fontSize: 15 },
 
