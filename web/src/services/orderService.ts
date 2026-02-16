@@ -174,6 +174,89 @@ const isHttpUrl = (value: unknown): value is string =>
 const isBrowserFile = (value: unknown): value is File =>
     typeof File !== "undefined" && value instanceof File;
 
+const getRelationRow = <T>(value: T | T[] | null | undefined): T | null => {
+    if (Array.isArray(value)) {
+        return value[0] || null;
+    }
+
+    return value || null;
+};
+
+const asNonEmptyString = (value: unknown): string | null => {
+    if (typeof value !== "string") {
+        return null;
+    }
+
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+};
+
+const compactRecord = (record: Record<string, unknown>): Record<string, unknown> => {
+    return Object.fromEntries(
+        Object.entries(record).filter(([, value]) => {
+            if (value === null || value === undefined) {
+                return false;
+            }
+
+            if (typeof value === "string" && value.trim().length === 0) {
+                return false;
+            }
+
+            return true;
+        }),
+    );
+};
+
+const buildVariantSnapshot = (orderItem: any): Record<string, unknown> | null => {
+    const variant = getRelationRow(orderItem?.variant);
+    const product = getRelationRow(orderItem?.product);
+
+    const option1Value =
+        asNonEmptyString(variant?.option_1_value) ||
+        asNonEmptyString(variant?.size) ||
+        asNonEmptyString(orderItem?.personalized_options?.variantLabel1);
+    const option2Value =
+        asNonEmptyString(variant?.option_2_value) ||
+        asNonEmptyString(variant?.color) ||
+        asNonEmptyString(orderItem?.personalized_options?.variantLabel2);
+    const option1Label = asNonEmptyString(product?.variant_label_1);
+    const option2Label = asNonEmptyString(product?.variant_label_2);
+    const variantName = asNonEmptyString(variant?.variant_name);
+
+    const displayParts: string[] = [];
+    if (variantName) {
+        displayParts.push(variantName);
+    }
+    if (option1Value) {
+        displayParts.push(
+            option1Label ? `${option1Label}: ${option1Value}` : option1Value,
+        );
+    }
+    if (option2Value) {
+        displayParts.push(
+            option2Label ? `${option2Label}: ${option2Value}` : option2Value,
+        );
+    }
+
+    const snapshot = compactRecord({
+        order_item_id: orderItem?.id || null,
+        product_id: orderItem?.product_id || null,
+        product_name:
+            asNonEmptyString(orderItem?.product_name) ||
+            asNonEmptyString(product?.name),
+        variant_id: orderItem?.variant_id || variant?.id || null,
+        variant_name: variantName,
+        sku: asNonEmptyString(variant?.sku),
+        option_1_label: option1Label,
+        option_1_value: option1Value,
+        option_2_label: option2Label,
+        option_2_value: option2Value,
+        display: displayParts.length > 0 ? displayParts.join(" / ") : null,
+    });
+
+    return Object.keys(snapshot).length > 0 ? snapshot : null;
+};
+
 const normalizeReviewRows = (reviews: any[]) => {
     if (!Array.isArray(reviews)) {
         return [];
@@ -674,6 +757,8 @@ export class OrderService {
                         product_id,
                         buyer_id,
                         order_id,
+                        order_item_id,
+                        variant_snapshot,
                         rating,
                         comment,
                         is_hidden,
@@ -903,6 +988,8 @@ export class OrderService {
                         product_id,
                         buyer_id,
                         order_id,
+                        order_item_id,
+                        variant_snapshot,
                         rating,
                         comment,
                         is_hidden,
@@ -1781,6 +1868,7 @@ export class OrderService {
                 (o) => o.id === orderId && o.buyer_id === buyerId,
             );
             if (order) {
+                const firstOrderItem = (order as any).order_items?.[0] || null;
                 const mockUploadedImageUrls = validImageFiles.map(
                     (file) =>
                         `https://via.placeholder.com/300?text=${encodeURIComponent(
@@ -1794,10 +1882,12 @@ export class OrderService {
                 const mockReview = {
                     id: crypto.randomUUID(),
                     order_id: orderId,
-                    product_id: (order as any).order_items?.[0]?.product_id || null,
+                    order_item_id: firstOrderItem?.id || null,
+                    product_id: firstOrderItem?.product_id || null,
                     buyer_id: buyerId,
                     rating,
                     comment: normalizedComment,
+                    variant_snapshot: buildVariantSnapshot(firstOrderItem),
                     created_at: new Date().toISOString(),
                     review_images: resolvedImageUrls.map((imageUrl, index) => ({
                         id: crypto.randomUUID(),
@@ -1831,7 +1921,26 @@ export class OrderService {
           shipment_status,
           order_items (
             id,
-            product_id
+            product_id,
+            product_name,
+            variant_id,
+            personalized_options,
+            product:products!order_items_product_id_fkey (
+              id,
+              name,
+              variant_label_1,
+              variant_label_2
+            ),
+            variant:product_variants!order_items_variant_id_fkey (
+              id,
+              sku,
+              variant_name,
+              size,
+              color,
+              option_1_value,
+              option_2_value,
+              thumbnail_url
+            )
           )
         `,
                 )
@@ -1855,36 +1964,42 @@ export class OrderService {
             const orderItems = Array.isArray(order.order_items)
                 ? order.order_items
                 : [];
-            const productIds = [
-                ...new Set(
-                    orderItems
-                        .map((item: any) => item.product_id)
-                        .filter(
-                            (productId): productId is string =>
-                                typeof productId === "string" &&
-                                productId.length > 0,
-                        ),
-                ),
-            ];
 
-            if (productIds.length === 0) {
+            const reviewableOrderItems = orderItems.filter(
+                (item: any) =>
+                    typeof item?.id === "string" &&
+                    item.id.length > 0 &&
+                    typeof item?.product_id === "string" &&
+                    item.product_id.length > 0,
+            );
+
+            if (reviewableOrderItems.length === 0) {
                 throw new Error("No reviewable products found for this order");
             }
 
             const { data: existingReviews, error: existingReviewsError } =
                 await supabase
                     .from("reviews")
-                    .select("id, product_id")
+                    .select("id, product_id, order_item_id")
                     .eq("order_id", orderId)
-                    .eq("buyer_id", buyerId)
-                    .in("product_id", productIds);
+                    .eq("buyer_id", buyerId);
 
             if (existingReviewsError) {
                 throw existingReviewsError;
             }
 
-            const reviewedProductIds = new Set(
+            const reviewedOrderItemIds = new Set(
                 (existingReviews || [])
+                    .map((review) => review.order_item_id)
+                    .filter(
+                        (orderItemId): orderItemId is string =>
+                            typeof orderItemId === "string",
+                    ),
+            );
+
+            const reviewedLegacyProductIds = new Set(
+                (existingReviews || [])
+                    .filter((review) => !review.order_item_id)
                     .map((review) => review.product_id)
                     .filter(
                         (productId): productId is string =>
@@ -1893,18 +2008,32 @@ export class OrderService {
             );
 
             let successCount = 0;
+            let skippedCount = 0;
 
-            for (const productId of productIds) {
-                if (reviewedProductIds.has(productId)) {
+            for (const orderItem of reviewableOrderItems) {
+                const orderItemId = orderItem.id as string;
+                const productId = orderItem.product_id as string;
+
+                if (reviewedOrderItemIds.has(orderItemId)) {
+                    skippedCount++;
                     continue;
                 }
 
+                if (reviewedLegacyProductIds.has(productId)) {
+                    skippedCount++;
+                    continue;
+                }
+
+                const variantSnapshot = buildVariantSnapshot(orderItem);
+
                 const reviewPayload: Database["public"]["Tables"]["reviews"]["Insert"] = {
                     order_id: orderId,
+                    order_item_id: orderItemId,
                     product_id: productId,
                     buyer_id: buyerId,
                     rating,
                     comment: normalizedComment,
+                    variant_snapshot: variantSnapshot,
                     is_verified_purchase: true,
                     helpful_count: 0,
                     seller_reply: null,
@@ -1921,6 +2050,7 @@ export class OrderService {
 
                 if (reviewInsertError) {
                     if ((reviewInsertError as any)?.code === "23505") {
+                        skippedCount++;
                         continue;
                     }
                     throw reviewInsertError;
@@ -1973,7 +2103,7 @@ export class OrderService {
 
             const alreadyReviewedEverything =
                 successCount === 0 &&
-                reviewedProductIds.size >= productIds.length;
+                skippedCount >= reviewableOrderItems.length;
 
             if (!alreadyReviewedEverything && successCount === 0) {
                 return false;

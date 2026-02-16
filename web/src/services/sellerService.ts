@@ -54,6 +54,9 @@ export interface SellerData extends SellerCoreData {
   business_name?: string;
   is_verified?: boolean;
   rating?: number;
+  total_reviews?: number;
+  review_count?: number;
+  products_count?: number;
   total_sales?: number;
   rejection_reason?: string;
   // Legacy aliases
@@ -99,12 +102,23 @@ export class SellerService {
     private transformSeller(seller: any): SellerData {
         const bp = seller.business_profile;
         const pa = seller.payout_account;
+        const normalizedRating = Number(seller.rating || 0);
+        const normalizedTotalReviews = Number(
+            seller.total_reviews || seller.review_count || 0,
+        );
+
         return {
             ...seller,
             // Legacy compatibility fields
             business_name: seller.store_name,
             is_verified: seller.approval_status === 'verified',
-            rating: 0, // Would need to be fetched from reviews
+            rating: Number.isFinite(normalizedRating) ? normalizedRating : 0,
+            total_reviews: Number.isFinite(normalizedTotalReviews)
+                ? normalizedTotalReviews
+                : 0,
+            review_count: Number.isFinite(normalizedTotalReviews)
+                ? normalizedTotalReviews
+                : 0,
             total_sales: 0, // Would need to be computed from orders
             rejection_reason: null, // Not in current schema
             // Flatten business profile for legacy code
@@ -117,6 +131,115 @@ export class SellerService {
             account_name: pa?.account_name || null,
             account_number: pa?.account_number || null,
         };
+    }
+
+    private async getSellerReviewMetrics(sellerIds: string[]): Promise<Map<string, {
+        rating: number;
+        total_reviews: number;
+        products_count: number;
+    }>> {
+        const metrics = new Map<string, {
+            rating: number;
+            total_reviews: number;
+            products_count: number;
+            rating_sum: number;
+        }>();
+
+        sellerIds.forEach((sellerId) => {
+            metrics.set(sellerId, {
+                rating: 0,
+                total_reviews: 0,
+                products_count: 0,
+                rating_sum: 0,
+            });
+        });
+
+        if (sellerIds.length === 0) {
+            return new Map();
+        }
+
+        const { data: products, error: productsError } = await supabase
+            .from('products')
+            .select('id, seller_id')
+            .in('seller_id', sellerIds)
+            .is('deleted_at', null)
+            .is('disabled_at', null)
+            .eq('approval_status', 'approved');
+
+        if (productsError) {
+            throw productsError;
+        }
+
+        const productToSeller = new Map<string, string>();
+
+        (products || []).forEach((product: any) => {
+            if (!product?.id || !product?.seller_id) {
+                return;
+            }
+
+            productToSeller.set(product.id, product.seller_id);
+
+            const sellerMetrics = metrics.get(product.seller_id);
+            if (sellerMetrics) {
+                sellerMetrics.products_count += 1;
+            }
+        });
+
+        const productIds = Array.from(productToSeller.keys());
+
+        if (productIds.length > 0) {
+            const { data: reviews, error: reviewsError } = await supabase
+                .from('reviews')
+                .select('product_id, rating')
+                .eq('is_hidden', false)
+                .in('product_id', productIds);
+
+            if (reviewsError) {
+                throw reviewsError;
+            }
+
+            (reviews || []).forEach((review: any) => {
+                const sellerId = review?.product_id
+                    ? productToSeller.get(review.product_id)
+                    : null;
+
+                if (!sellerId) {
+                    return;
+                }
+
+                const sellerMetrics = metrics.get(sellerId);
+                if (!sellerMetrics) {
+                    return;
+                }
+
+                const normalizedRating = Number(review?.rating || 0);
+                if (!Number.isFinite(normalizedRating) || normalizedRating <= 0) {
+                    return;
+                }
+
+                sellerMetrics.total_reviews += 1;
+                sellerMetrics.rating_sum += normalizedRating;
+            });
+        }
+
+        const finalized = new Map<string, {
+            rating: number;
+            total_reviews: number;
+            products_count: number;
+        }>();
+
+        metrics.forEach((metric, sellerId) => {
+            finalized.set(sellerId, {
+                rating:
+                    metric.total_reviews > 0
+                        ? Number((metric.rating_sum / metric.total_reviews).toFixed(1))
+                        : 0,
+                total_reviews: metric.total_reviews,
+                products_count: metric.products_count,
+            });
+        });
+
+        return finalized;
     }
 
     /**
@@ -333,10 +456,17 @@ export class SellerService {
         }
 
         try {
-            // Only use columns that exist in sellers table
             let query = supabase
                 .from('sellers')
-                .select('*')
+                .select(`
+                    *,
+                    business_profile:seller_business_profiles(
+                        city,
+                        province,
+                        postal_code,
+                        business_type
+                    )
+                `)
                 .eq('approval_status', 'verified');
 
             // Apply search filter
@@ -344,52 +474,65 @@ export class SellerService {
                 query = query.or(`store_name.ilike.%${filters.searchQuery}%,store_description.ilike.%${filters.searchQuery}%`);
             }
 
-            // Apply sorting (limited - no rating/total_sales in table)
-            if (filters?.sortBy === 'newest') {
-                query = query.order('created_at', { ascending: false });
-            } else {
-                // Default: by creation date (newest first)
-                query = query.order('created_at', { ascending: false });
-            }
-
-            if (filters?.limit) {
-                query = query.limit(filters.limit);
-            }
+            query = query.order('created_at', { ascending: false });
 
             const { data: sellers, error } = await query;
 
             if (error) throw error;
             if (!sellers || sellers.length === 0) return [];
 
-            // Note: products.seller_id may not exist yet (needs migration 003)
-            // For now, return sellers without product counts
-            // After running migration, uncomment the product count logic
-            /*
-            // Get product counts for each seller
-            const sellerIds = sellers.map(s => s.id);
-            const { data: productCounts, error: countError } = await supabase
-                .from('products')
-                .select('seller_id')
-                .in('seller_id', sellerIds)
-                .is('disabled_at', null)
-                .is('deleted_at', null)
-                .eq('approval_status', 'approved');
+            const sellerIds = sellers.map((seller: any) => seller.id);
+            const metricsMap = await this.getSellerReviewMetrics(sellerIds);
 
-            if (countError) {
-                console.warn('Error fetching product counts:', countError);
+            let enriched = sellers.map((seller: any) => {
+                const metrics = metricsMap.get(seller.id) || {
+                    rating: 0,
+                    total_reviews: 0,
+                    products_count: 0,
+                };
+
+                return this.transformSeller({
+                    ...seller,
+                    rating: metrics.rating,
+                    total_reviews: metrics.total_reviews,
+                    review_count: metrics.total_reviews,
+                    products_count: metrics.products_count,
+                });
+            });
+
+            if (filters?.location) {
+                const normalizedLocation = filters.location.toLowerCase();
+                enriched = enriched.filter((seller) => {
+                    const city = (seller.city || '').toLowerCase();
+                    const province = (seller.province || '').toLowerCase();
+                    const joinedLocation = `${city} ${province}`.trim();
+                    return joinedLocation.includes(normalizedLocation);
+                });
             }
 
-            // Count products per seller
-            const countMap = new Map<string, number>();
-            productCounts?.forEach(p => {
-                countMap.set(p.seller_id, (countMap.get(p.seller_id) || 0) + 1);
-            });
-            */
+            if (filters?.sortBy === 'rating') {
+                enriched = enriched.sort((a, b) => {
+                    const ratingDiff = Number(b.rating || 0) - Number(a.rating || 0);
+                    if (ratingDiff !== 0) {
+                        return ratingDiff;
+                    }
+                    return Number(b.total_reviews || 0) - Number(a.total_reviews || 0);
+                });
+            } else if (filters?.sortBy === 'popular' || filters?.sortBy === 'featured') {
+                enriched = enriched.sort((a, b) => {
+                    const reviewDiff = Number(b.total_reviews || 0) - Number(a.total_reviews || 0);
+                    if (reviewDiff !== 0) {
+                        return reviewDiff;
+                    }
+                    return Number(b.rating || 0) - Number(a.rating || 0);
+                });
+            }
 
-            return sellers.map(seller => this.transformSeller({
-                ...seller,
-                products_count: 0 // Will be populated after migration 003 adds seller_id to products
-            }));
+            if (filters?.limit) {
+                enriched = enriched.slice(0, filters.limit);
+            }
+
+            return enriched;
         } catch (error) {
             console.error('Error fetching public stores:', error);
             return [];
@@ -418,26 +561,19 @@ export class SellerService {
             if (error) throw error;
             if (!seller) return null;
 
-            // Note: products.seller_id may not exist yet (needs migration 003)
-            // Return 0 for now, will work after migration
-            /*
-            // Get product count
-            const { count, error: countError } = await supabase
-                .from('products')
-                .select('*', { count: 'exact', head: true })
-                .eq('seller_id', storeId)
-                .is('disabled_at', null)
-                .is('deleted_at', null)
-                .eq('approval_status', 'approved');
-
-            if (countError) {
-                console.warn('Error fetching product count:', countError);
-            }
-            */
+            const metricsMap = await this.getSellerReviewMetrics([storeId]);
+            const metrics = metricsMap.get(storeId) || {
+                rating: 0,
+                total_reviews: 0,
+                products_count: 0,
+            };
 
             return this.transformSeller({
                 ...seller,
-                products_count: 0 // Will be populated after migration 003
+                rating: metrics.rating,
+                total_reviews: metrics.total_reviews,
+                review_count: metrics.total_reviews,
+                products_count: metrics.products_count,
             });
         } catch (error) {
             console.error('Error fetching store:', error);
