@@ -30,6 +30,8 @@ export interface CheckoutPayload {
     shippingFee: number;
     discount: number;
     email: string;
+    /** Voucher ID when a voucher was applied (for order_vouchers tracking) */
+    voucherId?: string | null;
 }
 
 export interface CheckoutResult {
@@ -76,7 +78,9 @@ export class CheckoutService {
             paymentMethod,
             usedBazcoins,
             earnedBazcoins,
-            email
+            email,
+            voucherId,
+            discount
         } = payload;
 
         console.log("Starting checkout process...", payload);
@@ -364,6 +368,23 @@ export class CheckoutService {
                 .insert(orderItemsData);
 
             if (itemsError) throw itemsError;
+
+            // Record voucher usage for per-customer limit tracking (claim_limit)
+            if (voucherId && discount > 0 && userId) {
+                const { error: ovError } = await supabase
+                    .from('order_vouchers')
+                    .insert({
+                        buyer_id: userId,
+                        order_id: orderData.id,
+                        voucher_id: voucherId,
+                        discount_amount: discount
+                    });
+
+                if (ovError) {
+                    console.error('Failed to record voucher usage:', ovError);
+                    // Log and continue - don't block checkout
+                }
+            }
 
             // Update Stock in product_variants (stock is in variants, not products table)
             for (const item of items) {
