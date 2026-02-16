@@ -296,7 +296,7 @@ interface OrderStore {
     sellerId: string | null;
     loading: boolean;
     error: string | null;
-    fetchOrders: (sellerId: string) => Promise<void>;
+    fetchOrders: (sellerId: string, startDate?: Date | null, endDate?: Date | null) => Promise<void>;
     addOrder: (order: Omit<SellerOrder, "id">) => string;
     updateOrderStatus: (
         id: string,
@@ -1803,17 +1803,18 @@ export const useOrderStore = create<OrderStore>()(
             loading: false,
             error: null,
 
-            fetchOrders: async (sellerId: string) => {
-                if (!sellerId) {
-                    console.error("Seller ID is required to fetch orders");
-                    return;
-                }
+            fetchOrders: async (sellerId: string, startDate?: Date | null, endDate?: Date | null) => {
+                if (!sellerId) return;
 
                 set({ loading: true, error: null, sellerId });
 
                 try {
-                    const dbOrders =
-                        await orderReadService.getSellerOrders({ sellerId });
+                    // Pass the startDate and endDate to the read service
+                    const dbOrders = await orderReadService.getSellerOrders({ 
+                        sellerId, 
+                        startDate, 
+                        endDate 
+                    });
                     const sellerOrders = dbOrders as SellerOrder[];
 
                     set({
@@ -1821,19 +1822,8 @@ export const useOrderStore = create<OrderStore>()(
                         loading: false,
                         error: null,
                     });
-
-                    console.log(
-                        `Fetched ${sellerOrders.length} orders for seller ${sellerId}`,
-                    );
                 } catch (error) {
-                    console.error("Failed to fetch orders:", error);
-                    set({
-                        loading: false,
-                        error:
-                            error instanceof Error
-                                ? error.message
-                                : "Failed to fetch orders",
-                    });
+                    set({ loading: false, error: "Failed to fetch orders" });
                 }
             },
 

@@ -53,6 +53,8 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { sellerLinks } from "@/config/sellerLinks";
 import { OrderDetailsModal } from "@/components/OrderDetailsModal";
 import { OrderStatusBadge } from "@/components/orders/OrderStatusBadge";
+import { OrderDateFilter } from "@/components/orders/OrderDateFilter";
+import { orderExportService } from "@/services/orders/orderExportService";
 
 const Logo = () => (
   <Link
@@ -148,12 +150,21 @@ export function SellerOrders() {
   } = useOrderStore();
   const navigate = useNavigate();
 
-  // Fetch orders when component mounts or seller changes
+  const [dateLabel, setDateLabel] = useState("All Time");
+
+  // Inside SellerOrders component
+  const [dateRange, setDateRange] = useState<{ start: Date | null; end: Date | null }>({
+    start: null,
+    end: null
+  });
+
+  // Update the useEffect to include dateRange in dependencies
   useEffect(() => {
-    if (seller?.id) {
-      fetchOrders(seller.id);
+      if (seller?.id) {
+      // Your store's fetchOrders needs to be updated to accept these (see step 2)
+      fetchOrders(seller.id, dateRange.start, dateRange.end);
     }
-  }, [seller?.id, fetchOrders]);
+  }, [seller?.id, fetchOrders, dateRange.start, dateRange.end]);
 
   const targetOrder = orders.find(
     (o) =>
@@ -457,7 +468,7 @@ export function SellerOrders() {
                   </Tabs>
 
                   {/* Status Filter Select */}
-                  <div className="w-full lg:w-auto flex gap-2">
+                  <div className="w-full lg:w-auto flex gap-2">                  
                     <Select
                       value={filterStatus}
                       onValueChange={setFilterStatus}
@@ -487,14 +498,49 @@ export function SellerOrders() {
                       </SelectContent>
                     </Select>
 
+                    <OrderDateFilter 
+                      onRangeChange={(range) => {
+                        setDateRange({ start: range.start, end: range.end });
+                        setDateLabel(range.label); // Capture label for the filename
+                      }} 
+                    />
+                    
                     {/* Export Button */}
-                    <Button
-                      variant="outline"
-                      className="w-full lg:w-auto border-gray-300 hover:bg-gray-50"
-                    >
-                      <Download className="h-4 w-4 mr-2" />
-                      Export
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" className="w-full lg:w-auto border-gray-300 hover:bg-gray-50">
+                          <Download className="h-4 w-4 mr-2" />
+                          Export
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-56">
+                        <div className="px-2 py-1.5 text-xs font-semibold text-gray-500 uppercase">
+                          Export Format
+                        </div>
+                        <DropdownMenuItem onClick={() => {
+                          orderExportService.exportToCSV(
+                            filteredOrders, 
+                            seller?.storeName || "Bazaar", 
+                            dateLabel, 
+                            'summary'
+                          );
+                        }}>
+                          <Package className="h-4 w-4 mr-2" />
+                          Summary (Order Rows)
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => {
+                          orderExportService.exportToCSV(
+                            filteredOrders, 
+                            seller?.storeName || "Bazaar", 
+                            dateLabel, 
+                            'detailed'
+                          );
+                        }}>
+                          <ShoppingBag className="h-4 w-4 mr-2" />
+                          Detailed (Product Rows)
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
               </CardContent>
