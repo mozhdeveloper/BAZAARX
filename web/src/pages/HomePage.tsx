@@ -64,7 +64,7 @@ const buyerNavItems = [
 
 const HomePage: React.FC = () => {
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen" style={{ backgroundColor: 'var(--brand-wash)' }}>
       <FloatingNavigation navItems={buyerNavItems} />
 
       {/* Bazaar Hero */}

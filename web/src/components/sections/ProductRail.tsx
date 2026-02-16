@@ -20,7 +20,7 @@ const ProductRail: React.FC<ProductRailProps> = ({
   onActionClick
 }) => {
   return (
-    <section className="py-20 bg-[var(--bg-secondary)] overflow-hidden">
+    <section className="py-20 bg-transparent overflow-hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
         <div className="grid lg:grid-cols-12 gap-10 items-center">
@@ -49,12 +49,12 @@ const ProductRail: React.FC<ProductRailProps> = ({
               whileInView={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6 }}
             >
-              <h2 className="text-3xl lg:text-4xl font-bold text-[var(--text-primary)] mb-6">
+              <h2 className="text-4xl lg:text-5xl font-bold text-[var(--text-headline)] mb-6 tracking-tight">
                 {title}
               </h2>
             </motion.div>
             {subtitle && (
-              <p className="text-lg text-[var(--text-secondary)] mb-8 leading-relaxed">
+              <p className="text-xl text-[var(--text-primary)] mb-8 leading-relaxed font-medium">
                 {subtitle}
               </p>
             )}
@@ -65,9 +65,11 @@ const ProductRail: React.FC<ProductRailProps> = ({
                 e.preventDefault();
                 onActionClick?.();
               }}
-              className="group flex items-center gap-2 text-[var(--text-primary)] font-bold text-lg hover:text-[var(--brand-primary)] transition-colors"
+              className="group flex items-center gap-2 text-[var(--text-headline)] font-bold text-lg hover:text-[var(--brand-primary)] transition-colors"
             >
-              <span className="underline underline-offset-8 decoration-2">{actionLabel}</span>
+              <span className="underline underline-offset-8 decoration-2 decoration-[var(--brand-accent)]/30 group-hover:decoration-[var(--brand-primary)] transition-all">
+                {actionLabel}
+              </span>
               <svg
                 width="20" height="20" viewBox="0 0 24 24" fill="none"
                 stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"

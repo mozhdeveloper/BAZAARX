@@ -83,7 +83,7 @@ const thirdColumn = testimonials.slice(6, 9);
 
 export default function BazaarXTestimonials() {
   return (
-    <section className="bg-white py-16 sm:py-20 md:py-24 relative overflow-hidden">
+    <section className="bg-transparent py-16 sm:py-20 md:py-24 relative overflow-hidden">
       <div className="container z-10 mx-auto px-4 sm:px-6 lg:px-8">
         {/* Main Grid Layout to match reference layout */}
         <div className="grid lg:grid-cols-12 gap-8 sm:gap-12 items-center">
@@ -96,16 +96,16 @@ export default function BazaarXTestimonials() {
             viewport={{ once: true }}
             className="lg:col-span-5 flex flex-col items-center lg:items-start text-center lg:text-left mb-8 lg:mb-0"
           >
-            <span className="text-[#FF6A00] font-bold tracking-widest text-xs sm:text-sm uppercase mb-4">
+            <span className="text-[var(--brand-primary)] font-bold tracking-[0.3em] text-xs sm:text-sm uppercase mb-4">
               Testimonials
             </span>
 
-            <h2 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-[#1a2b3b] leading-tight">
+            <h2 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-[var(--text-headline)] leading-tight">
               Trusted by <br />
-              <span className="text-[#FF6A00]">Sellers</span>
+              <span className="text-[var(--brand-primary)]">Sellers</span>
             </h2>
 
-            <p className="mt-4 sm:mt-6 text-gray-600 text-base sm:text-lg max-w-md text-justify">
+            <p className="mt-4 sm:mt-6 text-[var(--text-primary)] text-base sm:text-lg max-w-md text-justify font-medium">
               Join thousands of successful sellers who grew their business with BazaarX.
               Real reviews from Google and Facebook.
             </p>

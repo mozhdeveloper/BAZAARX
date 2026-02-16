@@ -82,7 +82,7 @@ export const FloatingNavigation: React.FC<FloatingNavigationProps> = ({ navItems
                         exit={{ opacity: 0, scale: 0.8 }}
                         transition={{ duration: 0.2 }}
                         onClick={scrollToTop}
-                        className="fixed bottom-6 right-6 z-50 p-3 bg-white/80 backdrop-blur-md text-[#ff6a00] rounded-full shadow-lg hover:bg-white hover:text-orange-600 transition-all duration-300 flex items-center overflow-hidden group"
+                        className="fixed bottom-6 right-6 z-50 p-3 bg-white/80 backdrop-blur-md text-[var(--brand-primary)] rounded-full shadow-lg hover:bg-white hover:text-[var(--brand-primary-dark)] transition-all duration-300 flex items-center overflow-hidden group"
                         aria-label="Back to top"
                     >
                         <ArrowUp className="w-6 h-6 flex-shrink-0" />
@@ -112,7 +112,7 @@ export const FloatingNavigation: React.FC<FloatingNavigationProps> = ({ navItems
 
                     {/* Trigger Icon */}
                     <div className="flex-shrink-0 w-[48px] h-[48px] flex items-center justify-center z-20 bg-white/0">
-                        <Menu className="w-6 h-6 text-[#ff6a00]" />
+                        <Menu className="w-6 h-6 text-[var(--brand-primary)]" />
                     </div>
 
                     <motion.div
@@ -132,8 +132,8 @@ export const FloatingNavigation: React.FC<FloatingNavigationProps> = ({ navItems
                                             scrollToSection(item.id);
                                         }}
                                         className={`text-[13px] px-3 py-1.5 rounded-full transition-all duration-200 whitespace-nowrap flex-shrink-0 ${isActive
-                                            ? "bg-[#ff6a00] text-white font-semibold shadow-sm"
-                                            : "bg-transparent text-gray-800 hover:text-orange-600"
+                                            ? "bg-[var(--brand-primary)] text-white font-semibold shadow-sm"
+                                            : "bg-transparent text-gray-800 hover:text-[var(--brand-primary)]"
                                             }`}
                                     >
                                         {item.label}

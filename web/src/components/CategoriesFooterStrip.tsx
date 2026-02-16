@@ -7,7 +7,7 @@ const CategoriesFooterStrip: React.FC = () => {
   const navigate = useNavigate();
 
   return (
-    <section className="py-18 lg:py-20 bg-white overflow-hidden pb-0">
+    <section className="py-18 lg:py-20 bg-transparent overflow-hidden pb-0">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
 
         <motion.div
@@ -20,7 +20,7 @@ const CategoriesFooterStrip: React.FC = () => {
           <h2 className="text-5xl lg:text-5xl font-bold text-[var(--text-primary)] tracking-tight mb-6">
             Shop by <span className="text-[var(--brand-primary)]">Category</span>
           </h2>
-          <p className="text-xl text-[var(--text-secondary)] max-w-2xl mx-auto font-medium">
+          <p className="text-xl text-[var(--text-secondary)] max-w-2xl mx-auto font-small">
             Find exactly what you're looking for with our diverse range of product categories.
           </p>
         </motion.div>

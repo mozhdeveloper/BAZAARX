@@ -19,7 +19,7 @@ export default function SellerLandingPage() {
     ];
 
     return (
-        <main className="relative min-h-screen bg-white">
+        <main className="relative min-h-screen" style={{ backgroundColor: 'var(--brand-wash)' }}>
             {/* Dynamic Floating Navigation */}
             <FloatingNavigation navItems={sellerNavItems} />
 
