@@ -55,6 +55,8 @@ import CreateTicketScreen from './app/tickets/CreateTicketScreen';
 import TicketDetailScreen from './app/tickets/TicketDetailScreen';
 import MessagesScreen from './app/MessagesScreen';
 import ChatScreen from './src/components/ChatScreen';
+import AIChatScreen from './app/AIChatScreen';
+import { ProductContext, StoreContext } from './src/services/aiChatService';
 
 // Onboarding Screens
 import TermsScreen from './app/onboarding/TermsScreen';
@@ -128,6 +130,10 @@ export type RootStackParamList = {
     conversation: any; // Using any to avoid circular dependency or import issues, but ideally Conversation type
     currentUserId: string;
     userType: 'buyer' | 'seller';
+  };
+  AIChat: {
+    product?: ProductContext;
+    store?: StoreContext;
   };
 };
 
@@ -338,6 +344,7 @@ export default function App() {
             <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
             <Stack.Screen name="AddProduct" component={AddProductScreen} />
             <Stack.Screen name="Chat" component={ChatScreen} />
+            <Stack.Screen name="AIChat" component={AIChatScreen} options={{ animation: 'slide_from_bottom' }} />
           </Stack.Navigator>
         </NavigationContainer>
       </SafeAreaProvider>

@@ -48,19 +48,27 @@ interface AIChatBubbleProps {
   product?: ProductContext;
   store?: StoreContext;
   onTalkToSeller?: () => void;
+  // External control props
+  isOpen?: boolean;
+  onClose?: () => void;
 }
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-export function AIChatBubble({ product, store, onTalkToSeller }: AIChatBubbleProps) {
+export function AIChatBubble({ product, store, onTalkToSeller, isOpen: externalIsOpen, onClose }: AIChatBubbleProps) {
   const insets = useSafeAreaInsets();
-  const [isOpen, setIsOpen] = useState(false);
+  const [internalIsOpen, setInternalIsOpen] = useState(false);
+
+  // Use external control if provided, otherwise fallback to internal state
+  const isControlled = externalIsOpen !== undefined;
+  const isOpen = isControlled ? externalIsOpen : internalIsOpen;
+
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [isAiTyping, setIsAiTyping] = useState(false);
   const [quickReplies, setQuickReplies] = useState<string[]>([]);
   const [showTalkToSeller, setShowTalkToSeller] = useState(false);
-  
+
   const scrollViewRef = useRef<ScrollView>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const scaleAnim = useRef(new Animated.Value(0)).current;
@@ -118,11 +126,16 @@ export function AIChatBubble({ product, store, onTalkToSeller }: AIChatBubblePro
   }, [messages]);
 
   const handleOpen = () => {
-    setIsOpen(true);
+    if (isControlled) return;
+    setInternalIsOpen(true);
   };
 
   const handleClose = () => {
-    setIsOpen(false);
+    if (isControlled) {
+      onClose?.();
+    } else {
+      setInternalIsOpen(false);
+    }
   };
 
   const handleSendMessage = async (text?: string) => {
@@ -193,7 +206,11 @@ export function AIChatBubble({ product, store, onTalkToSeller }: AIChatBubblePro
   };
 
   const handleTalkToSeller = () => {
-    setIsOpen(false);
+    if (isControlled) {
+      onClose?.();
+    } else {
+      setInternalIsOpen(false);
+    }
     onTalkToSeller?.();
   };
 
@@ -214,24 +231,26 @@ export function AIChatBubble({ product, store, onTalkToSeller }: AIChatBubblePro
 
   return (
     <>
-      {/* Floating Button */}
-      <Animated.View 
-        style={[
-          styles.floatingButton,
-          { 
-            bottom: insets.bottom + 80,
-            transform: [{ scale: isOpen ? 0 : pulseAnim }],
-            opacity: isOpen ? 0 : 1,
-          }
-        ]}
-      >
-        <Pressable onPress={handleOpen} style={styles.floatingButtonInner}>
-          <View style={styles.sparkleContainer}>
-            <Sparkles size={14} color="#fff" />
-          </View>
-          <Bot size={28} color="#fff" />
-        </Pressable>
-      </Animated.View>
+      {/* Floating Button - Only shown if not controlled externally */}
+      {!isControlled && (
+        <Animated.View
+          style={[
+            styles.floatingButton,
+            {
+              bottom: insets.bottom + 80,
+              transform: [{ scale: isOpen ? 0 : pulseAnim }],
+              opacity: isOpen ? 0 : 1,
+            }
+          ]}
+        >
+          <Pressable onPress={handleOpen} style={styles.floatingButtonInner}>
+            <View style={styles.sparkleContainer}>
+              <Sparkles size={14} color="#fff" />
+            </View>
+            <Bot size={28} color="#fff" />
+          </Pressable>
+        </Animated.View>
+      )}
 
       {/* Chat Modal */}
       <Modal
@@ -240,16 +259,16 @@ export function AIChatBubble({ product, store, onTalkToSeller }: AIChatBubblePro
         transparent={true}
         onRequestClose={handleClose}
       >
-        <KeyboardAvoidingView 
+        <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.modalContainer}
         >
           <Pressable style={styles.modalOverlay} onPress={handleClose} />
-          
-          <Animated.View 
+
+          <Animated.View
             style={[
               styles.chatContainer,
-              { 
+              {
                 paddingBottom: insets.bottom || 16,
                 transform: [{ scale: scaleAnim }],
               }
@@ -286,15 +305,15 @@ export function AIChatBubble({ product, store, onTalkToSeller }: AIChatBubblePro
             )}
 
             {/* Messages */}
-            <ScrollView 
+            <ScrollView
               ref={scrollViewRef}
               style={styles.messagesContainer}
               contentContainerStyle={styles.messagesContent}
               showsVerticalScrollIndicator={false}
             >
               {messages.map((msg) => (
-                <View 
-                  key={msg.id} 
+                <View
+                  key={msg.id}
                   style={[
                     styles.messageBubble,
                     msg.sender === 'user' ? styles.userMessage : styles.aiMessage
@@ -333,7 +352,7 @@ export function AIChatBubble({ product, store, onTalkToSeller }: AIChatBubblePro
 
               {/* Talk to Seller Button */}
               {showTalkToSeller && onTalkToSeller && (
-                <Pressable 
+                <Pressable
                   style={styles.talkToSellerButton}
                   onPress={handleTalkToSeller}
                 >
@@ -345,8 +364,8 @@ export function AIChatBubble({ product, store, onTalkToSeller }: AIChatBubblePro
 
             {/* Quick Replies */}
             {quickReplies.length > 0 && !isAiTyping && (
-              <ScrollView 
-                horizontal 
+              <ScrollView
+                horizontal
                 showsHorizontalScrollIndicator={false}
                 style={styles.quickRepliesContainer}
                 contentContainerStyle={styles.quickRepliesContent}
@@ -375,7 +394,7 @@ export function AIChatBubble({ product, store, onTalkToSeller }: AIChatBubblePro
                 maxLength={500}
                 onSubmitEditing={() => handleSendMessage()}
               />
-              <Pressable 
+              <Pressable
                 style={[
                   styles.sendButton,
                   (!inputText.trim() || isAiTyping) && styles.sendButtonDisabled
