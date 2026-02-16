@@ -1309,6 +1309,8 @@ export interface Voucher {
   minPurchase: number;
   maxDiscount?: number;
   usageLimit: number;
+  /** Max uses per customer (claim_limit). 1 = once per person, null = unlimited */
+  claimLimit?: number | null;
   usedCount: number;
   startDate: Date;
   endDate: Date;
@@ -1358,7 +1360,8 @@ export const useAdminVouchers = create<VouchersState>((set, get) => ({
         minPurchase: v.min_order_value,
         maxDiscount: v.max_discount || undefined,
         usageLimit: v.usage_limit || 0,
-        usedCount: 0, 
+        claimLimit: v.claim_limit ?? null,
+        usedCount: 0,
         startDate: new Date(v.claimable_from),
         endDate: new Date(v.claimable_until),
         isActive: v.is_active,
@@ -1394,7 +1397,7 @@ export const useAdminVouchers = create<VouchersState>((set, get) => ({
         claimable_from: voucherData.startDate.toISOString(),
         claimable_until: voucherData.endDate.toISOString(),
         usage_limit: voucherData.usageLimit || null,
-        claim_limit: null,
+        claim_limit: voucherData.claimLimit ?? null,
         duration: null,
         is_active: voucherData.isActive
       };
@@ -1412,6 +1415,7 @@ export const useAdminVouchers = create<VouchersState>((set, get) => ({
         minPurchase: newDbVoucher.min_order_value,
         maxDiscount: newDbVoucher.max_discount || undefined,
         usageLimit: newDbVoucher.usage_limit || 0,
+        claimLimit: newDbVoucher.claim_limit ?? null,
         usedCount: 0,
         startDate: new Date(newDbVoucher.claimable_from),
         endDate: new Date(newDbVoucher.claimable_until),
@@ -1448,6 +1452,7 @@ export const useAdminVouchers = create<VouchersState>((set, get) => ({
       if (updates.minPurchase !== undefined) dbUpdates.min_order_value = updates.minPurchase;
       if (updates.maxDiscount !== undefined) dbUpdates.max_discount = updates.maxDiscount || null;
       if (updates.usageLimit !== undefined) dbUpdates.usage_limit = updates.usageLimit || null;
+      if (updates.claimLimit !== undefined) dbUpdates.claim_limit = updates.claimLimit ?? null;
       if (updates.startDate) dbUpdates.claimable_from = updates.startDate.toISOString();
       if (updates.endDate) dbUpdates.claimable_until = updates.endDate.toISOString();
       if (updates.isActive !== undefined) dbUpdates.is_active = updates.isActive;
@@ -1467,6 +1472,7 @@ export const useAdminVouchers = create<VouchersState>((set, get) => ({
               minPurchase: updatedDbVoucher.min_order_value,
               maxDiscount: updatedDbVoucher.max_discount || undefined,
               usageLimit: updatedDbVoucher.usage_limit || 0,
+              claimLimit: updatedDbVoucher.claim_limit ?? null,
               startDate: new Date(updatedDbVoucher.claimable_from),
               endDate: new Date(updatedDbVoucher.claimable_until),
               isActive: updatedDbVoucher.is_active,
