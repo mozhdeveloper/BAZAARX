@@ -122,16 +122,32 @@ export const uploadAvatar = async (
  */
 export const uploadReviewImages = async (
   files: File[],
-  reviewId: string
+  reviewId: string,
+  buyerId: string,
 ): Promise<string[]> => {
   if (!isSupabaseConfigured()) {
     return files.map((f) => `https://via.placeholder.com/300?text=${f.name}`);
   }
 
   try {
-    const uploadPromises = files.map(async (file) => {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${reviewId}/${Date.now()}.${fileExt}`;
+    const timestamp = Date.now();
+
+    const uploadPromises = files.map(async (file, index) => {
+      const validation = validateImageFile(file);
+      if (!validation.valid) {
+        console.warn(`Skipping invalid review image: ${validation.error}`);
+        return null;
+      }
+
+      const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+      const baseName = file.name.replace(/\.[^/.]+$/, '');
+      const safeBaseName = baseName
+        .toLowerCase()
+        .replace(/[^a-z0-9-_]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 40) || 'review-image';
+      const uniqueSuffix = Math.random().toString(36).slice(2, 8);
+      const fileName = `${buyerId}/${reviewId}/${timestamp}-${index}-${uniqueSuffix}-${safeBaseName}.${fileExt}`;
 
       const { error } = await supabase.storage
         .from('review-images')
@@ -149,7 +165,8 @@ export const uploadReviewImages = async (
       return publicUrl;
     });
 
-    return await Promise.all(uploadPromises);
+    const uploaded = await Promise.all(uploadPromises);
+    return uploaded.filter((url): url is string => typeof url === 'string' && url.length > 0);
   } catch (error) {
     console.error('Review images upload failed:', error);
     return [];
