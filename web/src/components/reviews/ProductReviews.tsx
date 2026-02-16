@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { MessageCircle, Star, ThumbsUp, User } from "lucide-react";
+import { MessageCircle, Star, User } from "lucide-react";
 import {
   reviewService,
   type ReviewFeedItem,
@@ -7,6 +7,8 @@ import {
 } from "@/services/reviewService";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { ReviewVoteButton } from "./ReviewVoteButton";
+import { ReviewVotersModal } from "./ReviewVotersModal";
 
 interface ProductReviewsProps {
   productId: string;
@@ -31,6 +33,8 @@ export function ProductReviews({
   const [total, setTotal] = useState(0);
   const [stats, setStats] = useState<ReviewStats>(EMPTY_REVIEW_STATS);
   const [page, setPage] = useState(1);
+  const [selectedReviewId, setSelectedReviewId] = useState<string | null>(null);
+  const [isVotersModalOpen, setIsVotersModalOpen] = useState(false);
 
   useEffect(() => {
     void fetchReviews();
@@ -67,6 +71,26 @@ export function ProductReviews({
 
   const handleLoadMore = () => {
     setPage((prev) => prev + 1);
+  };
+
+  const handleOpenVotersModal = (reviewId: string) => {
+    setSelectedReviewId(reviewId);
+    setIsVotersModalOpen(true);
+  };
+
+  const handleCloseVotersModal = () => {
+    setIsVotersModalOpen(false);
+    setSelectedReviewId(null);
+  };
+
+  const handleVoteChange = (reviewId: string, newCount: number) => {
+    setReviews((prev) =>
+      prev.map((review) =>
+        review.id === reviewId
+          ? { ...review, helpfulCount: newCount }
+          : review
+      )
+    );
   };
 
   const formatDate = (dateString: string | null | undefined) => {
@@ -236,14 +260,12 @@ export function ProductReviews({
                   </div>
                 )}
 
-                <div className="flex items-center gap-4 text-sm font-medium text-gray-500">
-                  <div className="flex items-center gap-1">
-                    <ThumbsUp className="w-3.5 h-3.5" />
-                    <span className="text-xs">
-                      {review.helpfulCount} found helpful
-                    </span>
-                  </div>
-                </div>
+                <ReviewVoteButton
+                  reviewId={review.id}
+                  helpfulCount={review.helpfulCount}
+                  onVoteChange={(newCount) => handleVoteChange(review.id, newCount)}
+                  onCountClick={() => handleOpenVotersModal(review.id)}
+                />
               </div>
             ))}
 
@@ -261,6 +283,12 @@ export function ProductReviews({
           </div>
         )}
       </div>
+
+      <ReviewVotersModal
+        reviewId={selectedReviewId || ""}
+        isOpen={isVotersModalOpen}
+        onClose={handleCloseVotersModal}
+      />
     </div>
   );
 }
