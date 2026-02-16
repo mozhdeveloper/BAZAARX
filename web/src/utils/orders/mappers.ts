@@ -299,6 +299,9 @@ export const mapOrderRowToSellerSnapshot = (order: any): SellerOrderSnapshot => 
     type: order.order_type === "OFFLINE" ? "OFFLINE" : "ONLINE",
     posNote: order.pos_note || undefined,
     notes: order.notes || undefined,
+    // Payment method - derive from order_payments or default based on order type
+    paymentMethod: order.payment_method?.type || 
+      (order.order_type === "OFFLINE" ? "cash" : "online") as "cash" | "card" | "ewallet" | "bank_transfer" | "cod" | "online",
   };
 };
 

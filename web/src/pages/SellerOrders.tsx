@@ -679,30 +679,41 @@ export function SellerOrders() {
                       </div>
                      </TableCell>
 
-                      {/* Payment Status */}
+                      {/* Payment Method & Status */}
                       <TableCell>
-                        <Badge
-                          variant="secondary"
-                          className={cn(
-                            "font-medium",
-                            order.paymentStatus ===
-                            "paid" &&
-                            "bg-green-100 text-green-700 hover:bg-green-100",
-                            order.paymentStatus ===
-                            "pending" &&
-                            "bg-yellow-100 text-yellow-700 hover:bg-yellow-100",
-                            order.paymentStatus ===
-                            "refunded" &&
-                            "bg-red-100 text-red-700 hover:bg-red-100",
-                          )}
-                        >
-                          {order.paymentStatus
-                            .charAt(0)
-                            .toUpperCase() +
-                            order.paymentStatus.slice(
-                              1,
+                        <div className="flex flex-col gap-1">
+                          <span className="text-sm font-medium text-gray-900">
+                            {order.paymentMethod === 'cash' && 'Cash'}
+                            {order.paymentMethod === 'card' && 'Card'}
+                            {order.paymentMethod === 'ewallet' && 'E-Wallet'}
+                            {order.paymentMethod === 'bank_transfer' && 'Bank Transfer'}
+                            {order.paymentMethod === 'cod' && 'COD'}
+                            {order.paymentMethod === 'online' && 'Online'}
+                            {!order.paymentMethod && (order.type === 'OFFLINE' ? 'Cash' : 'Online')}
+                          </span>
+                          <Badge
+                            variant="secondary"
+                            className={cn(
+                              "font-medium text-xs w-fit",
+                              order.paymentStatus ===
+                              "paid" &&
+                              "bg-green-100 text-green-700 hover:bg-green-100",
+                              order.paymentStatus ===
+                              "pending" &&
+                              "bg-yellow-100 text-yellow-700 hover:bg-yellow-100",
+                              order.paymentStatus ===
+                              "refunded" &&
+                              "bg-red-100 text-red-700 hover:bg-red-100",
                             )}
-                        </Badge>
+                          >
+                            {order.paymentStatus
+                              .charAt(0)
+                              .toUpperCase() +
+                              order.paymentStatus.slice(
+                                1,
+                              )}
+                          </Badge>
+                        </div>
                       </TableCell>
 
                       {/* Total */}

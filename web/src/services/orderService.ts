@@ -435,6 +435,7 @@ export class OrderService {
      * Create a POS (Point of Sale) offline order
      * Updated for new normalized schema - uses payment_status/shipment_status
      * @param buyerEmail - Optional buyer email to link order for BazCoins points
+     * @param paymentMethod - Payment method used (cash, card, ewallet, bank_transfer)
      */
     async createPOSOrder(
         sellerId: string,
@@ -451,6 +452,7 @@ export class OrderService {
         total: number,
         note?: string,
         buyerEmail?: string,
+        paymentMethod?: 'cash' | 'card' | 'ewallet' | 'bank_transfer',
     ): Promise<{
         orderId: string;
         orderNumber: string;
@@ -578,6 +580,30 @@ export class OrderService {
             if (itemsError) {
                 await supabase.from("orders").delete().eq("id", orderId);
                 throw itemsError;
+            }
+
+            // Insert payment record with method
+            const paymentMethodValue = paymentMethod || 'cash';
+            const paymentMethodLabel = {
+                cash: 'Cash',
+                card: 'Card',
+                ewallet: 'E-Wallet',
+                bank_transfer: 'Bank Transfer'
+            }[paymentMethodValue] || 'Cash';
+
+            const { error: paymentError } = await supabase
+                .from("order_payments")
+                .insert({
+                    order_id: orderId,
+                    payment_method: { type: paymentMethodValue, label: paymentMethodLabel },
+                    amount: total,
+                    status: 'completed',
+                    payment_date: new Date().toISOString(),
+                });
+
+            if (paymentError) {
+                console.warn("Failed to insert order payment record:", paymentError);
+                // Don't fail the order, payment record is supplementary
             }
 
             for (const item of items) {

@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Search, 
@@ -16,7 +16,14 @@ import {
   Star,
   Hash,
   Printer,
-  Receipt
+  Receipt,
+  Settings,
+  User,
+  DollarSign,
+  Building2,
+  Calculator,
+  Volume2,
+  VolumeX
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -37,6 +44,17 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { orderMutationService } from '@/services/orders/orderMutationService';
+import { BarcodeScanner } from '@/components/pos/BarcodeScanner';
+import { QuickProductModal } from '@/components/pos/QuickProductModal';
+import { StaffLogin, StaffBadge } from '@/components/pos/StaffLogin';
+import { CashDrawerManager, CashDrawerBadge } from '@/components/pos/CashDrawerManager';
+import { BranchSelector, BranchBadge, MOCK_BRANCHES } from '@/components/pos/BranchSelector';
+import { POSSettingsModal } from '@/components/pos/POSSettingsModal';
+import { getPOSSettings } from '@/services/posSettingsService';
+import { useBarcodeScanner } from '@/hooks/useBarcodeScanner';
+import { lookupBarcodeQuick } from '@/services/barcodeService';
+import { playBeepSound, ScannerStatus } from '@/components/ui/BarcodeDisplay';
+import type { POSSettings, StaffMember, CashDrawerSession, Branch } from '@/types/pos.types';
 
 interface CartItem {
   productId: string;
@@ -61,6 +79,7 @@ interface ReceiptData {
   date: Date;
   sellerName: string;
   cashier: string;
+  paymentMethod: 'cash' | 'card' | 'ewallet' | 'bank_transfer';
 }
 
 export function SellerPOS() {
@@ -94,10 +113,312 @@ export function SellerPOS() {
   const [showReceipt, setShowReceipt] = useState(false);
   const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
   const receiptRef = useRef<HTMLDivElement>(null);
+  
+  // POS Settings & Features
+  const [posSettings, setPOSSettings] = useState<POSSettings | null>(null);
+  const [currentStaff, setCurrentStaff] = useState<StaffMember | undefined>();
+  const [showStaffLogin, setShowStaffLogin] = useState(false);
+  const [cashDrawerSession, setCashDrawerSession] = useState<CashDrawerSession | undefined>();
+  const [showCashDrawer, setShowCashDrawer] = useState(false);
+  const [currentBranch, setCurrentBranch] = useState<Branch | undefined>();
+  const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
+  const [showPOSSettings, setShowPOSSettings] = useState(false);
+  const [showQuickProductModal, setShowQuickProductModal] = useState(false);
+  const [pendingBarcode, setPendingBarcode] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'ewallet' | 'bank_transfer'>('cash');
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [scannerPaused, setScannerPaused] = useState(false);
+  
+  // Hardware Barcode Scanner Handler
+  const handleHardwareScan = useCallback(async (barcode: string) => {
+    // Only process hardware scans when:
+    // 1. Seller is logged in
+    // 2. Scanner is not paused (dialogs closed)
+    // 3. Barcode scanner is enabled in settings
+    // 4. Scanner type is USB or Bluetooth (hardware scanners)
+    const isHardwareScannerEnabled = posSettings?.enableBarcodeScanner && 
+      (posSettings?.scannerType === 'usb' || posSettings?.scannerType === 'bluetooth');
+    
+    if (!seller?.id || scannerPaused || !isHardwareScannerEnabled) return;
+    
+    console.log('[SellerPOS] Hardware scan detected:', barcode);
+    
+    try {
+      // Look up barcode in database
+      const result = await lookupBarcodeQuick(seller.id, barcode);
+      
+      if (result.isFound && result.id) {
+        // Find the product in local products array
+        const productId = result.productId || result.id;
+        const product = products.find(p => p.id === productId);
+        
+        if (product) {
+          // Play success sound
+          if (soundEnabled && posSettings?.enableSoundEffects !== false) {
+            playBeepSound('success');
+          }
+          
+          // Add to cart
+          if (posSettings?.autoAddOnScan !== false) {
+            addToCart(product, false, undefined, undefined);
+          } else {
+            showDetails(product);
+          }
+        } else {
+          // Product found in DB but not loaded locally - add by result data
+          if (soundEnabled && posSettings?.enableSoundEffects !== false) {
+            playBeepSound('success');
+          }
+          
+          // Create cart item from lookup result
+          const variantKey = `${result.id}-direct-scan`;
+          const existingItem = cart.find(item => item.variantKey === variantKey);
+          
+          if (existingItem) {
+            setCart(cart.map(item =>
+              item.variantKey === variantKey
+                ? { ...item, quantity: item.quantity + 1 }
+                : item
+            ));
+          } else {
+            setCart([...cart, {
+              productId: result.id,
+              productName: result.variantName 
+                ? `${result.name} (${result.variantName})`
+                : result.name || 'Unknown Product',
+              quantity: 1,
+              price: result.price || 0,
+              image: result.imageUrl || '',
+              maxStock: result.stock || 999,
+              variantKey
+            }]);
+          }
+        }
+      } else {
+        // Not found - play error sound
+        if (soundEnabled) {
+          playBeepSound('error');
+        }
+        console.warn('[SellerPOS] Barcode not found:', barcode);
+      }
+    } catch (error) {
+      console.error('[SellerPOS] Barcode lookup error:', error);
+      if (soundEnabled) {
+        playBeepSound('error');
+      }
+    }
+  }, [seller?.id, products, cart, posSettings, soundEnabled, scannerPaused]);
+
+  // Initialize hardware barcode scanner
+  const { 
+    isActive: scannerActive,
+    lastScan,
+    lastScanTime,
+    pause: pauseScanner,
+    resume: resumeScanner,
+    scanCount
+  } = useBarcodeScanner(handleHardwareScan, {
+    debug: false,
+    minLength: 4,
+    maxLength: 50,
+    timeoutMs: 100,
+    ignoredTags: [], // Allow scanning even when inputs are focused
+  });
+
+  // Pause scanner when dialogs are open
+  useEffect(() => {
+    const dialogOpen = showProductDetails || showSuccess || showReceipt || 
+                       showStaffLogin || showCashDrawer || showBarcodeScanner || showPOSSettings;
+    if (dialogOpen) {
+      pauseScanner();
+      setScannerPaused(true);
+    } else {
+      resumeScanner();
+      setScannerPaused(false);
+    }
+  }, [showProductDetails, showSuccess, showReceipt, showStaffLogin, showCashDrawer, showBarcodeScanner, showPOSSettings, pauseScanner, resumeScanner]);
+  
+  // Load POS Settings
+  useEffect(() => {
+    async function loadPOSSettings() {
+      if (!seller?.id) return;
+      
+      try {
+        // Try to load from database first
+        const dbSettings = await getPOSSettings(seller.id);
+        if (dbSettings) {
+          setPOSSettings(dbSettings);
+        }
+      } catch (error) {
+        console.error('[SellerPOS] Error loading POS settings:', error);
+        // Settings will remain null, features will be disabled
+      }
+      
+      // Auto-select main branch if multi-branch is enabled
+      const mainBranch = MOCK_BRANCHES.find(b => b.isMainBranch);
+      if (mainBranch) {
+        setCurrentBranch(mainBranch);
+      }
+    }
+    
+    loadPOSSettings();
+  }, [seller?.id]);
 
   const handleLogout = () => {
     logout();
     navigate('/seller/auth');
+  };
+
+  // Tax Calculation
+  const calculateTax = (subtotal: number): { tax: number; total: number } => {
+    if (!posSettings?.enableTax) {
+      return { tax: 0, total: subtotal };
+    }
+
+    let taxAmount: number;
+    if (posSettings.taxIncludedInPrice) {
+      // Tax is already included in price
+      taxAmount = (subtotal * posSettings.taxRate) / (100 + posSettings.taxRate);
+    } else {
+      // Tax is added to price
+      taxAmount = (subtotal * posSettings.taxRate) / 100;
+    }
+
+    return {
+      tax: taxAmount,
+      total: posSettings.taxIncludedInPrice ? subtotal : subtotal + taxAmount
+    };
+  };
+
+  // Barcode Handler
+  const handleBarcodeScanned = async (barcode: string): Promise<boolean> => {
+    if (!seller?.id) {
+      alert('Seller not logged in');
+      return false;
+    }
+
+    // Lookup product by barcode/SKU from database
+    const result = await lookupBarcodeQuick(seller.id, barcode);
+
+    if (result.isFound) {
+      // Find the product in our loaded products list
+      const productId = result.type === 'variant' ? result.productId : result.id;
+      const product = products.find(p => p.id === productId);
+
+      if (product) {
+        if (posSettings?.autoAddOnScan) {
+          addToCart(product);
+        } else {
+          showDetails(product);
+        }
+        
+        // Play success sound
+        if (posSettings?.enableSoundEffects) {
+          playBeepSound('success');
+        }
+        return true;
+      } else {
+        // Product exists in database but not loaded - refresh and add
+        await fetchProducts({ sellerId: seller.id });
+        return false;
+      }
+    } else {
+      // Product not found - try searching by name in loaded products
+      const searchByName = products.find(p => 
+        p.name.toLowerCase().includes(barcode.toLowerCase())
+      );
+
+      if (searchByName) {
+        if (posSettings?.autoAddOnScan) {
+          addToCart(searchByName);
+          playBeepSound('success');
+        } else {
+          showDetails(searchByName);
+        }
+        return true;
+      } else {
+        // Product not found anywhere - show create modal
+        playBeepSound('error');
+        setPendingBarcode(barcode);
+        setShowBarcodeScanner(false);
+        setShowQuickProductModal(true);
+        return false;
+      }
+    }
+  };
+
+  // Handle product created from quick modal
+  const handleQuickProductCreated = (product: any) => {
+    // Refresh products list
+    if (seller?.id) {
+      fetchProducts({ sellerId: seller.id });
+    }
+    
+    // Add to cart immediately
+    const cartProduct = {
+      id: product.id,
+      name: product.name,
+      price: product.price,
+      primaryImageUrl: product.primaryImageUrl || null,
+      stock: product.stock || 0,
+    };
+    addToCart(cartProduct as any);
+    playBeepSound('success');
+  };
+
+  // Staff Management
+  const handleStaffLogin = (staff: StaffMember) => {
+    setCurrentStaff(staff);
+    
+    // Auto-start cash drawer session if enabled
+    if (posSettings?.enableCashDrawer && !cashDrawerSession) {
+      setShowCashDrawer(true);
+    }
+  };
+
+  const handleStaffLogout = () => {
+    // Close cash drawer session if open
+    if (cashDrawerSession) {
+      setShowCashDrawer(true); // Prompt to close session
+    } else {
+      setCurrentStaff(undefined);
+    }
+  };
+
+  // Cash Drawer Management
+  const handleSessionStart = (session: CashDrawerSession) => {
+    setCashDrawerSession(session);
+    // Save to localStorage
+    localStorage.setItem(`cash_session_${seller?.id}`, JSON.stringify(session));
+  };
+
+  const handleSessionEnd = (session: CashDrawerSession) => {
+    setCashDrawerSession(undefined);
+    setCurrentStaff(undefined);
+    // Save closed session to history
+    const history = JSON.parse(localStorage.getItem(`cash_sessions_history_${seller?.id}`) || '[]');
+    history.unshift(session);
+    localStorage.setItem(`cash_sessions_history_${seller?.id}`, JSON.stringify(history.slice(0, 50)));
+    localStorage.removeItem(`cash_session_${seller?.id}`);
+  };
+
+  // Update cash drawer on sale
+  const updateCashDrawerOnSale = (amount: number, method: 'cash' | 'card' | 'ewallet' | 'bank_transfer') => {
+    if (!cashDrawerSession) return;
+
+    const updatedSession: CashDrawerSession = {
+      ...cashDrawerSession,
+      totalSales: cashDrawerSession.totalSales + amount,
+      totalTransactions: cashDrawerSession.totalTransactions + 1,
+      cashSales: method === 'cash' ? cashDrawerSession.cashSales + amount : cashDrawerSession.cashSales,
+      cardSales: method === 'card' ? cashDrawerSession.cardSales + amount : cashDrawerSession.cardSales,
+      ewalletSales: method === 'ewallet' ? cashDrawerSession.ewalletSales + amount : cashDrawerSession.ewalletSales,
+      expectedCash: method === 'cash' ? cashDrawerSession.expectedCash + amount : cashDrawerSession.expectedCash,
+      updatedAt: new Date().toISOString(),
+    };
+
+    setCashDrawerSession(updatedSession);
+    localStorage.setItem(`cash_session_${seller?.id}`, JSON.stringify(updatedSession));
   };
 
   // Filter products based on search and filter tab
@@ -215,6 +536,12 @@ export function SellerPOS() {
       alert('Please log in to complete a sale');
       return;
     }
+
+    // Check staff login requirement
+    if (posSettings?.enableStaffTracking && posSettings?.requireStaffLogin && !currentStaff) {
+      setShowStaffLogin(true);
+      return;
+    }
     
     setIsProcessing(true);
     
@@ -222,8 +549,7 @@ export function SellerPOS() {
       // Store cart data for receipt before clearing
       const receiptItems = [...cart];
       const subtotal = cartTotal;
-      const tax = 0; // No tax for now
-      const total = subtotal + tax;
+      const { tax, total } = calculateTax(subtotal);
       const receiptNote = note;
       
       // Save to Supabase using orderService
@@ -241,7 +567,8 @@ export function SellerPOS() {
         })),
         total,
         note: receiptNote,
-        buyerEmail: buyerEmail.trim() || undefined
+        buyerEmail: buyerEmail.trim() || undefined,
+        paymentMethod
       });
 
       if (!result) {
@@ -250,6 +577,9 @@ export function SellerPOS() {
 
       // Also update local store for immediate UI update
       addOfflineOrder(cart, total, receiptNote);
+      
+      // Update cash drawer session
+      updateCashDrawerOnSale(total, paymentMethod);
       
       // Set receipt data with professional format
       setReceiptData({
@@ -262,13 +592,21 @@ export function SellerPOS() {
         note: receiptNote,
         date: new Date(),
         sellerName: seller.storeName || seller.businessName || 'BazaarPH Store',
-        cashier: seller.ownerName || 'Staff'
+        cashier: currentStaff?.name || seller.ownerName || 'Staff',
+        paymentMethod
       });
       
       // Show success
       setSuccessOrderId(result.orderNumber);
       setShowSuccess(true);
       setShowReceipt(true);
+
+      // Auto-print if enabled
+      if (posSettings?.autoPrintReceipt) {
+        setTimeout(() => {
+          printReceipt();
+        }, 500);
+      }
 
       // Refresh orders to show new POS order
       if (seller.id) {
@@ -299,209 +637,300 @@ export function SellerPOS() {
         year: 'numeric',
         month: 'short',
         day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
       });
     };
 
-    const itemsHtml = receiptData.items.map(item => `
+    const formatTime = (date: Date) => {
+      return date.toLocaleTimeString('en-PH', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      });
+    };
+
+    // Calculate VAT breakdown (12% VAT)
+    const vatRate = posSettings?.enableTax ? (posSettings.taxRate / 100) : 0.12;
+    const total = receiptData.total;
+    const vatableSales = total / (1 + vatRate);
+    const vatAmount = total - vatableSales;
+    const vatExemptSales = posSettings?.enableTax ? 0 : total; // If tax disabled, treat as VAT-exempt
+
+    const itemsHtml = receiptData.items.map((item, index) => `
       <tr>
-        <td style="padding: 8px 0; border-bottom: 1px solid #eee;">
-          <div style="font-weight: 500;">${item.productName}</div>
+        <td colspan="3" style="padding: 4px 0; font-size: 12px;">
+          ${index + 1}. ${item.productName}
           ${item.selectedVariantLabel1 || item.selectedVariantLabel2 ? `
-            <div style="font-size: 11px; color: #666;">
+            <div style="font-size: 10px; padding-left: 10px; color: #666;">
               ${item.selectedVariantLabel1 ? `${item.selectedVariantLabel1}` : ''}
               ${item.selectedVariantLabel1 && item.selectedVariantLabel2 ? ' | ' : ''}
               ${item.selectedVariantLabel2 ? `${item.selectedVariantLabel2}` : ''}
             </div>
           ` : ''}
         </td>
-        <td style="padding: 8px 0; border-bottom: 1px solid #eee; text-align: center;">${item.quantity}</td>
-        <td style="padding: 8px 0; border-bottom: 1px solid #eee; text-align: right;">₱${item.price.toLocaleString()}</td>
-        <td style="padding: 8px 0; border-bottom: 1px solid #eee; text-align: right; font-weight: 500;">₱${(item.price * item.quantity).toLocaleString()}</td>
+      </tr>
+      <tr>
+        <td style="padding: 0 0 8px 10px; font-size: 11px;">${item.quantity} x ₱${item.price.toFixed(2)}</td>
+        <td colspan="2" style="padding: 0 0 8px 0; text-align: right; font-size: 11px;">₱${(item.price * item.quantity).toFixed(2)}</td>
       </tr>
     `).join('');
     
+    // Get BIR-related settings from posSettings or use defaults
+    const businessName = posSettings?.businessName || receiptData.sellerName;
+    const businessAddress = posSettings?.businessAddress || 'Business Address Not Set';
+    const tin = posSettings?.tin || 'XXX-XXX-XXX-XXX';
+    const minNumber = posSettings?.minNumber || 'MIN-XXXXXXXXXX';
+    const serialNumberRange = posSettings?.serialNumberRange || '00001-99999';
+    const permitNumber = posSettings?.permitNumber || 'FP-XXXXXX';
+    const accreditationNumber = posSettings?.accreditationNumber || 'ACCR-XXXXXX';
+    const accreditedProvider = posSettings?.accreditedProvider || 'BazaarPH POS System';
+
     printWindow.document.write(`
       <!DOCTYPE html>
       <html>
         <head>
           <title>Receipt - ${receiptData.orderNumber}</title>
+          <meta charset="UTF-8">
           <style>
+            @page { size: 80mm auto; margin: 0; }
             * { margin: 0; padding: 0; box-sizing: border-box; }
             body { 
-              font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-              padding: 20px; 
-              max-width: 400px; 
+              font-family: 'Courier New', Courier, monospace;
+              width: 80mm;
               margin: 0 auto;
-              color: #333;
+              padding: 10px;
+              font-size: 11px;
+              line-height: 1.3;
+              color: #000;
             }
             .receipt { 
-              background: #fff; 
-              border: 1px solid #ddd;
-              border-radius: 8px;
-              overflow: hidden;
+              width: 100%;
             }
-            .header { 
-              background: linear-gradient(135deg, #FF5722, #FF7043);
-              color: white;
-              padding: 24px 20px; 
-              text-align: center; 
+            .center { text-align: center; }
+            .bold { font-weight: bold; }
+            .large { font-size: 13px; }
+            .small { font-size: 9px; }
+            .line { 
+              border-top: 1px dashed #000; 
+              margin: 8px 0;
             }
-            .logo { font-size: 28px; font-weight: bold; margin-bottom: 4px; }
-            .tagline { font-size: 12px; opacity: 0.9; }
-            .store-name { font-size: 16px; margin-top: 12px; font-weight: 500; }
-            .body { padding: 20px; }
-            .info-row { 
-              display: flex; 
-              justify-content: space-between; 
-              padding: 6px 0;
-              font-size: 13px;
-              color: #666;
+            .double-line {
+              border-top: 1px solid #000;
+              margin: 8px 0;
             }
-            .info-row strong { color: #333; }
-            .divider { 
-              border-top: 2px dashed #ddd; 
-              margin: 16px 0; 
+            table { 
+              width: 100%; 
+              border-collapse: collapse; 
             }
-            table { width: 100%; border-collapse: collapse; font-size: 13px; }
-            th { 
-              padding: 10px 0; 
-              border-bottom: 2px solid #333; 
+            .info-row {
+              display: table;
+              width: 100%;
+              margin: 2px 0;
+            }
+            .info-label {
+              display: table-cell;
+              width: 40%;
+              font-size: 10px;
+            }
+            .info-value {
+              display: table-cell;
+              width: 60%;
+              text-align: right;
+              font-size: 10px;
+            }
+            .totals-row {
+              display: table;
+              width: 100%;
+              margin: 3px 0;
+            }
+            .totals-label {
+              display: table-cell;
               text-align: left;
-              font-weight: 600;
-              font-size: 12px;
-              text-transform: uppercase;
-              color: #666;
+              font-size: 11px;
             }
-            th:nth-child(2), th:nth-child(3), th:nth-child(4) { text-align: right; }
-            th:nth-child(2) { text-align: center; }
-            .totals { margin-top: 16px; }
-            .total-row {
-              display: flex;
-              justify-content: space-between;
-              padding: 8px 0;
+            .totals-value {
+              display: table-cell;
+              text-align: right;
+              font-size: 11px;
+            }
+            .grand-total {
               font-size: 14px;
-            }
-            .total-row.grand {
-              border-top: 2px solid #333;
-              margin-top: 8px;
-              padding-top: 12px;
-              font-size: 18px;
               font-weight: bold;
-              color: #FF5722;
+              padding: 5px 0;
             }
-            .note {
-              background: #FFF3E0;
-              border-left: 4px solid #FF5722;
-              padding: 12px;
-              margin-top: 16px;
-              font-size: 13px;
-              border-radius: 0 4px 4px 0;
-            }
-            .footer { 
-              text-align: center; 
-              padding: 20px;
-              background: #f9f9f9;
-              border-top: 1px solid #eee;
-            }
-            .footer-text { font-size: 14px; color: #666; margin-bottom: 8px; }
-            .footer-small { font-size: 11px; color: #999; }
-            .badge {
-              display: inline-block;
-              background: #4CAF50;
-              color: white;
-              padding: 4px 12px;
-              border-radius: 12px;
-              font-size: 12px;
-              font-weight: 500;
-              margin-top: 8px;
-            }
-            @media print { 
-              body { padding: 0; } 
-              .receipt { border: none; }
+            .uppercase { text-transform: uppercase; }
+            .mt-1 { margin-top: 4px; }
+            .mt-2 { margin-top: 8px; }
+            .mb-1 { margin-bottom: 4px; }
+            .mb-2 { margin-bottom: 8px; }
+            @media print {
+              body { padding: 5px; }
+              .no-print { display: none; }
             }
           </style>
         </head>
         <body>
           <div class="receipt">
-            <div class="header">
-              <div class="logo">🛒 BazaarPH</div>
-              <div class="tagline">Point of Sale Receipt</div>
-              <div class="store-name">${receiptData.sellerName}</div>
+            <!-- HEADER: Business Information -->
+            <div class="center bold large mb-1">${businessName}</div>
+            <div class="center small mb-1">${businessAddress}</div>
+            <div class="center small mb-1">TIN: ${tin}</div>
+            
+            <div class="line"></div>
+            
+            <!-- MACHINE INFORMATION -->
+            <div class="center small mb-1">
+              <div>MIN: ${minNumber}</div>
+              <div>SN: ${serialNumberRange}</div>
             </div>
             
-            <div class="body">
-              <div class="info-row">
-                <span>Receipt No:</span>
-                <strong>${receiptData.orderNumber}</strong>
-              </div>
-              <div class="info-row">
-                <span>Date:</span>
-                <strong>${formatDate(receiptData.date)}</strong>
-              </div>
-              <div class="info-row">
-                <span>Cashier:</span>
-                <strong>${receiptData.cashier}</strong>
-              </div>
-              <div class="info-row">
-                <span>Customer:</span>
-                <strong>Walk-in</strong>
-              </div>
-              
-              <div class="divider"></div>
-              
-              <table>
-                <thead>
-                  <tr>
-                    <th>Item</th>
-                    <th>Qty</th>
-                    <th>Price</th>
-                    <th>Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${itemsHtml}
-                </tbody>
-              </table>
-              
-              <div class="totals">
-                <div class="total-row">
-                  <span>Subtotal</span>
-                  <span>₱${receiptData.subtotal.toLocaleString()}</span>
-                </div>
-                <div class="total-row">
-                  <span>Tax</span>
-                  <span>₱${receiptData.tax.toLocaleString()}</span>
-                </div>
-                <div class="total-row grand">
-                  <span>TOTAL</span>
-                  <span>₱${receiptData.total.toLocaleString()}</span>
-                </div>
-              </div>
-              
-              ${receiptData.note ? `
-                <div class="note">
-                  <strong>Note:</strong> ${receiptData.note}
-                </div>
-              ` : ''}
-              
-              <div style="text-align: center; margin-top: 16px;">
-                <span class="badge">✓ PAID - CASH</span>
-              </div>
+            <div class="line"></div>
+            
+            <!-- OFFICIAL RECEIPT HEADER -->
+            <div class="center bold large mt-1 mb-1">OFFICIAL RECEIPT</div>
+            
+            <!-- TRANSACTION DETAILS -->
+            <div class="info-row">
+              <div class="info-label">Receipt No:</div>
+              <div class="info-value bold">${receiptData.orderNumber}</div>
+            </div>
+            <div class="info-row">
+              <div class="info-label">Date:</div>
+              <div class="info-value">${formatDate(receiptData.date)}</div>
+            </div>
+            <div class="info-row">
+              <div class="info-label">Time:</div>
+              <div class="info-value">${formatTime(receiptData.date)}</div>
+            </div>
+            <div class="info-row">
+              <div class="info-label">Cashier:</div>
+              <div class="info-value">${receiptData.cashier}</div>
+            </div>
+            <div class="info-row mb-1">
+              <div class="info-label">Customer:</div>
+              <div class="info-value">Walk-in</div>
             </div>
             
-            <div class="footer">
-              <div class="footer-text">Thank you for shopping with us! 🧡</div>
-              <div class="footer-small">This serves as your official receipt</div>
-              <div class="footer-small" style="margin-top: 8px;">Powered by BazaarPH POS</div>
+            <div class="line"></div>
+            
+            <!-- ITEMS -->
+            <div class="bold mb-1" style="font-size: 11px;">ITEMS PURCHASED:</div>
+            <table>
+              <tbody>
+                ${itemsHtml}
+              </tbody>
+            </table>
+            
+            <div class="line"></div>
+            
+            <!-- VAT BREAKDOWN -->
+            <div class="mt-1">
+              ${posSettings?.enableTax ? `
+                <div class="totals-row">
+                  <div class="totals-label">VATable Sales:</div>
+                  <div class="totals-value">₱${vatableSales.toFixed(2)}</div>
+                </div>
+                <div class="totals-row">
+                  <div class="totals-label">VAT (${(vatRate * 100).toFixed(0)}%):</div>
+                  <div class="totals-value">₱${vatAmount.toFixed(2)}</div>
+                </div>
+                <div class="totals-row">
+                  <div class="totals-label">VAT-Exempt Sales:</div>
+                  <div class="totals-value">₱0.00</div>
+                </div>
+                <div class="totals-row">
+                  <div class="totals-label">Zero-Rated Sales:</div>
+                  <div class="totals-value">₱0.00</div>
+                </div>
+              ` : `
+                <div class="totals-row">
+                  <div class="totals-label">VATable Sales:</div>
+                  <div class="totals-value">₱0.00</div>
+                </div>
+                <div class="totals-row">
+                  <div class="totals-label">VAT-Exempt Sales:</div>
+                  <div class="totals-value">₱${vatExemptSales.toFixed(2)}</div>
+                </div>
+                <div class="totals-row">
+                  <div class="totals-label">Zero-Rated Sales:</div>
+                  <div class="totals-value">₱0.00</div>
+                </div>
+              `}
             </div>
+            
+            <div class="double-line"></div>
+            
+            <!-- TOTAL -->
+            <div class="totals-row grand-total">
+              <div class="totals-label">TOTAL AMOUNT DUE:</div>
+              <div class="totals-value">₱${total.toFixed(2)}</div>
+            </div>
+            
+            <div class="double-line"></div>
+            
+            <!-- PAYMENT INFO -->
+            <div class="center mt-1 mb-1">
+              <div class="bold">✓ PAID - ${
+                receiptData.paymentMethod === 'cash' ? 'CASH' :
+                receiptData.paymentMethod === 'card' ? 'CARD' :
+                receiptData.paymentMethod === 'ewallet' ? 'E-WALLET' :
+                receiptData.paymentMethod === 'bank_transfer' ? 'BANK TRANSFER' : 'CASH'
+              }</div>
+            </div>
+            
+            ${receiptData.note ? `
+              <div class="line"></div>
+              <div class="small mt-1 mb-1">
+                <div class="bold">Note:</div>
+                <div>${receiptData.note}</div>
+              </div>
+            ` : ''}
+            
+            <div class="line"></div>
+            
+            <!-- BIR FOOTER -->
+            <div class="center small mt-2 mb-1">
+              <div class="bold mb-1">${!posSettings?.enableTax ? 'THIS DOCUMENT IS NOT VALID' : ''}</div>
+              <div class="bold mb-1">${!posSettings?.enableTax ? 'FOR CLAIM OF INPUT TAX' : ''}</div>
+              ${posSettings?.enableTax ? '<div class="mb-1">THIS SERVES AS AN OFFICIAL RECEIPT</div>' : ''}
+            </div>
+            
+            <!-- ACCREDITATION INFO -->
+            <div class="center small mt-1 mb-1">
+              <div>BIR Permit No: ${permitNumber}</div>
+              <div>Accreditation No: ${accreditationNumber}</div>
+              <div>Date Issued: ${posSettings?.validityDate || 'MM/DD/YYYY'}</div>
+              <div class="mt-1">POS Provider:</div>
+              <div>${accreditedProvider}</div>
+            </div>
+            
+            <div class="line"></div>
+            
+            <!-- THANK YOU MESSAGE -->
+            <div class="center mt-2 mb-1">
+              <div class="bold" style="font-size: 12px;">Thank you for shopping with us!</div>
+              <div class="small mt-1">Please come again</div>
+            </div>
+            
+            <div class="center small mt-2">
+              <div>www.bazaarph.com</div>
+              <div>Powered by BazaarPH POS</div>
+            </div>
+            
+            <!-- END OF RECEIPT MARKER -->
+            <div class="center mt-2 mb-1 small">--- END OF RECEIPT ---</div>
           </div>
+          
+          <script>
+            window.onload = function() {
+              window.print();
+              // Close window after printing (optional)
+              // window.onafterprint = function() { window.close(); }
+            }
+          </script>
         </body>
       </html>
     `);
     printWindow.document.close();
-    printWindow.print();
   };
 
   // Get stock badge
@@ -580,21 +1009,156 @@ export function SellerPOS() {
         <div className="w-full lg:w-[65%] flex flex-col bg-muted/30 overflow-hidden">
           {/* Header with Search and Filters */}
           <div className="px-6 py-5 bg-white border-b border-gray-200 flex-shrink-0">
-            <div className="mb-4">
-              <h1 className="text-2xl font-bold text-gray-900">POS Lite</h1>
-              <p className="text-sm text-muted-foreground mt-0.5">Quick checkout for offline sales</p>
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">POS Lite</h1>
+                <p className="text-sm text-muted-foreground mt-0.5">Quick checkout for offline sales</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowPOSSettings(true)}
+                  className="gap-2"
+                >
+                  <Settings className="h-4 w-4" />
+                  Settings
+                </Button>
+              </div>
             </div>
+
+            {/* POS Status Bar */}
+            {(posSettings?.enableStaffTracking || posSettings?.enableCashDrawer || posSettings?.enableMultiBranch) && (
+              <div className="mb-4 grid grid-cols-1 md:grid-cols-3 gap-2">
+                {/* Staff Status */}
+                {posSettings?.enableStaffTracking && (
+                  <div>
+                    {currentStaff ? (
+                      <StaffBadge staff={currentStaff} onLogout={handleStaffLogout} />
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowStaffLogin(true)}
+                        className="w-full gap-2"
+                      >
+                        <User className="h-4 w-4" />
+                        Staff Login
+                      </Button>
+                    )}
+                  </div>
+                )}
+
+                {/* Cash Drawer Status */}
+                {posSettings?.enableCashDrawer && (
+                  <div>
+                    <CashDrawerBadge 
+                      session={cashDrawerSession} 
+                      onClick={() => setShowCashDrawer(true)}
+                    />
+                  </div>
+                )}
+
+                {/* Branch Selector */}
+                {posSettings?.enableMultiBranch && (
+                  <div>
+                    <BranchSelector
+                      branches={MOCK_BRANCHES}
+                      currentBranch={currentBranch}
+                      onSelect={setCurrentBranch}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Hardware Scanner Status - Show when settings enabled */}
+            {(posSettings?.enableBarcodeScanner || posSettings?.scannerType) && (
+              <div className="mb-4 flex items-center justify-between bg-gray-50 rounded-lg px-4 py-2 border border-gray-200">
+                <div className="flex items-center gap-3">
+                  {/* Scanner Type Indicator */}
+                  {posSettings.scannerType === 'usb' && (
+                    <>
+                      <div className={cn(
+                        "w-2 h-2 rounded-full",
+                        scannerActive && !scannerPaused ? "bg-green-500 animate-pulse" : "bg-gray-400"
+                      )} />
+                      <span className="text-sm text-gray-600">
+                        {scannerActive && !scannerPaused 
+                          ? 'USB Scanner Ready' 
+                          : 'USB Scanner Paused'}
+                      </span>
+                    </>
+                  )}
+                  {posSettings.scannerType === 'bluetooth' && (
+                    <>
+                      <div className={cn(
+                        "w-2 h-2 rounded-full",
+                        scannerActive && !scannerPaused ? "bg-blue-500 animate-pulse" : "bg-gray-400"
+                      )} />
+                      <span className="text-sm text-gray-600">
+                        {scannerActive && !scannerPaused 
+                          ? 'Bluetooth Scanner Ready' 
+                          : 'Bluetooth Scanner Paused'}
+                      </span>
+                    </>
+                  )}
+                  {posSettings.scannerType === 'camera' && (
+                    <>
+                      <div className="w-2 h-2 rounded-full bg-orange-400" />
+                      <span className="text-sm text-gray-600">
+                        Camera Mode - Click Scan to use
+                      </span>
+                    </>
+                  )}
+                  {lastScan && (posSettings.scannerType === 'usb' || posSettings.scannerType === 'bluetooth') && (
+                    <span className="text-xs text-gray-400">
+                      Last: {lastScan.slice(0, 12)}{lastScan.length > 12 ? '...' : ''}
+                    </span>
+                  )}
+                  {scanCount > 0 && (posSettings.scannerType === 'usb' || posSettings.scannerType === 'bluetooth') && (
+                    <Badge variant="secondary" className="text-xs">
+                      {scanCount} scans
+                    </Badge>
+                  )}
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSoundEnabled(!soundEnabled)}
+                  className="h-8 w-8 p-0"
+                  title={soundEnabled ? 'Mute sounds' : 'Enable sounds'}
+                >
+                  {soundEnabled ? (
+                    <Volume2 className="h-4 w-4 text-gray-600" />
+                  ) : (
+                    <VolumeX className="h-4 w-4 text-gray-400" />
+                  )}
+                </Button>
+              </div>
+            )}
             
             {/* Search Bar */}
             <div className="relative mb-4">
-              <Scan className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-              <Input
-                type="text"
-                placeholder="Search or Scan product..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-11 h-11 text-sm border-gray-300 focus-visible:ring-[#FF5722] shadow-sm"
-              />
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Scan className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                  <Input
+                    type="text"
+                    placeholder="Search or Scan product..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-11 h-11 text-sm border-gray-300 focus-visible:ring-[#FF5722] shadow-sm"
+                  />
+                </div>
+                <Button
+                  onClick={() => setShowBarcodeScanner(true)}
+                  className="h-11 bg-[#FF6A00] hover:bg-[#E65F00] gap-2"
+                >
+                  <Scan className="h-5 w-5" />
+                  Scan
+                </Button>
+              </div>
             </div>
 
             {/* Quick Filter Pills */}
@@ -849,7 +1413,7 @@ export function SellerPOS() {
                             </div>
                           )}
                           <p className="text-xs text-gray-500 mt-0.5">
-                            ₱{item.price.toLocaleString()} each
+                            ₱{item.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} each
                           </p>
                           
                           {/* Quantity Controls - Unified Pill */}
@@ -896,7 +1460,7 @@ export function SellerPOS() {
                         {/* Item Subtotal */}
                         <div className="text-right flex-shrink-0">
                           <p className="text-sm font-bold text-gray-900">
-                            ₱{(item.price * item.quantity).toLocaleString()}
+                            ₱{(item.price * item.quantity).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </p>
                         </div>
                       </div>
@@ -936,23 +1500,83 @@ export function SellerPOS() {
               <div className="px-5 py-4 space-y-2 bg-gray-50/50">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Subtotal</span>
-                  <span className="font-medium text-gray-700">₱{cartTotal.toLocaleString()}</span>
+                  <span className="font-medium text-gray-700">₱{cartTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Discount</span>
                   <span className="font-medium text-gray-700">₱0.00</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Tax</span>
-                  <span className="font-medium text-gray-700">₱0.00</span>
+                  <span className="text-muted-foreground flex items-center gap-1">
+                    {posSettings?.enableTax && (
+                      <Calculator className="h-3 w-3" />
+                    )}
+                    Tax {posSettings?.enableTax && `(${posSettings.taxRate}%)`}
+                  </span>
+                  <span className="font-medium text-gray-700">
+                    ₱{calculateTax(cartTotal).tax.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
                 </div>
                 
                 {/* Total - Massive */}
                 <div className="flex items-center justify-between pt-3 border-t border-gray-200">
                   <span className="text-lg font-bold text-gray-900">Total</span>
-                  <span className="text-3xl font-extrabold text-gray-900">₱{cartTotal.toLocaleString()}</span>
+                  <span className="text-3xl font-extrabold text-gray-900">
+                    ₱{calculateTax(cartTotal).total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
                 </div>
               </div>
+
+              {/* Payment Method Selector */}
+              {posSettings && posSettings.acceptedPaymentMethods.length > 1 && (
+                <div className="px-5 py-3 border-t border-gray-100">
+                  <label className="text-xs font-medium text-gray-500 mb-2 block">Payment Method</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {posSettings.acceptedPaymentMethods.includes('cash') && (
+                      <Button
+                        variant={paymentMethod === 'cash' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setPaymentMethod('cash')}
+                        className={paymentMethod === 'cash' ? 'bg-[#FF6A00] hover:bg-[#E65F00]' : ''}
+                      >
+                        <DollarSign className="h-4 w-4 mr-1" />
+                        Cash
+                      </Button>
+                    )}
+                    {posSettings.acceptedPaymentMethods.includes('card') && (
+                      <Button
+                        variant={paymentMethod === 'card' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setPaymentMethod('card')}
+                        className={paymentMethod === 'card' ? 'bg-[#FF6A00] hover:bg-[#E65F00]' : ''}
+                      >
+                        <CreditCard className="h-4 w-4 mr-1" />
+                        Card
+                      </Button>
+                    )}
+                    {posSettings.acceptedPaymentMethods.includes('ewallet') && (
+                      <Button
+                        variant={paymentMethod === 'ewallet' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setPaymentMethod('ewallet')}
+                        className={paymentMethod === 'ewallet' ? 'bg-[#FF6A00] hover:bg-[#E65F00]' : ''}
+                      >
+                        E-Wallet
+                      </Button>
+                    )}
+                    {posSettings.acceptedPaymentMethods.includes('bank_transfer') && (
+                      <Button
+                        variant={paymentMethod === 'bank_transfer' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setPaymentMethod('bank_transfer')}
+                        className={paymentMethod === 'bank_transfer' ? 'bg-[#FF6A00] hover:bg-[#E65F00]' : ''}
+                      >
+                        Bank
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Charge Button */}
               <div className="px-5 py-4 bg-white">
@@ -965,8 +1589,9 @@ export function SellerPOS() {
                     <>Processing...</>
                   ) : (
                     <>
-                      <CreditCard className="h-5 w-5 mr-2" />
-                      Charge ₱{cartTotal.toLocaleString()}
+                      {paymentMethod === 'cash' && <DollarSign className="h-5 w-5 mr-2" />}
+                      {paymentMethod === 'card' && <CreditCard className="h-5 w-5 mr-2" />}
+                      Charge ₱{calculateTax(cartTotal).total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </>
                   )}
                 </Button>
@@ -1235,11 +1860,11 @@ export function SellerPOS() {
                         </div>
                       )}
                       <div className="text-xs text-gray-500">
-                        {item.quantity} × ₱{item.price.toLocaleString()}
+                        {item.quantity} × ₱{item.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </div>
                     </div>
                     <div className="font-medium text-gray-800">
-                      ₱{(item.price * item.quantity).toLocaleString()}
+                      ₱{(item.price * item.quantity).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </div>
                   </div>
                 ))}
@@ -1247,17 +1872,40 @@ export function SellerPOS() {
               
               {/* Totals */}
               <div className="space-y-1 text-sm">
-                <div className="flex justify-between text-gray-600">
-                  <span>Subtotal</span>
-                  <span>₱{receiptData?.subtotal.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between text-gray-600">
-                  <span>Tax</span>
-                  <span>₱{(receiptData?.tax || 0).toLocaleString()}</span>
-                </div>
+                {posSettings?.enableTax && posSettings?.taxIncludedInPrice ? (
+                  // Tax-inclusive display - show VAT breakdown
+                  <>
+                    <div className="flex justify-between text-gray-600">
+                      <span>VATable Sales</span>
+                      <span>₱{((receiptData?.subtotal || 0) / (1 + (posSettings?.taxRate || 12) / 100)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="flex justify-between text-gray-600">
+                      <span>VAT ({posSettings?.taxRate || 12}%)</span>
+                      <span>₱{(receiptData?.tax || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                  </>
+                ) : posSettings?.enableTax ? (
+                  // Tax-exclusive display - tax added on top
+                  <>
+                    <div className="flex justify-between text-gray-600">
+                      <span>Subtotal</span>
+                      <span>₱{(receiptData?.subtotal || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="flex justify-between text-gray-600">
+                      <span>Tax ({posSettings?.taxRate || 12}%)</span>
+                      <span>₱{(receiptData?.tax || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                  </>
+                ) : (
+                  // No tax
+                  <div className="flex justify-between text-gray-600">
+                    <span>Subtotal</span>
+                    <span>₱{(receiptData?.subtotal || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-lg font-bold text-[#FF5722] pt-2 border-t border-gray-200">
                   <span>TOTAL</span>
-                  <span>₱{receiptData?.total.toLocaleString()}</span>
+                  <span>₱{(receiptData?.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
               </div>
               
@@ -1269,7 +1917,14 @@ export function SellerPOS() {
               
               {/* Payment Badge */}
               <div className="text-center mt-3">
-                <Badge className="bg-green-500 text-white">✓ PAID - CASH</Badge>
+                <Badge className="bg-green-500 text-white">
+                  ✓ PAID - {
+                    receiptData?.paymentMethod === 'cash' ? 'CASH' :
+                    receiptData?.paymentMethod === 'card' ? 'CARD' :
+                    receiptData?.paymentMethod === 'ewallet' ? 'E-WALLET' :
+                    receiptData?.paymentMethod === 'bank_transfer' ? 'BANK TRANSFER' : 'CASH'
+                  }
+                </Badge>
               </div>
             </div>
             
@@ -1306,6 +1961,57 @@ export function SellerPOS() {
           </Button>
         </DialogContent>
       </Dialog>
+
+      {/* Barcode Scanner Dialog */}
+      <BarcodeScanner
+        open={showBarcodeScanner}
+        onClose={() => setShowBarcodeScanner(false)}
+        onBarcode={handleBarcodeScanned}
+        scannerType={posSettings?.scannerType ?? 'camera'}
+        autoAddOnScan={posSettings?.autoAddOnScan ?? true}
+      />
+
+      {/* Staff Login Dialog */}
+      <StaffLogin
+        open={showStaffLogin}
+        onClose={() => setShowStaffLogin(false)}
+        onLogin={handleStaffLogin}
+        currentStaff={currentStaff}
+      />
+
+      {/* Cash Drawer Manager Dialog */}
+      <CashDrawerManager
+        open={showCashDrawer}
+        onClose={() => setShowCashDrawer(false)}
+        currentSession={cashDrawerSession}
+        staff={currentStaff}
+        onSessionStart={handleSessionStart}
+        onSessionEnd={handleSessionEnd}
+      />
+
+      {/* POS Settings Modal */}
+      {seller?.id && (
+        <POSSettingsModal
+          open={showPOSSettings}
+          onClose={() => setShowPOSSettings(false)}
+          sellerId={seller.id}
+          onSettingsChange={(newSettings) => setPOSSettings(newSettings)}
+        />
+      )}
+
+      {/* Quick Product Modal - for creating products from barcode scan */}
+      {seller?.id && (
+        <QuickProductModal
+          open={showQuickProductModal}
+          onClose={() => {
+            setShowQuickProductModal(false);
+            setPendingBarcode('');
+          }}
+          onProductCreated={handleQuickProductCreated}
+          initialBarcode={pendingBarcode}
+          sellerId={seller.id}
+        />
+      )}
     </div>
   );
 }

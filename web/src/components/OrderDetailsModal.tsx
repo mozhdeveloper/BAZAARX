@@ -318,8 +318,7 @@ export function OrderDetailsModal({
                                                                 : ""}
                                                         </p>
                                                         <p className="text-sm text-gray-500">
-                                                            ₱
-                                                            {item.price.toLocaleString()}
+                                                            ₱{item.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                         </p>
                                                     </div>
                                                 </div>
@@ -328,28 +327,46 @@ export function OrderDetailsModal({
                                             <div className="pt-4 border-t border-gray-100 space-y-2">
                                                 <div className="flex justify-between text-sm">
                                                     <span className="text-gray-500">
-                                                        Subtotal
+                                                        {order.type === 'OFFLINE' ? 'VATable Sales' : 'Subtotal'}
                                                     </span>
                                                     <span className="font-medium text-gray-900">
-                                                        ₱
-                                                        {order.total.toLocaleString()}
+                                                        ₱{order.type === 'OFFLINE' 
+                                                            ? (order.total / 1.12).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                                                            : order.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                                                        }
                                                     </span>
                                                 </div>
                                                 <div className="flex justify-between text-sm">
                                                     <span className="text-gray-500">
-                                                        Tax (0%)
+                                                        {order.type === 'OFFLINE' ? 'VAT (12%)' : 'Tax (0%)'}
                                                     </span>
                                                     <span className="font-medium text-gray-900">
-                                                        ₱0.00
+                                                        ₱{order.type === 'OFFLINE'
+                                                            ? (order.total - order.total / 1.12).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                                                            : '0.00'
+                                                        }
                                                     </span>
                                                 </div>
+                                                {/* Payment Method */}
+                                                {order.paymentMethod && (
+                                                    <div className="flex justify-between text-sm">
+                                                        <span className="text-gray-500">Payment Method</span>
+                                                        <span className="font-medium text-gray-900">
+                                                            {order.paymentMethod === 'cash' && 'Cash'}
+                                                            {order.paymentMethod === 'card' && 'Card'}
+                                                            {order.paymentMethod === 'ewallet' && 'E-Wallet'}
+                                                            {order.paymentMethod === 'bank_transfer' && 'Bank Transfer'}
+                                                            {order.paymentMethod === 'cod' && 'COD'}
+                                                            {order.paymentMethod === 'online' && 'Online Payment'}
+                                                        </span>
+                                                    </div>
+                                                )}
                                                 <div className="flex justify-between text-base pt-2 font-semibold border-t border-gray-50 mt-2">
                                                     <span className="text-gray-900">
                                                         Total amount
                                                     </span>
                                                     <span className="text-gray-900">
-                                                        ₱
-                                                        {order.total.toLocaleString()}
+                                                        ₱{order.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                     </span>
                                                 </div>
                                             </div>

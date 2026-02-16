@@ -51,6 +51,7 @@ interface CreatePOSOrderInput {
   total: number;
   note?: string;
   buyerEmail?: string;
+  paymentMethod?: 'cash' | 'card' | 'ewallet' | 'bank_transfer';
 }
 
 class OrderMutationService {
@@ -129,6 +130,7 @@ class OrderMutationService {
     total,
     note,
     buyerEmail,
+    paymentMethod,
   }: CreatePOSOrderInput): Promise<{
     orderId: string;
     orderNumber: string;
@@ -141,6 +143,7 @@ class OrderMutationService {
       total,
       note,
       buyerEmail,
+      paymentMethod,
     );
   }
 }

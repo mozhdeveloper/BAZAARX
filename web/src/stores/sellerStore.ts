@@ -119,6 +119,7 @@ export interface SellerOrder {
     total: number;
     status: "pending" | "confirmed" | "shipped" | "delivered" | "cancelled";
     paymentStatus: "pending" | "paid" | "refunded";
+    paymentMethod?: "cash" | "card" | "ewallet" | "bank_transfer" | "cod" | "online"; // Payment method used
     orderDate: string;
     shippingAddress: {
         fullName: string;
@@ -843,16 +844,9 @@ export const useProductStore = create<ProductStore>()(
                 set({ loading: true, error: null });
                 try {
                     const data = await productService.getProducts(filters);
-                    console.log("🔍 Raw product data from DB:", data);
-                    console.log(
-                        "🔍 First product seller info:",
-                        data?.[0]?.seller,
-                    );
                     const mappedProducts = (data || []).map(
                         mapDbProductToSellerProduct,
                     );
-                    console.log("🔍 Mapped products:", mappedProducts);
-                    console.log("🔍 First mapped product:", mappedProducts[0]);
                     set({
                         products: mappedProducts,
                         loading: false,
