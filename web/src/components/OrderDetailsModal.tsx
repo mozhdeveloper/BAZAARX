@@ -9,6 +9,7 @@ import {
     Phone,
     Truck,
     CheckCircle,
+    Star,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -181,6 +182,24 @@ export function OrderDetailsModal({
                 );
         }
     };
+
+    const latestReview =
+        order.reviews?.[0] ||
+        (typeof order.rating === "number"
+            ? {
+                  id: `legacy-${order.id}`,
+                  productId: null,
+                  rating: order.rating,
+                  comment: order.reviewComment || "",
+                  images: Array.isArray(order.reviewImages)
+                      ? order.reviewImages
+                      : [],
+                  submittedAt:
+                      order.reviewDate ||
+                      order.deliveredAt ||
+                      order.orderDate,
+              }
+            : null);
 
     return (
         <AnimatePresence>
@@ -356,6 +375,69 @@ export function OrderDetailsModal({
                                         </p>
                                     </div>
                                 </div>
+
+                                {latestReview && (
+                                    <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-4">
+                                        <div className="flex items-center justify-between gap-3 mb-3">
+                                            <span className="font-semibold text-gray-900 text-sm block">
+                                                Buyer Review
+                                            </span>
+                                            <span className="text-xs text-gray-500">
+                                                {new Date(
+                                                    latestReview.submittedAt,
+                                                ).toLocaleDateString("en-US", {
+                                                    month: "short",
+                                                    day: "numeric",
+                                                    year: "numeric",
+                                                })}
+                                            </span>
+                                        </div>
+
+                                        <div className="flex items-center gap-1 mb-3">
+                                            {[1, 2, 3, 4, 5].map((star) => (
+                                                <Star
+                                                    key={star}
+                                                    className={`w-4 h-4 ${
+                                                        star <=
+                                                        latestReview.rating
+                                                            ? "fill-yellow-400 text-yellow-400"
+                                                            : "text-gray-300"
+                                                    }`}
+                                                />
+                                            ))}
+                                            <span className="text-xs font-medium text-gray-600 ml-1">
+                                                {latestReview.rating.toFixed(1)}
+                                                /5
+                                            </span>
+                                        </div>
+
+                                        {latestReview.comment ? (
+                                            <p className="text-sm text-gray-700 leading-relaxed bg-gray-50 border border-gray-100 rounded-lg px-3 py-2">
+                                                "{latestReview.comment}"
+                                            </p>
+                                        ) : (
+                                            <p className="text-sm text-gray-500">
+                                                Buyer left a rating without a
+                                                comment.
+                                            </p>
+                                        )}
+
+                                        {latestReview.images.length > 0 && (
+                                            <div className="flex gap-2 mt-3">
+                                                {latestReview.images.map(
+                                                    (image, index) => (
+                                                        <img
+                                                            key={`${latestReview.id}-${index}`}
+                                                            src={image}
+                                                            alt={`Review ${index + 1}`}
+                                                            className="w-16 h-16 rounded-lg object-cover border border-gray-200"
+                                                        />
+                                                    ),
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
 
                                 {/* Delivery Information */}
                                 <AccordionItem

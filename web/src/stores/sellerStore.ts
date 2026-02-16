@@ -137,6 +137,14 @@ export interface SellerOrder {
     reviewComment?: string;
     reviewImages?: string[];
     reviewDate?: string;
+    reviews?: {
+        id: string;
+        productId: string | null;
+        rating: number;
+        comment: string;
+        images: string[];
+        submittedAt: string;
+    }[];
     type?: "ONLINE" | "OFFLINE"; // POS-Lite: Track order source
     posNote?: string; // POS-Lite: Optional note for offline sales
     notes?: string; // Unified notes field

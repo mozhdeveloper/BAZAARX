@@ -18,6 +18,7 @@ import {
   Printer,
   CreditCard,
   AlertCircle,
+  Star,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
@@ -662,10 +663,21 @@ export function SellerOrders() {
                         )}
                       </TableCell>
 
-                    {/* Status */}
-                    <TableCell>
-                      <OrderStatusBadge status={order.status} compact />
-                    </TableCell>
+                     {/* Status */}
+                     <TableCell>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <OrderStatusBadge status={order.status} compact />
+                        {order.reviewDate && (
+                          <Badge
+                            variant="outline"
+                            className="border-yellow-300 text-yellow-700 bg-yellow-50"
+                          >
+                            <Star className="h-3 w-3 mr-1 fill-yellow-400 text-yellow-400" />
+                            {order.rating ? `${order.rating.toFixed(1)}/5` : "Reviewed"}
+                          </Badge>
+                        )}
+                      </div>
+                     </TableCell>
 
                       {/* Payment Status */}
                       <TableCell>

@@ -120,6 +120,25 @@ export class OrderReadService {
           cancelled_at,
           cancelled_by,
           created_at
+        ),
+        reviews (
+          id,
+          product_id,
+          buyer_id,
+          order_id,
+          order_item_id,
+          variant_snapshot,
+          rating,
+          comment,
+          is_hidden,
+          created_at,
+          updated_at,
+          review_images (
+            id,
+            image_url,
+            sort_order,
+            uploaded_at
+          )
         )
       `)
       .eq(isUuid ? "id" : "order_number", orderIdOrNumber);

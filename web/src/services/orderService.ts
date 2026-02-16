@@ -16,7 +16,7 @@ import type {
     ShipmentStatus,
     Database,
 } from "@/types/database.types";
-import { reviewService } from "./reviewService";
+import { uploadReviewImages } from "@/utils/storage";
 import { orderNotificationService } from "./orderNotificationService";
 import { notificationService } from "./notificationService";
 
@@ -166,6 +166,123 @@ const getLatestCancellation = (cancellations: any[]) => {
     });
 
     return sorted[0];
+};
+
+const isHttpUrl = (value: unknown): value is string =>
+    typeof value === "string" && /^https?:\/\//i.test(value.trim());
+
+const isBrowserFile = (value: unknown): value is File =>
+    typeof File !== "undefined" && value instanceof File;
+
+const getRelationRow = <T>(value: T | T[] | null | undefined): T | null => {
+    if (Array.isArray(value)) {
+        return value[0] || null;
+    }
+
+    return value || null;
+};
+
+const asNonEmptyString = (value: unknown): string | null => {
+    if (typeof value !== "string") {
+        return null;
+    }
+
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+};
+
+const compactRecord = (record: Record<string, unknown>): Record<string, unknown> => {
+    return Object.fromEntries(
+        Object.entries(record).filter(([, value]) => {
+            if (value === null || value === undefined) {
+                return false;
+            }
+
+            if (typeof value === "string" && value.trim().length === 0) {
+                return false;
+            }
+
+            return true;
+        }),
+    );
+};
+
+const buildVariantSnapshot = (orderItem: any): Record<string, unknown> | null => {
+    const variant = getRelationRow(orderItem?.variant);
+    const product = getRelationRow(orderItem?.product);
+
+    const option1Value =
+        asNonEmptyString(variant?.option_1_value) ||
+        asNonEmptyString(variant?.size) ||
+        asNonEmptyString(orderItem?.personalized_options?.variantLabel1);
+    const option2Value =
+        asNonEmptyString(variant?.option_2_value) ||
+        asNonEmptyString(variant?.color) ||
+        asNonEmptyString(orderItem?.personalized_options?.variantLabel2);
+    const option1Label = asNonEmptyString(product?.variant_label_1);
+    const option2Label = asNonEmptyString(product?.variant_label_2);
+    const variantName = asNonEmptyString(variant?.variant_name);
+
+    const displayParts: string[] = [];
+    if (variantName) {
+        displayParts.push(variantName);
+    }
+    if (option1Value) {
+        displayParts.push(
+            option1Label ? `${option1Label}: ${option1Value}` : option1Value,
+        );
+    }
+    if (option2Value) {
+        displayParts.push(
+            option2Label ? `${option2Label}: ${option2Value}` : option2Value,
+        );
+    }
+
+    const snapshot = compactRecord({
+        order_item_id: orderItem?.id || null,
+        product_id: orderItem?.product_id || null,
+        product_name:
+            asNonEmptyString(orderItem?.product_name) ||
+            asNonEmptyString(product?.name),
+        variant_id: orderItem?.variant_id || variant?.id || null,
+        variant_name: variantName,
+        sku: asNonEmptyString(variant?.sku),
+        option_1_label: option1Label,
+        option_1_value: option1Value,
+        option_2_label: option2Label,
+        option_2_value: option2Value,
+        display: displayParts.length > 0 ? displayParts.join(" / ") : null,
+    });
+
+    return Object.keys(snapshot).length > 0 ? snapshot : null;
+};
+
+const normalizeReviewRows = (reviews: any[]) => {
+    if (!Array.isArray(reviews)) {
+        return [];
+    }
+
+    return reviews
+        .filter((review) => Boolean(review) && review.is_hidden !== true)
+        .map((review) => ({
+            ...review,
+            review_images: Array.isArray(review.review_images)
+                ? [...review.review_images].sort(
+                      (a: any, b: any) =>
+                          Number(a?.sort_order || 0) -
+                          Number(b?.sort_order || 0),
+                  )
+                : [],
+        }))
+        .sort((a: any, b: any) => {
+            const aDate = new Date(
+                a.created_at || a.updated_at || 0,
+            ).getTime();
+            const bDate = new Date(
+                b.created_at || b.updated_at || 0,
+            ).getTime();
+            return bDate - aDate;
+        });
 };
 
 const mapNormalizedToBuyerUiStatus = (
@@ -645,6 +762,25 @@ export class OrderService {
                         cancelled_at,
                         cancelled_by,
                         created_at
+                    ),
+                    reviews (
+                        id,
+                        product_id,
+                        buyer_id,
+                        order_id,
+                        order_item_id,
+                        variant_snapshot,
+                        rating,
+                        comment,
+                        is_hidden,
+                        created_at,
+                        updated_at,
+                        review_images (
+                            id,
+                            image_url,
+                            sort_order,
+                            uploaded_at
+                        )
                     )
                 `,
                 )
@@ -669,7 +805,18 @@ export class OrderService {
                 const recipient = order.recipient || {};
                 const shippingAddr = order.shipping_address || {};
                 const latestShipment = getLatestShipment(order.shipments || []);
-                const latestCancellation = getLatestCancellation(order.cancellations || []);
+                const latestCancellation = getLatestCancellation(
+                    order.cancellations || [],
+                );
+                const orderReviews = normalizeReviewRows(order.reviews || []);
+                const latestReview = orderReviews[0];
+                const latestReviewImages = Array.isArray(
+                    latestReview?.review_images,
+                )
+                    ? latestReview.review_images
+                          .map((image: any) => image?.image_url)
+                          .filter(isHttpUrl)
+                    : [];
 
                 const normalizedItems = (order.order_items || []).map((item: any) => ({
                     ...item,
@@ -698,12 +845,14 @@ export class OrderService {
                 ].filter(Boolean).join(", ");
 
                 const hasCancellationRecord = Boolean(latestCancellation);
+                const hasReviews = orderReviews.length > 0;
 
                 return {
                     ...order,
                     order_items: normalizedItems,
                     shipments: order.shipments || [],
                     cancellations: order.cancellations || [],
+                    reviews: orderReviews,
                     seller_id: firstSellerItem?.seller_id || null,
                     store_name: firstSellerItem?.seller_name || "Unknown Store",
                     total_amount: totalAmount,
@@ -711,8 +860,16 @@ export class OrderService {
                         order.payment_status,
                         order.shipment_status,
                         hasCancellationRecord,
-                        Boolean(order.is_reviewed),
+                        hasReviews,
                     ),
+                    is_reviewed: hasReviews,
+                    rating:
+                        typeof latestReview?.rating === "number"
+                            ? latestReview.rating
+                            : null,
+                    review_comment: latestReview?.comment || null,
+                    review_images: latestReviewImages,
+                    review_date: latestReview?.created_at || null,
                     buyer_name: buyerName,
                     buyer_phone: recipient?.phone || fallbackAddress?.phone || "",
                     buyer_email: recipient?.email || "",
@@ -829,6 +986,28 @@ export class OrderService {
                         shipped_at,
                         delivered_at,
                         created_at
+                    ),
+                    reviews (
+                        id,
+                        product_id,
+                        buyer_id,
+                        order_id,
+                        order_item_id,
+                        variant_snapshot,
+                        rating,
+                        comment,
+                        is_hidden,
+                        created_at,
+                        updated_at,
+                        product:products!reviews_product_id_fkey (
+                            seller_id
+                        ),
+                        review_images (
+                            id,
+                            image_url,
+                            sort_order,
+                            uploaded_at
+                        )
                     )
                 `)
                 .in("id", orderIds);
@@ -852,6 +1031,29 @@ export class OrderService {
                     productIds.includes(item.product_id),
                 );
                 const latestShipment = getLatestShipment(order.shipments || []);
+                const orderReviews = normalizeReviewRows(order.reviews || []);
+                const sellerReviews = orderReviews.filter((review: any) => {
+                    const productRef = Array.isArray(review.product)
+                        ? review.product[0]
+                        : review.product;
+
+                    if (productRef?.seller_id) {
+                        return productRef.seller_id === sellerId;
+                    }
+
+                    return (
+                        typeof review.product_id === "string" &&
+                        productIds.includes(review.product_id)
+                    );
+                });
+                const latestReview = sellerReviews[0];
+                const latestReviewImages = Array.isArray(
+                    latestReview?.review_images,
+                )
+                    ? latestReview.review_images
+                          .map((image: any) => image?.image_url)
+                          .filter(isHttpUrl)
+                    : [];
 
                 const totalAmount = sellerItems.reduce(
                     (sum: number, item: any) => {
@@ -895,9 +1097,18 @@ export class OrderService {
                     ...order,
                     order_items: sellerItems, // Only include this seller's items
                     shipments: order.shipments || [],
+                    reviews: sellerReviews,
                     seller_id: sellerId, // Add for compatibility
                     total_amount: totalAmount,
                     status: legacyStatus,
+                    is_reviewed: sellerReviews.length > 0,
+                    rating:
+                        typeof latestReview?.rating === "number"
+                            ? latestReview.rating
+                            : null,
+                    review_comment: latestReview?.comment || null,
+                    review_images: latestReviewImages,
+                    review_date: latestReview?.created_at || null,
                     buyer_name: buyerName,
                     buyer_phone: recipient?.phone || fallbackAddress?.phone || "",
                     buyer_email: recipient?.email || "",
@@ -1642,6 +1853,7 @@ export class OrderService {
         rating: number,
         comment: string,
         images?: string[],
+        imageFiles?: File[],
     ): Promise<boolean> {
         if (!orderId || !buyerId) {
             throw new Error("Order ID and Buyer ID are required");
@@ -1651,19 +1863,61 @@ export class OrderService {
             throw new Error("Rating must be between 1 and 5");
         }
 
-        if (!comment?.trim()) {
+        const normalizedComment = comment?.trim();
+
+        if (!normalizedComment) {
             throw new Error("Review comment is required");
         }
+
+        const sanitizedImageUrls = (images || [])
+            .map((image) => image?.trim())
+            .filter(isHttpUrl);
+        const validImageFiles = Array.isArray(imageFiles)
+            ? imageFiles.filter((file): file is File => isBrowserFile(file))
+            : [];
 
         if (!isSupabaseConfigured()) {
             const order = this.mockOrders.find(
                 (o) => o.id === orderId && o.buyer_id === buyerId,
             );
             if (order) {
+                const firstOrderItem = (order as any).order_items?.[0] || null;
+                const mockUploadedImageUrls = validImageFiles.map(
+                    (file) =>
+                        `https://via.placeholder.com/300?text=${encodeURIComponent(
+                            file.name,
+                        )}`,
+                );
+                const resolvedImageUrls = Array.from(
+                    new Set([...sanitizedImageUrls, ...mockUploadedImageUrls]),
+                );
+
+                const mockReview = {
+                    id: crypto.randomUUID(),
+                    order_id: orderId,
+                    order_item_id: firstOrderItem?.id || null,
+                    product_id: firstOrderItem?.product_id || null,
+                    buyer_id: buyerId,
+                    rating,
+                    comment: normalizedComment,
+                    variant_snapshot: buildVariantSnapshot(firstOrderItem),
+                    created_at: new Date().toISOString(),
+                    review_images: resolvedImageUrls.map((imageUrl, index) => ({
+                        id: crypto.randomUUID(),
+                        image_url: imageUrl,
+                        sort_order: index,
+                    })),
+                };
+
+                const existingReviews = Array.isArray((order as any).reviews)
+                    ? (order as any).reviews
+                    : [];
+
+                (order as any).reviews = [mockReview, ...existingReviews];
                 order.is_reviewed = true;
                 order.rating = rating;
-                order.review_comment = comment;
-                order.review_images = images || [];
+                order.review_comment = normalizedComment;
+                order.review_images = resolvedImageUrls;
                 order.review_date = new Date().toISOString();
                 return true;
             }
@@ -1675,9 +1929,31 @@ export class OrderService {
                 .from("orders")
                 .select(
                     `
-          *,
+          id,
+          buyer_id,
+          shipment_status,
           order_items (
-            product_id
+            id,
+            product_id,
+            product_name,
+            variant_id,
+            personalized_options,
+            product:products!order_items_product_id_fkey (
+              id,
+              name,
+              variant_label_1,
+              variant_label_2
+            ),
+            variant:product_variants!order_items_variant_id_fkey (
+              id,
+              sku,
+              variant_name,
+              size,
+              color,
+              option_1_value,
+              option_2_value,
+              thumbnail_url
+            )
           )
         `,
                 )
@@ -1698,38 +1974,79 @@ export class OrderService {
                 );
             }
 
-            const orderItems = order.order_items || [];
+            const orderItems = Array.isArray(order.order_items)
+                ? order.order_items
+                : [];
+
+            const reviewableOrderItems = orderItems.filter(
+                (item: any) =>
+                    typeof item?.id === "string" &&
+                    item.id.length > 0 &&
+                    typeof item?.product_id === "string" &&
+                    item.product_id.length > 0,
+            );
+
+            if (reviewableOrderItems.length === 0) {
+                throw new Error("No reviewable products found for this order");
+            }
+
+            const { data: existingReviews, error: existingReviewsError } =
+                await supabase
+                    .from("reviews")
+                    .select("id, product_id, order_item_id")
+                    .eq("order_id", orderId)
+                    .eq("buyer_id", buyerId);
+
+            if (existingReviewsError) {
+                throw existingReviewsError;
+            }
+
+            const reviewedOrderItemIds = new Set(
+                (existingReviews || [])
+                    .map((review) => review.order_item_id)
+                    .filter(
+                        (orderItemId): orderItemId is string =>
+                            typeof orderItemId === "string",
+                    ),
+            );
+
+            const reviewedLegacyProductIds = new Set(
+                (existingReviews || [])
+                    .filter((review) => !review.order_item_id)
+                    .map((review) => review.product_id)
+                    .filter(
+                        (productId): productId is string =>
+                            typeof productId === "string",
+                    ),
+            );
+
             let successCount = 0;
+            let skippedCount = 0;
 
-            let sellerId: string | undefined;
-            if (orderItems.length > 0) {
-                const { data: product } = await supabase
-                    .from("products")
-                    .select("seller_id")
-                    .eq("id", orderItems[0].product_id)
-                    .single();
-                sellerId = product?.seller_id;
-            }
+            for (const orderItem of reviewableOrderItems) {
+                const orderItemId = orderItem.id as string;
+                const productId = orderItem.product_id as string;
 
-            if (!sellerId) {
-                throw new Error("Unable to determine seller for review");
-            }
+                if (reviewedOrderItemIds.has(orderItemId)) {
+                    skippedCount++;
+                    continue;
+                }
 
-            for (const item of orderItems) {
-                const exists = await reviewService.hasReviewForProduct(
-                    orderId,
-                    item.product_id,
-                );
-                if (exists) continue;
+                if (reviewedLegacyProductIds.has(productId)) {
+                    skippedCount++;
+                    continue;
+                }
 
-                const reviewPayload = {
+                const variantSnapshot = buildVariantSnapshot(orderItem);
+
+                const reviewPayload: Database["public"]["Tables"]["reviews"]["Insert"] = {
                     order_id: orderId,
-                    product_id: item.product_id,
+                    order_item_id: orderItemId,
+                    product_id: productId,
                     buyer_id: buyerId,
-                    seller_id: sellerId,
-                    rating: rating,
-                    comment: comment.trim(),
-                    images: images || [],
+                    rating,
+                    comment: normalizedComment,
+                    variant_snapshot: variantSnapshot,
                     is_verified_purchase: true,
                     helpful_count: 0,
                     seller_reply: null,
@@ -1737,13 +2054,71 @@ export class OrderService {
                     is_edited: false,
                 };
 
-                const review = await reviewService.createReview(
-                    reviewPayload as any,
+                const { data: createdReview, error: reviewInsertError } =
+                    await supabase
+                        .from("reviews")
+                        .insert(reviewPayload)
+                        .select("id")
+                        .single();
+
+                if (reviewInsertError) {
+                    if ((reviewInsertError as any)?.code === "23505") {
+                        skippedCount++;
+                        continue;
+                    }
+                    throw reviewInsertError;
+                }
+
+                let uploadedImageUrls: string[] = [];
+
+                if (createdReview?.id && validImageFiles.length > 0) {
+                    uploadedImageUrls = (
+                        await uploadReviewImages(
+                            validImageFiles,
+                            createdReview.id,
+                            buyerId,
+                        )
+                    ).filter(isHttpUrl);
+
+                    if (uploadedImageUrls.length < validImageFiles.length) {
+                        console.warn(
+                            `Only ${uploadedImageUrls.length} of ${validImageFiles.length} review image(s) uploaded for review ${createdReview.id}`,
+                        );
+                    }
+                }
+
+                const resolvedImageUrls = Array.from(
+                    new Set([...sanitizedImageUrls, ...uploadedImageUrls]),
                 );
-                if (review) successCount++;
+
+                if (createdReview?.id && resolvedImageUrls.length > 0) {
+                    const imageRows: Database["public"]["Tables"]["review_images"]["Insert"][] =
+                        resolvedImageUrls.map((imageUrl, index) => ({
+                            review_id: createdReview.id,
+                            image_url: imageUrl,
+                            sort_order: index,
+                        }));
+
+                    const { error: reviewImagesError } = await supabase
+                        .from("review_images")
+                        .insert(imageRows);
+
+                    if (reviewImagesError) {
+                        console.warn(
+                            "Failed to insert review images metadata:",
+                            reviewImagesError,
+                        );
+                    }
+                }
+
+                successCount++;
             }
 
-            if (successCount === 0) {
+            const alreadyReviewedEverything =
+                successCount === 0 &&
+                skippedCount >= reviewableOrderItems.length;
+
+            if (!alreadyReviewedEverything && successCount === 0) {
                 return false;
             }
 
@@ -1753,6 +2128,11 @@ export class OrderService {
             return true;
         } catch (error) {
             console.error("Error submitting review:", error);
+
+            if (error instanceof Error) {
+                throw new Error(error.message);
+            }
+
             throw new Error("Failed to submit review");
         }
     }
