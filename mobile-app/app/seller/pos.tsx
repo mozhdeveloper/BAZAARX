@@ -35,6 +35,7 @@ import {
   X,
   Printer,
   Receipt,
+  Menu,
 } from 'lucide-react-native';
 import { useSellerStore } from '../../src/stores/sellerStore';
 import { useOrderStore } from '../../src/stores/orderStore';
@@ -98,7 +99,7 @@ export default function POSScreen() {
   const [successOrderId, setSuccessOrderId] = useState('');
   const [showCartModal, setShowCartModal] = useState(false);
   const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
-  
+
   // Variant selection state
   const [selectedProduct, setSelectedProduct] = useState<typeof products[0] | null>(null);
   const [showProductModal, setShowProductModal] = useState(false);
@@ -141,7 +142,7 @@ export default function POSScreen() {
     if (product.stock <= 0) return;
 
     const hasVariants = (product.colors && product.colors.length > 0) || (product.sizes && product.sizes.length > 0);
-    const variantKey = hasVariants 
+    const variantKey = hasVariants
       ? `${product.id}-${color || 'none'}-${size || 'none'}`
       : product.id;
 
@@ -155,8 +156,8 @@ export default function POSScreen() {
 
       setCart(
         cart.map((item) =>
-          (item.variantKey === variantKey || (!item.variantKey && item.productId === product.id)) 
-            ? { ...item, quantity: item.quantity + 1 } 
+          (item.variantKey === variantKey || (!item.variantKey && item.productId === product.id))
+            ? { ...item, quantity: item.quantity + 1 }
             : item
         )
       );
@@ -181,7 +182,7 @@ export default function POSScreen() {
   // Show product details for variant selection
   const showDetails = (product: typeof products[0]) => {
     const hasVariants = (product.colors && product.colors.length > 0) || (product.sizes && product.sizes.length > 0);
-    
+
     if (hasVariants) {
       setSelectedProduct(product);
       setSelectedColor(product.colors?.[0] || null);
@@ -250,7 +251,7 @@ export default function POSScreen() {
       const tax = 0;
       const total = subtotal + tax;
       const receiptNote = note;
-      
+
       // Save to Supabase using orderService
       const result = await orderService.createPOSOrder(
         seller.id,
@@ -467,9 +468,9 @@ export default function POSScreen() {
           </div>
           <div class="info-row">
             <span class="info-label">Date</span>
-            <span class="info-value">${new Date(receiptData.date).toLocaleString('en-US', { 
-              month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true 
-            })}</span>
+            <span class="info-value">${new Date(receiptData.date).toLocaleString('en-US', {
+      month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true
+    })}</span>
           </div>
           <div class="info-row">
             <span class="info-label">Customer</span>
@@ -523,7 +524,7 @@ export default function POSScreen() {
     try {
       // Generate PDF from HTML
       const { uri } = await Print.printToFileAsync({ html: htmlContent });
-      
+
       // Share/Download the PDF
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(uri, {
@@ -546,21 +547,25 @@ export default function POSScreen() {
       <SellerDrawer visible={drawerVisible} onClose={() => setDrawerVisible(false)} />
 
       {/* Header */}
-      <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: '#FF5722' }]}>
-        <View style={styles.headerTop}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            <Pressable style={styles.headerIconButton} onPress={() => setDrawerVisible(true)}>
-              <CreditCard size={24} color="#FFFFFF" strokeWidth={2} />
+      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
+        <View style={styles.headerContent}>
+          <View style={styles.headerLeft}>
+            <Pressable style={styles.iconContainer} onPress={() => setDrawerVisible(true)}>
+              <Menu size={24} color="#1F2937" strokeWidth={2} />
             </Pressable>
-            <Text style={styles.headerTitle}>POS Lite</Text>
+            <View>
+              <Text style={styles.headerTitle} numberOfLines={1}>POS Lite</Text>
+              <Text style={styles.headerSubtitle} numberOfLines={1}>Point of Sale</Text>
+            </View>
           </View>
-          {/* Cart Button - Always visible, clickable to open cart modal */}
-          <TouchableOpacity 
+
+          {/* Cart Button - Styled like the Notification icon in Orders */}
+          <TouchableOpacity
             style={styles.cartBadgeHeader}
             onPress={() => setShowCartModal(true)}
             activeOpacity={0.7}
           >
-            <ShoppingCart size={22} color="#FFF" />
+            <ShoppingCart size={22} color="#1F2937" strokeWidth={2} />
             {cart.length > 0 && (
               <View style={styles.cartCountBadge}>
                 <Text style={styles.cartCountText}>{cart.length}</Text>
@@ -568,8 +573,10 @@ export default function POSScreen() {
             )}
           </TouchableOpacity>
         </View>
+      </View>
 
-        {/* Search Bar in Header */}
+      {/* Search Bar Section (Moved out of header) */}
+      <View style={styles.searchSection}>
         <View style={styles.searchBar}>
           <Scan size={20} color="#9CA3AF" strokeWidth={2} />
           <TextInput
@@ -649,90 +656,90 @@ export default function POSScreen() {
               </View>
             ) : (
               filteredProducts.map((product) => {
-              const isOutOfStock = product.stock === 0;
-              const cartItem = cart.find((item) => item.productId === product.id);
-              const remainingStock = product.stock - (cartItem?.quantity || 0);
+                const isOutOfStock = product.stock === 0;
+                const cartItem = cart.find((item) => item.productId === product.id);
+                const remainingStock = product.stock - (cartItem?.quantity || 0);
 
-              return (
-                <TouchableOpacity
-                  key={product.id}
-                  style={[styles.productCard, isOutOfStock && styles.productCardDisabled]}
-                  onPress={() => !isOutOfStock && showDetails(product)}
-                  disabled={isOutOfStock}
-                  activeOpacity={0.7}
-                >
-                  {/* Product Image */}
-                  <View style={styles.productImageContainer}>
-                    <Image source={{ uri: safeImageUri(product.images?.[0]) }} style={styles.productImage} />
+                return (
+                  <TouchableOpacity
+                    key={product.id}
+                    style={[styles.productCard, isOutOfStock && styles.productCardDisabled]}
+                    onPress={() => !isOutOfStock && showDetails(product)}
+                    disabled={isOutOfStock}
+                    activeOpacity={0.7}
+                  >
+                    {/* Product Image */}
+                    <View style={styles.productImageContainer}>
+                      <Image source={{ uri: safeImageUri(product.images?.[0]) }} style={styles.productImage} />
 
-                    {/* Stock Badge */}
-                    <View
-                      style={[
-                        styles.stockBadge,
-                        remainingStock === 0
-                          ? styles.stockBadgeOut
-                          : remainingStock < 10
-                            ? styles.stockBadgeLow
-                            : styles.stockBadgeOk,
-                      ]}
-                    >
-                      <Text style={styles.stockBadgeText}>
-                        {remainingStock === 0 ? 'Out' : remainingStock}
-                      </Text>
-                    </View>
-
-                    {/* Cart Quantity Badge */}
-                    {cartItem && (
-                      <View style={styles.cartQuantityBadge}>
-                        <Text style={styles.cartQuantityText}>×{cartItem.quantity}</Text>
-                      </View>
-                    )}
-                  </View>
-
-                  {/* Product Info */}
-                  <View style={styles.productInfo}>
-                    <Text style={styles.productName} numberOfLines={2}>
-                      {typeof product.name === 'object' ? (product.name as any)?.name || '' : String(product.name || '')}
-                    </Text>
-                    <Text style={styles.productCategory}>{typeof product.category === 'object' ? (product.category as any)?.name || '' : String(product.category || '')}</Text>
-
-                    {/* Product Details */}
-                    <View style={styles.productDetails}>
-                      <View style={styles.productDetailRow}>
-                        <Hash size={12} color="#9CA3AF" />
-                        <Text style={styles.productDetailText}>
-                          {product.id.slice(-8)}
+                      {/* Stock Badge */}
+                      <View
+                        style={[
+                          styles.stockBadge,
+                          remainingStock === 0
+                            ? styles.stockBadgeOut
+                            : remainingStock < 10
+                              ? styles.stockBadgeLow
+                              : styles.stockBadgeOk,
+                        ]}
+                      >
+                        <Text style={styles.stockBadgeText}>
+                          {remainingStock === 0 ? 'Out' : remainingStock}
                         </Text>
                       </View>
-                      <View style={styles.productDetailRow}>
-                        <Package size={12} color={remainingStock < 10 ? '#F59E0B' : '#10B981'} />
-                        <Text
-                          style={[
-                            styles.productDetailText,
-                            { color: remainingStock < 10 ? '#F59E0B' : '#10B981' },
-                          ]}
-                        >
-                          {remainingStock}
-                        </Text>
-                      </View>
-                    </View>
 
-                    {/* Price & Add Button */}
-                    <View style={styles.productFooter}>
-                      <Text style={styles.productPrice}>₱{product.price.toLocaleString()}</Text>
-                      {!isOutOfStock && (
-                        <TouchableOpacity
-                          style={styles.addButton}
-                          onPress={() => showDetails(product)}
-                        >
-                          <Plus size={16} color="#FFF" strokeWidth={2.5} />
-                        </TouchableOpacity>
+                      {/* Cart Quantity Badge */}
+                      {cartItem && (
+                        <View style={styles.cartQuantityBadge}>
+                          <Text style={styles.cartQuantityText}>×{cartItem.quantity}</Text>
+                        </View>
                       )}
                     </View>
-                  </View>
-                </TouchableOpacity>
-              );
-            })
+
+                    {/* Product Info */}
+                    <View style={styles.productInfo}>
+                      <Text style={styles.productName} numberOfLines={2}>
+                        {typeof product.name === 'object' ? (product.name as any)?.name || '' : String(product.name || '')}
+                      </Text>
+                      <Text style={styles.productCategory}>{typeof product.category === 'object' ? (product.category as any)?.name || '' : String(product.category || '')}</Text>
+
+                      {/* Product Details */}
+                      <View style={styles.productDetails}>
+                        <View style={styles.productDetailRow}>
+                          <Hash size={12} color="#9CA3AF" />
+                          <Text style={styles.productDetailText}>
+                            {product.id.slice(-8)}
+                          </Text>
+                        </View>
+                        <View style={styles.productDetailRow}>
+                          <Package size={12} color={remainingStock < 10 ? '#F59E0B' : '#10B981'} />
+                          <Text
+                            style={[
+                              styles.productDetailText,
+                              { color: remainingStock < 10 ? '#F59E0B' : '#10B981' },
+                            ]}
+                          >
+                            {remainingStock}
+                          </Text>
+                        </View>
+                      </View>
+
+                      {/* Price & Add Button */}
+                      <View style={styles.productFooter}>
+                        <Text style={styles.productPrice}>₱{product.price.toLocaleString()}</Text>
+                        {!isOutOfStock && (
+                          <TouchableOpacity
+                            style={styles.addButton}
+                            onPress={() => showDetails(product)}
+                          >
+                            <Plus size={16} color="#FFF" strokeWidth={2.5} />
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })
             )}
           </View>
         </View>
@@ -956,7 +963,7 @@ export default function POSScreen() {
                 onPress={() => {
                   console.log('[POS] View Orders button pressed');
                   setShowSuccess(false);
-                  
+
                   try {
                     console.log('[POS] Current navigation state:', navigation.getState());
                     // Navigate directly to Orders tab (we're already in the tab navigator)
@@ -1106,7 +1113,7 @@ export default function POSScreen() {
                 <ShoppingCart size={60} color="#D1D5DB" />
                 <Text style={styles.cartModalEmptyTitle}>Cart is empty</Text>
                 <Text style={styles.cartModalEmptyText}>Add products to start a sale</Text>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.cartModalBrowseBtn}
                   onPress={() => setShowCartModal(false)}
                 >
@@ -1126,7 +1133,7 @@ export default function POSScreen() {
                         </Text>
                       )}
                       <Text style={styles.cartModalItemPrice}>₱{item.price.toLocaleString()} each</Text>
-                      
+
                       {/* Quantity Controls */}
                       <View style={styles.cartModalQuantityRow}>
                         <View style={styles.cartModalQuantityControls}>
@@ -1226,21 +1233,43 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F9FAFB',
   },
-  headerContainer: {
+  header: {
+    backgroundColor: '#FFE5CC', // Peach Background
     paddingHorizontal: 20,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
     paddingBottom: 20,
-    marginBottom: 10,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    zIndex: 10,
+    borderBottomLeftRadius: 24, // Consistent curvature
+    borderBottomRightRadius: 24,
+    elevation: 3,
   },
-  headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 15 },
-  headerIconButton: { padding: 4 },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFF' },
+  headerContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  iconContainer: {
+    backgroundColor: 'rgba(0,0,0,0.05)', // Subtle dark overlay
+    padding: 10,
+    borderRadius: 12,
+  },
+  headerTitle: {
+    fontSize: 22,
+    fontWeight: '800', // Extra Bold
+    color: '#1F2937', // Dark Charcoal
+  },
+  headerSubtitle: {
+    fontSize: 13,
+    color: '#4B5563', // Gray Subtitle
+    fontWeight: '500',
+  },
+  searchSection: {
+    paddingHorizontal: 20,
+    marginTop: 15,
+  },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1248,6 +1277,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 12,
     height: 48,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
     gap: 8,
   },
   searchInput: {
@@ -1263,13 +1294,15 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: -6,
     right: -6,
-    backgroundColor: '#10B981',
+    backgroundColor: '#10B981', // Green for positive inventory/cart action
     borderRadius: 10,
-    minWidth: 20,
-    height: 20,
+    minWidth: 18,
+    height: 18,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 4,
+    borderWidth: 2,
+    borderColor: '#FFE5CC', // Matches peach header for the "cut-out" look
   },
   cartCountText: {
     color: '#FFF',

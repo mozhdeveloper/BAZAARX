@@ -129,6 +129,7 @@ export type VoucherValidationErrorCode =
   | 'EXPIRED'
   | 'MIN_ORDER_NOT_MET'
   | 'SELLER_MISMATCH'
+  | 'ALREADY_USED'
   | 'UNKNOWN';
 
 export interface VoucherValidationResult {
@@ -957,7 +958,7 @@ export const useBuyerStore = create<BuyerStore>()(persist(
     validateVoucherDetailed: async (code, sellerId) => {
       try {
         const { voucherService } = await import('../services/voucherService');
-        const { cartItems } = get();
+        const { cartItems, profile } = get();
 
         // Calculate order total based on SELECTED items only
         const relevantTotal = sellerId
@@ -968,8 +969,11 @@ export const useBuyerStore = create<BuyerStore>()(persist(
             .filter(item => item.selected)
             .reduce((total, item) => total + (item.selectedVariant?.price || item.price) * item.quantity, 0);
 
+        // Pass buyerId for per-customer limit check (claim_limit)
+        const buyerId = profile?.id ?? null;
+
         // Validate voucher against database (with reason codes)
-        const validation = await voucherService.validateVoucherDetailed(code, relevantTotal);
+        const validation = await voucherService.validateVoucherDetailed(code, relevantTotal, buyerId);
         const dbVoucher = validation.voucher;
         if (!dbVoucher) {
           return {

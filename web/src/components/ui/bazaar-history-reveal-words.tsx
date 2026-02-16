@@ -43,20 +43,14 @@ export default function BazaarRevealWords() {
     }
   });
 
-  // Background transition: Orange (#D94F00) -> White (#ffffff)
-  const backgroundColor = useTransform(scrollYProgress, [0.15, 0.25], ["#D94F00", "#ffffff"]);
-
-  // Reveal Words Color: White -> Orange (accent #FF6A00)
-  const revealTextColor = useTransform(scrollYProgress, [0.15, 0.25], ["#ffffff", "#FF6A00"]);
-
-  // Paragraph Color: White -> Gray 600 (#4b5563)
-  const paragraphColor = useTransform(scrollYProgress, [0.15, 0.25], ["#ffffff", "#4b5563"]);
-
-  // Border Color: White/Light Orange -> Orange (#FF8A4D)
-  const borderColor = useTransform(scrollYProgress, [0.15, 0.25], ["#ffffff", "#FF8A4D"]);
+  // Static background and colors for seamless transition
+  const backgroundColor = "var(--brand-wash)";
+  const revealTextColor = "#FB8C00"; // Base orange for fallback
+  const paragraphColor = "var(--text-primary)";
+  const borderColor = "var(--brand-primary)";
 
   // Border Gradient: Uses the dynamic borderColor to create a fade-out gradient
-  const borderGradient = useTransform(borderColor, color => `linear-gradient(to right, transparent, ${color}, transparent)`);
+  const borderGradient = `linear-gradient(to right, transparent, var(--brand-primary), transparent)`;
 
   return (
     <motion.section
@@ -103,7 +97,7 @@ export default function BazaarRevealWords() {
                   images={TRADE_IMAGES[0]}
                   isActive={activeIndex === 0}
                   isDimmed={activeIndex !== -1 && activeIndex !== 0}
-                  style={{ color: revealTextColor }}
+                  className={activeIndex === 0 ? "text-[#FB8C00]" : "text-[#7C2D12]"}
                 />
               </div>
               <div className="w-full md:w-auto">
@@ -112,7 +106,7 @@ export default function BazaarRevealWords() {
                   images={TRADE_IMAGES[1]}
                   isActive={activeIndex === 1}
                   isDimmed={activeIndex !== -1 && activeIndex !== 1}
-                  style={{ color: revealTextColor }}
+                  className={activeIndex === 1 ? "text-[#FB8C00]" : "text-[#7C2D12]"}
                 />
               </div>
               <div className="w-full md:w-auto">
@@ -121,7 +115,7 @@ export default function BazaarRevealWords() {
                   images={TRADE_IMAGES[2]}
                   isActive={activeIndex === 2}
                   isDimmed={activeIndex !== -1 && activeIndex !== 2}
-                  style={{ color: revealTextColor }}
+                  className={activeIndex === 2 ? "text-[#FB8C00]" : "text-[#7C2D12]"}
                 />
               </div>
             </div>

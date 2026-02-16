@@ -387,6 +387,7 @@ export default function CheckoutPage() {
           EXPIRED: "This voucher has expired.",
           MIN_ORDER_NOT_MET: "This voucher does not meet the minimum purchase requirement.",
           SELLER_MISMATCH: "This voucher is only valid for specific seller items.",
+          ALREADY_USED: "You have already used this voucher. It can only be used once per customer.",
           UNKNOWN: "Unable to validate voucher right now. Please try again.",
         };
 
@@ -635,7 +636,8 @@ export default function CheckoutPage() {
         earnedBazcoins: earnedBazcoins,
         shippingFee: shippingFee,
         discount: discount,
-        email: profile.email
+        email: profile.email,
+        voucherId: appliedVoucher?.id ?? null
       };
 
       const result = await checkoutService.processCheckout(payload);

@@ -236,6 +236,9 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   const [newListName, setNewListName] = useState('');
   const [isCreatingList, setIsCreatingList] = useState(false);
 
+  // Menu State
+  const [showMenu, setShowMenu] = useState(false);
+
   // Use product images if available, otherwise mock an array with the main image
   const productImages = product.images || [product.image, product.image, product.image, product.image, product.image];
 
@@ -476,6 +479,33 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     await Share.share({ message: `Check out ${product.name} on BazaarX! ₱${product.price}` });
   };
 
+  const handleMenuAction = (action: string) => {
+    setShowMenu(false);
+    switch (action) {
+      case 'share':
+        handleShare();
+        break;
+      case 'wishlist':
+        handleWishlistAction();
+        break;
+      case 'report':
+        Alert.alert(
+          'Report Product',
+          'Why are you reporting this product?',
+          [
+            { text: 'Inappropriate content', onPress: () => Alert.alert('Thank you', 'Your report has been submitted.') },
+            { text: 'Counterfeit/Fake', onPress: () => Alert.alert('Thank you', 'Your report has been submitted.') },
+            { text: 'Misleading information', onPress: () => Alert.alert('Thank you', 'Your report has been submitted.') },
+            { text: 'Cancel', style: 'cancel' },
+          ]
+        );
+        break;
+      case 'store':
+        handleVisitStore();
+        break;
+    }
+  };
+
   const handleChat = () => {
     const { isGuest } = useAuthStore.getState();
     if (isGuest) {
@@ -487,14 +517,18 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   }
 
   const handleVisitStore = () => {
+    const sellerId = product.seller_id || product.sellerId;
+    if (!sellerId) {
+      Alert.alert('Store Unavailable', 'Store information is not available for this product.');
+      return;
+    }
     navigation.push('StoreDetail', {
       store: {
-        id: product.seller_id || 'store_1',
-        name: product.seller || 'TechHub Manila Official',
-        image: 'https://images.unsplash.com/photo-1472851294608-41551b33fcc3?w=150', // Mock Store Image
-        rating: product.sellerRating || 4.9,
-        followers: 1250,
-        description: 'Official distributor of premium tech gadgets.'
+        id: sellerId,
+        name: product.seller || 'Store',
+        image: product.seller_avatar || product.sellerAvatar || null,
+        rating: product.sellerRating || 0,
+        verified: product.sellerVerified || false,
       }
     });
   };
@@ -563,7 +597,11 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
               </View>
             )}
           </Pressable>
-          <Pressable style={styles.iconButton} onPress={() => { /* Menu Action */ }}>
+          <Pressable 
+            style={[styles.iconButton, { padding: 8, marginLeft: 4 }]} 
+            onPress={() => setShowMenu(true)}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
             <View style={{ gap: 3 }}>
               <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: '#FFF' }} />
               <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: '#FFF' }} />
@@ -904,6 +942,11 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
       {/* --- BOTTOM ACTIONS (Matches Screenshot) --- */}
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
+        <Pressable style={styles.chatSellerBtn} onPress={() => setShowChat(true)}>
+          <MessageCircle size={20} color="#10B981" style={{ marginRight: 8 }} />
+          <Text style={styles.chatSellerText}>Chat Seller</Text>
+        </Pressable>
+        
         <Pressable style={styles.addToCartBtn} onPress={handleAddToCart}>
           <ShoppingCart size={20} color={BRAND_COLOR} style={{ marginRight: 8 }} />
           <Text style={styles.addToCartText}>Add to Cart</Text>
@@ -1055,7 +1098,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
         visible={showChat}
         onClose={() => setShowChat(false)}
         storeName={product.seller || 'Store'}
-        sellerId={product.seller_id}
+        sellerId={product.seller_id || product.sellerId}
       />
 
       {showGuestModal && (
@@ -1065,6 +1108,40 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
           message={guestModalMessage || "Please log in to perform this action."}
         />
       )}
+
+      {/* Product Menu Modal */}
+      <Modal
+        visible={showMenu}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowMenu(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setShowMenu(false)}>
+          <View style={styles.menuOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={styles.menuContainer}>
+                <Pressable style={styles.menuItem} onPress={() => handleMenuAction('share')}>
+                  <Share2 size={20} color="#374151" />
+                  <Text style={styles.menuItemText}>Share Product</Text>
+                </Pressable>
+                <Pressable style={styles.menuItem} onPress={() => handleMenuAction('wishlist')}>
+                  <Heart size={20} color="#374151" />
+                  <Text style={styles.menuItemText}>{isFavorite ? 'Remove from Wishlist' : 'Add to Wishlist'}</Text>
+                </Pressable>
+                <Pressable style={styles.menuItem} onPress={() => handleMenuAction('store')}>
+                  <MapPin size={20} color="#374151" />
+                  <Text style={styles.menuItemText}>Visit Store</Text>
+                </Pressable>
+                <View style={styles.menuDivider} />
+                <Pressable style={styles.menuItem} onPress={() => handleMenuAction('report')}>
+                  <X size={20} color="#EF4444" />
+                  <Text style={[styles.menuItemText, { color: '#EF4444' }]}>Report Product</Text>
+                </Pressable>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
 
       {/* Added to Cart Success Modal */}
       <AddedToCartModal
@@ -1292,8 +1369,13 @@ const styles = StyleSheet.create({
     position: 'absolute', bottom: 0, left: 0, right: 0,
     backgroundColor: '#FFF', flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: 16, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F3F4F6',
-    gap: 12, elevation: 8,
+    gap: 8, elevation: 8,
   },
+  chatSellerBtn: {
+    height: 48, paddingHorizontal: 12, flexDirection: 'row', justifyContent: 'center', alignItems: 'center',
+    borderRadius: 24, borderWidth: 2, borderColor: '#10B981', backgroundColor: '#FFF',
+  },
+  chatSellerText: { color: '#10B981', fontWeight: '700', fontSize: 14 },
   addToCartBtn: {
     flex: 1, height: 48, flexDirection: 'row', justifyContent: 'center', alignItems: 'center',
     borderRadius: 24, borderWidth: 2, borderColor: BRAND_COLOR, backgroundColor: '#FFF',
@@ -1598,6 +1680,43 @@ const styles = StyleSheet.create({
     height: 60,
     borderRadius: 8,
     marginRight: 8,
+  },
+  // Menu Modal Styles
+  menuOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-start',
+    alignItems: 'flex-end',
+    paddingTop: 100,
+    paddingRight: 16,
+  },
+  menuContainer: {
+    backgroundColor: '#FFF',
+    borderRadius: 12,
+    paddingVertical: 8,
+    minWidth: 200,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 12,
+  },
+  menuItemText: {
+    fontSize: 15,
+    color: '#374151',
+    fontWeight: '500',
+  },
+  menuDivider: {
+    height: 1,
+    backgroundColor: '#E5E7EB',
+    marginVertical: 4,
   },
 });
 

@@ -33,6 +33,7 @@ interface SubmitOrderReviewInput {
   rating: number;
   comment: string;
   images?: string[];
+  imageFiles?: File[];
 }
 
 interface CreatePOSOrderInput {
@@ -109,8 +110,16 @@ class OrderMutationService {
     rating,
     comment,
     images,
+    imageFiles,
   }: SubmitOrderReviewInput): Promise<boolean> {
-    return orderService.submitOrderReview(orderId, buyerId, rating, comment, images);
+    return orderService.submitOrderReview(
+      orderId,
+      buyerId,
+      rating,
+      comment,
+      images,
+      imageFiles,
+    );
   }
 
   async createPOSOrder({

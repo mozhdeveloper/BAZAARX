@@ -58,9 +58,13 @@ export default function ReviewModal({ visible, order, onClose, onSubmit }: Revie
     const statuses: ProductReviewStatus = {};
     
     try {
-      // In a real app, you might want to batch this or have it in the order details
+      // Use the real order UUID (orderId) not order_number (id)
+      const realOrderId = (order as any).orderId || order.id;
+      
       for (const item of order.items) {
-        const hasReview = await reviewService.hasReviewForProduct(order.id, item.id);
+        // Use productId for review check (item.id is order_item id)
+        const productId = (item as any).productId || item.id;
+        const hasReview = await reviewService.hasReviewForProduct(realOrderId, productId);
         statuses[item.id] = { reviewed: hasReview };
       }
       setReviewStatus(statuses);
@@ -85,13 +89,19 @@ export default function ReviewModal({ visible, order, onClose, onSubmit }: Revie
   };
 
   const handleSubmit = async () => {
-    if (!selectedItemId) return;
+    if (!selectedItemId || !order) return;
     
     setSubmitting(true);
     try {
-      await onSubmit(selectedItemId, rating, review);
+      // Find the item to get its productId
+      const item = order.items.find(i => i.id === selectedItemId);
+      if (!item) throw new Error('Product not found');
       
-      // Update local status
+      // Pass the actual productId to onSubmit, not the order_item id
+      const productId = (item as any).productId || item.id;
+      await onSubmit(productId, rating, review);
+      
+      // Update local status (track by item.id for UI)
       setReviewStatus(prev => ({
         ...prev,
         [selectedItemId]: { reviewed: true, rating, comment: review }

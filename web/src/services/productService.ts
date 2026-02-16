@@ -885,6 +885,346 @@ export class ProductService {
             return null;
         }
     }
+
+    /**
+     * Visual Search - Find similar products by image
+     * Uses Supabase edge function with vector similarity search
+     */
+    async visualSearch(imageFile: File): Promise<{
+        products: ProductWithSeller[];
+        detectedInfo?: {
+            category?: string;
+            possibleBrand?: string;
+            detectedItem?: string;
+        };
+    }> {
+        if (!isSupabaseConfigured()) {
+            console.warn("Supabase not configured - cannot perform visual search");
+            return { products: [] };
+        }
+
+        try {
+            // 1. Convert image to base64 (no storage upload needed!)
+            const base64 = await this.fileToBase64(imageFile);
+
+            // 2. Call the visual-search edge function directly with base64
+            const { data: searchData, error: searchError } = await supabase.functions
+                .invoke('visual-search', {
+                    body: { image_base64: base64 },
+                });
+
+            if (searchError) {
+                console.error('Visual search error:', searchError);
+                throw new Error('Visual search failed');
+            }
+
+            // 3. Get product IDs from search results
+            const matchedProducts = searchData?.products || [];
+            const detectedItem = searchData?.detectedItem;
+            const detectedCategory = searchData?.detectedCategory;
+            
+            if (matchedProducts.length === 0) {
+                return { 
+                    products: [],
+                    detectedInfo: detectedItem ? { detectedItem, category: detectedCategory } : undefined
+                };
+            }
+
+            // 4. Fetch full product details for matched products
+            const productIds = matchedProducts.map((p: any) => p.id);
+            
+            const { data: fullProducts, error: productsError } = await supabase
+                .from("products")
+                .select(`
+                    *,
+                    category:categories!products_category_id_fkey (
+                        id,
+                        name,
+                        slug,
+                        parent_id
+                    ),
+                    images:product_images (
+                        id,
+                        image_url,
+                        alt_text,
+                        sort_order,
+                        is_primary
+                    ),
+                    variants:product_variants (
+                        id,
+                        sku,
+                        variant_name,
+                        size,
+                        color,
+                        option_1_value,
+                        option_2_value,
+                        price,
+                        stock,
+                        thumbnail_url
+                    ),
+                    reviews (
+                        id,
+                        rating
+                    ),
+                    seller:sellers!products_seller_id_fkey (
+                        id,
+                        store_name,
+                        approval_status
+                    )
+                `)
+                .in('id', productIds)
+                .is('deleted_at', null)
+                .is('disabled_at', null);
+
+            if (productsError) {
+                console.error('Error fetching product details:', productsError);
+                return { products: [] };
+            }
+
+            // 6. Transform and maintain similarity order
+            const transformedProducts = (fullProducts || []).map((p: any) => this.transformProduct(p));
+            
+            // Sort by original similarity order
+            const sortedProducts = productIds
+                .map((id: string) => transformedProducts.find((p: any) => p.id === id))
+                .filter(Boolean) as ProductWithSeller[];
+
+            // 5. Build detected info - use AI detection if available, otherwise infer from results
+            const detectedInfo: { category?: string; possibleBrand?: string; detectedItem?: string } = {};
+            
+            // Use AI-detected item if available
+            if (detectedItem) {
+                detectedInfo.detectedItem = detectedItem;
+            }
+            
+            // Use AI-detected category or infer from results
+            if (detectedCategory) {
+                detectedInfo.category = detectedCategory;
+            } else if (sortedProducts.length > 0) {
+                // Most common category from results
+                const categoryCount: Record<string, number> = {};
+                sortedProducts.forEach(p => {
+                    const cat = p.category?.name || (p as any).category;
+                    if (cat) {
+                        categoryCount[cat] = (categoryCount[cat] || 0) + 1;
+                    }
+                });
+                const mostCommonCategory = Object.entries(categoryCount)
+                    .sort((a, b) => b[1] - a[1])[0]?.[0];
+                if (mostCommonCategory) {
+                    detectedInfo.category = mostCommonCategory;
+                }
+            }
+
+            // Detect possible brand from results
+            if (sortedProducts.length > 0) {
+                const brandCount: Record<string, number> = {};
+                sortedProducts.forEach(p => {
+                    if (p.brand) {
+                        brandCount[p.brand] = (brandCount[p.brand] || 0) + 1;
+                    }
+                });
+                const mostCommonBrand = Object.entries(brandCount)
+                    .sort((a, b) => b[1] - a[1])[0]?.[0];
+                if (mostCommonBrand) {
+                    detectedInfo.possibleBrand = mostCommonBrand;
+                }
+            }
+
+            return { 
+                products: sortedProducts,
+                detectedInfo: Object.keys(detectedInfo).length > 0 ? detectedInfo : undefined
+            };
+        } catch (error) {
+            console.error("Visual search error:", error);
+            
+            // Fallback: Try to return some products if visual search failed
+            try {
+                console.log("Attempting fallback: returning recent products");
+                const fallbackProducts = await this.getProducts({ 
+                    isActive: true, 
+                    approvalStatus: 'approved',
+                    limit: 6 
+                });
+                return { 
+                    products: fallbackProducts,
+                    detectedInfo: undefined
+                };
+            } catch (fallbackError) {
+                console.error("Fallback also failed:", fallbackError);
+                throw error;
+            }
+        }
+    }
+
+    /**
+     * Convert File to base64 string
+     */
+    private async fileToBase64(file: File): Promise<string> {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => {
+                const result = reader.result as string;
+                // Remove data:image/xxx;base64, prefix
+                const base64 = result.split(',')[1];
+                resolve(base64);
+            };
+            reader.onerror = error => reject(error);
+        });
+    }
+
+    /**
+     * Visual Search by URL - Find similar products by image URL
+     * Directly calls the edge function with the image URL
+     */
+    async visualSearchByUrl(imageUrl: string): Promise<{
+        products: ProductWithSeller[];
+        detectedInfo?: {
+            category?: string;
+            possibleBrand?: string;
+            detectedItem?: string;
+        };
+    }> {
+        if (!isSupabaseConfigured()) {
+            console.warn("Supabase not configured - cannot perform visual search");
+            return { products: [] };
+        }
+
+        try {
+            // Call the visual-search edge function directly with URL
+            const { data: searchData, error: searchError } = await supabase.functions
+                .invoke('visual-search', {
+                    body: { primary_image: imageUrl },
+                });
+
+            if (searchError) {
+                console.error('Visual search error:', searchError);
+                throw new Error('Visual search failed');
+            }
+
+            // Get product IDs from search results
+            const matchedProducts = searchData?.products || [];
+            const detectedItem = searchData?.detectedItem;
+            const detectedCategory = searchData?.detectedCategory;
+            
+            if (matchedProducts.length === 0) {
+                return { 
+                    products: [],
+                    detectedInfo: detectedItem ? { detectedItem, category: detectedCategory } : undefined
+                };
+            }
+
+            // Fetch full product details for matched products
+            const productIds = matchedProducts.map((p: any) => p.id);
+            
+            const { data: fullProducts, error: productsError } = await supabase
+                .from("products")
+                .select(`
+                    *,
+                    category:categories!products_category_id_fkey (
+                        id,
+                        name,
+                        slug,
+                        parent_id
+                    ),
+                    images:product_images (
+                        id,
+                        image_url,
+                        alt_text,
+                        sort_order,
+                        is_primary
+                    ),
+                    variants:product_variants (
+                        id,
+                        sku,
+                        variant_name,
+                        size,
+                        color,
+                        option_1_value,
+                        option_2_value,
+                        price,
+                        stock,
+                        thumbnail_url
+                    ),
+                    reviews (
+                        id,
+                        rating
+                    ),
+                    seller:sellers!products_seller_id_fkey (
+                        id,
+                        store_name,
+                        approval_status
+                    )
+                `)
+                .in('id', productIds)
+                .is('deleted_at', null)
+                .is('disabled_at', null);
+
+            if (productsError) {
+                console.error('Error fetching product details:', productsError);
+                return { products: [] };
+            }
+
+            // Transform and maintain similarity order
+            const transformedProducts = (fullProducts || []).map((p: any) => this.transformProduct(p));
+            
+            // Sort by original similarity order
+            const sortedProducts = productIds
+                .map((id: string) => transformedProducts.find((p: any) => p.id === id))
+                .filter(Boolean) as ProductWithSeller[];
+
+            // Build detected info - use AI detection if available, otherwise infer from results
+            const detectedInfo: { category?: string; possibleBrand?: string; detectedItem?: string } = {};
+            
+            // Use AI-detected item if available
+            if (detectedItem) {
+                detectedInfo.detectedItem = detectedItem;
+            }
+            
+            // Use AI-detected category or infer from results
+            if (detectedCategory) {
+                detectedInfo.category = detectedCategory;
+            } else if (sortedProducts.length > 0) {
+                // Most common category from results
+                const categoryCount: Record<string, number> = {};
+                sortedProducts.forEach(p => {
+                    const cat = p.category?.name || (p as any).category;
+                    if (cat) {
+                        categoryCount[cat] = (categoryCount[cat] || 0) + 1;
+                    }
+                });
+                const mostCommonCategory = Object.entries(categoryCount)
+                    .sort((a, b) => b[1] - a[1])[0]?.[0];
+                if (mostCommonCategory) {
+                    detectedInfo.category = mostCommonCategory;
+                }
+            }
+
+            // Detect possible brand from results
+            if (sortedProducts.length > 0) {
+                const brandCount: Record<string, number> = {};
+                sortedProducts.forEach(p => {
+                    if (p.brand) {
+                        brandCount[p.brand] = (brandCount[p.brand] || 0) + 1;
+                    }
+                });
+                const mostCommonBrand = Object.entries(brandCount)
+                    .sort((a, b) => b[1] - a[1])[0]?.[0];
+                if (mostCommonBrand) {
+                    detectedInfo.possibleBrand = mostCommonBrand;
+                }
+            }
+
+            return { 
+                products: sortedProducts,
+                detectedInfo: Object.keys(detectedInfo).length > 0 ? detectedInfo : undefined
+            };
+        } catch (error) {
+            console.error("Visual search by URL error:", error);
+            throw error;
+        }
+    }
 }
 
 export const productService = ProductService.getInstance();

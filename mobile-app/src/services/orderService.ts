@@ -82,6 +82,7 @@ const mapDbOrderToOrder = (dbOrder: any) => {
   return {
     ...dbOrder,
     id: dbOrder.id,
+    orderId: dbOrder.id, // Include real UUID for database operations
     transactionId: dbOrder.order_number, // UI expects transactionId
     status: statusMap[dbOrder.shipment_status] || 'pending',
     isPaid: dbOrder.payment_status === 'paid',
@@ -92,6 +93,7 @@ const mapDbOrderToOrder = (dbOrder: any) => {
     // Map Items with nested product/variant info
     items: (dbOrder.order_items || []).map((item: any) => ({
       id: item.id,
+      productId: item.product_id, // Include product_id for reviews
       name: item.product_name || item.product?.name || 'Unknown Product',
       price: item.price,
       quantity: item.quantity,
@@ -101,6 +103,7 @@ const mapDbOrderToOrder = (dbOrder: any) => {
         size: item.variant.size,
         color: item.variant.color
       } : undefined,
+      sellerId: item.product?.seller_id || item.product?.seller?.id,
       storeName: item.product?.seller?.store_name || 'Seller'
     })),
 
@@ -408,9 +411,11 @@ export class OrderService {
 
       return (data || []).map(order => ({
         id: order.id,
+        orderId: order.id, // Include real UUID for database operations
         transactionId: order.order_number,
         items: (order.order_items || []).map((item: any) => ({
           id: item.id,
+          productId: item.product_id, // Include product_id for reviews
           name: item.product_name,
           price: item.variant?.price || item.price,
           quantity: item.quantity,

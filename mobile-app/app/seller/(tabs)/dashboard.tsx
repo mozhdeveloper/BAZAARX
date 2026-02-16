@@ -49,7 +49,7 @@ export default function SellerDashboardScreen() {
   useEffect(() => {
     const fetchUnreadCount = async () => {
       if (!seller?.id) return;
-      
+
       try {
         const conversations = await chatService.getSellerConversations(seller.id);
         const totalUnread = conversations.reduce((sum, conv) => sum + (conv.seller_unread_count || 0), 0);
@@ -60,7 +60,7 @@ export default function SellerDashboardScreen() {
     };
 
     fetchUnreadCount();
-    
+
     // Refresh every 30 seconds
     const interval = setInterval(fetchUnreadCount, 30000);
     return () => clearInterval(interval);
@@ -118,25 +118,25 @@ export default function SellerDashboardScreen() {
       <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <View style={styles.headerContent}>
           {/* Left Section: Menu & Title */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <View style={styles.headerLeft}>
             <Pressable style={styles.iconContainer} onPress={() => setDrawerVisible(true)}>
-              <Menu size={24} color="#FFFFFF" strokeWidth={2} />
+              <Menu size={24} color="#1F2937" />
             </Pressable>
-            <View style={{ flex: 1 }}>
+            <View>
               <Text style={styles.headerTitle}>Seller Hub</Text>
               <Text style={styles.headerSubtitle}>{seller.store_name}</Text>
             </View>
           </View>
-        </View>
 
-        {/* Notification Button: Absolute positioned to match Settings */}
-        <Pressable
-          style={[styles.notificationButton, { position: 'absolute', right: 20, top: insets.top + 20 }]}
-          onPress={() => navigation.getParent()?.navigate('Notifications')}
-        >
-          <Bell size={22} color="#FFFFFF" strokeWidth={2.5} />
-          <View style={styles.notificationBadge} />
-        </Pressable>
+          {/* Right Section: Notification Button */}
+          <Pressable
+            style={styles.notificationButton}
+            onPress={() => navigation.getParent()?.navigate('Notifications')}
+          >
+            <Bell size={22} color="#1F2937" strokeWidth={2.5} />
+            <View style={styles.notificationBadge} />
+          </Pressable>
+        </View>
       </View>
 
       {/* Pending Approval Banner */}
@@ -381,8 +381,8 @@ export default function SellerDashboardScreen() {
       )}
 
       {/* Floating Messages Button */}
-      <Pressable 
-        style={styles.floatingMessageButton} 
+      <Pressable
+        style={styles.floatingMessageButton}
         onPress={() => navigation.navigate('Messages')}
       >
         <MessageCircle size={28} color="#FFF" />
@@ -404,58 +404,51 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F5F7',
   },
   header: {
-    backgroundColor: '#FF5722',
-    paddingHorizontal: 20, // Increased from 16 to 20
-    paddingBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 4,
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
+    backgroundColor: '#FFE5CC', // Match Peach background
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+    borderBottomLeftRadius: 24, // Consistent rounding
+    borderBottomRightRadius: 24,
+    elevation: 3,
   },
   headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  // Added the Settings icon container look
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
   iconContainer: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    padding: 12,
+    backgroundColor: 'rgba(0,0,0,0.05)', // Match subtle dark overlay
+    padding: 10,
     borderRadius: 12,
   },
   headerTitle: {
-    fontSize: 22, // Increased from 20 to 22
+    fontSize: 22,
     fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: 0.3,
+    color: '#1F2937', // Match Dark Charcoal text
   },
   headerSubtitle: {
     fontSize: 13,
-    color: '#FFFFFF',
-    opacity: 0.9,
+    color: '#4B5563', // Match Gray subtitle
     fontWeight: '500',
   },
   notificationButton: {
-    width: 40, // Consistent sizing
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
     position: 'relative',
-    zIndex: 5,
   },
   notificationBadge: {
     position: 'absolute',
-    top: 6,
-    right: 6,
+    top: 0,
+    right: 0,
     width: 10,
     height: 10,
-    borderRadius: 10,
+    borderRadius: 5,
     backgroundColor: '#EF4444',
-    borderWidth: 1.5,
-    borderColor: '#FF5722',
+    borderWidth: 2,
+    borderColor: '#FFE5CC', // Matches header background for "cut-out" effect
   },
   scrollView: {
     flex: 1,
@@ -741,7 +734,7 @@ const styles = StyleSheet.create({
   floatingMessageButton: {
     position: 'absolute',
     right: 20,
-    bottom: 90,
+    bottom: 20,
     width: 60,
     height: 60,
     borderRadius: 30,

@@ -41,7 +41,7 @@ import {
   Users,
   TrendingUp,
   Copy,
-  Loader2
+  Loader2,
 } from 'lucide-react';
 
 const AdminVouchers: React.FC = () => {
@@ -76,6 +76,7 @@ const AdminVouchers: React.FC = () => {
     minPurchase: 0,
     maxDiscount: 0 as number,
     usageLimit: 1000,
+    claimLimit: null as number | null,
     startDate: new Date(),
     endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Default to 30 days later
     isActive: true,
@@ -100,6 +101,7 @@ const AdminVouchers: React.FC = () => {
         minPurchase: selectedVoucher.minPurchase,
         maxDiscount: selectedVoucher.maxDiscount,
         usageLimit: selectedVoucher.usageLimit,
+        claimLimit: selectedVoucher.claimLimit ?? null,
         startDate: selectedVoucher.startDate,
         endDate: selectedVoucher.endDate,
         isActive: selectedVoucher.isActive,
@@ -145,6 +147,7 @@ const AdminVouchers: React.FC = () => {
       minPurchase: 0,
       maxDiscount: 0,
       usageLimit: 1000,
+      claimLimit: null,
       startDate: new Date(),
       endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
       isActive: true,
@@ -486,6 +489,11 @@ const AdminVouchers: React.FC = () => {
                                   Max discount: ₱{voucher.maxDiscount}
                                 </p>
                               )}
+                              {voucher.claimLimit != null && (
+                                <p className="text-xs text-orange-600 font-medium text-center mt-1">
+                                  {voucher.claimLimit === 1 ? '1 use per customer' : `${voucher.claimLimit} uses per customer`}
+                                </p>
+                              )}
                             </div>
 
                             {/* Usage Stats */}
@@ -575,101 +583,128 @@ const AdminVouchers: React.FC = () => {
             resetForm();
           }
         }}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 {showAddDialog ? 'Create New Voucher' : 'Edit Voucher'}
               </DialogTitle>
               <DialogDescription>
                 {showAddDialog
-                  ? 'Fill in the details to create a new discount voucher'
-                  : 'Update the voucher information'}
+                  ? 'Configure the details for your new discount voucher.'
+                  : 'Update the voucher information below.'}
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="code">Voucher Code*</Label>
+            <div className="grid gap-6 py-4">
+              {/* Basic Info Group */}
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="code" className="text-sm font-medium">
+                      Voucher Code <span className="text-red-500">*</span>
+                    </Label>
+                    <div className="relative">
+                      <Input
+                        id="code"
+                        name="code"
+                        value={formData.code}
+                        onChange={handleInputChange}
+                        placeholder="SUMMER2024"
+                        className="uppercase pl-9"
+                      />
+                      <Ticket className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="type" className="text-sm font-medium">
+                      Discount Type <span className="text-red-500">*</span>
+                    </Label>
+                    <select
+                      id="type"
+                      name="type"
+                      value={formData.type}
+                      onChange={handleInputChange}
+                      className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <option value="percentage">Percentage Discount</option>
+                      <option value="fixed">Fixed Amount</option>
+                      <option value="free_shipping">Free Shipping</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="title" className="text-sm font-medium">
+                    Voucher Title <span className="text-red-500">*</span>
+                  </Label>
                   <Input
-                    id="code"
-                    name="code"
-                    value={formData.code}
+                    id="title"
+                    name="title"
+                    value={formData.title}
                     onChange={handleInputChange}
-                    placeholder="e.g., WELCOME20"
-                    className="uppercase"
+                    placeholder="e.g., Welcome Discount Special"
                   />
                 </div>
-                <div>
-                  <Label htmlFor="type">Type*</Label>
-                  <select
-                    id="type"
-                    name="type"
-                    value={formData.type}
+
+                <div className="space-y-2">
+                  <Label htmlFor="description" className="text-sm font-medium">
+                    Description <span className="text-red-500">*</span>
+                  </Label>
+                  <Textarea
+                    id="description"
+                    name="description"
+                    value={formData.description}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
-                  >
-                    <option value="percentage">Percentage Discount</option>
-                    <option value="fixed">Fixed Amount</option>
-                    <option value="free_shipping">Free Shipping</option>
-                  </select>
+                    placeholder="Describe the benefits or conditions..."
+                    className="resize-none"
+                    rows={2}
+                  />
                 </div>
               </div>
 
-              <div>
-                <Label htmlFor="title">Title*</Label>
-                <Input
-                  id="title"
-                  name="title"
-                  value={formData.title}
-                  onChange={handleInputChange}
-                  placeholder="e.g., Welcome Discount"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="description">Description*</Label>
-                <Textarea
-                  id="description"
-                  name="description"
-                  value={formData.description}
-                  onChange={handleInputChange}
-                  placeholder="Describe the voucher benefits"
-                  rows={3}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                {formData.type !== 'free_shipping' && (
-                  <div>
-                    <Label htmlFor="value">
-                      {formData.type === 'percentage' ? 'Discount (%)' : 'Amount (₱)'}*
+              {/* Financials Group */}
+              <div className="rounded-lg border bg-slate-50 p-4 space-y-4">
+                <h4 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                  <DollarSign className="w-4 h-4 text-orange-500" />
+                  Discount Rules & Value
+                </h4>
+                <div className="grid grid-cols-2 gap-4">
+                  {formData.type !== 'free_shipping' && (
+                    <div className="space-y-2">
+                      <Label htmlFor="value" className="text-sm font-medium">
+                        {formData.type === 'percentage' ? 'Percentage (%)' : 'Amount (₱)'} <span className="text-red-500">*</span>
+                      </Label>
+                      <Input
+                        id="value"
+                        name="value"
+                        type="number"
+                        value={formData.value}
+                        onChange={handleInputChange}
+                        min="0"
+                        max={formData.type === 'percentage' ? '100' : undefined}
+                      />
+                    </div>
+                  )}
+                  <div className="space-y-2">
+                    <Label htmlFor="minPurchase" className="text-sm font-medium">
+                      Min. Spend (₱) <span className="text-red-500">*</span>
                     </Label>
                     <Input
-                      id="value"
-                      name="value"
+                      id="minPurchase"
+                      name="minPurchase"
                       type="number"
-                      value={formData.value}
+                      value={formData.minPurchase}
                       onChange={handleInputChange}
                       min="0"
-                      max={formData.type === 'percentage' ? '100' : undefined}
                     />
                   </div>
-                )}
-                <div>
-                  <Label htmlFor="minPurchase">Min Purchase (₱)*</Label>
-                  <Input
-                    id="minPurchase"
-                    name="minPurchase"
-                    type="number"
-                    value={formData.minPurchase}
-                    onChange={handleInputChange}
-                    min="0"
-                  />
                 </div>
+
                 {formData.type === 'percentage' && (
-                  <div>
-                    <Label htmlFor="maxDiscount">Max Discount (₱)</Label>
+                  <div className="space-y-2">
+                    <Label htmlFor="maxDiscount" className="text-sm font-medium">
+                      Max Discount Cap (₱)
+                    </Label>
                     <Input
                       id="maxDiscount"
                       name="maxDiscount"
@@ -677,76 +712,125 @@ const AdminVouchers: React.FC = () => {
                       value={formData.maxDiscount ?? ''}
                       onChange={handleInputChange}
                       min="0"
-                      placeholder="Optional"
+                      placeholder="Optional (0 for unlimited)"
                     />
+                    <p className="text-[0.8rem] text-muted-foreground">
+                    </p>
                   </div>
                 )}
               </div>
 
+              {/* Usage Constraints */}
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="usageLimit">Usage Limit*</Label>
+                <div className="space-y-2">
+                  <Label htmlFor="usageLimit" className="text-sm font-medium">
+                    Total Usage Limit <span className="text-red-500">*</span>
+                  </Label>
+                  <div className="relative">
+                    <Input
+                      id="usageLimit"
+                      name="usageLimit"
+                      type="number"
+                      value={formData.usageLimit}
+                      onChange={handleInputChange}
+                      min="1"
+                      className="pl-9"
+                    />
+                    <Users className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="claimLimit" className="text-sm font-medium">
+                    Per-User Limit
+                  </Label>
                   <Input
-                    id="usageLimit"
-                    name="usageLimit"
+                    id="claimLimit"
+                    name="claimLimit"
                     type="number"
-                    value={formData.usageLimit}
-                    onChange={handleInputChange}
+                    value={formData.claimLimit ?? ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setFormData(prev => ({
+                        ...prev,
+                        claimLimit: val === '' ? null : Math.max(1, parseInt(val, 10) || 1)
+                      }));
+                    }}
                     min="1"
+                    placeholder="Unlimited"
                   />
-                </div>
-                <div>
-                  <Label htmlFor="applicableTo">Applicable To*</Label>
-                  <select
-                    id="applicableTo"
-                    name="applicableTo"
-                    value={formData.applicableTo}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
-                  >
-                    <option value="all">All Products</option>
-                    <option value="category">Specific Categories</option>
-                    <option value="seller">Specific Sellers</option>
-                    <option value="product">Specific Products</option>
-                  </select>
                 </div>
               </div>
 
+              {/* Target Audience */}
+              <div className="space-y-2">
+                <Label htmlFor="applicableTo" className="text-sm font-medium">
+                  Applicable To <span className="text-red-500">*</span>
+                </Label>
+                <select
+                  id="applicableTo"
+                  name="applicableTo"
+                  value={formData.applicableTo}
+                  onChange={handleInputChange}
+                  className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <option value="all">All Products</option>
+                  <option value="category">Specific Categories</option>
+                  <option value="seller">Specific Sellers</option>
+                  <option value="product">Specific Products</option>
+                </select>
+              </div>
+
+              {/* Schedule */}
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="startDate">Start Date*</Label>
-                  <Input
-                    id="startDate"
-                    name="startDate"
-                    type="date"
-                    value={formData.startDate instanceof Date ? formData.startDate.toISOString().split('T')[0] : ''}
-                    onChange={(e) => setFormData(prev => ({ ...prev, startDate: new Date(e.target.value) }))}
-                  />
+                <div className="space-y-2">
+                  <Label htmlFor="startDate" className="text-sm font-medium">
+                    Start Date <span className="text-red-500">*</span>
+                  </Label>
+                  <div className="relative">
+                    <Input
+                      id="startDate"
+                      name="startDate"
+                      type="date"
+                      value={formData.startDate instanceof Date ? formData.startDate.toISOString().split('T')[0] : ''}
+                      onChange={(e) => setFormData(prev => ({ ...prev, startDate: new Date(e.target.value) }))}
+                      className="pl-9"
+                    />
+                    <Calendar className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                  </div>
                 </div>
-                <div>
-                  <Label htmlFor="endDate">End Date*</Label>
-                  <Input
-                    id="endDate"
-                    name="endDate"
-                    type="date"
-                    value={formData.endDate instanceof Date ? formData.endDate.toISOString().split('T')[0] : ''}
-                    onChange={(e) => setFormData(prev => ({ ...prev, endDate: new Date(e.target.value) }))}
-                    min={formData.startDate instanceof Date ? formData.startDate.toISOString().split('T')[0] : undefined}
-                  />
+                <div className="space-y-2">
+                  <Label htmlFor="endDate" className="text-sm font-medium">
+                    End Date <span className="text-red-500">*</span>
+                  </Label>
+                  <div className="relative">
+                    <Input
+                      id="endDate"
+                      name="endDate"
+                      type="date"
+                      value={formData.endDate instanceof Date ? formData.endDate.toISOString().split('T')[0] : ''}
+                      onChange={(e) => setFormData(prev => ({ ...prev, endDate: new Date(e.target.value) }))}
+                      min={formData.startDate instanceof Date ? formData.startDate.toISOString().split('T')[0] : undefined}
+                      className="pl-9"
+                    />
+                    <Calendar className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                  </div>
                 </div>
               </div>
 
-              <div className="flex items-center space-x-2">
+              {/* Activation Toggle */}
+              <div className="flex items-center space-x-2 pt-2 border-t border-gray-100 mt-2">
                 <Switch
                   id="isActive"
                   checked={formData.isActive}
                   onCheckedChange={handleSwitchChange}
                 />
-                <Label htmlFor="isActive">Activate voucher immediately</Label>
+                <Label htmlFor="isActive" className="font-normal cursor-pointer select-none">
+                  Activate voucher immediately upon creation
+                </Label>
               </div>
             </div>
 
-            <DialogFooter>
+            <DialogFooter className="gap-2 sm:gap-0">
               <Button
                 variant="outline"
                 onClick={() => {
@@ -775,7 +859,7 @@ const AdminVouchers: React.FC = () => {
             <AlertDialogHeader>
               <AlertDialogTitle>Delete Voucher?</AlertDialogTitle>
               <AlertDialogDescription>
-                Are you sure you want to delete "{selectedVoucher?.code}"? This action cannot be undone.
+                {`Are you sure you want to delete "${selectedVoucher?.code}"? This action cannot be undone. Users who have already used this voucher will not be affected.`}
                 Users who have already used this voucher will not be affected.
               </AlertDialogDescription>
             </AlertDialogHeader>

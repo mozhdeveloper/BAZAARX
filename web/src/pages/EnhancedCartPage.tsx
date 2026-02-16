@@ -31,7 +31,7 @@ export default function EnhancedCartPage() {
     groupedCart,
     updateCartQuantity,
     removeFromCart,
-    validateVoucher,
+    validateVoucherDetailed,
     applyVoucher,
     getCartTotal,
     getCartItemCount,
@@ -117,14 +117,23 @@ export default function EnhancedCartPage() {
     setVoucherError("");
 
     try {
-      const voucher = await validateVoucher(voucherCode, sellerId);
+      const { voucher, errorCode } = await validateVoucherDetailed(voucherCode, sellerId);
 
       if (voucher) {
         applyVoucher(voucher, sellerId);
         setVoucherCode("");
         setVoucherError("");
       } else {
-        setVoucherError("Invalid voucher code or minimum order not met");
+        const errorMessages: Record<string, string> = {
+          NOT_FOUND: "Voucher code not found.",
+          INACTIVE: "This voucher is currently inactive.",
+          NOT_STARTED: "This voucher is not active yet.",
+          EXPIRED: "This voucher has expired.",
+          MIN_ORDER_NOT_MET: "Minimum order amount not met.",
+          SELLER_MISMATCH: "This voucher is only valid for specific seller items.",
+          ALREADY_USED: "You have already used this voucher. It can only be used once per customer.",
+        };
+        setVoucherError(errorMessages[errorCode || ""] || "Invalid voucher code or minimum order not met");
       }
     } catch (error) {
       setVoucherError("Failed to validate voucher");

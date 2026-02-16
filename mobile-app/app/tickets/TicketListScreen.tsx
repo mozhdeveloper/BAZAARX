@@ -1,31 +1,35 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, FlatList, Pressable, StyleSheet, ActivityIndicator, Image } from 'react-native';
+import { View, Text, FlatList, Pressable, StyleSheet, ActivityIndicator, Image, RefreshControl } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, Plus, MessageCircle } from 'lucide-react-native';
+import { ArrowLeft, Plus, MessageCircle, Store } from 'lucide-react-native';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../App';
 import { COLORS } from '../../src/constants/theme';
 import { TicketService } from '../../services/TicketService';
+import { useAuthStore } from '../../src/stores/authStore';
 import type { Ticket } from '../types/ticketTypes';
 
 export default function TicketListScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const insets = useSafeAreaInsets();
   const isFocused = useIsFocused();
+  const { user } = useAuthStore();
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
-    if (isFocused) {
+    if (isFocused && user?.id) {
       loadTickets();
     }
-  }, [isFocused]);
+  }, [isFocused, user?.id]);
 
   const loadTickets = async () => {
+    if (!user?.id) return;
     setLoading(true);
     try {
-      const data = await TicketService.fetchTickets();
+      const data = await TicketService.fetchTickets(user.id);
       setTickets(data);
     } catch (err) {
       console.error(err);
@@ -34,10 +38,24 @@ export default function TicketListScreen() {
     }
   };
 
+  const onRefresh = async () => {
+    if (!user?.id) return;
+    setRefreshing(true);
+    try {
+      const data = await TicketService.fetchTickets(user.id);
+      setTickets(data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch(status) {
         case 'open': return '#3B82F6';
         case 'in_progress': return '#F59E0B';
+        case 'waiting_response': return '#8B5CF6';
         case 'resolved': return '#10B981';
         case 'closed': return '#6B7280';
         default: return '#6B7280';
@@ -50,18 +68,25 @@ export default function TicketListScreen() {
       onPress={() => navigation.navigate('TicketDetail', { ticketId: item.id })}
     >
         <View style={styles.cardHeader}>
-            <Text style={styles.ticketId}>#{item.id}</Text>
+            <Text style={styles.ticketId}>#{item.id.substring(0, 8).toUpperCase()}</Text>
             <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
-                <Text style={styles.statusText}>{item.status.replace('_', ' ').toUpperCase()}</Text>
+                <Text style={styles.statusText}>{item.status.replace(/_/g, ' ').toUpperCase()}</Text>
             </View>
         </View>
         
         <Text style={styles.subject} numberOfLines={1}>{item.subject}</Text>
         <Text style={styles.description} numberOfLines={2}>{item.description}</Text>
         
+        {item.sellerStoreName && (
+            <View style={styles.storeInfo}>
+                <Store size={14} color="#6B7280" />
+                <Text style={styles.storeName}>{item.sellerStoreName}</Text>
+            </View>
+        )}
+        
         <View style={styles.cardFooter}>
             <View style={styles.categoryBadge}>
-                <Text style={styles.categoryText}>{item.category}</Text>
+                <Text style={styles.categoryText}>{item.categoryName || 'General'}</Text>
             </View>
             <Text style={styles.dateText}>
                 {new Date(item.updatedAt).toLocaleDateString()}
@@ -112,6 +137,9 @@ export default function TicketListScreen() {
             keyExtractor={item => item.id}
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />
+            }
         />
       )}
     </View>
@@ -194,6 +222,22 @@ const styles = StyleSheet.create({
       color: '#4B5563',
       marginBottom: 12,
       lineHeight: 20,
+  },
+  storeInfo: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 12,
+      backgroundColor: '#F9FAFB',
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 6,
+      alignSelf: 'flex-start',
+  },
+  storeName: {
+      fontSize: 12,
+      color: '#6B7280',
+      marginLeft: 4,
+      fontWeight: '500',
   },
   cardFooter: {
       flexDirection: 'row',

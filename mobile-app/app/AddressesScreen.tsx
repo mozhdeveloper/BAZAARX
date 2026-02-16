@@ -10,6 +10,7 @@ import { COLORS } from '../src/constants/theme';
 import { addressService, type Address } from '../src/services/addressService';
 import { useAuthStore } from '../src/stores/authStore';
 import { regions, provinces, cities, barangays } from 'select-philippines-address';
+import { BuyerBottomNav } from '../src/components/BuyerBottomNav';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Addresses'>;
 
@@ -564,6 +565,9 @@ export default function AddressesScreen({ navigation }: Props) {
           </View>
         </View>
       </Modal>
+
+      {/* Bottom Navigation */}
+      <BuyerBottomNav />
     </LinearGradient>
   );
 }

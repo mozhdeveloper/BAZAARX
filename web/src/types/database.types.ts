@@ -406,6 +406,8 @@ export interface Review {
   product_id: string;
   buyer_id: string;
   order_id: string | null;
+  order_item_id: string | null;
+  variant_snapshot: Record<string, unknown> | null;
   rating: number;
   comment: string | null;
   helpful_count: number;
@@ -525,14 +527,14 @@ export interface OrderRecipient {
 }
 
 export interface Order {
-  tracking_number: string;
-  cancelled_at: string;
-  is_reviewed: boolean;
-  rating: number;
-  review_comment: string;
-  review_images: string[];
-  review_date: string;
-  completed_at: string;
+  tracking_number?: string | null;
+  cancelled_at?: string | null;
+  is_reviewed?: boolean;
+  rating?: number | null;
+  review_comment?: string | null;
+  review_images?: string[] | null;
+  review_date?: string | null;
+  completed_at?: string | null;
   id: string;
   order_number: string;
   buyer_id: string;

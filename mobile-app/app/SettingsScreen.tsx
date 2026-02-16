@@ -6,6 +6,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import { useAuthStore } from '../src/stores/authStore';
 import { COLORS } from '../src/constants/theme';
+import { BuyerBottomNav } from '../src/components/BuyerBottomNav';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Settings'>;
 
@@ -181,6 +182,9 @@ export default function SettingsScreen({ navigation }: Props) {
           <Text style={styles.copyrightText}>© 2024 BazaarX. All rights reserved.</Text>
         </View>
       </ScrollView>
+
+      {/* Bottom Navigation */}
+      <BuyerBottomNav />
     </View>
   );
 }
