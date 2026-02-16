@@ -185,6 +185,26 @@ export default function HomeScreen({ navigation }: Props) {
             || row.primary_image
             || '';
 
+          const rawVariants = Array.isArray(row.variants) ? row.variants : [];
+          const variants = rawVariants.map((v: any) => ({
+            id: v.id,
+            product_id: row.id,
+            sku: v.sku,
+            variant_name: v.variant_name || `${v.option_1_value || v.color || ''} ${v.option_2_value || v.size || ''}`.trim() || 'Variant',
+            size: v.size,
+            color: v.color,
+            option_1_value: v.option_1_value,
+            option_2_value: v.option_2_value,
+            price: v.price ?? row.price,
+            stock: v.stock ?? 0,
+            thumbnail_url: v.thumbnail_url,
+          }));
+
+          const colors = Array.from(new Set(variants.map((v: any) => v.color).filter(Boolean))) as string[];
+          const sizes = Array.from(new Set(variants.map((v: any) => v.size).filter(Boolean))) as string[];
+          const option1Values = Array.from(new Set(variants.map((v: any) => v.option_1_value || v.color).filter(Boolean))) as string[];
+          const option2Values = Array.from(new Set(variants.map((v: any) => v.option_2_value || v.size).filter(Boolean))) as string[];
+
           return {
             id: row.id,
             name: row.name,
@@ -196,8 +216,8 @@ export default function HomeScreen({ navigation }: Props) {
             reviewCount: row.reviewCount || 0,
             sold: row.sold || 0,
             seller: row.seller?.store_name || 'Verified Seller',
-            seller_id: row.seller_id || row.seller?.id, // snake_case for DB compat
-            sellerId: row.seller_id || row.seller?.id,  // camelCase alias
+            seller_id: row.seller_id || row.seller?.id,
+            sellerId: row.seller_id || row.seller?.id,
             sellerRating: 4.9,
             sellerVerified: !!row.seller?.verified_at,
             isFreeShipping: !!row.is_free_shipping,
@@ -206,6 +226,13 @@ export default function HomeScreen({ navigation }: Props) {
             description: row.description || '',
             category: row.category?.name || row.category || '',
             stock: row.stock || 0,
+            variants,
+            colors,
+            sizes,
+            variant_label_1: row.variant_label_1,
+            variant_label_2: row.variant_label_2,
+            option1Values,
+            option2Values,
           } as Product;
         });
         const uniqueMapped = Array.from(new Map(mapped.map(item => [item.id, item])).values());
