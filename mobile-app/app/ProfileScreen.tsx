@@ -353,13 +353,18 @@ export default function ProfileScreen({ navigation }: Props) {
   if (isGuest) {
     return (
       <LinearGradient
-        colors={['#FFE5CC', '#FFE5CC']}
+        colors={['#FFFBF0', '#FFFBF0']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
         style={styles.container}
       >
         <StatusBar barStyle="dark-content" />
-        <View style={[styles.header, { paddingTop: insets.top + 20 }]}>
+        <LinearGradient
+          colors={['#FFF6E5', '#FFE0A3', '#FFD89A']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+          style={[styles.header, { paddingTop: insets.top + 20 }]}
+        >
           <View style={styles.profileHeader}>
             <View style={styles.avatarWrapper}>
               <View style={styles.avatarCircle}>
@@ -371,7 +376,7 @@ export default function ProfileScreen({ navigation }: Props) {
               <Text style={styles.userSub}>Welcome to BazaarX!</Text>
             </View>
           </View>
-        </View>
+        </LinearGradient>
 
         <ScrollView contentContainerStyle={styles.scrollContent}>
           {/* Main Actions for Guest */}
@@ -414,7 +419,7 @@ export default function ProfileScreen({ navigation }: Props) {
 
   return (
     <LinearGradient
-      colors={['#FFE5CC', '#FFE5CC']}
+      colors={['#FFFBF0', '#FFFBF0']}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 0 }}
       style={styles.container}
@@ -654,7 +659,7 @@ export default function ProfileScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: { 
     flex: 1, 
-    backgroundColor: '#F9FAFB' 
+    backgroundColor: '#FFFBF0' 
   },
   header: {
     paddingHorizontal: 20,
@@ -708,10 +713,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 10,
     paddingVertical: 20,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
+    shadowColor: '#F59E0B',
+    shadowOpacity: 0.2, // Increased for gold glow
     shadowRadius: 15,
-    elevation: 4,
+    elevation: 6,
     marginBottom: 5,
   },
   statBox: { flex: 1, alignItems: 'center' },

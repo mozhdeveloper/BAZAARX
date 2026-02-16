@@ -69,21 +69,26 @@ export default function NotificationSettingsScreen({ navigation }: Props) {
   if (isGuest) {
     return (
       <LinearGradient
-        colors={['#FFE5CC', '#FFE5CC']}
+        colors={['#FFFBF0', '#FFFBF0']} // Warm Ivory
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
         style={styles.container}
       >
-        <StatusBar barStyle="light-content" />
-        <View style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}>
+        <StatusBar barStyle="dark-content" />
+        <LinearGradient
+          colors={['#FFF6E5', '#FFE0A3', '#FFD89A']} // Pastel Gold Header
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+          style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}
+        >
           <View style={styles.headerTop}>
             <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-              <ArrowLeft size={24} color="#1F2937" strokeWidth={2.5} />
+              <ArrowLeft size={24} color="#7C2D12" strokeWidth={2.5} />
             </Pressable>
             <Text style={styles.headerTitle}>Notifications</Text>
             <View style={{ width: 40 }} />
           </View>
-        </View>
+        </LinearGradient>
         <GuestLoginModal
           visible={true}
           onClose={() => {
@@ -99,22 +104,27 @@ export default function NotificationSettingsScreen({ navigation }: Props) {
 
   return (
     <LinearGradient
-      colors={['#FFE5CC', '#FFE5CC']}
+      colors={['#FFFBF0', '#FFFBF0']} // Warm Ivory
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 0 }}
       style={styles.container}
     >
-      <StatusBar barStyle="light-content" />
+      <StatusBar barStyle="dark-content" />
       {/* Header */}
-      <View style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}>
+      <LinearGradient
+        colors={['#FFF6E5', '#FFE0A3', '#FFD89A']} // Pastel Gold Header
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+        style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}
+      >
         <View style={styles.headerTop}>
           <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-            <ArrowLeft size={24} color="#1F2937" strokeWidth={2.5} />
+            <ArrowLeft size={24} color="#7C2D12" strokeWidth={2.5} />
           </Pressable>
           <Text style={styles.headerTitle}>Notifications</Text>
           <View style={{ width: 40 }} />
         </View>
-      </View>
+      </LinearGradient>
 
       <GuestLoginModal
         visible={showGuestModal}
@@ -157,7 +167,7 @@ export default function NotificationSettingsScreen({ navigation }: Props) {
               <Switch
                 value={notifications.email.orderUpdates}
                 onValueChange={() => toggleNotification('email', 'orderUpdates')}
-                trackColor={{ false: '#D1D5DB', true: '#FF6A00' }}
+                trackColor={{ false: '#D1D5DB', true: '#FB8C00' }} // Warm Orange
                 thumbColor="#FFFFFF"
               />
             </Pressable>
@@ -186,7 +196,7 @@ export default function NotificationSettingsScreen({ navigation }: Props) {
               <Switch
                 value={notifications.email.promotions}
                 onValueChange={() => toggleNotification('email', 'promotions')}
-                trackColor={{ false: '#D1D5DB', true: '#FF6A00' }}
+                trackColor={{ false: '#D1D5DB', true: '#FB8C00' }} // Warm Orange
                 thumbColor="#FFFFFF"
               />
             </Pressable>
@@ -215,7 +225,7 @@ export default function NotificationSettingsScreen({ navigation }: Props) {
               <Switch
                 value={notifications.email.newsletter}
                 onValueChange={() => toggleNotification('email', 'newsletter')}
-                trackColor={{ false: '#D1D5DB', true: '#FF6A00' }}
+                trackColor={{ false: '#D1D5DB', true: '#FB8C00' }} // Warm Orange
                 thumbColor="#FFFFFF"
               />
             </Pressable>
@@ -252,7 +262,7 @@ export default function NotificationSettingsScreen({ navigation }: Props) {
               <Switch
                 value={notifications.sms.delivery}
                 onValueChange={() => toggleNotification('sms', 'delivery')}
-                trackColor={{ false: '#D1D5DB', true: '#FF6A00' }}
+                trackColor={{ false: '#D1D5DB', true: '#FB8C00' }} // Warm Orange
                 thumbColor="#FFFFFF"
               />
             </Pressable>
@@ -281,7 +291,7 @@ export default function NotificationSettingsScreen({ navigation }: Props) {
               <Switch
                 value={notifications.sms.orderConfirmation}
                 onValueChange={() => toggleNotification('sms', 'orderConfirmation')}
-                trackColor={{ false: '#D1D5DB', true: '#FF6A00' }}
+                trackColor={{ false: '#D1D5DB', true: '#FB8C00' }} // Warm Orange
                 thumbColor="#FFFFFF"
               />
             </Pressable>
@@ -319,7 +329,7 @@ export default function NotificationSettingsScreen({ navigation }: Props) {
               <Switch
                 value={notifications.push.orderStatus}
                 onValueChange={() => toggleNotification('push', 'orderStatus')}
-                trackColor={{ false: '#D1D5DB', true: '#FF6A00' }}
+                trackColor={{ false: '#D1D5DB', true: '#FB8C00' }} // Warm Orange
                 thumbColor="#FFFFFF"
               />
             </Pressable>
@@ -349,7 +359,7 @@ export default function NotificationSettingsScreen({ navigation }: Props) {
               <Switch
                 value={notifications.push.newDeals}
                 onValueChange={() => toggleNotification('push', 'newDeals')}
-                trackColor={{ false: '#D1D5DB', true: '#FF6A00' }}
+                trackColor={{ false: '#D1D5DB', true: '#FB8C00' }} // Warm Orange
                 thumbColor="#FFFFFF"
               />
             </Pressable>
@@ -379,7 +389,7 @@ export default function NotificationSettingsScreen({ navigation }: Props) {
               <Switch
                 value={notifications.push.priceDrops}
                 onValueChange={() => toggleNotification('push', 'priceDrops')}
-                trackColor={{ false: '#D1D5DB', true: '#FF6A00' }}
+                trackColor={{ false: '#D1D5DB', true: '#FB8C00' }} // Warm Orange
                 thumbColor="#FFFFFF"
               />
             </Pressable>
@@ -409,7 +419,7 @@ export default function NotificationSettingsScreen({ navigation }: Props) {
               <Switch
                 value={notifications.push.messages}
                 onValueChange={() => toggleNotification('push', 'messages')}
-                trackColor={{ false: '#D1D5DB', true: '#FF6A00' }}
+                trackColor={{ false: '#D1D5DB', true: '#FB8C00' }} // Warm Orange
                 thumbColor="#FFFFFF"
               />
             </Pressable>
@@ -439,7 +449,7 @@ export default function NotificationSettingsScreen({ navigation }: Props) {
               <Switch
                 value={notifications.push.flashSales}
                 onValueChange={() => toggleNotification('push', 'flashSales')}
-                trackColor={{ false: '#D1D5DB', true: '#FF6A00' }}
+                trackColor={{ false: '#D1D5DB', true: '#FB8C00' }} // Warm Orange
                 thumbColor="#FFFFFF"
               />
             </Pressable>
@@ -469,7 +479,7 @@ const styles = StyleSheet.create({
   },
   headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headerIconButton: { padding: 4 },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: '#1F2937' },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: '#7C2D12' },
   scrollView: {
     flex: 1,
   },

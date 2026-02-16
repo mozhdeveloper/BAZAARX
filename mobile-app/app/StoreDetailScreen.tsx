@@ -26,15 +26,15 @@ export default function StoreDetailScreen() {
     if (!store) {
         return (
             <LinearGradient
-                colors={['#FFE5CC', '#FFE5CC']}
+                colors={['#FFFBF0', '#FFFBF0']} // Warm Ivory background
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={styles.container}
             >
                 <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                    <Text>Store information not available</Text>
+                    <Text style={{ color: '#7C2D12' }}>Store information not available</Text>
                     <Pressable onPress={() => navigation.goBack()} style={{ padding: 10, marginTop: 10 }}>
-                        <Text style={{ color: COLORS.primary }}>Go Back</Text>
+                        <Text style={{ color: '#FB8C00' }}>Go Back</Text>
                     </Pressable>
                 </View>
             </LinearGradient>
@@ -279,7 +279,7 @@ export default function StoreDetailScreen() {
                         <Text style={styles.sectionTitle}>All Products ({storeProducts.length})</Text>
                         {productsLoading ? (
                             <View style={styles.loadingContainer}>
-                                <ActivityIndicator size="large" color={BRAND_COLOR} />
+                                <ActivityIndicator size="large" color="#FB8C00" />
                                 <Text style={styles.loadingText}>Loading products...</Text>
                             </View>
                         ) : storeProducts.length === 0 ? (
@@ -341,7 +341,7 @@ export default function StoreDetailScreen() {
                                 <Text style={styles.infoText}>{storeData.rating} ({followerCount} Followers)</Text>
                             </View>
                             <View style={styles.infoRow}>
-                                <CheckCircle2 size={18} color={BRAND_COLOR} />
+                                <CheckCircle2 size={18} color="#FB8C00" />
                                 <Text style={styles.infoText}>Verified Official Store</Text>
                             </View>
                             <View style={styles.infoRow}>
@@ -358,15 +358,20 @@ export default function StoreDetailScreen() {
 
     return (
         <LinearGradient
-            colors={['#FFE5CC', '#FFE5CC']}
+            colors={['#FFFBF0', '#FFFBF0']} // Warm Ivory background
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
             style={styles.container}
         >
-            <StatusBar barStyle="light-content" />
+            <StatusBar barStyle="dark-content" />
 
             {/* Custom Header */}
-            <View style={[styles.header, { paddingTop: insets.top }, searchVisible && { backgroundColor: BRAND_COLOR, paddingBottom: 12 }]}>
+            <LinearGradient
+                colors={['#FFF6E5', '#FFE0A3', '#FFD89A']} // Pastel Gold Header
+                start={{ x: 0, y: 0 }}
+                end={{ x: 0, y: 1 }}
+                style={[styles.header, { paddingTop: insets.top }, searchVisible && { backgroundColor: '#FB8C00', paddingBottom: 12 }]}
+            >
                 {searchVisible ? (
                     <View style={styles.searchHeader}>
                         <View style={styles.searchBar}>
@@ -386,22 +391,21 @@ export default function StoreDetailScreen() {
                         </Pressable>
                     </View>
                 ) : (
-                    /* Store Header - Standardized */
                     <View style={styles.headerTop}>
                         <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-                            <ArrowLeft size={24} color="#1F2937" strokeWidth={2.5} />
+                            <ArrowLeft size={24} color="#7C2D12" strokeWidth={2.5} />
                         </Pressable>
                         <View style={styles.headerRight}>
                             <Pressable style={styles.headerIconButton} onPress={() => { }}>
-                                <Share2 size={24} color="#1F2937" />
+                                <Share2 size={24} color="#7C2D12" />
                             </Pressable>
                             <Pressable style={styles.headerIconButton} onPress={() => { }}>
-                                <MoreVertical size={24} color="#1F2937" />
+                                <MoreVertical size={24} color="#7C2D12" />
                             </Pressable>
                         </View>
                     </View>
                 )}
-            </View>
+            </LinearGradient>
 
             <ScrollView showsVerticalScrollIndicator={false}>
                 {/* Profile Banner Section */}
@@ -523,7 +527,7 @@ export default function StoreDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1 },
+    container: { flex: 1, backgroundColor: '#FFFBF0' },
     header: { paddingHorizontal: 20, zIndex: 10, paddingBottom: 10 },
     headerTop: {
         flexDirection: 'row',
@@ -658,7 +662,7 @@ const styles = StyleSheet.create({
     },
     followButton: {
         flex: 1,
-        backgroundColor: COLORS.primary,
+        backgroundColor: '#FB8C00', // Warm Orange
         paddingVertical: 10,
         borderRadius: 8,
         flexDirection: 'row',
@@ -711,7 +715,7 @@ const styles = StyleSheet.create({
         fontWeight: '600',
     },
     activeTabText: {
-        color: COLORS.primary,
+        color: '#FB8C00',
         fontWeight: '700',
     },
     activeIndicator: {
@@ -720,7 +724,7 @@ const styles = StyleSheet.create({
         left: 16,
         right: 16,
         height: 3,
-        backgroundColor: COLORS.primary,
+        backgroundColor: '#FB8C00',
         borderRadius: 3,
     },
     couponSection: {
@@ -742,14 +746,14 @@ const styles = StyleSheet.create({
         marginBottom: 12,
     },
     seeAllText: {
-        color: COLORS.primary,
+        color: '#FB8C00',
         fontWeight: '600',
         fontSize: 13,
     },
     sectionTitle: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#1F2937',
+        fontSize: 19,
+        fontWeight: '900',
+        color: '#D97706',
         paddingHorizontal: 16,
         marginBottom: 12,
     },
@@ -857,7 +861,7 @@ const styles = StyleSheet.create({
     },
     productWrapper: {
         width: (width - 48) / 2,
-        marginBottom: 16,
+        marginBottom: 12,
     },
     // Menu Styles
     menuOverlay: {

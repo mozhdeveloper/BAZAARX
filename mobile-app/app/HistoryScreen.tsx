@@ -12,6 +12,7 @@ import {
   Dimensions,
   ActivityIndicator
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Search, Filter, X, Clock, ShoppingCart } from 'lucide-react-native';
 import { supabase } from '../src/lib/supabase';
@@ -159,22 +160,27 @@ export default function HistoryScreen({ navigation }: Props) {
       <StatusBar barStyle="light-content" />
       
       {/* 1. Header */}
-      <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: BRAND_COLOR }]}>
+      <LinearGradient
+        colors={['#FFF6E5', '#FFE0A3', '#FFD89A']} // Pastel Gold Header
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+        style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}
+      >
         <View style={styles.headerTop}>
           <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-            <ArrowLeft size={24} color="#FFF" strokeWidth={2.5} />
+            <ArrowLeft size={24} color="#7C2D12" strokeWidth={2.5} />
           </Pressable>
           <Text style={styles.headerTitle}>Purchase History</Text>
           <View style={styles.headerActions}>
             <Pressable style={styles.headerIconButton} onPress={() => setShowFilterModal(true)}>
-              <Filter size={22} color="#FFF" strokeWidth={2.5} />
+              <Filter size={22} color="#7C2D12" strokeWidth={2.5} />
             </Pressable>
             <Pressable style={styles.headerIconButton} onPress={() => setShowSearchModal(true)}>
-              <Search size={22} color="#FFF" strokeWidth={2.5} />
+              <Search size={22} color="#7C2D12" strokeWidth={2.5} />
             </Pressable>
           </View>
         </View>
-      </View>
+      </LinearGradient>
 
       {/* 2. Content */}
       {isLoading ? (
@@ -293,7 +299,7 @@ export default function HistoryScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F9FAFB' },
+  container: { flex: 1, backgroundColor: '#FFFBF0' },
   headerContainer: {
     paddingHorizontal: 20,
     elevation: 4,
@@ -307,7 +313,7 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFF' },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: '#7C2D12' },
   headerIconButton: { padding: 4 },
   headerActions: { flexDirection: 'row', gap: 8 },
   
@@ -315,15 +321,15 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   // Card Styles
   orderCard: {
-    backgroundColor: '#FFF',
+    backgroundColor: '#FFFBF0',
     borderRadius: 16,
     marginBottom: 16,
     padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
+    shadowColor: '#F59E0B',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 4,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -344,7 +350,7 @@ const styles = StyleSheet.create({
   productName: { fontSize: 14, fontWeight: '600', color: '#1F2937', marginBottom: 4 },
   dateRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
   dateText: { fontSize: 12, color: '#9CA3AF', marginLeft: 4 },
-  totalAmount: { fontSize: 14, fontWeight: '700' },
+  totalAmount: { fontSize: 14, fontWeight: '800', color: '#EA580C' },
   
   cardFooter: { borderTopWidth: 1, borderTopColor: '#F3F4F6', paddingTop: 12 },
   buttonRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },

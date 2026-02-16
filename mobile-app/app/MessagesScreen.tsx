@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   StatusBar,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Bot,
@@ -110,11 +111,21 @@ export default function MessagesScreen() {
 
 
   return (
-    <View style={styles.container}>
+    <LinearGradient
+      colors={['#FFFBF0', '#FFFBF0']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 0 }}
+      style={styles.container}
+    >
       <StatusBar barStyle="dark-content" />
 
       {/* Edge-to-Edge Header */}
-      <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: '#FFE5CC' }]}>
+      <LinearGradient
+        colors={['#FFF6E5', '#FFE0A3', '#FFD89A']} // Pastel Gold Header
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+        style={[styles.headerContainer, { paddingTop: insets.top + 10 }]} // Removed backgroundColor
+      >
         <View style={styles.headerTop}>
           {/* Back button removed */}
           <View style={styles.headerIcon} />
@@ -125,7 +136,7 @@ export default function MessagesScreen() {
             <Bot size={24} color={COLORS.primary} strokeWidth={2.5} />
           </Pressable>
         </View>
-      </View>
+      </LinearGradient>
 
       {/* Search Bar */}
       <View style={styles.searchContainer}>
@@ -230,7 +241,7 @@ export default function MessagesScreen() {
       )}
 
       <AIChatModal visible={showAIChat} onClose={() => setShowAIChat(false)} />
-    </View>
+    </LinearGradient>
   );
 }
 

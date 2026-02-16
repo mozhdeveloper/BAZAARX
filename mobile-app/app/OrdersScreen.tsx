@@ -588,58 +588,61 @@ export default function OrdersScreen({ navigation, route }: Props) {
 
   if (isGuest) {
     return (
+    <View style={styles.container}>
       <LinearGradient
-        colors={['#FFE5CC', '#FFE5CC']}
+        colors={['#FFF6E5', '#FFE0A3', '#FFD89A']} // Pastel Gold Header
         start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-        style={styles.container}
+        end={{ x: 0, y: 1 }}
+        style={[styles.headerContainer, { paddingTop: 60 }]}
       >
-        <View style={[styles.headerContainer, { paddingTop: 60 }]}>
-          <View style={styles.headerTop}>
-            <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-              <ArrowLeft size={24} color="#1F2937" strokeWidth={2.5} />
-            </Pressable>
-            <Text style={styles.headerTitle}>My Orders</Text>
-            <View style={{ width: 40 }} />
-          </View>
+        <View style={styles.headerTop}>
+          <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
+            <ArrowLeft size={24} color="#7C2D12" strokeWidth={2.5} />
+          </Pressable>
+          <Text style={styles.headerTitle}>My Orders</Text>
+          <View style={{ width: 40 }} />
         </View>
-        <GuestLoginModal
-          visible={true}
-          onClose={() => navigation.navigate('MainTabs', { screen: 'Home' })} // Explicit navigation
-          message="Sign up to track your orders."
-          hideCloseButton={true}
-          cancelText="Go back to Home"
-        />
       </LinearGradient>
+      <GuestLoginModal
+        visible={true}
+        onClose={() => navigation.navigate('MainTabs', { screen: 'Home' })} // Explicit navigation
+        message="Sign up to track your orders."
+        hideCloseButton={true}
+        cancelText="Go back to Home"
+      />
+    </View>
     );
   }
 
   return (
-    <LinearGradient
-      colors={['#FFE5CC', '#FFE5CC']}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 0 }}
+    <View
       style={styles.container}
     >
       <StatusBar barStyle="dark-content" />
 
       {/* Header with Title only */}
-      <View style={[styles.headerContainer, { paddingTop: insets.top + 10, paddingBottom: 15 }]}>
+      {/* Header with Title only */}
+      <LinearGradient
+        colors={['#FFF6E5', '#FFE0A3', '#FFD89A']} // Pastel Gold Header
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+        style={[styles.headerContainer, { paddingTop: insets.top + 10, paddingBottom: 15 }]}
+      >
         <View style={styles.headerTop}>
           <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-            <ArrowLeft size={24} color="#1F2937" strokeWidth={2.5} />
+            <ArrowLeft size={24} color="#7C2D12" strokeWidth={2.5} />
           </Pressable>
           <Text style={styles.headerTitle}>My Orders</Text>
           <View style={styles.headerActions}>
             <Pressable style={styles.headerIconButton} onPress={() => setShowFilterModal(true)}>
-              <Filter size={22} color="#1F2937" strokeWidth={2.5} />
+              <Filter size={22} color="#7C2D12" strokeWidth={2.5} />
             </Pressable>
             <Pressable style={styles.headerIconButton} onPress={() => setShowSearchModal(true)}>
-              <Search size={22} color="#1F2937" strokeWidth={2.5} />
+              <Search size={22} color="#7C2D12" strokeWidth={2.5} />
             </Pressable>
           </View>
         </View>
-      </View>
+      </LinearGradient>
 
       {/* White Tab Bar - Sticky look */}
       <View style={styles.tabsWrapper}>
@@ -787,14 +790,14 @@ export default function OrdersScreen({ navigation, route }: Props) {
 
       {/* Bottom Navigation */}
       <BuyerBottomNav />
-    </LinearGradient>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFFBF0', // Warm Ivory
   },
   headerContainer: {
     paddingHorizontal: 20,

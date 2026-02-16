@@ -1,19 +1,19 @@
 export const COLORS = {
   // Primary
-  primary: '#FF6A00', // orange-500
-  primaryHover: '#E65F00', // orange-600
-  primaryActive: '#CC5500', // orange-700
+  primary: '#FB8C00', // Warm Orange
+  primaryHover: '#EA580C', // orange-600
+  primaryActive: '#C2410C', // orange-700
 
   // Neutral
-  background: '#F9FAFB', // gray-50
+  background: '#FFF8F0', // warm-cream
   surface: '#FFFFFF',
   gray100: '#F3F4F6',
   gray200: '#E5E7EB',
   gray300: '#D1D5DB',
   gray400: '#9CA3AF',
   gray500: '#6B7280',
-  gray600: '#4B5563',
-  gray900: '#111827',
+  gray600: '#78350F', // warm-brown-600
+  gray900: '#431407', // warm-brown-900
 
   // Semantic
   success: '#10B981',

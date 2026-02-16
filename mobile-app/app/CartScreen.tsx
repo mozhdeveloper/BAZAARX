@@ -116,7 +116,7 @@ export default function CartScreen({ navigation }: any) {
 
   return (
     <LinearGradient
-      colors={['#FFFFFF', '#FFFFFF']}
+      colors={['#FFFBF0', '#FFFBF0']}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 0 }}
       style={styles.container}
@@ -124,7 +124,13 @@ export default function CartScreen({ navigation }: any) {
       <StatusBar barStyle="dark-content" backgroundColor="#FFE5CC" />
 
       {/* HEADER */}
-      <View style={[styles.headerContainer, { paddingTop: insets.top + 5 }]}>
+      {/* HEADER */}
+      <LinearGradient
+        colors={['#FFF6E5', '#FFE0A3', '#FFD89A']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+        style={[styles.headerContainer, { paddingTop: insets.top + 5 }]}
+      >
         <View style={styles.headerTop}>
           <Text style={styles.headerTitle}>My Cart</Text>
           <View style={styles.clearTextWrapper}>
@@ -133,7 +139,7 @@ export default function CartScreen({ navigation }: any) {
             </Pressable>
           </View>
         </View>
-      </View>
+      </LinearGradient>
 
       {/* SELECT ALL BAR */}
       <View style={styles.selectAllBar}>
@@ -246,7 +252,7 @@ const styles = StyleSheet.create({
   headerContainer: {
     paddingHorizontal: 20,
     paddingBottom: 15,
-    backgroundColor: '#FFE5CC',
+    // backgroundColor: '#FFE5CC', // Removed for gradient
     borderBottomLeftRadius: 32,
     borderBottomRightRadius: 32,
     shadowColor: '#000',

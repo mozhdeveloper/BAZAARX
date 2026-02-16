@@ -351,17 +351,22 @@ export default function AddressesScreen({ navigation }: Props) {
       end={{ x: 1, y: 0 }}
       style={styles.container}
     >
-      <StatusBar barStyle="light-content" />
+      <StatusBar barStyle="dark-content" />
       {/* HEADER */}
-      <View style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}>
+      <LinearGradient
+        colors={['#FFF6E5', '#FFE0A3', '#FFD89A']} // Pastel Gold Header
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+        style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}
+      >
         <View style={styles.headerTop}>
           <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-            <ArrowLeft size={24} color="#1F2937" strokeWidth={2.5} />
+            <ArrowLeft size={24} color="#7C2D12" strokeWidth={2.5} />
           </Pressable>
           <Text style={styles.headerTitle}>My Addresses</Text>
           <View style={{ width: 40 }} />
         </View>
-      </View>
+      </LinearGradient>
 
       {/* ADDRESS LIST */}
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
@@ -574,28 +579,28 @@ export default function AddressesScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   // ... (Previous styles) ...
-  container: { flex: 1, backgroundColor: '#F9FAFB' },
+  container: { flex: 1, backgroundColor: '#FFFBF0' },
   headerContainer: { paddingHorizontal: 20, borderBottomLeftRadius: 30, borderBottomRightRadius: 30, paddingBottom: 20, marginBottom: 10, elevation: 4, zIndex: 10 },
   headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headerIconButton: { padding: 4 },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: '#1F2937' },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: '#7C2D12' },
   scrollView: { flex: 1 },
   scrollContent: { padding: 16 },
-  addButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#FF6A00', paddingVertical: 14, borderRadius: 12, marginBottom: 16 },
-  addButtonPressed: { backgroundColor: '#E55F00' },
+  addButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#FB8C00', paddingVertical: 14, borderRadius: 12, marginBottom: 16 },
+  addButtonPressed: { backgroundColor: '#E67E00' },
   addButtonText: { fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
   addressCard: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 16, marginBottom: 12, elevation: 2 },
   addressHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   addressTypeContainer: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   iconContainer: { width: 32, height: 32, borderRadius: 8, backgroundColor: '#FEF3E8', alignItems: 'center', justifyContent: 'center' },
   addressType: { fontSize: 16, fontWeight: '700', color: '#111827' },
-  defaultBadge: { backgroundColor: '#DCFCE7', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  defaultText: { fontSize: 12, fontWeight: '700', color: '#16A34A' },
+  defaultBadge: { backgroundColor: '#FFF6E5', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: '#FFE0A3' },
+  defaultText: { fontSize: 12, fontWeight: '700', color: '#EA580C' },
   addressName: { fontSize: 15, fontWeight: '600', color: '#111827', marginBottom: 4 },
   addressDetails: { fontSize: 14, color: '#374151', lineHeight: 20 },
   actionButtons: { flexDirection: 'row', gap: 8, marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: '#F3F4F6' },
   actionButton: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, backgroundColor: '#FEF3E8' },
-  actionButtonText: { fontSize: 13, fontWeight: '600', color: '#FF6A00' },
+  actionButtonText: { fontSize: 13, fontWeight: '600', color: '#FB8C00' },
   deleteButton: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, backgroundColor: '#FEF2F2' },
   deleteButtonText: { fontSize: 13, fontWeight: '600', color: '#EF4444' },
 
@@ -619,7 +624,7 @@ const styles = StyleSheet.create({
 
   // Dropdown
   dropdownTrigger: { height: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12, paddingHorizontal: 12, backgroundColor: '#FFFFFF' },
-  dropdownActive: { borderColor: '#FF6A00' },
+  dropdownActive: { borderColor: '#FB8C00' },
   dropdownDisabled: { backgroundColor: '#F9FAFB', borderColor: '#F3F4F6' },
   dropdownText: { fontSize: 14, color: '#1F2937', flex: 1, marginRight: 8 },
   placeholderText: { color: '#9CA3AF' },
@@ -636,7 +641,7 @@ const styles = StyleSheet.create({
   checkbox: { width: 20, height: 20, borderRadius: 6, borderWidth: 2, borderColor: '#D1D5DB', alignItems: 'center', justifyContent: 'center' },
   checkboxText: { fontSize: 14, fontWeight: '600', color: '#4B5563' },
   stickyFooter: { padding: 16, borderTopWidth: 1, borderTopColor: '#F3F4F6', backgroundColor: '#FFFFFF' },
-  confirmButton: { backgroundColor: '#FF6A00', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
+  confirmButton: { backgroundColor: '#FB8C00', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
   confirmButtonText: { fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
 
   // NEW MAP PREVIEW STYLES
