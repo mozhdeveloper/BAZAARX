@@ -87,14 +87,14 @@ const StoresPage: React.FC = () => {
         logo: `https://ui-avatars.com/api/?name=${encodeURIComponent(store.store_name || store.business_name)}&background=FF5722&color=fff&size=100`,
         avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(store.store_name || store.business_name)}&background=FF5722&color=fff&size=100`,
         banner: 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=400&h=200&fit=crop',
-        rating: store.rating || 4.5,
+        rating: Number(store.rating || 0),
         followers: Math.floor(Math.random() * 5000) + 500,
         products: store.products_count || 0,
-        totalReviews: Math.floor(Math.random() * 500) + 50,
+        totalReviews: Number((store as any).total_reviews || store.review_count || 0),
         isVerified: store.is_verified,
         description: store.store_description || `Quality products from ${store.store_name || store.business_name}`,
         location: store.city ? `${store.city}, ${store.province || ''}` : 'Philippines',
-        categories: store.store_category || ['General'],
+        categories: (store as any).store_category || (store as any).product_categories || ['General'],
         badges: store.is_verified ? ['Verified Seller'] : []
       }))
     : featuredStores;

@@ -115,6 +115,8 @@ class OrderReadService {
           product_id,
           buyer_id,
           order_id,
+          order_item_id,
+          variant_snapshot,
           rating,
           comment,
           is_hidden,

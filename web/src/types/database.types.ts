@@ -406,6 +406,8 @@ export interface Review {
   product_id: string;
   buyer_id: string;
   order_id: string | null;
+  order_item_id: string | null;
+  variant_snapshot: Record<string, unknown> | null;
   rating: number;
   comment: string | null;
   helpful_count: number;

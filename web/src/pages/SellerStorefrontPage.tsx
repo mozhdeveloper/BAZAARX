@@ -40,7 +40,11 @@ import { Textarea } from "../components/ui/textarea";
 import { useProductStore } from '../stores/sellerStore';
 import { sellerService, type SellerData } from '../services/sellerService';
 import { ProductService } from '../services/productService';
-import { reviewService } from '../services/reviewService';
+import {
+  computeReviewStats,
+  reviewService,
+  type ReviewFeedItem,
+} from '../services/reviewService';
 import type { ProductWithSeller } from '@/types/database.types';
 
 interface Reply {
@@ -65,6 +69,7 @@ interface Review {
   productName?: string;
   productImage?: string;
   images?: string[];
+  variantLabel?: string;
 }
 
 export default function SellerStorefrontPage() {
@@ -91,7 +96,6 @@ export default function SellerStorefrontPage() {
   const [realSeller, setRealSeller] = useState<SellerData | null>(null);
   const [realProducts, setRealProducts] = useState<ProductWithSeller[]>([]);
   const [loading, setLoading] = useState(true);
-  const [realReviews, setRealReviews] = useState<Review[]>([]);
   const [reviewStats, setReviewStats] = useState<{ total: number; avgRating: number; distribution: number[] }>({
     total: 0,
     avgRating: 0,
@@ -163,46 +167,45 @@ export default function SellerStorefrontPage() {
         // Fetch real reviews for this seller
         try {
           const reviewsData = await reviewService.getSellerReviews(sellerId);
-          if (reviewsData && reviewsData.length > 0) {
-            // Map database reviews to UI format
-            const mappedReviews: Review[] = reviewsData.map((r: any) => ({
-              id: r.id,
-              author: r.buyer?.full_name || 'Anonymous Buyer',
-              avatar: r.buyer?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(r.buyer?.full_name || 'A')}&background=FF6A00&color=fff`,
-              rating: r.rating,
-              date: formatRelativeDate(r.created_at),
-              content: r.comment || 'Great product!',
-              helpfulCount: r.helpful_count || 0,
-              isLiked: false,
-              replies: r.seller_reply ? [{
-                id: 1,
-                text: typeof r.seller_reply === 'string' ? r.seller_reply : r.seller_reply.text || '',
-                author: 'Seller',
-                date: r.seller_reply_at ? formatRelativeDate(r.seller_reply_at) : 'Recently',
-                avatar: sellerData?.business_permit_url || 'https://ui-avatars.com/api/?name=S&background=FF6A00&color=fff',
-                isSeller: true
-              }] : [],
-              productName: r.product?.name || undefined,
-              productImage: r.product?.images?.[0] || undefined,
-              images: r.images || []
-            }));
-            
-            setRealReviews(mappedReviews);
-            setReviews(mappedReviews);
+          const mappedReviews: Review[] = (reviewsData || []).map((review: ReviewFeedItem) => ({
+            id: review.id,
+            author: review.buyerName,
+            avatar: review.buyerAvatar,
+            rating: review.rating,
+            date: formatRelativeDate(review.createdAt),
+            content: review.comment || 'Great product!',
+            helpfulCount: review.helpfulCount,
+            isLiked: false,
+            replies: review.sellerReply
+              ? [
+                  {
+                    id: 1,
+                    text: review.sellerReply.message,
+                    author: 'Seller',
+                    date: review.sellerReply.repliedAt
+                      ? formatRelativeDate(review.sellerReply.repliedAt)
+                      : 'Recently',
+                    avatar:
+                      sellerData?.avatar_url ||
+                      'https://ui-avatars.com/api/?name=S&background=FF6A00&color=fff',
+                    isSeller: true,
+                  },
+                ]
+              : [],
+            productName: review.productName || undefined,
+            productImage: review.productImage || undefined,
+            images: review.images || [],
+            variantLabel: review.variantLabel || undefined,
+          }));
 
-            // Calculate review statistics
-            const total = mappedReviews.length;
-            const avgRating = total > 0 
-              ? mappedReviews.reduce((sum, r) => sum + r.rating, 0) / total 
-              : 0;
-            const distribution = [0, 0, 0, 0, 0];
-            mappedReviews.forEach(r => {
-              if (r.rating >= 1 && r.rating <= 5) {
-                distribution[r.rating - 1]++;
-              }
-            });
-            setReviewStats({ total, avgRating, distribution });
-          }
+          setReviews(mappedReviews);
+
+          const stats = computeReviewStats(reviewsData || []);
+          setReviewStats({
+            total: stats.total,
+            avgRating: stats.averageRating,
+            distribution: stats.distribution,
+          });
         } catch (reviewError) {
           console.error('Error fetching reviews:', reviewError);
         }
@@ -240,18 +243,23 @@ export default function SellerStorefrontPage() {
   // Build seller object from real data or fallback to demo
   const seller = realSeller ? {
     id: realSeller.id,
-    name: realSeller.business_name || 'Verified Seller',
-    avatar: realSeller.profile_picture || 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=150&h=150&fit=crop',
-    rating: (realSeller as any).rating || 5.0,
-    totalReviews: (realSeller as any).products_count || 0,
+    name: realSeller.store_name || realSeller.business_name || 'Verified Seller',
+    avatar: realSeller.avatar_url || 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=150&h=150&fit=crop',
+    rating:
+      reviewStats.total > 0
+        ? Number(reviewStats.avgRating.toFixed(1))
+        : Number((realSeller as any).rating || 0),
+    totalReviews:
+      reviewStats.total ||
+      Number((realSeller as any).total_reviews || 0),
     followers: 0,
     isVerified: realSeller.is_verified || false,
-    description: realSeller.business_description || 'Welcome to our store!',
-    location: realSeller.city || realSeller.region || 'Philippines',
+    description: realSeller.store_description || realSeller.business_description || 'Welcome to our store!',
+    location: [realSeller.city, realSeller.province].filter(Boolean).join(', ') || 'Philippines',
     established: realSeller.created_at ? new Date(realSeller.created_at).getFullYear().toString() : '2024',
     badges: realSeller.is_verified ? ['Verified Seller'] : [],
     responseTime: '< 24 hours',
-    categories: realSeller.product_categories || ['General'],
+    categories: (realSeller as any).product_categories || (realSeller as any).store_category || ['General'],
     products: []
   } : demoSeller || (dbSellerProduct ? {
     id: dbSellerProduct.sellerId,
@@ -804,6 +812,12 @@ export default function SellerStorefrontPage() {
                               <span className="text-xs text-gray-600">
                                 Purchased: <span className="font-medium text-gray-800">{review.productName}</span>
                               </span>
+                            </div>
+                          )}
+
+                          {review.variantLabel && (
+                            <div className="inline-flex items-center rounded-full border border-orange-200 bg-orange-50 text-orange-700 text-[11px] px-2.5 py-1 mb-3">
+                              Variant: {review.variantLabel}
                             </div>
                           )}
 
