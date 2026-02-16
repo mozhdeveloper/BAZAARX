@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, Alert, ActivityIndicator, Modal, FlatList } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, Alert, ActivityIndicator, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, ChevronDown, Paperclip, Store, Search, X } from 'lucide-react-native';
+import { ArrowLeft, ChevronDown, Paperclip, X, Image as ImageIcon } from 'lucide-react-native';
+import * as ImagePicker from 'expo-image-picker';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../App';
 import { COLORS } from '../../src/constants/theme';
@@ -28,51 +29,24 @@ export default function CreateTicketScreen({ navigation, route }: Props) {
   const [selectedCategory, setSelectedCategory] = useState<TicketCategoryDb | null>(null);
   const [showcategoryPicker, setShowCategoryPicker] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [loadingCategories, setLoadingCategories] = useState(true);
+  const [focusedField, setFocusedField] = useState<string | null>(null);
+  const [images, setImages] = useState<string[]>([]);
 
-  // Store selection
-  const [sellers, setSellers] = useState<SellerOption[]>([]);
-  const [selectedSeller, setSelectedSeller] = useState<SellerOption | null>(null);
-  const [showStorePicker, setShowStorePicker] = useState(false);
-  const [storeSearchQuery, setStoreSearchQuery] = useState('');
+  const pickImage = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsMultipleSelection: true,
+      quality: 0.8,
+    });
 
-  // Priority
-  const [priority, setPriority] = useState<TicketPriority>('normal');
-
-  useEffect(() => {
-    loadCategories();
-    loadSellers();
-  }, []);
-
-  useEffect(() => {
-    // If a sellerId was passed, find and select that seller
-    if (initialSellerId && sellers.length > 0) {
-      const seller = sellers.find(s => s.id === initialSellerId);
-      if (seller) setSelectedSeller(seller);
-    }
-  }, [initialSellerId, sellers]);
-
-  const loadCategories = async () => {
-    try {
-      const cats = await TicketService.getCategories();
-      setCategories(cats);
-      if (cats.length > 0) {
-        setSelectedCategory(cats[0]);
-      }
-    } catch (error) {
-      console.error('Error loading categories:', error);
-    } finally {
-      setLoadingCategories(false);
+    if (!result.canceled) {
+      const selectedUris = result.assets.map(asset => asset.uri);
+      setImages([...images, ...selectedUris]);
     }
   };
 
-  const loadSellers = async () => {
-    try {
-      const sellerList = await TicketService.getSellers();
-      setSellers(sellerList);
-    } catch (error) {
-      console.error('Error loading sellers:', error);
-    }
+  const removeImage = (uri: string) => {
+    setImages(images.filter((img: string) => img !== uri));
   };
 
   const handleSubmit = async () => {
@@ -94,9 +68,8 @@ export default function CreateTicketScreen({ navigation, route }: Props) {
       await TicketService.createTicket(user.id, {
         subject,
         description,
-        categoryId: selectedCategory?.id || null,
-        priority,
-        sellerId: selectedSeller?.id || null,
+        priority: 'medium', // Default
+        images,
       });
       Alert.alert('Success', 'Ticket created successfully!', [
         { text: 'OK', onPress: () => navigation.navigate('HelpSupport', { activeTab: 'tickets' }) }
@@ -184,56 +157,63 @@ export default function CreateTicketScreen({ navigation, route }: Props) {
         {/* Subject */}
         <Text style={styles.label}>Subject</Text>
         <TextInput
-          style={styles.input}
+          style={[
+            styles.input,
+            focusedField === 'subject' && styles.inputFocused
+          ]}
           placeholder="Brief summary of issue"
           placeholderTextColor="#9CA3AF"
           value={subject}
           onChangeText={setSubject}
-          maxLength={100}
+          maxLength={50}
+          onFocus={() => setFocusedField('subject')}
+          onBlur={() => setFocusedField(null)}
         />
 
         {/* Description */}
         <Text style={styles.label}>Description</Text>
         <TextInput
-          style={[styles.input, styles.textArea]}
+          style={[
+            styles.input,
+            styles.textArea,
+            focusedField === 'description' && styles.inputFocused
+          ]}
           placeholder="Please describe your issue in detail..."
           placeholderTextColor="#9CA3AF"
           value={description}
           onChangeText={setDescription}
           multiline
           textAlignVertical="top"
+          onFocus={() => setFocusedField('description')}
+          onBlur={() => setFocusedField(null)}
         />
 
-        {/* Priority Selection */}
-        <Text style={styles.label}>Priority</Text>
-        <View style={styles.priorityContainer}>
-          {(['low', 'normal', 'high', 'urgent'] as TicketPriority[]).map((p) => (
-            <Pressable
-              key={p}
-              style={[
-                styles.priorityButton,
-                priority === p && styles.priorityButtonSelected,
-                priority === p && p === 'urgent' && { backgroundColor: '#FEE2E2', borderColor: '#EF4444' },
-                priority === p && p === 'high' && { backgroundColor: '#FEF3C7', borderColor: '#F59E0B' },
-              ]}
-              onPress={() => setPriority(p)}
-            >
-              <Text style={[
-                styles.priorityButtonText,
-                priority === p && styles.priorityButtonTextSelected,
-                priority === p && p === 'urgent' && { color: '#EF4444' },
-                priority === p && p === 'high' && { color: '#F59E0B' },
-              ]}>
-                {p.charAt(0).toUpperCase() + p.slice(1)}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
+        {/* Attachments */}
+        <Text style={styles.label}>Attachments</Text>
 
-        {/* Attachments Placeholder */}
-        <Pressable style={styles.attachButton} onPress={() => Alert.alert('Coming Soon', 'Attachment upload will be available soon.')}>
+        {images.length > 0 && (
+          <View style={styles.imagePreviewList}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {images.map((uri: string, index: number) => (
+                <View key={index} style={styles.imageWrapper}>
+                  <Image source={{ uri }} style={styles.previewImage} />
+                  <Pressable
+                    style={styles.removeImageButton}
+                    onPress={() => removeImage(uri)}
+                  >
+                    <X size={16} color="#FFF" />
+                  </Pressable>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
+        <Pressable style={styles.attachButton} onPress={pickImage}>
           <Paperclip size={20} color="#6B7280" />
-          <Text style={styles.attachButtonText}>Attach Photo or Screenshot</Text>
+          <Text style={styles.attachButtonText}>
+            {images.length === 0 ? 'Attach Photo or Screenshot' : 'Add More Photos'}
+          </Text>
         </Pressable>
 
       </ScrollView>
@@ -343,15 +323,14 @@ export default function CreateTicketScreen({ navigation, route }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FFE5CC',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    paddingBottom: 8,
+    backgroundColor: '#FFE5CC',
   },
   backButton: {
     padding: 8,
@@ -363,14 +342,14 @@ const styles = StyleSheet.create({
     color: '#111827',
   },
   content: {
-    padding: 24,
+    padding: 16,
   },
   label: {
     fontSize: 16,
     fontWeight: '600',
     color: '#374151',
     marginBottom: 8,
-    marginTop: 16,
+    marginTop: 8,
   },
   pickerButton: {
     flexDirection: 'row',
@@ -423,7 +402,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     fontSize: 16,
-    color: '#111827',
+    color: '#0F172A', // text-primary from global.css
+  },
+  inputFocused: {
+    borderColor: COLORS.primary, // brand-primary from global.css
+    backgroundColor: '#FFFFFF',
   },
   textArea: {
     height: 150,
@@ -446,11 +429,32 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     fontWeight: '500',
   },
+  imagePreviewList: {
+    flexDirection: 'row',
+    marginBottom: 12,
+  },
+  imageWrapper: {
+    marginRight: 12,
+    position: 'relative',
+  },
+  previewImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    backgroundColor: '#E5E7EB',
+  },
+  removeImageButton: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: 12,
+    padding: 4,
+  },
   footer: {
     paddingHorizontal: 24,
-    borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
     paddingTop: 16,
+    backgroundColor: '#FFE5CC',
   },
   submitButton: {
     backgroundColor: COLORS.primary,
