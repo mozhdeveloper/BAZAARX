@@ -147,23 +147,6 @@ export default function OrdersPage() {
     });
   };
 
-  const handleReviewSubmit = () => {
-    // Mark order as reviewed
-    if (orderToReview) {
-      updateOrderStatus(orderToReview.id, "reviewed");
-    }
-
-    setReviewModalOpen(false);
-    setOrderToReview(null);
-    setStatusFilter("reviewed");
-
-    toast({
-      title: "Review Submitted",
-      description: "Thank you for your feedback!",
-      duration: 5000,
-    });
-  };
-
   const loadBuyerOrders = useCallback(async () => {
     if (!profile?.id) return;
 
@@ -1127,7 +1110,20 @@ export default function OrdersPage() {
       {orderToReview && (
         <ReviewModal
           isOpen={reviewModalOpen}
-          onClose={() => setReviewModalOpen(false)}
+          onClose={() => {
+            setReviewModalOpen(false);
+            setOrderToReview(null);
+          }}
+          onSubmitted={() => {
+            setStatusFilter("reviewed");
+            void loadBuyerOrders();
+
+            toast({
+              title: "Review Submitted",
+              description: "Thank you for your feedback!",
+              duration: 5000,
+            });
+          }}
           orderId={orderToReview.dbId} // Use actual UUID for DB operations
           displayOrderId={orderToReview.id} // Use order number for display
           sellerName={orderToReview.items[0]?.seller || "Bazaar Seller"}
@@ -1136,8 +1132,7 @@ export default function OrdersPage() {
             name: item.name,
             image: item.image,
           }))}
-          // Note: In a real app we'd pass the actual seller ID from the order
-          sellerId="seller-1"
+          sellerId={orderToReview.sellerId || orderToReview.items[0]?.sellerId}
         />
       )}
 
