@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, Alert, ActivityIndicator, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, ChevronDown, Paperclip, X } from 'lucide-react-native';
+import { ArrowLeft, ChevronDown, Paperclip, X, Image as ImageIcon } from 'lucide-react-native';
+import * as ImagePicker from 'expo-image-picker';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../App';
 import { COLORS } from '../../src/constants/theme';
@@ -21,6 +22,25 @@ export default function CreateTicketScreen({ navigation, route }: Props) {
   const [category, setCategory] = useState<TicketCategory>('Order');
   const [showcategoryPicker, setShowCategoryPicker] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [focusedField, setFocusedField] = useState<string | null>(null);
+  const [images, setImages] = useState<string[]>([]);
+
+  const pickImage = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsMultipleSelection: true,
+      quality: 0.8,
+    });
+
+    if (!result.canceled) {
+      const selectedUris = result.assets.map(asset => asset.uri);
+      setImages([...images, ...selectedUris]);
+    }
+  };
+
+  const removeImage = (uri: string) => {
+    setImages(images.filter((img: string) => img !== uri));
+  };
 
   const handleSubmit = async () => {
     if (!subject.trim()) {
@@ -39,6 +59,7 @@ export default function CreateTicketScreen({ navigation, route }: Props) {
         subject,
         description,
         priority: 'medium', // Default
+        images,
       });
       Alert.alert('Success', 'Ticket created successfully!', [
         { text: 'OK', onPress: () => navigation.navigate('HelpSupport', { activeTab: 'tickets' }) }
@@ -94,30 +115,63 @@ export default function CreateTicketScreen({ navigation, route }: Props) {
         {/* Subject */}
         <Text style={styles.label}>Subject</Text>
         <TextInput
-          style={styles.input}
+          style={[
+            styles.input,
+            focusedField === 'subject' && styles.inputFocused
+          ]}
           placeholder="Brief summary of issue"
           placeholderTextColor="#9CA3AF"
           value={subject}
           onChangeText={setSubject}
           maxLength={50}
+          onFocus={() => setFocusedField('subject')}
+          onBlur={() => setFocusedField(null)}
         />
 
         {/* Description */}
         <Text style={styles.label}>Description</Text>
         <TextInput
-          style={[styles.input, styles.textArea]}
+          style={[
+            styles.input,
+            styles.textArea,
+            focusedField === 'description' && styles.inputFocused
+          ]}
           placeholder="Please describe your issue in detail..."
           placeholderTextColor="#9CA3AF"
           value={description}
           onChangeText={setDescription}
           multiline
           textAlignVertical="top"
+          onFocus={() => setFocusedField('description')}
+          onBlur={() => setFocusedField(null)}
         />
 
-        {/* Attachments Placeholder */}
-        <Pressable style={styles.attachButton} onPress={() => Alert.alert('Coming Soon', 'Attachment upload will be available soon.')}>
+        {/* Attachments */}
+        <Text style={styles.label}>Attachments</Text>
+
+        {images.length > 0 && (
+          <View style={styles.imagePreviewList}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {images.map((uri: string, index: number) => (
+                <View key={index} style={styles.imageWrapper}>
+                  <Image source={{ uri }} style={styles.previewImage} />
+                  <Pressable
+                    style={styles.removeImageButton}
+                    onPress={() => removeImage(uri)}
+                  >
+                    <X size={16} color="#FFF" />
+                  </Pressable>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
+        <Pressable style={styles.attachButton} onPress={pickImage}>
           <Paperclip size={20} color="#6B7280" />
-          <Text style={styles.attachButtonText}>Attach Photo or Screenshot</Text>
+          <Text style={styles.attachButtonText}>
+            {images.length === 0 ? 'Attach Photo or Screenshot' : 'Add More Photos'}
+          </Text>
         </Pressable>
 
       </ScrollView>
@@ -143,15 +197,14 @@ export default function CreateTicketScreen({ navigation, route }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FFE5CC',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    paddingBottom: 8,
+    backgroundColor: '#FFE5CC',
   },
   backButton: {
     padding: 8,
@@ -163,14 +216,14 @@ const styles = StyleSheet.create({
     color: '#111827',
   },
   content: {
-    padding: 24,
+    padding: 16,
   },
   label: {
     fontSize: 16,
     fontWeight: '600',
     color: '#374151',
     marginBottom: 8,
-    marginTop: 16,
+    marginTop: 8,
   },
   pickerButton: {
     flexDirection: 'row',
@@ -223,7 +276,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     fontSize: 16,
-    color: '#111827',
+    color: '#0F172A', // text-primary from global.css
+  },
+  inputFocused: {
+    borderColor: COLORS.primary, // brand-primary from global.css
+    backgroundColor: '#FFFFFF',
   },
   textArea: {
     height: 150,
@@ -246,11 +303,32 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     fontWeight: '500',
   },
+  imagePreviewList: {
+    flexDirection: 'row',
+    marginBottom: 12,
+  },
+  imageWrapper: {
+    marginRight: 12,
+    position: 'relative',
+  },
+  previewImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    backgroundColor: '#E5E7EB',
+  },
+  removeImageButton: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: 12,
+    padding: 4,
+  },
   footer: {
     paddingHorizontal: 24,
-    borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
     paddingTop: 16,
+    backgroundColor: '#FFE5CC',
   },
   submitButton: {
     backgroundColor: COLORS.primary,
