@@ -669,12 +669,22 @@ export class OrderService {
     }
 
     /**
-     * Get orders for a buyer
+     * Get orders for a buyer with optional date filtering
      */
-    async getBuyerOrders(buyerId: string): Promise<Order[]> {
+    async getBuyerOrders(
+        buyerId: string, 
+        startDate?: Date | null, 
+        endDate?: Date | null
+    ): Promise<Order[]> {
         if (!isSupabaseConfigured()) {
+            // Updated mock logic to handle date filters
             return this.mockOrders
-                .filter((o) => o.buyer_id === buyerId)
+                .filter((o) => {
+                    const isBuyer = o.buyer_id === buyerId;
+                    if (!startDate || !endDate) return isBuyer;
+                    const created = new Date(o.created_at);
+                    return isBuyer && created >= startDate && created <= endDate;
+                })
                 .map((order) => ({
                     ...order,
                     status: mapNormalizedToBuyerUiStatus(
@@ -687,7 +697,8 @@ export class OrderService {
         }
 
         try {
-            const { data, error } = await supabase
+            // Step 1: Initialize the query
+            let query = supabase
                 .from("orders")
                 .select(
                     `
@@ -773,15 +784,24 @@ export class OrderService {
                     )
                 `,
                 )
-                .eq("buyer_id", buyerId)
-                .order("created_at", { ascending: false });
+                .eq("buyer_id", buyerId);
+
+            // Step 2: Apply dynamic date filters
+            if (startDate) {
+                query = query.gte("created_at", startDate.toISOString());
+            }
+            if (endDate) {
+                query = query.lte("created_at", endDate.toISOString());
+            }
+
+            // Step 3: Execute query with sorting
+            const { data, error } = await query.order("created_at", { ascending: false });
 
             if (error) throw error;
 
+            // Step 4: Map results (remains the same)
             return (data || []).map((order: any) => {
-                const fallbackAddress = parseLegacyShippingAddressFromNotes(
-                    order.notes,
-                );
+                const fallbackAddress = parseLegacyShippingAddressFromNotes(order.notes);
                 const recipient = order.recipient || {};
                 const shippingAddr = order.shipping_address || {};
                 const latestShipment = getLatestShipment(order.shipments || []);
@@ -801,30 +821,19 @@ export class OrderService {
                 const normalizedItems = (order.order_items || []).map((item: any) => ({
                     ...item,
                     seller_id: item?.product?.seller_id || null,
-                    seller_name:
-                        item?.product?.seller?.store_name || "Unknown Store",
+                    seller_name: item?.product?.seller?.store_name || "Unknown Store",
                 }));
 
-                const firstSellerItem = normalizedItems.find(
-                    (item: any) => item.seller_id,
-                );
+                const firstSellerItem = normalizedItems.find((item: any) => item.seller_id);
 
-                const totalAmount = normalizedItems.reduce(
-                    (sum: number, item: any) => {
-                        const itemPrice =
-                            (item.price || 0) - (item.price_discount || 0);
-                        const shippingPrice =
-                            (item.shipping_price || 0) -
-                            (item.shipping_discount || 0);
-                        return sum + itemPrice * (item.quantity || 0) + shippingPrice;
-                    },
-                    0,
-                );
+                const totalAmount = normalizedItems.reduce((sum: number, item: any) => {
+                    const itemPrice = (item.price || 0) - (item.price_discount || 0);
+                    const shippingPrice = (item.shipping_price || 0) - (item.shipping_discount || 0);
+                    return sum + itemPrice * (item.quantity || 0) + shippingPrice;
+                }, 0);
 
-                const buyerName =
-                    buildPersonName(recipient?.first_name, recipient?.last_name) ||
-                    fallbackAddress?.fullName ||
-                    "Customer";
+                const buyerName = buildPersonName(recipient?.first_name, recipient?.last_name) ||
+                    fallbackAddress?.fullName || "Customer";
 
                 const fullAddress = [
                     shippingAddr?.address_line_1 || fallbackAddress?.street,
@@ -833,9 +842,7 @@ export class OrderService {
                     shippingAddr?.city || fallbackAddress?.city,
                     shippingAddr?.province || fallbackAddress?.province,
                     shippingAddr?.postal_code || fallbackAddress?.postalCode,
-                ]
-                    .filter(Boolean)
-                    .join(", ");
+                ].filter(Boolean).join(", ");
 
                 const hasCancellationRecord = Boolean(latestCancellation);
                 const hasReviews = orderReviews.length > 0;
@@ -870,24 +877,16 @@ export class OrderService {
                     shipped_at: latestShipment?.shipped_at || null,
                     delivered_at: latestShipment?.delivered_at || null,
                     cancellation_reason: latestCancellation?.reason || null,
-                    cancelled_at:
-                        latestCancellation?.cancelled_at ||
-                        latestCancellation?.created_at ||
-                        null,
+                    cancelled_at: latestCancellation?.cancelled_at || latestCancellation?.created_at || null,
                     shipping_address: fullAddress || "No address provided",
-                    shipping_street:
-                        shippingAddr?.address_line_1 || fallbackAddress?.street || "",
-                    shipping_city:
-                        shippingAddr?.city || fallbackAddress?.city || "",
-                    shipping_province:
-                        shippingAddr?.province || fallbackAddress?.province || "",
-                    shipping_postal_code:
-                        shippingAddr?.postal_code || fallbackAddress?.postalCode || "",
+                    shipping_street: shippingAddr?.address_line_1 || fallbackAddress?.street || "",
+                    shipping_city: shippingAddr?.city || fallbackAddress?.city || "",
+                    shipping_province: shippingAddr?.province || fallbackAddress?.province || "",
+                    shipping_postal_code: shippingAddr?.postal_code || fallbackAddress?.postalCode || "",
                     shipping_barangay: shippingAddr?.barangay || "",
                     shipping_region: shippingAddr?.region || "",
                     shipping_landmark: shippingAddr?.landmark || "",
-                    shipping_instructions:
-                        shippingAddr?.delivery_instructions || "",
+                    shipping_instructions: shippingAddr?.delivery_instructions || "",
                     shipping_country: "Philippines",
                 } as Order;
             });
@@ -901,9 +900,14 @@ export class OrderService {
      * Get orders for a seller
      * Since orders table has NO seller_id, we get orders through order_items → products → seller_id
      */
-    async getSellerOrders(sellerId: string): Promise<Order[]> {
+    async getSellerOrders(sellerId: string, startDate?: Date | null, endDate?: Date | null): Promise<Order[]> {
         if (!isSupabaseConfigured()) {
-            return this.mockOrders.filter((o) => o.seller_id === sellerId);
+            return this.mockOrders.filter((o) => {
+                const isSeller = o.seller_id === sellerId;
+                if (!startDate || !endDate) return isSeller;
+                const created = new Date(o.created_at);
+                return isSeller && created >= startDate && created <= endDate;
+            });
         }
 
         try {
@@ -931,8 +935,8 @@ export class OrderService {
             ];
             if (orderIds.length === 0) return [];
 
-            // Step 3: Get the actual orders with normalized recipient/address/shipment joins
-            const { data: orders, error: ordersError } = await supabase
+            // Step 3: Get the actual orders with normalized joins and date filtering
+            let query = supabase
                 .from("orders")
                 .select(`
                     *,
@@ -1006,8 +1010,17 @@ export class OrderService {
                         )
                     )
                 `)
-                .in("id", orderIds)
-                .order("created_at", { ascending: false });
+                .in("id", orderIds);
+
+            // Apply date filters if provided
+            if (startDate) {
+                query = query.gte("created_at", startDate.toISOString());
+            }
+            if (endDate) {
+                query = query.lte("created_at", endDate.toISOString());
+            }
+
+            const { data: orders, error: ordersError } = await query.order("created_at", { ascending: false });
 
             if (ordersError) throw ordersError;
 
@@ -2127,7 +2140,7 @@ export class OrderService {
     /**
      * Get order statistics for seller dashboard
      */
-    async getSellerOrderStats(sellerId: string) {
+    async getSellerOrderStats(sellerId: string, startDate?: Date | null, endDate?: Date | null) {
         if (!isSupabaseConfigured()) {
             return {
                 total: this.mockOrders.filter((o) => o.seller_id === sellerId)
@@ -2152,6 +2165,8 @@ export class OrderService {
                 "get_seller_order_stats",
                 {
                     p_seller_id: sellerId,
+                    p_start_date: startDate?.toISOString(),
+                    p_end_date: endDate?.toISOString(),
                 },
             );
 
