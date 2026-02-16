@@ -42,7 +42,8 @@ import {
   Gift,
   Edit3,
   MapPin, // Added for seller location
-  User, // Added missing import
+  SlidersHorizontal,
+  Bot,
 } from 'lucide-react-native';
 import { ProductCard } from '../src/components/ProductCard';
 import CameraSearchModal from '../src/components/CameraSearchModal';
@@ -413,69 +414,11 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
   // Handlers
   const handleAddToCart = () => {
-    // Always show variant modal if variants exist
-    if (hasVariants) {
-      openVariantModal('cart');
-      return;
-    }
-
-    const { isGuest } = useAuthStore.getState();
-    if (isGuest) {
-      setGuestModalMessage("Sign up to add items to your cart.");
-      setShowGuestModal(true);
-      return;
-    }
-
-    // Build variant info
-    const selectedVariant = buildSelectedVariant();
-
-    // Validate quantity against variant stock
-    const currentStock = selectedVariantInfo.stock || 0;
-    if (quantity > currentStock) {
-      Alert.alert('Insufficient Stock', `Only ${currentStock} items available for this variant.`);
-      return;
-    }
-
-    // Add to cart with variant information
-    addItem({
-      ...product,
-      price: product.price,
-      selectedVariant,
-      quantity
-    });
-
-    const variantText = selectedVariant
-      ? ` (${[selectedVariant.color, selectedVariant.size].filter(Boolean).join(', ')})`
-      : '';
-
-    // Show Added to Cart Modal
-    setAddedProductInfo({
-      name: `${product.name}${variantText}`,
-      image: productImages[0] || product.image || ''
-    });
-    setShowAddedToCartModal(true);
+    openVariantModal('cart');
   };
 
   const handleBuyNow = () => {
-    // Always show variant modal if variants exist
-    if (hasVariants) {
-      openVariantModal('buy');
-      return;
-    }
-
-    const { isGuest } = useAuthStore.getState();
-    if (isGuest) {
-      setGuestModalMessage("Sign up to buy items.");
-      setShowGuestModal(true);
-      return;
-    }
-
-    // Build variant info
-    const selectedVariant = buildSelectedVariant(selectedColor, selectedSize);
-
-    // Set quick order with variant info
-    setQuickOrder({ ...product, selectedVariant }, quantity);
-    navigation.navigate('Checkout', {});
+    openVariantModal('buy');
   };
 
   const handleShare = async () => {
@@ -510,14 +453,13 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   };
 
   const handleChat = () => {
-    const { isGuest } = useAuthStore.getState();
     if (isGuest) {
       setGuestModalMessage("Sign up to chat with sellers.");
       setShowGuestModal(true);
       return;
     }
     setShowChat(true);
-  }
+  };
 
   const handleVisitStore = () => {
     const sellerId = product.seller_id || product.sellerId;
@@ -537,7 +479,6 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   };
 
   const handleWishlistAction = (categoryId?: string) => {
-    const { isGuest } = useAuthStore.getState();
     if (isGuest) {
       setGuestModalMessage("Sign up to create wishlists.");
       setShowGuestModal(true);
@@ -575,33 +516,32 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" translucent={false} />
+      <StatusBar barStyle="dark-content" backgroundColor="#FFE5CC" />
 
-      {/* --- TOP BRANDING BAR --- */}
-      <View style={{ 
-        flexDirection: 'row', 
-        justifyContent: 'space-between', 
-        alignItems: 'center', 
-        paddingHorizontal: 16, 
-        paddingTop: insets.top + 10,
-        backgroundColor: '#FFFFFF',
-        paddingBottom: 10
-      }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <Image
-            source={require('../assets/BazaarX.png')}
-            style={{ width: 38, height: 38, marginRight: 6 }}
-            resizeMode="contain"
-          />
-          <Text style={{ fontSize: 24, fontWeight: '900', color: '#FB8C00' }}>BazaarX</Text>
+      {/* --- HEADER (Matches Screenshot) --- */}
+      <View style={[styles.header, { paddingTop: insets.top + 10, backgroundColor: '#FFE5CC' }]}>
+        <Pressable onPress={() => navigation.goBack()} style={styles.iconButton}>
+          <ArrowLeft size={24} color="#1F2937" />
+        </Pressable>
+
+        <View style={styles.searchContainer}>
+          <Pressable style={styles.headerSearchBar} onPress={() => setIsSearchFocused(true)}>
+            <Search size={18} color="#6B7280" />
+            <Text style={styles.headerSearchText}>Search items...</Text>
+            <Camera size={18} color="#6B7280" />
+          </Pressable>
+
+          <Pressable style={styles.filterButton} onPress={() => { /* Filter Action */ }}>
+            <SlidersHorizontal size={20} color="#1F2937" />
+          </Pressable>
         </View>
-        
-        <View style={{ flexDirection: 'row', gap: 12 }}>
-          <Pressable onPress={() => navigation.navigate('MainTabs', { screen: 'Cart' })} style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: '#F9FAFB', alignItems: 'center', justifyContent: 'center' }}>
-            <ShoppingCart size={20} color="#78350F" />
+
+        <View style={styles.headerRight}>
+          <Pressable onPress={() => navigation.navigate('MainTabs', { screen: 'Cart' })} style={styles.iconButton}>
+            <ShoppingCart size={24} color="#1F2937" />
             {cartItemCount > 0 && (
-              <View style={[styles.badge, { right: -2, top: -2 }]}>
-                <Text style={styles.badgeText}>{cartItemCount}</Text>
+              <View style={[styles.badge, { backgroundColor: BRAND_COLOR }]}>
+                <Text style={[styles.badgeText, { color: '#FFF' }]}>{cartItemCount}</Text>
               </View>
             )}
           </Pressable>
@@ -675,52 +615,21 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
             <Text style={{ fontSize: 14, fontWeight: '700', color: '#FB8C00' }}>Free Shipping</Text>
           </View>
 
-          {/* --- VARIANT SELECTION (Restored/Restyled) --- */}
-          {hasOption1 && (
-            <View style={styles.variantSection}>
-              <Text style={styles.variantLabel}>{variantLabel1}: <Text style={styles.variantSelected}>{selectedOption1}</Text></Text>
-              <View style={styles.colorOptions}>
-                {option1Values.filter((c: string) => c.trim() !== '').map((value: string, index: number) => (
-                  <Pressable
-                    key={`${value}-${index}`}
-                    style={[
-                      styles.colorOption,
-                      { backgroundColor: variantLabel1.toLowerCase() === 'color' ? getColorHex(value) : '#F9FAFB' },
-                      selectedOption1 === value && styles.colorOptionSelected,
-                    ]}
-                    onPress={() => setSelectedOption1(value)}
-                  >
-                    {variantLabel1.toLowerCase() !== 'color' && (
-                       <Text style={[styles.optionText, selectedOption1 === value && { color: BRAND_COLOR }]}>{value}</Text>
-                    )}
-                  </Pressable>
-                ))}
-              </View>
+          {/* --- SELECTION SUMMARY (Opens Modal) --- */}
+          <Pressable
+            style={styles.selectionSummaryRow}
+            onPress={() => openVariantModal('cart')}
+          >
+            <View style={styles.selectionHeader}>
+              <Text style={styles.selectionLabel}>Selection</Text>
+              <Text style={styles.selectionValue} numberOfLines={1}>
+                {selectedOption1 || ''}{selectedOption1 && selectedOption2 ? ', ' : ''}{selectedOption2 || ''}
+                {(selectedOption1 || selectedOption2) ? ` • Qty: ${quantity}` : `Qty: ${quantity}`}
+              </Text>
             </View>
-          )}
-
-          {hasOption2 && (
-            <View style={styles.variantSection}>
-              <Text style={styles.variantLabel}>{variantLabel2}: <Text style={styles.variantSelected}>{selectedOption2}</Text></Text>
-              <View style={styles.sizeOptions}>
-                {option2Values.filter((s: string) => s.trim() !== '').map((value: string, index: number) => (
-                  <Pressable
-                    key={`${value}-${index}`}
-                    style={[
-                      styles.sizeOption,
-                      selectedOption2 === value && styles.sizeOptionSelected,
-                    ]}
-                    onPress={() => setSelectedOption2(value)}
-                  >
-                    <Text style={[
-                      styles.sizeOptionText,
-                      selectedOption2 === value && styles.sizeOptionTextSelected,
-                    ]}>{value}</Text>
-                  </Pressable>
-                ))}
-              </View>
-            </View>
-          )}
+            <ChevronRight size={18} color="#9CA3AF" />
+          </Pressable>
+        </View>
 
           <View style={styles.quantityRow}>
             <Text style={{ fontSize: 17, fontWeight: '800', color: '#1F2937' }}>Quantity</Text>
@@ -798,10 +707,52 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
       {/* --- BOTTOM ACTIONS (SOLID ORANGE) --- */}
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
-        <Pressable style={styles.chatSellerBtn} onPress={() => setShowChat(true)}>
-           <MessageCircle size={22} color="#FFF" />
+        <Pressable
+          style={styles.aiActionBtn}
+          onPress={() => {
+            navigation.navigate('AIChat', {
+              product: {
+                id: product.id,
+                name: product.name || 'Product',
+                description: product.description || '',
+                price: modalVariantInfo.price || product.price || 0,
+                originalPrice: product.original_price ?? product.originalPrice,
+                category: product.category,
+                brand: product.brand ?? undefined,
+                colors: productColors,
+                sizes: productSizes,
+                variants: hasStructuredVariants ? productVariants.map((v: any) => ({
+                  size: v.option_2_value || v.size,
+                  color: v.option_1_value || v.color,
+                  stock: v.stock,
+                  price: v.price,
+                })) : undefined,
+                specifications: product.specifications,
+                stock: modalVariantInfo.stock || product.stock || 0,
+                lowStockThreshold: product.low_stock_threshold,
+                rating: averageRating || product.rating,
+                reviewCount: reviewsTotal,
+                salesCount: product.sales_count,
+                images: productImages.filter((img): img is string => !!img),
+                isFreeShipping: product.is_free_shipping || product.isFreeShipping,
+                weight: product.weight ?? undefined,
+                dimensions: product.dimensions ?? undefined,
+                tags: product.tags,
+                isActive: product.is_active,
+                approvalStatus: product.approval_status,
+              },
+              store: {
+                id: product.seller_id || product.sellerId || '',
+                store_name: product.seller || 'Store',
+                rating: product.sellerRating,
+              }
+            });
+          }}
+        >
+          <Bot size={25} color={BRAND_COLOR} />
+          <Text style={styles.aiActionText}>BazBot</Text>
         </Pressable>
-        
+
         <Pressable style={styles.addToCartBtn} onPress={handleAddToCart}>
           <ShoppingCart size={20} color="#FFF" style={{ marginRight: 8 }} />
           <Text style={styles.addToCartText}>Add to Cart</Text>
@@ -841,8 +792,8 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                       {[modalSelectedColor, modalSelectedSize].filter(Boolean).join(', ') || 'Select options'}
                     </Text>
                   </View>
-                  <Pressable style={styles.variantModalClose} onPress={() => setShowVariantModal(false)}>
-                    <X size={22} color="#6B7280" />
+                  <Pressable style={styles.variantModalClosing} onPress={() => setShowVariantModal(false)}>
+                    <X size={22} color="#9CA3AF" />
                   </Pressable>
                 </View>
 
@@ -862,12 +813,11 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                             ]}
                             onPress={() => setModalSelectedOption1(value)}
                           >
-                            {variantLabel1.toLowerCase() !== 'color' && (
-                              <Text style={[styles.variantModalOptionText, modalSelectedOption1 === value && { color: '#FFF' }]}>{value}</Text>
-                            )}
-                            {modalSelectedOption1 === value && variantLabel1.toLowerCase() === 'color' && (
-                              <Text style={{ color: '#FFF', fontSize: 12, fontWeight: 'bold' }}>✓</Text>
-                            )}
+                            <Image
+                              source={{ uri: productImages[0] || product.image }}
+                              style={styles.variantModalOptionImage}
+                            />
+                            <Text style={[styles.variantModalOptionText, modalSelectedOption1 === value && { color: BRAND_COLOR }]}>{value}</Text>
                           </Pressable>
                         ))}
                       </View>
@@ -903,21 +853,35 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
                   {/* Quantity Selection */}
                   <View style={styles.variantModalSection}>
-                    <Text style={styles.variantModalLabel}>Quantity</Text>
                     <View style={styles.variantModalQuantityRow}>
-                      <Pressable
-                        style={styles.variantModalQtyBtn}
-                        onPress={() => setModalQuantity(Math.max(1, modalQuantity - 1))}
-                      >
-                        <Minus size={18} color={BRAND_COLOR} />
-                      </Pressable>
-                      <Text style={styles.variantModalQtyValue}>{modalQuantity}</Text>
-                      <Pressable
-                        style={styles.variantModalQtyBtn}
-                        onPress={() => setModalQuantity(modalQuantity + 1)}
-                      >
-                        <Plus size={18} color={BRAND_COLOR} />
-                      </Pressable>
+                      <Text style={styles.variantModalLabel}>Quantity</Text>
+                      <View style={styles.variantModalStepper}>
+                        <Pressable
+                          style={styles.variantModalQtyBtn}
+                          onPress={() => setModalQuantity(Math.max(1, modalQuantity - 1))}
+                        >
+                          <Minus size={18} color="#6B7280" />
+                        </Pressable>
+                        <TextInput
+                          style={styles.variantModalQtyValue}
+                          value={modalQuantity.toString()}
+                          keyboardType="number-pad"
+                          onChangeText={(val) => {
+                            const num = parseInt(val) || 1;
+                            setModalQuantity(num);
+                          }}
+                        />
+                        <Pressable
+                          style={styles.variantModalQtyBtn}
+                          onPress={() => {
+                            if (modalQuantity < (modalVariantInfo.stock || 99)) {
+                              setModalQuantity(modalQuantity + 1);
+                            }
+                          }}
+                        >
+                          <Plus size={18} color="#6B7280" />
+                        </Pressable>
+                      </View>
                     </View>
                   </View>
                 </ScrollView>
@@ -926,7 +890,6 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                 <Pressable
                   style={[
                     styles.variantModalConfirmBtn,
-                    variantModalAction === 'buy' && styles.variantModalBuyBtn,
                     // Disable button if required variants not selected
                     ((hasOption1 && !modalSelectedOption1) || (hasOption2 && !modalSelectedOption2)) && styles.variantModalConfirmBtnDisabled
                   ]}
@@ -935,7 +898,6 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                 >
                   <Text style={[
                     styles.variantModalConfirmText,
-                    variantModalAction === 'buy' && { color: '#FFF' },
                     ((hasOption1 && !modalSelectedOption1) || (hasOption2 && !modalSelectedOption2)) && styles.variantModalConfirmTextDisabled
                   ]}>
                     {variantModalAction === 'cart' ? 'Add to Cart' : 'Buy Now'}
@@ -1006,45 +968,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
         productImage={addedProductInfo.image}
       />
 
-      {/* AI Chat Bubble */}
-      <AIChatBubble
-        product={{
-          id: product.id,
-          name: product.name || 'Product',
-          description: product.description || '',
-          price: modalVariantInfo.price || product.price || 0,
-          originalPrice: product.original_price ?? product.originalPrice,
-          category: product.category,
-          brand: product.brand ?? undefined,
-          colors: productColors,
-          sizes: productSizes,
-          variants: hasStructuredVariants ? productVariants.map((v: any) => ({
-            size: v.option_2_value || v.size,
-            color: v.option_1_value || v.color,
-            stock: v.stock,
-            price: v.price,
-          })) : undefined,
-          specifications: product.specifications,
-          stock: modalVariantInfo.stock || product.stock || 0,
-          lowStockThreshold: product.low_stock_threshold,
-          rating: averageRating || product.rating,
-          reviewCount: reviewsTotal,
-          salesCount: product.sales_count,
-          images: productImages.filter((img): img is string => !!img),
-          isFreeShipping: product.is_free_shipping || product.isFreeShipping,
-          weight: product.weight ?? undefined,
-          dimensions: product.dimensions ?? undefined,
-          tags: product.tags,
-          isActive: product.is_active,
-          approvalStatus: product.approval_status,
-        }}
-        store={{
-          id: product.seller_id || product.sellerId || '',
-          store_name: product.seller || 'Store',
-          rating: product.sellerRating,
-        }}
-        onTalkToSeller={() => setShowChat(true)}
-      />
+      {/* AI Chat Modal Removed - Now uses separate screen */}
 
     </View>
   );
@@ -1055,9 +979,16 @@ const styles = StyleSheet.create({
 
   // Header
   header: {
-    // backgroundColor: BRAND_COLOR, // Replaced by gradient
-    paddingBottom: 12,
     paddingHorizontal: 16,
+    paddingBottom: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+    gap: 8,
+  },
+  searchContainer: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
@@ -1068,12 +999,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFF',
-    borderRadius: 20,
+    borderRadius: 14,
     paddingHorizontal: 12,
-    height: 36,
+    height: 44,
     gap: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.02,
+    shadowRadius: 5,
+    elevation: 1,
   },
-  headerSearchText: { flex: 1, color: '#9CA3AF', fontSize: 13 },
+  headerSearchText: { flex: 1, color: '#9CA3AF', fontSize: 14 },
+  filterButton: {
+    padding: 2,
+  },
   cameraIcon: {
     backgroundColor: '#FEE2E2',
     borderRadius: 12,
@@ -1094,7 +1032,7 @@ const styles = StyleSheet.create({
     borderRadius: 10, width: 16, height: 16,
     justifyContent: 'center', alignItems: 'center',
   },
-  badgeText: { color: '#FFF', fontSize: 10, fontWeight: 'bold' },
+  badgeText: { color: BRAND_COLOR, fontSize: 11, fontWeight: 'bold' },
 
   // Image Area
   imageContainer: {
@@ -1144,21 +1082,46 @@ const styles = StyleSheet.create({
   },
   tagRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
   tag: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, gap: 4 },
-  tagText: { fontSize: 11, fontWeight: '700' },
-  productName: { fontSize: 24, fontWeight: '800', color: '#431407', marginBottom: 8, lineHeight: 32 },
-  subInfo: { fontSize: 12, color: '#6B7280', marginBottom: 16 },
+  tagText: { fontSize: 13, fontWeight: '700' },
+  productName: { fontSize: 20, fontWeight: '800', color: '#111827', marginBottom: 4, lineHeight: 26 },
+  subInfo: { fontSize: 13, color: '#6B7280', marginBottom: 10 },
 
   priceRow: { flexDirection: 'row', alignItems: 'baseline', gap: 8, marginBottom: 8 },
-  currentPrice: { fontSize: 32, fontWeight: '900', color: '#FB8C00' },
-  originalPrice: { fontSize: 16, color: '#9CA3AF', textDecorationLine: 'line-through', marginLeft: 8 },
+  currentPrice: { fontSize: 30, fontWeight: '900', color: BRAND_COLOR },
+  originalPrice: { fontSize: 17, color: '#9CA3AF', textDecorationLine: 'line-through' },
 
   metaRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
   stockText: { fontSize: 13, color: '#10B981', fontWeight: '700' },
   ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  ratingValue: { fontSize: 13, fontWeight: '600', color: '#111827', marginLeft: 4 },
-  questionsLink: { fontSize: 13, color: '#8B5CF6', fontWeight: '600', marginLeft: 'auto' },
+  ratingValue: { fontSize: 14, fontWeight: '600', color: '#111827', marginLeft: 4 },
+  questionsLink: { fontSize: 13, color: BRAND_COLOR, fontWeight: '600', marginLeft: 'auto' },
 
   // Selectors
+  selectionSummaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    marginTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  selectionHeader: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  selectionLabel: {
+    fontSize: 14,
+    color: '#6B7280',
+    minWidth: 70,
+  },
+  selectionValue: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#111827',
+  },
   section: { backgroundColor: '#FFF', padding: 16, marginBottom: 8 },
   sectionMerged: { backgroundColor: '#FFF', paddingHorizontal: 16, marginBottom: 8, paddingTop: 0 }, // Added paddingTop: 0
   quantityRow: { 
@@ -1191,9 +1154,9 @@ const styles = StyleSheet.create({
   sellerAvatar: { width: '100%', height: '100%' },
   sellerInfo: { flex: 1, justifyContent: 'center' },
   sellerNameRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 2 },
-  sellerName: { fontSize: 15, fontWeight: '700', color: '#111827' },
+  sellerName: { fontSize: 16, fontWeight: '700', color: '#111827' },
   sellerMetaRow: { flexDirection: 'row', alignItems: 'center' },
-  sellerMetaText: { fontSize: 12, color: '#6B7280' },
+  sellerMetaText: { fontSize: 13, color: '#6B7280' },
   sellerMetaDivider: { width: 1, height: 10, backgroundColor: '#E5E7EB', marginHorizontal: 8 },
   sellerRating: { flexDirection: 'row', alignItems: 'center', gap: 4 }, // Kept for reference but not used in new layout directly
 
@@ -1213,8 +1176,8 @@ const styles = StyleSheet.create({
   tabText: { fontSize: 14, fontWeight: '600', color: '#6B7280' },
   activeTabText: { color: '#FFF' },
   tabContent: { paddingBottom: 16 },
-  reviewSummary: { fontSize: 14, color: '#374151', marginBottom: 4 },
-  textContent: { fontSize: 14, color: '#374151', lineHeight: 20 },
+  reviewSummary: { fontSize: 15, color: '#374151', marginBottom: 4 },
+  textContent: { fontSize: 15, color: '#374151', lineHeight: 20 },
 
   // Reviews
   reviewCard: { flexDirection: 'row', marginBottom: 16, borderBottomWidth: 1, borderBottomColor: '#F3F4F6', paddingBottom: 16 },
@@ -1233,10 +1196,29 @@ const styles = StyleSheet.create({
 
   // Bottom Bar
   bottomBar: {
-    position: 'absolute', bottom: 0, left: 0, right: 0,
-    backgroundColor: '#FFF', flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 16, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F3F4F6',
-    gap: 8, elevation: 8, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    backgroundColor: '#FFF',
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6', // Lighter border
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+  },
+  aiActionBtn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingRight: 6,
+  },
+  aiActionText: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 2,
+    fontWeight: '600',
   },
   chatSellerBtn: {
     height: 50, paddingHorizontal: 16, justifyContent: 'center', alignItems: 'center',
@@ -1244,15 +1226,26 @@ const styles = StyleSheet.create({
   },
   chatSellerText: { color: '#FFF', fontWeight: '700', fontSize: 14 },
   addToCartBtn: {
-    flex: 1, height: 50, flexDirection: 'row', justifyContent: 'center', alignItems: 'center',
-    borderRadius: 15, backgroundColor: '#FB8C00', // Solid Orange
+    flex: 1.2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 48,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: BRAND_COLOR,
+    backgroundColor: '#FFF',
   },
-  addToCartText: { color: '#FFF', fontWeight: '700', fontSize: 15 },
+  addToCartText: { color: BRAND_COLOR, fontSize: 14, fontWeight: '700' },
   buyNowBtn: {
-    flex: 1, height: 50, justifyContent: 'center', alignItems: 'center',
-    borderRadius: 15, backgroundColor: '#FB8C00', // Solid Orange
+    flex: 1.4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 48,
+    borderRadius: 8,
+    backgroundColor: BRAND_COLOR,
   },
-  buyNowText: { color: '#FFF', fontWeight: '700', fontSize: 15 },
+  buyNowText: { color: '#FFF', fontSize: 14, fontWeight: '700' },
 
   // Wishlist Dropdown
   wishlistDropdown: {
@@ -1370,8 +1363,11 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
   },
+  variantModalClosing: {
+    padding: 4,
+  },
   variantModalPrice: {
-    fontSize: 22,
+    fontSize: 23,
     fontWeight: '800',
     color: BRAND_COLOR,
   },
@@ -1386,24 +1382,19 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     marginTop: 4,
   },
-  variantModalClose: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#F3F4F6',
-    justifyContent: 'center',
-    alignItems: 'center',
+  variantModalSection: {
+    paddingTop: 16,
+    paddingBottom: 4,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
   },
   variantModalContent: {
-    maxHeight: 300,
-  },
-  variantModalSection: {
-    marginBottom: 24,
+    maxHeight: 500,
+    paddingBottom: 20,
   },
   variantModalLabel: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#111827',
+    fontSize: 14,
+    color: '#6B7280',
     marginBottom: 12,
   },
   variantModalOptions: {
@@ -1412,29 +1403,33 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   variantModalColorOption: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: 2,
-    borderColor: '#E5E7EB',
-    justifyContent: 'center',
+    flexDirection: 'row',
     alignItems: 'center',
+    padding: 4,
+    paddingRight: 12,
+    borderRadius: 6,
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+    gap: 8,
   },
   variantModalColorSelected: {
     borderColor: BRAND_COLOR,
-    borderWidth: 3,
+    backgroundColor: '#FFF7ED',
+  },
+  variantModalOptionImage: {
+    width: 24,
+    height: 24,
+    borderRadius: 4,
   },
   variantModalOptionText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#374151',
-    textAlign: 'center',
+    fontSize: 13,
+    color: '#1F2937',
   },
   variantModalSelectedText: {
-    fontSize: 13,
-    color: '#6B7280',
+    fontSize: 12,
+    color: BRAND_COLOR,
     marginTop: 8,
-    textTransform: 'capitalize',
   },
   variantModalSizeOptions: {
     flexDirection: 'row',
@@ -1442,74 +1437,74 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   variantModalSizeOption: {
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 6,
+    backgroundColor: '#F3F4F6',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    backgroundColor: '#F9FAFB',
-    minWidth: 60,
-    alignItems: 'center',
+    borderColor: '#F3F4F6',
   },
   variantModalSizeSelected: {
     borderColor: BRAND_COLOR,
     backgroundColor: '#FFF7ED',
-    borderWidth: 2,
   },
   variantModalSizeText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
+    fontSize: 13,
+    color: '#1F2937',
   },
   variantModalSizeTextSelected: {
     color: BRAND_COLOR,
-    fontWeight: '700',
   },
   variantModalQuantityRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
+    justifyContent: 'space-between',
+  },
+  variantModalStepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 4,
+    overflow: 'hidden',
   },
   variantModalQtyBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#F3F4F6',
-    justifyContent: 'center',
+    width: 32,
+    height: 32,
     alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F9FAFB',
   },
   variantModalQtyValue: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
-    minWidth: 40,
+    width: 44,
+    height: 32,
+    fontSize: 14,
     textAlign: 'center',
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: '#E5E7EB',
+    color: '#1F2937',
+    padding: 0,
   },
   variantModalConfirmBtn: {
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: '#FFF',
-    borderWidth: 2,
-    borderColor: BRAND_COLOR,
-    justifyContent: 'center',
+    height: 50,
+    backgroundColor: BRAND_COLOR,
+    borderRadius: 6,
     alignItems: 'center',
+    justifyContent: 'center',
     marginTop: 16,
+    marginBottom: 2,
   },
   variantModalConfirmBtnDisabled: {
-    backgroundColor: '#F3F4F6',
-    borderColor: '#D1D5DB',
-  },
-  variantModalBuyBtn: {
-    backgroundColor: BRAND_COLOR,
-    borderColor: BRAND_COLOR,
+    backgroundColor: '#FED7AA',
   },
   variantModalConfirmText: {
     fontSize: 16,
     fontWeight: '700',
-    color: BRAND_COLOR,
+    color: '#FFF',
   },
   variantModalConfirmTextDisabled: {
-    color: '#9CA3AF',
+    color: 'rgba(255,255,255,0.7)',
   },
 
   // Loading & Empty States for Reviews
