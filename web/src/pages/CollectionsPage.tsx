@@ -17,7 +17,7 @@ const CollectionsPage: React.FC = () => {
   });
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[var(--brand-wash)]">
       <Header />
 
       {/* Hero Section - Glass-like Gradient */}
@@ -32,7 +32,7 @@ const CollectionsPage: React.FC = () => {
           </Link>
           <Link
             to="/collections"
-            className="text-sm text-[var(--brand-primary)]"
+            className="text-sm font-bold text-[var(--brand-primary)] border-b-2 border-[var(--brand-primary)] pb-0.5"
           >
             Collections
           </Link>
@@ -50,21 +50,21 @@ const CollectionsPage: React.FC = () => {
           </Link>
         </div>
 
-        <div className="w-full py-24 bg-gradient-to-br from-orange-100/20 via-orange-200/50 to-orange-200/50 backdrop-blur-md border border-orange-200/30 rounded-3xl">
+        <div className="py-24 bg-main-gradient backdrop-blur-md rounded-3xl">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="text-center"
+            className="text-center px-4"
           >
-            <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-2">
+            <h1 className="text-4xl md:text-6xl font-black text-[var(--text-headline)] mb-2 tracking-tight font-primary">
               Discover Handpicked
               <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-red-500">
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-[var(--brand-primary)] to-[var(--text-accent)]">
                 Collections
               </span>
             </h1>
 
-            <p className="text-medium text-gray-700 max-w-2xl mx-auto">
+            <p className="text-medium text-[var(--text-primary)] max-w-2xl mx-auto font-medium">
               Explore carefully curated collections featuring the best products from trusted sellers.
             </p>
           </motion.div>

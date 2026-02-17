@@ -134,7 +134,7 @@ export function OrderDetailsModal({
 
     const handleOverrideStatus = async () => {
         if (!window.confirm(`Force change order status to ${overrideStatus}?`)) return;
-        
+
         setIsOverriding(true);
         try {
             await updateOrderStatus(order.id, overrideStatus);
@@ -170,7 +170,7 @@ export function OrderDetailsModal({
                 );
             case "confirmed":
                 return (
-                    <div className="inline-flex items-center bg-orange-50 text-orange-700 gap-1 rounded-full px-3 py-1 text-xs font-medium border border-orange-100">
+                    <div className="inline-flex items-center bg-[var(--brand-wash)] text-[var(--brand-primary)] gap-1 rounded-full px-3 py-1 text-xs font-medium border border-[var(--brand-primary)]/20">
                         <Package className="w-3" /> Confirmed
                     </div>
                 );
@@ -187,18 +187,18 @@ export function OrderDetailsModal({
         order.reviews?.[0] ||
         (typeof order.rating === "number"
             ? {
-                  id: `legacy-${order.id}`,
-                  productId: null,
-                  rating: order.rating,
-                  comment: order.reviewComment || "",
-                  images: Array.isArray(order.reviewImages)
-                      ? order.reviewImages
-                      : [],
-                  submittedAt:
-                      order.reviewDate ||
-                      order.deliveredAt ||
-                      order.orderDate,
-              }
+                id: `legacy-${order.id}`,
+                productId: null,
+                rating: order.rating,
+                comment: order.reviewComment || "",
+                images: Array.isArray(order.reviewImages)
+                    ? order.reviewImages
+                    : [],
+                submittedAt:
+                    order.reviewDate ||
+                    order.deliveredAt ||
+                    order.orderDate,
+            }
             : null);
 
     return (
@@ -330,7 +330,7 @@ export function OrderDetailsModal({
                                                         {order.type === 'OFFLINE' ? 'VATable Sales' : 'Subtotal'}
                                                     </span>
                                                     <span className="font-medium text-gray-900">
-                                                        ₱{order.type === 'OFFLINE' 
+                                                        ₱{order.type === 'OFFLINE'
                                                             ? (order.total / 1.12).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
                                                             : order.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
                                                         }
@@ -414,12 +414,11 @@ export function OrderDetailsModal({
                                             {[1, 2, 3, 4, 5].map((star) => (
                                                 <Star
                                                     key={star}
-                                                    className={`w-4 h-4 ${
-                                                        star <=
-                                                        latestReview.rating
+                                                    className={`w-4 h-4 ${star <=
+                                                            latestReview.rating
                                                             ? "fill-yellow-400 text-yellow-400"
                                                             : "text-gray-300"
-                                                    }`}
+                                                        }`}
                                                 />
                                             ))}
                                             <span className="text-xs font-medium text-gray-600 ml-1">
@@ -555,14 +554,14 @@ export function OrderDetailsModal({
                                                     </div>
                                                 ) : order.status === "confirmed" ? (
                                                     <div className="flex items-start gap-4">
-                                                        <div className="p-2 bg-orange-50 border border-orange-100 rounded-lg text-orange-600 mt-0.5 shadow-sm">
+                                                        <div className="p-2 bg-[var(--brand-wash)] border border-[var(--brand-primary)]/20 rounded-lg text-[var(--brand-primary)] mt-0.5 shadow-sm">
                                                             <Package className="w-4 h-4" />
                                                         </div>
                                                         <div className="flex-1">
-                                                            <span className="block text-sm font-semibold text-orange-700">
+                                                            <span className="block text-sm font-semibold text-[var(--brand-primary)]">
                                                                 Preparing for Shipment
                                                             </span>
-                                                            <p className="text-sm text-gray-600 leading-relaxed mt-0.5">
+                                                            <p className="text-sm text-[var(--text-muted)] leading-relaxed mt-0.5">
                                                                 Please pack the items and prepare the shipping label.
                                                             </p>
                                                         </div>
@@ -660,7 +659,7 @@ export function OrderDetailsModal({
                                     <>
                                         <Button
                                             size="lg"
-                                            className="bg-orange-500 hover:bg-orange-600 text-white flex-1 font-semibold shadow-md hover:shadow-lg transition-all"
+                                            className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white flex-1 font-semibold shadow-md hover:shadow-lg transition-all"
                                             onClick={() =>
                                                 void handleStatusUpdate(
                                                     "confirmed",
@@ -687,7 +686,7 @@ export function OrderDetailsModal({
                                     <>
                                         <Button
                                             size="lg"
-                                            className="bg-orange-500 hover:bg-orange-600 text-white flex-1 font-semibold shadow-md hover:shadow-lg transition-all"
+                                            className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white flex-1 font-semibold shadow-md hover:shadow-lg transition-all"
                                             onClick={() =>
                                                 setTrackingModal((prev) => ({
                                                     ...prev,
@@ -779,7 +778,7 @@ export function OrderDetailsModal({
                                 </Button>
                                 <Button
                                     size="lg"
-                                    className="flex-1 bg-orange-500 hover:bg-orange-600 text-white font-semibold"
+                                    className="flex-1 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white font-semibold"
                                     onClick={handleMarkAsShipped}
                                     disabled={
                                         trackingModal.isLoading ||

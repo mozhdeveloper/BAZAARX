@@ -120,7 +120,7 @@ export default function BuyerOnboardingPage() {
     };
 
     return (
-        <div className="min-h-screen relative font-sans bg-slate-50 flex items-start justify-center p-6 pt-12">
+        <div className="min-h-screen relative font-sans bg-[var(--brand-wash)] flex items-start justify-center p-6 pt-12">
             {/* Background Elements */}
             <div className="absolute inset-0 bg-gradient-to-br from-white via-orange-50/30 to-white animate-gradient [background-size:400%_400%]"></div>
             <div className="absolute inset-0 overflow-hidden pointer-events-none">

@@ -49,7 +49,7 @@ export function BuyerSupport() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!profile?.id) {
       console.error("User not logged in");
       return;
@@ -111,7 +111,7 @@ export function BuyerSupport() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 font-[family-name:var(--font-sans)] text-[var(--text-primary)]">
+    <div className="min-h-screen bg-[var(--brand-wash)] font-[family-name:var(--font-sans)] text-[var(--text-primary)]">
       <Header />
 
       <div className="max-w-7xl mx-auto px-4 py-8 flex flex-col items-center">
@@ -120,14 +120,14 @@ export function BuyerSupport() {
           {/* Header */}
           <div className="p-6 flex items-center justify-between border-b border-[var(--border)] relative">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-[#FF4500] text-white flex items-center justify-center font-bold text-xl rounded-xl shadow-sm">
+              <div className="w-12 h-12 bg-[var(--brand-primary)] text-white flex items-center justify-center font-bold text-xl rounded-xl shadow-sm">
                 BX
               </div>
               <div>
-                <h1 className="text-xl font-bold tracking-tight text-gray-900">
+                <h1 className="text-xl font-bold tracking-tight text-[var(--text-headline)]">
                   BazaarX Help Center
                 </h1>
-                <p className="text-gray-500 text-xs">We're here to help</p>
+                <p className="text-[var(--text-muted)] text-xs">We're here to help</p>
               </div>
             </div>
           </div>
@@ -155,12 +155,12 @@ export function BuyerSupport() {
 
               <button
                 onClick={() => setShowTicketModal(true)}
-                className="flex flex-col items-center gap-3 group transition-all p-3 rounded-xl hover:bg-gray-50"
+                className="flex flex-col items-center gap-3 group transition-all p-3 rounded-xl hover:bg-[var(--brand-wash)]"
               >
-                <div className="w-14 h-14 bg-orange-50 rounded-2xl flex items-center justify-center border border-transparent group-hover:border-[#FF4500]/20 group-hover:bg-[#FF4500]/10 transition-colors">
-                  <Ticket size={24} className="text-[#FF4500]" />
+                <div className="w-14 h-14 bg-[var(--brand-wash)] rounded-2xl flex items-center justify-center border border-transparent group-hover:border-[var(--brand-primary)]/20 group-hover:bg-[var(--brand-primary)]/10 transition-colors">
+                  <Ticket size={24} className="text-[var(--brand-primary)]" />
                 </div>
-                <span className="text-[11px] font-medium text-center text-gray-600 group-hover:text-[#FF4500]">
+                <span className="text-[11px] font-medium text-center text-[var(--text-muted)] group-hover:text-[var(--brand-primary)]">
                   Submit Ticket
                 </span>
               </button>
@@ -182,14 +182,14 @@ export function BuyerSupport() {
 
             {/* Tabs & Questions */}
             <div className="mb-6">
-              <div className="flex gap-6 border-b border-gray-100 mb-4 text-sm font-medium">
-                <span className="text-[#FF4500] border-b-2 border-[#FF4500] pb-2 cursor-pointer transition-colors">
+              <div className="flex gap-6 border-b border-[var(--brand-wash-gold)]/20 mb-4 text-sm font-medium">
+                <span className="text-[var(--brand-primary)] border-b-2 border-[var(--brand-primary)] pb-2 cursor-pointer transition-colors">
                   Hot Questions
                 </span>
-                <span className="text-gray-400 pb-2 cursor-pointer hover:text-gray-600 transition-colors">
+                <span className="text-[var(--text-muted)] pb-2 cursor-pointer hover:text-[var(--text-primary)] transition-colors">
                   Pre-sale
                 </span>
-                <span className="text-gray-400 pb-2 cursor-pointer hover:text-gray-600 transition-colors">
+                <span className="text-[var(--text-muted)] pb-2 cursor-pointer hover:text-[var(--text-primary)] transition-colors">
                   Payment
                 </span>
               </div>
@@ -203,26 +203,26 @@ export function BuyerSupport() {
                 ].map((q, idx) => (
                   <button
                     key={idx}
-                    className="w-full flex items-center justify-between text-sm py-3 px-2 rounded-lg hover:bg-gray-50 group transition-colors text-left"
+                    className="w-full flex items-center justify-between text-sm py-3 px-2 rounded-lg hover:bg-[var(--brand-wash)] group transition-colors text-left"
                   >
                     <p className="flex items-center gap-4">
-                      <span className="italic font-bold text-[#FF4500] w-4 text-center">
+                      <span className="italic font-bold text-[var(--brand-primary)] w-4 text-center">
                         {idx + 1}
                       </span>
-                      <span className="text-gray-600 group-hover:text-gray-900 font-medium">
+                      <span className="text-[var(--text-muted)] group-hover:text-[var(--text-headline)] font-medium">
                         {q}
                       </span>
                     </p>
                     <ChevronRight
                       size={16}
-                      className="text-gray-300 group-hover:text-[#FF4500]"
+                      className="text-[var(--text-muted)] group-hover:text-[var(--brand-primary)]"
                     />
                   </button>
                 ))}
               </div>
 
               <div className="mt-4 flex justify-center">
-                <button className="flex items-center gap-2 text-xs text-gray-400 hover:text-[#FF4500] transition-colors">
+                <button className="flex items-center gap-2 text-xs text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-colors">
                   <RefreshCw size={12} /> View More Topics
                 </button>
               </div>
@@ -267,7 +267,7 @@ export function BuyerSupport() {
                   <input
                     type="text"
                     placeholder="Type your message briefly here"
-                    className="w-full pl-4 pr-12 py-3 bg-gray-50 border-none rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-[var(--brand-primary)]/20 focus:bg-white transition-all"
+                    className="w-full pl-4 pr-12 py-3 bg-[var(--brand-wash)] border-none rounded-xl text-sm text-[var(--text-headline)] placeholder-[var(--text-muted)] focus:ring-2 focus:ring-[var(--brand-primary)]/20 focus:bg-[var(--bg-secondary)] transition-all"
                     value={chatMessage}
                     onChange={(e) => setChatMessage(e.target.value)}
                   />

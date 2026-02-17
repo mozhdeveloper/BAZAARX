@@ -7,7 +7,7 @@ interface SupportChatChipProps {
 
 export function SupportChatChip({ icon, label }: SupportChatChipProps) {
   return (
-    <button className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-full text-xs font-medium text-gray-600 hover:border-[#FF4500] hover:text-[#FF4500] whitespace-nowrap transition-colors shadow-sm">
+    <button className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--bg-secondary)] border border-[var(--brand-wash-gold)]/20 rounded-full text-xs font-medium text-[var(--text-primary)] hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] whitespace-nowrap transition-colors shadow-sm">
       {icon}
       {label}
     </button>

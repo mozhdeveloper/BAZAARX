@@ -179,7 +179,7 @@ export default function BuyerSignupPage() {
 
   return (
 
-    <div className="min-h-screen relative overflow-hidden font-sans bg-slate-50">
+    <div className="min-h-screen relative overflow-hidden font-sans bg-[var(--brand-wash)]">
       <div className="absolute inset-0 bg-gradient-to-br from-white via-orange-50/30 to-white animate-gradient [background-size:400%_400%]"></div>
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <motion.div

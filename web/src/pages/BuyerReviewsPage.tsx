@@ -6,9 +6,9 @@ import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
-import { 
-  Star, 
-  Package, 
+import {
+  Star,
+  Package,
   ThumbsUp,
   MessageSquare,
   Edit2,
@@ -94,11 +94,10 @@ export default function BuyerReviewsPage() {
         {[1, 2, 3, 4, 5].map((star) => (
           <Star
             key={star}
-            className={`h-4 w-4 ${
-              star <= rating
-                ? 'fill-orange-400 text-orange-400'
-                : 'text-gray-300'
-            }`}
+            className={`h-4 w-4 ${star <= rating
+              ? 'fill-[var(--brand-primary)] text-[var(--brand-primary)]'
+              : 'text-[var(--text-muted)]'
+              }`}
           />
         ))}
       </div>
@@ -106,7 +105,7 @@ export default function BuyerReviewsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[var(--brand-wash)]">
       <Header />
 
       <div className="max-w-7xl mx-auto px-4 py-8">
@@ -116,8 +115,8 @@ export default function BuyerReviewsPage() {
           animate={{ opacity: 1, y: 0 }}
           className="mb-8"
         >
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">My Reviews</h1>
-          <p className="text-gray-600">Manage and view all your product reviews</p>
+          <h1 className="text-3xl font-bold text-[var(--text-headline)] mb-2">My Reviews</h1>
+          <p className="text-[var(--text-muted)]">Manage and view all your product reviews</p>
         </motion.div>
 
         {/* Stats Cards */}
@@ -131,10 +130,10 @@ export default function BuyerReviewsPage() {
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-500 mb-1">Total Reviews</p>
-                    <p className="text-2xl font-bold text-gray-900">{mockReviews.length}</p>
+                    <p className="text-sm text-[var(--text-muted)] mb-1">Total Reviews</p>
+                    <p className="text-2xl font-bold text-[var(--text-headline)]">{mockReviews.length}</p>
                   </div>
-                  <MessageSquare className="h-8 w-8 text-orange-500" />
+                  <MessageSquare className="h-8 w-8 text-[var(--brand-primary)]" />
                 </div>
               </CardContent>
             </Card>
@@ -149,12 +148,12 @@ export default function BuyerReviewsPage() {
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-500 mb-1">Average Rating</p>
-                    <p className="text-2xl font-bold text-gray-900">
+                    <p className="text-sm text-[var(--text-muted)] mb-1">Average Rating</p>
+                    <p className="text-2xl font-bold text-[var(--text-headline)]">
                       {(mockReviews.reduce((acc, r) => acc + r.rating, 0) / mockReviews.length).toFixed(1)}
                     </p>
                   </div>
-                  <Star className="h-8 w-8 text-orange-500 fill-orange-500" />
+                  <Star className="h-8 w-8 text-[var(--brand-primary)] fill-[var(--brand-primary)]" />
                 </div>
               </CardContent>
             </Card>
@@ -169,12 +168,12 @@ export default function BuyerReviewsPage() {
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-500 mb-1">Helpful Votes</p>
-                    <p className="text-2xl font-bold text-gray-900">
+                    <p className="text-sm text-[var(--text-muted)] mb-1">Helpful Votes</p>
+                    <p className="text-2xl font-bold text-[var(--text-headline)]">
                       {mockReviews.reduce((acc, r) => acc + r.helpful, 0)}
                     </p>
                   </div>
-                  <ThumbsUp className="h-8 w-8 text-orange-500" />
+                  <ThumbsUp className="h-8 w-8 text-[var(--brand-primary)]" />
                 </div>
               </CardContent>
             </Card>
@@ -189,12 +188,12 @@ export default function BuyerReviewsPage() {
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-500 mb-1">With Photos</p>
-                    <p className="text-2xl font-bold text-gray-900">
+                    <p className="text-sm text-[var(--text-muted)] mb-1">With Photos</p>
+                    <p className="text-2xl font-bold text-[var(--text-headline)]">
                       {mockReviews.filter(r => r.images.length > 0).length}
                     </p>
                   </div>
-                  <ImageIcon className="h-8 w-8 text-orange-500" />
+                  <ImageIcon className="h-8 w-8 text-[var(--brand-primary)]" />
                 </div>
               </CardContent>
             </Card>
@@ -219,7 +218,7 @@ export default function BuyerReviewsPage() {
                       variant={selectedRating === null ? "default" : "outline"}
                       size="sm"
                       onClick={() => setSelectedRating(null)}
-                      className={selectedRating === null ? "bg-orange-500 hover:bg-orange-600" : ""}
+                      className={selectedRating === null ? "bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)]" : ""}
                     >
                       All
                     </Button>
@@ -229,7 +228,7 @@ export default function BuyerReviewsPage() {
                         variant={selectedRating === rating ? "default" : "outline"}
                         size="sm"
                         onClick={() => setSelectedRating(rating)}
-                        className={selectedRating === rating ? "bg-orange-500 hover:bg-orange-600" : ""}
+                        className={selectedRating === rating ? "bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)]" : ""}
                       >
                         {rating} ⭐
                       </Button>
@@ -253,9 +252,9 @@ export default function BuyerReviewsPage() {
               {filteredReviews.length === 0 ? (
                 <Card>
                   <CardContent className="p-12 text-center">
-                    <MessageSquare className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                    <p className="text-gray-500 text-lg">No reviews found</p>
-                    <p className="text-gray-400 text-sm">Start reviewing products you've purchased!</p>
+                    <MessageSquare className="h-16 w-16 text-[var(--text-muted)] mx-auto mb-4" />
+                    <p className="text-[var(--text-muted)] text-lg">No reviews found</p>
+                    <p className="text-[var(--text-muted)] text-sm">Start reviewing products you've purchased!</p>
                   </CardContent>
                 </Card>
               ) : (
@@ -280,12 +279,12 @@ export default function BuyerReviewsPage() {
                           <div className="flex-1">
                             <div className="flex items-start justify-between mb-2">
                               <div>
-                                <h3 className="font-semibold text-gray-900 mb-1">
+                                <h3 className="font-semibold text-[var(--text-headline)] mb-1">
                                   {review.productName}
                                 </h3>
                                 <div className="flex items-center gap-3 mb-2">
                                   {renderStars(review.rating)}
-                                  <span className="text-sm text-gray-500">
+                                  <span className="text-sm text-[var(--text-muted)]">
                                     {review.date.toLocaleDateString()}
                                   </span>
                                   <Badge variant="outline" className="text-xs">
@@ -304,7 +303,7 @@ export default function BuyerReviewsPage() {
                               </div>
                             </div>
 
-                            <p className="text-gray-700 mb-3">{review.comment}</p>
+                            <p className="text-[var(--text-primary)] mb-3">{review.comment}</p>
 
                             {/* Review Images */}
                             {review.images.length > 0 && (
@@ -322,22 +321,22 @@ export default function BuyerReviewsPage() {
 
                             {/* Seller Reply */}
                             {review.sellerReply && (
-                              <div className="bg-orange-50 rounded-lg p-4 mt-3 border-l-4 border-orange-500">
-                                <p className="text-sm font-medium text-gray-900 mb-1">Seller's Response:</p>
-                                <p className="text-sm text-gray-700">{review.sellerReply}</p>
+                              <div className="bg-[var(--brand-wash)] rounded-lg p-4 mt-3 border-l-4 border-[var(--brand-primary)]">
+                                <p className="text-sm font-medium text-[var(--text-headline)] mb-1">Seller's Response:</p>
+                                <p className="text-sm text-[var(--text-primary)]">{review.sellerReply}</p>
                               </div>
                             )}
 
                             {/* Footer */}
-                            <div className="flex items-center gap-4 mt-3 pt-3 border-t border-gray-100">
-                              <button className="flex items-center gap-1 text-sm text-gray-500 hover:text-orange-500">
+                            <div className="flex items-center gap-4 mt-3 pt-3 border-t border-[var(--brand-wash-gold)]/20">
+                              <button className="flex items-center gap-1 text-sm text-[var(--text-muted)] hover:text-[var(--brand-primary)]">
                                 <ThumbsUp className="h-4 w-4" />
                                 <span>{review.helpful} found this helpful</span>
                               </button>
-                              <Badge 
+                              <Badge
                                 className={
-                                  review.status === 'published' 
-                                    ? 'bg-green-100 text-green-700' 
+                                  review.status === 'published'
+                                    ? 'bg-green-100 text-green-700'
                                     : 'bg-yellow-100 text-yellow-700'
                                 }
                               >

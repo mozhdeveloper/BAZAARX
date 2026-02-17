@@ -93,14 +93,14 @@ const RegistryAndGiftingPage = () => {
     }, [location]);
 
     return (
-        <div className="min-h-screen bg-gray-50">
+        <div className="min-h-screen bg-[var(--brand-wash)]">
             <Header />
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-4 pt-0 pb-4 flex flex-col gap-2">
+            <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 pt-0 pb-4 flex flex-col gap-2">
                 {/* Page Navigation */}
                 <div className="flex items-center justify-center gap-10 pt-1 pb-1">
                     <Link
                         to="/shop"
-                        className="text-sm  text-gray-500 hover:text-[var(--brand-primary)] transition-all duration-300"
+                        className="text-sm text-gray-500 hover:text-[var(--brand-primary)] transition-all duration-300"
                     >
                         Shop
                     </Link>
@@ -118,32 +118,32 @@ const RegistryAndGiftingPage = () => {
                     </Link>
                     <Link
                         to="/registry"
-                        className="text-sm text-[var(--brand-primary)]"
+                        className="text-sm font-bold text-[var(--brand-primary)] border-b-2 border-[var(--brand-primary)] pb-0.5"
                     >
                         Registry & Gifting
                     </Link>
                 </div>
 
-                <div className="py-24 bg-gradient-to-br from-orange-100/20 via-orange-200/50 to-orange-200/50 backdrop-blur-md border border-orange-200/30 rounded-3xl mb-4">
+                <div className="py-24 bg-main-gradient backdrop-blur-md rounded-3xl mb-4">
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="text-center"
+                        className="text-center px-4"
                     >
-                        <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-2">
+                        <h1 className="text-4xl md:text-6xl font-black text-[var(--text-headline)] mb-2 tracking-tight font-primary">
                             Registry & {''}
-                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-red-500">
+                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[var(--brand-primary)] to-[var(--text-accent)]">
                                 Gifting
                             </span>
                         </h1>
 
-                        <p className="text-medium text-gray-700 max-w-2xl mx-auto mb-6">
+                        <p className="text-medium text-[var(--text-primary)] max-w-2xl mx-auto mb-6 font-medium">
                             From wishlist to wow — turn every shared moment into the perfect gift.
                         </p>
-                        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 px-4">
+                        <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                             <button
                                 onClick={() => setIsCreateModalOpen(true)}
-                                className="w-full sm:w-auto px-8 py-3 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-full font-medium hover:shadow-lg hover:opacity-90 transition-all shadow-md"
+                                className="w-full sm:w-auto px-8 py-3 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white rounded-full font-medium hover:shadow-lg hover:opacity-90 transition-all shadow-md"
                             >
                                 Create a registry
                             </button>
@@ -301,7 +301,7 @@ const CategoryCard = ({
 const FeatureCard = ({ Icon, title, desc }: { Icon: any; title: string; desc: string }) => (
     <div className="border border-gray-200 rounded-lg p-8 text-center flex flex-col items-center justify-center space-y-4 min-h-[220px]">
         <div className="p-3 bg-gray-50 rounded-full">
-            <Icon size={32} className="text-gray-800" strokeWidth={1.5} />
+            <Icon size={32} className="text-[var(--text-primary)]" strokeWidth={1.5} />
         </div>
         <h4 className="font-bold text-lg">{title}</h4>
         <p className="text-sm text-gray-600 max-w-[250px]">{desc}</p>

@@ -14,12 +14,12 @@ export function SupportServiceCard({
   return (
     <button
       onClick={onClick}
-      className="flex flex-col items-center gap-3 group transition-all p-3 rounded-xl hover:bg-gray-50"
+      className="flex flex-col items-center gap-3 group transition-all p-3 rounded-xl hover:bg-[var(--brand-wash)]"
     >
-      <div className="w-14 h-14 bg-orange-50 rounded-2xl flex items-center justify-center border border-transparent group-hover:border-[#FF4500]/20 group-hover:bg-[#FF4500]/10 transition-colors">
-        <div className="text-[#FF4500]">{icon}</div>
+      <div className="w-14 h-14 bg-[var(--brand-wash)] rounded-2xl flex items-center justify-center border border-transparent group-hover:border-[var(--brand-primary)]/20 group-hover:bg-[var(--brand-primary)]/10 transition-colors">
+        <div className="text-[var(--brand-primary)]">{icon}</div>
       </div>
-      <span className="text-[11px] font-medium text-center text-gray-600 group-hover:text-[#FF4500]">
+      <span className="text-[11px] font-medium text-center text-[var(--text-muted)] group-hover:text-[var(--brand-primary)]">
         {label}
       </span>
     </button>

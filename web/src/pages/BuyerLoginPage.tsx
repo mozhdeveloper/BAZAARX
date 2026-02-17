@@ -145,7 +145,7 @@ export default function BuyerLoginPage() {
   };
 
   return (
-    <div className="min-h-screen relative overflow-hidden font-sans bg-slate-50">
+    <div className="min-h-screen relative overflow-hidden font-sans bg-[var(--brand-wash)]">
       {/* Premium Animated Gradient Background */}
       <div className="absolute inset-0 bg-gradient-to-br from-white via-orange-50/30 to-white animate-gradient [background-size:400%_400%]"></div>
 
