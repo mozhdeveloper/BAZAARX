@@ -111,9 +111,9 @@ export function ProductReviews({
   return (
     <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
       <div className="md:col-span-5 lg:col-span-4 sticky top-40 z-40">
-        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+        <div className="bg-[var(--bg-secondary)] rounded-2xl p-6 shadow-md">
           <div className="text-center mb-6">
-            <div className="text-5xl font-bold text-gray-900 leading-none mb-2">
+            <div className="text-5xl font-bold text-[var(--text-headline)] leading-none mb-2">
               {effectiveRating.toFixed(1)}
             </div>
             <div className="flex items-center justify-center gap-1 mb-2">
@@ -123,8 +123,8 @@ export function ProductReviews({
                   className={cn(
                     "h-4 w-4",
                     i < Math.round(effectiveRating)
-                      ? "fill-current text-yellow-400"
-                      : "text-gray-300",
+                      ? "fill-current text-[var(--brand-primary)]"
+                      : "text-[var(--text-muted)]",
                   )}
                 />
               ))}
@@ -146,11 +146,11 @@ export function ProductReviews({
                 <div key={star} className="flex items-center gap-3">
                   <div className="flex items-center justify-end gap-1.5 w-12 shrink-0">
                     <span className="text-sm font-medium text-gray-700">{star}</span>
-                    <Star className="h-3 w-3 fill-current text-yellow-400" />
+                    <Star className="h-3 w-3 fill-current text-[var(--brand-primary)]" />
                   </div>
                   <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-yellow-400 rounded-full"
+                      className="h-full bg-[var(--brand-primary)] rounded-full"
                       style={{ width: `${percentage}%` }}
                     />
                   </div>
@@ -168,17 +168,17 @@ export function ProductReviews({
         {loading && page === 1 ? (
           <div className="text-center py-12 text-gray-500">Loading reviews...</div>
         ) : reviews.length === 0 ? (
-          <div className="text-center py-12 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
-            <MessageCircle className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-            <h3 className="text-lg font-medium text-gray-900">No reviews yet</h3>
-            <p className="text-gray-500">Be the first to review this product!</p>
+          <div className="text-center py-12 bg-[var(--bg-secondary)] rounded-2xl border border-dashed border-[var(--brand-wash-gold)]">
+            <MessageCircle className="w-12 h-12 text-[var(--text-muted)] mx-auto mb-3" />
+            <h3 className="text-lg font-medium text-[var(--text-headline)]">No reviews yet</h3>
+            <p className="text-[var(--text-muted)]">Be the first to review this product!</p>
           </div>
         ) : (
           <div className="space-y-4">
             {reviews.map((review) => (
               <div
                 key={review.id}
-                className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm"
+                className="bg-[var(--bg-secondary)] border border-[var(--brand-wash-gold)]/30 rounded-2xl p-6 shadow-sm"
               >
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-4">
@@ -208,8 +208,8 @@ export function ProductReviews({
                               className={cn(
                                 "w-3 h-3",
                                 i < review.rating
-                                  ? "fill-yellow-400 text-yellow-400"
-                                  : "fill-gray-200 text-gray-200",
+                                  ? "fill-[var(--brand-primary)] text-[var(--brand-primary)]"
+                                  : "fill-[var(--bg-secondary)] text-[var(--text-muted)]",
                               )}
                             />
                           ))}

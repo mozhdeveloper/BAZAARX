@@ -198,7 +198,7 @@ export function BazaarHero({ mode = "buyer", scrollTargetId = "bazaar-marketplac
           }
           subtitle={mode === "buyer" ? "From global factories directly to your doorstep" : "Inspired by ancient bazaars. Reimagined as the modern crossroads for global trade."}
           subtitleClassName="font-fondamento text-xl sm:text-2xl md:text-3xl !mt-0 sm:!mt-[-0.5rem] text-center px-4 w-full whitespace-nowrap overflow-hidden text-ellipsis text-[var(--text-headline)]"
-          titleClassName="bg-gradient-to-r from-[#EA580C] via-[#FB8C00] to-[#D97706] bg-clip-text text-transparent"
+          titleClassName="bg-gradient-to-r from-[var(--brand-primary)] via-[var(--brand-wash-gold)] to-[var(--brand-primary-dark)] bg-clip-text text-transparent"
         >
           <div className="w-full max-w-4xl mt-12 sm:mt-24 px-4">
             {mode === "buyer" ? (
@@ -228,24 +228,24 @@ export function BazaarHero({ mode = "buyer", scrollTargetId = "bazaar-marketplac
                 {/* Action Buttons (Outside search bar, inside container) */}
                 <div className="flex items-center gap-1 sm:gap-2 px-2 sm:px-0">
                   <div className="relative group/btn">
-                    <span className="absolute top-10 left-1/2 -translate-x-1/2 opacity-0 group-hover/btn:opacity-100 group-hover/btn:top-12 transition-all duration-300 text-[10px] sm:text-[11px] font-black uppercase tracking-[0.2em] text-[#7C2D12] whitespace-nowrap pointer-events-none z-50">
+                    <span className="absolute top-10 left-1/2 -translate-x-1/2 opacity-0 group-hover/btn:opacity-100 group-hover/btn:top-12 transition-all duration-300 text-[10px] sm:text-[11px] font-black uppercase tracking-[0.2em] text-[var(--brand-primary-dark)] whitespace-nowrap pointer-events-none z-50">
                       Start Shopping
                     </span>
                     <Link
                       to="/shop"
-                      className="p-2 sm:p-3 rounded-full transition-all text-[#7C2D12] hover:text-[#FB8C00] block"
+                      className="p-2 sm:p-3 rounded-full transition-all text-[var(--brand-primary-dark)] hover:text-[var(--brand-primary)] block"
                     >
                       <ShoppingBag className="w-6 h-6 sm:w-7 sm:h-7" />
                     </Link>
                   </div>
 
                   <div className="relative group/btn">
-                    <span className="absolute top-10 left-1/2 -translate-x-1/2 opacity-0 group-hover/btn:opacity-100 group-hover/btn:top-12 transition-all duration-300 text-[10px] sm:text-[11px] font-black uppercase tracking-[0.2em] text-[#7C2D12] whitespace-nowrap pointer-events-none z-50">
+                    <span className="absolute top-10 left-1/2 -translate-x-1/2 opacity-0 group-hover/btn:opacity-100 group-hover/btn:top-12 transition-all duration-300 text-[10px] sm:text-[11px] font-black uppercase tracking-[0.2em] text-[var(--brand-primary-dark)] whitespace-nowrap pointer-events-none z-50">
                       Explore Stores
                     </span>
                     <Link
                       to="/stores"
-                      className="p-2 sm:p-3 rounded-full transition-all text-[#7C2D12] hover:text-[#FB8C00] block"
+                      className="p-2 sm:p-3 rounded-full transition-all text-[var(--brand-primary-dark)] hover:text-[var(--brand-primary)] block"
                     >
                       <Store className="w-6 h-6 sm:w-7 sm:h-7" />
                     </Link>

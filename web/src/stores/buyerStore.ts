@@ -323,6 +323,7 @@ interface BuyerStore {
   addToRegistry: (registryId: string, product: Product) => void;
   updateRegistryItem: (registryId: string, productId: string, updates: Partial<RegistryProduct>) => void;
   removeRegistryItem: (registryId: string, productId: string) => void;
+  deleteRegistry: (registryId: string) => void;
 
   initializeBuyerProfile: (userId: string, profileData: any) => Promise<BuyerProfile>;
 
@@ -1552,6 +1553,11 @@ export const useBuyerStore = create<BuyerStore>()(persist(
             }
             : r
         )
+      }));
+    },
+    deleteRegistry: (registryId) => {
+      set((state) => ({
+        registries: state.registries.filter(r => r.id !== registryId)
       }));
     }
   }),

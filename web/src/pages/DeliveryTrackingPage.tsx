@@ -188,9 +188,9 @@ function DeliveryTrackingPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-[var(--brand-wash)]">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
+          <div className="w-12 h-12 border-4 border-[var(--brand-primary)] border-t-transparent rounded-full animate-spin"></div>
           <p className="text-gray-600 font-medium tracking-wide">
             Tracking your package...
           </p>
@@ -212,7 +212,7 @@ function DeliveryTrackingPage() {
           </p>
           <Button
             onClick={() => navigate("/")}
-            className="bg-orange-500 hover:bg-orange-600"
+            className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)]"
           >
             Go Home
           </Button>
@@ -302,7 +302,7 @@ function DeliveryTrackingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[var(--brand-wash)]">
       {/* Header */}
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
@@ -348,7 +348,7 @@ function DeliveryTrackingPage() {
                 url: window.location.href,
               })
             }
-            className="border-orange-200 text-orange-600 hover:bg-orange-50"
+            className="border-[var(--brand-primary)]/30 text-[var(--brand-primary)] hover:bg-[var(--brand-wash)]"
           >
             <Share2 className="w-4 h-4 mr-2" />
             Share Tracking
@@ -357,7 +357,7 @@ function DeliveryTrackingPage() {
             variant="outline"
             size="sm"
             onClick={() => setShowReceipt(true)}
-            className="border-orange-200 text-orange-600 hover:bg-orange-50"
+            className="border-[var(--brand-primary)]/30 text-[var(--brand-primary)] hover:bg-[var(--brand-wash)]"
           >
             <Receipt className="w-4 h-4 mr-2" />
             View Receipt
@@ -374,7 +374,7 @@ function DeliveryTrackingPage() {
             <Button
               size="sm"
               onClick={() => setShowReviewModal(true)}
-              className="bg-orange-500 hover:bg-orange-600 text-white"
+              className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white"
             >
               <MessageCircle className="w-4 h-4 mr-2" />
               Rate & Review
@@ -388,8 +388,8 @@ function DeliveryTrackingPage() {
             <CardHeader className="pb-4">
               <div className="flex items-center justify-between">
                 <CardTitle className="flex items-center gap-2">
-                  <div className="p-2 bg-orange-100 rounded-lg">
-                    <Navigation className="w-5 h-5 text-orange-600" />
+                  <div className="p-2 bg-[var(--brand-wash)] rounded-lg">
+                    <Navigation className="w-5 h-5 text-[var(--brand-primary)]" />
                   </div>
                   Live Tracking
                 </CardTitle>
@@ -480,7 +480,7 @@ function DeliveryTrackingPage() {
                           className={`w-6 h-6 rounded-full border-3 ${step.status === "completed"
                             ? "bg-green-500 border-green-600 shadow-lg shadow-green-500/50"
                             : step.status === "current"
-                              ? "bg-orange-500 border-orange-600 shadow-lg shadow-orange-500/50 animate-ping"
+                              ? "bg-[var(--brand-primary)] border-[var(--brand-primary-dark)] shadow-lg shadow-[var(--brand-primary)]/50 animate-ping"
                               : "bg-gray-300 border-gray-400"
                             }`}
                         />
@@ -508,7 +508,7 @@ function DeliveryTrackingPage() {
                   transition={{ duration: 1.5, ease: "easeInOut" }}
                 >
                   <div className="relative">
-                    <div className="w-10 h-10 bg-gradient-to-r from-orange-500 to-red-500 rounded-xl flex items-center justify-center text-white shadow-lg">
+                    <div className="w-10 h-10 bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-dark)] rounded-xl flex items-center justify-center text-white shadow-lg">
                       <Truck className="w-5 h-5" />
                     </div>
                     <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full animate-ping" />
@@ -535,21 +535,21 @@ function DeliveryTrackingPage() {
               </div>
 
               {/* Progress Bar */}
-              <div className="p-6 bg-gradient-to-r from-orange-50 to-red-50">
+              <div className="p-6 bg-[var(--brand-wash)]">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-3">
-                    <Clock className="w-5 h-5 text-orange-600" />
+                    <Clock className="w-5 h-5 text-[var(--brand-primary)]" />
                     <div>
-                      <p className="font-semibold text-orange-900">
+                      <p className="font-semibold text-[var(--text-headline)]">
                         Estimated Arrival
                       </p>
-                      <p className="text-sm text-orange-700">
+                      <p className="text-sm text-[var(--text-primary)]">
                         Today, {getEstimatedDeliveryTime()}
                       </p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="text-lg font-bold text-orange-600">
+                    <p className="text-lg font-bold text-[var(--brand-primary)]">
                       {Math.max(
                         0,
                         Math.round(
@@ -558,11 +558,11 @@ function DeliveryTrackingPage() {
                       )}{" "}
                       mins
                     </p>
-                    <p className="text-xs text-orange-600">remaining</p>
+                    <p className="text-xs text-[var(--brand-primary)]">remaining</p>
                   </div>
                 </div>
                 <Progress value={animatedProgress} className="h-3" />
-                <p className="text-sm text-orange-600 mt-2 font-medium">
+                <p className="text-sm text-[var(--brand-primary)] mt-2 font-medium">
                   {Math.round(animatedProgress)}% Complete
                 </p>
               </div>
@@ -665,20 +665,20 @@ function DeliveryTrackingPage() {
             </div>
 
             {/* Enhanced Order Information Card */}
-            <Card className="border-2 border-orange-100">
+            <Card className="border-2 border-[var(--brand-wash-gold)]/50">
               <CardHeader className="pb-4">
                 <CardTitle className="flex items-center gap-2">
-                  <div className="p-2 bg-orange-100 rounded-lg">
-                    <Package className="w-5 h-5 text-orange-600" />
+                  <div className="p-2 bg-[var(--brand-wash)] rounded-lg">
+                    <Package className="w-5 h-5 text-[var(--brand-primary)]" />
                   </div>
                   Delivery Information
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
                 {/* Order Summary */}
-                <div className="p-4 bg-gradient-to-r from-orange-50 to-amber-50 rounded-xl border border-orange-100">
+                <div className="p-4 bg-[var(--brand-wash)] rounded-xl border border-[var(--brand-wash-gold)]/50">
                   <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-semibold text-orange-900">
+                    <h4 className="font-semibold text-[var(--text-headline)]">
                       Order #{order.orderNumber || order.id}
                     </h4>
                     <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
@@ -687,14 +687,14 @@ function DeliveryTrackingPage() {
                   </div>
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
-                      <p className="text-orange-600 font-medium">Order Date</p>
-                      <p className="text-orange-800">{order.date}</p>
+                      <p className="text-[var(--brand-primary)] font-medium">Order Date</p>
+                      <p className="text-[var(--text-primary)]">{order.date}</p>
                     </div>
                     <div>
-                      <p className="text-orange-600 font-medium">
+                      <p className="text-[var(--brand-primary)] font-medium">
                         Total Amount
                       </p>
-                      <p className="text-orange-800 font-bold text-lg">
+                      <p className="text-[var(--text-headline)] font-bold text-lg">
                         ₱{(order.total || 0).toLocaleString()}
                       </p>
                     </div>
@@ -791,7 +791,7 @@ function DeliveryTrackingPage() {
                 <div className="pt-4 border-t border-gray-200 space-y-3">
                   <Button
                     onClick={() => setShowReceipt(true)}
-                    className="w-full bg-orange-500 hover:bg-orange-600"
+                    className="w-full bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)]"
                   >
                     <Receipt className="w-4 h-4 mr-2" />
                     View Full Receipt

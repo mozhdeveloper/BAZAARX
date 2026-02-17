@@ -54,7 +54,7 @@ export default function VisualSearchModal({
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [detectedInfo, setDetectedInfo] = useState<{ category?: string; possibleBrand?: string; detectedItem?: string } | null>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
-  
+
   // URL input state
   const [imageUrlInput, setImageUrlInput] = useState("");
   const [inputMode, setInputMode] = useState<'upload' | 'url'>('upload');
@@ -68,14 +68,14 @@ export default function VisualSearchModal({
     if (file && file.type.startsWith("image/")) {
       setFileName(file.name);
       setSelectedFile(file);
-      
+
       // Create preview URL
       const reader = new FileReader();
       reader.onload = (event) => {
         setPreviewUrl(event.target?.result as string);
       };
       reader.readAsDataURL(file);
-      
+
       // Trigger visual search
       await handleVisualSearch(file);
     }
@@ -105,7 +105,7 @@ export default function VisualSearchModal({
 
     try {
       const result = await productService.visualSearch(imageFile);
-      
+
       setSearchResults(result.products);
       setDetectedInfo(result.detectedInfo || null);
       setHasSearched(true);
@@ -144,7 +144,7 @@ export default function VisualSearchModal({
 
     try {
       const result = await productService.visualSearchByUrl(imageUrlInput);
-      
+
       setSearchResults(result.products);
       setDetectedInfo(result.detectedInfo || null);
       setHasSearched(true);
@@ -218,34 +218,19 @@ export default function VisualSearchModal({
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden"
+          className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden relative"
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Header */}
-          <div className="flex items-center justify-between p-6 border-b border-gray-200">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center">
-                <Camera className="w-6 h-6 text-orange-600" />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">
-                  Visual Search
-                </h2>
-                <p className="text-sm text-gray-600">
-                  Upload an image to find similar products
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
+          {/* Close button - floating in top right */}
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 z-10 text-gray-400 hover:text-gray-600 transition-colors bg-white rounded-full p-2 shadow-md hover:shadow-lg"
+          >
+            <X className="w-5 h-5" />
+          </button>
 
           {/* Content */}
-          <div className="p-6 overflow-y-auto max-h-[calc(90vh-100px)]">
+          <div className="p-6 overflow-y-auto max-h-[90vh]">
             {/* Input Mode Toggle */}
             <div className="flex gap-2 mb-4">
               <Button
@@ -447,21 +432,21 @@ export default function VisualSearchModal({
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
                       {searchResults.map((product) => {
                         // Get the product image
-                        const productImage = product.primary_image_url || 
+                        const productImage = product.primary_image_url ||
                           product.images?.find((img: any) => img.is_primary)?.image_url ||
                           product.images?.[0]?.image_url ||
                           'https://via.placeholder.com/200?text=No+Image';
-                        
+
                         // Get category name
-                        const categoryName = typeof product.category === 'string' 
-                          ? product.category 
+                        const categoryName = typeof product.category === 'string'
+                          ? product.category
                           : product.category?.name || 'Uncategorized';
-                        
+
                         // Get available variants summary
                         const variants = product.variants || [];
                         const colors = [...new Set(variants.map((v: any) => v.color).filter(Boolean))];
                         const sizes = [...new Set(variants.map((v: any) => v.size).filter(Boolean))];
-                        
+
                         // Get seller name
                         const sellerName = product.sellerName || product.seller?.store_name;
 

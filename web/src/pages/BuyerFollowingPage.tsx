@@ -106,7 +106,7 @@ export default function BuyerFollowingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[var(--brand-wash)]">
       <Header />
 
       <div className="max-w-7xl mx-auto px-4 py-8">
@@ -116,8 +116,8 @@ export default function BuyerFollowingPage() {
           animate={{ opacity: 1, y: 0 }}
           className="mb-8"
         >
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Following</h1>
-          <p className="text-gray-600">Shops you're following</p>
+          <h1 className="text-3xl font-bold text-[var(--text-headline)] mb-2">Following</h1>
+          <p className="text-[var(--text-muted)]">Shops you're following</p>
         </motion.div>
 
         {/* Stats Bar */}
@@ -131,10 +131,10 @@ export default function BuyerFollowingPage() {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-500 mb-1">Total Following</p>
-                  <p className="text-2xl font-bold text-gray-900">{filteredShops.length}</p>
+                  <p className="text-sm text-[var(--text-muted)] mb-1">Total Following</p>
+                  <p className="text-2xl font-bold text-[var(--text-headline)]">{filteredShops.length}</p>
                 </div>
-                <Store className="h-8 w-8 text-orange-500" />
+                <Store className="h-8 w-8 text-[var(--brand-primary)]" />
               </div>
             </CardContent>
           </Card>
@@ -143,8 +143,8 @@ export default function BuyerFollowingPage() {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-500 mb-1">Verified Shops</p>
-                  <p className="text-2xl font-bold text-gray-900">
+                  <p className="text-sm text-[var(--text-muted)] mb-1">Verified Shops</p>
+                  <p className="text-2xl font-bold text-[var(--text-headline)]">
                     {filteredShops.filter(s => s.isVerified).length}
                   </p>
                 </div>
@@ -157,12 +157,12 @@ export default function BuyerFollowingPage() {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-500 mb-1">Total Products</p>
-                  <p className="text-2xl font-bold text-gray-900">
+                  <p className="text-sm text-[var(--text-muted)] mb-1">Total Products</p>
+                  <p className="text-2xl font-bold text-[var(--text-headline)]">
                     {filteredShops.reduce((acc, s) => acc + s.productCount, 0)}
                   </p>
                 </div>
-                <Package className="h-8 w-8 text-orange-500" />
+                <Package className="h-8 w-8 text-[var(--brand-primary)]" />
               </div>
             </CardContent>
           </Card>
@@ -171,12 +171,12 @@ export default function BuyerFollowingPage() {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-500 mb-1">Avg Rating</p>
-                  <p className="text-2xl font-bold text-gray-900">
+                  <p className="text-sm text-[var(--text-muted)] mb-1">Avg Rating</p>
+                  <p className="text-2xl font-bold text-[var(--text-headline)]">
                     {(filteredShops.reduce((acc, s) => acc + s.rating, 0) / filteredShops.length).toFixed(1)}
                   </p>
                 </div>
-                <Star className="h-8 w-8 text-orange-500 fill-orange-500" />
+                <Star className="h-8 w-8 text-[var(--brand-primary)] fill-[var(--brand-primary)]" />
               </div>
             </CardContent>
           </Card>
@@ -192,7 +192,7 @@ export default function BuyerFollowingPage() {
           <Card>
             <CardContent className="p-4">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-[var(--text-muted)]" />
                 <Input
                   placeholder="Search followed shops..."
                   value={searchQuery}
@@ -214,16 +214,16 @@ export default function BuyerFollowingPage() {
             >
               <Card>
                 <CardContent className="p-12 text-center">
-                  <Heart className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                  <p className="text-gray-500 text-lg mb-2">No shops found</p>
-                  <p className="text-gray-400 text-sm">
+                  <Heart className="h-16 w-16 text-[var(--text-muted)] mx-auto mb-4" />
+                  <p className="text-[var(--text-muted)] text-lg mb-2">No shops found</p>
+                  <p className="text-[var(--text-muted)] text-sm">
                     {searchQuery
                       ? 'Try a different search term'
                       : 'Start following shops to see them here!'}
                   </p>
                   <Button
                     onClick={() => navigate('/shop')}
-                    className="mt-6 bg-orange-500 hover:bg-orange-600"
+                    className="mt-6 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)]"
                   >
                     Discover Shops
                   </Button>
@@ -247,7 +247,7 @@ export default function BuyerFollowingPage() {
                       className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                    <Badge className="absolute top-3 right-3 bg-white/90 text-gray-900">
+                    <Badge className="absolute top-3 right-3 bg-white/90 text-[var(--text-headline)]">
                       {shop.category}
                     </Badge>
                   </div>
@@ -262,14 +262,14 @@ export default function BuyerFollowingPage() {
                       />
                       <div className="flex-1 mt-2">
                         <div className="flex items-center gap-2 mb-1">
-                          <h3 className="font-bold text-lg text-gray-900">{shop.name}</h3>
+                          <h3 className="font-bold text-lg text-[var(--text-headline)]">{shop.name}</h3>
                           {shop.isVerified && (
                             <Badge className="bg-blue-500 text-white text-xs px-2 py-0">
                               ✓ Verified
                             </Badge>
                           )}
                         </div>
-                        <p className="text-sm text-gray-600 line-clamp-2">{shop.description}</p>
+                        <p className="text-sm text-[var(--text-muted)] line-clamp-2">{shop.description}</p>
                       </div>
                     </div>
 
@@ -285,31 +285,31 @@ export default function BuyerFollowingPage() {
                     {/* Stats */}
                     <div className="grid grid-cols-3 gap-3 mb-4 py-3 border-t border-b border-gray-100">
                       <div className="text-center">
-                        <div className="flex items-center justify-center gap-1 text-orange-500 mb-1">
-                          <Star className="h-4 w-4 fill-orange-500" />
+                        <div className="flex items-center justify-center gap-1 text-[var(--brand-primary)] mb-1">
+                          <Star className="h-4 w-4 fill-[var(--brand-primary)]" />
                           <span className="font-semibold">{shop.rating}</span>
                         </div>
-                        <p className="text-xs text-gray-500">{shop.reviewCount} reviews</p>
+                        <p className="text-xs text-[var(--text-muted)]">{shop.reviewCount} reviews</p>
                       </div>
-                      <div className="text-center border-x border-gray-100">
-                        <div className="font-semibold text-gray-900 mb-1">{shop.productCount}</div>
-                        <p className="text-xs text-gray-500">Products</p>
+                      <div className="text-center border-x border-[var(--brand-wash-gold)]/20">
+                        <div className="font-semibold text-[var(--text-headline)] mb-1">{shop.productCount}</div>
+                        <p className="text-xs text-[var(--text-muted)]">Products</p>
                       </div>
                       <div className="text-center">
-                        <div className="font-semibold text-gray-900 mb-1">
+                        <div className="font-semibold text-[var(--text-headline)] mb-1">
                           {shop.followerCount.toLocaleString()}
                         </div>
-                        <p className="text-xs text-gray-500">Followers</p>
+                        <p className="text-xs text-[var(--text-muted)]">Followers</p>
                       </div>
                     </div>
 
                     {/* Location & Activity */}
                     <div className="space-y-2 mb-4">
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                      <div className="flex items-center gap-2 text-sm text-[var(--text-muted)]">
                         <MapPin className="h-4 w-4" />
                         <span>{shop.location}</span>
                       </div>
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                      <div className="flex items-center gap-2 text-sm text-[var(--text-muted)]">
                         <TrendingUp className="h-4 w-4" />
                         <span>Active {shop.lastActive}</span>
                       </div>
@@ -319,7 +319,7 @@ export default function BuyerFollowingPage() {
                     <div className="grid grid-cols-2 gap-3">
                       <Button
                         onClick={() => handleVisitShop(shop.id)}
-                        className="bg-orange-500 hover:bg-orange-600 text-white"
+                        className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white"
                       >
                         Visit Shop
                         <ChevronRight className="h-4 w-4 ml-1" />

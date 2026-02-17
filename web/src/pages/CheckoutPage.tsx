@@ -736,10 +736,10 @@ export default function CheckoutPage() {
   // Show loading while store is rehydrating
   if (!isStoreReady) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
+      <div className="min-h-screen flex items-center justify-center bg-[var(--brand-wash)]">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
-          <p className="text-gray-500">Loading checkout...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--brand-primary)] mx-auto mb-4"></div>
+          <p className="text-[var(--text-muted)]">Loading checkout...</p>
         </div>
       </div>
     );
@@ -750,7 +750,7 @@ export default function CheckoutPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-[var(--brand-wash)]">
       {!isAddressModalOpen && <Header />}
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -767,10 +767,10 @@ export default function CheckoutPage() {
             <ArrowLeft className="w-5 h-5 text-gray-600" />
           </button>
           <div>
-            <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">
+            <h1 className="text-2xl lg:text-3xl font-bold text-[var(--text-headline)]">
               Checkout
             </h1>
-            <p className="text-gray-600">Complete your order & earn <span className="text-[var(--brand-primary)] font-bold">{earnedBazcoins} Bazcoins</span></p>
+            <p className="text-[var(--text-muted)]">Complete your order & earn <span className="text-[var(--brand-primary)] font-bold">{earnedBazcoins} Bazcoins</span></p>
           </div>
         </motion.div>
 
@@ -786,18 +786,18 @@ export default function CheckoutPage() {
               >
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-orange-50 rounded-xl flex items-center justify-center">
+                    <div className="w-10 h-10 bg-[var(--brand-wash)] rounded-xl flex items-center justify-center">
                       <MapPin className="w-5 h-5 text-[var(--brand-primary)]" />
                     </div>
-                    <h2 className="text-xl font-bold text-gray-900">Delivery Address</h2>
+                    <h2 className="text-xl font-bold text-[var(--text-headline)]">Delivery Address</h2>
                   </div>
 
 
                 </div>
 
                 {isRegistryOrder ? (
-                  <div className="bg-orange-50/50 border border-orange-200 rounded-xl p-6 flex flex-col items-center justify-center text-center space-y-3">
-                    <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
+                  <div className="bg-[var(--brand-wash)] border border-[var(--brand-primary)]/20 rounded-xl p-6 flex flex-col items-center justify-center text-center space-y-3">
+                    <div className="w-12 h-12 bg-[var(--brand-wash)] rounded-full flex items-center justify-center">
                       <Shield className="w-6 h-6 text-orange-600" />
                     </div>
                     <div>
@@ -811,7 +811,7 @@ export default function CheckoutPage() {
                   </div>
                 ) : selectedAddress ? (
                   <div
-                    className="group relative p-5 rounded-xl border border-gray-100 bg-gray-50/50 cursor-pointer hover:border-orange-200 hover:bg-orange-50/30 transition-all"
+                    className="group relative p-5 rounded-xl border border-gray-100 bg-[var(--bg-secondary)]/50 cursor-pointer hover:border-[var(--brand-wash-gold)]/40 hover:bg-[var(--brand-wash)]/30 transition-all"
                     onClick={() => setIsAddressModalOpen(true)}
                   >
                     <div className="flex justify-between items-start">
@@ -823,13 +823,13 @@ export default function CheckoutPage() {
                           <span className="text-gray-300">|</span>
                           <span className="text-gray-600 font-medium">{selectedAddress.phone}</span>
                           {selectedAddress.isDefault && (
-                            <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100 border-none text-[10px] h-5 uppercase tracking-wider font-bold">
+                            <Badge className="bg-[var(--brand-wash)] text-[var(--brand-primary)] hover:bg-[var(--brand-wash)] border-none text-[10px] h-5 uppercase tracking-wider font-bold">
                               Default
                             </Badge>
                           )}
                         </div>
-                        <div className="text-gray-600 text-sm leading-relaxed">
-                          <p className="font-medium text-gray-800">{selectedAddress.label}</p>
+                        <div className="text-[var(--text-muted)] text-sm leading-relaxed">
+                          <p className="font-medium text-[var(--text-headline)]">{selectedAddress.label}</p>
                           <p>{selectedAddress.street}, {selectedAddress.barangay}</p>
                           <p>{selectedAddress.city}, {selectedAddress.province}, {selectedAddress.postalCode}</p>
                         </div>
@@ -842,7 +842,7 @@ export default function CheckoutPage() {
                 ) : (
                   <Button
                     variant="outline"
-                    className="w-full py-10 border-dashed border-2 flex flex-col gap-3 hover:bg-orange-50 hover:border-[var(--brand-primary)] transition-all group"
+                    className="w-full py-10 border-dashed border-2 flex flex-col gap-3 hover:bg-[var(--brand-wash)] hover:border-[var(--brand-primary)] transition-all group"
                     onClick={() => setIsAddressModalOpen(true)}
                   >
                     <div className="w-12 h-12 rounded-full bg-gray-50 flex items-center justify-center group-hover:bg-white transition-colors">
@@ -879,7 +879,7 @@ export default function CheckoutPage() {
                       className={`border-2 rounded-xl p-4 transition-colors relative ${method.comingSoon
                         ? "border-gray-200 bg-gray-50 cursor-not-allowed opacity-60"
                         : formData.paymentMethod === method.id
-                          ? "border-[var(--brand-primary)] bg-orange-50 cursor-pointer"
+                          ? "border-[var(--brand-primary)] bg-[var(--brand-wash)] cursor-pointer"
                           : "border-gray-200 hover:border-gray-300 cursor-pointer"
                         }`}
                       onClick={() => {
@@ -1156,7 +1156,7 @@ export default function CheckoutPage() {
                             {item.name}
                           </p>
                           {variantInfo && (
-                            <p className="text-xs text-orange-600 font-medium">
+                            <p className="text-xs text-[var(--brand-primary)] font-medium">
                               {variantInfo}
                             </p>
                           )}
@@ -1180,7 +1180,7 @@ export default function CheckoutPage() {
                   </div>
 
                   {appliedVoucher ? (
-                    <div className="flex items-center justify-between bg-orange-50 border-2 border-[var(--brand-primary)] rounded-lg p-3">
+                    <div className="flex items-center justify-between bg-[var(--brand-wash)] border-2 border-[var(--brand-primary)] rounded-lg p-3">
                       <div className="flex items-center gap-2">
                         <Tag className="w-4 h-4 text-[var(--brand-primary)]" />
                         <div>
@@ -1369,7 +1369,7 @@ export default function CheckoutPage() {
                     onClick={() => setTempSelected(addr)}
                     className={cn(
                       "p-4 border-2 rounded-xl cursor-pointer transition-all",
-                      tempSelected?.id === addr.id ? "border-[var(--brand-primary)] bg-orange-50/50" : "border-gray-100"
+                      tempSelected?.id === addr.id ? "border-[var(--brand-primary)] bg-[var(--brand-wash)]/50" : "border-gray-100"
                     )}
                   >
                     {/* Delete Confirmation */}
@@ -1429,7 +1429,7 @@ export default function CheckoutPage() {
                             <span className="font-bold text-gray-900">{addr.firstName} {addr.lastName}</span>
                             <Badge variant="outline" className="text-[10px] h-4 px-1.5 uppercase font-bold border-gray-300">{addr.label}</Badge>
                             {addr.isDefault && (
-                              <Badge className="text-[10px] h-4 px-1.5 bg-green-100 text-green-700 border-0">Default</Badge>
+                              <Badge className="text-[10px] h-4 px-1.5 bg-[var(--brand-wash)] text-[var(--brand-primary)] border-0">Default</Badge>
                             )}
                           </div>
                           <p className="text-xs text-gray-500 font-medium">{addr.phone}</p>
@@ -1492,7 +1492,7 @@ export default function CheckoutPage() {
               <div className="p-4 bg-gray-50 border-t flex gap-3">
                 <Button variant="ghost" className="flex-1" onClick={() => setIsAddressModalOpen(false)}>Cancel</Button>
                 <Button
-                  className="flex-1 bg-[var(--brand-primary)] hover:bg-orange-600 font-bold text-white"
+                  className="flex-1 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] font-bold text-white"
                   disabled={!tempSelected}
                   onClick={() => {
                     setSelectedAddress(tempSelected);

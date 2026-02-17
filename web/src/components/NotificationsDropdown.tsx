@@ -178,7 +178,7 @@ export function NotificationsDropdown() {
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
-          className="relative p-2 text-gray-700 hover:text-[#ff6a00] hover:bg-gray-50 rounded-full transition-colors outline-none"
+          className="relative p-2 text-[var(--text-primary)] hover:text-[var(--brand-primary)] hover:bg-[var(--brand-wash)] rounded-full transition-colors outline-none"
           aria-label="Open notifications"
         >
           <Bell className="w-6 h-6" strokeWidth={2} aria-hidden="true" />

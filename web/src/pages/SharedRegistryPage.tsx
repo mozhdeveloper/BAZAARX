@@ -40,7 +40,7 @@ const SharedRegistryPage = () => {
 
     if (!registry) {
         return (
-            <div className="min-h-screen bg-gray-50">
+            <div className="min-h-screen bg-[var(--brand-wash)]">
                 <Header />
                 <div className="max-w-7xl mx-auto px-4 py-12 text-center">
                     <p>Loading registry...</p>
@@ -50,13 +50,13 @@ const SharedRegistryPage = () => {
     }
 
     return (
-        <div className="min-h-screen bg-gray-50">
+        <div className="min-h-screen bg-[var(--brand-wash)]">
             <Header />
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                     <div className="p-8 border-b border-gray-100">
                         <div className="flex items-center gap-3 mb-2">
-                            <span className="bg-orange-100 text-[var(--brand-primary)] px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider">
+                            <span className="bg-[var(--brand-wash)] text-[var(--brand-primary)] px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider">
                                 {registry.category || 'Gift List'}
                             </span>
                             <span className="text-sm text-gray-500">
@@ -76,7 +76,7 @@ const SharedRegistryPage = () => {
                                 <p className="text-gray-500 text-sm mt-1">This registry is currently empty.</p>
                                 <Button
                                     onClick={() => navigate('/shop')}
-                                    className="mt-6 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/90 text-white rounded-full px-6"
+                                    className="mt-6 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white rounded-full px-6"
                                 >
                                     Browse Shop
                                 </Button>
