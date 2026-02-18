@@ -18,6 +18,7 @@ import {
   ShoppingBag,
   Eye,
   X,
+  XCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
@@ -165,7 +166,7 @@ export default function SellerDiscounts() {
     endsAt: "",
     badgeText: "",
     badgeColor: "#FF6A00",
-    totalUsageLimit: "",
+    claimLimit: "",
     perCustomerLimit: "1",
     appliesTo: "all_products" as AppliesTo,
   });
@@ -261,8 +262,8 @@ export default function SellerDiscounts() {
         endsAt: new Date(formData.endsAt),
         badgeText: formData.badgeText,
         badgeColor: formData.badgeColor,
-        totalUsageLimit: formData.totalUsageLimit
-          ? parseInt(formData.totalUsageLimit)
+        claimLimit: formData.claimLimit
+          ? parseInt(formData.claimLimit)
           : undefined,
         perCustomerLimit: parseInt(formData.perCustomerLimit),
         appliesTo: formData.appliesTo,
@@ -307,8 +308,8 @@ export default function SellerDiscounts() {
         endsAt: new Date(formData.endsAt),
         badgeText: formData.badgeText,
         badgeColor: formData.badgeColor,
-        totalUsageLimit: formData.totalUsageLimit
-          ? parseInt(formData.totalUsageLimit)
+        claimLimit: formData.claimLimit
+          ? parseInt(formData.claimLimit)
           : undefined,
         perCustomerLimit: parseInt(formData.perCustomerLimit),
         appliesTo: formData.appliesTo,
@@ -384,6 +385,27 @@ export default function SellerDiscounts() {
     }
   };
 
+  // Deactivate campaign (set status to cancelled)
+  const handleDeactivateCampaign = async (id: string) => {
+    if (!confirm("Are you sure you want to deactivate this campaign?")) return;
+
+    try {
+      await discountService.deactivateCampaign(id);
+      toast({
+        title: "Campaign Deactivated",
+        description: "Campaign has been deactivated successfully.",
+      });
+      fetchCampaigns();
+    } catch (error) {
+      console.error("Failed to deactivate campaign:", error);
+      toast({
+        title: "Error",
+        description: "Failed to deactivate campaign.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const openEditDialog = (campaign: DiscountCampaign) => {
     setEditingCampaign(campaign);
     setFormData({
@@ -398,7 +420,7 @@ export default function SellerDiscounts() {
       endsAt: campaign.endsAt.toISOString().slice(0, 16),
       badgeText: campaign.badgeText || "",
       badgeColor: campaign.badgeColor || "#FF6A00",
-      totalUsageLimit: campaign.totalUsageLimit?.toString() || "",
+      claimLimit: campaign.claimLimit?.toString() || "",
       perCustomerLimit: campaign.perCustomerLimit.toString(),
       appliesTo: campaign.appliesTo,
     });
@@ -418,7 +440,7 @@ export default function SellerDiscounts() {
       endsAt: "",
       badgeText: "",
       badgeColor: "#FF6A00",
-      totalUsageLimit: "",
+      claimLimit: "",
       perCustomerLimit: "1",
       appliesTo: "all_products",
     });
@@ -552,6 +574,7 @@ export default function SellerDiscounts() {
                     <SelectItem value="scheduled">Scheduled</SelectItem>
                     <SelectItem value="paused">Paused</SelectItem>
                     <SelectItem value="ended">Ended</SelectItem>
+                    <SelectItem value="cancelled">Cancelled</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -627,7 +650,7 @@ export default function SellerDiscounts() {
                                 ? "All Products"
                                 : campaign.appliesTo === "specific_products"
                                   ? `${campaignProducts[campaign.id]?.length || 0} Products`
-                                  : "Categories"}
+                                  : "Specific Scope"}
                             </span>
                           </div>
                           {campaign.status === "active" && (
@@ -683,7 +706,8 @@ export default function SellerDiscounts() {
                         >
                           <Edit2 className="h-4 w-4" />
                         </Button>
-                        {campaign.status !== "ended" && (
+                        {campaign.status !== "ended" &&
+                          campaign.status !== "cancelled" && (
                           <Button
                             variant="ghost"
                             size="icon"
@@ -696,6 +720,16 @@ export default function SellerDiscounts() {
                             ) : (
                               <Pause className="h-4 w-4" />
                             )}
+                          </Button>
+                        )}
+                        {campaign.status !== "cancelled" && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDeactivateCampaign(campaign.id)}
+                            title="Deactivate campaign"
+                          >
+                            <XCircle className="h-4 w-4 text-amber-600" />
                           </Button>
                         )}
                         <Button
@@ -758,10 +792,10 @@ export default function SellerDiscounts() {
                       setFormData({ ...formData, campaignType: value as CampaignType })
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="campaignType">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent portal={false} className="z-[100] max-h-60">
                       {Object.entries(typeLabels).map(([key, label]) => (
                         <SelectItem key={key} value={key}>
                           {label}
@@ -779,10 +813,10 @@ export default function SellerDiscounts() {
                       setFormData({ ...formData, discountType: value as DiscountType })
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="discountType">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent portal={false} className="z-[100] max-h-60">
                       <SelectItem value="percentage">Percentage</SelectItem>
                       <SelectItem value="fixed_amount">Fixed Amount</SelectItem>
                     </SelectContent>
@@ -886,13 +920,13 @@ export default function SellerDiscounts() {
                 </div>
 
                 <div>
-                  <Label htmlFor="totalUsageLimit">Total Usage Limit</Label>
+                  <Label htmlFor="claimLimit">Claim Limit</Label>
                   <Input
-                    id="totalUsageLimit"
+                    id="claimLimit"
                     type="number"
-                    value={formData.totalUsageLimit}
+                    value={formData.claimLimit}
                     onChange={(e) =>
-                      setFormData({ ...formData, totalUsageLimit: e.target.value })
+                      setFormData({ ...formData, claimLimit: e.target.value })
                     }
                     placeholder="Optional"
                   />
@@ -907,13 +941,15 @@ export default function SellerDiscounts() {
                     setFormData({ ...formData, appliesTo: value as AppliesTo })
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="appliesTo">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent portal={false} className="z-[100] max-h-60">
                     <SelectItem value="all_products">All Products</SelectItem>
                     <SelectItem value="specific_products">Specific Products</SelectItem>
-                    <SelectItem value="specific_categories">Specific Categories</SelectItem>
+                    <SelectItem value="specific_categories" disabled>
+                      Specific Categories (Unavailable)
+                    </SelectItem>
                   </SelectContent>
                 </Select>
                 {formData.appliesTo === "specific_products" && (
@@ -975,10 +1011,10 @@ export default function SellerDiscounts() {
                       setFormData({ ...formData, campaignType: value as CampaignType })
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="edit-campaignType">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent portal={false} className="z-[100] max-h-60">
                       {Object.entries(typeLabels).map(([key, label]) => (
                         <SelectItem key={key} value={key}>
                           {label}
@@ -996,10 +1032,10 @@ export default function SellerDiscounts() {
                       setFormData({ ...formData, discountType: value as DiscountType })
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="edit-discountType">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent portal={false} className="z-[100] max-h-60">
                       <SelectItem value="percentage">Percentage</SelectItem>
                       <SelectItem value="fixed_amount">Fixed Amount</SelectItem>
                     </SelectContent>
@@ -1100,13 +1136,13 @@ export default function SellerDiscounts() {
                 </div>
 
                 <div>
-                  <Label htmlFor="edit-totalUsageLimit">Total Usage Limit</Label>
+                  <Label htmlFor="edit-claimLimit">Claim Limit</Label>
                   <Input
-                    id="edit-totalUsageLimit"
+                    id="edit-claimLimit"
                     type="number"
-                    value={formData.totalUsageLimit}
+                    value={formData.claimLimit}
                     onChange={(e) =>
-                      setFormData({ ...formData, totalUsageLimit: e.target.value })
+                      setFormData({ ...formData, claimLimit: e.target.value })
                     }
                   />
                 </div>
@@ -1120,13 +1156,15 @@ export default function SellerDiscounts() {
                     setFormData({ ...formData, appliesTo: value as AppliesTo })
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="edit-appliesTo">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent portal={false} className="z-[100] max-h-60">
                     <SelectItem value="all_products">All Products</SelectItem>
                     <SelectItem value="specific_products">Specific Products</SelectItem>
-                    <SelectItem value="specific_categories">Specific Categories</SelectItem>
+                    <SelectItem value="specific_categories" disabled>
+                      Specific Categories (Unavailable)
+                    </SelectItem>
                   </SelectContent>
                 </Select>
                 {formData.appliesTo === "specific_products" && (

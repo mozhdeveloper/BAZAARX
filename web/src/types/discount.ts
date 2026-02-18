@@ -32,15 +32,13 @@ export interface DiscountCampaign {
   startsAt: Date;
   endsAt: Date;
   status: CampaignStatus;
-  isActive: boolean;
   badgeText?: string;
   badgeColor?: string;
   priority: number;
-  totalUsageLimit?: number;
+  claimLimit?: number;
   perCustomerLimit: number;
   usageCount: number;
   appliesTo: AppliesTo;
-  applicableCategories?: string[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -55,7 +53,6 @@ export interface ProductDiscount {
   discountedStock?: number;
   soldCount: number;
   priority: number;
-  isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
   // Joined data
@@ -104,10 +101,9 @@ export interface CreateCampaignFormData {
   endsAt: string;
   badgeText: string;
   badgeColor: string;
-  totalUsageLimit: string;
+  claimLimit: string;
   perCustomerLimit: string;
   appliesTo: AppliesTo;
-  applicableCategories: string[];
   selectedProducts: string[];
 }
 

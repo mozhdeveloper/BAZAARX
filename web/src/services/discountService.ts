@@ -54,10 +54,9 @@ export class DiscountService {
             badge_text: campaign.badgeText,
             badge_color: campaign.badgeColor || '#FF6A00',
             priority: campaign.priority || 0,
-            total_usage_limit: campaign.totalUsageLimit,
+            claim_limit: campaign.claimLimit,
             per_customer_limit: campaign.perCustomerLimit || 1,
-            applies_to: campaign.appliesTo || 'specific_products',
-            applicable_categories: campaign.applicableCategories || []
+            applies_to: campaign.appliesTo || 'specific_products'
           }
         ])
         .select()
@@ -110,7 +109,6 @@ export class DiscountService {
         .from('discount_campaigns')
         .select('*')
         .eq('seller_id', sellerId)
-        .eq('is_active', true)
         .eq('status', 'active')
         .order('priority', { ascending: false });
 
@@ -144,14 +142,12 @@ export class DiscountService {
           starts_at: updates.startsAt,
           ends_at: updates.endsAt,
           status: updates.status,
-          is_active: updates.isActive,
           badge_text: updates.badgeText,
           badge_color: updates.badgeColor,
           priority: updates.priority,
-          total_usage_limit: updates.totalUsageLimit,
+          claim_limit: updates.claimLimit,
           per_customer_limit: updates.perCustomerLimit,
-          applies_to: updates.appliesTo,
-          applicable_categories: updates.applicableCategories
+          applies_to: updates.appliesTo
         })
         .eq('id', campaignId)
         .select()
@@ -214,6 +210,32 @@ export class DiscountService {
     }
   }
 
+  /**
+   * Deactivate campaign (soft stop)
+   */
+  async deactivateCampaign(campaignId: string): Promise<DiscountCampaign> {
+    if (!isSupabaseConfigured()) {
+      throw new Error('Supabase not configured');
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('discount_campaigns')
+        .update({ status: 'cancelled' })
+        .eq('id', campaignId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      if (!data) throw new Error('No data returned upon campaign deactivation');
+
+      return this.transformCampaign(data);
+    } catch (error) {
+      console.error('Error deactivating campaign:', error);
+      throw new Error('Failed to deactivate campaign.');
+    }
+  }
+
   // ============================================================================
   // PRODUCT DISCOUNTS
   // ============================================================================
@@ -223,7 +245,7 @@ export class DiscountService {
    */
   async addProductsToCampaign(
     campaignId: string,
-    sellerId: string,
+    _sellerId: string,
     productIds: string[],
     overrides?: {
       productId: string;
@@ -242,10 +264,10 @@ export class DiscountService {
         return {
           campaign_id: campaignId,
           product_id: productId,
-          seller_id: sellerId,
-          override_discount_type: override?.discountType,
-          override_discount_value: override?.discountValue,
-          discounted_stock: override?.discountedStock
+          // Deployed schema supports `discount_type`/`discount_value` only.
+          // `discounted_stock`, override columns, and `seller_id` are not present.
+          discount_type: override?.discountType ?? null,
+          discount_value: override?.discountValue ?? null
         };
       });
 
@@ -258,7 +280,11 @@ export class DiscountService {
       return (data || []).map(item => this.transformProductDiscount(item));
     } catch (error) {
       console.error('Error adding products to campaign:', error);
-      throw new Error('Failed to add products to campaign.');
+      const message =
+        error && typeof error === 'object' && 'message' in error
+          ? String((error as { message?: string }).message)
+          : 'Failed to add products to campaign.';
+      throw new Error(message);
     }
   }
 
@@ -276,10 +302,14 @@ export class DiscountService {
         .select(`
           *,
           campaign:discount_campaigns(*),
-          product:products(id, name, price, primary_image)
+          product:products(
+            id,
+            name,
+            price,
+            product_images(image_url, is_primary, sort_order)
+          )
         `)
-        .eq('campaign_id', campaignId)
-        .eq('is_active', true);
+        .eq('campaign_id', campaignId);
 
       if (error) throw error;
       return (data || []).map(item => this.transformProductDiscountWithProduct(item));
@@ -350,7 +380,7 @@ export class DiscountService {
   /**
    * Record discount usage
    */
-  async recordUsage(usage: Partial<DiscountUsage>): Promise<any> {
+  async recordUsage(usage: Partial<DiscountUsage>): Promise<Record<string, unknown> | null> {
     if (!isSupabaseConfigured()) {
       throw new Error('Supabase not configured');
     }
@@ -424,59 +454,71 @@ export class DiscountService {
   // PRIVATE HELPER FUNCTIONS
   // ============================================================================
 
-  private transformCampaign(data: any): DiscountCampaign {
+  private transformCampaign(data: Record<string, unknown>): DiscountCampaign {
     return {
-      id: data.id,
-      sellerId: data.seller_id,
-      name: data.name,
-      description: data.description,
-      campaignType: data.campaign_type,
-      discountType: data.discount_type,
-      discountValue: parseFloat(data.discount_value),
-      maxDiscountAmount: data.max_discount_amount ? parseFloat(data.max_discount_amount) : undefined,
-      minPurchaseAmount: parseFloat(data.min_purchase_amount || 0),
-      startsAt: new Date(data.starts_at),
-      endsAt: new Date(data.ends_at),
-      status: data.status,
-      isActive: data.is_active,
-      badgeText: data.badge_text,
-      badgeColor: data.badge_color,
-      priority: data.priority,
-      totalUsageLimit: data.total_usage_limit,
-      perCustomerLimit: data.per_customer_limit,
-      usageCount: data.usage_count,
-      appliesTo: data.applies_to,
-      applicableCategories: data.applicable_categories,
-      createdAt: new Date(data.created_at),
-      updatedAt: new Date(data.updated_at)
+      id: data.id as string,
+      sellerId: data.seller_id as string,
+      name: data.name as string,
+      description: (data.description as string | null) || undefined,
+      campaignType: data.campaign_type as DiscountCampaign['campaignType'],
+      discountType: data.discount_type as DiscountCampaign['discountType'],
+      discountValue: parseFloat(String(data.discount_value)),
+      maxDiscountAmount: data.max_discount_amount ? parseFloat(String(data.max_discount_amount)) : undefined,
+      minPurchaseAmount: parseFloat(String(data.min_purchase_amount || 0)),
+      startsAt: new Date(data.starts_at as string),
+      endsAt: new Date(data.ends_at as string),
+      status: data.status as DiscountCampaign['status'],
+      badgeText: (data.badge_text as string | null) || undefined,
+      badgeColor: data.badge_color as string,
+      priority: (data.priority as number) || 0,
+      claimLimit: (data.claim_limit as number | null) || undefined,
+      perCustomerLimit: (data.per_customer_limit as number) || 1,
+      usageCount: (data.usage_count as number | undefined) ?? 0,
+      appliesTo: data.applies_to as DiscountCampaign['appliesTo'],
+      createdAt: new Date(data.created_at as string),
+      updatedAt: new Date(data.updated_at as string)
     };
   }
 
-  private transformProductDiscount(data: any): ProductDiscount {
+  private transformProductDiscount(data: Record<string, unknown>): ProductDiscount {
     return {
-      id: data.id,
-      campaignId: data.campaign_id,
-      productId: data.product_id,
-      sellerId: data.seller_id,
-      overrideDiscountType: data.override_discount_type,
-      overrideDiscountValue: data.override_discount_value ? parseFloat(data.override_discount_value) : undefined,
-      discountedStock: data.discounted_stock,
-      soldCount: data.sold_count,
-      priority: data.priority,
-      isActive: data.is_active,
-      createdAt: new Date(data.created_at),
-      updatedAt: new Date(data.updated_at)
+      id: data.id as string,
+      campaignId: data.campaign_id as string,
+      productId: data.product_id as string,
+      sellerId: '',
+      overrideDiscountType: (data.discount_type as ProductDiscount['overrideDiscountType']) || undefined,
+      overrideDiscountValue: data.discount_value ? parseFloat(String(data.discount_value)) : undefined,
+      discountedStock: undefined,
+      soldCount: (data.sold_count as number) || 0,
+      priority: (data.priority as number) || 0,
+      createdAt: new Date(data.created_at as string),
+      updatedAt: new Date(data.updated_at as string)
     };
   }
 
-  private transformProductDiscountWithProduct(data: any): ProductDiscount {
+  private transformProductDiscountWithProduct(data: Record<string, unknown>): ProductDiscount {
     const base = this.transformProductDiscount(data);
+    const product = data.product as {
+      name?: string;
+      price?: string | number;
+      product_images?: { image_url?: string; is_primary?: boolean; sort_order?: number }[];
+    } | undefined;
+
+    const sortedImages = (product?.product_images || [])
+      .slice()
+      .sort((a, b) => {
+        if (a.is_primary && !b.is_primary) return -1;
+        if (!a.is_primary && b.is_primary) return 1;
+        return (a.sort_order ?? 9999) - (b.sort_order ?? 9999);
+      });
+    const productImage = sortedImages[0]?.image_url;
+
     return {
       ...base,
-      campaign: data.campaign ? this.transformCampaign(data.campaign) : undefined,
-      productName: data.product?.name,
-      productImage: data.product?.primary_image,
-      productPrice: data.product?.price ? parseFloat(data.product.price) : undefined
+      campaign: data.campaign ? this.transformCampaign(data.campaign as Record<string, unknown>) : undefined,
+      productName: product?.name,
+      productImage,
+      productPrice: product?.price ? parseFloat(String(product.price)) : undefined
     };
   }
 }
