@@ -21,6 +21,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { SellerStackParamList } from './SellerStack';
 import { useAuthStore } from '../../src/stores/authStore';
 import { reviewService, Review } from '../../src/services/reviewService';
+import { supabase } from '../../src/lib/supabase';
 import {
   ArrowLeft,
   Star,
@@ -42,6 +43,11 @@ interface ReviewWithDetails extends Review {
   productImage: string | null;
   buyerName: string;
   buyerAvatar: string;
+  // Convenience aliases for UI (map to Review fields)
+  reply?: any;  // Maps to seller_reply
+  verified?: boolean;  // Maps to is_verified_purchase
+  date?: Date;  // Maps to created_at (converted to Date)
+  helpful?: number;  // Maps to helpful_count
 }
 
 export default function ReviewsScreen() {
@@ -86,13 +92,13 @@ export default function ReviewsScreen() {
           let buyerAvatar = PLACEHOLDER_AVATAR;
           
           try {
-            const { data: profileData } = await reviewService['supabase']
+            const { data: profileData } = await supabase
               .from('profiles')
               .select('first_name, last_name')
               .eq('id', r.buyer_id)
               .single();
             
-            const { data: buyerData } = await reviewService['supabase']
+            const { data: buyerData } = await supabase
               .from('buyers')
               .select('avatar_url')
               .eq('id', r.buyer_id)
@@ -395,7 +401,7 @@ export default function ReviewsScreen() {
                     <View style={styles.ratingDate}>
                       {renderStars(review.rating)}
                       <Text style={styles.reviewDate}>
-                        {review.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        {(review.date || new Date(review.created_at)).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                       </Text>
                     </View>
                   </View>
@@ -411,7 +417,7 @@ export default function ReviewsScreen() {
                     showsHorizontalScrollIndicator={false}
                     style={styles.reviewImagesScroll}
                   >
-                    {review.images.map((img, idx) => (
+                    {(review.images || []).map((img, idx) => (
                       <Image key={idx} source={{ uri: img }} style={styles.reviewImage} />
                     ))}
                   </ScrollView>

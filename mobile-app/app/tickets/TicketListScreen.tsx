@@ -8,6 +8,7 @@ import type { RootStackParamList } from '../../App';
 import { COLORS } from '../../src/constants/theme';
 import { TicketService } from '../../services/TicketService';
 import { useAuthStore } from '../../src/stores/authStore';
+import { supabase } from '../../src/lib/supabase';
 import type { Ticket } from '../types/ticketTypes';
 
 export default function TicketListScreen() {
@@ -26,10 +27,16 @@ export default function TicketListScreen() {
   }, [isFocused, user?.id]);
 
   const loadTickets = async () => {
-    if (!user?.id) return;
+    let userId = user?.id;
+    if (!userId) {
+      const { data: { session } } = await supabase.auth.getSession();
+      userId = session?.user?.id;
+    }
+    if (!userId) return;
+    
     setLoading(true);
     try {
-      const data = await TicketService.fetchTickets(user.id);
+      const data = await TicketService.fetchTickets(userId);
       setTickets(data);
     } catch (err) {
       console.error(err);
@@ -39,10 +46,16 @@ export default function TicketListScreen() {
   };
 
   const onRefresh = async () => {
-    if (!user?.id) return;
+    let userId = user?.id;
+    if (!userId) {
+      const { data: { session } } = await supabase.auth.getSession();
+      userId = session?.user?.id;
+    }
+    if (!userId) return;
+    
     setRefreshing(true);
     try {
-      const data = await TicketService.fetchTickets(user.id);
+      const data = await TicketService.fetchTickets(userId);
       setTickets(data);
     } catch (err) {
       console.error(err);

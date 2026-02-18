@@ -58,9 +58,9 @@ export default function SellerCreateTicketScreen() {
     setLoading(true);
     try {
       await TicketService.createTicket(user.id, {
+        categoryId: selectedCategory?.id || null,
         subject,
         description,
-        categoryId: selectedCategory?.id || null,
         priority,
       });
       Alert.alert('Success', 'Ticket created successfully!', [

@@ -1,22 +1,32 @@
-import { Ticket, TicketMessage, TicketStatus, TicketCategory } from '../app/types/ticketTypes';
+import { Ticket, TicketMessage, TicketStatus, TicketCategory, TicketPriority, TicketCategoryDb } from '../app/types/ticketTypes';
+import { supabase, isSupabaseConfigured } from '../src/lib/supabase';
+
+// Utility delay function
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Mock Data
 let MOCK_TICKETS: Ticket[] = [
   {
     id: 'TKT-1001',
     userId: 'user-1',
-    category: 'Order',
+    categoryId: 'cat-order',
+    categoryName: 'Order',
     subject: 'Missing item in delivery',
     description: 'I received my order #12345 but the blue t-shirt is missing. Please help.',
     status: 'in_progress',
     priority: 'high',
+    orderId: null,
+    sellerId: null,
+    sellerStoreName: null,
     createdAt: new Date(Date.now() - 86400000 * 2).toISOString(), // 2 days ago
     updatedAt: new Date(Date.now() - 3600000).toISOString(), // 1 hour ago
+    resolvedAt: null,
     messages: [
       {
         id: 'msg-1',
         ticketId: 'TKT-1001',
         senderId: 'user-1',
+        senderType: 'user',
         senderName: 'You',
         message: 'Hi, I received my order #12345 but the blue t-shirt is missing. Please help.',
         createdAt: new Date(Date.now() - 86400000 * 2).toISOString(),
@@ -25,6 +35,7 @@ let MOCK_TICKETS: Ticket[] = [
         id: 'msg-2',
         ticketId: 'TKT-1001',
         senderId: 'support-1',
+        senderType: 'admin',
         senderName: 'Support Agent',
         message: 'We are sorry to hear that! Let me check with our logistics team.',
         createdAt: new Date(Date.now() - 86400000).toISOString(),
@@ -34,18 +45,24 @@ let MOCK_TICKETS: Ticket[] = [
   {
     id: 'TKT-1002',
     userId: 'user-1',
-    category: 'Account',
+    categoryId: 'cat-account',
+    categoryName: 'Account',
     subject: 'Cannot update profile picture',
     description: 'Every time I try to upload a new photo, it says error.',
     status: 'open',
-    priority: 'medium',
+    priority: 'normal',
+    orderId: null,
+    sellerId: null,
+    sellerStoreName: null,
     createdAt: new Date(Date.now() - 43200000).toISOString(), // 12 hours ago
     updatedAt: new Date(Date.now() - 43200000).toISOString(),
+    resolvedAt: null,
     messages: [
       {
         id: 'msg-3',
         ticketId: 'TKT-1002',
         senderId: 'user-1',
+        senderType: 'user',
         senderName: 'You',
         message: 'Every time I try to upload a new photo, it says error.',
         createdAt: new Date(Date.now() - 43200000).toISOString(),
@@ -55,16 +72,32 @@ let MOCK_TICKETS: Ticket[] = [
   {
     id: 'TKT-1003',
     userId: 'user-1',
-    category: 'Payment',
+    categoryId: 'cat-payment',
+    categoryName: 'Payment',
     subject: 'Refund not received',
     description: 'It has been 5 days since my refund was approved.',
     status: 'resolved',
     priority: 'low',
+    orderId: null,
+    sellerId: null,
+    sellerStoreName: null,
     createdAt: new Date(Date.now() - 86400000 * 5).toISOString(),
     updatedAt: new Date(Date.now() - 86400000 * 1).toISOString(),
+    resolvedAt: new Date(Date.now() - 86400000 * 1).toISOString(),
     messages: [],
   }
 ];
+
+interface DbTicketMessage {
+  id: string;
+  ticket_id: string;
+  sender_id: string;
+  sender_type: 'user' | 'admin';
+  sender_name: string;
+  message: string;
+  is_internal: boolean | null;
+  created_at: string;
+}
 
 interface DbTicket {
   id: string;
@@ -109,7 +142,7 @@ function mapDbTicketToTicket(dbTicket: DbTicket, currentUserId?: string): Ticket
     updatedAt: dbTicket.updated_at,
     resolvedAt: dbTicket.resolved_at,
     messages: (dbTicket.messages || [])
-      .filter(m => !m.is_internal_note) // Don't show internal notes to users
+      .filter(m => !m.is_internal) // Don't show internal notes to users
       .map(m => ({
         id: m.id,
         ticketId: m.ticket_id,
@@ -117,11 +150,9 @@ function mapDbTicketToTicket(dbTicket: DbTicket, currentUserId?: string): Ticket
         senderType: m.sender_type,
         senderName: m.sender_id === currentUserId 
           ? 'You' 
-          : m.sender?.first_name 
-            ? `${m.sender.first_name} ${m.sender.last_name || ''}`.trim()
-            : 'Support Agent',
+          : m.sender_name || 'Support Agent',
         message: m.message,
-        isInternal: m.is_internal_note,
+        isInternal: m.is_internal ?? undefined,
         createdAt: m.created_at,
       }))
       .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()),
@@ -172,7 +203,7 @@ export const TicketService = {
       throw error;
     }
 
-    return (data || []).map(ticket => mapDbTicketToTicket(ticket as DbTicket, userId));
+    return (data || []).map((ticket: any) => mapDbTicketToTicket(ticket as DbTicket, userId));
   },
 
   /**
@@ -220,32 +251,67 @@ export const TicketService = {
     return data ? mapDbTicketToTicket(data as DbTicket, currentUserId) : null;
   },
 
-  async createTicket(data: { category: TicketCategory; subject: string; description: string; priority: any; images?: string[] }): Promise<Ticket> {
-    await delay(1000);
-    const newTicket: Ticket = {
-      id: `TKT-${Math.floor(1000 + Math.random() * 9000)}`,
-      userId: 'user-1',
-      category: data.category,
-      subject: data.subject,
-      description: data.description,
-      status: 'open',
-      priority: 'medium',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      messages: [
-        {
-          id: `msg-${Math.random()}`,
-          ticketId: `TKT-${Math.floor(1000 + Math.random() * 9000)}`,
-          senderId: 'user-1',
-          senderName: 'You',
-          message: data.description,
-          attachments: data.images,
-          createdAt: new Date().toISOString(),
-        }
-      ],
-    };
-    MOCK_TICKETS.unshift(newTicket);
-    return newTicket;
+  async createTicket(userId: string, data: { categoryId?: string | null; subject: string; description: string; priority: TicketPriority; images?: string[] }): Promise<Ticket> {
+    if (!isSupabaseConfigured()) {
+      // Mock implementation
+      await delay(1000);
+      const newTicket: Ticket = {
+        id: `TKT-${Math.floor(1000 + Math.random() * 9000)}`,
+        userId: userId,
+        categoryId: data.categoryId || null,
+        categoryName: data.categoryId || 'General',
+        subject: data.subject,
+        description: data.description,
+        status: 'open',
+        priority: data.priority || 'normal',
+        orderId: null,
+        sellerId: null,
+        sellerStoreName: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        resolvedAt: null,
+        messages: [
+          {
+            id: `msg-${Math.random()}`,
+            ticketId: `TKT-${Math.floor(1000 + Math.random() * 9000)}`,
+            senderId: userId,
+            senderType: 'user',
+            senderName: 'You',
+            message: data.description,
+            createdAt: new Date().toISOString(),
+          }
+        ],
+      };
+      MOCK_TICKETS.unshift(newTicket);
+      return newTicket;
+    }
+
+    // Real implementation
+    const { data: ticketData, error } = await supabase
+      .from('support_tickets')
+      .insert({
+        user_id: userId,
+        category_id: data.categoryId,
+        subject: data.subject,
+        description: data.description,
+        priority: data.priority,
+        status: 'open',
+      })
+      .select(`
+        *,
+        category:ticket_categories!support_tickets_category_id_fkey (
+          id,
+          name
+        )
+      `)
+      .single();
+
+    if (error) {
+      console.error('Error creating ticket:', error);
+      throw error;
+    }
+
+    return mapDbTicketToTicket(ticketData as DbTicket, userId);
   },
 
   /**
@@ -263,7 +329,7 @@ export const TicketService = {
         sender_id: senderId,
         sender_type: 'user',
         message: message,
-        is_internal_note: false
+        is_internal: false
       })
       .select(`
         *,
@@ -294,7 +360,7 @@ export const TicketService = {
       senderType: data.sender_type,
       senderName: 'You',
       message: data.message,
-      isInternal: data.is_internal_note,
+      isInternal: data.is_internal,
       createdAt: data.created_at,
     };
   },
@@ -338,27 +404,7 @@ export const TicketService = {
       return [];
     }
 
-    const ticketIndex = MOCK_TICKETS.findIndex((t) => t.id === ticketId);
-    if (ticketIndex !== -1) {
-      MOCK_TICKETS[ticketIndex].messages.push(formattedMessage);
-      MOCK_TICKETS[ticketIndex].updatedAt = formattedMessage.createdAt;
-
-      // Simulate auto-reply for demo
-      setTimeout(() => {
-        const autoReply: TicketMessage = {
-          id: `msg-auto-${Date.now()}`,
-          ticketId,
-          senderId: 'system',
-          senderName: 'Support Agent',
-          message: 'Thank you for your message. We will get back to you shortly.',
-          createdAt: new Date().toISOString(),
-        };
-        MOCK_TICKETS[ticketIndex].messages.push(autoReply);
-        MOCK_TICKETS[ticketIndex].updatedAt = autoReply.createdAt;
-      }, 5000);
-    }
-
-    return formattedMessage;
+    return data || [];
   },
 
   async resolveTicket(ticketId: string): Promise<void> {
@@ -368,5 +414,72 @@ export const TicketService = {
       ticket.status = 'resolved';
       ticket.updatedAt = new Date().toISOString();
     }
+  },
+
+  /**
+   * Get tickets about a specific seller (for sellers to see reports about them)
+   */
+  async getTicketsAboutSeller(sellerId: string): Promise<Ticket[]> {
+    if (!isSupabaseConfigured()) {
+      return [];
+    }
+
+    const { data, error } = await supabase
+      .from('support_tickets')
+      .select(`
+        *,
+        category:ticket_categories!support_tickets_category_id_fkey (
+          id,
+          name
+        ),
+        seller:sellers (
+          id,
+          store_name
+        ),
+        messages:ticket_messages (
+          id,
+          ticket_id,
+          sender_id,
+          sender_type,
+          message,
+          is_internal_note,
+          created_at,
+          sender:profiles!ticket_messages_sender_id_fkey (
+            first_name,
+            last_name
+          )
+        )
+      `)
+      .eq('seller_id', sellerId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching tickets about seller:', error);
+      return [];
+    }
+
+    return (data || []).map((ticket: any) => mapDbTicketToTicket(ticket as DbTicket));
+  },
+
+  /**
+   * Get count of tickets about a specific seller
+   */
+  async getTicketCountAboutSeller(sellerId: string): Promise<number> {
+    if (!isSupabaseConfigured()) {
+      return 0;
+    }
+
+    const { count, error } = await supabase
+      .from('support_tickets')
+      .select('*', { count: 'exact', head: true })
+      .eq('seller_id', sellerId)
+      .in('status', ['open', 'in_progress', 'waiting_response']);
+
+    if (error) {
+      console.error('Error fetching ticket count about seller:', error);
+      return 0;
+    }
+
+    return count || 0;
   }
 };

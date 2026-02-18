@@ -246,7 +246,7 @@ interface OrderStore {
   deleteOrder: (id: string) => void;
   addOrderRating: (id: string, rating: number, comment?: string, images?: string[]) => void;
   // POS-Lite functionality
-  addOfflineOrder: (cartItems: { productId: string; productName: string; quantity: number; price: number; image: string; selectedColor?: string; selectedSize?: string }[], total: number, note?: string) => string;
+  addOfflineOrder: (cartItems: { productId: string; productName: string; quantity: number; price: number; image: string; selectedColor?: string; selectedSize?: string }[], total: number, note?: string) => Promise<string>;
 }
 
 // Validation helpers for database readiness
@@ -397,7 +397,7 @@ const mapDbProductToSellerProduct = (p: any): SellerProduct => {
     sellerId: p.seller_id || '',
     createdAt: p.created_at || '',
     updatedAt: p.updated_at || '',
-    sales: 0,
+    sales: p.sales || p.sold || p.sold_count || 0, // Preserve sold count from transformProduct
     rating: 0,
     reviews: 0,
     approval_status: (p.approval_status as SellerProduct['approval_status']) || 'pending',
@@ -1468,10 +1468,14 @@ export const useProductStore = create<ProductStore>()(
       // POS-Lite: Deduct stock with full audit trail
       deductStock: async (productId, quantity, reason, referenceId, notes) => {
         try {
+          console.log(`[deductStock] Starting - Product: ${productId}, Quantity: ${quantity}, Reason: ${reason}`);
+          
           const product = get().products.find(p => p.id === productId);
           if (!product) {
             throw new Error(`Product ${productId} not found`);
           }
+
+          console.log(`[deductStock] Current stock: ${product.stock}`);
 
           // RULE: No negative stock allowed
           if (product.stock < quantity) {
@@ -1483,6 +1487,7 @@ export const useProductStore = create<ProductStore>()(
 
           // Use Supabase if configured
           if (isSupabaseConfigured()) {
+            console.log(`[deductStock] Updating database...`);
             await productService.deductStock(
               productId,
               quantity,
@@ -1490,8 +1495,14 @@ export const useProductStore = create<ProductStore>()(
               referenceId,
               authStoreForStock.seller?.id
             );
+            console.log(`[deductStock] Database updated. Refetching products...`);
             // Refresh from DB to get updated stock
             await get().fetchProducts({ sellerId: authStoreForStock.seller?.id });
+            console.log(`[deductStock] Products refetched. New product count: ${get().products.length}`);
+            
+            // Verify the stock was updated
+            const updatedProduct = get().products.find((p) => p.id === productId);
+            console.log(`[deductStock] Verified stock after refetch: ${updatedProduct?.stock}`);
           } else {
             // Fallback: Update product stock locally
             set((state) => ({
@@ -2119,7 +2130,7 @@ export const useOrderStore = create<OrderStore>()(
       },
 
       // POS-Lite: Add offline order and deduct stock
-      addOfflineOrder: (cartItems, total, note) => {
+      addOfflineOrder: async (cartItems, total, note) => {
         try {
           // Validate cart items
           if (!cartItems || cartItems.length === 0) {
@@ -2142,10 +2153,30 @@ export const useOrderStore = create<OrderStore>()(
             }
           }
 
-          // Generate order ID
-          const orderId = `POS-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+          // Get seller info for database order
+          const authStore = useAuthStore.getState();
+          const sellerId = authStore.seller?.id || '';
+          const sellerName = authStore.seller?.store_name || authStore.seller?.owner_name || 'Unknown Store';
 
-          // Create offline order
+          console.log(`[createOfflineOrder] Creating POS order in database for seller: ${sellerId}`);
+
+          // Create order in database using orderService
+          const result = await orderService.createPOSOrder(
+            sellerId,
+            sellerName,
+            cartItems,
+            total,
+            note,
+          );
+
+          if (!result) {
+            throw new Error('Failed to create POS order in database');
+          }
+
+          const { orderId, orderNumber } = result;
+          console.log(`[createOfflineOrder] Order created in database: ${orderNumber} (${orderId})`);
+
+          // Create local order for UI (backwards compatibility)
           const newOrder: SellerOrder = {
             id: orderId,
             buyerName: 'Walk-in Customer',
@@ -2165,26 +2196,22 @@ export const useOrderStore = create<OrderStore>()(
             },
             type: 'OFFLINE', // Mark as offline order
             posNote: note || 'POS Sale',
-            trackingNumber: `OFFLINE-${Date.now().toString().slice(-8)}`
+            trackingNumber: orderNumber
           };
 
-          // Add order to store
+          // Add order to local store
           set((state) => ({
             orders: [newOrder, ...state.orders]
           }));
 
-          // Deduct stock for each item with full audit trail
-          for (const item of cartItems) {
-            productStore.deductStock(
-              item.productId,
-              item.quantity,
-              'OFFLINE_SALE',
-              orderId,
-              `POS sale: ${item.productName} x${item.quantity}`
-            );
-          }
+          // Refresh products to show updated stock and sold counts
+          console.log(`[createOfflineOrder] Refreshing products to update stock and sold counts...`);
+          await productStore.fetchProducts({ sellerId });
+          console.log(`[createOfflineOrder] Products refreshed. New product count: ${productStore.products.length}`);
 
-          console.log(`✅ Offline order created: ${orderId}. Stock updated with ledger entries.`);
+          console.log(
+            `✅ Offline order created: ${orderNumber}. Stock deducted and sold count updated in database.`,
+          );
           return orderId;
         } catch (error) {
           console.error('Failed to create offline order:', error);

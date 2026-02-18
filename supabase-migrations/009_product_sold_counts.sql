@@ -92,4 +92,4 @@ Query: SELECT * FROM product_sold_counts WHERE product_id = ''uuid''';
 
 COMMENT ON FUNCTION public.get_product_sold_count(UUID) IS 
 'Function to get sold count for a single product.
-Usage: SELECT get_product_sold_count(''product-uuid'')';z
+Usage: SELECT get_product_sold_count(''product-uuid'')';

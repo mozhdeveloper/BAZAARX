@@ -549,6 +549,15 @@ export class OrderService {
                 ? orderData
                 : { ...orderData, buyer_id: undefined };
 
+            console.log(`[OrderService] Creating POS order with data:`, {
+                order_number: orderNumber,
+                order_type: orderData.order_type,
+                payment_status: orderData.payment_status,
+                shipment_status: orderData.shipment_status,
+                buyer_id: finalBuyerId || 'null',
+                items_count: orderItems.length
+            });
+
             let { error: orderError } = await supabase
                 .from("orders")
                 .insert(insertData);
@@ -557,6 +566,7 @@ export class OrderService {
                 orderError?.code === "23502" &&
                 orderError.message?.includes("buyer_id")
             ) {
+                console.log('[OrderService] Retrying order insert with buyer_id: null');
                 const { error: retryError } = await supabase
                     .from("orders")
                     .insert({
@@ -566,21 +576,49 @@ export class OrderService {
                     });
 
                 if (retryError) {
+                    console.error('[OrderService] Retry failed:', retryError);
                     return { orderId, orderNumber, buyerLinked: false };
                 }
                 orderError = null;
             }
 
-            if (orderError) throw orderError;
+            if (orderError) {
+                console.error('[OrderService] Order insert failed:', orderError);
+                throw orderError;
+            }
+
+            console.log(`[OrderService] Order inserted successfully: ${orderId}`);
+            console.log(`[OrderService] Inserting ${orderItems.length} order items...`);
+            console.log(`[OrderService] Sample order item:`, orderItems[0]);
 
             const { error: itemsError } = await supabase
                 .from("order_items")
                 .insert(orderItems);
 
             if (itemsError) {
+                console.error('[OrderService] Order items insert failed:', itemsError);
                 await supabase.from("orders").delete().eq("id", orderId);
                 throw itemsError;
             }
+
+            console.log(`[OrderService] Order items inserted successfully`);
+
+            // Verify the order was created correctly
+            const { data: verifyOrder } = await supabase
+                .from("orders")
+                .select("payment_status, shipment_status, order_type")
+                .eq("id", orderId)
+                .single();
+            
+            console.log(`[OrderService] Verification - Order status:`, verifyOrder);
+
+            // Verify order items were created
+            const { data: verifyItems, count } = await supabase
+                .from("order_items")
+                .select("product_id, quantity", { count: 'exact' })
+                .eq("order_id", orderId);
+            
+            console.log(`[OrderService] Verification - Created ${count} order items:`, verifyItems);
 
             // Insert payment record with method
             const paymentMethodValue = paymentMethod || 'cash';

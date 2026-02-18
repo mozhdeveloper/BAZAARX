@@ -6,6 +6,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { COLORS } from '../../src/constants/theme';
 import { TicketService } from '../../services/TicketService';
 import { useAuthStore } from '../../src/stores/authStore';
+import { supabase } from '../../src/lib/supabase';
 import type { Ticket, TicketMessage } from '../types/ticketTypes';
 
 type Props = {
@@ -30,7 +31,12 @@ export default function TicketDetailScreen({ route, navigation }: Props) {
   const loadTicket = async () => {
     setLoading(true);
     try {
-        const data = await TicketService.getTicketDetails(ticketId, user?.id);
+        let userId = user?.id;
+        if (!userId) {
+          const { data: { session } } = await supabase.auth.getSession();
+          userId = session?.user?.id;
+        }
+        const data = await TicketService.getTicketDetails(ticketId, userId);
         setTicket(data);
     } catch (err) {
         console.error(err);
@@ -40,11 +46,18 @@ export default function TicketDetailScreen({ route, navigation }: Props) {
   };
 
   const handleSend = async () => {
-      if (!messageText.trim() || !user?.id) return;
+      if (!messageText.trim()) return;
+      
+      let userId = user?.id;
+      if (!userId) {
+        const { data: { session } } = await supabase.auth.getSession();
+        userId = session?.user?.id;
+      }
+      if (!userId) return;
       
       setSending(true);
       try {
-          const newMsg = await TicketService.sendMessage(ticketId, user.id, messageText);
+          const newMsg = await TicketService.sendMessage(ticketId, userId, messageText);
           if (ticket && newMsg) {
               setTicket({
                   ...ticket,

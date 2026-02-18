@@ -307,7 +307,9 @@ export class ReviewService {
                 return false;
             }
 
-            const product = data?.product as { seller_id: string } | null;
+            // Handle both single object and array responses
+            const productData = Array.isArray(data?.product) ? data?.product[0] : data?.product;
+            const product = productData as { seller_id: string } | null;
             const sellerId = product?.seller_id;
 
             // Block if buyer is the seller of this product

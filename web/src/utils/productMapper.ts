@@ -180,7 +180,7 @@ export const mapDbProductToSellerProduct = (p: any): SellerProduct => {
         sellerId: p.seller_id || "",
         createdAt: p.created_at || "",
         updatedAt: p.updated_at || "",
-        sales: 0,
+        sales: p.sales || p.sold || p.sold_count || 0, // Preserve sold count from transformProduct
         rating: p.rating || 0,
         reviews: p.reviewCount || 0,
         approvalStatus:

@@ -62,6 +62,7 @@ export class ProductService {
 
         try {
             // New normalized query with proper joins including reviews and seller
+            // Also fetch sold counts from order_items (completed orders only)
             let query = supabase
                 .from("products")
                 .select(
@@ -95,10 +96,6 @@ export class ProductService {
           reviews (
             id,
             rating
-          ),
-          order_items (
-            id,
-            quantity
           ),
           seller:sellers!products_seller_id_fkey (
             id,
@@ -160,10 +157,49 @@ export class ProductService {
 
             const { data, error } = await query;
 
-            if (error) throw error;
+            if (error) {
+                throw error;
+            }
+
+            if (!data) {
+                return [];
+            }
+
+            // Fetch sold counts for all products in a single query
+            // Count only COMPLETED orders (paid + delivered)
+            const productIds = data.map(p => p.id);
+            
+            console.log(`[ProductService] Querying sold counts for ${productIds.length} products...`);
+            
+            const { data: soldCountsData, error: soldCountsError } = await supabase
+                .from('order_items')
+                .select('product_id, quantity, order:orders!inner(payment_status, shipment_status, order_type)')
+                .in('product_id', productIds)
+                .eq('order.payment_status', 'paid')
+                .in('order.shipment_status', ['delivered', 'received']);
+
+            if (soldCountsError) {
+                console.error('[ProductService] Error fetching sold counts:', soldCountsError);
+            }
+
+            console.log(`[ProductService] Sold counts query returned ${soldCountsData?.length || 0} order items`);
+            if (soldCountsData && soldCountsData.length > 0) {
+                console.log('[ProductService] Sample sold count data:', soldCountsData.slice(0, 3));
+            }
+
+            // Calculate sold counts per product
+            const soldCountsMap = new Map<string, number>();
+            soldCountsData?.forEach(item => {
+                const currentCount = soldCountsMap.get(item.product_id) || 0;
+                const newCount = currentCount + (item.quantity || 0);
+                soldCountsMap.set(item.product_id, newCount);
+                console.log(`[ProductService] Product ${item.product_id.substring(0, 8)}: +${item.quantity} (total: ${newCount})`);
+            });
+
+            console.log(`[ProductService] Fetched ${data.length} products. Sold counts map has ${soldCountsMap.size} entries`);
 
             // Transform to add legacy compatibility fields
-            return (data || []).map((p) => this.transformProduct(p));
+            return data.map((p) => this.transformProduct(p, soldCountsMap.get(p.id) || 0));
         } catch (error) {
             console.error("Error fetching products:", error);
             throw new Error(
@@ -175,7 +211,7 @@ export class ProductService {
     /**
      * Transform product from DB to include legacy fields
      */
-    private transformProduct(product: any): ProductWithSeller {
+    private transformProduct(product: any, soldCount: number = 0): ProductWithSeller {
         const primaryImage =
             product.images?.find((img: ProductImage) => img.is_primary) ||
             product.images?.[0];
@@ -196,10 +232,6 @@ export class ProductService {
                   ) / totalRatings
                 : 0;
 
-        // Calculate sold count from order_items
-        const orderItems = product.order_items || [];
-        const soldCount = orderItems.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0);
-
         return {
             ...product,
             // Legacy compatibility fields
@@ -215,8 +247,10 @@ export class ProductService {
             // Rating from reviews
             rating: Math.round(averageRating * 10) / 10, // Round to 1 decimal
             reviewCount: totalRatings,
-            // Sold count calculated from order_items
+            // Sold count from completed orders (paid + delivered)
             sold: soldCount,
+            sales: soldCount, // Alias for backward compatibility with UI
+            sold_count: soldCount, // Another alias for consistency
             // Seller info
             sellerName: product.seller?.store_name,
             sellerLocation: product.seller?.business_profile?.city,
@@ -310,10 +344,6 @@ export class ProductService {
             id,
             rating
           ),
-          order_items (
-            id,
-            quantity
-          ),
           seller:sellers!products_seller_id_fkey (
             id,
             store_name,
@@ -329,7 +359,20 @@ export class ProductService {
                 .single();
 
             if (error) throw error;
-            return data ? this.transformProduct(data) : null;
+            
+            if (!data) return null;
+
+            // Fetch sold count for this product
+            const { data: soldCountsData } = await supabase
+                .from('order_items')
+                .select('quantity, order:orders!inner(payment_status, shipment_status)')
+                .eq('product_id', id)
+                .eq('order.payment_status', 'paid')
+                .in('order.shipment_status', ['delivered', 'received']);
+
+            const soldCount = soldCountsData?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0;
+
+            return this.transformProduct(data, soldCount);
         } catch (error) {
             console.error("Error fetching product:", error);
             throw new Error("Failed to fetch product details.");

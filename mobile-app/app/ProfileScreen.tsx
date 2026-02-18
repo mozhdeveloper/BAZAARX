@@ -724,6 +724,32 @@ const styles = StyleSheet.create({
   statLab: { fontSize: 12, color: '#9CA3AF', fontWeight: '600' },
   statDivider: { width: 1, height: '50%', backgroundColor: '#F3F4F6', alignSelf: 'center' },
 
+  // Order Status Styles
+  statusItem: {
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  badgeContainer: {
+    position: 'absolute',
+    top: -5,
+    right: -5,
+    backgroundColor: '#EF4444',
+    borderRadius: 10,
+    width: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#FFF',
+    zIndex: 1,
+  },
+  statusLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#374151',
+  },
+
   scrollContent: { paddingBottom: 40 },
   purchasesContainer: {
     backgroundColor: '#FFF',
