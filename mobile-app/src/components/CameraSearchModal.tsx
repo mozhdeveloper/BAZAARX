@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   Modal,
   View,
@@ -18,7 +18,7 @@ import {
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { useNavigation } from '@react-navigation/native';
-import { X, Camera as CameraIcon, RotateCw, Plus, CheckCircle, ImageIcon, Tag } from 'lucide-react-native';
+import { X, Camera as CameraIcon, RotateCw, Plus, CheckCircle, ImageIcon, Tag, SlidersHorizontal } from 'lucide-react-native';
 import { createClient } from '@supabase/supabase-js';
 import { decode } from 'base64-arraybuffer';
 import { visualSearchService } from '../services/visualSearchService';
@@ -39,7 +39,10 @@ interface Product {
   price: number;
   description: string;
   similarity?: number;
+  total_sold?: number;
 }
+
+type FilterType = 'relevance' | 'price_low' | 'price_high' | 'top_sales';
 
 interface CameraSearchModalProps {
   visible: boolean;
@@ -61,12 +64,15 @@ export default function CameraSearchModal({ visible, onClose, onProductSelect }:
   const [searchResults, setSearchResults] = useState<Product[]>([]);
   const [searchStatus, setSearchStatus] = useState('Analyzing image...');
 
+  // Filter State
+  const [activeFilter, setActiveFilter] = useState<FilterType>('relevance');
+
   // Request Form State
   const [showRequestForm, setShowRequestForm] = useState(false);
   const [requestSubmitted, setRequestSubmitted] = useState(false);
   const [productName, setProductName] = useState('');
   const [productDescription, setProductDescription] = useState('');
-  
+
   const cameraRef = useRef<any>(null);
 
   useEffect(() => {
@@ -75,12 +81,30 @@ export default function CameraSearchModal({ visible, onClose, onProductSelect }:
     }
   }, [visible]);
 
+  // Derive filtered/sorted results based on active filter
+  const filteredResults = useMemo(() => {
+    if (searchResults.length === 0) return [];
+
+    switch (activeFilter) {
+      case 'price_low':
+        return [...searchResults].sort((a, b) => (a.price || 0) - (b.price || 0));
+      case 'price_high':
+        return [...searchResults].sort((a, b) => (b.price || 0) - (a.price || 0));
+      case 'top_sales':
+        return [...searchResults].sort((a, b) => (b.total_sold || 0) - (a.total_sold || 0));
+      case 'relevance':
+      default:
+        return searchResults; // Original AI-ranked order
+    }
+  }, [searchResults, activeFilter]);
+
   // --- CORE FUNCTION: Visual Search ---
   const performVisualSearch = async (base64Data: string) => {
     setSearching(true);
     setSearchStatus('Analyzing image...');
     setSearchResults([]); // Clear previous
-    
+    setActiveFilter('relevance'); // Reset filter
+
     try {
       // The service now handles the Edge Function call, DB enrichment, 
       // and sorting internally.
@@ -89,15 +113,33 @@ export default function CameraSearchModal({ visible, onClose, onProductSelect }:
       if (!result.products || result.products.length === 0) {
         // No products found: Transition to Request Form view
         setSearchResults([]);
-        setShowResults(true); 
+        setShowResults(true);
       } else {
         // Map properties for UI (Fixing image loading from the enriched DB data)
-        const mappedResults = result.products.map((p: any) => ({
-          ...p,
-          // Ensure we extract the correct primary image URL from the enriched data
-          image: p.images?.find((img: any) => img.is_primary)?.image_url || p.images?.[0]?.image_url || '',
-        }));
-        
+        const mappedResults = result.products.map((p: any) => {
+          // Extract primary image URL for the card thumbnail
+          const primaryImage = p.images?.find((img: any) => img.is_primary)?.image_url || p.images?.[0]?.image_url || '';
+          // Flatten images array from [{image_url, is_primary}] to string[] for ProductDetailScreen
+          const flatImages = Array.isArray(p.images)
+            ? p.images.map((img: any) => typeof img === 'string' ? img : img.image_url).filter(Boolean)
+            : [];
+          // Flatten seller from {store_name: '...'} object to plain string for ProductDetailScreen
+          const sellerName = typeof p.seller === 'object' && p.seller?.store_name
+            ? p.seller.store_name
+            : (typeof p.seller === 'string' ? p.seller : '');
+          // Flatten category from {name: '...'} object to plain string
+          const categoryName = typeof p.category === 'object' && p.category?.name
+            ? p.category.name
+            : (typeof p.category === 'string' ? p.category : '');
+          return {
+            ...p,
+            image: primaryImage,
+            images: flatImages.length > 0 ? flatImages : (primaryImage ? [primaryImage] : []),
+            seller: sellerName,
+            category: categoryName,
+          };
+        });
+
         setSearchResults(mappedResults);
         setDetectedInfo(result.info);
         setShowResults(true);
@@ -112,29 +154,33 @@ export default function CameraSearchModal({ visible, onClose, onProductSelect }:
     }
   };
 
-// 3. Update handleCapture and handleUpload to set the preview
-const handleCapture = async () => {
-  if (cameraRef.current) {
-    const photo = await cameraRef.current.takePictureAsync({ quality: 0.5, base64: true });
-    if (photo.base64) {
-      setPreviewImage(`data:image/jpeg;base64,${photo.base64}`);
-      performVisualSearch(photo.base64);
+  // 3. Update handleCapture and handleUpload to set the preview
+  const handleCapture = async () => {
+    if (cameraRef.current) {
+      console.log("[VisualSearch] Capturing photo...");
+      const photo = await cameraRef.current.takePictureAsync({ quality: 0.5, base64: true });
+      if (photo.base64) {
+        console.log("[VisualSearch] Photo captured, base64 length:", photo.base64.length);
+        setPreviewImage(`data:image/jpeg;base64,${photo.base64}`);
+        performVisualSearch(photo.base64);
+      } else {
+        console.error("[VisualSearch] Capture failed: No base64 data returned");
+      }
     }
-  }
-};
+  };
 
-const handleUploadImageToSearch = async () => {
-  const result = await ImagePicker.launchImageLibraryAsync({
-    mediaTypes: ['images'],
-    quality: 0.5,
-    base64: true,
-  });
+  const handleUploadImageToSearch = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.5,
+      base64: true,
+    });
 
-  if (!result.canceled && result.assets[0].base64) {
-    setPreviewImage(`data:image/jpeg;base64,${result.assets[0].base64}`);
-    performVisualSearch(result.assets[0].base64);
-  }
-};
+    if (!result.canceled && result.assets[0].base64) {
+      setPreviewImage(`data:image/jpeg;base64,${result.assets[0].base64}`);
+      performVisualSearch(result.assets[0].base64);
+    }
+  };
 
   const handleClose = () => {
     setSearching(false);
@@ -142,6 +188,7 @@ const handleUploadImageToSearch = async () => {
     setShowRequestForm(false);
     setProductName('');
     setProductDescription('');
+    setActiveFilter('relevance');
     onClose();
   };
 
@@ -158,6 +205,16 @@ const handleUploadImageToSearch = async () => {
       setRequestSubmitted(false);
       handleClose();
     }, 2500);
+  };
+
+  // Handle product press — navigate to ProductDetail
+  const handleProductPress = (product: Product) => {
+    onClose(); // Close the modal first
+    if (onProductSelect) {
+      onProductSelect(product);
+    } else {
+      navigation.navigate('ProductDetail', { product });
+    }
   };
 
   if (!visible) return null;
@@ -180,69 +237,114 @@ const handleUploadImageToSearch = async () => {
   // Request & Success Views (Same as before, abbreviated for clarity)
   if (requestSubmitted) return <Modal visible={visible} transparent><View style={styles.successContainer}><Text style={styles.successTitle}>Request Submitted!</Text></View></Modal>;
   if (showRequestForm) return <Modal visible={visible} animationType="slide"><View style={styles.requestContainer}><Text>Request Form Here</Text><Pressable onPress={() => setShowRequestForm(false)}><Text>Close</Text></Pressable></View></Modal>;
-  
-  // Results View (Same as before, abbreviated)
+
+  // Filter chips data
+  const FILTERS: { key: FilterType; label: string }[] = [
+    { key: 'relevance', label: 'Relevance' },
+    { key: 'price_low', label: 'Price: Low to High' },
+    { key: 'price_high', label: 'Price: High to Low' },
+    { key: 'top_sales', label: 'Top Sales' },
+  ];
+
+  // Results View
   if (showResults) {
     return (
       <Modal visible={visible} animationType="slide">
         <View style={styles.resultsContainer}>
-             <View style={[styles.resultsHeader, { backgroundColor: BRAND_COLOR }]}>
+          <View style={[styles.resultsHeader, { backgroundColor: BRAND_COLOR }]}>
             <Pressable onPress={() => setShowResults(false)}><X size={24} color="#FFF" /></Pressable>
             <Text style={styles.resultsTitle}>Search Results</Text>
             <View style={{ width: 24 }} />
           </View>
-          {/* Insert this inside your Results View ScrollView */}
-{detectedInfo && (detectedInfo.detectedItem || detectedInfo.category) && (
-  <View style={styles.aiBanner}>
-    <Tag size={16} color="#4A90E2" />
-    <Text style={styles.aiBannerTitle}>AI Detected:</Text>
-    {detectedInfo.detectedItem && (
-      <View style={styles.aiChip}>
-        <Text style={styles.aiChipText}>{detectedInfo.detectedItem}</Text>
-      </View>
-    )}
-    {detectedInfo.category && (
-      <Text style={styles.aiCategoryText}>Category: {detectedInfo.category}</Text>
-    )}
-  </View>
-)}
+          {/* AI Detection Banner */}
+          {detectedInfo && (detectedInfo.detectedItem || detectedInfo.category) && (
+            <View style={styles.aiBanner}>
+              <Tag size={16} color="#4A90E2" />
+              <Text style={styles.aiBannerTitle}>AI Detected:</Text>
+              {detectedInfo.detectedItem && (
+                <View style={styles.aiChip}>
+                  <Text style={styles.aiChipText}>{detectedInfo.detectedItem}</Text>
+                </View>
+              )}
+              {detectedInfo.category && (
+                <Text style={styles.aiCategoryText}>Category: {detectedInfo.category}</Text>
+              )}
+            </View>
+          )}
           <ScrollView style={styles.resultsScroll}>
             <View style={[styles.detectedBadge, { borderColor: BRAND_COLOR }]}>
               <Text style={styles.detectedText}>{searchResults.length > 0 ? `Found ${searchResults.length} similar items` : "No matches found."}</Text>
             </View>
-            {/* Inside Results Modal ScrollView */}
-{searchResults.length === 0 ? (
-  <View style={styles.noResultsContainer}>
-    <View style={styles.emptyIconContainer}>
-      <Plus size={48} color="#999" />
-    </View>
-    <Text style={styles.noResultsTitle}>No similar products found</Text>
-    <Text style={styles.noResultsSub}>We couldn't find a match in our catalog. Would you like to request this item?</Text>
-    
-    <Pressable 
-      style={[styles.requestActionBtn, { backgroundColor: BRAND_COLOR }]}
-      onPress={() => { setShowResults(false); setShowRequestForm(true); }}
-    >
-      <Text style={styles.requestActionText}>Request This Product</Text>
-    </Pressable>
-  </View>
-) : (
-  <View style={styles.resultsGrid}>
-              {searchResults.map((product) => (
+
+            {/* Filter Bar */}
+            {searchResults.length > 0 && (
+              <View style={styles.filterBarWrapper}>
+                <SlidersHorizontal size={16} color="#6B7280" style={{ marginRight: 8 }} />
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterBar}>
+                  {FILTERS.map((filter) => (
+                    <Pressable
+                      key={filter.key}
+                      style={[
+                        styles.filterChip,
+                        activeFilter === filter.key && styles.filterChipActive,
+                      ]}
+                      onPress={() => setActiveFilter(filter.key)}
+                    >
+                      <Text
+                        style={[
+                          styles.filterChipText,
+                          activeFilter === filter.key && styles.filterChipTextActive,
+                        ]}
+                      >
+                        {filter.label}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+
+            {/* Product Grid or Empty State */}
+            {searchResults.length === 0 ? (
+              <View style={styles.noResultsContainer}>
+                <View style={styles.emptyIconContainer}>
+                  <Plus size={48} color="#999" />
+                </View>
+                <Text style={styles.noResultsTitle}>No similar products found</Text>
+                <Text style={styles.noResultsSub}>We couldn't find a match in our catalog. Would you like to request this item?</Text>
+
                 <Pressable
-                  key={product.id}
-                  style={styles.resultCard}
-                  onPress={() => { onClose(); if (onProductSelect) onProductSelect(product); else navigation.navigate('ProductDetail', { product }); }}
+                  style={[styles.requestActionBtn, { backgroundColor: BRAND_COLOR }]}
+                  onPress={() => { setShowResults(false); setShowRequestForm(true); }}
                 >
-                  <Image source={{ uri: product.image }} style={styles.resultImage} />
-                  <View style={styles.resultInfo}>
-                    <Text style={styles.resultName} numberOfLines={2}>{product.name}</Text>
-                    <Text style={[styles.resultPrice, { color: BRAND_COLOR }]}>₱{product.price.toLocaleString()}</Text>
-                  </View>
+                  <Text style={styles.requestActionText}>Request This Product</Text>
                 </Pressable>
-              ))}
-            </View>
-)}
+              </View>
+            ) : (
+              <View style={styles.resultsGrid}>
+                {filteredResults.map((product) => (
+                  <Pressable
+                    key={product.id}
+                    style={styles.resultCard}
+                    onPress={() => handleProductPress(product)}
+                  >
+                    <Image
+                      source={{ uri: typeof product.image === 'string' ? product.image : '' }}
+                      style={styles.resultImage}
+                    />
+                    <View style={styles.resultInfo}>
+                      <Text style={styles.resultName} numberOfLines={2}>{product.name}</Text>
+                      <Text style={[styles.resultPrice, { color: BRAND_COLOR }]}>
+                        ₱{(product.price || 0).toLocaleString()}
+                      </Text>
+                      {(product.total_sold !== undefined && product.total_sold > 0) && (
+                        <Text style={styles.resultSold}>{product.total_sold} sold</Text>
+                      )}
+                    </View>
+                  </Pressable>
+                ))}
+              </View>
+            )}
           </ScrollView>
         </View>
       </Modal>
@@ -257,16 +359,16 @@ const handleUploadImageToSearch = async () => {
         {(searching && previewImage) ? (
           <Image source={{ uri: previewImage }} style={StyleSheet.absoluteFill} resizeMode="cover" />
         ) : (
-          <CameraView 
-            style={StyleSheet.absoluteFill} 
-            facing={facing} 
-            ref={cameraRef} 
+          <CameraView
+            style={StyleSheet.absoluteFill}
+            facing={facing}
+            ref={cameraRef}
           />
         )}
 
         {/* LAYER 2: The Overlays (Foreground) */}
         <View style={styles.uiContainer}>
-          
+
           {/* Header */}
           <View style={styles.header}>
             <Pressable onPress={handleClose}><X size={28} color="#FFFFFF" /></Pressable>
@@ -280,8 +382,8 @@ const handleUploadImageToSearch = async () => {
           <View style={styles.overlay}>
             {searching && (
               <View style={styles.analyzingOverlay}>
-                  <ActivityIndicator size="large" color="#FFF" />
-                  <Text style={styles.analyzingText}>{searchStatus}</Text>
+                <ActivityIndicator size="large" color="#FFF" />
+                <Text style={styles.analyzingText}>{searchStatus}</Text>
               </View>
             )}
             {!searching && <View style={[styles.frame, { borderColor: BRAND_COLOR }]} />}
@@ -289,7 +391,7 @@ const handleUploadImageToSearch = async () => {
 
           {/* Controls Footer */}
           <View style={[
-            styles.controls, 
+            styles.controls,
             searching && { backgroundColor: 'transparent', paddingVertical: 0 } // Remove background and padding when searching
           ]}>
             {searching ? (
@@ -323,15 +425,15 @@ const handleUploadImageToSearch = async () => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#000' },
   // IMPORTANT: uiContainer makes sure the buttons sit ON TOP of the camera
-  uiContainer: { flex: 1, justifyContent: 'space-between' }, 
-  
+  uiContainer: { flex: 1, justifyContent: 'space-between' },
+
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 60, paddingHorizontal: 20 },
   headerTitle: { color: '#FFF', fontSize: 18, fontWeight: '700' },
-  
+
   overlay: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   frame: { width: width * 0.7, height: width * 0.7, borderWidth: 3, borderRadius: 24, backgroundColor: 'rgba(255,255,255,0.1)' },
   guideText: { color: '#FFF', marginTop: 20, fontSize: 15, fontWeight: '600', backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 15, paddingVertical: 8, borderRadius: 20 },
-  
+
   analyzingOverlay: {
     padding: 30,
     backgroundColor: 'rgba(0,0,0,0.6)',
@@ -393,7 +495,7 @@ const styles = StyleSheet.create({
   captureButtonInner: { width: 60, height: 60, borderRadius: 30 },
   galleryBtn: { alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 16, width: 80 },
   galleryBtnText: { color: '#FFF', fontSize: 11, fontWeight: '700', marginTop: 4 },
-  
+
   // ... Permission and Result styles (kept same as before) ...
   permissionContainer: { flex: 1, backgroundColor: '#FFF', justifyContent: 'center', alignItems: 'center', padding: 40 },
   iconCircle: { width: 80, height: 80, borderRadius: 40, justifyContent: 'center', alignItems: 'center', marginBottom: 24 },
@@ -401,7 +503,7 @@ const styles = StyleSheet.create({
   permissionButton: { width: '100%', paddingVertical: 16, borderRadius: 14, alignItems: 'center' },
   permissionButtonText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
   closeButton: { marginTop: 20 },
-  
+
   aiBanner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -438,17 +540,54 @@ const styles = StyleSheet.create({
   resultsHeader: { padding: 20, paddingTop: 60, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   resultsTitle: { color: '#FFF', fontSize: 18, fontWeight: '800' },
   resultsScroll: { flex: 1 },
-  detectedBadge: { margin: 20, padding: 15, borderRadius: 15, backgroundColor: '#FFF', borderWidth: 1, alignItems: 'center' },
+  detectedBadge: { margin: 20, marginBottom: 10, padding: 15, borderRadius: 15, backgroundColor: '#FFF', borderWidth: 1, alignItems: 'center' },
   detectedText: { fontWeight: '800', fontSize: 16 },
   resultsGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 15, justifyContent: 'space-between' },
   resultCard: { width: (width - 45) / 2, backgroundColor: '#FFF', borderRadius: 18, marginBottom: 15, elevation: 4, overflow: 'hidden' },
   resultImage: { width: '100%', height: 150 },
   resultInfo: { padding: 12 },
   resultName: { fontSize: 14, fontWeight: '700' },
-  resultPrice: { fontSize: 16, fontWeight: '900' },
+  resultPrice: { fontSize: 16, fontWeight: '900', marginTop: 4 },
+  resultSold: { fontSize: 12, color: '#6B7280', marginTop: 2 },
   scanAgainButton: { margin: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 16, borderRadius: 15, borderWidth: 2, gap: 10 },
   scanAgainText: { fontSize: 16, fontWeight: '700' },
-  
+
+  // Filter Bar Styles
+  filterBarWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 15,
+    marginBottom: 15,
+    paddingVertical: 4,
+  },
+  filterBar: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingRight: 15,
+  },
+  filterChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#FFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    elevation: 1,
+  },
+  filterChipActive: {
+    backgroundColor: BRAND_COLOR,
+    borderColor: BRAND_COLOR,
+    elevation: 3,
+  },
+  filterChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  filterChipTextActive: {
+    color: '#FFF',
+  },
+
   successContainer: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center' },
   successTitle: { fontSize: 22, fontWeight: '800', marginTop: 20, color: '#FFF' },
   requestContainer: { flex: 1, backgroundColor: '#FFF' },

@@ -248,6 +248,15 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     };
   }, [hasStructuredVariants, productVariants, selectedOption1, selectedOption2, product.price, product.stock]);
 
+  // Extract seller name robustly (fixes lint errors with mixed object/string types)
+  const displayStoreName = useMemo(() => {
+    const s = product.seller as any;
+    if (typeof s === 'object' && s !== null && s.store_name) {
+      return s.store_name;
+    }
+    return typeof s === 'string' ? s : 'Store';
+  }, [product.seller]);
+
   // Reviews State
   const [reviews, setReviews] = useState<(Review & { buyer?: { full_name: string | null; avatar_url: string | null } })[]>([]);
   const [reviewsTotal, setReviewsTotal] = useState(0);
@@ -602,16 +611,16 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
         colors={['#FFF6E5', '#FFE0A3', '#FFD89A']}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
-        style={{ 
+        style={{
           paddingTop: insets.top + 10,
-          paddingBottom: 40, 
+          paddingBottom: 40,
           zIndex: 10,
         }}
       >
-        <View style={{ 
-          flexDirection: 'row', 
-          justifyContent: 'space-between', 
-          alignItems: 'center', 
+        <View style={{
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          alignItems: 'center',
           paddingHorizontal: 20,
         }}>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -622,7 +631,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
             />
             <Text style={{ fontSize: 24, fontWeight: '900', color: '#FB8C00' }}>BazaarX</Text>
           </View>
-          
+
           <Pressable onPress={() => navigation.navigate('MainTabs', { screen: 'Cart' })} style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: 'rgba(255,255,255,0.6)', alignItems: 'center', justifyContent: 'center' }}>
             <ShoppingCart size={20} color="#78350F" />
             {cartItemCount > 0 && (
@@ -634,10 +643,10 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
         </View>
       </LinearGradient>
 
-      <ScrollView 
-        showsVerticalScrollIndicator={false} 
-        style={{ 
-          flex: 1, 
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        style={{
+          flex: 1,
           backgroundColor: '#FFF8F0', // Cream background
           marginTop: -30, // Overlap the header
           borderTopLeftRadius: 36,
@@ -653,7 +662,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
           <Pressable onPress={() => navigation.goBack()} style={{ marginBottom: 15 }}>
             <ArrowLeft size={24} color="#78350F" strokeWidth={2.5} />
           </Pressable>
-          
+
           <Text style={[styles.productName, { color: '#431407' }]}>{product.name}</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <View style={{ flexDirection: 'row', gap: 2, marginRight: 8 }}>
@@ -687,7 +696,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
             ))}
           </ScrollView>
           <View style={styles.pageIndicator}>
-             <Text style={styles.pageText}>{currentImageIndex + 1}/{productImages.length}</Text>
+            <Text style={styles.pageText}>{currentImageIndex + 1}/{productImages.length}</Text>
           </View>
         </View>
 
@@ -718,7 +727,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                     onPress={() => setSelectedOption1(value)}
                   >
                     {variantLabel1.toLowerCase() !== 'color' && (
-                       <Text style={[styles.optionText, selectedOption1 === value && { color: BRAND_COLOR }]}>{value}</Text>
+                      <Text style={[styles.optionText, selectedOption1 === value && { color: BRAND_COLOR }]}>{value}</Text>
                     )}
                   </Pressable>
                 ))}
@@ -752,14 +761,14 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
           <View style={styles.quantityRow}>
             <Text style={{ fontSize: 17, fontWeight: '800', color: '#1F2937' }}>Quantity</Text>
             <View style={styles.qtyPill}>
-              <Pressable 
+              <Pressable
                 onPress={() => setQuantity(Math.max(1, quantity - 1))}
                 style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' }}
               >
                 <Minus size={22} color="#FB8C00" />
               </Pressable>
               <Text style={styles.qtyValue}>{quantity}</Text>
-              <Pressable 
+              <Pressable
                 onPress={() => {
                   if (quantity < (selectedVariantInfo.stock || 0)) {
                     setQuantity(quantity + 1);
@@ -788,7 +797,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
         <View style={{ paddingHorizontal: 16, marginTop: 24 }}>
           <Text style={styles.sectionTitle}>Ratings & Reviews</Text>
           {isLoadingReviews ? (
-              <ActivityIndicator size="small" color="#FB8C00" style={{ marginVertical: 20 }} />
+            <ActivityIndicator size="small" color="#FB8C00" style={{ marginVertical: 20 }} />
           ) : reviews.length > 0 ? (
             <>
               <Text style={{ fontSize: 14, color: '#6B7280', marginBottom: 15 }}>
@@ -839,9 +848,9 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       {/* --- BOTTOM ACTIONS (SOLID ORANGE) --- */}
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
         <Pressable style={styles.chatSellerBtn} onPress={() => setShowChat(true)}>
-           <MessageCircle size={22} color="#FFF" />
+          <MessageCircle size={22} color="#FFF" />
         </Pressable>
-        
+
         <Pressable style={styles.addToCartBtn} onPress={handleAddToCart}>
           <ShoppingCart size={20} color="#FFF" style={{ marginRight: 8 }} />
           <Text style={styles.addToCartText}>Add to Cart</Text>
@@ -992,7 +1001,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       <StoreChatModal
         visible={showChat}
         onClose={() => setShowChat(false)}
-        storeName={product.seller || 'Store'}
+        storeName={displayStoreName}
         sellerId={product.seller_id || product.sellerId}
       />
 
@@ -1180,7 +1189,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
         }}
         store={{
           id: product.seller_id || product.sellerId || '',
-          store_name: product.seller || 'Store',
+          store_name: displayStoreName,
           rating: product.sellerRating,
         }}
         onTalkToSeller={() => setShowChat(true)}
@@ -1301,10 +1310,10 @@ const styles = StyleSheet.create({
   // Selectors
   section: { backgroundColor: 'transparent', padding: 16, marginBottom: 8 },
   sectionMerged: { backgroundColor: 'transparent', paddingHorizontal: 16, marginBottom: 8, paddingTop: 0 }, // Added paddingTop: 0
-  quantityRow: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    alignItems: 'center', 
+  quantityRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingVertical: 12,
     marginTop: 10
   },
