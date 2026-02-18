@@ -18,9 +18,10 @@ import {
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { useNavigation } from '@react-navigation/native';
-import { X, Camera as CameraIcon, RotateCw, Plus, CheckCircle, ImageIcon } from 'lucide-react-native';
+import { X, Camera as CameraIcon, RotateCw, Plus, CheckCircle, ImageIcon, Tag } from 'lucide-react-native';
 import { createClient } from '@supabase/supabase-js';
 import { decode } from 'base64-arraybuffer';
+import { visualSearchService } from '../services/visualSearchService';
 
 // --- CONFIGURATION ---
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
@@ -50,7 +51,10 @@ export default function CameraSearchModal({ visible, onClose, onProductSelect }:
   const navigation = useNavigation<any>();
   const [facing, setFacing] = useState<CameraType>('back');
   const [permission, requestPermission] = useCameraPermissions();
-  
+
+  const [detectedInfo, setDetectedInfo] = useState<{ category?: string; detectedItem?: string } | null>(null);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+
   // Search State
   const [searching, setSearching] = useState(false);
   const [showResults, setShowResults] = useState(false);
@@ -74,87 +78,63 @@ export default function CameraSearchModal({ visible, onClose, onProductSelect }:
   // --- CORE FUNCTION: Visual Search ---
   const performVisualSearch = async (base64Data: string) => {
     setSearching(true);
-    setSearchStatus('Uploading image...');
-    setSearchResults([]);
-
+    setSearchStatus('Analyzing image...');
+    setSearchResults([]); // Clear previous
+    
     try {
-      const fileName = `${Date.now()}.jpg`;
-      const fileData = decode(base64Data);
+      // The service now handles the Edge Function call, DB enrichment, 
+      // and sorting internally.
+      const result = await visualSearchService.searchByBase64(base64Data);
 
-      const { error: uploadError } = await supabase.storage
-        .from('product-images')
-        .upload(fileName, fileData, { contentType: 'image/jpeg' });
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('product-images')
-        .getPublicUrl(fileName);
-
-      setSearchStatus('Scanning database...');
-
-      const { data, error: functionError } = await supabase.functions.invoke('visual-search', {
-        body: { primary_image: publicUrl }
-      });
-
-      if (functionError) throw functionError;
-
-      const rawProducts = data.products || [];
-      const mappedProducts: Product[] = rawProducts.map((item: any) => ({
-        id: item.id,
-        name: item.name,
-        image: item.primary_image,
-        price: item.price || 0,
-        description: item.description || '',
-        similarity: item.similarity
-      }));
-
-      setSearchResults(mappedProducts);
+      if (!result.products || result.products.length === 0) {
+        // No products found: Transition to Request Form view
+        setSearchResults([]);
+        setShowResults(true); 
+      } else {
+        // Map properties for UI (Fixing image loading from the enriched DB data)
+        const mappedResults = result.products.map((p: any) => ({
+          ...p,
+          // Ensure we extract the correct primary image URL from the enriched data
+          image: p.images?.find((img: any) => img.is_primary)?.image_url || p.images?.[0]?.image_url || '',
+        }));
+        
+        setSearchResults(mappedResults);
+        setDetectedInfo(result.info);
+        setShowResults(true);
+      }
+    } catch (error) {
+      console.error("Search failed:", error);
+      // Empty results will trigger the 'No matches found' UI with the Request button
+      setSearchResults([]);
       setShowResults(true);
-
-    } catch (error: any) {
-      console.error(error);
-      Alert.alert('Search Failed', 'Could not process the image. Please try again.');
     } finally {
       setSearching(false);
     }
   };
 
-  // --- HANDLERS ---
-  const handleCapture = async () => {
-    if (cameraRef.current) {
-      try {
-        const photo = await cameraRef.current.takePictureAsync({
-          quality: 0.5,
-          base64: true,
-          skipProcessing: true,
-        });
-
-        if (photo.base64) {
-          performVisualSearch(photo.base64);
-        }
-      } catch (e) {
-        Alert.alert("Error", "Could not capture photo.");
-      }
+// 3. Update handleCapture and handleUpload to set the preview
+const handleCapture = async () => {
+  if (cameraRef.current) {
+    const photo = await cameraRef.current.takePictureAsync({ quality: 0.5, base64: true });
+    if (photo.base64) {
+      setPreviewImage(`data:image/jpeg;base64,${photo.base64}`);
+      performVisualSearch(photo.base64);
     }
-  };
+  }
+};
 
-  const handleUploadImageToSearch = async () => {
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'], // <--- FIX 2: Updated API
-        allowsEditing: true,
-        quality: 0.5,
-        base64: true,
-      });
+const handleUploadImageToSearch = async () => {
+  const result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ['images'],
+    quality: 0.5,
+    base64: true,
+  });
 
-      if (!result.canceled && result.assets[0].base64) {
-        performVisualSearch(result.assets[0].base64);
-      }
-    } catch (error) {
-      Alert.alert('Error', 'Failed to pick image');
-    }
-  };
+  if (!result.canceled && result.assets[0].base64) {
+    setPreviewImage(`data:image/jpeg;base64,${result.assets[0].base64}`);
+    performVisualSearch(result.assets[0].base64);
+  }
+};
 
   const handleClose = () => {
     setSearching(false);
@@ -211,11 +191,43 @@ export default function CameraSearchModal({ visible, onClose, onProductSelect }:
             <Text style={styles.resultsTitle}>Search Results</Text>
             <View style={{ width: 24 }} />
           </View>
+          {/* Insert this inside your Results View ScrollView */}
+{detectedInfo && (detectedInfo.detectedItem || detectedInfo.category) && (
+  <View style={styles.aiBanner}>
+    <Tag size={16} color="#4A90E2" />
+    <Text style={styles.aiBannerTitle}>AI Detected:</Text>
+    {detectedInfo.detectedItem && (
+      <View style={styles.aiChip}>
+        <Text style={styles.aiChipText}>{detectedInfo.detectedItem}</Text>
+      </View>
+    )}
+    {detectedInfo.category && (
+      <Text style={styles.aiCategoryText}>Category: {detectedInfo.category}</Text>
+    )}
+  </View>
+)}
           <ScrollView style={styles.resultsScroll}>
             <View style={[styles.detectedBadge, { borderColor: BRAND_COLOR }]}>
               <Text style={styles.detectedText}>{searchResults.length > 0 ? `Found ${searchResults.length} similar items` : "No matches found."}</Text>
             </View>
-            <View style={styles.resultsGrid}>
+            {/* Inside Results Modal ScrollView */}
+{searchResults.length === 0 ? (
+  <View style={styles.noResultsContainer}>
+    <View style={styles.emptyIconContainer}>
+      <Plus size={48} color="#999" />
+    </View>
+    <Text style={styles.noResultsTitle}>No similar products found</Text>
+    <Text style={styles.noResultsSub}>We couldn't find a match in our catalog. Would you like to request this item?</Text>
+    
+    <Pressable 
+      style={[styles.requestActionBtn, { backgroundColor: BRAND_COLOR }]}
+      onPress={() => { setShowResults(false); setShowRequestForm(true); }}
+    >
+      <Text style={styles.requestActionText}>Request This Product</Text>
+    </Pressable>
+  </View>
+) : (
+  <View style={styles.resultsGrid}>
               {searchResults.map((product) => (
                 <Pressable
                   key={product.id}
@@ -230,6 +242,7 @@ export default function CameraSearchModal({ visible, onClose, onProductSelect }:
                 </Pressable>
               ))}
             </View>
+)}
           </ScrollView>
         </View>
       </Modal>
@@ -241,11 +254,15 @@ export default function CameraSearchModal({ visible, onClose, onProductSelect }:
     <Modal visible={visible} animationType="slide" onRequestClose={handleClose}>
       <View style={styles.container}>
         {/* LAYER 1: The Camera (Background) */}
-        <CameraView 
-          style={StyleSheet.absoluteFill} 
-          facing={facing} 
-          ref={cameraRef} 
-        />
+        {(searching && previewImage) ? (
+          <Image source={{ uri: previewImage }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+        ) : (
+          <CameraView 
+            style={StyleSheet.absoluteFill} 
+            facing={facing} 
+            ref={cameraRef} 
+          />
+        )}
 
         {/* LAYER 2: The Overlays (Foreground) */}
         <View style={styles.uiContainer}>
@@ -261,19 +278,26 @@ export default function CameraSearchModal({ visible, onClose, onProductSelect }:
 
           {/* Center Guide */}
           <View style={styles.overlay}>
-            <View style={[styles.frame, { borderColor: BRAND_COLOR }]} />
-            <Text style={styles.guideText}>Point camera at a product</Text>
+            {searching && (
+              <View style={styles.analyzingOverlay}>
+                  <ActivityIndicator size="large" color="#FFF" />
+                  <Text style={styles.analyzingText}>{searchStatus}</Text>
+              </View>
+            )}
+            {!searching && <View style={[styles.frame, { borderColor: BRAND_COLOR }]} />}
           </View>
 
           {/* Controls Footer */}
-          <View style={styles.controls}>
+          <View style={[
+            styles.controls, 
+            searching && { backgroundColor: 'transparent', paddingVertical: 0 } // Remove background and padding when searching
+          ]}>
             {searching ? (
-              <View style={{ alignItems: 'center' }}>
-                <ActivityIndicator size="large" color={BRAND_COLOR} />
-                <Text style={{ color: 'white', marginTop: 10, fontWeight: '600' }}>{searchStatus}</Text>
+              <View style={{ height: 80, alignItems: 'center', justifyContent: 'center' }}>
               </View>
             ) : (
               <View style={styles.uploadRow}>
+                {/* ... Gallery, Capture, and Request buttons ... */}
                 <Pressable onPress={handleUploadImageToSearch} style={[styles.galleryBtn, { backgroundColor: BRAND_COLOR }]}>
                   <ImageIcon size={22} color="#FFF" />
                   <Text style={styles.galleryBtnText}>Gallery</Text>
@@ -308,6 +332,61 @@ const styles = StyleSheet.create({
   frame: { width: width * 0.7, height: width * 0.7, borderWidth: 3, borderRadius: 24, backgroundColor: 'rgba(255,255,255,0.1)' },
   guideText: { color: '#FFF', marginTop: 20, fontSize: 15, fontWeight: '600', backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 15, paddingVertical: 8, borderRadius: 20 },
   
+  analyzingOverlay: {
+    padding: 30,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  analyzingText: {
+    color: '#FFF',
+    marginTop: 15,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+
+  // No Results / Request Product View
+  noResultsContainer: {
+    padding: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyIconContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  noResultsTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#1F2937',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  noResultsSub: {
+    fontSize: 14,
+    color: '#6B7280',
+    textAlign: 'center',
+    marginBottom: 30,
+    lineHeight: 20,
+  },
+  requestActionBtn: {
+    paddingHorizontal: 30,
+    paddingVertical: 15,
+    borderRadius: 15,
+    elevation: 3,
+  },
+  requestActionText: {
+    color: '#FFF',
+    fontWeight: '700',
+    fontSize: 16,
+  },
+
   controls: { paddingBottom: 50, backgroundColor: 'rgba(0,0,0,0.7)', paddingTop: 20, alignItems: 'center' },
   uploadRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-evenly', width: '100%' },
   captureButton: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#FFF', borderWidth: 4, justifyContent: 'center', alignItems: 'center' },
@@ -323,6 +402,38 @@ const styles = StyleSheet.create({
   permissionButtonText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
   closeButton: { marginTop: 20 },
   
+  aiBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E3F2FD',
+    margin: 15,
+    padding: 12,
+    borderRadius: 12,
+    gap: 8,
+  },
+  aiBannerTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1E88E5',
+  },
+  aiChip: {
+    backgroundColor: '#1E88E5',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+  },
+  aiChipText: {
+    color: '#FFF',
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'capitalize',
+  },
+  aiCategoryText: {
+    fontSize: 13,
+    color: '#546E7A',
+    fontStyle: 'italic',
+  },
+
   resultsContainer: { flex: 1, backgroundColor: '#F9FAFB' },
   resultsHeader: { padding: 20, paddingTop: 60, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   resultsTitle: { color: '#FFF', fontSize: 18, fontWeight: '800' },
