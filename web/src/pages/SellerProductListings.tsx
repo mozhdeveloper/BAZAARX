@@ -1,6 +1,8 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { cn } from "@/lib/utils";
+import { SellerSidebar } from "@/components/seller/SellerSidebar";
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -25,9 +27,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { Sidebar, SidebarBody, SidebarLink } from '@/components/ui/sidebar';
 import { useAuthStore } from '@/stores/sellerStore';
-import { sellerLinks } from '@/config/sellerLinks';
 import {
   AlertTriangle,
   CheckCircle,
@@ -37,7 +37,6 @@ import {
   Edit,
   Trash2,
   DollarSign,
-  LogOut
 } from 'lucide-react';
 
 interface ProductListing {
@@ -135,32 +134,7 @@ const mockProducts: ProductListing[] = [
 ];
 
 // Logo components defined outside of render
-const Logo = () => (
-  <Link to="/seller" className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20">
-    <img
-      src="/Logo.png"
-      alt="BazaarPH Logo"
-      className="h-5 w-6 flex-shrink-0"
-    />
-    <motion.span
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="font-medium text-black whitespace-pre"
-    >
-      BazaarPH Seller
-    </motion.span>
-  </Link>
-);
 
-const LogoIcon = () => (
-  <Link to="/seller" className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20">
-    <img
-      src="/Logo.png"
-      alt="BazaarPH Logo"
-      className="h-8 w-8 object-contain flex-shrink-0"
-    />
-  </Link>
-);
 
 const SellerProductListings = () => {
   const [open, setOpen] = useState(false);
@@ -168,10 +142,7 @@ const SellerProductListings = () => {
   const { seller, logout } = useAuthStore();
   const navigate = useNavigate();
 
-  const handleLogout = () => {
-    logout();
-    navigate('/seller/auth');
-  };
+
 
   // Filter products based on active tab
   const filteredProducts = mockProducts.filter((product) => {
@@ -224,40 +195,7 @@ const SellerProductListings = () => {
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-gray-50">
-      <Sidebar open={open} setOpen={setOpen}>
-        <SidebarBody className="justify-between gap-10">
-          <div className="flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-            {open ? <Logo /> : <LogoIcon />}
-            <div className="mt-8 flex flex-col gap-2">
-              {sellerLinks.map((link, idx) => (
-                <SidebarLink key={idx} link={link} />
-              ))}
-            </div>
-          </div>
-          <div className="space-y-2">
-            <SidebarLink
-              link={{
-                label: seller?.name || "Seller",
-                href: "/seller/profile",
-                icon: (
-                  <div className="h-7 w-7 flex-shrink-0 rounded-full bg-orange-500 flex items-center justify-center">
-                    <span className="text-white text-xs font-medium">
-                      {seller?.name?.charAt(0) || 'S'}
-                    </span>
-                  </div>
-                ),
-              }}
-            />
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-2 w-full px-2 py-2 text-sm text-gray-700 hover:text-orange-500 hover:bg-orange-50 rounded-md transition-colors"
-            >
-              <LogOut className="h-5 w-5 flex-shrink-0" />
-              {open && <span>Logout</span>}
-            </button>
-          </div>
-        </SidebarBody>
-      </Sidebar>
+      <SellerSidebar />
 
       <div className="p-2 md:p-8 bg-gray-50 flex-1 w-full h-full overflow-auto">
         <div className="max-w-7xl mx-auto space-y-6">
@@ -512,6 +450,6 @@ const SellerProductListings = () => {
       </div>
     </div>
   );
-};
+}
 
 export default SellerProductListings;

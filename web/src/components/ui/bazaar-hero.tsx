@@ -154,7 +154,7 @@ export function BazaarHero({ mode = "buyer", scrollTargetId = "bazaar-marketplac
                       </div>
                       <Separator className="mx-6" />
                       <div className="p-6">
-                        <Link to="/sell">
+                        <Link to={mode === 'buyer' ? '/sell' : '/seller/auth'}>
                           <Button className="w-full h-12 bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-dark)] hover:from-[var(--brand-primary)]/90 hover:to-[var(--brand-primary-dark)]/90 transition-all duration-300 shadow-lg hover:shadow-xl">
                             Start Selling
                             <ArrowUpRight className="w-4 h-4 ml-2" />
@@ -259,7 +259,7 @@ export function BazaarHero({ mode = "buyer", scrollTargetId = "bazaar-marketplac
                 transition={{ delay: 0.5, duration: 0.8 }}
                 className="flex justify-center"
               >
-                <Link to="/sell">
+                <Link to="/seller/auth">
                   <Button className="h-14 px-10 rounded-full bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-dark)] hover:from-[var(--brand-primary)]/90 hover:to-[var(--brand-primary-dark)]/90 transition-all duration-300 shadow-lg hover:shadow-xl text-lg font-bold group">
                     Start Selling Now
                     <ArrowUpRight className="w-5 h-5 ml-2 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />

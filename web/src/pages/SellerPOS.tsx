@@ -1,11 +1,11 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Search, 
-  Plus, 
-  Minus, 
-  Trash2, 
-  ShoppingCart, 
+import {
+  Search,
+  Plus,
+  Minus,
+  Trash2,
+  ShoppingCart,
   CheckCircle,
   LogOut,
   CreditCard,
@@ -23,13 +23,13 @@ import {
   Building2,
   Calculator,
   Volume2,
-  VolumeX
+  VolumeX,
+  Users
 } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
-import { Sidebar, SidebarBody, SidebarLink } from '@/components/ui/sidebar';
+import { SellerSidebar } from '@/components/seller/SellerSidebar';
 import { useAuthStore, useProductStore, useOrderStore } from '@/stores/sellerStore';
-import { sellerLinks } from '@/config/sellerLinks';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -84,10 +84,10 @@ interface ReceiptData {
 
 export function SellerPOS() {
   const navigate = useNavigate();
-  const { seller, logout } = useAuthStore();
+  const { seller } = useAuthStore();
   const { products, fetchProducts, loading } = useProductStore();
   const { addOfflineOrder, fetchOrders } = useOrderStore();
-  
+
   // Fetch seller's products when component mounts
   useEffect(() => {
     if (seller?.id) {
@@ -95,8 +95,7 @@ export function SellerPOS() {
       fetchProducts({ sellerId: seller.id });
     }
   }, [seller?.id, fetchProducts]);
-  
-  const [open, setOpen] = useState(false);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [filterTab, setFilterTab] = useState<'all' | 'low-stock' | 'best-sellers'>('all');
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -113,7 +112,7 @@ export function SellerPOS() {
   const [showReceipt, setShowReceipt] = useState(false);
   const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
   const receiptRef = useRef<HTMLDivElement>(null);
-  
+
   // POS Settings & Features
   const [posSettings, setPOSSettings] = useState<POSSettings | null>(null);
   const [currentStaff, setCurrentStaff] = useState<StaffMember | undefined>();
@@ -128,7 +127,7 @@ export function SellerPOS() {
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'ewallet' | 'bank_transfer'>('cash');
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [scannerPaused, setScannerPaused] = useState(false);
-  
+
   // Hardware Barcode Scanner Handler
   const handleHardwareScan = useCallback(async (barcode: string) => {
     // Only process hardware scans when:
@@ -136,28 +135,28 @@ export function SellerPOS() {
     // 2. Scanner is not paused (dialogs closed)
     // 3. Barcode scanner is enabled in settings
     // 4. Scanner type is USB or Bluetooth (hardware scanners)
-    const isHardwareScannerEnabled = posSettings?.enableBarcodeScanner && 
+    const isHardwareScannerEnabled = posSettings?.enableBarcodeScanner &&
       (posSettings?.scannerType === 'usb' || posSettings?.scannerType === 'bluetooth');
-    
+
     if (!seller?.id || scannerPaused || !isHardwareScannerEnabled) return;
-    
+
     console.log('[SellerPOS] Hardware scan detected:', barcode);
-    
+
     try {
       // Look up barcode in database
       const result = await lookupBarcodeQuick(seller.id, barcode);
-      
+
       if (result.isFound && result.id) {
         // Find the product in local products array
         const productId = result.productId || result.id;
         const product = products.find(p => p.id === productId);
-        
+
         if (product) {
           // Play success sound
           if (soundEnabled && posSettings?.enableSoundEffects !== false) {
             playBeepSound('success');
           }
-          
+
           // Add to cart
           if (posSettings?.autoAddOnScan !== false) {
             addToCart(product, false, undefined, undefined);
@@ -169,11 +168,11 @@ export function SellerPOS() {
           if (soundEnabled && posSettings?.enableSoundEffects !== false) {
             playBeepSound('success');
           }
-          
+
           // Create cart item from lookup result
           const variantKey = `${result.id}-direct-scan`;
           const existingItem = cart.find(item => item.variantKey === variantKey);
-          
+
           if (existingItem) {
             setCart(cart.map(item =>
               item.variantKey === variantKey
@@ -183,7 +182,7 @@ export function SellerPOS() {
           } else {
             setCart([...cart, {
               productId: result.id,
-              productName: result.variantName 
+              productName: result.variantName
                 ? `${result.name} (${result.variantName})`
                 : result.name || 'Unknown Product',
               quantity: 1,
@@ -210,7 +209,7 @@ export function SellerPOS() {
   }, [seller?.id, products, cart, posSettings, soundEnabled, scannerPaused]);
 
   // Initialize hardware barcode scanner
-  const { 
+  const {
     isActive: scannerActive,
     lastScan,
     lastScanTime,
@@ -227,8 +226,8 @@ export function SellerPOS() {
 
   // Pause scanner when dialogs are open
   useEffect(() => {
-    const dialogOpen = showProductDetails || showSuccess || showReceipt || 
-                       showStaffLogin || showCashDrawer || showBarcodeScanner || showPOSSettings;
+    const dialogOpen = showProductDetails || showSuccess || showReceipt ||
+      showStaffLogin || showCashDrawer || showBarcodeScanner || showPOSSettings;
     if (dialogOpen) {
       pauseScanner();
       setScannerPaused(true);
@@ -237,12 +236,12 @@ export function SellerPOS() {
       setScannerPaused(false);
     }
   }, [showProductDetails, showSuccess, showReceipt, showStaffLogin, showCashDrawer, showBarcodeScanner, showPOSSettings, pauseScanner, resumeScanner]);
-  
+
   // Load POS Settings
   useEffect(() => {
     async function loadPOSSettings() {
       if (!seller?.id) return;
-      
+
       try {
         // Try to load from database first
         const dbSettings = await getPOSSettings(seller.id);
@@ -253,21 +252,16 @@ export function SellerPOS() {
         console.error('[SellerPOS] Error loading POS settings:', error);
         // Settings will remain null, features will be disabled
       }
-      
+
       // Auto-select main branch if multi-branch is enabled
       const mainBranch = MOCK_BRANCHES.find(b => b.isMainBranch);
       if (mainBranch) {
         setCurrentBranch(mainBranch);
       }
     }
-    
+
     loadPOSSettings();
   }, [seller?.id]);
-
-  const handleLogout = () => {
-    logout();
-    navigate('/seller/auth');
-  };
 
   // Tax Calculation
   const calculateTax = (subtotal: number): { tax: number; total: number } => {
@@ -311,7 +305,7 @@ export function SellerPOS() {
         } else {
           showDetails(product);
         }
-        
+
         // Play success sound
         if (posSettings?.enableSoundEffects) {
           playBeepSound('success');
@@ -324,7 +318,7 @@ export function SellerPOS() {
       }
     } else {
       // Product not found - try searching by name in loaded products
-      const searchByName = products.find(p => 
+      const searchByName = products.find(p =>
         p.name.toLowerCase().includes(barcode.toLowerCase())
       );
 
@@ -353,7 +347,7 @@ export function SellerPOS() {
     if (seller?.id) {
       fetchProducts({ sellerId: seller.id });
     }
-    
+
     // Add to cart immediately
     const cartProduct = {
       id: product.id,
@@ -369,7 +363,7 @@ export function SellerPOS() {
   // Staff Management
   const handleStaffLogin = (staff: StaffMember) => {
     setCurrentStaff(staff);
-    
+
     // Auto-start cash drawer session if enabled
     if (posSettings?.enableCashDrawer && !cashDrawerSession) {
       setShowCashDrawer(true);
@@ -424,17 +418,17 @@ export function SellerPOS() {
   // Filter products based on search and filter tab
   const filteredProducts = useMemo(() => {
     let filtered = products;
-    
+
     // Apply search filter
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(product => 
+      filtered = filtered.filter(product =>
         product.name.toLowerCase().includes(query) ||
         product.id.toLowerCase().includes(query) ||
         product.category.toLowerCase().includes(query)
       );
     }
-    
+
     // Apply tab filter
     if (filterTab === 'low-stock') {
       filtered = filtered.filter(product => product.stock > 0 && product.stock < 10);
@@ -442,7 +436,7 @@ export function SellerPOS() {
       // Mock best sellers - in real app, this would be based on sales data
       filtered = filtered.filter(product => product.stock > 0);
     }
-    
+
     return filtered;
   }, [products, searchQuery, filterTab]);
 
@@ -472,13 +466,13 @@ export function SellerPOS() {
     // Create variant key for unique cart item identification
     const variantKey = `${product.id}-${color || 'default'}-${size || 'default'}`;
     const existingItem = cart.find(item => item.variantKey === variantKey);
-    
+
     if (existingItem) {
       // Check if we can add more
       if (existingItem.quantity >= product.stock) {
         return; // Cannot add more than available stock
       }
-      
+
       setCart(cart.map(item =>
         item.variantKey === variantKey
           ? { ...item, quantity: item.quantity + 1 }
@@ -542,16 +536,16 @@ export function SellerPOS() {
       setShowStaffLogin(true);
       return;
     }
-    
+
     setIsProcessing(true);
-    
+
     try {
       // Store cart data for receipt before clearing
       const receiptItems = [...cart];
       const subtotal = cartTotal;
       const { tax, total } = calculateTax(subtotal);
       const receiptNote = note;
-      
+
       // Save to Supabase using orderService
       const result = await orderMutationService.createPOSOrder({
         sellerId: seller.id,
@@ -577,10 +571,10 @@ export function SellerPOS() {
 
       // Also update local store for immediate UI update
       addOfflineOrder(cart, total, receiptNote);
-      
+
       // Update cash drawer session
       updateCashDrawerOnSale(total, paymentMethod);
-      
+
       // Set receipt data with professional format
       setReceiptData({
         orderId: result.orderId,
@@ -595,7 +589,7 @@ export function SellerPOS() {
         cashier: currentStaff?.name || seller.ownerName || 'Staff',
         paymentMethod
       });
-      
+
       // Show success
       setSuccessOrderId(result.orderNumber);
       setShowSuccess(true);
@@ -612,7 +606,7 @@ export function SellerPOS() {
       if (seller.id) {
         fetchOrders(seller.id);
       }
-      
+
       // Clear cart after 2 seconds
       setTimeout(() => {
         clearCart();
@@ -628,10 +622,10 @@ export function SellerPOS() {
   // Print receipt
   const printReceipt = () => {
     if (!receiptData) return;
-    
+
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
-    
+
     const formatDate = (date: Date) => {
       return date.toLocaleDateString('en-PH', {
         year: 'numeric',
@@ -673,7 +667,7 @@ export function SellerPOS() {
         <td colspan="2" style="padding: 0 0 8px 0; text-align: right; font-size: 11px;">₱${(item.price * item.quantity).toFixed(2)}</td>
       </tr>
     `).join('');
-    
+
     // Get BIR-related settings from posSettings or use defaults
     const businessName = posSettings?.businessName || receiptData.sellerName;
     const businessAddress = posSettings?.businessAddress || 'Business Address Not Set';
@@ -869,12 +863,11 @@ export function SellerPOS() {
             
             <!-- PAYMENT INFO -->
             <div class="center mt-1 mb-1">
-              <div class="bold">✓ PAID - ${
-                receiptData.paymentMethod === 'cash' ? 'CASH' :
-                receiptData.paymentMethod === 'card' ? 'CARD' :
-                receiptData.paymentMethod === 'ewallet' ? 'E-WALLET' :
-                receiptData.paymentMethod === 'bank_transfer' ? 'BANK TRANSFER' : 'CASH'
-              }</div>
+              <div class="bold">✓ PAID - ${receiptData.paymentMethod === 'cash' ? 'CASH' :
+        receiptData.paymentMethod === 'card' ? 'CARD' :
+          receiptData.paymentMethod === 'ewallet' ? 'E-WALLET' :
+            receiptData.paymentMethod === 'bank_transfer' ? 'BANK TRANSFER' : 'CASH'
+      }</div>
             </div>
             
             ${receiptData.note ? `
@@ -934,85 +927,22 @@ export function SellerPOS() {
   };
 
   // Get stock badge
-  const Logo = () => (
-    <Link
-      to="/seller"
-      className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20"
-    >
-      <img 
-        src="/Logo.png" 
-        alt="BazaarPH Logo" 
-        className="h-8 w-8 object-contain flex-shrink-0"
-      />
-      <motion.span
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        className="font-semibold text-gray-900 dark:text-white whitespace-pre"
-      >
-        BazaarPH Seller
-      </motion.span>
-    </Link>
-  );
 
-  const LogoIcon = () => (
-    <Link
-      to="/seller"
-      className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20"
-    >
-      <img 
-        src="/Logo.png" 
-        alt="BazaarPH Logo" 
-        className="h-8 w-8 object-contain flex-shrink-0"
-      />
-    </Link>
-  );
 
   return (
-    <div className="h-screen w-full flex flex-col md:flex-row bg-gray-50 overflow-hidden font-['Inter',sans-serif]">
-      {/* Sidebar */}
-      <Sidebar open={open} setOpen={setOpen}>
-        <SidebarBody className="justify-between gap-10">
-          <div className="flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-            {open ? <Logo /> : <LogoIcon />}
-            <div className="mt-8 flex flex-col gap-2">
-              {sellerLinks.map((link, idx) => (
-                <SidebarLink key={idx} link={link} />
-              ))}
-            </div>
-          </div>
-          <div className="space-y-2">
-            <SidebarLink
-              link={{
-                label: seller?.name || "Seller",
-                href: "/seller/settings",
-                icon: <img 
-                  src={seller?.avatar || "https://api.dicebear.com/7.x/avataaars/svg?seed=Seller"} 
-                  className="h-7 w-7 flex-shrink-0 rounded-full"
-                  alt="Avatar"
-                />
-              }}
-            />
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-2 w-full px-2 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-            >
-              <LogOut className="h-5 w-5 flex-shrink-0" />
-              {open && <span>Logout</span>}
-            </button>
-          </div>
-        </SidebarBody>
-      </Sidebar>
+    <div className="h-screen w-full flex flex-col md:flex-row bg-[var(--brand-wash)] overflow-hidden font-sans">
+      <SellerSidebar />
 
       {/* Main Content - Split View */}
       <div className="flex-1 flex overflow-hidden h-[calc(100vh-theme(spacing.0))]">
         {/* Left Panel: Product Catalog */}
-        <div className="w-full lg:w-[65%] flex flex-col bg-muted/30 overflow-hidden">
+        <div className="w-full lg:w-[65%] flex flex-col bg-[var(--brand-wash)] overflow-hidden">
           {/* Header with Search and Filters */}
-          <div className="px-6 py-5 bg-white border-b border-gray-200 flex-shrink-0">
+          <div className="px-6 py-5 bg-white/80 backdrop-blur-sm border-b border-orange-100 flex-shrink-0">
             <div className="mb-4 flex items-center justify-between">
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">POS Lite</h1>
-                <p className="text-sm text-muted-foreground mt-0.5">Quick checkout for offline sales</p>
+                <h1 className="text-2xl font-black text-[var(--text-headline)] font-heading tracking-tight">POS Lite</h1>
+                <p className="text-sm text-[var(--text-secondary)] mt-0.5 font-medium">Quick checkout for offline sales</p>
               </div>
               <div className="flex items-center gap-2">
                 <Button
@@ -1052,8 +982,8 @@ export function SellerPOS() {
                 {/* Cash Drawer Status */}
                 {posSettings?.enableCashDrawer && (
                   <div>
-                    <CashDrawerBadge 
-                      session={cashDrawerSession} 
+                    <CashDrawerBadge
+                      session={cashDrawerSession}
                       onClick={() => setShowCashDrawer(true)}
                     />
                   </div>
@@ -1084,8 +1014,8 @@ export function SellerPOS() {
                         scannerActive && !scannerPaused ? "bg-green-500 animate-pulse" : "bg-gray-400"
                       )} />
                       <span className="text-sm text-gray-600">
-                        {scannerActive && !scannerPaused 
-                          ? 'USB Scanner Ready' 
+                        {scannerActive && !scannerPaused
+                          ? 'USB Scanner Ready'
                           : 'USB Scanner Paused'}
                       </span>
                     </>
@@ -1097,8 +1027,8 @@ export function SellerPOS() {
                         scannerActive && !scannerPaused ? "bg-blue-500 animate-pulse" : "bg-gray-400"
                       )} />
                       <span className="text-sm text-gray-600">
-                        {scannerActive && !scannerPaused 
-                          ? 'Bluetooth Scanner Ready' 
+                        {scannerActive && !scannerPaused
+                          ? 'Bluetooth Scanner Ready'
                           : 'Bluetooth Scanner Paused'}
                       </span>
                     </>
@@ -1137,7 +1067,7 @@ export function SellerPOS() {
                 </Button>
               </div>
             )}
-            
+
             {/* Search Bar */}
             <div className="relative mb-4">
               <div className="flex gap-2">
@@ -1163,23 +1093,23 @@ export function SellerPOS() {
 
             {/* Quick Filter Pills */}
             <Tabs value={filterTab} onValueChange={(v) => setFilterTab(v as any)} className="w-full">
-              <TabsList className="grid w-full grid-cols-3 h-9 bg-gray-100">
-                <TabsTrigger 
-                  value="all" 
-                  className="text-xs data-[state=active]:bg-[#FF5722] data-[state=active]:text-white"
+              <TabsList className="grid w-full grid-cols-3 h-10 bg-gray-100/50 p-1 rounded-xl">
+                <TabsTrigger
+                  value="all"
+                  className="text-xs rounded-lg data-[state=active]:bg-white data-[state=active]:text-[var(--brand-primary)] data-[state=active]:shadow-sm font-bold transition-all"
                 >
                   All Items
                 </TabsTrigger>
-                <TabsTrigger 
-                  value="low-stock" 
-                  className="text-xs data-[state=active]:bg-[#FF5722] data-[state=active]:text-white"
+                <TabsTrigger
+                  value="low-stock"
+                  className="text-xs rounded-lg data-[state=active]:bg-white data-[state=active]:text-[var(--brand-primary)] data-[state=active]:shadow-sm font-bold transition-all"
                 >
                   <AlertCircle className="h-3 w-3 mr-1" />
                   Low Stock
                 </TabsTrigger>
-                <TabsTrigger 
-                  value="best-sellers" 
-                  className="text-xs data-[state=active]:bg-[#FF5722] data-[state=active]:text-white"
+                <TabsTrigger
+                  value="best-sellers"
+                  className="text-xs rounded-lg data-[state=active]:bg-white data-[state=active]:text-[var(--brand-primary)] data-[state=active]:shadow-sm font-bold transition-all"
                 >
                   <TrendingUp className="h-3 w-3 mr-1" />
                   Best Sellers
@@ -1196,7 +1126,7 @@ export function SellerPOS() {
                 const cartItem = cart.find(item => item.productId === product.id);
                 const remainingStock = product.stock - (cartItem?.quantity || 0);
                 const isFlashing = flashingProduct === product.id;
-                
+
                 return (
                   <motion.div
                     key={product.id}
@@ -1205,9 +1135,9 @@ export function SellerPOS() {
                   >
                     <Card
                       className={cn(
-                        "overflow-hidden transition-all duration-200 shadow-sm hover:shadow-md bg-white cursor-pointer",
+                        "overflow-hidden transition-all duration-300 shadow-sm hover:shadow-xl hover:-translate-y-1 bg-white cursor-pointer rounded-[24px] border-orange-100/50 hover:border-orange-200",
                         isOutOfStock && "opacity-50 grayscale cursor-not-allowed",
-                        isFlashing && "ring-2 ring-[#FF5722] ring-offset-2"
+                        isFlashing && "ring-4 ring-[#FF5722]/30 ring-offset-2"
                       )}
                       onClick={() => !isOutOfStock && showDetails(product)}
                     >
@@ -1218,7 +1148,7 @@ export function SellerPOS() {
                           alt={product.name}
                           className="w-full h-full object-cover"
                         />
-                        
+
                         {/* Stock Badge - Glassmorphism Overlay */}
                         <div className="absolute top-2 right-2">
                           {remainingStock === 0 ? (
@@ -1235,7 +1165,7 @@ export function SellerPOS() {
                             </Badge>
                           )}
                         </div>
-                        
+
                         {/* Cart Quantity Badge - Top Left */}
                         {cartItem && (
                           <motion.div
@@ -1246,7 +1176,7 @@ export function SellerPOS() {
                             ×{cartItem.quantity}
                           </motion.div>
                         )}
-                        
+
                         {/* Hover Add Indicator */}
                         {!isOutOfStock && !cartItem && (
                           <div className="absolute inset-0 bg-[#FF5722]/0 group-hover:bg-[#FF5722]/10 transition-all duration-200 flex items-center justify-center">
@@ -1261,12 +1191,12 @@ export function SellerPOS() {
                         <h3 className="font-semibold text-sm line-clamp-2 text-gray-900 min-h-[2.5rem] leading-tight" title={product.name}>
                           {product.name}
                         </h3>
-                        
+
                         {/* Category Badge */}
                         <Badge variant="outline" className="text-[10px] font-medium px-1.5 py-0 h-5 border-gray-300">
                           {product.category}
                         </Badge>
-                        
+
                         {/* Product Details Grid */}
                         <div className="grid grid-cols-2 gap-1.5 text-[11px] text-muted-foreground pt-1">
                           {/* SKU */}
@@ -1274,41 +1204,41 @@ export function SellerPOS() {
                             <Hash className="h-3 w-3 text-gray-400" />
                             <span className="font-mono truncate">{product.id.slice(-8)}</span>
                           </div>
-                          
+
                           {/* Stock Count */}
                           <div className="flex items-center gap-1 justify-end">
                             <Package className="h-3 w-3 text-gray-400" />
                             <span className={cn(
                               "font-semibold",
-                              remainingStock === 0 ? "text-red-600" : 
-                              remainingStock < 10 ? "text-orange-600" : 
-                              "text-green-600"
+                              remainingStock === 0 ? "text-red-600" :
+                                remainingStock < 10 ? "text-orange-600" :
+                                  "text-green-600"
                             )}>
                               {remainingStock} in stock
                             </span>
                           </div>
-                          
+
                           {/* Sales */}
                           <div className="flex items-center gap-1">
                             <TrendingUp className="h-3 w-3 text-gray-400" />
                             <span>{product.sales || 0} sold</span>
                           </div>
-                          
+
                           {/* Rating */}
                           <div className="flex items-center gap-1 justify-end">
                             <Star className="h-3 w-3 text-yellow-500 fill-yellow-500" />
                             <span>{product.rating ? product.rating.toFixed(1) : '0.0'} ({product.reviews || 0})</span>
                           </div>
                         </div>
-                        
+
                         {/* Price - Prominent */}
                         <div className="flex items-center justify-between pt-1 border-t border-gray-100">
                           <span className="text-lg font-bold text-[#FF5722]">
                             ₱{product.price.toLocaleString()}
                           </span>
                           {!isOutOfStock && (
-                            <Button 
-                              size="sm" 
+                            <Button
+                              size="sm"
                               className="h-7 px-3 bg-[#FF5722] hover:bg-[#F4511E] text-white text-xs"
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -1344,9 +1274,9 @@ export function SellerPOS() {
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-gray-900">Current Sale</h2>
               {cart.length > 0 && (
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={clearCart}
                   className="text-red-500 hover:text-red-600 hover:bg-red-50 h-8 px-3"
                 >
@@ -1415,7 +1345,7 @@ export function SellerPOS() {
                           <p className="text-xs text-gray-500 mt-0.5">
                             ₱{item.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} each
                           </p>
-                          
+
                           {/* Quantity Controls - Unified Pill */}
                           <div className="flex items-center gap-1.5 mt-2">
                             <div className="flex items-center border border-gray-300 rounded-full overflow-hidden">
@@ -1428,11 +1358,11 @@ export function SellerPOS() {
                               >
                                 <Minus className="h-3 w-3 text-gray-600" />
                               </button>
-                              
+
                               <span className="text-xs font-bold w-8 text-center text-gray-900">
                                 {item.quantity}
                               </span>
-                              
+
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -1517,7 +1447,7 @@ export function SellerPOS() {
                     ₱{calculateTax(cartTotal).tax.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
                 </div>
-                
+
                 {/* Total - Massive */}
                 <div className="flex items-center justify-between pt-3 border-t border-gray-200">
                   <span className="text-lg font-bold text-gray-900">Total</span>
@@ -1583,7 +1513,7 @@ export function SellerPOS() {
                 <Button
                   onClick={completeSale}
                   disabled={isProcessing}
-                  className="w-full h-14 text-base font-bold bg-[#FF5722] hover:bg-[#E64A19] text-white shadow-lg hover:shadow-xl transition-all"
+                  className="w-full h-14 text-base font-bold bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-dark)] hover:shadow-lg hover:shadow-orange-500/30 text-white rounded-2xl transition-all transform active:scale-95"
                 >
                   {isProcessing ? (
                     <>Processing...</>
@@ -1611,7 +1541,7 @@ export function SellerPOS() {
                   Product Details
                 </DialogTitle>
               </DialogHeader>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
                 {/* Product Images */}
                 <div className="space-y-3">
@@ -1622,7 +1552,7 @@ export function SellerPOS() {
                       className="w-full h-full object-cover"
                     />
                   </div>
-                  
+
                   {/* Thumbnail Gallery */}
                   {selectedProduct.images.length > 1 && (
                     <div className="grid grid-cols-4 gap-2">
@@ -1652,12 +1582,12 @@ export function SellerPOS() {
                     <Badge variant="outline" className="text-sm font-medium">
                       {selectedProduct.category}
                     </Badge>
-                    <Badge 
+                    <Badge
                       className={cn(
                         "text-sm font-medium",
                         selectedProduct.approvalStatus === 'approved' ? "bg-green-500" :
-                        selectedProduct.approvalStatus === 'pending' ? "bg-yellow-500" :
-                        "bg-red-500"
+                          selectedProduct.approvalStatus === 'pending' ? "bg-yellow-500" :
+                            "bg-red-500"
                       )}
                     >
                       {selectedProduct.approvalStatus}
@@ -1674,8 +1604,8 @@ export function SellerPOS() {
                       <div className={cn(
                         "text-2xl font-bold",
                         selectedProduct.stock === 0 ? "text-red-600" :
-                        selectedProduct.stock < 10 ? "text-orange-600" :
-                        "text-green-600"
+                          selectedProduct.stock < 10 ? "text-orange-600" :
+                            "text-green-600"
                       )}>
                         {selectedProduct.stock}
                       </div>
@@ -1764,7 +1694,7 @@ export function SellerPOS() {
                       <span className="text-muted-foreground font-medium">Product ID</span>
                       <span className="font-mono text-gray-900">{selectedProduct.id}</span>
                     </div>
-                    
+
                     {selectedProduct.description && (
                       <div className="py-2">
                         <span className="text-muted-foreground font-medium block mb-2">Description</span>
@@ -1823,7 +1753,7 @@ export function SellerPOS() {
               Order saved to database and inventory updated
             </DialogDescription>
           </DialogHeader>
-          
+
           {/* Receipt Preview */}
           <div ref={receiptRef} className="bg-gradient-to-b from-orange-50 to-white border border-orange-200 rounded-lg overflow-hidden mt-2">
             {/* Header */}
@@ -1831,13 +1761,13 @@ export function SellerPOS() {
               <div className="text-lg font-bold">🛒 BazaarPH</div>
               <div className="text-xs opacity-90">{receiptData?.sellerName || 'Store'}</div>
             </div>
-            
+
             {/* Order Info */}
             <div className="p-4">
               <div className="flex justify-between text-xs text-gray-600 mb-3">
                 <div>
                   <div className="font-medium text-gray-800">Receipt #{receiptData?.orderNumber}</div>
-                  <div>{receiptData?.date.toLocaleDateString('en-PH', { 
+                  <div>{receiptData?.date.toLocaleDateString('en-PH', {
                     month: 'short', day: 'numeric', year: 'numeric',
                     hour: '2-digit', minute: '2-digit'
                   })}</div>
@@ -1847,7 +1777,7 @@ export function SellerPOS() {
                   <div>Customer: Walk-in</div>
                 </div>
               </div>
-              
+
               {/* Items */}
               <div className="border-t border-b border-dashed border-gray-300 py-2 my-2">
                 {receiptData?.items.map((item, idx) => (
@@ -1869,7 +1799,7 @@ export function SellerPOS() {
                   </div>
                 ))}
               </div>
-              
+
               {/* Totals */}
               <div className="space-y-1 text-sm">
                 {posSettings?.enableTax && posSettings?.taxIncludedInPrice ? (
@@ -1908,33 +1838,33 @@ export function SellerPOS() {
                   <span>₱{(receiptData?.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
               </div>
-              
+
               {receiptData?.note && (
                 <div className="text-xs text-gray-600 mt-3 p-2 bg-orange-50 rounded border-l-2 border-orange-400">
                   <span className="font-medium">Note:</span> {receiptData.note}
                 </div>
               )}
-              
+
               {/* Payment Badge */}
               <div className="text-center mt-3">
                 <Badge className="bg-green-500 text-white">
                   ✓ PAID - {
                     receiptData?.paymentMethod === 'cash' ? 'CASH' :
-                    receiptData?.paymentMethod === 'card' ? 'CARD' :
-                    receiptData?.paymentMethod === 'ewallet' ? 'E-WALLET' :
-                    receiptData?.paymentMethod === 'bank_transfer' ? 'BANK TRANSFER' : 'CASH'
+                      receiptData?.paymentMethod === 'card' ? 'CARD' :
+                        receiptData?.paymentMethod === 'ewallet' ? 'E-WALLET' :
+                          receiptData?.paymentMethod === 'bank_transfer' ? 'BANK TRANSFER' : 'CASH'
                   }
                 </Badge>
               </div>
             </div>
-            
+
             {/* Footer */}
             <div className="bg-gray-50 px-4 py-3 text-center border-t">
               <div className="text-xs text-gray-600">Thank you for shopping! 🧡</div>
               <div className="text-[10px] text-gray-400 mt-1">Powered by BazaarPH POS</div>
             </div>
           </div>
-          
+
           <div className="flex gap-2 mt-4">
             <Button
               onClick={printReceipt}
@@ -2017,3 +1947,4 @@ export function SellerPOS() {
 }
 
 export default SellerPOS;
+

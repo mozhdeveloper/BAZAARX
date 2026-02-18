@@ -288,7 +288,7 @@ export function SellerOnboarding() {
   // Show verification loading
   if (isVerifying) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-orange-50 to-orange-100 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-[var(--brand-wash)] flex items-center justify-center p-4">
         <div className="w-full max-w-md">
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
@@ -351,7 +351,7 @@ export function SellerOnboarding() {
   // Show verification complete - application submitted
   if (verificationComplete) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-orange-50 to-orange-100 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-[var(--brand-wash)] flex items-center justify-center p-4">
         <div className="w-full max-w-md">
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
@@ -391,14 +391,14 @@ export function SellerOnboarding() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-orange-50 py-12 px-4">
-      <div className="max-w-4xl mx-auto">
+    <div className="min-h-screen bg-[var(--brand-wash)] py-12 px-4 font-sans flex items-center justify-center">
+      <div className="max-w-4xl mx-auto w-full">
         {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">
+        <div className="text-center mb-10">
+          <h1 className="text-4xl font-black text-[var(--text-headline)] mb-3 font-heading tracking-tight">
             Complete Your Store Profile
           </h1>
-          <p className="text-gray-600">
+          <p className="text-[var(--text-secondary)] font-medium text-lg">
             Tell us more about your business to start selling
           </p>
         </div>
@@ -415,10 +415,10 @@ export function SellerOnboarding() {
         </div>
 
         {/* Progress Steps */}
-        <div className="flex justify-between items-center mb-12 relative">
-          <div className="absolute top-5 left-0 right-0 h-0.5 bg-gray-200 -z-10">
+        <div className="flex justify-between items-center mb-12 relative px-4">
+          <div className="absolute top-5 left-4 right-4 h-1 bg-gray-100 -z-10 rounded-full">
             <div
-              className="h-full bg-[#FF6A00] transition-all duration-500"
+              className="h-full bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-dark)] transition-all duration-500 rounded-full shadow-lg shadow-orange-500/20"
               style={{
                 width: `${((currentStep - 1) / (steps.length - 1)) * 100}%`,
               }}
@@ -430,23 +430,23 @@ export function SellerOnboarding() {
             const isCurrent = currentStep === step.number;
 
             return (
-              <div key={step.number} className="flex flex-col items-center">
+              <div key={step.number} className="flex flex-col items-center group cursor-default">
                 <div
-                  className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 ${isCompleted
-                    ? "bg-[#FF6A00] text-white"
+                  className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 font-bold shadow-sm ${isCompleted
+                    ? "bg-[var(--brand-primary)] text-white shadow-lg shadow-orange-500/20 scale-100"
                     : isCurrent
-                      ? "bg-[#FF6A00] text-white ring-4 ring-orange-100"
-                      : "bg-white border-2 border-gray-300 text-gray-400"
+                      ? "bg-[var(--brand-primary)] text-white ring-4 ring-orange-100 shadow-xl shadow-orange-500/30 scale-110"
+                      : "bg-white border-2 border-gray-100 text-gray-300"
                     }`}
                 >
                   {isCompleted ? (
-                    <CheckCircle className="w-5 h-5" />
+                    <CheckCircle className="w-6 h-6" />
                   ) : (
                     <Icon className="w-5 h-5" />
                   )}
                 </div>
                 <p
-                  className={`mt-2 text-xs font-medium ${isCurrent ? "text-[#FF6A00]" : "text-gray-500"}`}
+                  className={`mt-3 text-xs font-bold uppercase tracking-wider transition-colors ${isCurrent ? "text-[var(--brand-primary)]" : "text-[var(--text-muted)]"}`}
                 >
                   {step.title}
                 </p>
@@ -456,7 +456,7 @@ export function SellerOnboarding() {
         </div>
 
         {/* Form */}
-        <div className="bg-white rounded-2xl shadow-xl p-8">
+        <div className="bg-white rounded-[32px] shadow-[0_8px_30px_rgba(0,0,0,0.04)] p-8 lg:p-10 border border-transparent">
           <form onSubmit={handleSubmit}>
             <AnimatePresence mode="wait">
               {/* Step 1: Personal Info */}
@@ -469,7 +469,7 @@ export function SellerOnboarding() {
                   className="space-y-6"
                 >
                   <div>
-                    <h3 className="text-2xl font-bold text-gray-900 mb-6">
+                    <h3 className="text-2xl font-black text-[var(--text-headline)] mb-8 font-heading">
                       Personal Information
                     </h3>
 
