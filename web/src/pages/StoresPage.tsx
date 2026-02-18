@@ -453,7 +453,7 @@ const StoresPage: React.FC = () => {
               Join thousands of Filipino entrepreneurs selling on BazaarX. It's free to start and easy to manage.
             </p>
             <button
-              onClick={() => navigate('/seller/register')}
+              onClick={() => navigate('/seller/auth')}
               className="group bg-white pl-5 pr-1.5 py-1.5 rounded-full shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 flex items-center gap-2 mx-auto"
             >
               <span className="bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-dark)] bg-clip-text text-transparent font-semibold text-base pl-2">

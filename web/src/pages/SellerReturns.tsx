@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   ArrowLeft,
@@ -9,18 +9,17 @@ import {
   Search,
   Filter,
   Eye,
-  LogOut,
-  RotateCcw
+  RotateCcw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Sidebar, SidebarBody, SidebarLink } from '@/components/ui/sidebar';
+import { SellerSidebar } from '@/components/seller/SellerSidebar';
 import { useAuthStore } from '@/stores/sellerStore';
 import { useSellerReturnStore, SellerReturnRequest } from '@/stores/sellerReturnStore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { sellerLinks } from '@/config/sellerLinks';
+
 import {
   Table,
   TableBody,
@@ -38,31 +37,9 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 
-const Logo = () => (
-  <Link to="/seller" className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20">
-    <img
-      src="/Logo.png"
-      alt="BazaarPH Logo"
-      className="h-8 w-8 object-contain flex-shrink-0"
-    />
-    <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="font-semibold text-gray-900 whitespace-pre">
-      BazaarPH Seller
-    </motion.span>
-  </Link>
-);
 
-const LogoIcon = () => (
-  <Link to="/seller" className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20">
-    <img
-      src="/Logo.png"
-      alt="BazaarPH Logo"
-      className="h-8 w-8 object-contain flex-shrink-0"
-    />
-  </Link>
-);
 
 export function SellerReturns() {
-  const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
   const [selectedRequest, setSelectedRequest] = useState<SellerReturnRequest | null>(null);
@@ -71,10 +48,7 @@ export function SellerReturns() {
   const { requests, approveRequest, rejectRequest } = useSellerReturnStore();
   const navigate = useNavigate();
 
-  const handleLogout = () => {
-    logout();
-    navigate('/seller/auth');
-  };
+
 
   const filteredRequests = requests.filter(req => {
     const matchesSearch =
@@ -115,94 +89,67 @@ export function SellerReturns() {
   };
 
   return (
-    <div className="h-screen w-full flex flex-col md:flex-row bg-gray-50 overflow-hidden">
-      <Sidebar open={open} setOpen={setOpen}>
-        <SidebarBody className="justify-between gap-10">
-          <div className="flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-            {open ? <Logo /> : <LogoIcon />}
-            <div className="mt-8 flex flex-col gap-2">
-              {sellerLinks.map((link, idx) => (
-                <SidebarLink key={idx} link={link} />
-              ))}
-            </div>
-          </div>
-          <div className="space-y-2">
-            <SidebarLink
-              link={{
-                label: seller?.name || "Seller",
-                href: "/seller/profile",
-                icon: (
-                  <div className="h-7 w-7 flex-shrink-0 rounded-full bg-orange-500 flex items-center justify-center">
-                    <span className="text-white text-xs font-medium">
-                      {seller?.name?.charAt(0) || 'S'}
-                    </span>
-                  </div>
-                ),
-              }}
-            />
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-2 w-full px-2 py-2 text-sm text-gray-700 hover:text-orange-500 hover:bg-orange-50 rounded-md transition-colors"
-            >
-              <LogOut className="h-5 w-5 flex-shrink-0" />
-              {open && <span>Logout</span>}
-            </button>
-          </div>
-        </SidebarBody>
-      </Sidebar>
+    <div className="h-screen w-full flex flex-col md:flex-row bg-[var(--brand-wash)] overflow-hidden font-sans">
+      <SellerSidebar />
 
-      <div className="flex flex-1 w-full overflow-hidden">
-        <div className="p-2 md:p-8 bg-gray-50 flex-1 w-full h-full overflow-auto">
-          <div className="max-w-7xl mx-auto flex flex-col gap-6">
+      <div className="flex-1 flex flex-col overflow-hidden relative">
+        <div className="absolute top-0 left-0 w-full h-full pointer-events-none z-0">
+          <div className="absolute top-[-10%] right-[-10%] w-[50vw] h-[50vw] bg-orange-100/40 rounded-full blur-[120px]" />
+          <div className="absolute bottom-[-10%] left-[-10%] w-[40vw] h-[40vw] bg-yellow-100/40 rounded-full blur-[100px]" />
+        </div>
+
+        <div className="p-2 md:p-8 flex-1 w-full h-full overflow-auto relative z-10 scrollbar-hide">
+          <div className="max-w-7xl mx-auto space-y-8">
             {/* Header */}
             <div className="flex items-center justify-between">
-              <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
+              <h1 className="text-3xl font-black text-[var(--text-headline)] font-heading tracking-tight flex items-center gap-2">
                 <div>
                   Returns & Refunds
-                  <p className="text-sm text-gray-500 mt-1 font-normal">Manage your return requests and refunds</p>
+                  <p className="text-sm text-[var(--text-secondary)] mt-1 font-medium">Manage your return requests and refunds</p>
                 </div>
               </h1>
               <div className="flex gap-2">
                 <Button
-                  variant={statusFilter === 'all' ? 'default' : 'outline'}
+                  variant={statusFilter === 'all' ? 'default' : 'ghost'}
                   onClick={() => setStatusFilter('all')}
                   size="sm"
+                  className={cn("rounded-full font-bold", statusFilter === 'all' ? "bg-[var(--brand-primary)] text-white hover:bg-[var(--brand-primary-dark)]" : "text-gray-600 hover:bg-gray-100")}
                 >
-                  All
+                  All Returns
                 </Button>
                 <Button
-                  variant={statusFilter === 'pending' ? 'default' : 'outline'}
+                  variant={statusFilter === 'pending' ? 'default' : 'ghost'}
                   onClick={() => setStatusFilter('pending')}
                   size="sm"
-                  className={statusFilter === 'pending' ? 'bg-yellow-500 hover:bg-yellow-600' : ''}
+                  className={cn("rounded-full font-bold", statusFilter === 'pending' ? "bg-amber-500 hover:bg-amber-600 text-white" : "text-gray-600 hover:bg-gray-100")}
                 >
                   Pending
                 </Button>
                 <Button
-                  variant={statusFilter === 'approved' ? 'default' : 'outline'}
+                  variant={statusFilter === 'approved' ? 'default' : 'ghost'}
                   onClick={() => setStatusFilter('approved')}
                   size="sm"
-                  className={statusFilter === 'approved' ? 'bg-green-600 hover:bg-green-700' : ''}
+                  className={cn("rounded-full font-bold", statusFilter === 'approved' ? "bg-green-600 hover:bg-green-700 text-white" : "text-gray-600 hover:bg-gray-100")}
                 >
                   Approved
                 </Button>
               </div>
             </div>
 
-            <div className="">
-              <div className="mb-6 flex gap-4">
-                <div className="relative flex-1 max-w-md">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <div className="space-y-6">
+              <div className="flex lg:flex-row flex-col gap-4">
+                <div className="relative flex-1 group">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-[var(--brand-primary)] transition-colors" />
                   <Input
-                    className="pl-9"
-                    placeholder="Search order ID, buyer name..."
+                    className="pl-12 py-6 rounded-2xl border-orange-100 bg-white shadow-sm focus:ring-[var(--brand-primary)] focus:border-[var(--brand-primary)] transition-all font-medium"
+                    placeholder="Search by Order ID, Buyer Name, or Item..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
                 </div>
               </div>
 
-              <Card>
+              <Card className="border-orange-100 shadow-[0_8px_30px_rgba(0,0,0,0.04)] rounded-xl bg-white overflow-hidden">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -313,3 +260,4 @@ export function SellerReturns() {
     </div>
   );
 }
+

@@ -14,31 +14,15 @@ import {
     Send,
     MessageSquare
 } from 'lucide-react';
-import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
-import { sellerLinks } from "@/config/sellerLinks";
+import { SellerSidebar } from "@/components/seller/SellerSidebar";
 import { Badge } from "../components/ui/badge";
 import { useSupportStore, type TicketStatus, type SupportTicket } from '../stores/supportStore';
 import { useAuthStore } from '@/stores/sellerStore';
 
-// Logo components for sidebar
-const Logo = () => (
-  <div className="font-bold flex items-center text-sm text-black py-1 relative z-20">
-    <div className="h-6 w-8 bg-orange-500 rounded-lg text-white flex items-center justify-center text-xs font-black mr-2">
-      BX
-    </div>
-    BazaarX Seller
-  </div>
-);
 
-const LogoIcon = () => (
-  <div className="h-6 w-8 bg-orange-500 rounded-lg text-white flex items-center justify-center text-xs font-black">
-    BX
-  </div>
-);
 
 export default function SellerMyTickets() {
     const navigate = useNavigate();
-    const [open, setOpen] = useState(false);
     const [activeTab, setActiveTab] = useState<'All' | TicketStatus>('All');
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedTicket, setSelectedTicket] = useState<SupportTicket | null>(null);
@@ -62,7 +46,7 @@ export default function SellerMyTickets() {
 
     const handleSendReply = async () => {
         if (!replyText.trim() || !selectedTicket || !seller?.id) return;
-        
+
         await addTicketReply(selectedTicket.dbId || selectedTicket.id, {
             senderId: seller.id,
             senderName: seller.storeName || seller.ownerName || 'Seller',
@@ -102,34 +86,7 @@ export default function SellerMyTickets() {
 
     return (
         <div className="h-screen w-full flex flex-col md:flex-row bg-gray-50 overflow-hidden font-[family-name:var(--font-sans)]">
-            {/* Sidebar */}
-            <Sidebar open={open} setOpen={setOpen}>
-                <SidebarBody className="justify-between gap-10">
-                    <div className="flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-                        {open ? <Logo /> : <LogoIcon />}
-                        <div className="mt-8 flex flex-col gap-2">
-                            {sellerLinks.map((link, idx) => (
-                                <SidebarLink key={idx} link={link} />
-                            ))}
-                        </div>
-                    </div>
-                    <div className="space-y-2">
-                        <SidebarLink
-                            link={{
-                                label: seller?.storeName || seller?.ownerName || seller?.name || "Seller",
-                                href: "/seller/profile",
-                                icon: (
-                                    <div className="h-7 w-7 flex-shrink-0 rounded-full bg-orange-500 flex items-center justify-center">
-                                        <span className="text-white text-xs font-medium">
-                                            {(seller?.storeName || seller?.ownerName || seller?.name || "S").charAt(0)}
-                                        </span>
-                                    </div>
-                                ),
-                            }}
-                        />
-                    </div>
-                </SidebarBody>
-            </Sidebar>
+            <SellerSidebar />
 
             {/* Main Content */}
             <main className="flex-1 overflow-auto">
@@ -208,16 +165,14 @@ export default function SellerMyTickets() {
                                                     animate={{ opacity: 1, y: 0 }}
                                                     exit={{ opacity: 0, scale: 0.98 }}
                                                     transition={{ duration: 0.2, delay: index * 0.03 }}
-                                                    className={`p-4 hover:bg-gray-50 transition-all group flex items-center gap-4 cursor-pointer ${
-                                                        selectedTicket?.id === ticket.id ? 'bg-orange-50' : ''
-                                                    }`}
+                                                    className={`p-4 hover:bg-gray-50 transition-all group flex items-center gap-4 cursor-pointer ${selectedTicket?.id === ticket.id ? 'bg-orange-50' : ''
+                                                        }`}
                                                     onClick={() => setSelectedTicket(ticket)}
                                                 >
-                                                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors ${
-                                                        selectedTicket?.id === ticket.id 
-                                                            ? 'bg-orange-500 text-white' 
+                                                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors ${selectedTicket?.id === ticket.id
+                                                            ? 'bg-orange-500 text-white'
                                                             : 'bg-orange-50 text-orange-500 group-hover:bg-orange-500 group-hover:text-white'
-                                                    }`}>
+                                                        }`}>
                                                         <Ticket size={20} />
                                                     </div>
 
@@ -319,11 +274,10 @@ export default function SellerMyTickets() {
                                                         {selectedTicket.replies.map((reply) => (
                                                             <div
                                                                 key={reply.id}
-                                                                className={`p-3 rounded-lg text-sm ${
-                                                                    reply.senderType === 'admin'
+                                                                className={`p-3 rounded-lg text-sm ${reply.senderType === 'admin'
                                                                         ? 'bg-blue-50 border border-blue-100'
                                                                         : 'bg-gray-50 border border-gray-100'
-                                                                }`}
+                                                                    }`}
                                                             >
                                                                 <p className="text-[10px] font-bold text-gray-500 mb-1">
                                                                     {reply.senderType === 'admin' ? '👨‍💼 Support' : '🏪 You'}

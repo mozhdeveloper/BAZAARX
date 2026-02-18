@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   Plus,
@@ -13,16 +13,14 @@ import {
   TrendingUp,
   Calendar,
   Percent,
-  LogOut,
   Zap,
   ShoppingBag,
   Eye,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
+import { SellerSidebar } from "@/components/seller/SellerSidebar";
 import { useAuthStore } from "@/stores/sellerStore";
-import { sellerLinks } from "@/config/sellerLinks";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -59,38 +57,7 @@ import {
   campaignStatusColors as statusColors,
 } from "@/types/discount";
 
-const Logo = () => (
-  <Link
-    to="/seller"
-    className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20"
-  >
-    <img
-      src="/Logo.png"
-      alt="BazaarPH Logo"
-      className="h-8 w-8 object-contain flex-shrink-0"
-    />
-    <motion.span
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="font-semibold text-gray-900 whitespace-pre"
-    >
-      BazaarPH Seller
-    </motion.span>
-  </Link>
-);
 
-const LogoIcon = () => (
-  <Link
-    to="/seller"
-    className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20"
-  >
-    <img
-      src="/Logo.png"
-      alt="BazaarPH Logo"
-      className="h-8 w-8 object-contain flex-shrink-0"
-    />
-  </Link>
-);
 
 // Countdown Timer Component
 const CountdownTimer = ({ endDate }: { endDate: Date }) => {
@@ -134,7 +101,6 @@ const CountdownTimer = ({ endDate }: { endDate: Date }) => {
 };
 
 export default function SellerDiscounts() {
-  const [open, setOpen] = useState(false);
   const [campaigns, setCampaigns] = useState<DiscountCampaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -148,7 +114,7 @@ export default function SellerDiscounts() {
   const [viewingCampaign, setViewingCampaign] = useState<DiscountCampaign | null>(null);
   const [campaignProducts, setCampaignProducts] = useState<Record<string, ProductDiscount[]>>({});
 
-  const { seller, logout } = useAuthStore();
+  const { seller } = useAuthStore();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -212,10 +178,7 @@ export default function SellerDiscounts() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seller?.id]);
 
-  const handleLogout = () => {
-    logout();
-    navigate("/seller/auth");
-  };
+
 
   // Calculate stats
   const stats = {
@@ -425,128 +388,100 @@ export default function SellerDiscounts() {
   };
 
   return (
-    <div
-      className={cn(
-        "flex flex-col md:flex-row bg-gray-50 w-full flex-1 mx-auto border border-neutral-200 overflow-hidden",
-        "h-screen"
-      )}
-    >
-      <Sidebar open={open} setOpen={setOpen}>
-        <SidebarBody className="justify-between gap-10">
-          <div className="flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-            {open ? <Logo /> : <LogoIcon />}
-            <div className="mt-8 flex flex-col gap-2">
-              {sellerLinks.map((link, idx) => (
-                <SidebarLink key={idx} link={link} />
-              ))}
-            </div>
-          </div>
-          <div>
-            <SidebarLink
-              link={{
-                label: seller?.name || "Seller",
-                href: "#",
-                icon: (
-                  <img
-                    src={seller?.avatar || "https://avatar.vercel.sh/seller"}
-                    className="h-7 w-7 flex-shrink-0 rounded-full"
-                    alt="Avatar"
-                  />
-                ),
-              }}
-            />
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-2 w-full px-2 py-2 text-sm text-neutral-700 hover:bg-gray-100 rounded-md"
-            >
-              <LogOut className="h-4 w-4" />
-              {open && <span>Logout</span>}
-            </button>
-          </div>
-        </SidebarBody>
-      </Sidebar>
+    <div className="h-screen w-full flex flex-col md:flex-row bg-[var(--brand-wash)] overflow-hidden font-sans">
+      <SellerSidebar />
 
       {/* Main Content */}
-      <div className="flex-1 overflow-auto">
-        <div className="w-full max-w-7xl mx-auto">
+      <div className="flex-1 overflow-auto relative z-10 scrollbar-hide">
+        <div className="w-full max-w-7xl mx-auto space-y-8">
           <div className="p-6 md:p-8">
             {/* Header */}
-            <div className="flex justify-between items-center mb-6">
+            <div className="flex justify-between items-center mb-8">
               <div>
-                <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
-                  <Zap className="h-8 w-8 text-orange-600" />
+                <h1 className="text-3xl font-black text-[var(--text-headline)] font-heading tracking-tight flex items-center gap-3">
+                  <div className="p-2 bg-orange-100 rounded-xl">
+                    <Zap className="h-8 w-8 text-[var(--brand-primary)]" />
+                  </div>
                   Discount Campaigns
                 </h1>
-                <p className="text-gray-600 mt-1">
+                <p className="text-[var(--text-secondary)] mt-1 font-medium ml-14">
                   Create and manage your discount campaigns
                 </p>
               </div>
-              <Button onClick={() => setIsCreateDialogOpen(true)} size="lg">
+              <Button onClick={() => setIsCreateDialogOpen(true)} size="lg" className="rounded-full bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-dark)] text-white shadow-lg shadow-orange-500/20 hover:shadow-orange-500/40 hover:scale-105 transition-all">
                 <Plus className="h-5 w-5 mr-2" />
                 Create Campaign
               </Button>
             </div>
 
             {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-              <div className="bg-white p-6 rounded-lg shadow-sm border">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+              <div className="bg-white p-6 rounded-[32px] shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-orange-100/50">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-600">Active Campaigns</p>
-                    <p className="text-2xl font-bold text-green-600">{stats.active}</p>
+                    <p className="text-sm font-medium text-[var(--text-secondary)]">Active Campaigns</p>
+                    <p className="text-2xl font-black text-green-600 mt-1">{stats.active}</p>
                   </div>
-                  <TrendingUp className="h-8 w-8 text-green-600" />
+                  <div className="p-3 bg-green-50 rounded-2xl">
+                    <TrendingUp className="h-6 w-6 text-green-600" />
+                  </div>
                 </div>
               </div>
 
-              <div className="bg-white p-6 rounded-lg shadow-sm border">
+              <div className="bg-white p-6 rounded-[32px] shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-orange-100/50">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-600">Scheduled</p>
-                    <p className="text-2xl font-bold text-blue-600">{stats.scheduled}</p>
+                    <p className="text-sm font-medium text-[var(--text-secondary)]">Scheduled</p>
+                    <p className="text-2xl font-black text-blue-600 mt-1">{stats.scheduled}</p>
                   </div>
-                  <Calendar className="h-8 w-8 text-blue-600" />
+                  <div className="p-3 bg-blue-50 rounded-2xl">
+                    <Calendar className="h-6 w-6 text-blue-600" />
+                  </div>
                 </div>
               </div>
 
-              <div className="bg-white p-6 rounded-lg shadow-sm border">
+              <div className="bg-white p-6 rounded-[32px] shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-orange-100/50">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-600">Total Usage</p>
-                    <p className="text-2xl font-bold text-purple-600">{stats.totalUsage}</p>
+                    <p className="text-sm font-medium text-[var(--text-secondary)]">Total Usage</p>
+                    <p className="text-2xl font-black text-purple-600 mt-1">{stats.totalUsage}</p>
                   </div>
-                  <Package className="h-8 w-8 text-purple-600" />
+                  <div className="p-3 bg-purple-50 rounded-2xl">
+                    <Package className="h-6 w-6 text-purple-600" />
+                  </div>
                 </div>
               </div>
 
-              <div className="bg-white p-6 rounded-lg shadow-sm border">
+              <div className="bg-white p-6 rounded-[32px] shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-orange-100/50">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-600">Avg Discount</p>
-                    <p className="text-2xl font-bold text-orange-600">{stats.avgDiscount}%</p>
+                    <p className="text-sm font-medium text-[var(--text-secondary)]">Avg Discount</p>
+                    <p className="text-2xl font-black text-orange-600 mt-1">{stats.avgDiscount}%</p>
                   </div>
-                  <Percent className="h-8 w-8 text-orange-600" />
+                  <div className="p-3 bg-orange-50 rounded-2xl">
+                    <Percent className="h-6 w-6 text-orange-600" />
+                  </div>
                 </div>
               </div>
             </div>
 
             {/* Filters */}
-            <div className="bg-white p-4 rounded-lg shadow-sm border mb-6">
+            <div className="bg-white p-4 rounded-[24px] shadow-sm border border-orange-100 mb-8">
               <div className="flex flex-col md:flex-row gap-4">
-                <div className="flex-1 relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+                <div className="flex-1 relative group">
+                  <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5 group-focus-within:text-[var(--brand-primary)] transition-colors" />
                   <Input
                     placeholder="Search campaigns..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10"
+                    className="pl-12 rounded-xl border-gray-200 focus:border-orange-500 focus:ring-orange-500 transition-all font-medium py-6"
                   />
                 </div>
                 <Select value={filterStatus} onValueChange={setFilterStatus}>
-                  <SelectTrigger className="w-full md:w-48">
+                  <SelectTrigger className="w-full md:w-48 rounded-xl border-gray-200 py-6 font-medium">
                     <SelectValue placeholder="Filter by status" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="rounded-xl border-gray-100 shadow-lg">
                     <SelectItem value="all">All Campaigns</SelectItem>
                     <SelectItem value="active">Active</SelectItem>
                     <SelectItem value="scheduled">Scheduled</SelectItem>
@@ -579,7 +514,7 @@ export default function SellerDiscounts() {
                 {filteredCampaigns.map((campaign) => (
                   <div
                     key={campaign.id}
-                    className="bg-white p-6 rounded-lg shadow-sm border hover:shadow-md transition-shadow"
+                    className="bg-white p-8 rounded-[32px] shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-orange-100 hover:shadow-lg transition-all duration-300 hover:-translate-y-1"
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
@@ -1296,3 +1231,5 @@ export default function SellerDiscounts() {
     </div>
   );
 }
+
+

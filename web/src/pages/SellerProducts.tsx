@@ -18,15 +18,15 @@ import {
     Upload,
     ChevronDown,
     Check,
+    Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
+import { SellerSidebar } from "@/components/seller/SellerSidebar";
 import {
     useAuthStore,
     useProductStore,
     SellerProduct,
 } from "@/stores/sellerStore";
-import { sellerLinks } from "@/config/sellerLinks";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -43,6 +43,13 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
@@ -52,41 +59,9 @@ import { ProductFormTabs } from "@/components/seller/products/ProductFormTabs";
 import { GeneralInfoTab } from "@/components/seller/products/GeneralInfoTab";
 import { AttributesTab } from "@/components/seller/products/AttributesTab";
 
-const Logo = () => (
-    <Link
-        to="/seller"
-        className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20"
-    >
-        <img
-            src="/Logo.png"
-            alt="BazaarPH Logo"
-            className="h-8 w-8 object-contain flex-shrink-0"
-        />
-        <motion.span
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="font-semibold text-gray-900 whitespace-pre"
-        >
-            BazaarPH Seller
-        </motion.span>
-    </Link>
-);
 
-const LogoIcon = () => (
-    <Link
-        to="/seller"
-        className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20"
-    >
-        <img
-            src="/Logo.png"
-            alt="BazaarPH Logo"
-            className="h-8 w-8 object-contain flex-shrink-0"
-        />
-    </Link>
-);
 
 export function SellerProducts() {
-    const [open, setOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
     const [filterStatus, setFilterStatus] = useState("all");
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -123,10 +98,7 @@ export function SellerProducts() {
         }
     }, [seller?.id, fetchProducts]);
 
-    const handleLogout = () => {
-        logout();
-        navigate("/seller/auth");
-    };
+
 
     // Find this block in your SellerProducts component
     const filteredProducts = products.filter((product) => {
@@ -277,52 +249,23 @@ export function SellerProducts() {
     };
 
     return (
-        <div className="h-screen w-full flex flex-col md:flex-row bg-gray-50 overflow-hidden">
-            <Sidebar open={open} setOpen={setOpen}>
-                <SidebarBody className="justify-between gap-10">
-                    <div className="flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-                        {open ? <Logo /> : <LogoIcon />}
-                        <div className="mt-8 flex flex-col gap-2">
-                            {sellerLinks.map((link, idx) => (
-                                <SidebarLink key={idx} link={link} />
-                            ))}
-                        </div>
-                    </div>
-                    <div className="space-y-2">
-                        <SidebarLink
-                            link={{
-                                label: seller?.name || "Seller",
-                                href: "/seller/profile",
-                                icon: (
-                                    <div className="h-7 w-7 flex-shrink-0 rounded-full bg-orange-500 flex items-center justify-center">
-                                        <span className="text-white text-xs font-medium">
-                                            {seller?.name?.charAt(0) || "S"}
-                                        </span>
-                                    </div>
-                                ),
-                            }}
-                        />
-                        <button
-                            onClick={handleLogout}
-                            className="flex items-center gap-2 w-full px-2 py-2 text-sm text-gray-700 hover:text-orange-500 hover:bg-orange-50 rounded-md transition-colors"
-                        >
-                            <LogOut className="h-5 w-5 flex-shrink-0" />
-                            {open && <span>Logout</span>}
-                        </button>
-                    </div>
-                </SidebarBody>
-            </Sidebar>
+        <div className="h-screen w-full flex flex-col md:flex-row bg-[var(--brand-wash)] overflow-hidden font-sans">
+            <SellerSidebar />
 
             <div className="flex-1 flex flex-col overflow-hidden">
-                <div className="p-2 md:p-8 bg-gray-50 flex-1 w-full h-full overflow-auto">
-                    <div className="w-full max-w-7xl mx-auto space-y-6">
+                <div className="p-2 md:p-8 flex-1 w-full h-full overflow-auto scrollbar-hide relative">
+                    <div className="fixed top-0 left-0 w-full h-full pointer-events-none z-0">
+                        <div className="absolute top-[-10%] right-[-10%] w-[50vw] h-[50vw] bg-orange-100/40 rounded-full blur-[120px]" />
+                        <div className="absolute bottom-[-10%] left-[-10%] w-[40vw] h-[40vw] bg-yellow-100/40 rounded-full blur-[100px]" />
+                    </div>
+                    <div className="w-full max-w-7xl mx-auto space-y-8 relative z-10 pb-10">
                         {/* Header */}
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                             <div>
-                                <h1 className="text-3xl font-bold text-gray-900">
+                                <h1 className="text-3xl font-extrabold text-[var(--text-headline)] font-heading tracking-tight">
                                     Products
                                 </h1>
-                                <p className="text-gray-500 mt-1 text-sm">
+                                <p className="text-[var(--text-muted)] mt-1 text-sm font-medium">
                                     Manage your product inventory
                                 </p>
                             </div>
@@ -330,83 +273,20 @@ export function SellerProducts() {
 
                         <div>
                             {/* Filters */}
-                            <div className="flex flex-col sm:flex-row gap-4 mb-6">
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                        <Button
-                                            variant="outline"
-                                            className="h-10 px-4 border border-gray-100 shadow-sm rounded-lg hover:bg-gray-100 text-gray-800 hover:text-gray-800 flex items-center gap-2 min-w-[140px] justify-between"
-                                        >
-                                            <span>
-                                                {filterStatus === "all" && "All Products"}
-                                                {filterStatus === "active" && "Active"}
-                                                {filterStatus === "inactive" && "Inactive"}
-                                                {filterStatus === "pending" && "Pending Approval"}
-                                            </span>
-                                            <ChevronDown className="h-4 w-4 text-gray-500" />
-                                        </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="start" className="w-[200px] p-1">
-                                        <DropdownMenuItem
-                                            onClick={() => setFilterStatus("all")}
-                                            className={cn(
-                                                "cursor-pointer rounded-md px-3 py-2 text-sm",
-                                                filterStatus === "all"
-                                                    ? "bg-orange-500 text-white hover:bg-orange-600 hover:text-white"
-                                                    : "hover:bg-gray-100"
-                                            )}
-                                        >
-                                            <span className="flex items-center justify-between w-full">
-                                                All Products
-                                                {filterStatus === "all" && <Check className="h-4 w-4" />}
-                                            </span>
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem
-                                            onClick={() => setFilterStatus("active")}
-                                            className={cn(
-                                                "cursor-pointer rounded-md px-3 py-2 text-sm",
-                                                filterStatus === "active"
-                                                    ? "bg-orange-500 text-white hover:bg-orange-600 hover:text-white"
-                                                    : "hover:bg-gray-100"
-                                            )}
-                                        >
-                                            <span className="flex items-center justify-between w-full">
-                                                Active
-                                                {filterStatus === "active" && <Check className="h-4 w-4" />}
-                                            </span>
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem
-                                            onClick={() => setFilterStatus("inactive")}
-                                            className={cn(
-                                                "cursor-pointer rounded-md px-3 py-2 text-sm",
-                                                filterStatus === "inactive"
-                                                    ? "bg-orange-500 text-white hover:bg-orange-600 hover:text-white"
-                                                    : "hover:bg-gray-100"
-                                            )}
-                                        >
-                                            <span className="flex items-center justify-between w-full">
-                                                Inactive
-                                                {filterStatus === "inactive" && <Check className="h-4 w-4" />}
-                                            </span>
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem
-                                            onClick={() => setFilterStatus("pending")}
-                                            className={cn(
-                                                "cursor-pointer rounded-md px-3 py-2 text-sm",
-                                                filterStatus === "pending"
-                                                    ? "bg-orange-500 text-white hover:bg-orange-600 hover:text-white"
-                                                    : "hover:bg-gray-100"
-                                            )}
-                                        >
-                                            <span className="flex items-center justify-between w-full">
-                                                Pending Approval
-                                                {filterStatus === "pending" && <Check className="h-4 w-4" />}
-                                            </span>
-                                        </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
-                                <div className="flex-1 sm:max-w-md relative">
-                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                            <div className="flex flex-col sm:flex-row gap-4 mb-8 items-center">
+                                <Select value={filterStatus} onValueChange={setFilterStatus}>
+                                    <SelectTrigger className="h-9 w-[160px] bg-[var(--bg-secondary)] border border-[var(--brand-wash-gold)] rounded-xl text-[var(--text-headline)] focus:outline-none focus:ring-0 focus:border-[var(--brand-primary)] transition-all font-medium text-sm">
+                                        <SelectValue placeholder="Filter by status" />
+                                    </SelectTrigger>
+                                    <SelectContent className="rounded-xl border-gray-100 bg-[var(--bg-secondary)]">
+                                        <SelectItem value="all" className="text-xs">All Products</SelectItem>
+                                        <SelectItem value="active" className="text-xs">Active</SelectItem>
+                                        <SelectItem value="inactive" className="text-xs">Inactive</SelectItem>
+                                        <SelectItem value="pending" className="text-xs">Pending Approval</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <div className="flex-1 w-full relative group">
+                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 group-focus-within:text-[var(--brand-primary)] transition-colors h-4 w-4" />
                                     <input
                                         type="text"
                                         placeholder="Search products..."
@@ -414,179 +294,150 @@ export function SellerProducts() {
                                         onChange={(e) =>
                                             setSearchQuery(e.target.value)
                                         }
-                                        className="w-full h-10 pl-10 pr-4 border border-gray-100 shadow-sm rounded-lg focus:outline-none focus:ring-1 focus:ring-orange-500"
+                                        className="w-full h-9 pl-10 pr-4 bg-white border border-[var(--brand-wash-gold)] shadow-none rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)]/20 focus:border-[var(--brand-primary)] transition-all text-sm placeholder:text-[var(--text-muted)]"
                                     />
                                 </div>
-                                <div className="flex items-center gap-3 sm:ml-auto">
+                                <div className="flex items-center gap-3 sm:ml-auto w-full sm:w-auto">
                                     <Button
                                         onClick={() =>
                                             setIsBulkUploadOpen(true)
                                         }
                                         variant="outline"
-                                        className="h-10 border-orange-500 text-orange-500 hover:bg-orange-600 hover:text-white flex items-center gap-2"
+                                        className="h-9 px-4 border-orange-200 bg-orange-50 text-[var(--brand-primary)] hover:bg-orange-100 hover:text-orange-700 flex items-center gap-2 rounded-xl font-bold transition-all shadow-sm text-sm"
                                     >
                                         <Upload className="h-4 w-4" />
                                         Bulk Upload
                                     </Button>
                                     <Link to="/seller/products/add">
-                                        <Button className="h-10 bg-orange-500 hover:bg-orange-600 text-white flex items-center gap-2">
-                                            <Plus className="h-4 w-4" />
+                                        <Button className="h-9 px-4 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white flex items-center gap-2 rounded-xl font-bold shadow-lg shadow-orange-500/20 active:scale-95 transition-all text-sm">
+                                            <Plus className="h-5 w-5" />
                                             Add Product
                                         </Button>
                                     </Link>
                                 </div>
                             </div>
 
-                            {/* Product Count */}
-                            <div className="text-xs text-gray-500 -mt-2 mb-2">
-                                Showing {filteredProducts.length} {filteredProducts.length === 1 ? 'product' : 'products'}
+                            <div className="text-sm font-sm text-gray-400 mb-4 pl-1">
+                                Showing <span className="text-[var(--brand-primary)] font-bold">{filteredProducts.length}</span> {filteredProducts.length === 1 ? 'product' : 'products'}
                             </div>
 
                             {/* Products Grid */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                                 {filteredProducts.map((product) => (
                                     <motion.div
                                         key={product.id}
                                         initial={{ opacity: 0, y: 20 }}
                                         animate={{ opacity: 1, y: 0 }}
-                                        className="bg-white rounded-lg border border-gray-100 shadow-sm overflow-hidden hover:shadow-lg transition-shadow duration-300"
+                                        className="bg-white rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.04)] overflow-hidden hover:shadow-[0_20px_40px_rgba(251,140,0,0.1)] hover:-translate-y-1 transition-all duration-300 group border border-transparent hover:border-orange-100 flex flex-col"
                                     >
-                                        <div className="relative">
+                                        <div className="relative overflow-hidden">
+                                            <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity z-10" />
                                             <img
                                                 src={product.images[0]}
                                                 alt={product.name}
-                                                className="w-full h-48 object-cover"
+                                                className="w-full h-40 object-cover transition-transform duration-700 group-hover:scale-110"
                                             />
-                                            <div className="absolute top-3 left-3">
-                                                <button
-                                                    onClick={() =>
-                                                        handleToggleStatus(
-                                                            product.id,
-                                                            product.isActive,
-                                                        )
-                                                    }
-                                                    className="flex items-center gap-1"
-                                                >
-                                                    {product.isActive ? (
-                                                        <ToggleRight className="h-6 w-6 text-green-500" />
-                                                    ) : (
-                                                        <ToggleLeft className="h-6 w-6 text-gray-400" />
-                                                    )}
-                                                </button>
-                                            </div>
-                                            <div className="absolute top-3 right-3">
-                                                <div className="relative">
-                                                    <button className="p-2 bg-white rounded-full shadow-md hover:shadow-lg transition-shadow">
-                                                        <MoreHorizontal className="h-4 w-4 text-gray-600" />
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div className="p-4">
-                                            <div className="flex items-start justify-between mb-2">
-                                                <h3 className="font-medium text-gray-900 line-clamp-2">
-                                                    {product.name}
-                                                </h3>
-                                            </div>
-
-                                            <p className="text-gray-600 text-sm mb-3 line-clamp-2">
-                                                {product.description}
-                                            </p>
-
-                                            {/* Approval Status Badge */}
-                                            {product.approvalStatus && (
-                                                <div className="mb-3">
-                                                    {product.approvalStatus ===
-                                                        "pending" && (
-                                                            <Badge className="bg-yellow-100 text-yellow-700 hover:bg-yellow-100">
-                                                                <Clock className="w-3 h-3 mr-1" />
-                                                                Pending Approval
-                                                            </Badge>
-                                                        )}
-                                                    {product.approvalStatus ===
-                                                        "approved" && (
-                                                            <Badge className="bg-green-100 text-green-700 hover:bg-green-100">
-                                                                <BadgeCheck className="w-3 h-3 mr-1" />
-                                                                Verified
-                                                            </Badge>
-                                                        )}
-                                                    {product.approvalStatus ===
-                                                        "rejected" && (
-                                                            <Badge className="bg-red-100 text-red-700 hover:bg-red-100">
-                                                                <AlertTriangle className="w-3 h-3 mr-1" />
-                                                                Rejected
-                                                            </Badge>
-                                                        )}
-                                                    {product.approvalStatus ===
-                                                        "reclassified" && (
-                                                            <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100">
-                                                                <AlertTriangle className="w-3 h-3 mr-1" />
-                                                                Category Adjusted
-                                                            </Badge>
-                                                        )}
+                                            {/* Status badge overlay — top left */}
+                                            {product.approvalStatus === "pending" && (
+                                                <div className="absolute top-2 left-2 z-20">
+                                                    <div className="inline-flex items-center px-2 py-0.5 rounded-lg bg-[var(--color-pending)] backdrop-blur-sm text-white">
+                                                        <Clock className="w-3 h-3 mr-1" />
+                                                        <span className="text-[10px] font-bold tracking-wide">Pending Approval</span>
+                                                    </div>
                                                 </div>
                                             )}
-
-                                            <div className="flex items-center justify-between mb-3">
-                                                <div className="flex items-center gap-1">
-                                                    <Star className="h-4 w-4 text-yellow-500 fill-current" />
-                                                    <span className="text-sm text-gray-600">
-                                                        {product.rating}
-                                                    </span>
-                                                    <span className="text-sm text-gray-500">
-                                                        ({product.reviews})
-                                                    </span>
+                                            {product.approvalStatus === "rejected" && (
+                                                <div className="absolute top-2 left-2 z-20">
+                                                    <div className="inline-flex items-center px-2 py-0.5 rounded-lg bg-red-500/90 backdrop-blur-sm text-white">
+                                                        <AlertTriangle className="w-3 h-3 mr-1" />
+                                                        <span className="text-[10px] font-bold tracking-wide">Rejected</span>
+                                                    </div>
                                                 </div>
-                                                <span
-                                                    className={cn(
-                                                        "px-2 py-1 rounded-full text-xs font-medium",
-                                                        product.isActive
-                                                            ? "bg-green-100 text-green-700"
-                                                            : "bg-gray-100 text-gray-700",
-                                                    )}
-                                                >
-                                                    {product.isActive
-                                                        ? "Active"
-                                                        : "Inactive"}
-                                                </span>
-                                            </div>
+                                            )}
+                                        </div>
 
-                                            <div className="flex items-center justify-between mb-4">
-                                                <div>
-                                                    <p className="text-lg font-semibold text-gray-900">
-                                                        ₱
-                                                        {product.price.toLocaleString()}
-                                                    </p>
-                                                    {product.originalPrice && (
-                                                        <p className="text-sm text-gray-500 line-through">
-                                                            ₱
-                                                            {product.originalPrice.toLocaleString()}
-                                                        </p>
+                                        <div className="p-4 flex flex-col flex-1">
+                                            <div className="mb-2">
+                                                {/* Name + verified icon inline */}
+                                                <div className="flex items-center gap-1.5 mb-1">
+                                                    <h3 className="font-bold text-[var(--text-headline)] line-clamp-1 text-base group-hover:text-[var(--brand-primary)] transition-colors font-heading">
+                                                        {product.name}
+                                                    </h3>
+                                                    {product.approvalStatus === "approved" && (
+                                                        <BadgeCheck className="w-4 h-4 text-[var(--brand-primary)] flex-shrink-0" />
                                                     )}
                                                 </div>
-                                                <p className="text-sm text-gray-600">
-                                                    Stock: {product.stock}
+                                                <p className="text-[var(--text-secondary)] text-xs line-clamp-1 leading-relaxed opacity-80">
+                                                    {product.description}
                                                 </p>
                                             </div>
 
-                                            <div className="flex gap-2">
-                                                <button
-                                                    onClick={() =>
-                                                        handleEditClick(product)
-                                                    }
-                                                    className="flex-1 px-3 py-2 bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100 transition-colors text-center text-sm font-medium"
-                                                >
-                                                    Edit
-                                                </button>
-                                                <button
-                                                    onClick={() =>
-                                                        handleDelete(product.id)
-                                                    }
-                                                    className="px-3 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors"
-                                                >
-                                                    <Trash2 className="h-4 w-4" />
-                                                </button>
+
+
+                                            {/* Rating row */}
+                                            <div className="flex items-center gap-1 mb-3">
+                                                <Star className="h-3.5 w-3.5 text-orange-400 fill-current" />
+                                                <span className="text-xs font-bold text-gray-700">
+                                                    {product.rating}
+                                                </span>
+                                                <span className="text-[10px] font-medium text-gray-400">
+                                                    ({product.reviews})
+                                                </span>
+                                            </div>
+
+                                            {/* Price + Stock + Buttons — always at bottom */}
+                                            <div className="mt-auto">
+                                                <div className="flex items-center justify-between mb-3 border-t border-gray-50 pt-3">
+                                                    <div>
+                                                        <p className="text-lg font-black text-[var(--brand-primary)] font-heading">
+                                                            ₱{product.price.toLocaleString()}
+                                                        </p>
+                                                        {product.originalPrice && (
+                                                            <p className="text-xs text-gray-400 line-through font-medium">
+                                                                ₱{product.originalPrice.toLocaleString()}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <span className="text-[12px] font-sm text-gray-500">Stock</span>
+                                                        <span className="text-[12px] font-sm text-gray-500">{product.stock}</span>
+                                                    </div>
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    <button
+                                                        onClick={() =>
+                                                            handleEditClick(product)
+                                                        }
+                                                        className="flex-1 h-10 flex items-center justify-center bg-orange-50 text-[var(--secondary-foreground)] rounded-xl hover:bg-[var(--brand-primary)] hover:text-white transition-all text-sm font-bold hover:shadow-lg hover:shadow-orange-500/20 active:scale-95"
+                                                    >
+                                                        Edit Product
+                                                    </button>
+                                                    {/* Active/Inactive toggle */}
+                                                    {product.approvalStatus !== 'pending' && (
+                                                        <button
+                                                            onClick={() => handleToggleStatus(product.id, product.isActive)}
+                                                            className={cn(
+                                                                "h-10 w-10 flex items-center justify-center rounded-xl transition-all active:scale-95",
+                                                                product.isActive
+                                                                    ? "text-green-600 hover:text-green-700"
+                                                                    : "text-gray-400 hover:text-gray-500"
+                                                            )}
+                                                        >
+                                                            {product.isActive
+                                                                ? <ToggleRight className="h-5 w-5" />
+                                                                : <ToggleLeft className="h-5 w-5" />
+                                                            }
+                                                        </button>
+                                                    )}
+                                                    <button
+                                                        onClick={() =>
+                                                            handleDelete(product.id)
+                                                        }
+                                                        className="h-10 w-10 flex items-center justify-center text-red-500 rounded-xl hover:text-red-700 transition-all active:scale-95"
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </button>
+                                                </div>
                                             </div>
                                         </div>
                                     </motion.div>
@@ -594,17 +445,19 @@ export function SellerProducts() {
                             </div>
 
                             {filteredProducts.length === 0 && (
-                                <div className="text-center py-12">
-                                    <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                                    <h3 className="text-lg font-medium text-gray-900 mb-2">
+                                <div className="flex flex-col items-center justify-center py-20 bg-white rounded-xl shadow-sm border border-dashed border-gray-200">
+                                    <div className="w-20 h-20 bg-orange-50 rounded-full flex items-center justify-center mb-6 animate-pulse">
+                                        <Package className="h-10 w-10 text-[var(--brand-primary)]" />
+                                    </div>
+                                    <h3 className="text-xl font-bold text-[var(--text-headline)] mb-2 font-heading">
                                         No products found
                                     </h3>
-                                    <p className="text-gray-600 mb-6">
-                                        Start by adding your first product to
-                                        your store
+                                    <p className="text-[var(--text-secondary)] mb-8 text-center max-w-xs font-medium">
+                                        Start by adding your first product to your store inventory
                                     </p>
                                     <Link to="/seller/products/add">
-                                        <Button className="bg-orange-500 hover:bg-orange-600 text-white">
+                                        <Button className="h-12 px-8 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white rounded-xl font-bold text-base shadow-xl shadow-orange-500/20 hover:scale-105 transition-all">
+                                            <Plus className="h-5 w-5 mr-2" />
                                             Add Your First Product
                                         </Button>
                                     </Link>
@@ -846,7 +699,7 @@ export function SellerProducts() {
                 onClose={() => setIsBulkUploadOpen(false)}
                 onUpload={handleBulkUpload}
             />
-        </div>
+        </div >
     );
 }
 
@@ -1176,14 +1029,14 @@ export function AddProduct() {
             const baseVariant =
                 variantConfigs.length > 0 && baseStock > 0
                     ? {
-                          id: `base-${Date.now()}`,
-                          variantLabel1Value: "",
-                          variantLabel2Value: "",
-                          stock: baseStock,
-                          price: parseInt(formData.price) || 0,
-                          sku: `${(formData.name || "ITEM").substring(0, 3).toUpperCase()}-BASE`,
-                          image: "",
-                      }
+                        id: `base-${Date.now()}`,
+                        variantLabel1Value: "",
+                        variantLabel2Value: "",
+                        stock: baseStock,
+                        price: parseInt(formData.price) || 0,
+                        sku: `${(formData.name || "ITEM").substring(0, 3).toUpperCase()}-BASE`,
+                        image: "",
+                    }
                     : null;
 
             const variantsForSubmit =
@@ -1235,44 +1088,44 @@ export function AddProduct() {
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-white">
-            <div className="max-w-6xl mx-auto px-6 pb-16">
-                <div className="flex items-center justify-between py-6">
-                    <div className="flex items-center gap-3">
+        <div className="min-h-screen bg-[var(--brand-wash)] font-sans relative overflow-hidden">
+            <div className="fixed top-0 left-0 w-full h-full pointer-events-none z-0">
+                <div className="absolute top-[-10%] right-[-10%] w-[50vw] h-[50vw] bg-orange-100/40 rounded-full blur-[120px]" />
+                <div className="absolute bottom-[-10%] left-[-10%] w-[40vw] h-[40vw] bg-yellow-100/40 rounded-full blur-[100px]" />
+            </div>
+            <div className="max-w-6xl mx-auto px-6 pb-20 relative z-10">
+                <div className="flex items-center justify-between py-10">
+                    <div className="flex items-center gap-4">
                         <Link to="/seller/products">
                             <Button
                                 variant="ghost"
-                                size="sm"
-                                className="rounded-full border border-orange-200 bg-white/70 backdrop-blur"
+                                size="icon"
+                                className="rounded-full h-12 w-12 border border-white bg-white/50 backdrop-blur-md shadow-sm hover:bg-white hover:shadow-md transition-all text-[var(--text-secondary)] hover:text-[var(--brand-primary)]"
                             >
-                                <ArrowLeft className="h-4 w-4 mr-2" />
-                                Products
+                                <ArrowLeft className="h-5 w-5" />
                             </Button>
                         </Link>
                         <div>
-                            <div className="inline-flex items-center gap-2 rounded-full bg-orange-100 text-orange-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide">
+                            <div className="inline-flex items-center gap-2 rounded-lg bg-orange-50 text-[var(--brand-primary)] border border-orange-100 px-3 py-1 text-[10px] font-bold uppercase tracking-widest shadow-sm">
+                                <Plus className="h-3 w-3" />
                                 New Listing
                             </div>
-                            <h1 className="text-2xl font-bold text-gray-900 mt-2">
+                            <h1 className="text-3xl font-black text-[var(--text-headline)] mt-2 font-heading tracking-tight">
                                 Add New Product
                             </h1>
-                            <p className="text-gray-600 text-sm">
-                                Craft a beautiful, conversion-ready listing.
+                            <p className="text-[var(--text-secondary)] text-sm font-medium">
+                                Create a compelling product listing to attract buyers.
                             </p>
                         </div>
-                    </div>
-                    <div className="hidden md:flex items-center gap-2 text-sm text-gray-500">
-                        <span className="h-2 w-2 rounded-full bg-green-500" />
-                        Auto-save not enabled
                     </div>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     {/* Preview Panel */}
                     <div className="lg:col-span-1">
-                        <div className="sticky top-6 space-y-4">
-                            <div className="rounded-2xl border border-orange-100 bg-white shadow-sm overflow-hidden">
-                                <div className="relative aspect-[4/5] bg-gradient-to-b from-orange-100 via-white to-white">
+                        <div className="sticky top-6 space-y-6">
+                            <div className="bg-white rounded-xl shadow-[0_20px_40px_rgba(0,0,0,0.08)] overflow-hidden border border-white/50">
+                                <div className="relative aspect-[4/5] bg-gray-50">
                                     {formData.images[0] ? (
                                         <img
                                             src={formData.images[0]}
@@ -1280,96 +1133,89 @@ export function AddProduct() {
                                             className="w-full h-full object-cover"
                                         />
                                     ) : (
-                                        <div className="flex h-full items-center justify-center text-gray-300 text-sm">
-                                            Preview your first image
+                                        <div className="flex h-full flex-col items-center justify-center text-gray-300 gap-4">
+                                            <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center">
+                                                <Upload className="h-8 w-8 text-gray-300" />
+                                            </div>
+                                            <p className="text-sm font-medium">Upload an image</p>
                                         </div>
                                     )}
-                                    <div className="absolute left-3 top-3 inline-flex items-center gap-2 rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-orange-600 shadow-sm">
+                                    <div className="absolute left-4 top-4 inline-flex items-center gap-2 rounded-full bg-black/30 backdrop-blur-md px-3 py-1.5 text-xs font-bold text-white shadow-lg border border-white/10">
+                                        <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
                                         Live Preview
                                     </div>
                                 </div>
-                                <div className="p-4 space-y-3">
+                                <div className="p-6 space-y-5">
                                     <div>
-                                        <p className="text-xs uppercase tracking-wide text-gray-400">
-                                            Product Title
+                                        <p className="text-[10px] uppercase tracking-widest font-bold text-[var(--brand-primary)] mb-1">
+                                            {categories.find(c => c.id === formData.category)?.name || "Category"}
                                         </p>
-                                        <h3 className="font-semibold text-lg text-gray-900 truncate">
-                                            {formData.name ||
-                                                "Your product name"}
+                                        <h3 className="font-bold text-xl text-[var(--text-headline)] font-heading leading-tight line-clamp-2">
+                                            {formData.name || "Your Product Name"}
                                         </h3>
                                     </div>
-                                    <p className="text-sm text-gray-600 line-clamp-3">
-                                        {formData.description ||
-                                            "Add a short, compelling description to help shoppers decide."}
+                                    <p className="text-sm text-[var(--text-secondary)] line-clamp-3 leading-relaxed opacity-80">
+                                        {formData.description || "Product description will appear here..."}
                                     </p>
-                                    <div className="flex items-baseline gap-2">
-                                        <span className="text-xl font-bold text-gray-900">
-                                            ₱{formData.price || "0.00"}
+
+                                    <div className="flex items-end gap-2 border-t border-dashed border-gray-100 pt-4">
+                                        <span className="text-3xl font-black text-[var(--text-headline)] font-heading">
+                                            ₱{parseInt(formData.price || "0").toLocaleString()}
                                         </span>
                                         {formData.originalPrice && (
-                                            <span className="text-sm text-gray-400 line-through">
-                                                ₱{formData.originalPrice}
+                                            <span className="text-sm text-gray-400 line-through font-medium mb-1.5 ml-1">
+                                                ₱{parseInt(formData.originalPrice).toLocaleString()}
                                             </span>
                                         )}
                                     </div>
-                                    <div className="flex flex-wrap gap-2">
-                                        {formData.variantLabel1Values.length > 0 ? (
-                                            formData.variantLabel1Values.map((val, idx) => (
-                                                <span
-                                                    key={`${val}-${idx}`}
-                                                    className="rounded-full bg-orange-50 text-orange-700 px-3 py-1 text-xs font-semibold"
-                                                >
+
+                                    {(formData.variantLabel1Values.length > 0 || formData.variantLabel2Values.length > 0) && (
+                                        <div className="flex flex-wrap gap-2 pt-2">
+                                            {formData.variantLabel1Values.slice(0, 3).map((val, idx) => (
+                                                <span key={idx} className="px-2 py-1 rounded-md bg-gray-100 text-xs font-bold text-gray-600 border border-gray-200">
                                                     {val}
                                                 </span>
-                                            ))
-                                        ) : (
-                                            <span className="text-xs text-gray-400 italic">
-                                                No variations added
-                                            </span>
-                                        )}
-                                    </div>
-                                    <div className="flex flex-wrap gap-2">
-                                        {(formData.variantLabel2Values.length
-                                            ? formData.variantLabel2Values
-                                            : ["No second attributes"]
-                                        ).map((val, idx) => (
-                                            <span
-                                                key={`${val}-${idx}`}
-                                                className={cn(
-                                                    "rounded-full border px-3 py-1 text-xs font-semibold",
-                                                    formData.variantLabel2Values.length
-                                                        ? "border-blue-200 bg-blue-50 text-blue-700"
-                                                        : "border-gray-200 text-gray-400 italic",
-                                                )}
-                                            >
-                                                {val}
-                                            </span>
-                                        ))}
-                                    </div>
+                                            ))}
+                                            {formData.variantLabel2Values.slice(0, 3).map((val, idx) => (
+                                                <span key={idx} className="px-2 py-1 rounded-full bg-gray-100 text-xs font-bold text-gray-600 border border-gray-200">
+                                                    {val}
+                                                </span>
+                                            ))}
+                                            {(formData.variantLabel1Values.length > 3 || formData.variantLabel2Values.length > 3) && (
+                                                <span className="px-2 py-1 rounded-md bg-white text-xs font-medium text-gray-400 border border-dashed border-gray-200">
+                                                    + more
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
-                            <div className="rounded-2xl border border-gray-100 bg-white/70 backdrop-blur shadow-sm p-4">
-                                <div className="flex items-center justify-between text-sm text-gray-600">
-                                    <span>Checklist</span>
-                                    <span className="text-xs font-semibold text-orange-600">
-                                        Optional
-                                    </span>
-                                </div>
-                                <div className="mt-3 space-y-2 text-sm text-gray-500">
-                                    <div className="flex items-center gap-2">
-                                        <span className="h-2 w-2 rounded-full bg-orange-500" />
-                                        Add at least 3 images
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <span className="h-2 w-2 rounded-full bg-orange-500" />
-                                        Add variations if product has options
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <span className="h-2 w-2 rounded-full bg-orange-500" />
-                                        Keep description concise
-                                    </div>
-                                </div>
+                            <div className="rounded-xl bg-white shadow-sm border border-orange-100 p-6 relative overflow-hidden">
+                                <h4 className="font-bold text-[var(--text-headline)] mb-4 flex items-center gap-2">
+                                    <BadgeCheck className="w-5 h-5 text-[var(--brand-primary)]" />
+                                    Listing Checklist
+                                </h4>
+                                <ul className="space-y-3">
+                                    <li className={cn("flex items-center gap-3 text-sm font-medium transition-colors", formData.images.filter(i => i).length >= 1 ? "text-green-600" : "text-gray-400")}>
+                                        <div className={cn("w-5 h-5 rounded-full flex items-center justify-center border", formData.images.filter(i => i).length >= 1 ? "bg-green-100 border-green-200 text-green-600" : "border-gray-200 bg-gray-50")}>
+                                            <Check className="w-3 h-3" />
+                                        </div>
+                                        Add at least 1 image
+                                    </li>
+                                    <li className={cn("flex items-center gap-3 text-sm font-medium transition-colors", formData.name.length > 10 ? "text-green-600" : "text-gray-400")}>
+                                        <div className={cn("w-5 h-5 rounded-full flex items-center justify-center border", formData.name.length > 10 ? "bg-green-100 border-green-200 text-green-600" : "border-gray-200 bg-gray-50")}>
+                                            <Check className="w-3 h-3" />
+                                        </div>
+                                        Detailed product name
+                                    </li>
+                                    <li className={cn("flex items-center gap-3 text-sm font-medium transition-colors", parseInt(formData.stock) > 0 || getTotalVariantStock() > 0 ? "text-green-600" : "text-gray-400")}>
+                                        <div className={cn("w-5 h-5 rounded-full flex items-center justify-center border", parseInt(formData.stock) > 0 || getTotalVariantStock() > 0 ? "bg-green-100 border-green-200 text-green-600" : "border-gray-200 bg-gray-50")}>
+                                            <Check className="w-3 h-3" />
+                                        </div>
+                                        Set stock quantity
+                                    </li>
+                                </ul>
                             </div>
                         </div>
                     </div>
@@ -1378,13 +1224,26 @@ export function AddProduct() {
                     <div className="lg:col-span-2">
                         <form
                             onSubmit={handleSubmit}
-                            className="bg-white/90 backdrop-blur rounded-2xl border border-gray-100 shadow-sm p-6 space-y-8"
+                            className="bg-white rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.04)] p-8 space-y-8 border border-gray-100"
                         >
                             {/* Tab Navigation */}
-                            <ProductFormTabs
-                                activeTab={activeTab}
-                                setActiveTab={setActiveTab}
-                            />
+                            <div className="bg-gray-50 p-1.5 rounded-2xl flex gap-1">
+                                {["general", "attributes"].map((tab) => (
+                                    <button
+                                        key={tab}
+                                        type="button"
+                                        onClick={() => setActiveTab(tab as any)}
+                                        className={cn(
+                                            "flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all duration-300",
+                                            activeTab === tab
+                                                ? "bg-white text-[var(--brand-primary)] shadow-md shadow-orange-900/5"
+                                                : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                                        )}
+                                    >
+                                        {tab === "general" ? "General Information" : "Variants & Attributes"}
+                                    </button>
+                                ))}
+                            </div>
 
                             {/* General Information Tab */}
                             {activeTab === "general" && (
@@ -1454,22 +1313,22 @@ export function AddProduct() {
                             )}
 
                             {/* Submit Buttons */}
-                            <div className="flex gap-3 pt-2">
+                            <div className="flex gap-4 pt-4 border-t border-gray-100">
                                 <Button
                                     type="button"
                                     variant="outline"
                                     onClick={() => navigate("/seller/products")}
-                                    className="flex-1 rounded-full"
+                                    className="flex-1 rounded-2xl h-14 border-2 border-gray-100 bg-white hover:bg-gray-50 text-gray-600 font-bold transition-all text-base"
                                 >
                                     Cancel
                                 </Button>
                                 <Button
                                     type="submit"
                                     disabled={isSubmitting}
-                                    className="flex-1 rounded-full bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-lg shadow-orange-200 hover:from-orange-600 hover:to-orange-700"
+                                    className="flex-1 rounded-2xl h-14 bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-dark)] text-white shadow-xl shadow-orange-500/20 hover:shadow-orange-500/30 hover:scale-[1.02] transform transition-all font-bold text-base"
                                 >
                                     {isSubmitting
-                                        ? "Adding Product..."
+                                        ? "Publishing..."
                                         : "Publish Product"}
                                 </Button>
                             </div>
@@ -1480,3 +1339,4 @@ export function AddProduct() {
         </div>
     );
 }
+

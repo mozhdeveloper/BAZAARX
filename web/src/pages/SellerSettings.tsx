@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   User,
   Bell,
@@ -11,12 +12,10 @@ import {
   Instagram,
   Twitter,
   RefreshCw,
-  LogOut,
-  Store
+  Store,
 } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
+import { SellerSidebar } from "@/components/seller/SellerSidebar";
 import { useAuthStore } from "@/stores/sellerStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,18 +23,12 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { sellerLinks } from "@/config/sellerLinks";
+import { cn } from "@/lib/utils";
 
 export function SellerSettings() {
-  const { seller, logout } = useAuthStore();
-  const [open, setOpen] = useState(false);
+  const { seller } = useAuthStore();
   const [isSaving, setIsSaving] = useState(false);
   const navigate = useNavigate();
-
-  const handleLogout = () => {
-    logout();
-    navigate('/seller/auth');
-  };
 
 
 
@@ -54,56 +47,28 @@ export function SellerSettings() {
   };
 
   return (
-    <div className="h-screen w-full flex flex-col md:flex-row bg-gray-50 overflow-hidden">
-      <Sidebar open={open} setOpen={setOpen}>
-        <SidebarBody className="justify-between gap-10">
-          <div className="flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-            {open ? <Logo /> : <LogoIcon />}
-            <div className="mt-8 flex flex-col gap-2">
-              {sellerLinks.map((link, idx) => (
-                <SidebarLink key={idx} link={link} />
-              ))}
-            </div>
-          </div>
-          <div className="space-y-2">
-            <SidebarLink
-              link={{
-                label: seller?.name || "Seller",
-                href: "/seller/profile",
-                icon: (
-                  <div className="h-7 w-7 flex-shrink-0 rounded-full bg-orange-500 flex items-center justify-center">
-                    <span className="text-white text-xs font-medium">
-                      {seller?.name?.charAt(0) || 'S'}
-                    </span>
-                  </div>
-                ),
-              }}
-            />
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-2 w-full px-2 py-2 text-sm text-gray-700 hover:text-orange-500 hover:bg-orange-50 rounded-md transition-colors"
-            >
-              <LogOut className="h-5 w-5 flex-shrink-0" />
-              {open && <span>Logout</span>}
-            </button>
-          </div>
-        </SidebarBody>
-      </Sidebar>
+    <div className="h-screen w-full flex flex-col md:flex-row bg-[var(--brand-wash)] overflow-hidden font-sans">
+      <SellerSidebar />
 
-      <div className="flex flex-1 w-full overflow-hidden">
-        <div className="p-2 md:p-8 bg-gray-50 flex-1 w-full h-full overflow-auto">
-          <div className="max-w-7xl mx-auto flex flex-col gap-6">
+      <div className="flex flex-1 w-full overflow-hidden relative">
+        <div className="absolute top-0 left-0 w-full h-full pointer-events-none z-0">
+          <div className="absolute top-[-10%] right-[-10%] w-[50vw] h-[50vw] bg-orange-100/40 rounded-full blur-[120px]" />
+          <div className="absolute bottom-[-10%] left-[-10%] w-[40vw] h-[40vw] bg-yellow-100/40 rounded-full blur-[100px]" />
+        </div>
+
+        <div className="p-2 md:p-8 flex-1 w-full h-full overflow-auto relative z-10 scrollbar-hide">
+          <div className="max-w-7xl mx-auto flex flex-col gap-8">
             {/* Header */}
             <div>
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                  <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
-                  <p className="text-sm text-gray-500 mt-1">Manage your account and store preferences</p>
+                  <h1 className="text-3xl font-black text-[var(--text-headline)] font-heading tracking-tight">Settings</h1>
+                  <p className="text-sm text-[var(--text-secondary)] mt-1 font-medium">Manage your account and store preferences</p>
                 </div>
                 <Button
                   onClick={handleSave}
                   disabled={isSaving}
-                  className="bg-orange-500 hover:bg-orange-600 text-white flex items-center gap-2"
+                  className="rounded-full bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-dark)] text-white shadow-lg shadow-orange-500/20 hover:shadow-orange-500/30 flex items-center gap-2 transition-all hover:scale-[1.02]"
                 >
                   {isSaving ? (
                     <>
@@ -123,25 +88,27 @@ export function SellerSettings() {
             {/* Main Content */}
             <div className="flex-1">
               <Tabs defaultValue="profile" className="w-full">
-                <TabsList className="grid w-full grid-cols-5 mb-6">
-                  <TabsTrigger value="profile">Profile</TabsTrigger>
-                  <TabsTrigger value="store">Store Info</TabsTrigger>
-                  <TabsTrigger value="notifications">Notifications</TabsTrigger>
-                  <TabsTrigger value="security">Security</TabsTrigger>
-                  <TabsTrigger value="payment">Payment</TabsTrigger>
+                <TabsList className="grid w-full grid-cols-5 mb-8 bg-white/60 backdrop-blur-md p-1.5 rounded-2xl border border-white/20 shadow-sm">
+                  <TabsTrigger value="profile" className="rounded-xl data-[state=active]:bg-white data-[state=active]:text-[var(--brand-primary)] data-[state=active]:shadow-sm font-bold">Profile</TabsTrigger>
+                  <TabsTrigger value="store" className="rounded-xl data-[state=active]:bg-white data-[state=active]:text-[var(--brand-primary)] data-[state=active]:shadow-sm font-bold">Store Info</TabsTrigger>
+                  <TabsTrigger value="notifications" className="rounded-xl data-[state=active]:bg-white data-[state=active]:text-[var(--brand-primary)] data-[state=active]:shadow-sm font-bold">Notifications</TabsTrigger>
+                  <TabsTrigger value="security" className="rounded-xl data-[state=active]:bg-white data-[state=active]:text-[var(--brand-primary)] data-[state=active]:shadow-sm font-bold">Security</TabsTrigger>
+                  <TabsTrigger value="payment" className="rounded-xl data-[state=active]:bg-white data-[state=active]:text-[var(--brand-primary)] data-[state=active]:shadow-sm font-bold">Payment</TabsTrigger>
                 </TabsList>
 
                 {/* Profile Settings */}
                 <TabsContent value="profile">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <User className="w-5 h-5" />
+                  <Card className="border-orange-100 shadow-[0_8px_30px_rgba(0,0,0,0.04)] rounded-[32px] bg-white overflow-hidden">
+                    <CardHeader className="bg-gradient-to-r from-orange-50/50 to-white border-b border-orange-50 p-8">
+                      <CardTitle className="flex items-center gap-3 text-xl font-black text-[var(--text-headline)]">
+                        <div className="h-10 w-10 rounded-full bg-orange-100 flex items-center justify-center">
+                          <User className="w-5 h-5 text-[var(--brand-primary)]" />
+                        </div>
                         Personal Information
                       </CardTitle>
-                      <CardDescription>Update your personal details and profile picture</CardDescription>
+                      <CardDescription className="text-[var(--text-secondary)] ml-14">Update your personal details and profile picture</CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-6">
+                    <CardContent className="space-y-8 p-8">
                       {/* Profile Picture */}
                       <div className="flex items-center gap-6">
                         <div className="relative">
@@ -185,15 +152,17 @@ export function SellerSettings() {
 
                 {/* Store Settings */}
                 <TabsContent value="store">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Store className="w-5 h-5" />
+                  <Card className="border-orange-100 shadow-[0_8px_30px_rgba(0,0,0,0.04)] rounded-[32px] bg-white overflow-hidden">
+                    <CardHeader className="bg-gradient-to-r from-orange-50/50 to-white border-b border-orange-50 p-8">
+                      <CardTitle className="flex items-center gap-3 text-xl font-black text-[var(--text-headline)]">
+                        <div className="h-10 w-10 rounded-full bg-orange-100 flex items-center justify-center">
+                          <Store className="w-5 h-5 text-[var(--brand-primary)]" />
+                        </div>
                         Store Information
                       </CardTitle>
-                      <CardDescription>Manage your store details and public information</CardDescription>
+                      <CardDescription className="text-[var(--text-secondary)] ml-14">Manage your store details and public information</CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-6">
+                    <CardContent className="space-y-8 p-8">
                       <div className="space-y-2">
                         <Label htmlFor="storeName">Store Name</Label>
                         <Input id="storeName" defaultValue="My Awesome Store" />
@@ -243,15 +212,17 @@ export function SellerSettings() {
 
                 {/* Notification Settings */}
                 <TabsContent value="notifications">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Bell className="w-5 h-5" />
+                  <Card className="border-orange-100 shadow-[0_8px_30px_rgba(0,0,0,0.04)] rounded-[32px] bg-white overflow-hidden">
+                    <CardHeader className="bg-gradient-to-r from-orange-50/50 to-white border-b border-orange-50 p-8">
+                      <CardTitle className="flex items-center gap-3 text-xl font-black text-[var(--text-headline)]">
+                        <div className="h-10 w-10 rounded-full bg-orange-100 flex items-center justify-center">
+                          <Bell className="w-5 h-5 text-[var(--brand-primary)]" />
+                        </div>
                         Notification Preferences
                       </CardTitle>
-                      <CardDescription>Manage how you receive notifications and updates</CardDescription>
+                      <CardDescription className="text-[var(--text-secondary)] ml-14">Manage how you receive notifications and updates</CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-4">
+                    <CardContent className="space-y-6 p-8">
                       {[
                         { label: 'Order Notifications', description: 'Get notified when you receive new orders' },
                         { label: 'Product Alerts', description: 'Alerts about product performance and issues' },
@@ -274,15 +245,17 @@ export function SellerSettings() {
 
                 {/* Security Settings */}
                 <TabsContent value="security">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Lock className="w-5 h-5" />
+                  <Card className="border-orange-100 shadow-[0_8px_30px_rgba(0,0,0,0.04)] rounded-[32px] bg-white overflow-hidden">
+                    <CardHeader className="bg-gradient-to-r from-orange-50/50 to-white border-b border-orange-50 p-8">
+                      <CardTitle className="flex items-center gap-3 text-xl font-black text-[var(--text-headline)]">
+                        <div className="h-10 w-10 rounded-full bg-orange-100 flex items-center justify-center">
+                          <Lock className="w-5 h-5 text-[var(--brand-primary)]" />
+                        </div>
                         Security Settings
                       </CardTitle>
-                      <CardDescription>Manage your password and account security</CardDescription>
+                      <CardDescription className="text-[var(--text-secondary)] ml-14">Manage your password and account security</CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-6">
+                    <CardContent className="space-y-8 p-8">
                       <div className="space-y-2">
                         <Label htmlFor="currentPassword">Current Password</Label>
                         <Input id="currentPassword" type="password" placeholder="Enter current password" />
@@ -326,15 +299,17 @@ export function SellerSettings() {
 
                 {/* Payment Settings */}
                 <TabsContent value="payment">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <CreditCard className="w-5 h-5" />
+                  <Card className="border-orange-100 shadow-[0_8px_30px_rgba(0,0,0,0.04)] rounded-[32px] bg-white overflow-hidden">
+                    <CardHeader className="bg-gradient-to-r from-orange-50/50 to-white border-b border-orange-50 p-8">
+                      <CardTitle className="flex items-center gap-3 text-xl font-black text-[var(--text-headline)]">
+                        <div className="h-10 w-10 rounded-full bg-orange-100 flex items-center justify-center">
+                          <CreditCard className="w-5 h-5 text-[var(--brand-primary)]" />
+                        </div>
                         Payment Settings
                       </CardTitle>
-                      <CardDescription>Manage your payment methods and payout preferences</CardDescription>
+                      <CardDescription className="text-[var(--text-secondary)] ml-14">Manage your payment methods and payout preferences</CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-6">
+                    <CardContent className="space-y-8 p-8">
                       <div>
                         <h4 className="text-sm font-semibold text-gray-900 mb-4">Bank Account</h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -406,39 +381,4 @@ export function SellerSettings() {
   );
 }
 
-const Logo = () => {
-  return (
-    <Link
-      to="/seller"
-      className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20"
-    >
-      <img
-        src="/Logo.png"
-        alt="BazaarPH Logo"
-        className="h-8 w-8 object-contain flex-shrink-0"
-      />
-      <motion.span
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        className="font-semibold text-gray-900 dark:text-white whitespace-pre"
-      >
-        BazaarPH Seller
-      </motion.span>
-    </Link>
-  );
-};
 
-const LogoIcon = () => {
-  return (
-    <Link
-      to="/seller"
-      className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20"
-    >
-      <img
-        src="/Logo.png"
-        alt="BazaarPH Logo"
-        className="h-8 w-8 object-contain flex-shrink-0"
-      />
-    </Link>
-  );
-};
