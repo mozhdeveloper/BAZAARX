@@ -935,10 +935,10 @@ export default function ShopPage() {
                   <div className="flex items-center gap-3">
 
                     <Select value={selectedSort} onValueChange={setSelectedSort}>
-                      <SelectTrigger className="w-[160px] h-9 border-[var(--brand-wash-gold)] bg-[var(--bg-secondary)] rounded-xl text-sm font-medium text-[var(--text-headline)] focus:outline-none focus:ring-0 focus:border-[var(--brand-primary)] transition-all">
+                      <SelectTrigger className="w-[160px] h-9 bg-white border-0 rounded-xl text-sm font-medium text-[var(--text-headline)] focus:outline-none focus:ring-1 focus:ring-orange-100 shadow-md hover:shadow-lg transition-all">
                         <SelectValue placeholder="Sort by" />
                       </SelectTrigger>
-                      <SelectContent className="rounded-xl border-gray-100">
+                      <SelectContent className="rounded-xl border-orange-100 shadow-xl bg-white">
                         {sortOptions.map((option) => (
                           <SelectItem key={option.value} value={option.value} className="text-xs">
                             {option.label}

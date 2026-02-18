@@ -1,9 +1,7 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   Package,
-  FileCheck,
-  Clock,
   XCircle,
   AlertCircle,
   Search,
@@ -25,9 +23,6 @@ import { useAuthStore, useProductStore } from '@/stores/sellerStore';
 import { useToast } from '@/hooks/use-toast';
 import { SellerSidebar } from '@/components/seller/SellerSidebar';
 import { cn } from "@/lib/utils";
-
-// Logo Components
-
 
 const SellerProductStatus = () => {
   const [submitModalOpen, setSubmitModalOpen] = useState(false);
@@ -56,13 +51,28 @@ const SellerProductStatus = () => {
   // Get all seller products (including those not in QA yet)
   const activeSellerProducts = sellerProducts.filter((p) => p.isActive);
 
-  // Calculate stats
-  const pendingCount = sellerQAProducts.filter((p) => p.status === 'PENDING_DIGITAL_REVIEW').length;
-  const waitingCount = sellerQAProducts.filter((p) => p.status === 'WAITING_FOR_SAMPLE').length;
-  const reviewCount = sellerQAProducts.filter((p) => p.status === 'IN_QUALITY_REVIEW').length;
-  const verifiedCount = sellerQAProducts.filter((p) => p.status === 'ACTIVE_VERIFIED').length;
-  const revisionCount = sellerQAProducts.filter((p) => p.status === 'FOR_REVISION').length;
-  const rejectedCount = sellerQAProducts.filter((p) => p.status === 'REJECTED').length;
+  // Calculate counts
+  const pendingCount = sellerQAProducts.filter(p => p.status === 'PENDING_DIGITAL_REVIEW').length;
+  const waitingCount = sellerQAProducts.filter(p => p.status === 'WAITING_FOR_SAMPLE').length;
+  const qaQueueCount = sellerQAProducts.filter(p => p.status === 'IN_QUALITY_REVIEW').length;
+  const revisionCount = sellerQAProducts.filter(p => p.status === 'FOR_REVISION').length;
+  const verifiedCount = sellerQAProducts.filter(p => p.status === 'ACTIVE_VERIFIED').length;
+  const rejectedCount = sellerQAProducts.filter(p => p.status === 'REJECTED').length;
+
+  // Calculate unique products for 'All' count
+  const qaProductIdsForCount = new Set(sellerQAProducts.map(p => p.id));
+  const nonQASellerProductsCount = activeSellerProducts.filter(p => !qaProductIdsForCount.has(p.id)).length;
+  const allCount = sellerQAProducts.length + nonQASellerProductsCount;
+
+  const statusOptions = [
+    { value: 'all', label: 'All Products', count: allCount },
+    { value: 'pending', label: 'Pending', count: pendingCount },
+    { value: 'waiting', label: 'Awaiting Sample', count: waitingCount },
+    { value: 'qa', label: 'QA Queue', count: qaQueueCount },
+    { value: 'revision', label: 'For Revision', count: revisionCount },
+    { value: 'verified', label: 'Verified', count: verifiedCount },
+    { value: 'rejected', label: 'Rejected', count: rejectedCount },
+  ];
 
   // Apply search and filter
   const getFilteredProducts = () => {
@@ -171,156 +181,58 @@ const SellerProductStatus = () => {
             <div className="flex items-center gap-3">
               <div>
                 <h1 className="text-3xl font-black text-[var(--text-headline)] font-heading tracking-tight">Product QA Status</h1>
-                <p className="text-sm text-[var(--text-secondary)] mt-1 font-medium">Track your product quality assurance status</p>
+                <p className="text-sm text-[var(--text-muted)] mt-1">Track your product quality assurance status</p>
               </div>
             </div>
 
 
 
-            {/* Stat-Filter Cards (Consolidated Navigation) */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
-              {/* Pending Review */}
-              <Card
-                onClick={() => setFilterStatus(filterStatus === 'pending' ? 'all' : 'pending')}
-                className={cn(
-                  "cursor-pointer transition-all duration-300 relative overflow-hidden group",
-                  filterStatus === 'pending'
-                    ? "bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-xl shadow-orange-500/30 scale-[1.02] border-transparent"
-                    : "bg-white border-orange-100 shadow-[0_4px_20px_rgba(0,0,0,0.02)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)] hover:border-orange-200"
-                )}
-              >
-                <div className="p-4 relative z-10">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className={cn("p-2 rounded-lg", filterStatus === 'pending' ? "bg-white/20" : "bg-orange-50")}>
-                      <Clock className={cn("w-5 h-5", filterStatus === 'pending' ? "text-white" : "text-orange-500")} />
-                    </div>
+            {/* Filter Navigation and Search */}
+            <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-4 mb-8">
+              {/* Status Navigation Container */}
+              <div className="flex-1 relative min-w-0">
+                <div className="overflow-x-auto scrollbar-hide pb-0.5">
+                  <div className="inline-flex items-center p-1 bg-white rounded-full border border-orange-100/50 shadow-sm min-w-full md:min-w-max">
+                    {statusOptions.map((option) => (
+                      <button
+                        key={option.value}
+                        onClick={() => setFilterStatus(option.value as any)}
+                        className={cn(
+                          "px-4 py-1.5 rounded-full text-[11px] sm:text-xs font-medium whitespace-nowrap transition-all duration-300",
+                          filterStatus === option.value
+                            ? "bg-[var(--brand-primary)] text-white shadow-md shadow-[var(--brand-primary)]/20"
+                            : "text-gray-500 hover:text-[var(--brand-primary)] hover:bg-orange-50/50",
+                        )}
+                      >
+                        {option.label}
+                        <span className={cn(
+                          "ml-1 text-[11px] font-medium",
+                          filterStatus === option.value
+                            ? "text-white/90"
+                            : "text-gray-400 group-hover:text-[var(--brand-primary)]"
+                        )}>
+                          ({option.count})
+                        </span>
+                      </button>
+                    ))}
                   </div>
-                  <p className={cn("text-2xl font-black mb-1", filterStatus === 'pending' ? "text-white" : "text-[var(--text-headline)]")}>{pendingCount}</p>
-                  <p className={cn("text-xs font-bold uppercase tracking-wide", filterStatus === 'pending' ? "text-orange-100" : "text-[var(--text-secondary)]")}>Pending</p>
                 </div>
-              </Card>
+              </div>
 
-              {/* Awaiting Sample */}
-              <Card
-                onClick={() => setFilterStatus(filterStatus === 'waiting' ? 'all' : 'waiting')}
-                className={cn(
-                  "cursor-pointer transition-all duration-300 relative overflow-hidden group",
-                  filterStatus === 'waiting'
-                    ? "bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-xl shadow-blue-500/30 scale-[1.02] border-transparent"
-                    : "bg-white border-orange-100 shadow-[0_4px_20px_rgba(0,0,0,0.02)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)] hover:border-blue-200"
-                )}
-              >
-                <div className="p-4 relative z-10">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className={cn("p-2 rounded-lg", filterStatus === 'waiting' ? "bg-white/20" : "bg-blue-50")}>
-                      <Package className={cn("w-5 h-5", filterStatus === 'waiting' ? "text-white" : "text-blue-500")} />
-                    </div>
-                  </div>
-                  <p className={cn("text-2xl font-black mb-1", filterStatus === 'waiting' ? "text-white" : "text-[var(--text-headline)]")}>{waitingCount}</p>
-                  <p className={cn("text-xs font-bold uppercase tracking-wide", filterStatus === 'waiting' ? "text-blue-100" : "text-[var(--text-secondary)]")}>Awaiting Sample</p>
-                </div>
-              </Card>
-
-              {/* QA Queue */}
-              <Card
-                onClick={() => setFilterStatus(filterStatus === 'qa' ? 'all' : 'qa')}
-                className={cn(
-                  "cursor-pointer transition-all duration-300 relative overflow-hidden group",
-                  filterStatus === 'qa'
-                    ? "bg-gradient-to-br from-purple-500 to-purple-600 text-white shadow-xl shadow-purple-500/30 scale-[1.02] border-transparent"
-                    : "bg-white border-orange-100 shadow-[0_4px_20px_rgba(0,0,0,0.02)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)] hover:border-purple-200"
-                )}
-              >
-                <div className="p-4 relative z-10">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className={cn("p-2 rounded-lg", filterStatus === 'qa' ? "bg-white/20" : "bg-purple-50")}>
-                      <FileCheck className={cn("w-5 h-5", filterStatus === 'qa' ? "text-white" : "text-purple-500")} />
-                    </div>
-                  </div>
-                  <p className={cn("text-2xl font-black mb-1", filterStatus === 'qa' ? "text-white" : "text-[var(--text-headline)]")}>{reviewCount}</p>
-                  <p className={cn("text-xs font-bold uppercase tracking-wide", filterStatus === 'qa' ? "text-purple-100" : "text-[var(--text-secondary)]")}>QA Queue</p>
-                </div>
-              </Card>
-
-              {/* For Revision */}
-              <Card
-                onClick={() => setFilterStatus(filterStatus === 'revision' ? 'all' : 'revision')}
-                className={cn(
-                  "cursor-pointer transition-all duration-300 relative overflow-hidden group",
-                  filterStatus === 'revision'
-                    ? "bg-gradient-to-br from-amber-500 to-amber-600 text-white shadow-xl shadow-amber-500/30 scale-[1.02] border-transparent"
-                    : "bg-white border-orange-100 shadow-[0_4px_20px_rgba(0,0,0,0.02)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)] hover:border-amber-200"
-                )}
-              >
-                <div className="p-4 relative z-10">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className={cn("p-2 rounded-lg", filterStatus === 'revision' ? "bg-white/20" : "bg-amber-50")}>
-                      <RefreshCw className={cn("w-5 h-5", filterStatus === 'revision' ? "text-white" : "text-amber-500")} />
-                    </div>
-                  </div>
-                  <p className={cn("text-2xl font-black mb-1", filterStatus === 'revision' ? "text-white" : "text-[var(--text-headline)]")}>{revisionCount}</p>
-                  <p className={cn("text-xs font-bold uppercase tracking-wide", filterStatus === 'revision' ? "text-amber-100" : "text-[var(--text-secondary)]")}>For Revision</p>
-                </div>
-              </Card>
-
-              {/* Verified */}
-              <Card
-                onClick={() => setFilterStatus(filterStatus === 'verified' ? 'all' : 'verified')}
-                className={cn(
-                  "cursor-pointer transition-all duration-300 relative overflow-hidden group",
-                  filterStatus === 'verified'
-                    ? "bg-gradient-to-br from-green-500 to-green-600 text-white shadow-xl shadow-green-500/30 scale-[1.02] border-transparent"
-                    : "bg-white border-orange-100 shadow-[0_4px_20px_rgba(0,0,0,0.02)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)] hover:border-green-200"
-                )}
-              >
-                <div className="p-4 relative z-10">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className={cn("p-2 rounded-lg", filterStatus === 'verified' ? "bg-white/20" : "bg-green-50")}>
-                      <BadgeCheck className={cn("w-5 h-5", filterStatus === 'verified' ? "text-white" : "text-green-500")} />
-                    </div>
-                  </div>
-                  <p className={cn("text-2xl font-black mb-1", filterStatus === 'verified' ? "text-white" : "text-[var(--text-headline)]")}>{verifiedCount}</p>
-                  <p className={cn("text-xs font-bold uppercase tracking-wide", filterStatus === 'verified' ? "text-green-100" : "text-[var(--text-secondary)]")}>Verified</p>
-                </div>
-              </Card>
-
-              {/* Rejected */}
-              <Card
-                onClick={() => setFilterStatus(filterStatus === 'rejected' ? 'all' : 'rejected')}
-                className={cn(
-                  "cursor-pointer transition-all duration-300 relative overflow-hidden group",
-                  filterStatus === 'rejected'
-                    ? "bg-gradient-to-br from-red-500 to-red-600 text-white shadow-xl shadow-red-500/30 scale-[1.02] border-transparent"
-                    : "bg-white border-orange-100 shadow-[0_4px_20px_rgba(0,0,0,0.02)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)] hover:border-red-200"
-                )}
-              >
-                <div className="p-4 relative z-10">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className={cn("p-2 rounded-lg", filterStatus === 'rejected' ? "bg-white/20" : "bg-red-50")}>
-                      <XCircle className={cn("w-5 h-5", filterStatus === 'rejected' ? "text-white" : "text-red-500")} />
-                    </div>
-                  </div>
-                  <p className={cn("text-2xl font-black mb-1", filterStatus === 'rejected' ? "text-white" : "text-[var(--text-headline)]")}>{rejectedCount}</p>
-                  <p className={cn("text-xs font-bold uppercase tracking-wide", filterStatus === 'rejected' ? "text-red-100" : "text-[var(--text-secondary)]")}>Rejected</p>
-                </div>
-              </Card>
-            </div>
-            {/* Search Toolbar */}
-            <div className="flex items-center justify-between mb-8">
-              <div className="flex-1 max-w-md relative group">
-                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 group-focus-within:text-[var(--brand-primary)] transition-colors" />
-                <Input
+              <div className="relative w-full lg:w-80 flex-shrink-0">
+                <Search className="absolute left-3.5 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <input
                   type="text"
-                  placeholder="Search products by name or category..."
+                  placeholder="Search products..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full h-9 pl-12 rounded-xl border-orange-100 bg-white shadow-sm focus:ring-[var(--brand-primary)] focus:border-[var(--brand-primary)] text-sm placeholder:text-[var(--text-muted)] transition-all"
+                  className="w-full pl-10 pr-4 py-2 border border-orange-200 bg-white rounded-xl text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-300 transition-all shadow-sm"
                 />
               </div>
             </div>
             {/* Products List */}
-            <Card className="border-orange-100 shadow-[0_8px_30px_rgba(0,0,0,0.04)] rounded-xl bg-white overflow-hidden">
-              <div className="divide-y">
+            <Card className="shadow-lg rounded-xl bg-white overflow-hidden border-0">
+              <div>
                 {isLoading ? (
                   <div className="py-16 text-center">
                     <RefreshCw className="w-12 h-12 text-gray-300 mx-auto mb-3 animate-spin" />
@@ -336,12 +248,11 @@ const SellerProductStatus = () => {
                   </div>
                 ) : (
                   <>
-                    {/* Show seller products first */}
                     {filteredSellerProducts.map((product) => (
-                      <div key={`seller-${product.id}`} className="p-5 hover:bg-gray-50 transition-colors">
+                      <div key={`seller-${product.id}`} className="p-5 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0">
                         <div className="flex items-center gap-5">
                           {/* Product Image */}
-                          <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+                          <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 border border-gray-100">
                             {product.images[0] ? (
                               <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
                             ) : (
@@ -353,10 +264,27 @@ const SellerProductStatus = () => {
 
                           {/* Product Info */}
                           <div className="flex-1 min-w-0">
-                            <h3 className="font-semibold text-gray-900 truncate">{product.name}</h3>
-                            <div className="flex items-center gap-2 mt-1">
-                              <Badge variant="outline" className="text-xs">{product.category}</Badge>
-                              <span className="text-sm text-gray-500 flex items-center gap-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h3 className="font-semibold text-[var(--secondary-foreground)] truncate">{product.name}</h3>
+                              {product.approvalStatus === 'approved' ? (
+                                <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-0 h-5 px-2 text-[10px] uppercase tracking-wide">
+                                  Approved
+                                </Badge>
+                              ) : product.approvalStatus === 'pending' ? (
+                                <Badge className="text-orange-600 bg-orange-50 hover:bg-orange-50 border-0 h-5 px-2 text-[10px] uppercase tracking-wide">
+                                  Pending
+                                </Badge>
+                              ) : product.approvalStatus === 'rejected' ? (
+                                <Badge className="bg-red-100 text-red-700 hover:bg-red-100 border-0 h-5 px-2 text-[10px] uppercase tracking-wide">
+                                  Rejected
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="h-5 px-2 text-[10px] uppercase tracking-wide">{product.approvalStatus || 'Unknown'}</Badge>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge variant="secondary" className="text-[10px] bg-gray-100 hover:bg-gray-100 text-gray-600 font-normal">{product.category}</Badge>
+                              <span className="text-xs text-gray-400 flex items-center gap-1">
                                 <User className="w-3 h-3" />
                                 {seller?.name || 'Your Shop'}
                               </span>
@@ -365,28 +293,7 @@ const SellerProductStatus = () => {
 
                           {/* Price */}
                           <div className="flex-shrink-0">
-                            <p className="text-xl font-bold text-[#FF5722]">₱{product.price.toLocaleString()}</p>
-                          </div>
-
-                          {/* Status Badge */}
-                          <div className="flex-shrink-0">
-                            {product.approvalStatus === 'approved' ? (
-                              <Badge className="bg-green-100 text-green-700 border-0">
-                                <BadgeCheck className="w-3 h-3 mr-1" />
-                                Approved
-                              </Badge>
-                            ) : product.approvalStatus === 'pending' ? (
-                              <Badge variant="outline" className="text-orange-600 border-orange-300">
-                                Pending
-                              </Badge>
-                            ) : product.approvalStatus === 'rejected' ? (
-                              <Badge className="bg-red-100 text-red-700 border-0">
-                                <XCircle className="w-3 h-3 mr-1" />
-                                Rejected
-                              </Badge>
-                            ) : (
-                              <Badge variant="outline">{product.approvalStatus || 'Unknown'}</Badge>
-                            )}
+                            <p className="text-lg font-bold text-[var(--secondary-foreground)]">₱{product.price.toLocaleString()}</p>
                           </div>
                         </div>
                       </div>
@@ -395,10 +302,10 @@ const SellerProductStatus = () => {
                     {/* Show QA products */}
                     {filteredQAProducts.map((product) => (
                       <div key={product.id}>
-                        <div className="p-5 hover:bg-gray-50 transition-colors">
+                        <div className="p-5 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0">
                           <div className="flex items-center gap-5">
                             {/* Product Image */}
-                            <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+                            <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 border border-gray-100">
                               {product.image ? (
                                 <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
                               ) : (
@@ -410,61 +317,66 @@ const SellerProductStatus = () => {
 
                             {/* Product Info */}
                             <div className="flex-1 min-w-0">
-                              <h3 className="font-semibold text-gray-900 truncate">{product.name}</h3>
-                              <div className="flex items-center gap-2 mt-1">
-                                <Badge variant="outline" className="text-xs">{product.category}</Badge>
-                                <span className="text-sm text-gray-500 flex items-center gap-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <h3 className="font-semibold text-[var(--secondary-foreground)] truncate">{product.name}</h3>
+                                {product.status === 'PENDING_DIGITAL_REVIEW' ? (
+                                  <Badge className="text-orange-600 bg-orange-50 hover:bg-orange-50 border-0 h-5 px-2 text-[10px] uppercase tracking-wide">
+                                    Pending Review
+                                  </Badge>
+                                ) : product.status === 'IN_QUALITY_REVIEW' ? (
+                                  <Badge variant="outline" className="text-purple-600 border-purple-200 bg-purple-50 h-5 px-2 text-[10px] uppercase tracking-wide">
+                                    In QA Review
+                                  </Badge>
+                                ) : product.status === 'FOR_REVISION' ? (
+                                  <Badge variant="outline" className="text-amber-600 border-amber-200 bg-amber-50 h-5 px-2 text-[10px] uppercase tracking-wide">
+                                    Needs Revision
+                                  </Badge>
+                                ) : product.status === 'ACTIVE_VERIFIED' ? (
+                                  <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-0 h-5 px-2 text-[10px] uppercase tracking-wide">
+                                    Verified
+                                  </Badge>
+                                ) : product.status === 'REJECTED' ? (
+                                  <Badge className="bg-red-100 text-red-700 hover:bg-red-100 border-0 h-5 px-2 text-[10px] uppercase tracking-wide">
+                                    Rejected
+                                  </Badge>
+                                ) : product.status === 'WAITING_FOR_SAMPLE' ? (
+                                  <Badge variant="outline" className="text-blue-600 border-blue-200 bg-blue-50 h-5 px-2 text-[10px] uppercase tracking-wide">
+                                    Awaiting Sample
+                                  </Badge>
+                                ) : null}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Badge variant="secondary" className="text-[10px] bg-gray-100 hover:bg-gray-100 text-gray-600 font-normal">{product.category}</Badge>
+                                <span className="text-xs text-gray-400 flex items-center gap-1">
                                   <User className="w-3 h-3" />
                                   {product.vendor}
                                 </span>
                                 {product.logistics && (
-                                  <span className="text-xs text-gray-500">• {product.logistics}</span>
+                                  <span className="text-xs text-gray-400">• {product.logistics}</span>
                                 )}
                               </div>
                             </div>
 
                             {/* Price */}
                             <div className="flex-shrink-0">
-                              <p className="text-xl font-bold text-[#FF5722]">₱{product.price.toLocaleString()}</p>
+                              <p className="text-lg font-bold text-[var(--secondary-foreground)]">₱{product.price.toLocaleString()}</p>
                             </div>
 
-                            {/* Status and Action */}
-                            <div className="flex items-center gap-2 flex-shrink-0">
-                              {product.status === 'WAITING_FOR_SAMPLE' ? (
+                            {/* Action (Only for waiting sample) */}
+                            {product.status === 'WAITING_FOR_SAMPLE' && (
+                              <div className="flex-shrink-0 ml-4">
                                 <Button
                                   size="sm"
                                   onClick={() => {
                                     setSelectedProduct(product.id);
                                     setSubmitModalOpen(true);
                                   }}
-                                  className="bg-[#FF5722] hover:bg-[#E64A19] text-white"
+                                  className="bg-[#FF5722] hover:bg-[#E64A19] text-white rounded-full px-4"
                                 >
                                   Submit Sample
                                 </Button>
-                              ) : product.status === 'PENDING_DIGITAL_REVIEW' ? (
-                                <Badge variant="outline" className="text-orange-600 border-orange-300">
-                                  Pending Review
-                                </Badge>
-                              ) : product.status === 'IN_QUALITY_REVIEW' ? (
-                                <Badge variant="outline" className="text-purple-600 border-purple-300">
-                                  In QA Review
-                                </Badge>
-                              ) : product.status === 'FOR_REVISION' ? (
-                                <Badge variant="outline" className="text-amber-600 border-amber-300">
-                                  Needs Revision
-                                </Badge>
-                              ) : product.status === 'ACTIVE_VERIFIED' ? (
-                                <Badge className="bg-green-100 text-green-700 border-0">
-                                  <BadgeCheck className="w-3 h-3 mr-1" />
-                                  Verified
-                                </Badge>
-                              ) : product.status === 'REJECTED' ? (
-                                <Badge className="bg-red-100 text-red-700 border-0">
-                                  <XCircle className="w-3 h-3 mr-1" />
-                                  Rejected
-                                </Badge>
-                              ) : null}
-                            </div>
+                              </div>
+                            )}
                           </div>
                         </div>
 

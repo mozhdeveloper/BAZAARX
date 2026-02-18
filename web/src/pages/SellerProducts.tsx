@@ -265,7 +265,7 @@ export function SellerProducts() {
                                 <h1 className="text-3xl font-extrabold text-[var(--text-headline)] font-heading tracking-tight">
                                     Products
                                 </h1>
-                                <p className="text-[var(--text-muted)] mt-1 text-sm font-medium">
+                                <p className="text-[var(--text-muted)] mt-1 text-sm">
                                     Manage your product inventory
                                 </p>
                             </div>

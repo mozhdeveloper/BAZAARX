@@ -231,22 +231,15 @@ const StoresPage: React.FC = () => {
                 {/* Location Filter */}
                 <div className="flex items-center gap-3">
                   <Select value={selectedLocation} onValueChange={setSelectedLocation}>
-                    <SelectTrigger className="w-[160px] h-8 bg-white border-gray-200 rounded-[12px] text-gray-700 text-[13px] focus:ring-1 focus:ring-orange-100 focus:ring-offset-0 shadow-sm hover:border-gray-300 hover:shadow-md transition-all px-4">
+                    <SelectTrigger className="w-[160px] h-9 bg-white border-0 rounded-xl text-gray-700 text-sm focus:ring-1 focus:ring-orange-100 focus:ring-offset-0 shadow-md hover:shadow-lg transition-all px-4 font-medium">
                       <SelectValue placeholder="Location" />
                     </SelectTrigger>
-                    <SelectContent className="rounded-2xl border-gray-100 p-1 shadow-xl">
-                      <SelectItem
-                        value="All"
-                        className="rounded-xl data-[state=checked]:bg-[var(--brand-primary)] data-[state=checked]:text-white focus:bg-[var(--brand-wash)] focus:text-[var(--brand-primary)] cursor-pointer"
-                      >
+                    <SelectContent className="rounded-xl border-orange-100 shadow-xl bg-white">
+                      <SelectItem value="All">
                         All Locations
                       </SelectItem>
                       {locations.filter(l => l !== 'All').map(loc => (
-                        <SelectItem
-                          key={loc}
-                          value={loc}
-                          className="rounded-xl data-[state=checked]:bg-[var(--brand-primary)] data-[state=checked]:text-white focus:bg-[var(--brand-wash)] focus:text-[var(--brand-primary)] cursor-pointer"
-                        >
+                        <SelectItem key={loc} value={loc}>
                           {loc}
                         </SelectItem>
                       ))}
@@ -257,32 +250,20 @@ const StoresPage: React.FC = () => {
                 {/* Sort By Filter */}
                 <div className="flex items-center gap-3">
                   <Select value={sortBy} onValueChange={(value) => setSortBy(value as 'featured' | 'rating' | 'newest' | 'popular')}>
-                    <SelectTrigger className="w-[160px] h-8 bg-white border-gray-200 rounded-[12px] text-gray-700 text-[13px] focus:ring-1 focus:ring-orange-100 focus:ring-offset-0 shadow-sm hover:border-gray-300 hover:shadow-md transition-all px-4">
+                    <SelectTrigger className="w-[160px] h-9 bg-white border-0 rounded-xl text-gray-700 text-sm focus:ring-1 focus:ring-orange-100 focus:ring-offset-0 shadow-md hover:shadow-lg transition-all px-4 font-medium">
                       <SelectValue placeholder="Sort by" />
                     </SelectTrigger>
-                    <SelectContent className="rounded-2xl border-gray-100 p-1 shadow-xl">
-                      <SelectItem
-                        value="featured"
-                        className="rounded-xl data-[state=checked]:bg-[#ff6a00] data-[state=checked]:text-white focus:bg-orange-50 focus:text-[#ff6a00] cursor-pointer"
-                      >
+                    <SelectContent className="rounded-xl border-orange-100 shadow-xl bg-white">
+                      <SelectItem value="featured">
                         Featured Stores
                       </SelectItem>
-                      <SelectItem
-                        value="rating"
-                        className="rounded-xl data-[state=checked]:bg-[#ff6a00] data-[state=checked]:text-white focus:bg-orange-50 focus:text-[#ff6a00] cursor-pointer"
-                      >
+                      <SelectItem value="rating">
                         Highest Rated
                       </SelectItem>
-                      <SelectItem
-                        value="newest"
-                        className="rounded-xl data-[state=checked]:bg-[#ff6a00] data-[state=checked]:text-white focus:bg-orange-50 focus:text-[#ff6a00] cursor-pointer"
-                      >
+                      <SelectItem value="newest">
                         Newest Joiners
                       </SelectItem>
-                      <SelectItem
-                        value="popular"
-                        className="rounded-xl data-[state=checked]:bg-[var(--brand-primary)] data-[state=checked]:text-white focus:bg-[var(--brand-wash)] focus:text-[var(--brand-primary)] cursor-pointer"
-                      >
+                      <SelectItem value="popular">
                         Most Popular
                       </SelectItem>
                     </SelectContent>

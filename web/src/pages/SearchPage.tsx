@@ -524,10 +524,10 @@ const SearchPage: React.FC = () => {
               </p>
               <div className="w-full sm:w-auto">
                 <Select value={sortBy} onValueChange={setSortBy}>
-                  <SelectTrigger className="w-full sm:w-[180px] bg-[var(--bg-secondary)] border border-[var(--brand-wash-gold)] rounded-xl text-[var(--text-headline)] focus:outline-none focus:ring-0 focus:border-[var(--brand-primary)] transition-all">
+                  <SelectTrigger className="w-full sm:w-[180px] h-9 bg-white border-0 rounded-xl text-sm font-medium text-[var(--text-headline)] focus:outline-none focus:ring-1 focus:ring-orange-100 shadow-md hover:shadow-lg transition-all">
                     <SelectValue placeholder="Sort by" />
                   </SelectTrigger>
-                  <SelectContent className="rounded-xl border-gray-100 bg-[var(--bg-secondary)]">
+                  <SelectContent className="rounded-xl border-orange-100 shadow-xl bg-white">
                     <SelectItem value="relevance" className="text-xs">Default</SelectItem>
                     <SelectItem value="price-low" className="text-xs">Price: Low to High</SelectItem>
                     <SelectItem value="price-high" className="text-xs">Price: High to Low</SelectItem>

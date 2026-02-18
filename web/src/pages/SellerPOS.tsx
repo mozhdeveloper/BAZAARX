@@ -938,21 +938,20 @@ export function SellerPOS() {
         {/* Left Panel: Product Catalog */}
         <div className="w-full lg:w-[65%] flex flex-col bg-[var(--brand-wash)] overflow-hidden">
           {/* Header with Search and Filters */}
-          <div className="px-6 py-5 bg-white/80 backdrop-blur-sm border-b border-orange-100 flex-shrink-0">
+          <div className="px-6 py-5 bg-white/80 backdrop-blur-sm flex-shrink-0">
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <h1 className="text-2xl font-black text-[var(--text-headline)] font-heading tracking-tight">POS Lite</h1>
-                <p className="text-sm text-[var(--text-secondary)] mt-0.5 font-medium">Quick checkout for offline sales</p>
+                <p className="text-sm text-gray-400 mt-0.5">Quick checkout for offline sales</p>
               </div>
               <div className="flex items-center gap-2">
                 <Button
-                  variant="outline"
-                  size="sm"
+                  variant="ghost"
+                  size="icon"
                   onClick={() => setShowPOSSettings(true)}
-                  className="gap-2"
+                  className="h-9 w-9 hover:bg-transparent text-gray-500 hover:text-[var(--text-accent)] rounded-full transition-colors"
                 >
-                  <Settings className="h-4 w-4" />
-                  Settings
+                  <Settings className="h-5 w-5" />
                 </Button>
               </div>
             </div>
@@ -1068,58 +1067,79 @@ export function SellerPOS() {
               </div>
             )}
 
-            {/* Search Bar */}
-            <div className="relative mb-4">
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <Scan className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-                  <Input
-                    type="text"
-                    placeholder="Search or Scan product..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-11 h-11 text-sm border-gray-300 focus-visible:ring-[#FF5722] shadow-sm"
-                  />
+            {/* Search and Filters */}
+            <div className="flex flex-col lg:flex-row items-center gap-3 -mb-2">
+              {/* Quick Filter Pills */}
+              <div className="w-full lg:flex-1 overflow-x-auto scrollbar-hide pb-0.5">
+                <div className="inline-flex items-center p-1 bg-white rounded-full border border-orange-100/50 shadow-sm min-w-full md:min-w-0">
+                  <button
+                    onClick={() => setFilterTab('all')}
+                    className={cn(
+                      "flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all duration-300",
+                      filterTab === 'all'
+                        ? "bg-[var(--brand-primary)] text-white shadow-md shadow-[var(--brand-primary)]/20"
+                        : "text-gray-500 hover:text-[var(--brand-primary)] hover:bg-orange-50/50"
+                    )}
+                  >
+                    All Items
+                  </button>
+                  <button
+                    onClick={() => setFilterTab('low-stock')}
+                    className={cn(
+                      "flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all duration-300",
+                      filterTab === 'low-stock'
+                        ? "bg-[var(--brand-primary)] text-white shadow-md shadow-[var(--brand-primary)]/20"
+                        : "text-gray-500 hover:text-[var(--brand-primary)] hover:bg-orange-50/50"
+                    )}
+                  >
+                    <AlertCircle className={cn("h-3.5 w-3.5", filterTab === 'low-stock' ? "text-white" : "text-gray-400 group-hover:text-[var(--brand-primary)]")} />
+                    Low Stock
+                  </button>
+                  <button
+                    onClick={() => setFilterTab('best-sellers')}
+                    className={cn(
+                      "flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all duration-300",
+                      filterTab === 'best-sellers'
+                        ? "bg-[var(--brand-primary)] text-white shadow-md shadow-[var(--brand-primary)]/20"
+                        : "text-gray-500 hover:text-[var(--brand-primary)] hover:bg-orange-50/50"
+                    )}
+                  >
+                    <TrendingUp className={cn("h-3.5 w-3.5", filterTab === 'best-sellers' ? "text-white" : "text-gray-400 group-hover:text-[var(--brand-primary)]")} />
+                    Best Sellers
+                  </button>
                 </div>
-                <Button
-                  onClick={() => setShowBarcodeScanner(true)}
-                  className="h-11 bg-[#FF6A00] hover:bg-[#E65F00] gap-2"
-                >
-                  <Scan className="h-5 w-5" />
-                  Scan
-                </Button>
+              </div>
+
+              {/* Search Bar */}
+              <div className="relative w-full lg:w-auto flex-shrink-0">
+                <div className="flex gap-2">
+                  <div className="relative flex-1 group lg:w-64">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 group-focus-within:text-[var(--brand-primary)] transition-colors" />
+                    <Input
+                      type="text"
+                      placeholder="Search for products..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-10 h-10 rounded-xl text-sm border-orange-200 bg-white focus-visible:ring-2 focus-visible:ring-orange-100 focus-visible:border-orange-300 transition-all shadow-sm placeholder:text-gray-400"
+                    />
+                  </div>
+                  <Button
+                    onClick={() => setShowBarcodeScanner(true)}
+                    className="h-10 px-4 rounded-xl bg-[var(--brand-primary)] hover:bg-[var(--text-accent)] gap-2 shadow-md shadow-[var(--brand-primary)]/20 font-bold transition-all text-xs"
+                  >
+                    <Scan className="h-4 w-4" />
+                    Scan
+                  </Button>
+                </div>
               </div>
             </div>
-
-            {/* Quick Filter Pills */}
-            <Tabs value={filterTab} onValueChange={(v) => setFilterTab(v as any)} className="w-full">
-              <TabsList className="grid w-full grid-cols-3 h-10 bg-gray-100/50 p-1 rounded-xl">
-                <TabsTrigger
-                  value="all"
-                  className="text-xs rounded-lg data-[state=active]:bg-white data-[state=active]:text-[var(--brand-primary)] data-[state=active]:shadow-sm font-bold transition-all"
-                >
-                  All Items
-                </TabsTrigger>
-                <TabsTrigger
-                  value="low-stock"
-                  className="text-xs rounded-lg data-[state=active]:bg-white data-[state=active]:text-[var(--brand-primary)] data-[state=active]:shadow-sm font-bold transition-all"
-                >
-                  <AlertCircle className="h-3 w-3 mr-1" />
-                  Low Stock
-                </TabsTrigger>
-                <TabsTrigger
-                  value="best-sellers"
-                  className="text-xs rounded-lg data-[state=active]:bg-white data-[state=active]:text-[var(--brand-primary)] data-[state=active]:shadow-sm font-bold transition-all"
-                >
-                  <TrendingUp className="h-3 w-3 mr-1" />
-                  Best Sellers
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
           </div>
 
           {/* Product Grid - Scrollable */}
           <ScrollArea className="flex-1 px-6 py-5">
+            <div className="mb-4 text-sm text-gray-500">
+              Showing <span className="font-bold text-[var(--brand-primary)]">{filteredProducts.length}</span> products
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 pb-4">
               {filteredProducts.map((product) => {
                 const isOutOfStock = product.stock === 0;
@@ -1135,7 +1155,7 @@ export function SellerPOS() {
                   >
                     <Card
                       className={cn(
-                        "overflow-hidden transition-all duration-300 shadow-sm hover:shadow-xl hover:-translate-y-1 bg-white cursor-pointer rounded-[24px] border-orange-100/50 hover:border-orange-200",
+                        "overflow-hidden transition-all duration-300 shadow-sm hover:shadow-xl hover:-translate-y-1 bg-white cursor-pointer rounded-xl border-orange-100/50 hover:border-orange-200",
                         isOutOfStock && "opacity-50 grayscale cursor-not-allowed",
                         isFlashing && "ring-4 ring-[#FF5722]/30 ring-offset-2"
                       )}
@@ -1149,29 +1169,12 @@ export function SellerPOS() {
                           className="w-full h-full object-cover"
                         />
 
-                        {/* Stock Badge - Glassmorphism Overlay */}
-                        <div className="absolute top-2 right-2">
-                          {remainingStock === 0 ? (
-                            <Badge className="bg-red-500/90 text-white backdrop-blur-md border-0 text-xs px-2 py-0.5">
-                              Out
-                            </Badge>
-                          ) : remainingStock < 10 ? (
-                            <Badge className="bg-black/50 text-white backdrop-blur-md border-0 text-xs px-2 py-0.5">
-                              {remainingStock}
-                            </Badge>
-                          ) : (
-                            <Badge className="bg-black/50 text-white backdrop-blur-md border-0 text-xs px-2 py-0.5">
-                              {remainingStock}
-                            </Badge>
-                          )}
-                        </div>
-
-                        {/* Cart Quantity Badge - Top Left */}
+                        {/* Cart Quantity Badge - Top Right */}
                         {cartItem && (
                           <motion.div
                             initial={{ scale: 0 }}
                             animate={{ scale: 1 }}
-                            className="absolute top-2 left-2 bg-[#FF5722] text-white rounded-full h-7 w-7 flex items-center justify-center font-bold text-xs shadow-lg ring-2 ring-white"
+                            className="absolute top-2 right-2 bg-[#FF5722] text-white rounded-full h-7 w-7 flex items-center justify-center text-xs shadow-lg z-10"
                           >
                             ×{cartItem.quantity}
                           </motion.div>
@@ -1188,7 +1191,7 @@ export function SellerPOS() {
                       {/* Product Info - Detailed */}
                       <div className="p-3 space-y-2">
                         {/* Product Name */}
-                        <h3 className="font-semibold text-sm line-clamp-2 text-gray-900 min-h-[2.5rem] leading-tight" title={product.name}>
+                        <h3 className="font-semibold text-sm line-clamp-2 text-[var(--secondary-foreground)] group-hover:text-[var(--brand-primary)] transition-colors min-h-[2.5rem] leading-tight" title={product.name}>
                           {product.name}
                         </h3>
 
@@ -1272,7 +1275,7 @@ export function SellerPOS() {
           {/* Cart Header */}
           <div className="px-5 py-4 bg-white border-b border-gray-200 flex-shrink-0">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-gray-900">Current Sale</h2>
+              <h2 className="text-lg font-bold text-[var(--secondary-foreground)]">Current Sale</h2>
               {cart.length > 0 && (
                 <Button
                   variant="ghost"
@@ -1537,42 +1540,80 @@ export function SellerPOS() {
           {selectedProduct && (
             <>
               <DialogHeader>
-                <DialogTitle className="text-xl font-bold text-gray-900">
+                <DialogTitle className="text-xl font-bold text-[var(--secondary-foreground)]">
                   Product Details
                 </DialogTitle>
               </DialogHeader>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
                 {/* Product Images */}
-                <div className="space-y-3">
-                  <div className="aspect-square rounded-lg overflow-hidden bg-gray-100 border border-gray-200">
-                    <img
-                      src={selectedProduct.images[0]}
-                      alt={selectedProduct.name}
-                      className="w-full h-full object-cover"
-                    />
+                <div className="space-y-4">
+                  <div className="space-y-3">
+                    <div className="aspect-square rounded-lg overflow-hidden bg-gray-100 border border-gray-200">
+                      <img
+                        src={selectedProduct.images[0]}
+                        alt={selectedProduct.name}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+
+                    {/* Thumbnail Gallery */}
+                    {selectedProduct.images.length > 1 && (
+                      <div className="grid grid-cols-4 gap-2">
+                        {selectedProduct.images.slice(1, 5).map((img, idx) => (
+                          <div key={idx} className="aspect-square rounded-md overflow-hidden bg-gray-100 border border-gray-200">
+                            <img src={img} alt={`${selectedProduct.name} ${idx + 2}`} className="w-full h-full object-cover" />
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
-                  {/* Thumbnail Gallery */}
-                  {selectedProduct.images.length > 1 && (
-                    <div className="grid grid-cols-4 gap-2">
-                      {selectedProduct.images.slice(1, 5).map((img, idx) => (
-                        <div key={idx} className="aspect-square rounded-md overflow-hidden bg-gray-100 border border-gray-200">
-                          <img src={img} alt={`${selectedProduct.name} ${idx + 2}`} className="w-full h-full object-cover" />
-                        </div>
-                      ))}
+                  {/* Key Metrics List */}
+                  <div className="space-y-3 pt-2">
+                    <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                      <span className="text-sm text-gray-500">Stock Available</span>
+                      <span className={cn(
+                        "text-base",
+                        selectedProduct.stock === 0 ? "text-red-600" :
+                          selectedProduct.stock < 10 ? "text-orange-600" :
+                            "text-green-600"
+                      )}>
+                        {selectedProduct.stock}
+                      </span>
                     </div>
-                  )}
+
+                    <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                      <span className="text-sm text-gray-500">Total Sales</span>
+                      <span className="text-base text-[var(--secondary-foreground)]">
+                        {selectedProduct.sales || 0}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                      <span className="text-sm text-gray-500">Rating</span>
+                      <span className="text-base text-[var(--secondary-foreground)]">
+                        {selectedProduct.rating ? selectedProduct.rating.toFixed(1) : '0.0'}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                      <span className="text-sm text-gray-500">Reviews</span>
+                      <span className="text-base text-[var(--secondary-foreground)]">
+                        {selectedProduct.reviews || 0}
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Product Information */}
                 <div className="space-y-4">
                   {/* Name & Price */}
                   <div>
-                    <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                    <h2 className="text-2xl font-bold text-[var(--secondary-foreground)] mb-2">
                       {selectedProduct.name}
                     </h2>
-                    <div className="text-3xl font-extrabold text-[#FF5722]">
+                    <div className="text-3xl font-extrabold text-[var(--brand-primary)]">
                       ₱{selectedProduct.price.toLocaleString()}
                     </div>
                   </div>
@@ -1594,53 +1635,7 @@ export function SellerPOS() {
                     </Badge>
                   </div>
 
-                  {/* Key Metrics */}
-                  <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                    <div>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-                        <Package className="h-4 w-4" />
-                        Stock Available
-                      </div>
-                      <div className={cn(
-                        "text-2xl font-bold",
-                        selectedProduct.stock === 0 ? "text-red-600" :
-                          selectedProduct.stock < 10 ? "text-orange-600" :
-                            "text-green-600"
-                      )}>
-                        {selectedProduct.stock}
-                      </div>
-                    </div>
 
-                    <div>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-                        <TrendingUp className="h-4 w-4" />
-                        Total Sales
-                      </div>
-                      <div className="text-2xl font-bold text-gray-900">
-                        {selectedProduct.sales || 0}
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-                        <Star className="h-4 w-4 text-yellow-500" />
-                        Rating
-                      </div>
-                      <div className="text-2xl font-bold text-gray-900">
-                        {selectedProduct.rating ? selectedProduct.rating.toFixed(1) : '0.0'}
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-                        <Hash className="h-4 w-4" />
-                        Reviews
-                      </div>
-                      <div className="text-2xl font-bold text-gray-900">
-                        {selectedProduct.reviews || 0}
-                      </div>
-                    </div>
-                  </div>
 
                   {/* Variant Selection - Colors */}
                   {selectedProduct.variantLabel2Values && selectedProduct.variantLabel2Values.length > 0 && (
@@ -1728,8 +1723,7 @@ export function SellerPOS() {
                         'Out of Stock'
                       ) : (
                         <>
-                          <ShoppingCart className="h-5 w-5 mr-2" />
-                          Add to Cart {selectedVariantLabel1 || selectedVariantLabel2 ? `(${[selectedVariantLabel1, selectedVariantLabel2].filter(Boolean).join(' / ')})` : ''}
+                          Add to Cart
                         </>
                       )}
                     </Button>

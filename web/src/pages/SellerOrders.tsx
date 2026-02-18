@@ -262,10 +262,10 @@ export function SellerOrders() {
             {/* Header */}
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-3xl font-bold text-gray-900">
+                <h1 className="text-3xl font-bold text-[var(--secondary-foreground)]">
                   Orders
                 </h1>
-                <p className="text-sm text-gray-500 mt-1">
+                <p className="text-sm text-[var(--text-muted)] mt-1">
                   Manage all your customer orders from App and POS
                 </p>
               </div>
@@ -275,60 +275,52 @@ export function SellerOrders() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               {/* Total Orders - Orange */}
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-                <div className="bg-white rounded-xl p-6 shadow-[0_8px_30px_rgba(0,0,0,0.04)] hover:shadow-[0_20px_40px_rgba(251,140,0,0.1)] transition-all">
+                <div className="bg-white rounded-xl p-6 shadow-md hover:shadow-[0_20px_40px_rgba(251,140,0,0.1)] transition-all group">
                   <div className="flex items-start justify-between">
                     <div>
-                      <p className="text-sm font-bold text-[var(--text-muted)] uppercase tracking-wide mb-1">Total Orders</p>
-                      <p className="text-3xl font-black text-[var(--text-headline)] font-heading">{orderStats.total}</p>
+                      <p className="text-sm font-medium text-[var(--text-muted)] mb-1">Total Orders</p>
+                      <p className="text-3xl font-black text-[var(--secondary-foreground)] group-hover:text-[var(--brand-primary)] transition-colors font-heading">{orderStats.total}</p>
                     </div>
-                    <div className="h-12 w-12 rounded-2xl bg-orange-50 text-[var(--brand-primary)] flex items-center justify-center flex-shrink-0 shadow-sm">
-                      <ShoppingBag className="h-6 w-6" />
-                    </div>
+
                   </div>
                 </div>
               </motion.div>
 
               {/* Pending - Yellow */}
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-                <div className="bg-white rounded-xl p-6 shadow-[0_8px_30px_rgba(0,0,0,0.04)] hover:shadow-[0_20px_40px_rgba(251,140,0,0.1)] transition-all">
+                <div className="bg-white rounded-xl p-6 shadow-md hover:shadow-[0_20px_40px_rgba(251,140,0,0.1)] transition-all group">
                   <div className="flex items-start justify-between">
                     <div>
-                      <p className="text-sm font-bold text-[var(--text-muted)] uppercase tracking-wide mb-1">Pending</p>
-                      <p className="text-3xl font-black text-[#F59E0B] font-heading">{orderStats.pending}</p>
+                      <p className="text-sm font-medium text-[var(--text-muted)] mb-1">Pending</p>
+                      <p className="text-3xl font-black text-[var(--secondary-foreground)] group-hover:text-[var(--brand-primary)] transition-colors font-heading">{orderStats.pending}</p>
                     </div>
-                    <div className="h-12 w-12 rounded-2xl bg-yellow-50 text-[#F59E0B] flex items-center justify-center flex-shrink-0 shadow-sm">
-                      <Clock className="h-6 w-6" />
-                    </div>
+
                   </div>
                 </div>
               </motion.div>
 
               {/* Delivered - Green */}
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-                <div className="bg-white rounded-xl p-6 shadow-[0_8px_30px_rgba(0,0,0,0.04)] hover:shadow-[0_20px_40px_rgba(251,140,0,0.1)] transition-all">
+                <div className="bg-white rounded-xl p-6 shadow-md hover:shadow-[0_20px_40px_rgba(251,140,0,0.1)] transition-all group">
                   <div className="flex items-start justify-between">
                     <div>
-                      <p className="text-sm font-bold text-[var(--text-muted)] uppercase tracking-wide mb-1">Delivered</p>
-                      <p className="text-3xl font-black text-[#10B981] font-heading">{orderStats.delivered}</p>
+                      <p className="text-sm font-medium text-[var(--text-muted)] mb-1">Delivered</p>
+                      <p className="text-3xl font-black text-[var(--secondary-foreground)] group-hover:text-[var(--brand-primary)] transition-colors font-heading">{orderStats.delivered}</p>
                     </div>
-                    <div className="h-12 w-12 rounded-2xl bg-green-50 text-[#10B981] flex items-center justify-center flex-shrink-0 shadow-sm">
-                      <CheckCircle className="h-6 w-6" />
-                    </div>
+
                   </div>
                 </div>
               </motion.div>
 
               {/* POS Sales Today - Purple */}
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
-                <div className="bg-white rounded-xl p-6 shadow-[0_8px_30px_rgba(0,0,0,0.04)] hover:shadow-[0_20px_40px_rgba(251,140,0,0.1)] transition-all">
+                <div className="bg-white rounded-xl p-6 shadow-md hover:shadow-[0_20px_40px_rgba(251,140,0,0.1)] transition-all group">
                   <div className="flex items-start justify-between">
                     <div>
-                      <p className="text-sm font-bold text-[var(--text-muted)] uppercase tracking-wide mb-1">POS Sales Today</p>
-                      <p className="text-3xl font-black text-[#8B5CF6] font-heading">{orderStats.posToday}</p>
+                      <p className="text-sm font-medium text-[var(--text-muted)] mb-1">POS Sales Today</p>
+                      <p className="text-3xl font-black text-[var(--secondary-foreground)] group-hover:text-[var(--brand-primary)] transition-colors font-heading">{orderStats.posToday}</p>
                     </div>
-                    <div className="h-12 w-12 rounded-2xl bg-purple-50 text-[#8B5CF6] flex items-center justify-center flex-shrink-0 shadow-sm">
-                      <CreditCard className="h-6 w-6" />
-                    </div>
+
                   </div>
                 </div>
               </motion.div>
@@ -337,6 +329,40 @@ export function SellerOrders() {
             {/* Advanced Filtering Toolbar - Now a Card */}
             <div>
               <div className="flex flex-col xl:flex-row gap-6 items-center">
+                {/* Channel Filter Tabs */}
+                <Tabs
+                  value={channelFilter}
+                  onValueChange={(value) =>
+                    setChannelFilter(
+                      value as "all" | "online" | "pos",
+                    )
+                  }
+                  className="w-full xl:w-auto"
+                >
+                  <TabsList className="bg-white p-0 border-0 flex items-center gap-2 rounded-full shadow-sm">
+                    <TabsTrigger
+                      value="all"
+                      className="h-7 rounded-full px-4 data-[state=active]:bg-[var(--brand-primary)] data-[state=active]:text-white data-[state=active]:shadow-md text-gray-600 font-medium text-xs hover:bg-orange-50 transition-all"
+                    >
+                      All Channels
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="online"
+                      className="h-7 rounded-full px-4 data-[state=active]:bg-[var(--brand-primary)] data-[state=active]:text-white data-[state=active]:shadow-md text-gray-600 font-medium text-xs hover:bg-orange-50 transition-all gap-2"
+                    >
+                      <Globe className="h-3 w-3" />
+                      Online App
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="pos"
+                      className="h-7 rounded-full px-4 data-[state=active]:bg-[var(--brand-primary)] data-[state=active]:text-white data-[state=active]:shadow-md text-gray-600 font-medium text-xs hover:bg-orange-50 transition-all gap-2"
+                    >
+                      <StoreIcon className="h-3 w-3" />
+                      POS / Offline
+                    </TabsTrigger>
+                  </TabsList>
+                </Tabs>
+
                 {/* Search Input */}
                 <div className="flex-1 w-full xl:w-auto">
                   <div className="relative group">
@@ -348,44 +374,10 @@ export function SellerOrders() {
                       onChange={(e) =>
                         setSearchQuery(e.target.value)
                       }
-                      className="pl-12 w-full h-12 bg-gray-50 border-gray-100 rounded-xl focus:ring-2 focus:ring-[var(--brand-primary)]/20 focus:border-[var(--brand-primary)] transition-all font-medium"
+                      className="pl-12 w-full h-9 border border-orange-200 bg-white rounded-xl text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-300 transition-all shadow-sm"
                     />
                   </div>
                 </div>
-
-                {/* Channel Filter Tabs */}
-                <Tabs
-                  value={channelFilter}
-                  onValueChange={(value) =>
-                    setChannelFilter(
-                      value as "all" | "online" | "pos",
-                    )
-                  }
-                  className="w-full xl:w-auto"
-                >
-                  <TabsList className="grid w-full xl:w-auto grid-cols-3 bg-gray-50 p-1.5 h-auto rounded-xl">
-                    <TabsTrigger
-                      value="all"
-                      className="h-9 rounded-lg data-[state=active]:bg-white data-[state=active]:text-[var(--brand-primary)] data-[state=active]:shadow-sm font-bold text-gray-500 transition-all"
-                    >
-                      All Channels
-                    </TabsTrigger>
-                    <TabsTrigger
-                      value="online"
-                      className="h-9 rounded-lg data-[state=active]:bg-white data-[state=active]:text-[var(--brand-primary)] data-[state=active]:shadow-sm font-bold text-gray-500 transition-all gap-2"
-                    >
-                      <Globe className="h-4 w-4" />
-                      Online App
-                    </TabsTrigger>
-                    <TabsTrigger
-                      value="pos"
-                      className="h-9 rounded-lg data-[state=active]:bg-white data-[state=active]:text-[var(--brand-primary)] data-[state=active]:shadow-sm font-bold text-gray-500 transition-all gap-2"
-                    >
-                      <StoreIcon className="h-4 w-4" />
-                      POS / Offline
-                    </TabsTrigger>
-                  </TabsList>
-                </Tabs>
 
                 {/* Status Filter Select */}
                 <div className="w-full xl:w-auto flex flex-wrap gap-3">
@@ -393,10 +385,10 @@ export function SellerOrders() {
                     value={filterStatus}
                     onValueChange={setFilterStatus}
                   >
-                    <SelectTrigger className="w-full sm:w-[180px] h-12 rounded-xl bg-gray-50 border-gray-100 focus:ring-2 focus:ring-[var(--brand-primary)]/20 font-medium">
+                    <SelectTrigger className="w-full sm:w-[180px] h-9 rounded-xl bg-white border-0 text-gray-700 focus:ring-2 focus:ring-orange-100 focus:border-orange-300 transition-all shadow-md font-medium">
                       <SelectValue placeholder="Filter Status" />
                     </SelectTrigger>
-                    <SelectContent className="rounded-xl border-gray-100 shadow-xl">
+                    <SelectContent className="rounded-xl border-orange-100 shadow-xl">
                       <SelectItem value="all">All Status</SelectItem>
                       <SelectItem value="pending">Pending</SelectItem>
                       <SelectItem value="confirmed">Confirmed</SelectItem>
@@ -416,7 +408,7 @@ export function SellerOrders() {
                   {/* Export Button */}
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="outline" className="w-full sm:w-auto h-12 px-6 rounded-xl border-gray-200 hover:bg-[var(--brand-primary)] hover:text-white hover:border-[var(--brand-primary)] transition-all gap-2 font-bold shadow-sm">
+                      <Button variant="outline" className="w-full sm:w-auto h-9 px-6 rounded-xl border-0 bg-white text-[var(--brand-primary)] hover:bg-[var(--brand-primary)] hover:text-white transition-all gap-2 font-bold shadow-md group">
                         <Download className="h-4 w-4" />
                         Export
                       </Button>
@@ -454,29 +446,29 @@ export function SellerOrders() {
             </div>
 
             {/* Orders Table */}
-            <div className="bg-white rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.04)] overflow-hidden border border-gray-100">
+            <div className="bg-white rounded-xl shadow-lg overflow-hidden border-0">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-gray-50/50 hover:bg-gray-50/50">
-                    <TableHead className="py-5 pl-6 text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">
+                    <TableHead className="py-5 pl-6 text-sm text-[var(--secondary-foreground)]">
                       Order ID & Date
                     </TableHead>
-                    <TableHead className="py-5 text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">
+                    <TableHead className="py-5 text-sm text-[var(--secondary-foreground)]">
                       Customer
                     </TableHead>
-                    <TableHead className="py-5 text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">
+                    <TableHead className="py-5 text-sm text-[var(--secondary-foreground)]">
                       Channel
                     </TableHead>
-                    <TableHead className="py-5 text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">
+                    <TableHead className="py-5 text-sm text-[var(--secondary-foreground)]">
                       Status
                     </TableHead>
-                    <TableHead className="py-5 text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">
+                    <TableHead className="py-5 text-sm text-[var(--secondary-foreground)]">
                       Payment
                     </TableHead>
-                    <TableHead className="py-5 text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider text-right">
+                    <TableHead className="py-5 text-sm text-[var(--secondary-foreground)] text-right">
                       Total
                     </TableHead>
-                    <TableHead className="py-5 pr-6 text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider text-right">
+                    <TableHead className="py-5 pr-6 text-sm text-[var(--secondary-foreground)] text-right">
                       Actions
                     </TableHead>
                   </TableRow>
@@ -492,7 +484,7 @@ export function SellerOrders() {
                     filteredOrders.map((order) => (
                       <TableRow
                         key={order.id}
-                        className="group hover:bg-orange-50/30 transition-colors cursor-pointer border-b border-gray-50 last:border-0"
+                        className="group hover:bg-gray-50 transition-colors cursor-pointer border-b border-gray-100 last:border-0"
                         onClick={() =>
                           setSelectedOrder(
                             selectedOrderNumber === (order.orderNumber || order.id)
@@ -504,17 +496,9 @@ export function SellerOrders() {
                         {/* Order ID & Source */}
                         <TableCell className="py-4 pl-6">
                           <div className="flex items-center gap-3">
-                            {order.type === "ONLINE" ? (
-                              <div className="h-10 w-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0">
-                                <Globe className="h-5 w-5" />
-                              </div>
-                            ) : (
-                              <div className="h-10 w-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center flex-shrink-0">
-                                <StoreIcon className="h-5 w-5" />
-                              </div>
-                            )}
+
                             <div>
-                              <p className="font-bold text-[var(--text-headline)] font-mono text-sm group-hover:text-[var(--brand-primary)] transition-colors">
+                              <p className="font-bold text-[var(--secondary-foreground)] font-mono text-sm group-hover:text-[var(--brand-primary)] transition-colors">
                                 #{order.orderNumber || order.id.slice(0, 8)}
                               </p>
                               <p className="text-xs font-medium text-[var(--text-muted)] mt-0.5">
@@ -539,7 +523,7 @@ export function SellerOrders() {
                               </AvatarFallback>
                             </Avatar>
                             <div>
-                              <p className="font-medium text-gray-900 text-sm">
+                              <p className="font-medium text-[var(--secondary-foreground)] text-sm">
                                 {order.buyerName}
                               </p>
                               {order.type ===
@@ -626,7 +610,7 @@ export function SellerOrders() {
 
                         {/* Total */}
                         <TableCell className="text-right">
-                          <p className="font-bold text-gray-900 text-base">
+                          <p className="font-bold text-[var(--secondary-foreground)] text-base">
                             ₱{order.total.toLocaleString()}
                           </p>
                           <p className="text-xs text-gray-500">
@@ -653,7 +637,7 @@ export function SellerOrders() {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent
                               align="end"
-                              className="w-48"
+                              className="w-48 rounded-xl border-orange-100 shadow-xl bg-white"
                             >
                               <DropdownMenuItem
                                 onClick={(e) => {
@@ -661,6 +645,7 @@ export function SellerOrders() {
                                   // UPDATED: Pass orderNumber
                                   setSelectedOrder(order.orderNumber!);
                                 }}
+                                className="focus:bg-[var(--brand-primary)] focus:text-white cursor-pointer rounded-lg"
                               >
                                 <Eye className="h-4 w-4 mr-2" />
                                 View Details
@@ -669,6 +654,7 @@ export function SellerOrders() {
                                 onClick={(e) =>
                                   e.stopPropagation()
                                 }
+                                className="focus:bg-[var(--brand-primary)] focus:text-white cursor-pointer rounded-lg"
                               >
                                 <Printer className="h-4 w-4 mr-2" />
                                 Print Invoice
@@ -687,7 +673,7 @@ export function SellerOrders() {
                                           "confirmed",
                                         );
                                       }}
-                                      className="text-green-600"
+                                      className="text-green-600 focus:bg-[var(--brand-primary)] focus:text-white cursor-pointer rounded-lg"
                                     >
                                       <CheckCircle className="h-4 w-4 mr-2" />
                                       Confirm Order
@@ -702,7 +688,7 @@ export function SellerOrders() {
                                           "cancelled",
                                         );
                                       }}
-                                      className="text-red-600"
+                                      className="text-red-600 focus:bg-red-600 focus:text-white cursor-pointer rounded-lg"
                                     >
                                       <XCircle className="h-4 w-4 mr-2" />
                                       Cancel Order
@@ -728,7 +714,7 @@ export function SellerOrders() {
                                           },
                                         );
                                       }}
-                                      className="text-purple-600"
+                                      className="text-purple-600 focus:bg-[var(--brand-primary)] focus:text-white cursor-pointer rounded-lg"
                                     >
                                       <Truck className="h-4 w-4 mr-2" />
                                       Mark as Shipped
@@ -744,7 +730,7 @@ export function SellerOrders() {
                                         order.id,
                                       );
                                     }}
-                                    className="text-green-600"
+                                    className="text-green-600 focus:bg-[var(--brand-primary)] focus:text-white cursor-pointer rounded-lg"
                                   >
                                     <CheckCircle className="h-4 w-4 mr-2" />
                                     Confirm Delivered

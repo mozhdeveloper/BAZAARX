@@ -9,7 +9,7 @@ import { sellerLinks } from "@/config/sellerLinks";
 
 const SellerLogo = ({ open }: { open: boolean }) => (
     <Link to="/seller" className={cn(
-        "flex items-center py-2 -mb-6 group transition-all duration-300",
+        "flex items-center py-2 group transition-all duration-300",
         open ? "justify-start px-2 gap-3" : "justify-center px-0 gap-0"
     )}>
         <div className="w-10 h-10 bg-gradient-to-tr from-[var(--brand-primary)] to-[var(--brand-primary-dark)] rounded-xl flex items-center justify-center shadow-lg shadow-orange-500/20 group-hover:scale-105 transition-transform flex-shrink-0">
@@ -44,9 +44,9 @@ export const SellerSidebar = () => {
     return (
         <Sidebar open={open} setOpen={setOpen}>
             <SidebarBody className="justify-between gap-4 bg-white z-50 transition-all duration-300">
+                <SellerLogo open={open} />
                 <div className="flex flex-col flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide pt-2">
-                    <SellerLogo open={open} />
-                    <div className="mt-8 flex flex-col gap-2">
+                    <div className="mt-2 flex flex-col gap-2">
                         {sellerLinks.map((link, idx) => (
                             <SidebarLink key={idx} link={link} />
                         ))}

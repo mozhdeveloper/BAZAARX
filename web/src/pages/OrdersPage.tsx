@@ -364,7 +364,7 @@ export default function OrdersPage() {
           {/* Status Navigation Container */}
           <div className="flex-1 relative min-w-0">
             <div className="overflow-x-auto scrollbar-hide pb-0.5">
-              <div className="inline-flex items-center p-1 bg-[#FFF8F0] rounded-full border border-orange-100/50 shadow-sm min-w-full md:min-w-max">
+              <div className="inline-flex items-center p-1 bg-white rounded-full border border-orange-100/50 shadow-sm min-w-full md:min-w-max">
                 {statusOptions.map((option) => (
                   <button
                     key={option.value}
@@ -391,7 +391,7 @@ export default function OrdersPage() {
               placeholder="Search orders..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-1.5 border-2 border-[var(--brand-wash-gold)]/20 rounded-full focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)]/10 focus:border-[var(--brand-primary)] bg-[var(--bg-secondary)] text-xs sm:text-sm text-[var(--text-headline)] placeholder-[var(--text-muted)] shadow-sm transition-all hover:border-[var(--brand-primary)]/30"
+              className="w-full pl-10 pr-4 py-1.5 border-2 border-[var(--brand-wash-gold)]/20 rounded-full focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)]/10 focus:border-[var(--brand-primary)] bg-white text-xs sm:text-sm text-[var(--text-headline)] placeholder-[var(--text-muted)] shadow-sm transition-all hover:border-[var(--brand-primary)]/30"
             />
           </div>
         </motion.div>
@@ -434,7 +434,7 @@ export default function OrdersPage() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.05 }}
-                className="bg-[var(--bg-secondary)] shadow-sm rounded-xl p-3 sm:p-4 hover:shadow-lg transition-shadow"
+                className="bg-white shadow-sm rounded-xl p-3 sm:p-4 hover:shadow-lg transition-shadow"
               >
                 {order.status === "reviewed" ? (
                   <div className="flex flex-col gap-2">
