@@ -61,6 +61,18 @@ export function SellerReturns() {
     return matchesSearch && matchesStatus;
   });
 
+  const allCount = requests.length;
+  const pendingCount = requests.filter(r => r.status === 'pending').length;
+  const approvedCount = requests.filter(r => r.status === 'approved').length;
+  const rejectedCount = requests.filter(r => r.status === 'rejected').length;
+
+  const statusOptions = [
+    { value: 'all', label: 'All Returns', count: allCount },
+    { value: 'pending', label: 'Pending', count: pendingCount },
+    { value: 'approved', label: 'Approved', count: approvedCount },
+    { value: 'rejected', label: 'Rejected', count: rejectedCount },
+  ];
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'pending':
@@ -102,65 +114,71 @@ export function SellerReturns() {
           <div className="max-w-7xl mx-auto space-y-8">
             {/* Header */}
             <div className="flex items-center justify-between">
-              <h1 className="text-3xl font-black text-[var(--text-headline)] font-heading tracking-tight flex items-center gap-2">
-                <div>
+              <div>
+                <h1 className="text-3xl font-black text-[var(--text-headline)] font-heading tracking-tight">
                   Returns & Refunds
-                  <p className="text-sm text-[var(--text-secondary)] mt-1 font-medium">Manage your return requests and refunds</p>
-                </div>
-              </h1>
-              <div className="flex gap-2">
-                <Button
-                  variant={statusFilter === 'all' ? 'default' : 'ghost'}
-                  onClick={() => setStatusFilter('all')}
-                  size="sm"
-                  className={cn("rounded-full font-bold", statusFilter === 'all' ? "bg-[var(--brand-primary)] text-white hover:bg-[var(--brand-primary-dark)]" : "text-gray-600 hover:bg-gray-100")}
-                >
-                  All Returns
-                </Button>
-                <Button
-                  variant={statusFilter === 'pending' ? 'default' : 'ghost'}
-                  onClick={() => setStatusFilter('pending')}
-                  size="sm"
-                  className={cn("rounded-full font-bold", statusFilter === 'pending' ? "bg-amber-500 hover:bg-amber-600 text-white" : "text-gray-600 hover:bg-gray-100")}
-                >
-                  Pending
-                </Button>
-                <Button
-                  variant={statusFilter === 'approved' ? 'default' : 'ghost'}
-                  onClick={() => setStatusFilter('approved')}
-                  size="sm"
-                  className={cn("rounded-full font-bold", statusFilter === 'approved' ? "bg-green-600 hover:bg-green-700 text-white" : "text-gray-600 hover:bg-gray-100")}
-                >
-                  Approved
-                </Button>
+                </h1>
+                <p className="text-sm text-[var(--text-muted)] mt-1 font-normal">Manage your return requests and refunds</p>
               </div>
             </div>
 
             <div className="space-y-6">
-              <div className="flex lg:flex-row flex-col gap-4">
-                <div className="relative flex-1 group">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-[var(--brand-primary)] transition-colors" />
-                  <Input
-                    className="pl-12 py-6 rounded-2xl border-orange-100 bg-white shadow-sm focus:ring-[var(--brand-primary)] focus:border-[var(--brand-primary)] transition-all font-medium"
-                    placeholder="Search by Order ID, Buyer Name, or Item..."
+              <div className="flex flex-row items-center gap-4">
+                {/* Status Navigation Container */}
+                <div className="flex-1 relative min-w-0">
+                  <div className="overflow-x-auto scrollbar-hide pb-0.5">
+                    <div className="inline-flex items-center p-1 bg-white rounded-full border border-orange-100/50 shadow-sm min-w-full md:min-w-max">
+                      {statusOptions.map((option) => (
+                        <button
+                          key={option.value}
+                          onClick={() => setStatusFilter(option.value as any)}
+                          className={cn(
+                            "px-4 py-1.5 rounded-full text-[11px] sm:text-xs font-medium whitespace-nowrap transition-all duration-300",
+                            statusFilter === option.value
+                              ? "bg-[var(--brand-primary)] text-white shadow-md shadow-[var(--brand-primary)]/20"
+                              : "text-gray-500 hover:text-[var(--brand-primary)] hover:bg-orange-50/50",
+                          )}
+                        >
+                          {option.label}
+                          <span className={cn(
+                            "ml-1 text-[11px] font-medium",
+                            statusFilter === option.value
+                              ? "text-white/90"
+                              : "text-gray-400 group-hover:text-[var(--brand-primary)]"
+                          )}>
+                            ({option.count})
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Search */}
+                <div className="relative w-48 sm:w-64 lg:w-80 flex-shrink-0">
+                  <Search className="absolute left-3.5 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <input
+                    type="text"
+                    placeholder="Search returns..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 border border-orange-200 bg-white rounded-xl text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-100 focus:border-orange-300 transition-all shadow-sm"
                   />
                 </div>
               </div>
 
-              <Card className="border-orange-100 shadow-[0_8px_30px_rgba(0,0,0,0.04)] rounded-xl bg-white overflow-hidden">
+              <Card className="border-0 shadow-md rounded-xl bg-white overflow-hidden">
                 <Table>
                   <TableHeader>
-                    <TableRow>
-                      <TableHead>Return ID</TableHead>
-                      <TableHead>Order ID</TableHead>
-                      <TableHead>Buyer</TableHead>
-                      <TableHead>Item</TableHead>
-                      <TableHead>Amount</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Action</TableHead>
+                    <TableRow className="bg-gray-50/50 hover:bg-gray-50/50 border-b border-orange-100">
+                      <TableHead className="py-4 text-sm text-[var(--secondary-foreground)]">Return ID</TableHead>
+                      <TableHead className="py-4 text-sm text-[var(--secondary-foreground)]">Order ID</TableHead>
+                      <TableHead className="py-4 text-sm text-[var(--secondary-foreground)]">Buyer</TableHead>
+                      <TableHead className="py-4 text-sm text-[var(--secondary-foreground)]">Item</TableHead>
+                      <TableHead className="py-4 text-sm text-[var(--secondary-foreground)]">Amount</TableHead>
+                      <TableHead className="py-4 text-sm text-[var(--secondary-foreground)]">Date</TableHead>
+                      <TableHead className="py-4 text-sm text-[var(--secondary-foreground)]">Status</TableHead>
+                      <TableHead className="py-4 text-sm text-[var(--secondary-foreground)] text-right">Action</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -172,9 +190,17 @@ export function SellerReturns() {
                       </TableRow>
                     ) : (
                       filteredRequests.map((req) => (
-                        <TableRow key={req.id}>
-                          <TableCell className="font-medium">#{req.id}</TableCell>
-                          <TableCell>{req.orderId}</TableCell>
+                        <TableRow key={req.id} className="group/row hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0">
+                          <TableCell className="font-medium">
+                            <span className="font-bold text-[var(--secondary-foreground)] font-mono text-sm group-hover/row:text-[var(--brand-primary)] transition-colors">
+                              #{req.id}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            <span className="font-bold text-[var(--secondary-foreground)] font-mono text-sm group-hover/row:text-[var(--brand-primary)] transition-colors">
+                              {req.orderId}
+                            </span>
+                          </TableCell>
                           <TableCell>
                             <div className="flex flex-col">
                               <span className="font-medium">{req.buyerName}</span>
@@ -191,8 +217,8 @@ export function SellerReturns() {
                           <TableCell>{new Date(req.requestDate).toLocaleDateString()}</TableCell>
                           <TableCell>{getStatusBadge(req.status)}</TableCell>
                           <TableCell className="text-right">
-                            <Button variant="ghost" size="sm" onClick={() => setSelectedRequest(req)}>
-                              <Eye className="h-4 w-4 text-gray-500" />
+                            <Button variant="ghost" size="sm" className="hover:bg-[var(--text-accent)] group" onClick={() => setSelectedRequest(req)}>
+                              <Eye className="h-4 w-4 text-gray-500 group-hover:text-white transition-colors" />
                             </Button>
                           </TableCell>
                         </TableRow>

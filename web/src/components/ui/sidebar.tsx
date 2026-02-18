@@ -183,8 +183,8 @@ export const SidebarLink = ({
       className={cn(
         "flex items-center justify-start gap-3 group/sidebar py-3 px-3 rounded-lg min-h-[48px] transition-all duration-200",
         isActive
-          ? "text-orange-600"
-          : "text-gray-700 dark:text-gray-200 hover:bg-orange-50 hover:text-orange-600",
+          ? "text-[var(--text-accent)] font-bold"
+          : "text-gray-700 hover:text-[var(--text-accent)]",
         className
       )}
       {...props}

@@ -601,7 +601,7 @@ export function SellerStoreProfile() {
 
                 {/* Sticky Profile Card */}
                 <div className="lg:sticky lg:top-4">
-                  <Card className="p-6 shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-orange-100 bg-white rounded-xl overflow-hidden relative">
+                  <Card className="p-6 shadow-md border-0 bg-white rounded-xl overflow-hidden relative">
                     <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-br from-orange-50 to-white opacity-50 z-0 pointer-events-none" />
                     <div className="flex flex-col items-start text-left w-full relative z-10">
                       {/* Avatar */}
@@ -773,7 +773,7 @@ export function SellerStoreProfile() {
 
 
                 {/* Owner & Contact Information (Editable) */}
-                <Card className="p-8 mb-8 shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-orange-100 bg-white rounded-xl">
+                <Card className="p-8 mb-8 shadow-md border-0 bg-white rounded-xl">
                   <div className="flex items-center justify-between mb-8">
                     <div>
                       <h3 className="text-xl font-bold text-[var(--text-headline)] flex items-center gap-2">
@@ -956,7 +956,7 @@ export function SellerStoreProfile() {
                 </Card>
 
                 {/* Business Information (Locked if Verified) */}
-                <Card className="p-8 mb-8 shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-orange-100 bg-white rounded-xl">
+                <Card className="p-8 mb-8 shadow-md border-0 bg-white rounded-xl">
                   <div className="flex items-center justify-between mb-8">
                     <div className="flex items-center gap-3">
                       <h3 className="text-xl font-bold text-[var(--text-headline)] flex items-center gap-2">
@@ -1197,7 +1197,7 @@ export function SellerStoreProfile() {
                 </Card>
 
                 {/* Banking Information (Locked if Verified) */}
-                <Card className="p-8 mb-8 shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-orange-100 bg-white rounded-xl">
+                <Card className="p-8 mb-8 shadow-md border-0 bg-white rounded-xl">
                   <div className="flex items-center justify-between mb-8">
                     <div className="flex items-center gap-3">
                       <h3 className="text-xl font-bold text-[var(--text-headline)] flex items-center gap-2">
@@ -1341,7 +1341,7 @@ export function SellerStoreProfile() {
                 </Card>
 
                 {/* Verification Documents */}
-                <Card className="p-8 mb-8 shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-orange-100 bg-white rounded-xl">
+                <Card className="p-8 mb-8 shadow-md border-0 bg-white rounded-xl">
                   <div className="flex items-center justify-between mb-8">
                     <div>
                       <h3 className="text-xl font-bold text-[var(--text-headline)] flex items-center gap-2">
@@ -1633,7 +1633,7 @@ export function SellerStoreProfile() {
                 </Card>
 
                 {/* Store Categories */}
-                <Card className="p-8 mb-8 shadow-[0_8px_30px_rgba(0,0,0,0.04)] bg-white rounded-xl">
+                <Card className="p-8 mb-8 shadow-md border-0 bg-white rounded-xl">
                   <div className="flex items-center justify-between mb-8">
                     <h3 className="text-xl font-bold text-[var(--text-headline)] flex items-center gap-2">
                       <LayoutGrid className="h-5 w-5 text-[var(--brand-primary)]" />
@@ -1708,7 +1708,7 @@ export function SellerStoreProfile() {
                 </Card>
 
                 {/* Store Banner */}
-                <Card className="p-8 shadow-[0_8px_30px_rgba(0,0,0,0.04)] bg-white rounded-xl">
+                <Card className="p-8 shadow-md border-0 bg-white rounded-xl">
                   <h3 className="text-xl font-bold text-[var(--text-headline)] mb-6 flex items-center gap-2">
                     <Image className="h-5 w-5 text-[var(--brand-primary)]" />
                     Store Banner

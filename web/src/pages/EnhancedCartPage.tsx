@@ -232,7 +232,7 @@ export default function EnhancedCartPage() {
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -20 }}
                       transition={{ delay: sellerIndex * 0.1 }}
-                      className="bg-[var(--bg-secondary)] rounded-xl p-3 sm:p-4 hover:shadow-lg transition-shadow shadow-sm"
+                      className="bg-white rounded-xl p-3 sm:p-4 hover:shadow-lg transition-shadow shadow-sm"
                     >
                       {/* Seller Header */}
                       <div className="border-b border-[var(--brand-wash-gold)]/20 pb-2 mb-0 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -424,7 +424,7 @@ export default function EnhancedCartPage() {
             animate={{ opacity: 1, x: 0 }}
             className="lg:col-span-1"
           >
-            <div className="bg-[var(--bg-secondary)] rounded-xl shadow-md p-6 sticky top-24">
+            <div className="bg-white rounded-xl shadow-md p-6 sticky top-24">
               <h3 className="text-xl font-semibold text-[var(--text-headline)] mb-6">
                 Order Summary
               </h3>

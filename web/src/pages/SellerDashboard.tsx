@@ -187,7 +187,7 @@ const DashboardContent = () => {
             <h1 className="text-3xl font-extrabold font-heading text-[var(--text-headline)] tracking-tight">
               Hello, {seller?.storeName || "Seller"}!
             </h1>
-            <p className="text-sm font-medium text-[var(--text-secondary)] mt-1 flex items-center gap-2">
+            <p className="text-sm text-[var(--text-muted)] mt-1 flex items-center gap-2">
               Here's your performance for <span className="px-0.5 py-0.5 rounded-md font-bold text-[var(--brand-primary)]">{currentRangeLabel}</span>
             </p>
           </div>
@@ -195,10 +195,10 @@ const DashboardContent = () => {
             <OrderDateFilter onRangeChange={handleRangeChange} />
             <button
               onClick={handleExport}
-              className="group flex items-center gap-2 px-4 py-2.5 bg-white shadow-sm rounded-xl hover:bg-[var(--brand-primary)] hover:shadow-lg hover:shadow-orange-500/20 transition-all active:scale-95"
+              className="group flex items-center gap-2 px-6 h-9 bg-white shadow-md rounded-xl text-[var(--brand-primary)] hover:bg-[var(--brand-primary)] hover:text-white hover:shadow-lg hover:shadow-orange-500/20 transition-all active:scale-95 font-bold text-sm"
             >
-              <Download className="h-4 w-4 text-gray-600 group-hover:text-white transition-colors" />
-              <span className="text-sm font-bold text-gray-700 group-hover:text-white transition-colors">Export Report</span>
+              <Download className="h-4 w-4 text-current transition-colors" />
+              Export Report
             </button>
           </div>
         </div>
@@ -211,7 +211,7 @@ const DashboardContent = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 }}
-              className="bg-white rounded-xl p-6 shadow-[0_8px_30px_rgba(0,0,0,0.04)] hover:shadow-[0_20px_40px_rgba(251,140,0,0.1)] relative overflow-hidden group transition-all duration-300"
+              className="bg-white rounded-xl p-6 shadow-md hover:shadow-[0_20px_40px_rgba(251,140,0,0.1)] relative overflow-hidden group transition-all duration-300"
             >
               <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-orange-50 to-orange-100/50 rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-orange-100 transition-colors"></div>
 
@@ -219,9 +219,9 @@ const DashboardContent = () => {
                 <div className="text-[var(--secondary-foreground)] group-hover:text-[var(--brand-primary)] transition-all">{metric.icon}</div>
               </div>
               <div>
-                <h3 className="text-[var(--text-muted)] text-sm font-semibold tracking-wide uppercase relative z-10">{metric.title}</h3>
+                <h3 className="text-[var(--text-muted)] text-sm relative z-10">{metric.title}</h3>
                 <div className="flex items-end gap-3 mt-1 relative z-10">
-                  <p className="text-2xl font-black text-[var(--text-headline)] font-heading">{metric.value}</p>
+                  <p className="text-2xl font-black text-[var(--text-headline)] font-heading group-hover:text-[var(--brand-primary)] transition-all">{metric.value}</p>
                   <div className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-50 text-green-600 mb-1.5">
                     <TrendingUp className="h-3 w-3" />
                     {metric.change}
@@ -236,7 +236,7 @@ const DashboardContent = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
           {/* Revenue Chart */}
-          <div className="lg:col-span-2 bg-white rounded-xl p-8 shadow-[0_8px_30px_rgba(0,0,0,0.04)] relative overflow-hidden">
+          <div className="lg:col-span-2 bg-white rounded-xl p-8 shadow-md relative overflow-hidden">
             <div className="flex items-center justify-between mb-8">
               <div>
                 <h3 className="text-xl font-bold text-[var(--text-headline)] font-heading">Revenue Overview</h3>
@@ -288,7 +288,7 @@ const DashboardContent = () => {
           </div>
 
           {/* Category Distribution */}
-          <div className="bg-white rounded-xl p-8 shadow-[0_8px_30px_rgba(0,0,0,0.04)] flex flex-col">
+          <div className="bg-white rounded-xl p-8 shadow-md flex flex-col">
             <h3 className="text-xl font-bold text-[var(--text-headline)] font-heading mb-1">Top Categories</h3>
             <p className="text-sm text-[var(--text-muted)] font-medium mb-6">Yours sales distribution by category</p>
 
@@ -342,7 +342,7 @@ const DashboardContent = () => {
                 <div
                   key={product.id}
                   className={cn(
-                    "relative group overflow-hidden rounded-[24px] flex flex-col justify-between p-4 transition-all hover:shadow-lg hover:-translate-y-1 duration-300 bg-white shadow-sm border border-transparent hover:border-orange-100",
+                    "relative group overflow-hidden rounded-xl flex flex-col justify-between p-4 transition-all hover:shadow-lg hover:-translate-y-1 duration-300 bg-white shadow-sm border border-transparent shadow-md hover:border-[var(--brand-primary)] hover:border-2",
                     index === 0 ? "col-span-2 row-span-2 p-6" : ""
                   )}
                 >
@@ -372,7 +372,7 @@ const DashboardContent = () => {
           </div>
 
           {/* Recent Orders Table */}
-          <div className="lg:col-span-2 bg-white rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.04)] p-8">
+          <div className="lg:col-span-2 bg-white rounded-xl shadow-md p-8">
             <div className="flex items-center justify-between mb-8">
               <div>
                 <h3 className="text-xl font-bold text-[var(--text-headline)] font-heading">Recent Transactions</h3>
