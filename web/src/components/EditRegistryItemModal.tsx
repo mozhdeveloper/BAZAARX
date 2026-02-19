@@ -1,8 +1,7 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Trash2, Minus, Plus } from "lucide-react";
+import { X, Minus, Plus } from "lucide-react";
 import { Button } from "./ui/button";
-import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Textarea } from "./ui/textarea";
 import { Checkbox } from "./ui/checkbox";
@@ -27,18 +26,18 @@ export const EditRegistryItemModal = ({
   const [note, setNote] = useState("");
   const [isMostWanted, setIsMostWanted] = useState(false);
   const [selectedVariantId, setSelectedVariantId] = useState<string>("");
-  const showDebug = process.env.NODE_ENV !== "production";
 
-  const formatVariantLabel = (
-    variant: RegistryProduct["variants"][number] | undefined,
-  ) => {
-    if (!variant) return "Variant";
-    if (variant.name?.trim()) return variant.name;
-    const attrs = variant.attributes
-      ? Object.values(variant.attributes).filter(Boolean)
-      : [];
-    return attrs.length ? attrs.join(" / ") : "Variant";
-  };
+  const formatVariantLabel = useCallback(
+    (variant: RegistryProduct["variants"][number] | undefined) => {
+      if (!variant) return "Variant";
+      if (variant.name?.trim()) return variant.name;
+      const attrs = variant.attributes
+        ? Object.values(variant.attributes).filter(Boolean)
+        : [];
+      return attrs.length ? attrs.join(" / ") : "Variant";
+    },
+    [],
+  );
 
   const variantOptions = useMemo(() => {
     if (!item) return [] as RegistryProduct["variants"];
@@ -75,7 +74,7 @@ export const EditRegistryItemModal = ({
     }
 
     return baseNormalized;
-  }, [item]);
+  }, [item, formatVariantLabel]);
 
   useEffect(() => {
     if (item) {
@@ -89,18 +88,6 @@ export const EditRegistryItemModal = ({
       setSelectedVariantId("");
     }
   }, [item, variantOptions]);
-
-  useEffect(() => {
-    if (!item) return;
-    console.debug("[EditRegistryItemModal] item", {
-      id: item.id,
-      name: item.name,
-      selectedVariant: item.selectedVariant,
-      variants: item.variants,
-      variantOptions,
-      selectedVariantId,
-    });
-  }, [item, variantOptions, selectedVariantId]);
 
   if (!item) return null;
 
@@ -202,24 +189,6 @@ export const EditRegistryItemModal = ({
                           </option>
                         ))}
                       </select>
-                      {showDebug && (
-                        <div className="text-[11px] text-gray-500 space-y-1 bg-gray-50 border border-dashed border-gray-300 rounded-md p-2">
-                          <div className="font-semibold">Debug: Variants</div>
-                          <pre className="whitespace-pre-wrap break-all">
-                            {JSON.stringify(
-                              {
-                                id: item.id,
-                                name: item.name,
-                                selectedVariantId,
-                                variantOptions,
-                                selectedVariant: item.selectedVariant,
-                              },
-                              null,
-                              2,
-                            )}
-                          </pre>
-                        </div>
-                      )}
                     </div>
                   ) : (
                     <div className="space-y-2">
