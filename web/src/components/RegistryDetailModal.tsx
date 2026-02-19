@@ -340,6 +340,14 @@ export const RegistryDetailModal = ({
                             <h4 className="font-medium text-gray-900 line-clamp-2 text-sm mb-1 leading-snug">
                               {product.name}
                             </h4>
+                            {product.selectedVariant && (
+                              <p className="text-xs text-[var(--text-muted)] mb-1">
+                                Variant: {product.selectedVariant.name}
+                                {product.selectedVariant.attributes
+                                  ? ` • ${Object.values(product.selectedVariant.attributes).join(" / ")}`
+                                  : ""}
+                              </p>
+                            )}
                             <div className="flex items-center gap-1 mb-2">
                               <span className="text-yellow-400 text-xs">★</span>
                               <span className="text-xs text-gray-500">

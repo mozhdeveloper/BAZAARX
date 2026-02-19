@@ -966,11 +966,64 @@ export default function ProductDetailPage({}: ProductDetailPageProps) {
                 <button
                   key={registry.id}
                   onClick={() => {
+                    const selectedVariant = getSelectedVariant();
+
+                    if (
+                      !selectedVariant &&
+                      (normalizedProduct?.variants || []).length > 0
+                    ) {
+                      toast({
+                        title: "Select a variant",
+                        description:
+                          "Please choose a variant before adding to your registry.",
+                        variant: "destructive",
+                      });
+                      return;
+                    }
+
                     const productToAdd = mapNormalizedToBuyerProduct(
                       normalizedProduct!,
                       currentSeller,
-                    );
-                    addToRegistry(registry.id, productToAdd);
+                    ) as any;
+
+                    const variantSnapshot = selectedVariant
+                      ? {
+                          id: selectedVariant.id,
+                          name:
+                            selectedVariant.name ||
+                            selectedVariant.variant_name ||
+                            "Variant",
+                          price:
+                            selectedVariant.price ??
+                            selectedVariant.variant_price ??
+                            productToAdd.price,
+                          stock:
+                            selectedVariant.stock ?? productToAdd.stock ?? 0,
+                          image: selectedVariant.image || productToAdd.image,
+                          attributes: {
+                            ...(selectedVariant.option_1_value
+                              ? { option1: selectedVariant.option_1_value }
+                              : {}),
+                            ...(selectedVariant.option_2_value
+                              ? { option2: selectedVariant.option_2_value }
+                              : {}),
+                            ...(selectedVariant.variantLabel1Value
+                              ? { label1: selectedVariant.variantLabel1Value }
+                              : {}),
+                            ...(selectedVariant.variantLabel2Value
+                              ? { label2: selectedVariant.variantLabel2Value }
+                              : {}),
+                          },
+                        }
+                      : undefined;
+
+                    const registryProduct = {
+                      ...productToAdd,
+                      requestedQty: Math.max(1, quantity),
+                      selectedVariant: variantSnapshot,
+                    };
+
+                    addToRegistry(registry.id, registryProduct as any);
                     setShowRegistryModal(false);
                     toast({
                       title: "Added to Registry",
