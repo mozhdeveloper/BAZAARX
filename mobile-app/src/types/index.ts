@@ -132,6 +132,8 @@ export interface Order {
   shippingAddress: ShippingAddress;
   paymentMethod: string;
   createdAt: string;
+  buyerUiStatus?: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'returned' | 'cancelled' | 'reviewed';
+  isReviewed?: boolean;
   isGift?: boolean;
   isAnonymous?: boolean;
   recipientId?: string;

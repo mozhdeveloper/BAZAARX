@@ -1,5 +1,42 @@
 import type { PaymentStatus, ShipmentStatus } from '@/types/database.types';
-import type { SellerPaymentUiStatus, SellerUiStatus } from '@/types/orders';
+import type { BuyerUiStatus, SellerPaymentUiStatus, SellerUiStatus } from '@/types/orders';
+
+export const mapNormalizedToBuyerUiStatus = (
+  paymentStatus?: PaymentStatus | null,
+  shipmentStatus?: ShipmentStatus | null,
+  hasCancellationRecord?: boolean,
+  isReviewed?: boolean,
+): BuyerUiStatus => {
+  if (isReviewed) {
+    return 'reviewed';
+  }
+
+  if (shipmentStatus === 'delivered' || shipmentStatus === 'received') {
+    return 'delivered';
+  }
+
+  if (shipmentStatus === 'shipped' || shipmentStatus === 'out_for_delivery') {
+    return 'shipped';
+  }
+
+  if (shipmentStatus === 'processing' || shipmentStatus === 'ready_to_ship') {
+    return 'confirmed';
+  }
+
+  if (shipmentStatus === 'failed_to_deliver') {
+    return 'cancelled';
+  }
+
+  if (shipmentStatus === 'returned') {
+    return hasCancellationRecord ? 'cancelled' : 'returned';
+  }
+
+  if (paymentStatus === 'refunded' || paymentStatus === 'partially_refunded') {
+    return hasCancellationRecord ? 'cancelled' : 'returned';
+  }
+
+  return 'pending';
+};
 
 export const mapNormalizedToSellerUiStatus = (
   paymentStatus?: PaymentStatus | null,

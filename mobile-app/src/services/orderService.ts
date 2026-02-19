@@ -48,6 +48,93 @@ const getStatusFromNew = (paymentStatus: PaymentStatus, shipmentStatus: Shipment
   return 'pending_payment';
 };
 
+const asNonEmptyString = (value: unknown): string | null => {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+};
+
+const compactRecord = (record: Record<string, unknown>): Record<string, unknown> => {
+  return Object.fromEntries(
+    Object.entries(record).filter(([, value]) => {
+      if (value === null || value === undefined) {
+        return false;
+      }
+
+      if (typeof value === 'string' && value.trim().length === 0) {
+        return false;
+      }
+
+      return true;
+    })
+  );
+};
+
+const firstRelationRow = <T>(value: T | T[] | null | undefined): T | null => {
+  if (Array.isArray(value)) {
+    return value[0] || null;
+  }
+
+  return value || null;
+};
+
+const buildVariantSnapshot = (orderItem: any): Record<string, unknown> | null => {
+  const variant = firstRelationRow(orderItem?.variant);
+  const product = firstRelationRow(orderItem?.product);
+
+  const option1Value =
+    asNonEmptyString(variant?.option_1_value) ||
+    asNonEmptyString(variant?.size) ||
+    asNonEmptyString(orderItem?.personalized_options?.variantLabel1) ||
+    asNonEmptyString(orderItem?.personalized_options?.option1Value);
+
+  const option2Value =
+    asNonEmptyString(variant?.option_2_value) ||
+    asNonEmptyString(variant?.color) ||
+    asNonEmptyString(orderItem?.personalized_options?.variantLabel2) ||
+    asNonEmptyString(orderItem?.personalized_options?.option2Value);
+
+  const option1Label =
+    asNonEmptyString(product?.variant_label_1) ||
+    asNonEmptyString(orderItem?.personalized_options?.option1Label);
+
+  const option2Label =
+    asNonEmptyString(product?.variant_label_2) ||
+    asNonEmptyString(orderItem?.personalized_options?.option2Label);
+
+  const variantName = asNonEmptyString(variant?.variant_name);
+
+  const displayParts: string[] = [];
+  if (variantName) {
+    displayParts.push(variantName);
+  }
+  if (option1Value) {
+    displayParts.push(option1Label ? `${option1Label}: ${option1Value}` : option1Value);
+  }
+  if (option2Value) {
+    displayParts.push(option2Label ? `${option2Label}: ${option2Value}` : option2Value);
+  }
+
+  const snapshot = compactRecord({
+    order_item_id: orderItem?.id || null,
+    product_id: orderItem?.product_id || null,
+    product_name: asNonEmptyString(orderItem?.product_name) || asNonEmptyString(product?.name),
+    variant_id: orderItem?.variant_id || variant?.id || null,
+    variant_name: variantName,
+    sku: asNonEmptyString(variant?.sku),
+    option_1_label: option1Label,
+    option_1_value: option1Value,
+    option_2_label: option2Label,
+    option_2_value: option2Value,
+    display: displayParts.length > 0 ? displayParts.join(' / ') : null,
+  });
+
+  return Object.keys(snapshot).length > 0 ? snapshot : null;
+};
+
 // Helper to map DB Order to UI Order
 const mapDbOrderToOrder = (dbOrder: any) => {
   if (!dbOrder) return null;
@@ -1359,7 +1446,11 @@ export class OrderService {
     buyerId: string,
     rating: number,
     comment: string,
-    images?: string[]
+    images?: string[],
+    target?: {
+      productId?: string;
+      orderItemId?: string;
+    }
   ): Promise<boolean> {
     if (!orderId || !buyerId) {
       throw new Error('Order ID and Buyer ID are required');
@@ -1369,17 +1460,23 @@ export class OrderService {
       throw new Error('Rating must be between 1 and 5');
     }
 
-    if (!comment?.trim()) {
-      throw new Error('Review comment is required');
-    }
+    const normalizedComment = comment?.trim() || null;
+
+    const sanitizedImageUrls = Array.from(
+      new Set(
+        (images || [])
+          .map((image) => image?.trim())
+          .filter((image): image is string => typeof image === 'string' && /^https?:\/\//i.test(image))
+      )
+    );
 
     if (!isSupabaseConfigured()) {
       const order = this.mockOrders.find(o => o.id === orderId && o.buyer_id === buyerId);
       if (order) {
         order.is_reviewed = true;
         order.rating = rating;
-        order.review_comment = comment;
-        order.review_images = images || [];
+        order.review_comment = normalizedComment || undefined;
+        order.review_images = sanitizedImageUrls;
         order.review_date = new Date().toISOString();
         return true;
       }
@@ -1391,8 +1488,29 @@ export class OrderService {
         .from('orders')
         .select(`
           *,
+          shipment_status,
           order_items (
-            product_id
+            id,
+            product_id,
+            product_name,
+            variant_id,
+            personalized_options,
+            product:products!order_items_product_id_fkey (
+              id,
+              name,
+              variant_label_1,
+              variant_label_2
+            ),
+            variant:product_variants!order_items_variant_id_fkey (
+              id,
+              sku,
+              variant_name,
+              size,
+              color,
+              option_1_value,
+              option_2_value,
+              thumbnail_url
+            )
           )
         `)
         .eq('id', orderId)
@@ -1403,51 +1521,125 @@ export class OrderService {
         throw new Error('Order not found or access denied');
       }
 
-      if (order.status !== 'delivered' && order.status !== 'completed') {
-        throw new Error('Cannot review order that is not delivered or completed');
+      if (order.shipment_status !== 'delivered' && order.shipment_status !== 'received') {
+        throw new Error(`Cannot review order with status: ${order.shipment_status}`);
       }
 
-      const orderItems = order.order_items || [];
+      const orderItems = Array.isArray(order.order_items) ? order.order_items : [];
+      const reviewableOrderItems = orderItems.filter((item: any) => {
+        const hasRequiredIds =
+          typeof item?.id === 'string' &&
+          item.id.length > 0 &&
+          typeof item?.product_id === 'string' &&
+          item.product_id.length > 0;
+
+        if (!hasRequiredIds) {
+          return false;
+        }
+
+        if (target?.orderItemId) {
+          return item.id === target.orderItemId;
+        }
+
+        if (target?.productId) {
+          return item.product_id === target.productId;
+        }
+
+        return true;
+      });
+
+      if (reviewableOrderItems.length === 0) {
+        throw new Error('No reviewable products found for this order');
+      }
+
+      const { data: existingReviews, error: existingReviewsError } = await supabase
+        .from('reviews')
+        .select('id, product_id, order_item_id')
+        .eq('order_id', orderId)
+        .eq('buyer_id', buyerId);
+
+      if (existingReviewsError) {
+        throw existingReviewsError;
+      }
+
+      const reviewedOrderItemIds = new Set(
+        (existingReviews || [])
+          .map((review: any) => review.order_item_id)
+          .filter((value: unknown): value is string => typeof value === 'string')
+      );
+
+      const reviewedLegacyProductIds = new Set(
+        (existingReviews || [])
+          .filter((review: any) => !review.order_item_id)
+          .map((review: any) => review.product_id)
+          .filter((value: unknown): value is string => typeof value === 'string')
+      );
+
       let successCount = 0;
+      let skippedCount = 0;
 
-      for (const item of orderItems) {
-        const exists = await reviewService.hasReviewForProduct(orderId, item.product_id);
-        if (exists) continue;
+      for (const orderItem of reviewableOrderItems) {
+        const orderItemId = orderItem.id as string;
+        const productId = orderItem.product_id as string;
 
-        const reviewPayload = {
-          order_id: orderId,
-          product_id: item.product_id,
-          buyer_id: buyerId,
-          seller_id: order.seller_id,
-          rating: rating,
-          comment: comment.trim(),
-          images: images || [],
-          is_verified_purchase: true,
-          helpful_count: 0,
-          seller_reply: null,
-          is_hidden: false,
-          is_edited: false
-        };
+        if (reviewedOrderItemIds.has(orderItemId) || reviewedLegacyProductIds.has(productId)) {
+          skippedCount++;
+          continue;
+        }
 
-        const review = await reviewService.createReview(reviewPayload);
-        if (review) successCount++;
+        const variantSnapshot = buildVariantSnapshot(orderItem);
+
+        const { data: createdReview, error: reviewInsertError } = await supabase
+          .from('reviews')
+          .insert({
+            order_id: orderId,
+            order_item_id: orderItemId,
+            product_id: productId,
+            buyer_id: buyerId,
+            rating,
+            comment: normalizedComment,
+            variant_snapshot: variantSnapshot,
+            is_verified_purchase: true,
+            helpful_count: 0,
+            seller_reply: null,
+            is_hidden: false,
+            is_edited: false,
+          })
+          .select('id')
+          .single();
+
+        if (reviewInsertError) {
+          if ((reviewInsertError as any)?.code === '23505') {
+            skippedCount++;
+            continue;
+          }
+          throw reviewInsertError;
+        }
+
+        if (createdReview?.id && sanitizedImageUrls.length > 0) {
+          const imageRows = sanitizedImageUrls.map((imageUrl, index) => ({
+            review_id: createdReview.id,
+            image_url: imageUrl,
+            sort_order: index,
+          }));
+
+          const { error: imageInsertError } = await supabase.from('review_images').insert(imageRows);
+          if (imageInsertError) {
+            console.warn('[OrderService] Failed to insert review image metadata:', imageInsertError);
+          }
+        }
+
+        await reviewService.markItemAsReviewed(orderId, productId, rating);
+        successCount++;
       }
 
-      if (successCount === 0) {
+      const alreadyReviewedEverything =
+        successCount === 0 && skippedCount >= reviewableOrderItems.length;
+
+      if (!alreadyReviewedEverything && successCount === 0) {
         return false;
       }
 
-      const { error: updateError } = await supabase
-        .from('orders')
-        .update({
-          is_reviewed: true,
-          rating,
-          review_comment: comment.trim(),
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', orderId);
-
-      if (updateError) throw updateError;
       return true;
     } catch (error) {
       console.error('Error submitting review:', error);

@@ -1,5 +1,14 @@
 import type { PaymentStatus, ShipmentStatus } from '@/types/database.types';
 
+export type BuyerUiStatus =
+  | 'pending'
+  | 'confirmed'
+  | 'shipped'
+  | 'delivered'
+  | 'returned'
+  | 'cancelled'
+  | 'reviewed';
+
 export type SellerUiStatus =
   | 'pending'
   | 'to-ship'

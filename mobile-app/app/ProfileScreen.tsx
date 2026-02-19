@@ -455,7 +455,7 @@ export default function ProfileScreen({ navigation }: Props) {
           <View style={styles.statsCard}>
             <Pressable
               style={({ pressed }) => [styles.statBox, pressed && { opacity: 0.7 }]}
-              onPress={() => navigation.navigate('Orders', { initialTab: 'toPay' })}
+              onPress={() => navigation.navigate('Orders', { initialTab: 'pending' })}
             >
               <Text style={[styles.statVal, { color: BRAND_COLOR }]}>{profile.totalOrders}</Text>
               <Text style={styles.statLab}>Orders</Text>
@@ -484,7 +484,7 @@ export default function ProfileScreen({ navigation }: Props) {
             <Text style={styles.purchasesTitle}>My Purchases</Text>
             <Pressable
               style={styles.viewHistoryBtn}
-              onPress={() => navigation.navigate('Orders', { initialTab: 'toPay' })}
+              onPress={() => navigation.navigate('Orders', { initialTab: 'pending' })}
             >
               <Text style={styles.viewHistoryText}>View Purchase History</Text>
               <ChevronRight size={16} color="#9CA3AF" />
@@ -493,10 +493,10 @@ export default function ProfileScreen({ navigation }: Props) {
 
           <View style={styles.purchasesGrid}>
             {[
-              { label: 'To Pay', tab: 'toPay', icon: Wallet },
-              { label: 'To Ship', tab: 'toShip', icon: Package },
-              { label: 'To Receive', tab: 'toReceive', icon: Truck },
-              { label: 'To Rate', tab: 'completed', icon: Star, badge: 1 },
+              { label: 'Pending', tab: 'pending', icon: Wallet },
+              { label: 'Processing', tab: 'confirmed', icon: Package },
+              { label: 'Shipped', tab: 'shipped', icon: Truck },
+              { label: 'Delivered', tab: 'delivered', icon: Star, badge: 1 },
             ].map((item, idx) => (
               <Pressable
                 key={idx}
