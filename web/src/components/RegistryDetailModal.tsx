@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Gift, Plus, ShoppingBag, Copy, Check, Trash2 } from "lucide-react";
 import { Button } from "./ui/button";
@@ -40,6 +40,7 @@ export const RegistryDetailModal = ({
   const navigate = useNavigate();
 
   const {
+    registries,
     updateRegistryItem,
     removeRegistryItem,
     updateRegistryMeta,
@@ -56,20 +57,25 @@ export const RegistryDetailModal = ({
   const [addressId, setAddressId] = useState("");
   const [deliveryInstructions, setDeliveryInstructions] = useState("");
 
-  useEffect(() => {
-    if (registry) {
-      setPrivacy(registry.privacy || "link");
-      setShowAddress(registry.delivery?.showAddress || false);
-      setAddressId(registry.delivery?.addressId || "");
-      setDeliveryInstructions(registry.delivery?.instructions || "");
-    }
-  }, [registry]);
+  const liveRegistry = useMemo(() => {
+    if (!registry) return null;
+    return registries.find((r) => r.id === registry.id) || registry;
+  }, [registries, registry]);
 
-  if (!registry) return null;
+  useEffect(() => {
+    if (liveRegistry) {
+      setPrivacy(liveRegistry.privacy || "link");
+      setShowAddress(liveRegistry.delivery?.showAddress || false);
+      setAddressId(liveRegistry.delivery?.addressId || "");
+      setDeliveryInstructions(liveRegistry.delivery?.instructions || "");
+    }
+  }, [liveRegistry]);
+
+  if (!liveRegistry) return null;
 
   const handleAdd = () => {
     if (newProductName.trim()) {
-      onAddProduct(registry.id, newProductName);
+      onAddProduct(liveRegistry.id, newProductName);
       setNewProductName("");
       setIsAdding(false);
     }
@@ -81,22 +87,22 @@ export const RegistryDetailModal = ({
   };
 
   const handleCopyLink = () => {
-    const link = `${window.location.origin}/registry/${registry.id}`;
+    const link = `${window.location.origin}/registry/${liveRegistry.id}`;
     navigator.clipboard.writeText(link);
     setIsCopied(true);
     setTimeout(() => setIsCopied(false), 2000);
   };
 
   const handleDelete = () => {
-    if (onDelete && registry) {
-      onDelete(registry.id);
+    if (onDelete && liveRegistry) {
+      onDelete(liveRegistry.id);
       setShowDeleteConfirm(false);
       onClose();
     }
   };
 
   const handleSavePreferences = () => {
-    updateRegistryMeta(registry.id, {
+    updateRegistryMeta(liveRegistry.id, {
       privacy,
       delivery: {
         addressId: addressId || undefined,
@@ -137,15 +143,15 @@ export const RegistryDetailModal = ({
               <div className="mb-6 border-b border-gray-100 pb-4">
                 <div className="flex items-center gap-3 mb-2">
                   <span className="bg-orange-100 text-[var(--brand-primary)] px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider">
-                    {registry.category || "Gift List"}
+                    {liveRegistry.category || "Gift List"}
                   </span>
                   <span className="text-sm text-[var(--text-secondary)]">
-                    Created on {registry.sharedDate}
+                    Created on {liveRegistry.sharedDate}
                   </span>
                 </div>
                 <div className="flex items-start justify-between gap-4">
                   <h2 className="text-3xl font-bold text-[var(--text-primary)]">
-                    {registry.title}
+                    {liveRegistry.title}
                   </h2>
                   <div className="flex gap-2">
                     <Button
@@ -294,7 +300,8 @@ export const RegistryDetailModal = ({
                 )}
 
                 <div className="space-y-3">
-                  {!registry.products || registry.products.length === 0 ? (
+                  {!liveRegistry.products ||
+                  liveRegistry.products.length === 0 ? (
                     <div className="border-2 border-dashed border-gray-200 rounded-xl p-12 flex flex-col items-center justify-center text-center">
                       <div className="p-4 bg-gray-50 rounded-full mb-4">
                         <ShoppingBag className="w-8 h-8 text-gray-400" />
@@ -312,7 +319,7 @@ export const RegistryDetailModal = ({
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                      {registry.products.map((product: any, idx) => (
+                      {liveRegistry.products.map((product: any, idx) => (
                         <div
                           key={idx}
                           onClick={() => handleItemClick(product)}
@@ -413,9 +420,9 @@ export const RegistryDetailModal = ({
                     Delete Registry?
                   </h3>
                   <p className="text-gray-600 mb-6">
-                    Are you sure you want to delete "{registry?.title}"? This
-                    action cannot be undone and all items in this registry will
-                    be removed.
+                    Are you sure you want to delete "{liveRegistry?.title}"?
+                    This action cannot be undone and all items in this registry
+                    will be removed.
                   </p>
                   <div className="flex gap-3 justify-end">
                     <Button
@@ -441,9 +448,9 @@ export const RegistryDetailModal = ({
             onClose={() => setIsEditModalOpen(false)}
             item={selectedItem}
             onUpdate={(pid, updates) =>
-              updateRegistryItem(registry.id, pid, updates)
+              updateRegistryItem(liveRegistry.id, pid, updates)
             }
-            onRemove={(pid) => removeRegistryItem(registry.id, pid)}
+            onRemove={(pid) => removeRegistryItem(liveRegistry.id, pid)}
           />
         </div>
       )}

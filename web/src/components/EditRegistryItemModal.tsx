@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Trash2, Minus, Plus } from "lucide-react";
 import { Button } from "./ui/button";
@@ -27,22 +27,85 @@ export const EditRegistryItemModal = ({
   const [note, setNote] = useState("");
   const [isMostWanted, setIsMostWanted] = useState(false);
   const [selectedVariantId, setSelectedVariantId] = useState<string>("");
+  const showDebug = process.env.NODE_ENV !== "production";
+
+  const formatVariantLabel = (
+    variant: RegistryProduct["variants"][number] | undefined,
+  ) => {
+    if (!variant) return "Variant";
+    if (variant.name?.trim()) return variant.name;
+    const attrs = variant.attributes
+      ? Object.values(variant.attributes).filter(Boolean)
+      : [];
+    return attrs.length ? attrs.join(" / ") : "Variant";
+  };
+
+  const variantOptions = useMemo(() => {
+    if (!item) return [] as RegistryProduct["variants"];
+
+    const normalizeVariant = (v: any) => {
+      if (!v) return null;
+      const attrs: Record<string, string> = { ...(v.attributes || {}) };
+      if (v.option_1_value) attrs.option1 = v.option_1_value;
+      if (v.option_2_value) attrs.option2 = v.option_2_value;
+      if (v.size) attrs.size = v.size;
+      if (v.color) attrs.color = v.color;
+      const nameCandidate =
+        v.name ||
+        v.variant_name ||
+        formatVariantLabel({ ...v, attributes: attrs });
+      return {
+        ...v,
+        name: nameCandidate,
+        attributes: attrs,
+      } as RegistryProduct["variants"][number];
+    };
+
+    const baseNormalized = (item.variants || [])
+      .map(normalizeVariant)
+      .filter(Boolean) as RegistryProduct["variants"];
+
+    const selectedNormalized = normalizeVariant(item.selectedVariant);
+
+    if (
+      selectedNormalized &&
+      !baseNormalized.some((v) => v.id === selectedNormalized.id)
+    ) {
+      return [...baseNormalized, selectedNormalized];
+    }
+
+    return baseNormalized;
+  }, [item]);
 
   useEffect(() => {
     if (item) {
       setRequestedQty(item.requestedQty || 1);
       setNote(item.note || "");
       setIsMostWanted(item.isMostWanted || false);
-      setSelectedVariantId(
-        item.selectedVariant?.id || item.variants?.[0]?.id || "",
-      );
+      const initialVariantId =
+        item.selectedVariant?.id || variantOptions?.[0]?.id || "";
+      setSelectedVariantId(initialVariantId);
+    } else {
+      setSelectedVariantId("");
     }
-  }, [item]);
+  }, [item, variantOptions]);
+
+  useEffect(() => {
+    if (!item) return;
+    console.debug("[EditRegistryItemModal] item", {
+      id: item.id,
+      name: item.name,
+      selectedVariant: item.selectedVariant,
+      variants: item.variants,
+      variantOptions,
+      selectedVariantId,
+    });
+  }, [item, variantOptions, selectedVariantId]);
 
   if (!item) return null;
 
   const handleSave = () => {
-    const variant = item?.variants?.find((v) => v.id === selectedVariantId);
+    const variant = variantOptions.find((v) => v.id === selectedVariantId);
     onUpdate(item.id, {
       requestedQty,
       note,
@@ -125,7 +188,7 @@ export const EditRegistryItemModal = ({
                 {/* Form Fields */}
                 <div className="space-y-6 flex-1">
                   {/* Variant Selection */}
-                  {item.variants && item.variants.length > 0 && (
+                  {variantOptions.length > 0 ? (
                     <div className="space-y-2">
                       <Label className="text-base font-semibold">Variant</Label>
                       <select
@@ -133,12 +196,37 @@ export const EditRegistryItemModal = ({
                         onChange={(e) => setSelectedVariantId(e.target.value)}
                         className="border border-gray-300 rounded-md px-3 py-2 text-sm"
                       >
-                        {item.variants.map((v) => (
+                        {variantOptions.map((v) => (
                           <option key={v.id} value={v.id}>
-                            {v.name}
+                            {formatVariantLabel(v)}
                           </option>
                         ))}
                       </select>
+                      {showDebug && (
+                        <div className="text-[11px] text-gray-500 space-y-1 bg-gray-50 border border-dashed border-gray-300 rounded-md p-2">
+                          <div className="font-semibold">Debug: Variants</div>
+                          <pre className="whitespace-pre-wrap break-all">
+                            {JSON.stringify(
+                              {
+                                id: item.id,
+                                name: item.name,
+                                selectedVariantId,
+                                variantOptions,
+                                selectedVariant: item.selectedVariant,
+                              },
+                              null,
+                              2,
+                            )}
+                          </pre>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <Label className="text-base font-semibold">Variant</Label>
+                      <div className="text-sm text-gray-500 border border-dashed border-gray-300 rounded-md px-3 py-2">
+                        No variants were saved for this item.
+                      </div>
                     </div>
                   )}
 
