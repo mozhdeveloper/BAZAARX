@@ -101,7 +101,7 @@ export type RootStackParamList = {
   };
   PaymentGateway: { paymentMethod: string; order: Order; isQuickCheckout?: boolean };
   OrderConfirmation: { order: Order };
-  Orders: { initialTab?: 'toPay' | 'toShip' | 'toReceive' | 'completed' | 'returns' | 'cancelled' };
+  Orders: { initialTab?: 'all' | 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'reviewed' | 'returned' | 'cancelled' };
   OrderDetail: { order: Order };
   SellerOrderDetail: { orderId: string };
   DeliveryTracking: { order: Order };

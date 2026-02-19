@@ -56,7 +56,7 @@ import { trendingProducts } from '../src/data/products';
 import { COLORS } from '../src/constants/theme';
 import { useAuthStore } from '../src/stores/authStore';
 import { GuestLoginModal } from '../src/components/GuestLoginModal';
-import { reviewService, Review } from '../src/services/reviewService';
+import { reviewService, type ReviewFeedItem } from '../src/services/reviewService';
 import { productService } from '../src/services/productService';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
@@ -258,10 +258,18 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   }, [product.seller]);
 
   // Reviews State
-  const [reviews, setReviews] = useState<(Review & { buyer?: { full_name: string | null; avatar_url: string | null } })[]>([]);
+  const [reviews, setReviews] = useState<ReviewFeedItem[]>([]);
   const [reviewsTotal, setReviewsTotal] = useState(0);
   const [isLoadingReviews, setIsLoadingReviews] = useState(false);
+  const [isLoadingMoreReviews, setIsLoadingMoreReviews] = useState(false);
+  const [reviewPage, setReviewPage] = useState(1);
   const [averageRating, setAverageRating] = useState(0);
+
+  const effectiveAverageRating = averageRating > 0 ? averageRating : Number(product.rating || 0);
+  const effectiveReviewTotal = reviewsTotal > 0
+    ? reviewsTotal
+    : Number((product as any).reviewCount || (product as any).totalReviews || 0);
+  const soldCount = Number((product as any).sales_count ?? (product as any).sold ?? 0);
 
   // Wishlist State
   const [showWishlistDropdown, setShowWishlistDropdown] = useState(false);
@@ -286,31 +294,55 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
   const relatedProducts = trendingProducts.filter((p) => p.id !== product.id).slice(0, 4);
 
-  // Fetch reviews from database
-  useEffect(() => {
-    const fetchReviews = async () => {
-      if (!product.id) return;
+  const fetchReviews = async (page = 1, append = false) => {
+    if (!product.id) return;
 
+    if (append) {
+      setIsLoadingMoreReviews(true);
+    } else {
       setIsLoadingReviews(true);
-      try {
-        const { reviews: fetchedReviews, total } = await reviewService.getProductReviews(product.id);
-        setReviews(fetchedReviews);
-        setReviewsTotal(total);
+    }
 
-        // Calculate average rating
-        if (fetchedReviews.length > 0) {
-          const avg = fetchedReviews.reduce((sum, r) => sum + r.rating, 0) / fetchedReviews.length;
-          setAverageRating(Math.round(avg * 10) / 10);
-        }
-      } catch (error) {
-        console.error('[ProductDetail] Error fetching reviews:', error);
-      } finally {
+    try {
+      const { reviews: fetchedReviews, total, stats } = await reviewService.getProductReviews(product.id, page, 5);
+      const mergedReviews = append
+        ? Array.from(new Map([...reviews, ...fetchedReviews].map((review) => [review.id, review])).values())
+        : fetchedReviews;
+
+      setReviews(mergedReviews);
+      setReviewsTotal(total);
+      setAverageRating(stats.averageRating);
+      setReviewPage(page);
+    } catch (error) {
+      console.error('[ProductDetail] Error fetching reviews:', error);
+      if (!append) {
+        setReviews([]);
+        setReviewsTotal(0);
+        setAverageRating(0);
+      }
+    } finally {
+      if (append) {
+        setIsLoadingMoreReviews(false);
+      } else {
         setIsLoadingReviews(false);
       }
-    };
+    }
+  };
 
-    fetchReviews();
+  // Fetch reviews from database
+  useEffect(() => {
+    setReviewPage(1);
+    setReviews([]);
+    fetchReviews(1, false);
   }, [product.id]);
+
+  const handleLoadMoreReviews = () => {
+    if (isLoadingMoreReviews || reviews.length >= reviewsTotal) {
+      return;
+    }
+
+    void fetchReviews(reviewPage + 1, true);
+  };
 
   // Build selected variant object with dynamic labels
   const buildSelectedVariant = (option1?: string | null, option2?: string | null) => {
@@ -666,15 +698,29 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
           <Text style={[styles.productName, { color: '#431407' }]}>{product.name}</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <View style={{ flexDirection: 'row', gap: 2, marginRight: 8 }}>
-              {[1, 2, 3, 4, 5].map((s) => (
-                <Star key={s} size={15} color="#FB8C00" fill="#FB8C00" />
-              ))}
+              {[1, 2, 3, 4, 5].map((s) => {
+                const isFilled = s <= Math.round(effectiveAverageRating);
+                return (
+                  <Star
+                    key={s}
+                    size={15}
+                    color={isFilled ? '#FB8C00' : '#D1D5DB'}
+                    fill={isFilled ? '#FB8C00' : 'transparent'}
+                  />
+                );
+              })}
             </View>
-            <Text style={{ fontSize: 13, fontWeight: '700', color: '#B45309' }}>4.8</Text>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: '#B45309' }}>
+              {effectiveAverageRating > 0 ? effectiveAverageRating.toFixed(1) : 'No rating'}
+            </Text>
             <Text style={{ fontSize: 13, color: 'rgba(120, 53, 15, 0.4)', marginHorizontal: 8 }}>|</Text>
-            <Text style={{ fontSize: 13, color: '#6B7280' }}>2.3k Reviews</Text>
+            <Text style={{ fontSize: 13, color: '#6B7280' }}>
+              {effectiveReviewTotal.toLocaleString()} Reviews
+            </Text>
             <Text style={{ fontSize: 13, color: 'rgba(120, 53, 15, 0.4)', marginHorizontal: 8 }}>|</Text>
-            <Text style={{ fontSize: 13, color: '#6B7280' }}>5.8k Sold</Text>
+            <Text style={{ fontSize: 13, color: '#6B7280' }}>
+              {soldCount.toLocaleString()} Sold
+            </Text>
           </View>
         </View>
 
@@ -801,25 +847,67 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
           ) : reviews.length > 0 ? (
             <>
               <Text style={{ fontSize: 14, color: '#6B7280', marginBottom: 15 }}>
-                {averageRating || 4.8} out of 5 stars ({reviewsTotal} Reviews)
+                {effectiveAverageRating.toFixed(1)} out of 5 stars ({reviewsTotal.toLocaleString()} Reviews)
               </Text>
-              {reviews.slice(0, 3).map((review) => (
+              {reviews.map((review) => (
                 <View key={review.id} style={styles.reviewCard}>
                   <Image
-                    source={{ uri: review.buyer?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150' }}
+                    source={{ uri: review.buyerAvatar || 'https://ui-avatars.com/api/?name=Buyer&background=FF6A00&color=fff' }}
                     style={styles.reviewerAvatar}
                   />
                   <View style={styles.reviewContent}>
-                    <Text style={styles.reviewerName}>{review.buyer?.full_name || 'Anonymous Buyer'}</Text>
+                    <Text style={styles.reviewerName}>{review.buyerName || 'Anonymous Buyer'}</Text>
                     <View style={styles.reviewRatingRow}>
                       {Array.from({ length: 5 }).map((_, i) => (
                         <Star key={i} size={10} color={i < review.rating ? '#FBBF24' : '#E5E7EB'} fill={i < review.rating ? '#FBBF24' : '#E5E7EB'} />
                       ))}
                     </View>
-                    <Text style={styles.reviewText}>{review.comment}</Text>
+                    <Text style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>
+                      {formatReviewDate(review.createdAt)}
+                    </Text>
+                    <Text style={styles.reviewText}>{review.comment || 'No written feedback.'}</Text>
+                    {review.variantLabel ? (
+                      <Text style={{ fontSize: 11, color: '#6B7280', marginTop: 4 }}>
+                        Variant: {review.variantLabel}
+                      </Text>
+                    ) : null}
+                    {review.images.length > 0 ? (
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        style={styles.reviewImagesContainer}
+                      >
+                        {review.images.map((imageUrl, index) => (
+                          <Image
+                            key={`${review.id}-${index}`}
+                            source={{ uri: imageUrl }}
+                            style={styles.reviewImage}
+                          />
+                        ))}
+                      </ScrollView>
+                    ) : null}
+                    {review.sellerReply ? (
+                      <View style={{ marginTop: 8, paddingLeft: 10, borderLeftWidth: 2, borderLeftColor: '#FB8C00' }}>
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#C2410C' }}>Seller response</Text>
+                        <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>{review.sellerReply.message}</Text>
+                      </View>
+                    ) : null}
                   </View>
                 </View>
               ))}
+              {reviews.length < reviewsTotal ? (
+                <Pressable
+                  onPress={handleLoadMoreReviews}
+                  style={{ marginTop: 8, paddingVertical: 10, alignItems: 'center' }}
+                  disabled={isLoadingMoreReviews}
+                >
+                  {isLoadingMoreReviews ? (
+                    <ActivityIndicator size="small" color="#FB8C00" />
+                  ) : (
+                    <Text style={{ color: '#EA580C', fontWeight: '700' }}>Load More Reviews</Text>
+                  )}
+                </Pressable>
+              ) : null}
             </>
           ) : (
             <Text style={{ color: '#9CA3AF', marginVertical: 10 }}>No reviews yet</Text>
@@ -1737,4 +1825,3 @@ const styles = StyleSheet.create({
     marginVertical: 4,
   },
 });
-

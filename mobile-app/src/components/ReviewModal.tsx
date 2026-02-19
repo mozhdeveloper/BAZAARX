@@ -16,12 +16,18 @@ import { Star, X, ChevronRight, ArrowLeft, CheckCircle2 } from 'lucide-react-nat
 import type { Order } from '../types';
 import { reviewService } from '../services/reviewService';
 import { COLORS } from '../constants/theme';
+import { useAuthStore } from '../stores/authStore';
 
 interface ReviewModalProps {
   visible: boolean;
   order: Order | null;
   onClose: () => void;
-  onSubmit: (productId: string, rating: number, review: string) => Promise<void>;
+  onSubmit: (
+    productId: string,
+    orderItemId: string,
+    rating: number,
+    review: string,
+  ) => Promise<void>;
 }
 
 interface ProductReviewStatus {
@@ -33,6 +39,7 @@ interface ProductReviewStatus {
 }
 
 export default function ReviewModal({ visible, order, onClose, onSubmit }: ReviewModalProps) {
+  const { user } = useAuthStore();
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [rating, setRating] = useState(5);
   const [review, setReview] = useState('');
@@ -64,7 +71,16 @@ export default function ReviewModal({ visible, order, onClose, onSubmit }: Revie
       for (const item of order.items) {
         // Use productId for review check (item.id is order_item id)
         const productId = (item as any).productId || item.id;
-        const hasReview = await reviewService.hasReviewForProduct(realOrderId, productId);
+        let hasReview = false;
+
+        if (item.id) {
+          hasReview = await reviewService.hasReviewForOrderItem(item.id, user?.id);
+        }
+
+        if (!hasReview) {
+          hasReview = await reviewService.hasReviewForProduct(realOrderId, productId, user?.id);
+        }
+
         statuses[item.id] = { reviewed: hasReview };
       }
       setReviewStatus(statuses);
@@ -99,7 +115,7 @@ export default function ReviewModal({ visible, order, onClose, onSubmit }: Revie
       
       // Pass the actual productId to onSubmit, not the order_item id
       const productId = (item as any).productId || item.id;
-      await onSubmit(productId, rating, review);
+      await onSubmit(productId, item.id, rating, review);
       
       // Update local status (track by item.id for UI)
       setReviewStatus(prev => ({

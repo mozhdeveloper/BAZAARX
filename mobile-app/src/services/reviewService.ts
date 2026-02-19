@@ -1,655 +1,1254 @@
 /**
  * Review Service
- * Handles database operations for the reviews table
- * Mobile App Port of web/src/services/reviewService.ts
+ * Handles database operations for reviews and review presentation data.
  */
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 export interface Review {
-    id: string;
-    product_id: string;
-    buyer_id: string;
-    order_id: string | null;
-    rating: number;
-    comment: string | null;
-    helpful_count: number;
-    seller_reply: any | null;
-    is_verified_purchase: boolean;
-    is_hidden: boolean;
-    is_edited: boolean;
-    created_at: string;
-    // Images from review_images table (populated separately if needed)
-    images?: string[];
+  id: string;
+  product_id: string;
+  buyer_id: string;
+  order_id: string | null;
+  order_item_id: string | null;
+  variant_snapshot: Record<string, unknown> | null;
+  rating: number;
+  comment: string | null;
+  helpful_count: number;
+  seller_reply: Record<string, unknown> | null;
+  is_verified_purchase: boolean;
+  is_hidden: boolean;
+  is_edited: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface ReviewInsert {
-    product_id: string;
-    buyer_id: string;
-    order_id: string;
-    rating: number;
-    comment?: string | null;
-    is_verified_purchase?: boolean;
+  product_id: string;
+  buyer_id: string;
+  order_id: string;
+  order_item_id?: string | null;
+  variant_snapshot?: Record<string, unknown> | null;
+  rating: number;
+  comment?: string | null;
+  is_verified_purchase?: boolean;
+  helpful_count?: number;
+  seller_reply?: Record<string, unknown> | null;
+  is_hidden?: boolean;
+  is_edited?: boolean;
 }
 
+export interface ReviewReplySummary {
+  message: string;
+  repliedAt: string | null;
+}
+
+export interface ReviewFeedItem {
+  id: string;
+  productId: string;
+  productName: string;
+  productImage: string | null;
+  buyerId: string;
+  buyerName: string;
+  buyerAvatar: string;
+  rating: number;
+  comment: string;
+  helpfulCount: number;
+  images: string[];
+  createdAt: string;
+  verifiedPurchase: boolean;
+  variantLabel: string | null;
+  variantSnapshot: Record<string, unknown> | null;
+  sellerReply: ReviewReplySummary | null;
+}
+
+export interface ReviewStats {
+  total: number;
+  averageRating: number;
+  distribution: number[];
+  withImages: number;
+}
+
+export interface ProductReviewsResult {
+  reviews: ReviewFeedItem[];
+  total: number;
+  stats: ReviewStats;
+}
+
+const EMPTY_REVIEW_STATS: ReviewStats = {
+  total: 0,
+  averageRating: 0,
+  distribution: [0, 0, 0, 0, 0],
+  withImages: 0,
+};
+
+const asNonEmptyString = (value: unknown): string | null => {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+};
+
+const isHttpUrl = (value: unknown): value is string =>
+  typeof value === 'string' && /^https?:\/\//i.test(value.trim());
+
+const firstRelationRow = <T>(value: T | T[] | null | undefined): T | undefined => {
+  if (Array.isArray(value)) {
+    return value[0];
+  }
+  return value ?? undefined;
+};
+
+const buildFallbackAvatar = (displayName: string): string =>
+  `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=FF6A00&color=fff`;
+
+const mapReviewImages = (review: any): string[] => {
+  const joinedImages = Array.isArray(review?.review_images) ? review.review_images : [];
+
+  return joinedImages
+    .slice()
+    .sort((a: any, b: any) => Number(a?.sort_order || 0) - Number(b?.sort_order || 0))
+    .map((image: any) => image?.image_url)
+    .filter(isHttpUrl);
+};
+
+const pickProductImage = (review: any): string | null => {
+  const orderItem = firstRelationRow(review?.order_item);
+  const orderVariant = firstRelationRow(orderItem?.variant);
+  const product = firstRelationRow(review?.product);
+  const productImages = Array.isArray(product?.images) ? product.images : [];
+
+  const orderedProductImages = productImages
+    .slice()
+    .sort((a: any, b: any) => {
+      const primaryA = a?.is_primary ? 0 : 1;
+      const primaryB = b?.is_primary ? 0 : 1;
+      if (primaryA !== primaryB) {
+        return primaryA - primaryB;
+      }
+      return Number(a?.sort_order || 0) - Number(b?.sort_order || 0);
+    })
+    .map((image: any) => image?.image_url)
+    .filter(isHttpUrl);
+
+  return (
+    asNonEmptyString(orderItem?.primary_image_url) ||
+    asNonEmptyString(orderVariant?.thumbnail_url) ||
+    orderedProductImages[0] ||
+    null
+  );
+};
+
+const parseSellerReply = (sellerReply: unknown): ReviewReplySummary | null => {
+  if (!sellerReply) {
+    return null;
+  }
+
+  if (typeof sellerReply === 'string') {
+    const message = asNonEmptyString(sellerReply);
+    return message ? { message, repliedAt: null } : null;
+  }
+
+  if (typeof sellerReply !== 'object' || Array.isArray(sellerReply)) {
+    return null;
+  }
+
+  const payload = sellerReply as Record<string, unknown>;
+  const message =
+    asNonEmptyString(payload.message) ||
+    asNonEmptyString(payload.reply) ||
+    asNonEmptyString(payload.comment) ||
+    asNonEmptyString(payload.text);
+
+  if (!message) {
+    return null;
+  }
+
+  const repliedAt =
+    asNonEmptyString(payload.replied_at) ||
+    asNonEmptyString(payload.repliedAt) ||
+    asNonEmptyString(payload.created_at) ||
+    null;
+
+  return {
+    message,
+    repliedAt,
+  };
+};
+
+const resolveVariantLabel = (review: any): string | null => {
+  const snapshot =
+    review?.variant_snapshot &&
+    typeof review.variant_snapshot === 'object' &&
+    !Array.isArray(review.variant_snapshot)
+      ? (review.variant_snapshot as Record<string, unknown>)
+      : null;
+
+  const orderItem = firstRelationRow(review?.order_item);
+  const variant = firstRelationRow(orderItem?.variant);
+  const product = firstRelationRow(orderItem?.product) || firstRelationRow(review?.product);
+
+  const variantName =
+    asNonEmptyString(snapshot?.variant_name) ||
+    asNonEmptyString(snapshot?.name) ||
+    asNonEmptyString(variant?.variant_name);
+
+  const option1Value =
+    asNonEmptyString(snapshot?.option_1_value) ||
+    asNonEmptyString(snapshot?.variant_label_1_value) ||
+    asNonEmptyString(variant?.option_1_value) ||
+    asNonEmptyString(variant?.size) ||
+    asNonEmptyString(orderItem?.personalized_options?.variantLabel1);
+
+  const option2Value =
+    asNonEmptyString(snapshot?.option_2_value) ||
+    asNonEmptyString(snapshot?.variant_label_2_value) ||
+    asNonEmptyString(variant?.option_2_value) ||
+    asNonEmptyString(variant?.color) ||
+    asNonEmptyString(orderItem?.personalized_options?.variantLabel2);
+
+  const option1Label =
+    asNonEmptyString(snapshot?.option_1_label) ||
+    asNonEmptyString(snapshot?.variant_label_1) ||
+    asNonEmptyString(product?.variant_label_1);
+
+  const option2Label =
+    asNonEmptyString(snapshot?.option_2_label) ||
+    asNonEmptyString(snapshot?.variant_label_2) ||
+    asNonEmptyString(product?.variant_label_2);
+
+  const explicitDisplay = asNonEmptyString(snapshot?.display);
+  if (explicitDisplay) {
+    return explicitDisplay;
+  }
+
+  const parts: string[] = [];
+
+  if (variantName) {
+    parts.push(variantName);
+  }
+
+  if (option1Value) {
+    parts.push(option1Label ? `${option1Label}: ${option1Value}` : option1Value);
+  }
+
+  if (option2Value) {
+    parts.push(option2Label ? `${option2Label}: ${option2Value}` : option2Value);
+  }
+
+  return parts.length > 0 ? parts.join(' / ') : null;
+};
+
+const mapReviewRowToFeedItem = (review: any): ReviewFeedItem => {
+  const buyer = firstRelationRow(review?.buyer);
+  const profile = firstRelationRow(buyer?.profile);
+  const firstName = asNonEmptyString(profile?.first_name);
+  const lastName = asNonEmptyString(profile?.last_name);
+
+  const buyerName = [firstName, lastName].filter(Boolean).join(' ').trim() || 'Anonymous Buyer';
+
+  const buyerAvatar = asNonEmptyString(buyer?.avatar_url) || buildFallbackAvatar(buyerName);
+
+  const product = firstRelationRow(review?.product);
+  const orderItem = firstRelationRow(review?.order_item);
+
+  const variantSnapshot =
+    review?.variant_snapshot &&
+    typeof review.variant_snapshot === 'object' &&
+    !Array.isArray(review.variant_snapshot)
+      ? (review.variant_snapshot as Record<string, unknown>)
+      : null;
+
+  return {
+    id: review.id,
+    productId: review.product_id,
+    productName: asNonEmptyString(orderItem?.product_name) || asNonEmptyString(product?.name) || 'Product',
+    productImage: pickProductImage(review),
+    buyerId: review.buyer_id,
+    buyerName,
+    buyerAvatar,
+    rating: Number(review.rating || 0),
+    comment: asNonEmptyString(review.comment) || '',
+    helpfulCount: Number(review.helpful_count || 0),
+    images: mapReviewImages(review),
+    createdAt: review.created_at,
+    verifiedPurchase: Boolean(review.is_verified_purchase),
+    variantLabel: resolveVariantLabel(review),
+    variantSnapshot,
+    sellerReply: parseSellerReply(review.seller_reply),
+  };
+};
+
+const buildReviewStatsFromRatings = (ratings: number[], withImages = 0): ReviewStats => {
+  if (!Array.isArray(ratings) || ratings.length === 0) {
+    return EMPTY_REVIEW_STATS;
+  }
+
+  const distribution = [0, 0, 0, 0, 0];
+  let total = 0;
+  let weightedSum = 0;
+
+  ratings.forEach((rating) => {
+    const normalized = Math.round(Number(rating));
+    if (normalized < 1 || normalized > 5) {
+      return;
+    }
+
+    distribution[normalized - 1] += 1;
+    total += 1;
+    weightedSum += normalized;
+  });
+
+  if (total === 0) {
+    return EMPTY_REVIEW_STATS;
+  }
+
+  return {
+    total,
+    averageRating: Number((weightedSum / total).toFixed(1)),
+    distribution,
+    withImages,
+  };
+};
+
+export const computeReviewStats = (reviews: ReviewFeedItem[]): ReviewStats => {
+  const ratings = reviews.map((review) => Number(review.rating || 0));
+  const withImages = reviews.filter((review) => review.images.length > 0).length;
+  return buildReviewStatsFromRatings(ratings, withImages);
+};
+
 export class ReviewService {
-    private static instance: ReviewService;
+  private static instance: ReviewService;
+  private mockReviews: Review[] = [];
 
-    private constructor() {}
+  private constructor() {}
 
-    public static getInstance(): ReviewService {
-        if (!ReviewService.instance) {
-            ReviewService.instance = new ReviewService();
-        }
-        return ReviewService.instance;
+  public static getInstance(): ReviewService {
+    if (!ReviewService.instance) {
+      ReviewService.instance = new ReviewService();
+    }
+    return ReviewService.instance;
+  }
+
+  /**
+   * Create a new review
+   */
+  async createReview(reviewData: ReviewInsert): Promise<Review | null> {
+    if (!isSupabaseConfigured()) {
+      const newReview: Review = {
+        id: crypto.randomUUID(),
+        product_id: reviewData.product_id,
+        buyer_id: reviewData.buyer_id,
+        order_id: reviewData.order_id,
+        order_item_id: reviewData.order_item_id || null,
+        variant_snapshot: reviewData.variant_snapshot || null,
+        rating: reviewData.rating,
+        comment: reviewData.comment || null,
+        helpful_count: 0,
+        seller_reply: null,
+        is_verified_purchase: reviewData.is_verified_purchase ?? true,
+        is_hidden: false,
+        is_edited: false,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      this.mockReviews.push(newReview);
+      return newReview;
     }
 
-    /**
-     * Create a new review
-     */
-    async createReview(reviewData: ReviewInsert): Promise<Review | null> {
-        if (!isSupabaseConfigured()) {
-            throw new Error('Supabase not configured');
-        }
+    try {
+      const { data, error } = await supabase
+        .from('reviews')
+        .insert({
+          product_id: reviewData.product_id,
+          buyer_id: reviewData.buyer_id,
+          order_id: reviewData.order_id,
+          order_item_id: reviewData.order_item_id || null,
+          variant_snapshot: reviewData.variant_snapshot || null,
+          rating: reviewData.rating,
+          comment: reviewData.comment || null,
+          is_verified_purchase: reviewData.is_verified_purchase ?? true,
+          helpful_count: reviewData.helpful_count ?? 0,
+          seller_reply: reviewData.seller_reply ?? null,
+          is_hidden: reviewData.is_hidden ?? false,
+          is_edited: reviewData.is_edited ?? false,
+        })
+        .select()
+        .single();
 
-        try {
-            const { data, error } = await supabase
-                .from('reviews')
-                .insert({
-                    product_id: reviewData.product_id,
-                    buyer_id: reviewData.buyer_id,
-                    order_id: reviewData.order_id,
-                    rating: reviewData.rating,
-                    comment: reviewData.comment || null,
-                    is_verified_purchase: reviewData.is_verified_purchase ?? true,
-                    helpful_count: 0,
-                    is_hidden: false,
-                    is_edited: false,
-                })
-                .select()
-                .single();
+      if (error) {
+        throw error;
+      }
 
-            if (error) throw error;
-            return data;
-        } catch (error) {
-            console.error('[ReviewService] Error creating review:', error);
-            throw new Error('Failed to submit review');
-        }
+      return data as Review;
+    } catch (error) {
+      console.error('[ReviewService] Error creating review:', error);
+      throw new Error('Failed to submit review');
+    }
+  }
+
+  /**
+   * Get reviews for a specific product
+   */
+  async getProductReviews(productId: string, page = 1, limit = 5): Promise<ProductReviewsResult> {
+    if (!isSupabaseConfigured()) {
+      const productReviews = this.mockReviews
+        .filter((review) => review.product_id === productId && !review.is_hidden)
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+      const start = (page - 1) * limit;
+      const pagedReviews = productReviews
+        .slice(start, start + limit)
+        .map((review) => mapReviewRowToFeedItem(review));
+
+      return {
+        reviews: pagedReviews,
+        total: productReviews.length,
+        stats: computeReviewStats(productReviews.map((review) => mapReviewRowToFeedItem(review))),
+      };
     }
 
-    /**
-     * Get reviews for a specific product
-     */
-    async getProductReviews(
-        productId: string,
-        page: number = 1,
-        limit: number = 5
-    ): Promise<{ reviews: (Review & { buyer?: { full_name: string | null; avatar_url: string | null } })[]; total: number }> {
-        if (!isSupabaseConfigured()) {
-            return { reviews: [], total: 0 };
-        }
+    try {
+      const from = (page - 1) * limit;
+      const to = from + limit - 1;
 
-        try {
-            const from = (page - 1) * limit;
-            const to = from + limit - 1;
+      const { data, error, count } = await supabase
+        .from('reviews')
+        .select(
+          `
+            id,
+            product_id,
+            buyer_id,
+            order_id,
+            order_item_id,
+            variant_snapshot,
+            rating,
+            comment,
+            helpful_count,
+            seller_reply,
+            is_verified_purchase,
+            is_hidden,
+            is_edited,
+            created_at,
+            updated_at,
+            review_images (
+              id,
+              image_url,
+              sort_order,
+              uploaded_at
+            ),
+            buyer:buyers!reviews_buyer_id_fkey (
+              id,
+              avatar_url,
+              profile:profiles!id (
+                *
+              )
+            ),
+            order_item:order_items!reviews_order_item_id_fkey (
+              id,
+              product_name,
+              primary_image_url,
+              variant_id,
+              personalized_options,
+              variant:product_variants!order_items_variant_id_fkey (
+                id,
+                variant_name,
+                sku,
+                size,
+                color,
+                option_1_value,
+                option_2_value,
+                thumbnail_url
+              ),
+              product:products!order_items_product_id_fkey (
+                id,
+                name,
+                variant_label_1,
+                variant_label_2
+              )
+            ),
+            product:products!reviews_product_id_fkey (
+              id,
+              name,
+              variant_label_1,
+              variant_label_2,
+              images:product_images (
+                image_url,
+                sort_order,
+                is_primary
+              )
+            )
+          `,
+          { count: 'exact' }
+        )
+        .eq('product_id', productId)
+        .eq('is_hidden', false)
+        .order('created_at', { ascending: false })
+        .range(from, to);
 
-            // Fetch reviews with total count
-            // Note: We fetch buyer info separately since there's no direct FK to profiles
-            const { data, error, count } = await supabase
-                .from('reviews')
-                .select('*', { count: 'exact' })
-                .eq('product_id', productId)
-                .eq('is_hidden', false)
-                .order('created_at', { ascending: false })
-                .range(from, to);
+      if (error) {
+        console.warn('[ReviewService] Error fetching product reviews:', error);
+        return { reviews: [], total: 0, stats: EMPTY_REVIEW_STATS };
+      }
 
-            if (error) throw error;
-            
-            // Fetch buyer info for each review (from profiles table with first_name/last_name)
-            const reviewsWithBuyer = await Promise.all((data || []).map(async (review) => {
-                try {
-                    const { data: profileData } = await supabase
-                        .from('profiles')
-                        .select('first_name, last_name')
-                        .eq('id', review.buyer_id)
-                        .single();
-                    
-                    const { data: buyerData } = await supabase
-                        .from('buyers')
-                        .select('avatar_url')
-                        .eq('id', review.buyer_id)
-                        .single();
-                    
-                    const fullName = profileData 
-                        ? `${profileData.first_name || ''} ${profileData.last_name || ''}`.trim() 
-                        : null;
-                    
-                    return {
-                        ...review,
-                        buyer: { full_name: fullName, avatar_url: buyerData?.avatar_url || null }
-                    };
-                } catch {
-                    return {
-                        ...review,
-                        buyer: { full_name: null, avatar_url: null }
-                    };
-                }
-            }));
+      const { data: statsRows, error: statsError } = await supabase
+        .from('reviews')
+        .select(
+          `
+            rating,
+            review_images (
+              id
+            )
+          `
+        )
+        .eq('product_id', productId)
+        .eq('is_hidden', false);
 
-            return {
-                reviews: reviewsWithBuyer,
-                total: count || 0
-            };
-        } catch (error) {
-            console.error('[ReviewService] Error fetching product reviews:', error);
-            throw new Error('Failed to fetch reviews');
-        }
+      if (statsError) {
+        console.warn('[ReviewService] Error fetching product review stats:', statsError);
+      }
+
+      const mappedReviews = (data || []).map((review) => mapReviewRowToFeedItem(review));
+      const ratings = Array.isArray(statsRows)
+        ? statsRows.map((row: any) => Number(row.rating || 0))
+        : [];
+      const withImages = Array.isArray(statsRows)
+        ? statsRows.filter((row: any) => Array.isArray(row.review_images) && row.review_images.length > 0)
+            .length
+        : 0;
+
+      const computedStats = buildReviewStatsFromRatings(ratings, withImages);
+      const fallbackStats = computeReviewStats(mappedReviews);
+      const total = count ?? computedStats.total;
+      const resolvedStats = computedStats.total > 0 ? computedStats : fallbackStats;
+
+      return {
+        reviews: mappedReviews,
+        total,
+        stats: {
+          ...resolvedStats,
+          total,
+          averageRating: total > 0 ? resolvedStats.averageRating : 0,
+        },
+      };
+    } catch (error) {
+      console.error('[ReviewService] Error fetching product reviews:', error);
+      return { reviews: [], total: 0, stats: EMPTY_REVIEW_STATS };
+    }
+  }
+
+  /**
+   * Get reviews created by a specific buyer (My Reviews)
+   */
+  async getBuyerReviews(buyerId: string): Promise<Review[]> {
+    if (!isSupabaseConfigured()) {
+      return this.mockReviews.filter((review) => review.buyer_id === buyerId);
     }
 
-    /**
-     * Get reviews created by a specific buyer (My Reviews)
-     */
-    async getBuyerReviews(buyerId: string): Promise<Review[]> {
-        if (!isSupabaseConfigured()) {
-            return [];
-        }
+    try {
+      const { data, error } = await supabase
+        .from('reviews')
+        .select(`
+          *,
+          product:products!reviews_product_id_fkey (
+            name
+          ),
+          review_images (
+            id,
+            image_url,
+            sort_order,
+            uploaded_at
+          )
+        `)
+        .eq('buyer_id', buyerId)
+        .order('created_at', { ascending: false });
 
-        try {
-            const { data, error } = await supabase
-                .from('reviews')
-                .select('*, products(name, images)')
-                .eq('buyer_id', buyerId)
-                .order('created_at', { ascending: false });
+      if (error) {
+        throw error;
+      }
 
-            if (error) throw error;
-            return data || [];
-        } catch (error) {
-            console.error('[ReviewService] Error fetching buyer reviews:', error);
-            throw new Error('Failed to fetch your reviews');
-        }
+      return (data || []) as Review[];
+    } catch (error) {
+      console.error('[ReviewService] Error fetching buyer reviews:', error);
+      throw new Error('Failed to fetch your reviews');
+    }
+  }
+
+  /**
+   * Get reviews for a seller's products
+   */
+  async getSellerReviews(sellerId: string): Promise<ReviewFeedItem[]> {
+    if (!isSupabaseConfigured()) {
+      return this.mockReviews.map((review) => mapReviewRowToFeedItem(review));
     }
 
-    /**
-     * Get reviews for a seller's products (Seller Dashboard)
-     * Filters reviews by first getting all product IDs for the seller,
-     * then fetching reviews for those products only.
-     */
-    async getSellerReviews(sellerId: string): Promise<Review[]> {
-        if (!isSupabaseConfigured()) {
-            return [];
-        }
+    try {
+      const { data: sellerProducts, error: productsError } = await supabase
+        .from('products')
+        .select('id')
+        .eq('seller_id', sellerId);
 
-        try {
-            // Step 1: Get all product IDs for this seller
-            const { data: sellerProducts, error: productsError } = await supabase
-                .from('products')
-                .select('id')
-                .eq('seller_id', sellerId);
+      if (productsError) {
+        console.warn('[ReviewService] Error fetching seller products:', productsError);
+        return [];
+      }
 
-            if (productsError) {
-                console.warn('[ReviewService] Error fetching seller products:', productsError);
-                return [];
-            }
+      if (!sellerProducts || sellerProducts.length === 0) {
+        return [];
+      }
 
-            if (!sellerProducts || sellerProducts.length === 0) {
-                console.log('[ReviewService] No products found for seller:', sellerId);
-                return [];
-            }
+      const productIds = sellerProducts.map((p) => p.id);
 
-            const productIds = sellerProducts.map(p => p.id);
-            console.log(`[ReviewService] Found ${productIds.length} products for seller ${sellerId}`);
+      const { data, error } = await supabase
+        .from('reviews')
+        .select(
+          `
+            id,
+            product_id,
+            buyer_id,
+            order_id,
+            order_item_id,
+            variant_snapshot,
+            rating,
+            comment,
+            helpful_count,
+            seller_reply,
+            is_verified_purchase,
+            is_hidden,
+            is_edited,
+            created_at,
+            updated_at,
+            review_images (
+              id,
+              image_url,
+              sort_order,
+              uploaded_at
+            ),
+            buyer:buyers!reviews_buyer_id_fkey (
+              id,
+              avatar_url,
+              profile:profiles!id (
+                *
+              )
+            ),
+            order_item:order_items!reviews_order_item_id_fkey (
+              id,
+              product_name,
+              primary_image_url,
+              variant_id,
+              personalized_options,
+              variant:product_variants!order_items_variant_id_fkey (
+                id,
+                variant_name,
+                sku,
+                size,
+                color,
+                option_1_value,
+                option_2_value,
+                thumbnail_url
+              ),
+              product:products!order_items_product_id_fkey (
+                id,
+                name,
+                variant_label_1,
+                variant_label_2
+              )
+            ),
+            product:products!reviews_product_id_fkey (
+              id,
+              seller_id,
+              name,
+              variant_label_1,
+              variant_label_2,
+              images:product_images (
+                image_url,
+                sort_order,
+                is_primary
+              )
+            )
+          `
+        )
+        .eq('is_hidden', false)
+        .in('product_id', productIds)
+        .order('created_at', { ascending: false });
 
-            // Step 2: Get reviews for these products only
-            const { data, error } = await supabase
-                .from('reviews')
-                .select('*')
-                .in('product_id', productIds)
-                .order('created_at', { ascending: false });
+      if (error) {
+        console.warn('[ReviewService] Error fetching seller reviews:', error);
+        return [];
+      }
 
-            if (error) {
-                console.error('[ReviewService] Error fetching seller reviews:', error);
-                throw error;
-            }
+      return (data || []).map((review) => mapReviewRowToFeedItem(review));
+    } catch (error) {
+      console.error('[ReviewService] Error fetching seller reviews:', error);
+      throw new Error('Failed to fetch store reviews');
+    }
+  }
 
-            console.log(`[ReviewService] Found ${data?.length || 0} reviews for seller ${sellerId}'s products`);
-            return data || [];
-        } catch (error) {
-            console.error('[ReviewService] Error fetching seller reviews:', error);
-            throw new Error('Failed to fetch store reviews');
-        }
+  /**
+   * Check if a buyer has already reviewed a specific order item
+   */
+  async hasReviewForOrderItem(orderItemId: string, buyerId?: string): Promise<boolean> {
+    if (!orderItemId) {
+      return false;
     }
 
-    /**
-     * Check if a buyer has already reviewed a specific product in an order
-     */
-    async hasReviewForProduct(orderId: string, productId: string): Promise<boolean> {
-        if (!isSupabaseConfigured()) {
-            return false;
-        }
-
-        try {
-            const { count, error } = await supabase
-                .from('reviews')
-                .select('id', { count: 'exact', head: true })
-                .eq('order_id', orderId)
-                .eq('product_id', productId);
-
-            if (error) throw error;
-            return (count || 0) > 0;
-        } catch (error) {
-            console.error('[ReviewService] Error checking review existence:', error);
-            throw new Error('Failed to check review status');
-        }
+    if (!isSupabaseConfigured()) {
+      return this.mockReviews.some(
+        (review) =>
+          review.order_item_id === orderItemId &&
+          (!buyerId || review.buyer_id === buyerId)
+      );
     }
 
-    /**
-     * Update order_items rating after submitting a review
-     * The order_items table has a rating column to track if item was reviewed
-     */
-    async markItemAsReviewed(orderId: string, productId: string, rating?: number): Promise<void> {
-        if (!isSupabaseConfigured()) return;
+    try {
+      let query = supabase
+        .from('reviews')
+        .select('id', { count: 'exact', head: true })
+        .eq('order_item_id', orderItemId);
 
-        try {
-            const updateData: any = {};
-            if (rating) {
-                updateData.rating = rating;
-            }
-            
-            // Only update if we have data to update
-            if (Object.keys(updateData).length > 0) {
-                const { error } = await supabase
-                    .from('order_items')
-                    .update(updateData)
-                    .eq('order_id', orderId)
-                    .eq('product_id', productId);
+      if (buyerId) {
+        query = query.eq('buyer_id', buyerId);
+      }
 
-                if (error) {
-                    console.warn('[ReviewService] Could not update order_item rating:', error.message);
-                }
-            }
-        } catch (error) {
-            console.warn('[ReviewService] Error marking item as reviewed:', error);
-        }
+      const { count, error } = await query;
+
+      if (error) {
+        throw error;
+      }
+
+      return (count || 0) > 0;
+    } catch (error) {
+      console.warn('[ReviewService] Error checking order-item review existence:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Check if a buyer has already reviewed a specific product in an order
+   */
+  async hasReviewForProduct(orderId: string, productId: string, buyerId?: string): Promise<boolean> {
+    if (!isSupabaseConfigured()) {
+      return this.mockReviews.some(
+        (review) =>
+          review.order_id === orderId &&
+          review.product_id === productId &&
+          (!buyerId || review.buyer_id === buyerId)
+      );
     }
 
-    /**
-     * Check if all items in an order have been reviewed
-     * Uses the reviews table to check for existence of reviews
-     */
-    async checkAndUpdateOrderReviewed(orderId: string): Promise<void> {
-        // This function now just checks if reviews exist - no is_reviewed column to update
-        // The presence of reviews in the reviews table is the source of truth
-        if (!isSupabaseConfigured()) return;
-        // No-op since there's no is_reviewed column on orders table
+    try {
+      let query = supabase
+        .from('reviews')
+        .select('id', { count: 'exact', head: true })
+        .eq('order_id', orderId)
+        .eq('product_id', productId);
+
+      if (buyerId) {
+        query = query.eq('buyer_id', buyerId);
+      }
+
+      const { count, error } = await query;
+
+      if (error) {
+        throw error;
+      }
+
+      return (count || 0) > 0;
+    } catch (error) {
+      console.error('[ReviewService] Error checking review existence:', error);
+      throw new Error('Failed to check review status');
+    }
+  }
+
+  /**
+   * Update order_items rating after submitting a review
+   */
+  async markItemAsReviewed(orderId: string, productId: string, rating?: number): Promise<void> {
+    if (!isSupabaseConfigured()) return;
+
+    try {
+      const updateData: any = {};
+      if (rating) {
+        updateData.rating = rating;
+      }
+
+      if (Object.keys(updateData).length > 0) {
+        const { error } = await supabase
+          .from('order_items')
+          .update(updateData)
+          .eq('order_id', orderId)
+          .eq('product_id', productId);
+
+        if (error) {
+          console.warn('[ReviewService] Could not update order_item rating:', error.message);
+        }
+      }
+    } catch (error) {
+      console.warn('[ReviewService] Error marking item as reviewed:', error);
+    }
+  }
+
+  /**
+   * Check if all items in an order have been reviewed
+   */
+  async checkAndUpdateOrderReviewed(_orderId: string): Promise<void> {
+    return;
+  }
+
+  /**
+   * Check if a buyer can vote on a review (not the product seller)
+   */
+  async canVoteOnReview(reviewId: string, buyerId: string): Promise<boolean> {
+    if (!isSupabaseConfigured()) {
+      return true;
     }
 
-    /**
-     * Check if a buyer can vote on a review (not the product seller)
-     * Uses Option A: Compare buyer_id with product.seller_id
-     */
-    async canVoteOnReview(reviewId: string, buyerId: string): Promise<boolean> {
-        if (!isSupabaseConfigured()) {
-            return true;
-        }
+    try {
+      const { data, error } = await supabase
+        .from('reviews')
+        .select(`
+          product:products!reviews_product_id_fkey (
+            seller_id
+          )
+        `)
+        .eq('id', reviewId)
+        .single();
 
-        try {
-            const { data, error } = await supabase
-                .from('reviews')
-                .select(`
-                    product:products!reviews_product_id_fkey (
-                        seller_id
-                    )
-                `)
-                .eq('id', reviewId)
-                .single();
+      if (error) {
+        console.warn('[ReviewService] Error checking vote eligibility:', error);
+        return false;
+      }
 
-            if (error) {
-                console.warn('[ReviewService] Error checking vote eligibility:', error);
-                return false;
-            }
+      const product = firstRelationRow(data?.product) as { seller_id: string } | undefined;
+      const sellerId = product?.seller_id;
 
-            // Handle both single object and array responses
-            const productData = Array.isArray(data?.product) ? data?.product[0] : data?.product;
-            const product = productData as { seller_id: string } | null;
-            const sellerId = product?.seller_id;
+      if (sellerId && sellerId === buyerId) {
+        return false;
+      }
 
-            // Block if buyer is the seller of this product
-            if (sellerId && sellerId === buyerId) {
-                return false;
-            }
+      return true;
+    } catch (error) {
+      console.error('[ReviewService] Error checking vote eligibility:', error);
+      return false;
+    }
+  }
 
-            return true;
-        } catch (error) {
-            console.error('[ReviewService] Error checking vote eligibility:', error);
-            return false;
-        }
+  /**
+   * Check if a user has voted on a specific review
+   */
+  async hasUserVoted(reviewId: string, buyerId: string): Promise<boolean> {
+    if (!isSupabaseConfigured()) {
+      return false;
     }
 
-    /**
-     * Check if a user has voted on a specific review
-     */
-    async hasUserVoted(reviewId: string, buyerId: string): Promise<boolean> {
-        if (!isSupabaseConfigured()) {
-            return false;
-        }
+    try {
+      const { data, error } = await supabase
+        .from('review_votes')
+        .select('review_id')
+        .eq('review_id', reviewId)
+        .eq('buyer_id', buyerId)
+        .maybeSingle();
 
-        try {
-            const { data, error } = await supabase
-                .from('review_votes')
-                .select('review_id')
-                .eq('review_id', reviewId)
-                .eq('buyer_id', buyerId)
-                .maybeSingle();
+      if (error) {
+        console.warn('[ReviewService] Error checking user vote:', error);
+        return false;
+      }
 
-            if (error) {
-                console.warn('[ReviewService] Error checking user vote:', error);
-                return false;
-            }
+      return !!data;
+    } catch (error) {
+      console.error('[ReviewService] Error checking user vote:', error);
+      return false;
+    }
+  }
 
-            return !!data;
-        } catch (error) {
-            console.error('[ReviewService] Error checking user vote:', error);
-            return false;
-        }
+  /**
+   * Toggle vote on a review
+   */
+  async toggleReviewVote(reviewId: string, buyerId: string): Promise<boolean> {
+    if (!isSupabaseConfigured()) {
+      throw new Error('Supabase not configured');
     }
 
-    /**
-     * Toggle vote on a review (vote if not voted, unvote if already voted)
-     * Returns true if voted, false if unvoted
-     */
-    async toggleReviewVote(reviewId: string, buyerId: string): Promise<boolean> {
-        if (!isSupabaseConfigured()) {
-            throw new Error('Supabase not configured');
-        }
-
-        // Check if user can vote (not seller)
-        const canVote = await this.canVoteOnReview(reviewId, buyerId);
-        if (!canVote) {
-            throw new Error('Sellers cannot vote on reviews of their own products');
-        }
-
-        try {
-            // Check if already voted
-            const hasVoted = await this.hasUserVoted(reviewId, buyerId);
-
-            if (hasVoted) {
-                // Remove vote
-                const { error } = await supabase
-                    .from('review_votes')
-                    .delete()
-                    .eq('review_id', reviewId)
-                    .eq('buyer_id', buyerId);
-
-                if (error) throw error;
-
-                return false; // Unvoted
-            } else {
-                // Add vote
-                const { error } = await supabase
-                    .from('review_votes')
-                    .insert({
-                        review_id: reviewId,
-                        buyer_id: buyerId,
-                    });
-
-                if (error) throw error;
-
-                return true; // Voted
-            }
-        } catch (error) {
-            console.error('[ReviewService] Error toggling review vote:', error);
-            throw new Error('Failed to update vote');
-        }
+    const canVote = await this.canVoteOnReview(reviewId, buyerId);
+    if (!canVote) {
+      throw new Error('Sellers cannot vote on reviews of their own products');
     }
 
-    /**
-     * Get list of voters for a review (max 20 + count of remaining)
-     * Returns voters with their profile info
-     */
-    async getReviewVoters(
-        reviewId: string,
-        limit: number = 20
-    ): Promise<{
-        voters: Array<{
-            buyerId: string;
-            username: string;
-            avatarUrl: string;
-            votedAt: string;
-        }>;
-        totalCount: number;
-    }> {
-        if (!isSupabaseConfigured()) {
-            return { voters: [], totalCount: 0 };
-        }
+    try {
+      const hasVoted = await this.hasUserVoted(reviewId, buyerId);
 
-        try {
-            // Get total count first
-            const { count, error: countError } = await supabase
-                .from('review_votes')
-                .select('*', { count: 'exact', head: true })
-                .eq('review_id', reviewId);
+      if (hasVoted) {
+        const { error } = await supabase
+          .from('review_votes')
+          .delete()
+          .eq('review_id', reviewId)
+          .eq('buyer_id', buyerId);
 
-            if (countError) {
-                console.warn('[ReviewService] Error counting review voters:', countError);
-            }
+        if (error) throw error;
+        return false;
+      }
 
-            const totalCount = count || 0;
+      const { error } = await supabase
+        .from('review_votes')
+        .insert({
+          review_id: reviewId,
+          buyer_id: buyerId,
+        });
 
-            // Get voters (limited)
-            const { data, error } = await supabase
-                .from('review_votes')
-                .select('buyer_id, created_at')
-                .eq('review_id', reviewId)
-                .order('created_at', { ascending: false })
-                .limit(limit);
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error('[ReviewService] Error toggling review vote:', error);
+      throw new Error('Failed to update vote');
+    }
+  }
 
-            if (error) {
-                console.warn('[ReviewService] Error fetching review voters:', error);
-                return { voters: [], totalCount };
-            }
-
-            // Fetch buyer and profile info for each voter
-            const voters = await Promise.all((data || []).map(async (vote: any) => {
-                // Get buyer info
-                const { data: buyerData } = await supabase
-                    .from('buyers')
-                    .select('avatar_url')
-                    .eq('id', vote.buyer_id)
-                    .maybeSingle();
-
-                // Get profile info for name
-                let username = 'Anonymous';
-                try {
-                    const { data: profileData } = await supabase
-                        .from('profiles')
-                        .select('first_name, last_name')
-                        .eq('id', vote.buyer_id)
-                        .maybeSingle();
-                    
-                    if (profileData) {
-                        const fullName = `${profileData.first_name || ''} ${profileData.last_name || ''}`.trim();
-                        if (fullName) username = fullName;
-                    }
-                } catch {
-                    // Use default "Anonymous"
-                }
-
-                const avatarUrl = buyerData?.avatar_url || 
-                    `https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=FF6A00&color=fff`;
-
-                return {
-                    buyerId: vote.buyer_id,
-                    username,
-                    avatarUrl,
-                    votedAt: vote.created_at,
-                };
-            }));
-
-            return { voters, totalCount };
-        } catch (error) {
-            console.error('[ReviewService] Error fetching review voters:', error);
-            return { voters: [], totalCount: 0 };
-        }
+  /**
+   * Get list of voters for a review
+   */
+  async getReviewVoters(
+    reviewId: string,
+    limit = 20
+  ): Promise<{
+    voters: Array<{
+      buyerId: string;
+      username: string;
+      avatarUrl: string;
+      votedAt: string;
+    }>;
+    totalCount: number;
+  }> {
+    if (!isSupabaseConfigured()) {
+      return { voters: [], totalCount: 0 };
     }
 
-    /**
-     * Add or update a seller reply to a review
-     * @param reviewId - The review ID to reply to
-     * @param sellerId - The seller ID (for authorization)
-     * @param message - The reply message
-     * @returns The updated review
-     */
-    async addSellerReply(
-        reviewId: string,
-        sellerId: string,
-        message: string,
-    ): Promise<Review | null> {
-        if (!isSupabaseConfigured()) {
-            throw new Error('Supabase not configured');
-        }
+    try {
+      const { count, error: countError } = await supabase
+        .from('review_votes')
+        .select('*', { count: 'exact', head: true })
+        .eq('review_id', reviewId);
 
-        try {
-            // Verify the seller owns the product being reviewed
-            // First, get the product_id from the review
-            const { data: reviewBasic, error: reviewBasicError } = await supabase
-                .from('reviews')
-                .select('product_id')
-                .eq('id', reviewId)
-                .single();
+      if (countError) {
+        console.warn('[ReviewService] Error counting review voters:', countError);
+      }
 
-            if (reviewBasicError || !reviewBasic) {
-                console.error('[ReviewService] Review not found:', reviewBasicError);
-                throw new Error('Review not found');
-            }
+      const totalCount = count || 0;
 
-            // Then, get the seller_id from the product directly
-            const { data: productData, error: productError } = await supabase
-                .from('products')
-                .select('seller_id')
-                .eq('id', reviewBasic.product_id)
-                .single();
+      const { data, error } = await supabase
+        .from('review_votes')
+        .select('buyer_id, created_at')
+        .eq('review_id', reviewId)
+        .order('created_at', { ascending: false })
+        .limit(limit);
 
-            if (productError || !productData) {
-                console.error('[ReviewService] Product not found for review:', productError);
-                throw new Error('Product not found for this review');
-            }
+      if (error) {
+        console.warn('[ReviewService] Error fetching review voters:', error);
+        return { voters: [], totalCount };
+      }
 
-            if (!productData.seller_id) {
-                console.error('[ReviewService] Product has no seller_id:', reviewBasic.product_id);
-                throw new Error('Product has no associated seller');
-            }
+      const voters = await Promise.all(
+        (data || []).map(async (vote: any) => {
+          const { data: buyerData } = await supabase
+            .from('buyers')
+            .select('avatar_url')
+            .eq('id', vote.buyer_id)
+            .maybeSingle();
 
-            if (productData.seller_id !== sellerId) {
-                console.error('[ReviewService] Seller authorization failed:', {
-                    productSellerId: productData.seller_id,
-                    requestingSellerId: sellerId,
-                    reviewId,
-                    productId: reviewBasic.product_id
-                });
-                throw new Error('You can only reply to reviews for your own products');
-            }
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('first_name, last_name')
+            .eq('id', vote.buyer_id)
+            .maybeSingle();
 
-            // Update the review with seller reply
-            const sellerReply = {
-                message: message.trim(),
-                replied_at: new Date().toISOString(),
-            };
+          const firstName = asNonEmptyString(profileData?.first_name);
+          const lastName = asNonEmptyString(profileData?.last_name);
+          const username = [firstName, lastName].filter(Boolean).join(' ').trim() || 'Anonymous';
+          const avatarUrl = asNonEmptyString(buyerData?.avatar_url) || buildFallbackAvatar(username);
 
-            const { data, error } = await supabase
-                .from('reviews')
-                .update({
-                    seller_reply: sellerReply,
-                    updated_at: new Date().toISOString(),
-                })
-                .eq('id', reviewId)
-                .select()
-                .single();
+          return {
+            buyerId: vote.buyer_id,
+            username,
+            avatarUrl,
+            votedAt: vote.created_at,
+          };
+        })
+      );
 
-            if (error) {
-                console.error('[ReviewService] Error adding seller reply:', error);
-                throw new Error('Failed to submit reply');
-            }
+      return { voters, totalCount };
+    } catch (error) {
+      console.error('[ReviewService] Error fetching review voters:', error);
+      return { voters: [], totalCount: 0 };
+    }
+  }
 
-            return data;
-        } catch (error) {
-            console.error('[ReviewService] Error in addSellerReply:', error);
-            throw error;
-        }
+  /**
+   * Add or update a seller reply to a review
+   */
+  async addSellerReply(reviewId: string, sellerId: string, message: string): Promise<ReviewFeedItem | null> {
+    if (!isSupabaseConfigured()) {
+      const reviewIndex = this.mockReviews.findIndex((r) => r.id === reviewId);
+      if (reviewIndex >= 0) {
+        const updatedReview = {
+          ...this.mockReviews[reviewIndex],
+          seller_reply: {
+            message,
+            replied_at: new Date().toISOString(),
+          },
+          updated_at: new Date().toISOString(),
+        } as Review;
+        this.mockReviews[reviewIndex] = updatedReview;
+        return mapReviewRowToFeedItem(updatedReview);
+      }
+      return null;
     }
 
-    /**
-     * Delete a seller reply from a review
-     * @param reviewId - The review ID
-     * @param sellerId - The seller ID (for authorization)
-     * @returns The updated review without seller reply
-     */
-    async deleteSellerReply(
-        reviewId: string,
-        sellerId: string,
-    ): Promise<Review | null> {
-        if (!isSupabaseConfigured()) {
-            throw new Error('Supabase not configured');
-        }
+    try {
+      const { data: reviewBasic, error: reviewBasicError } = await supabase
+        .from('reviews')
+        .select('product_id')
+        .eq('id', reviewId)
+        .single();
 
-        try {
-            // Verify ownership using the same approach as addSellerReply
-            const { data: reviewBasic, error: reviewBasicError } = await supabase
-                .from('reviews')
-                .select('product_id')
-                .eq('id', reviewId)
-                .single();
+      if (reviewBasicError || !reviewBasic) {
+        throw new Error('Review not found');
+      }
 
-            if (reviewBasicError || !reviewBasic) {
-                console.error('[ReviewService] Review not found:', reviewBasicError);
-                throw new Error('Review not found');
-            }
+      const { data: productData, error: productError } = await supabase
+        .from('products')
+        .select('seller_id')
+        .eq('id', reviewBasic.product_id)
+        .single();
 
-            const { data: productData, error: productError } = await supabase
-                .from('products')
-                .select('seller_id')
-                .eq('id', reviewBasic.product_id)
-                .single();
+      if (productError || !productData) {
+        throw new Error('Product not found for this review');
+      }
 
-            if (productError || !productData) {
-                console.error('[ReviewService] Product not found for review:', productError);
-                throw new Error('Product not found for this review');
-            }
+      if (!productData.seller_id || productData.seller_id !== sellerId) {
+        throw new Error('You can only reply to reviews for your own products');
+      }
 
-            if (!productData.seller_id) {
-                console.error('[ReviewService] Product has no seller_id:', reviewBasic.product_id);
-                throw new Error('Product has no associated seller');
-            }
+      const sellerReply = {
+        message: message.trim(),
+        replied_at: new Date().toISOString(),
+      };
 
-            if (productData.seller_id !== sellerId) {
-                console.error('[ReviewService] Seller authorization failed:', {
-                    productSellerId: productData.seller_id,
-                    requestingSellerId: sellerId,
-                    reviewId,
-                    productId: reviewBasic.product_id
-                });
-                throw new Error('Unauthorized');
-            }
+      const { data, error } = await supabase
+        .from('reviews')
+        .update({
+          seller_reply: sellerReply,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', reviewId)
+        .select(
+          `
+            id,
+            product_id,
+            buyer_id,
+            order_id,
+            order_item_id,
+            variant_snapshot,
+            rating,
+            comment,
+            helpful_count,
+            seller_reply,
+            is_verified_purchase,
+            is_hidden,
+            is_edited,
+            created_at,
+            updated_at,
+            review_images (
+              id,
+              image_url,
+              sort_order,
+              uploaded_at
+            ),
+            buyer:buyers!reviews_buyer_id_fkey (
+              id,
+              avatar_url,
+              profile:profiles!id (
+                *
+              )
+            ),
+            order_item:order_items!reviews_order_item_id_fkey (
+              id,
+              product_name,
+              primary_image_url,
+              variant_id,
+              personalized_options,
+              variant:product_variants!order_items_variant_id_fkey (
+                id,
+                variant_name,
+                sku,
+                size,
+                color,
+                option_1_value,
+                option_2_value,
+                thumbnail_url
+              ),
+              product:products!order_items_product_id_fkey (
+                id,
+                name,
+                variant_label_1,
+                variant_label_2
+              )
+            ),
+            product:products!reviews_product_id_fkey (
+              id,
+              seller_id,
+              name,
+              variant_label_1,
+              variant_label_2,
+              images:product_images (
+                image_url,
+                sort_order,
+                is_primary
+              )
+            )
+          `
+        )
+        .single();
 
-            const { data, error } = await supabase
-                .from('reviews')
-                .update({
-                    seller_reply: null,
-                    updated_at: new Date().toISOString(),
-                })
-                .eq('id', reviewId)
-                .select()
-                .single();
+      if (error) {
+        throw new Error('Failed to submit reply');
+      }
 
-            if (error) {
-                console.error('[ReviewService] Error deleting seller reply:', error);
-                throw new Error('Failed to delete reply');
-            }
-
-            return data;
-        } catch (error) {
-            console.error('[ReviewService] Error in deleteSellerReply:', error);
-            throw error;
-        }
+      return mapReviewRowToFeedItem(data);
+    } catch (error) {
+      console.error('[ReviewService] Error in addSellerReply:', error);
+      throw error;
     }
+  }
+
+  /**
+   * Delete a seller reply from a review
+   */
+  async deleteSellerReply(reviewId: string, sellerId: string): Promise<ReviewFeedItem | null> {
+    if (!isSupabaseConfigured()) {
+      const reviewIndex = this.mockReviews.findIndex((r) => r.id === reviewId);
+      if (reviewIndex >= 0) {
+        const updatedReview = {
+          ...this.mockReviews[reviewIndex],
+          seller_reply: null,
+          updated_at: new Date().toISOString(),
+        } as Review;
+        this.mockReviews[reviewIndex] = updatedReview;
+        return mapReviewRowToFeedItem(updatedReview);
+      }
+      return null;
+    }
+
+    try {
+      const { data: reviewBasic, error: reviewBasicError } = await supabase
+        .from('reviews')
+        .select('product_id')
+        .eq('id', reviewId)
+        .single();
+
+      if (reviewBasicError || !reviewBasic) {
+        throw new Error('Review not found');
+      }
+
+      const { data: productData, error: productError } = await supabase
+        .from('products')
+        .select('seller_id')
+        .eq('id', reviewBasic.product_id)
+        .single();
+
+      if (productError || !productData) {
+        throw new Error('Product not found for this review');
+      }
+
+      if (!productData.seller_id || productData.seller_id !== sellerId) {
+        throw new Error('Unauthorized');
+      }
+
+      const { data, error } = await supabase
+        .from('reviews')
+        .update({
+          seller_reply: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', reviewId)
+        .select(
+          `
+            id,
+            product_id,
+            buyer_id,
+            order_id,
+            order_item_id,
+            variant_snapshot,
+            rating,
+            comment,
+            helpful_count,
+            seller_reply,
+            is_verified_purchase,
+            is_hidden,
+            is_edited,
+            created_at,
+            updated_at,
+            review_images (
+              id,
+              image_url,
+              sort_order,
+              uploaded_at
+            ),
+            buyer:buyers!reviews_buyer_id_fkey (
+              id,
+              avatar_url,
+              profile:profiles!id (
+                *
+              )
+            ),
+            order_item:order_items!reviews_order_item_id_fkey (
+              id,
+              product_name,
+              primary_image_url,
+              variant_id,
+              personalized_options,
+              variant:product_variants!order_items_variant_id_fkey (
+                id,
+                variant_name,
+                sku,
+                size,
+                color,
+                option_1_value,
+                option_2_value,
+                thumbnail_url
+              ),
+              product:products!order_items_product_id_fkey (
+                id,
+                name,
+                variant_label_1,
+                variant_label_2
+              )
+            ),
+            product:products!reviews_product_id_fkey (
+              id,
+              seller_id,
+              name,
+              variant_label_1,
+              variant_label_2,
+              images:product_images (
+                image_url,
+                sort_order,
+                is_primary
+              )
+            )
+          `
+        )
+        .single();
+
+      if (error) {
+        throw new Error('Failed to delete reply');
+      }
+
+      return mapReviewRowToFeedItem(data);
+    } catch (error) {
+      console.error('[ReviewService] Error in deleteSellerReply:', error);
+      throw error;
+    }
+  }
 }
 
 export const reviewService = ReviewService.getInstance();

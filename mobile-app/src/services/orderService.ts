@@ -11,6 +11,7 @@
 
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import type { Order, OrderItem, PaymentStatus, ShipmentStatus, Database } from '@/types/database.types';
+import type { OrderTrackingSnapshot } from '@/types/orders';
 import { reviewService } from './reviewService';
 import { orderNotificationService } from './orderNotificationService';
 import { notificationService } from './notificationService';
@@ -45,6 +46,93 @@ const getStatusFromNew = (paymentStatus: PaymentStatus, shipmentStatus: Shipment
   if (shipmentStatus === 'processing') return paymentStatus === 'paid' ? 'processing' : 'pending_payment';
   if (paymentStatus === 'refunded') return 'cancelled';
   return 'pending_payment';
+};
+
+const asNonEmptyString = (value: unknown): string | null => {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+};
+
+const compactRecord = (record: Record<string, unknown>): Record<string, unknown> => {
+  return Object.fromEntries(
+    Object.entries(record).filter(([, value]) => {
+      if (value === null || value === undefined) {
+        return false;
+      }
+
+      if (typeof value === 'string' && value.trim().length === 0) {
+        return false;
+      }
+
+      return true;
+    })
+  );
+};
+
+const firstRelationRow = <T>(value: T | T[] | null | undefined): T | null => {
+  if (Array.isArray(value)) {
+    return value[0] || null;
+  }
+
+  return value || null;
+};
+
+const buildVariantSnapshot = (orderItem: any): Record<string, unknown> | null => {
+  const variant = firstRelationRow(orderItem?.variant);
+  const product = firstRelationRow(orderItem?.product);
+
+  const option1Value =
+    asNonEmptyString(variant?.option_1_value) ||
+    asNonEmptyString(variant?.size) ||
+    asNonEmptyString(orderItem?.personalized_options?.variantLabel1) ||
+    asNonEmptyString(orderItem?.personalized_options?.option1Value);
+
+  const option2Value =
+    asNonEmptyString(variant?.option_2_value) ||
+    asNonEmptyString(variant?.color) ||
+    asNonEmptyString(orderItem?.personalized_options?.variantLabel2) ||
+    asNonEmptyString(orderItem?.personalized_options?.option2Value);
+
+  const option1Label =
+    asNonEmptyString(product?.variant_label_1) ||
+    asNonEmptyString(orderItem?.personalized_options?.option1Label);
+
+  const option2Label =
+    asNonEmptyString(product?.variant_label_2) ||
+    asNonEmptyString(orderItem?.personalized_options?.option2Label);
+
+  const variantName = asNonEmptyString(variant?.variant_name);
+
+  const displayParts: string[] = [];
+  if (variantName) {
+    displayParts.push(variantName);
+  }
+  if (option1Value) {
+    displayParts.push(option1Label ? `${option1Label}: ${option1Value}` : option1Value);
+  }
+  if (option2Value) {
+    displayParts.push(option2Label ? `${option2Label}: ${option2Value}` : option2Value);
+  }
+
+  const snapshot = compactRecord({
+    order_item_id: orderItem?.id || null,
+    product_id: orderItem?.product_id || null,
+    product_name: asNonEmptyString(orderItem?.product_name) || asNonEmptyString(product?.name),
+    variant_id: orderItem?.variant_id || variant?.id || null,
+    variant_name: variantName,
+    sku: asNonEmptyString(variant?.sku),
+    option_1_label: option1Label,
+    option_1_value: option1Value,
+    option_2_label: option2Label,
+    option_2_value: option2Value,
+    display: displayParts.length > 0 ? displayParts.join(' / ') : null,
+  });
+
+  return Object.keys(snapshot).length > 0 ? snapshot : null;
 };
 
 // Helper to map DB Order to UI Order
@@ -144,7 +232,8 @@ export class OrderService {
     }[],
     total: number,
     note?: string,
-    buyerEmail?: string
+    buyerEmail?: string,
+    paymentMethod?: 'cash' | 'card' | 'ewallet' | 'bank_transfer'
   ): Promise<{ orderId: string; orderNumber: string; buyerLinked?: boolean } | null> {
     // Generate order number
     const orderNumber = `POS-${Date.now().toString().slice(-8)}`;
@@ -271,6 +360,28 @@ export class OrderService {
       }
 
       console.log(`[OrderService] Order items inserted successfully`);
+
+      const paymentMethodValue = paymentMethod || 'cash';
+      const paymentMethodLabel = {
+        cash: 'Cash',
+        card: 'Card',
+        ewallet: 'E-Wallet',
+        bank_transfer: 'Bank Transfer',
+      }[paymentMethodValue] || 'Cash';
+
+      const { error: paymentError } = await supabase
+        .from('order_payments')
+        .insert({
+          order_id: orderId,
+          payment_method: { type: paymentMethodValue, label: paymentMethodLabel },
+          amount: total,
+          status: 'completed',
+          payment_date: new Date().toISOString(),
+        });
+
+      if (paymentError) {
+        console.warn('[OrderService] Failed to insert order_payments record:', paymentError);
+      }
 
       // Verify the order was created correctly
       const { data: verifyOrder } = await supabase
@@ -485,129 +596,158 @@ export class OrderService {
    * We first find all product IDs for this seller, then get order_items
    * referencing those products, then fetch the full orders.
    */
-  async getSellerOrders(sellerId: string, startDate?: Date | null, endDate?: Date | null): Promise<Order[]> {
-      if (!isSupabaseConfigured()) {
-        // Note: You might want to filter mock data by date here too if needed, 
-        // but usually mock data is just for testing.
-        return this.mockOrders.filter(o => o.seller_id === sellerId);
-      }
+  async getSellerOrders(
+    sellerId: string,
+    startDate?: Date | null,
+    endDate?: Date | null,
+  ): Promise<Order[]> {
+    if (!isSupabaseConfigured()) {
+      return this.mockOrders.filter((order) => {
+        const matchesSeller = order.seller_id === sellerId;
+        if (!matchesSeller) return false;
 
-      try {
-        // Step 1: Get all product IDs belonging to this seller
-        const { data: sellerProducts, error: prodError } = await supabase
-          .from('products')
-          .select('id')
-          .eq('seller_id', sellerId);
+        if (!startDate && !endDate) return true;
+        const created = new Date(order.created_at);
+        const matchesStart = !startDate || created >= startDate;
+        const matchesEnd = !endDate || created <= endDate;
+        return matchesStart && matchesEnd;
+      });
+    }
 
-        if (prodError) {
-          console.error('Error fetching seller products for orders:', prodError);
-          throw prodError;
-        }
+    try {
+      const { data: sellerProducts, error: productError } = await supabase
+        .from('products')
+        .select('id')
+        .eq('seller_id', sellerId);
 
-        if (!sellerProducts || sellerProducts.length === 0) {
-          return [];
-        }
+      if (productError) throw productError;
 
-        const productIds = sellerProducts.map((p: any) => p.id);
+      const productIds = (sellerProducts || []).map((product) => product.id);
+      if (productIds.length === 0) return [];
 
-        // Step 2: Get distinct order IDs from order_items that reference seller's products
-        const { data: orderItems, error: itemsError } = await supabase
-          .from('order_items')
-          .select('order_id')
-          .in('product_id', productIds);
+      const { data: orderItemRows, error: itemsError } = await supabase
+        .from('order_items')
+        .select('order_id')
+        .in('product_id', productIds);
 
-        if (itemsError) {
-          console.error('Error fetching order items:', itemsError);
-          throw itemsError;
-        }
+      if (itemsError) throw itemsError;
 
-        if (!orderItems || orderItems.length === 0) {
-          return [];
-        }
+      const orderIds = [...new Set((orderItemRows || []).map((row) => row.order_id))];
+      if (orderIds.length === 0) return [];
 
-        const uniqueOrderIds = [...new Set(orderItems.map((item: any) => item.order_id))];
-
-        // Step 3: Fetch the full orders with related data
-        // We start building the query here
-        let query = supabase
-          .from('orders')
-          .select(`
+      let orderQuery = supabase
+        .from('orders')
+        .select(`
+          *,
+          order_items(
             *,
-            order_items(*),
-            buyer:buyers!buyer_id(
-              id,
-              avatar_url
-            ),
-            recipient:order_recipients!recipient_id(
-              id,
-              first_name,
-              last_name,
-              phone,
-              email
-            ),
-            address:shipping_addresses!address_id(
-              id,
-              address_line_1,
-              barangay,
-              city,
-              province,
-              region,
-              postal_code
-            )
-          `)
-          .in('id', uniqueOrderIds)
-          .order('created_at', { ascending: false });
+            variant:product_variants(id, variant_name, size, color, price, thumbnail_url)
+          ),
+          recipient:order_recipients!recipient_id(
+            id,
+            first_name,
+            last_name,
+            phone,
+            email
+          ),
+          address:shipping_addresses!address_id(
+            id,
+            address_line_1,
+            address_line_2,
+            barangay,
+            city,
+            province,
+            region,
+            postal_code,
+            landmark,
+            delivery_instructions
+          ),
+          shipments:order_shipments(
+            id,
+            status,
+            tracking_number,
+            shipped_at,
+            delivered_at,
+            created_at
+          ),
+          payments:order_payments(
+            payment_method,
+            payment_date,
+            status,
+            created_at
+          )
+        `)
+        .in('id', orderIds);
 
-        // --- NEW DATE FILTERING LOGIC ---
-        if (startDate) {
-          query = query.gte('created_at', startDate.toISOString());
-        }
-        if (endDate) {
-          query = query.lte('created_at', endDate.toISOString());
-        }
-        // -------------------------------
-
-        const { data: ordersData, error } = await query;
-
-        if (error) throw error;
-        
-        // Step 4: Fetch buyer profiles for all ONLINE orders
-        // Since buyers.id = profiles.id, we use buyer_id to get profile info
-        const buyerIds = ordersData
-          ?.filter((o: any) => o.order_type === 'ONLINE' && o.buyer_id)
-          .map((o: any) => o.buyer_id) || [];
-        
-        const uniqueBuyerIds = [...new Set(buyerIds)];
-        
-        let profilesMap: Record<string, any> = {};
-        
-        if (uniqueBuyerIds.length > 0) {
-          const { data: profiles, error: profilesError } = await supabase
-            .from('profiles')
-            .select('id, email, first_name, last_name, phone')
-            .in('id', uniqueBuyerIds);
-          
-          if (!profilesError && profiles) {
-            profilesMap = profiles.reduce((acc: Record<string, any>, p: any) => {
-              acc[p.id] = p;
-              return acc;
-            }, {});
-          }
-        }
-        
-        // Attach profile data to orders
-        const data = ordersData?.map((order: any) => ({
-          ...order,
-          buyer_profile: order.buyer_id ? profilesMap[order.buyer_id] || null : null
-        })) || [];
-        
-        console.log(`[OrderService] Fetched ${data?.length || 0} seller orders`);
-        
-        return data || [];
-      } catch (error) {
-        console.error('Error fetching seller orders:', error);
-        throw new Error('Failed to fetch orders');
+      if (startDate) {
+        orderQuery = orderQuery.gte('created_at', startDate.toISOString());
       }
+
+      if (endDate) {
+        orderQuery = orderQuery.lte('created_at', endDate.toISOString());
+      }
+
+      const { data: ordersData, error: ordersError } = await orderQuery.order('created_at', {
+        ascending: false,
+      });
+
+      if (ordersError) throw ordersError;
+
+      const buyerIds = (ordersData || [])
+        .filter((order: any) => order.order_type === 'ONLINE' && order.buyer_id)
+        .map((order: any) => order.buyer_id);
+
+      const uniqueBuyerIds = [...new Set(buyerIds)];
+      let profilesMap: Record<string, any> = {};
+
+      if (uniqueBuyerIds.length > 0) {
+        const { data: profiles, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, email, first_name, last_name, phone')
+          .in('id', uniqueBuyerIds);
+
+        if (!profilesError && profiles) {
+          profilesMap = profiles.reduce((acc: Record<string, any>, profile: any) => {
+            acc[profile.id] = profile;
+            return acc;
+          }, {});
+        }
+      }
+
+      const data = (ordersData || []).map((order: any) => {
+        const sellerItems = (order.order_items || []).filter((item: any) =>
+          productIds.includes(item.product_id),
+        );
+
+        const latestShipment = [...(order.shipments || [])].sort((a: any, b: any) => {
+          const aDate = new Date(a.delivered_at || a.shipped_at || a.created_at || 0).getTime();
+          const bDate = new Date(b.delivered_at || b.shipped_at || b.created_at || 0).getTime();
+          return bDate - aDate;
+        })[0];
+
+        const latestPayment = [...(order.payments || [])].sort((a: any, b: any) => {
+          const aDate = new Date(a.payment_date || a.created_at || 0).getTime();
+          const bDate = new Date(b.payment_date || b.created_at || 0).getTime();
+          return bDate - aDate;
+        })[0];
+
+        return {
+          ...order,
+          order_items: sellerItems,
+          seller_id: sellerId,
+          buyer_profile: order.buyer_id ? profilesMap[order.buyer_id] || null : null,
+          tracking_number: latestShipment?.tracking_number || order.tracking_number || null,
+          shipped_at: latestShipment?.shipped_at || order.shipped_at || null,
+          delivered_at: latestShipment?.delivered_at || order.delivered_at || null,
+          payment_method: latestPayment?.payment_method || null,
+        };
+      });
+
+      return data;
+    } catch (error) {
+      console.error('Error fetching seller orders:', error);
+      throw new Error('Failed to fetch orders');
+    }
   }
 
   /**
@@ -653,6 +793,126 @@ export class OrderService {
     } catch (error) {
       console.error('Error fetching order:', error);
       throw new Error('Failed to fetch order details');
+    }
+  }
+
+  /**
+   * Get buyer-facing order tracking snapshot from normalized tables
+   */
+  async getOrderTrackingSnapshot(
+    orderIdOrNumber: string,
+    buyerId?: string,
+  ): Promise<OrderTrackingSnapshot | null> {
+    if (!isSupabaseConfigured()) {
+      const mockOrder = this.mockOrders.find(
+        (order) => order.id === orderIdOrNumber || order.order_number === orderIdOrNumber,
+      );
+
+      if (!mockOrder) return null;
+      if (buyerId && mockOrder.buyer_id !== buyerId) return null;
+
+      const normalized = LEGACY_STATUS_MAP[mockOrder.status || 'pending_payment'] ||
+        LEGACY_STATUS_MAP.pending_payment;
+
+      return {
+        order_id: mockOrder.id,
+        order_number: mockOrder.order_number || mockOrder.id,
+        buyer_id: mockOrder.buyer_id || null,
+        payment_status: (mockOrder.payment_status as PaymentStatus) || normalized.payment_status,
+        shipment_status: (mockOrder.shipment_status as ShipmentStatus) || normalized.shipment_status,
+        created_at: mockOrder.created_at || new Date().toISOString(),
+        tracking_number: mockOrder.tracking_number || null,
+        shipped_at: null,
+        delivered_at: null,
+        recipient: null,
+        address: null,
+        shipment: null,
+      };
+    }
+
+    try {
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        orderIdOrNumber,
+      );
+
+      let query = supabase
+        .from('orders')
+        .select(`
+          id,
+          order_number,
+          buyer_id,
+          payment_status,
+          shipment_status,
+          created_at,
+          recipient:order_recipients!recipient_id (
+            first_name,
+            last_name,
+            phone,
+            email
+          ),
+          address:shipping_addresses!address_id (
+            address_line_1,
+            address_line_2,
+            barangay,
+            city,
+            province,
+            region,
+            postal_code,
+            landmark,
+            delivery_instructions
+          ),
+          shipments:order_shipments (
+            id,
+            status,
+            tracking_number,
+            shipped_at,
+            delivered_at,
+            created_at
+          )
+        `)
+        .eq(isUuid ? 'id' : 'order_number', orderIdOrNumber);
+
+      if (buyerId) {
+        query = query.eq('buyer_id', buyerId);
+      }
+
+      const { data, error } = await query.maybeSingle();
+
+      if (error) throw error;
+      if (!data) return null;
+
+      const latestShipment = [...(((data as any).shipments as any[]) || [])].sort((a, b) => {
+        const aDate = new Date(a.delivered_at || a.shipped_at || a.created_at || 0).getTime();
+        const bDate = new Date(b.delivered_at || b.shipped_at || b.created_at || 0).getTime();
+        return bDate - aDate;
+      })[0];
+
+      return {
+        order_id: data.id,
+        order_number: data.order_number,
+        buyer_id: data.buyer_id || null,
+        payment_status: data.payment_status,
+        shipment_status: data.shipment_status,
+        created_at: data.created_at,
+        tracking_number: latestShipment?.tracking_number || null,
+        shipped_at: latestShipment?.shipped_at || null,
+        delivered_at: latestShipment?.delivered_at || null,
+        recipient: (data as any).recipient || null,
+        address: (data as any).address || null,
+        shipment: latestShipment
+          ? {
+            id: latestShipment.id,
+            status: latestShipment.status,
+            tracking_number: latestShipment.tracking_number,
+            shipped_at: latestShipment.shipped_at,
+            delivered_at: latestShipment.delivered_at,
+            created_at: latestShipment.created_at,
+          }
+          : null,
+      };
+    } catch (error) {
+      console.error('Error fetching order tracking snapshot:', error);
+      throw new Error('Failed to fetch order tracking details');
     }
   }
 
@@ -1104,7 +1364,7 @@ export class OrderService {
   /**
    * Cancel an order
    */
-  async cancelOrder(orderId: string, reason?: string): Promise<boolean> {
+  async cancelOrder(orderId: string, reason?: string, cancelledBy?: string): Promise<boolean> {
     if (!isSupabaseConfigured()) {
       const order = this.mockOrders.find(o => o.id === orderId);
       if (order) {
@@ -1116,16 +1376,61 @@ export class OrderService {
     }
 
     try {
-      const { error } = await supabase
+      const nowIso = new Date().toISOString();
+      const normalizedReason = reason?.trim() || null;
+
+      const { data: existingOrder, error: fetchError } = await supabase
+        .from('orders')
+        .select('id, payment_status')
+        .eq('id', orderId)
+        .single();
+
+      if (fetchError || !existingOrder) {
+        throw new Error('Order not found');
+      }
+
+      const nextPaymentStatus: PaymentStatus =
+        existingOrder.payment_status === 'paid' ||
+          existingOrder.payment_status === 'partially_refunded'
+          ? 'refunded'
+          : 'pending_payment';
+
+      const { error: updateError } = await supabase
         .from('orders')
         .update({
-          status: 'cancelled',
-          cancelled_at: new Date().toISOString(),
-          notes: reason,
+          payment_status: nextPaymentStatus,
+          shipment_status: 'returned',
+          notes: normalizedReason,
+          updated_at: nowIso,
         })
         .eq('id', orderId);
 
-      if (error) throw error;
+      if (updateError) throw updateError;
+
+      const { error: cancellationError } = await supabase
+        .from('order_cancellations')
+        .insert({
+          order_id: orderId,
+          reason: normalizedReason,
+          cancelled_at: nowIso,
+          cancelled_by: cancelledBy || null,
+        });
+
+      if (cancellationError) throw cancellationError;
+
+      await supabase.from('order_status_history').insert({
+        order_id: orderId,
+        status: 'cancelled',
+        note: normalizedReason || 'Order cancelled',
+        changed_by: cancelledBy || null,
+        changed_by_role: cancelledBy ? 'seller' : null,
+        metadata: {
+          cancelled_at: nowIso,
+          payment_status: nextPaymentStatus,
+          shipment_status: 'returned',
+        },
+      });
+
       return true;
     } catch (error) {
       console.error('Error cancelling order:', error);
@@ -1141,7 +1446,11 @@ export class OrderService {
     buyerId: string,
     rating: number,
     comment: string,
-    images?: string[]
+    images?: string[],
+    target?: {
+      productId?: string;
+      orderItemId?: string;
+    }
   ): Promise<boolean> {
     if (!orderId || !buyerId) {
       throw new Error('Order ID and Buyer ID are required');
@@ -1151,17 +1460,23 @@ export class OrderService {
       throw new Error('Rating must be between 1 and 5');
     }
 
-    if (!comment?.trim()) {
-      throw new Error('Review comment is required');
-    }
+    const normalizedComment = comment?.trim() || null;
+
+    const sanitizedImageUrls = Array.from(
+      new Set(
+        (images || [])
+          .map((image) => image?.trim())
+          .filter((image): image is string => typeof image === 'string' && /^https?:\/\//i.test(image))
+      )
+    );
 
     if (!isSupabaseConfigured()) {
       const order = this.mockOrders.find(o => o.id === orderId && o.buyer_id === buyerId);
       if (order) {
         order.is_reviewed = true;
         order.rating = rating;
-        order.review_comment = comment;
-        order.review_images = images || [];
+        order.review_comment = normalizedComment || undefined;
+        order.review_images = sanitizedImageUrls;
         order.review_date = new Date().toISOString();
         return true;
       }
@@ -1173,8 +1488,29 @@ export class OrderService {
         .from('orders')
         .select(`
           *,
+          shipment_status,
           order_items (
-            product_id
+            id,
+            product_id,
+            product_name,
+            variant_id,
+            personalized_options,
+            product:products!order_items_product_id_fkey (
+              id,
+              name,
+              variant_label_1,
+              variant_label_2
+            ),
+            variant:product_variants!order_items_variant_id_fkey (
+              id,
+              sku,
+              variant_name,
+              size,
+              color,
+              option_1_value,
+              option_2_value,
+              thumbnail_url
+            )
           )
         `)
         .eq('id', orderId)
@@ -1185,51 +1521,125 @@ export class OrderService {
         throw new Error('Order not found or access denied');
       }
 
-      if (order.status !== 'delivered' && order.status !== 'completed') {
-        throw new Error('Cannot review order that is not delivered or completed');
+      if (order.shipment_status !== 'delivered' && order.shipment_status !== 'received') {
+        throw new Error(`Cannot review order with status: ${order.shipment_status}`);
       }
 
-      const orderItems = order.order_items || [];
+      const orderItems = Array.isArray(order.order_items) ? order.order_items : [];
+      const reviewableOrderItems = orderItems.filter((item: any) => {
+        const hasRequiredIds =
+          typeof item?.id === 'string' &&
+          item.id.length > 0 &&
+          typeof item?.product_id === 'string' &&
+          item.product_id.length > 0;
+
+        if (!hasRequiredIds) {
+          return false;
+        }
+
+        if (target?.orderItemId) {
+          return item.id === target.orderItemId;
+        }
+
+        if (target?.productId) {
+          return item.product_id === target.productId;
+        }
+
+        return true;
+      });
+
+      if (reviewableOrderItems.length === 0) {
+        throw new Error('No reviewable products found for this order');
+      }
+
+      const { data: existingReviews, error: existingReviewsError } = await supabase
+        .from('reviews')
+        .select('id, product_id, order_item_id')
+        .eq('order_id', orderId)
+        .eq('buyer_id', buyerId);
+
+      if (existingReviewsError) {
+        throw existingReviewsError;
+      }
+
+      const reviewedOrderItemIds = new Set(
+        (existingReviews || [])
+          .map((review: any) => review.order_item_id)
+          .filter((value: unknown): value is string => typeof value === 'string')
+      );
+
+      const reviewedLegacyProductIds = new Set(
+        (existingReviews || [])
+          .filter((review: any) => !review.order_item_id)
+          .map((review: any) => review.product_id)
+          .filter((value: unknown): value is string => typeof value === 'string')
+      );
+
       let successCount = 0;
+      let skippedCount = 0;
 
-      for (const item of orderItems) {
-        const exists = await reviewService.hasReviewForProduct(orderId, item.product_id);
-        if (exists) continue;
+      for (const orderItem of reviewableOrderItems) {
+        const orderItemId = orderItem.id as string;
+        const productId = orderItem.product_id as string;
 
-        const reviewPayload = {
-          order_id: orderId,
-          product_id: item.product_id,
-          buyer_id: buyerId,
-          seller_id: order.seller_id,
-          rating: rating,
-          comment: comment.trim(),
-          images: images || [],
-          is_verified_purchase: true,
-          helpful_count: 0,
-          seller_reply: null,
-          is_hidden: false,
-          is_edited: false
-        };
+        if (reviewedOrderItemIds.has(orderItemId) || reviewedLegacyProductIds.has(productId)) {
+          skippedCount++;
+          continue;
+        }
 
-        const review = await reviewService.createReview(reviewPayload);
-        if (review) successCount++;
+        const variantSnapshot = buildVariantSnapshot(orderItem);
+
+        const { data: createdReview, error: reviewInsertError } = await supabase
+          .from('reviews')
+          .insert({
+            order_id: orderId,
+            order_item_id: orderItemId,
+            product_id: productId,
+            buyer_id: buyerId,
+            rating,
+            comment: normalizedComment,
+            variant_snapshot: variantSnapshot,
+            is_verified_purchase: true,
+            helpful_count: 0,
+            seller_reply: null,
+            is_hidden: false,
+            is_edited: false,
+          })
+          .select('id')
+          .single();
+
+        if (reviewInsertError) {
+          if ((reviewInsertError as any)?.code === '23505') {
+            skippedCount++;
+            continue;
+          }
+          throw reviewInsertError;
+        }
+
+        if (createdReview?.id && sanitizedImageUrls.length > 0) {
+          const imageRows = sanitizedImageUrls.map((imageUrl, index) => ({
+            review_id: createdReview.id,
+            image_url: imageUrl,
+            sort_order: index,
+          }));
+
+          const { error: imageInsertError } = await supabase.from('review_images').insert(imageRows);
+          if (imageInsertError) {
+            console.warn('[OrderService] Failed to insert review image metadata:', imageInsertError);
+          }
+        }
+
+        await reviewService.markItemAsReviewed(orderId, productId, rating);
+        successCount++;
       }
 
-      if (successCount === 0) {
+      const alreadyReviewedEverything =
+        successCount === 0 && skippedCount >= reviewableOrderItems.length;
+
+      if (!alreadyReviewedEverything && successCount === 0) {
         return false;
       }
 
-      const { error: updateError } = await supabase
-        .from('orders')
-        .update({
-          is_reviewed: true,
-          rating,
-          review_comment: comment.trim(),
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', orderId);
-
-      if (updateError) throw updateError;
       return true;
     } catch (error) {
       console.error('Error submitting review:', error);
