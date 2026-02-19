@@ -14,12 +14,19 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Search, SlidersHorizontal, X, Check, Camera, Star, CheckCircle2 } from 'lucide-react-native';
+import { Search, SlidersHorizontal, X, Check, Camera, Star, CheckCircle2, Bell, MapPin, ChevronDown } from 'lucide-react-native';
 import MultiSlider from '@ptomasroos/react-native-multi-slider';
 import CameraSearchModal from '../src/components/CameraSearchModal';
 import { ProductCard } from '../src/components/ProductCard';
+import LocationModal from '../src/components/LocationModal';
+import { GuestLoginModal } from '../src/components/GuestLoginModal';
 // Use the service you provided
 import { productService } from '../src/services/productService';
+import { addressService } from '../src/services/addressService';
+import { notificationService } from '../src/services/notificationService';
+import { useAuthStore } from '../src/stores/authStore';
+import { useSellerStore } from '../src/stores/sellerStore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../src/lib/supabase';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
@@ -250,6 +257,14 @@ const sortOptions = [
 export default function ShopScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const BRAND_COLOR = COLORS.primary;
+  const { user, isGuest } = useAuthStore();
+
+  // Header State from HomeScreen
+  const [deliveryAddress, setDeliveryAddress] = useState('Select Location');
+  const [deliveryCoordinates, setDeliveryCoordinates] = useState<{ latitude: number, longitude: number } | null>(null);
+  const [showLocationModal, setShowLocationModal] = useState(false);
+  const [showGuestModal, setShowGuestModal] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const [dbProducts, setDbProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -345,6 +360,55 @@ export default function ShopScreen({ navigation, route }: Props) {
     loadData();
   }, []);
 
+  // --- LOCATION & NOTIFICATION LOGIC ---
+  useEffect(() => {
+    const loadNotifications = async () => {
+      if (!user?.id || isGuest) return;
+      try {
+        const data = await notificationService.getNotifications(user.id, 'buyer', 20);
+        setUnreadCount(data.filter(n => !n.is_read).length);
+      } catch (error) {
+        console.error('[ShopScreen] Error loading notifications:', error);
+      }
+    };
+    const unsubscribe = navigation.addListener('focus', loadNotifications);
+    loadNotifications();
+    return unsubscribe;
+  }, [navigation, user?.id, isGuest]);
+
+  useEffect(() => {
+    const loadSavedLocation = async () => {
+      try {
+        const savedAddress = await AsyncStorage.getItem('currentDeliveryAddress');
+        const savedCoords = await AsyncStorage.getItem('currentDeliveryCoordinates');
+        if (savedAddress) setDeliveryAddress(savedAddress);
+        if (savedCoords) setDeliveryCoordinates(JSON.parse(savedCoords));
+      } catch (e) { console.error(e); }
+
+      if (user?.id) {
+        try {
+          const savedLocation = await addressService.getCurrentDeliveryLocation(user.id);
+          if (savedLocation) {
+            const formatted = savedLocation.city ? `${savedLocation.street}, ${savedLocation.city}` : savedLocation.street;
+            setDeliveryAddress(formatted);
+            if (savedLocation.coordinates) setDeliveryCoordinates(savedLocation.coordinates);
+          }
+        } catch (e) { console.error(e); }
+      }
+    };
+    loadSavedLocation();
+  }, [user]);
+
+  const handleSelectLocation = async (address: string, coords?: any, details?: any) => {
+    setDeliveryAddress(address);
+    if (coords) setDeliveryCoordinates(coords);
+    try {
+      await AsyncStorage.setItem('currentDeliveryAddress', address);
+      if (coords) await AsyncStorage.setItem('currentDeliveryCoordinates', JSON.stringify(coords));
+      if (user?.id) await addressService.saveCurrentDeliveryLocation(user.id, address, coords || null, details);
+    } catch (e) { console.error(e); }
+  };
+
   const handleSliderChange = (values: number[]) => {
     setMultiSliderValue(values);
     setMinInput(values[0].toString());
@@ -417,34 +481,61 @@ export default function ShopScreen({ navigation, route }: Props) {
   }, [sellers, dbProducts]);
 
   return (
-    <LinearGradient
-      colors={['#FFF6E5', '#FFE0A3', '#FFD89A']}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 0, y: 1 }}
-      style={styles.container}
+    <View
+      style={[styles.container, { backgroundColor: '#FFF6E5' }]}
     >
-      <StatusBar barStyle="light-content" />
+      <StatusBar barStyle="dark-content" />
 
-      <LinearGradient
-        colors={['#FFF6E5', '#FFE0A3', '#FFD89A']} // Pastel Gold Header
-        start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 1 }}
-        style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}
+      <View
+        style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: '#FFF6E5' }]}
       >
+        {/* Location Row */}
+        <View style={styles.locationRow}>
+          <Pressable onPress={() => setShowLocationModal(true)}>
+            <Text style={styles.locationLabel}>Location</Text>
+            <View style={styles.locationSelector}>
+              <MapPin size={16} color="#FF8A00" fill="#FF8A00" />
+              <Text numberOfLines={1} style={[styles.locationText, { maxWidth: 200 }]}>{deliveryAddress}</Text>
+              <ChevronDown size={16} color="#431407" />
+            </View>
+          </Pressable>
+
+          <Pressable
+            onPress={() => {
+              if (isGuest) {
+                setShowGuestModal(true);
+              } else {
+                navigation.navigate('Notifications' as any);
+              }
+            }}
+            style={styles.headerIconButton}
+          >
+            <Bell size={24} color="#FF8A00" />
+            {!isGuest && unreadCount > 0 && (
+              <View style={styles.notifBadge}>
+                <Text style={styles.notifBadgeText}>
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </Text>
+              </View>
+            )}
+          </Pressable>
+        </View>
+
+        {/* Search Row */}
         <View style={styles.headerTop}>
-          <View style={[styles.searchBarWrapper, isSearchFocused && { marginRight: 10 }]}>
-            <View style={styles.searchBarInner}>
-              <Search size={18} color="#9CA3AF" />
+          <View style={[styles.searchBarWrapper, (isSearchFocused || !showFiltersModal) && { marginRight: 0 }]}>
+            <View style={[styles.searchBarInner, { backgroundColor: '#FFFFFF', borderRadius: 24, shadowColor: '#FF8A00', shadowOpacity: 0.1, shadowRadius: 15, elevation: 4 }]}>
+              <Search size={18} color="#FF8A00" />
               <TextInput
-                style={styles.searchInput}
-                placeholder="Search items..."
+                style={[styles.searchInput, { color: '#431407' }]}
+                placeholder="Search products..."
                 value={searchQuery}
                 onChangeText={setSearchQuery}
                 placeholderTextColor="#9CA3AF"
                 onFocus={() => setIsSearchFocused(true)}
               />
               <Pressable onPress={() => setShowCameraSearch(true)}>
-                <Camera size={18} color="#9CA3AF" />
+                <Camera size={18} color="#FF8A00" />
               </Pressable>
             </View>
           </View>
@@ -455,14 +546,13 @@ export default function ShopScreen({ navigation, route }: Props) {
             </Pressable>
           ) : (
             <View style={styles.headerRight}>
-
               <Pressable style={styles.headerIconButton} onPress={() => setShowFiltersModal(true)}>
                 <SlidersHorizontal size={24} color="#1F2937" />
               </Pressable>
             </View>
           )}
         </View>
-      </LinearGradient>
+      </View>
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryScroll}>
@@ -606,18 +696,36 @@ export default function ShopScreen({ navigation, route }: Props) {
           </View>
         </View>
       </Modal>
-    </LinearGradient>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  headerContainer: { paddingHorizontal: 20, borderBottomLeftRadius: 30, borderBottomRightRadius: 20, paddingBottom: 15 },
-  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
+  headerContainer: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 10, borderBottomLeftRadius: 30, borderBottomRightRadius: 20 },
+  locationRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
+  locationLabel: { color: '#6B7280', fontSize: 14, paddingBottom: 5 },
+  locationSelector: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  locationText: { color: '#1F2937', fontWeight: 'bold', fontSize: 16 },
+  notifBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    backgroundColor: COLORS.primary,
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#FFE5CC'
+  },
+  notifBadgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '900' },
+  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 },
   searchBarWrapper: { flex: 1, flexDirection: 'row', alignItems: 'center' },
-  searchBarInner: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 12, paddingHorizontal: 15, height: 48, gap: 10 },
+  searchBarInner: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 24, paddingHorizontal: 15, height: 48, gap: 10 },
   searchInput: { flex: 1, fontSize: 14, color: '#1F2937' },
-  headerRight: { flexDirection: 'row', gap: 10 },
+  headerRight: { flexDirection: 'row', gap: 10, paddingLeft: 5 },
   headerIconButton: { padding: 4, position: 'relative' },
   badge: { position: 'absolute', top: 0, right: 0, minWidth: 16, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   badgeText: { fontSize: 9, fontWeight: '900' },
