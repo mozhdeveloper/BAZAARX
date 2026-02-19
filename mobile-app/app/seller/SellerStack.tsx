@@ -10,6 +10,7 @@ import SellerMessagesScreen from './messages';
 import SellerReviewsScreen from './reviews';
 import SellerNotificationsScreen from './notifications';
 import SellerReturnDetailScreen from './ReturnDetailScreen';
+import SellerOrderDetailScreen from './OrderDetailScreen';
 import TicketListScreen from '../tickets/TicketListScreen';
 import SellerHelpCenterScreen from './SellerHelpCenterScreen';
 import SellerCreateTicketScreen from './SellerCreateTicketScreen';
@@ -26,6 +27,7 @@ export type SellerStackParamList = {
   Reviews: undefined;
   Notifications: undefined;
   ReturnDetail: { returnId: string };
+  SellerOrderDetail: { orderId: string };
   TicketList: undefined;
   SellerHelpCenter: undefined;
   SellerCreateTicket: undefined;
@@ -53,6 +55,7 @@ export default function SellerStack() {
       <Stack.Screen name="Reviews" component={SellerReviewsScreen} />
       <Stack.Screen name="Notifications" component={SellerNotificationsScreen} />
       <Stack.Screen name="ReturnDetail" component={SellerReturnDetailScreen} />
+      <Stack.Screen name="SellerOrderDetail" component={SellerOrderDetailScreen} />
       <Stack.Screen name="TicketList" component={TicketListScreen} />
       <Stack.Screen name="SellerHelpCenter" component={SellerHelpCenterScreen} />
       <Stack.Screen name="SellerCreateTicket" component={SellerCreateTicketScreen} />

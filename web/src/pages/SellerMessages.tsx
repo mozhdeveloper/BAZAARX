@@ -303,7 +303,7 @@ export default function SellerMessages() {
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="flex-1 flex h-full overflow-hidden max-w-7xl mx-auto w-full p-0 md:px-8 md:py-6 gap-0 md:gap-6">
           {/* Conversations List Sidebar */}
-          <div className="w-full md:w-80 border-r bg-white flex flex-col md:rounded-[32px] md:shadow-[0_8px_30px_rgba(0,0,0,0.04)] md:border border-orange-100 overflow-hidden hidden md:flex">
+          <div className="w-full md:w-80 border-r bg-white flex flex-col md:rounded-xl md:shadow-[0_8px_30px_rgba(0,0,0,0.04)] md:border border-orange-100 overflow-hidden hidden md:flex">
             <div className="p-6 border-b border-orange-50 bg-white">
               <h2 className="text-xl font-black text-[var(--text-headline)] mb-4 tracking-tight">Messages</h2>
               <div className="relative group">
@@ -371,7 +371,7 @@ export default function SellerMessages() {
           </div>
 
           {/* Chat Area */}
-          <div className="flex-1 flex flex-col bg-white md:rounded-[32px] md:shadow-[0_8px_30px_rgba(0,0,0,0.04)] md:border border-orange-100 overflow-hidden relative">
+          <div className="flex-1 flex flex-col bg-white md:rounded-xl md:shadow-[0_8px_30px_rgba(0,0,0,0.04)] md:border border-orange-100 overflow-hidden relative">
             {activeConversation ? (
               <>
                 {/* Chat Header - Mobile Style Orange */}
@@ -422,8 +422,8 @@ export default function SellerMessages() {
                       <div className={`max-w-[80%] flex flex-col ${msg.senderId === 'seller' ? 'items-end' : 'items-start'}`}>
                         <div
                           className={`px-5 py-4 shadow-sm ${msg.senderId === 'seller'
-                            ? 'bg-gradient-to-br from-[var(--brand-primary)] to-[var(--brand-primary-dark)] text-white rounded-[24px] rounded-tr-sm shadow-orange-500/20'
-                            : 'bg-white text-gray-800 border border-gray-100 rounded-[24px] rounded-tl-sm shadow-[0_2px_8px_rgba(0,0,0,0.04)]'
+                            ? 'bg-gradient-to-br from-[var(--brand-primary)] to-[var(--brand-primary-dark)] text-white rounded-xl rounded-tr-sm shadow-orange-500/20'
+                            : 'bg-white text-gray-800 border border-gray-100 rounded-xl rounded-tl-sm shadow-[0_2px_8px_rgba(0,0,0,0.04)]'
                             }`}
                         >
                           {msg.images && msg.images.length > 0 && (
@@ -495,7 +495,7 @@ export default function SellerMessages() {
               </>
             ) : (
               <div className="flex-1 flex flex-col items-center justify-center text-center p-12 space-y-4">
-                <div className="w-20 h-20 bg-orange-50 rounded-full flex items-center justify-center text-orange-500 mb-2">
+                <div className="w-20 h-20 flex items-center justify-center text-orange-500 -mb-4">
                   <MessageCircle className="h-10 w-10" />
                 </div>
                 <div>
