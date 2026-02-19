@@ -1,3 +1,4 @@
+import { motion } from 'framer-motion';
 import { useAuthStore } from '@/stores/sellerStore';
 import { SellerSidebar } from '@/components/seller/SellerSidebar';
 import {
@@ -62,71 +63,102 @@ export function SellerEarnings() {
         </div>
 
         <div className="p-2 md:p-8 flex-1 w-full h-full overflow-auto relative z-10 scrollbar-hide">
-          <div className="max-w-7xl mx-auto space-y-8">
+          <div className="max-w-7xl mx-auto space-y-6">
             {/* Header */}
             <div className="mb-8">
               <h1 className="text-3xl font-black text-[var(--text-headline)] font-heading tracking-tight">Earnings Dashboard</h1>
-              <p className="text-sm text-[var(--text-secondary)] mt-1 font-medium">Track your store's financial performance and payouts</p>
+              <p className="text-sm text-[var(--text-muted)] mt-1">Track your store's financial performance and payouts</p>
             </div>
 
             {/* Earnings Overview Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
               {/* Total Earnings */}
-              <Card className="p-8 bg-gradient-to-br from-[var(--brand-primary)] to-[var(--brand-primary-dark)] text-white shadow-xl shadow-orange-500/30 rounded-[32px] overflow-hidden relative">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -mr-16 -mt-16 pointer-events-none" />
-                <div className="flex items-center justify-between mb-6 relative z-10">
-                  <div className="h-14 w-14 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
-                    <DollarSign className="h-7 w-7 text-white" />
-                  </div>
-                  <div className="flex items-center gap-1 text-sm font-medium bg-white/20 px-3 py-1 rounded-full">
-                    <TrendingUp className="h-4 w-4" />
-                    +12.5%
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-white rounded-xl p-6 shadow-md hover:shadow-[0_20px_40px_rgba(251,140,0,0.1)] relative overflow-hidden group transition-all duration-300"
+              >
+                <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-orange-50 to-orange-100/50 rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-orange-100 transition-colors"></div>
+                <div className="flex items-center justify-between mb-4 relative z-10">
+                  <div className="text-[var(--secondary-foreground)] group-hover:text-[var(--brand-primary)] transition-all">
+                    <DollarSign className="h-5 w-5" />
                   </div>
                 </div>
-                <p className="text-white/80 text-sm mb-1">Total Earnings</p>
-                <p className="text-3xl font-bold">₱{totalEarnings.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</p>
-                <p className="text-white/70 text-xs mt-2">Lifetime earnings from sales</p>
-              </Card>
+                <div>
+                  <h3 className="text-[var(--text-muted)] text-sm relative z-10">Total Earnings</h3>
+                  <div className="flex items-end gap-3 mt-1 relative z-10">
+                    <p className="text-2xl font-black text-[var(--text-headline)] font-heading group-hover:text-[var(--brand-primary)] transition-all">
+                      ₱{totalEarnings.toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                    </p>
+                    <div className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-50 text-green-600 mb-1.5">
+                      <TrendingUp className="h-3 w-3" />
+                      +12.5%
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
 
               {/* Available Balance */}
-              <Card className="p-8 border border-green-100 bg-white shadow-[0_8px_30px_rgba(0,0,0,0.04)] rounded-[32px]">
-                <div className="flex items-center justify-between mb-6">
-                  <div className="h-14 w-14 rounded-2xl bg-green-50 flex items-center justify-center">
-                    <Wallet className="h-7 w-7 text-green-600" />
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+                className="bg-white rounded-xl p-6 shadow-md hover:shadow-[0_20px_40px_rgba(251,140,0,0.1)] relative overflow-hidden group transition-all duration-300"
+              >
+                <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-green-50 to-green-100/50 rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-green-100 transition-colors"></div>
+                <div className="flex items-center justify-between mb-4 relative z-10">
+                  <div className="text-green-600 group-hover:text-green-700 transition-all">
+                    <Wallet className="h-5 w-5" />
                   </div>
-                  <CheckCircle className="h-6 w-6 text-green-500" />
                 </div>
-                <p className="text-[var(--text-secondary)] text-sm font-medium mb-1">Available Balance</p>
-                <p className="text-4xl font-black text-[var(--text-headline)] tracking-tight">₱{availableBalance.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</p>
-                <p className="text-green-600 text-sm font-semibold mt-3 flex items-center gap-1">
-                  <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                  Ready for payout
-                </p>
-              </Card>
+                <div>
+                  <h3 className="text-[var(--text-muted)] text-sm relative z-10">Available Balance</h3>
+                  <div className="flex items-end gap-3 mt-1 relative z-10">
+                    <p className="text-2xl font-black text-[var(--text-headline)] font-heading group-hover:text-green-600 transition-all">
+                      ₱{availableBalance.toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                    </p>
+                    <div className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-50 text-green-600 mb-1.5">
+                      <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                      Ready
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
 
               {/* Pending Payout */}
-              <Card className="p-8 border border-amber-100 bg-white shadow-[0_8px_30px_rgba(0,0,0,0.04)] rounded-[32px]">
-                <div className="flex items-center justify-between mb-6">
-                  <div className="h-14 w-14 rounded-2xl bg-amber-50 flex items-center justify-center">
-                    <Clock className="h-7 w-7 text-amber-600" />
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="bg-white rounded-xl p-6 shadow-md hover:shadow-[0_20px_40px_rgba(251,140,0,0.1)] relative overflow-hidden group transition-all duration-300"
+              >
+                <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-amber-50 to-amber-100/50 rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-amber-100 transition-colors"></div>
+                <div className="flex items-center justify-between mb-4 relative z-10">
+                  <div className="text-amber-600 group-hover:text-amber-700 transition-all">
+                    <Clock className="h-5 w-5" />
                   </div>
-                  <AlertCircle className="h-6 w-6 text-amber-500" />
                 </div>
-                <p className="text-[var(--text-secondary)] text-sm font-medium mb-1">Pending Payout</p>
-                <p className="text-4xl font-black text-[var(--text-headline)] tracking-tight">₱{pendingPayout.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</p>
-                <p className="text-amber-600 text-sm font-semibold mt-3 flex items-center gap-1">
-                  <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-                  Processing orders
-                </p>
-              </Card>
+                <div>
+                  <h3 className="text-[var(--text-muted)] text-sm relative z-10">Pending Payout</h3>
+                  <div className="flex items-end gap-3 mt-1 relative z-10">
+                    <p className="text-2xl font-black text-[var(--text-headline)] font-heading group-hover:text-amber-600 transition-all">
+                      ₱{pendingPayout.toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                    </p>
+                    <div className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 mb-1.5">
+                      <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                      Processing
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
             </div>
 
             {/* Payout Schedule */}
-            <Card className="p-8 mb-8 border border-orange-100 shadow-[0_8px_30px_rgba(0,0,0,0.04)] rounded-[32px] bg-white">
+            <Card className="p-8 mb-8 border-0 shadow-md rounded-xl bg-white">
               <div className="flex items-center justify-between mb-8">
                 <div>
                   <h2 className="text-xl font-bold text-[var(--text-headline)]">Payout Schedule</h2>
-                  <p className="text-[var(--text-secondary)] text-sm mt-1 font-medium">Automatic payouts every Friday</p>
+                  <p className="text-[var(--text-muted)] text-sm mt-1">Automatic payouts every Friday</p>
                 </div>
                 <div className="flex items-center gap-2 px-4 py-2 bg-green-50 text-green-700 rounded-full border border-green-100 shadow-sm">
                   <Calendar className="h-4 w-4" />
@@ -177,7 +209,7 @@ export function SellerEarnings() {
             </Card>
 
             {/* Bank Account Info */}
-            <Card className="p-8 mb-8 border border-orange-100 shadow-[0_8px_30px_rgba(0,0,0,0.04)] rounded-[32px] bg-white">
+            <Card className="p-8 mb-8 border-0 shadow-md rounded-xl bg-white">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-xl font-bold text-[var(--text-headline)]">Bank Account</h2>
                 <Button variant="outline" size="sm" className="rounded-full border-gray-200 hover:border-orange-200 hover:bg-orange-50 text-gray-600 hover:text-orange-600">
@@ -206,7 +238,7 @@ export function SellerEarnings() {
             </Card>
 
             {/* Payout History */}
-            <Card className="p-8 border border-orange-100 shadow-[0_8px_30px_rgba(0,0,0,0.04)] rounded-[32px] bg-white">
+            <Card className="p-8 border-0 shadow-md rounded-xl bg-white">
               <div className="flex items-center justify-between mb-8">
                 <h2 className="text-xl font-bold text-[var(--text-headline)]">Payout History</h2>
                 <Button variant="outline" size="sm" className="rounded-full border-gray-200 hover:border-orange-200 hover:bg-orange-50 text-gray-600 hover:text-orange-600">
@@ -276,7 +308,7 @@ export function SellerEarnings() {
             </Card>
 
             {/* Help Section */}
-            <Card className="p-8 mt-8 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-[32px] relative overflow-hidden">
+            <Card className="p-8 mt-8 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-xl relative overflow-hidden">
               <div className="absolute top-0 right-0 w-64 h-64 bg-white/40 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none" />
               <div className="flex items-start gap-6 relative z-10">
                 <div className="h-14 w-14 rounded-2xl bg-white shadow-sm flex items-center justify-center flex-shrink-0 text-blue-600">
