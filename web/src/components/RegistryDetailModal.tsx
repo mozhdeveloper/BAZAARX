@@ -57,6 +57,11 @@ export const RegistryDetailModal = ({
   const [addressId, setAddressId] = useState("");
   const [deliveryInstructions, setDeliveryInstructions] = useState("");
 
+  const selectedAddress = useMemo(
+    () => (addresses || []).find((addr) => addr.id === addressId),
+    [addresses, addressId],
+  );
+
   const liveRegistry = useMemo(() => {
     if (!registry) return null;
     return registries.find((r) => r.id === registry.id) || registry;
@@ -64,9 +69,11 @@ export const RegistryDetailModal = ({
 
   useEffect(() => {
     if (liveRegistry) {
+      const show = liveRegistry.delivery?.showAddress ?? false;
+      const addr = liveRegistry.delivery?.addressId || "";
       setPrivacy(liveRegistry.privacy || "link");
-      setShowAddress(liveRegistry.delivery?.showAddress || false);
-      setAddressId(liveRegistry.delivery?.addressId || "");
+      setShowAddress(show || !!addr);
+      setAddressId(addr);
       setDeliveryInstructions(liveRegistry.delivery?.instructions || "");
     }
   }, [liveRegistry]);
@@ -225,11 +232,22 @@ export const RegistryDetailModal = ({
                       <Label htmlFor="detail-showAddress" className="text-sm">
                         Share address with gifters
                       </Label>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => navigate("/settings")}
+                        className="ml-auto text-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/10"
+                      >
+                        Manage addresses
+                      </Button>
                     </div>
                     <Select
                       value={addressId}
-                      onValueChange={setAddressId}
-                      disabled={!showAddress || (addresses || []).length === 0}
+                      onValueChange={(val) => {
+                        setAddressId(val);
+                        setShowAddress(true);
+                      }}
+                      disabled={(addresses || []).length === 0}
                     >
                       <SelectTrigger className="focus:ring-[var(--brand-primary)]">
                         <SelectValue
@@ -240,7 +258,7 @@ export const RegistryDetailModal = ({
                           }
                         />
                       </SelectTrigger>
-                      <SelectContent className="z-[200] max-h-64 overflow-auto">
+                      <SelectContent className="z-[10100] max-h-64 overflow-auto">
                         {(addresses || []).map((addr) => (
                           <SelectItem key={addr.id} value={addr.id}>
                             {addr.label || addr.fullName}
@@ -248,6 +266,30 @@ export const RegistryDetailModal = ({
                         ))}
                       </SelectContent>
                     </Select>
+                    {showAddress && selectedAddress && (
+                      <div className="text-xs text-[var(--text-secondary)] bg-white border border-gray-200 rounded-md p-3">
+                        <div className="font-semibold text-[var(--text-primary)] mb-1">
+                          {selectedAddress.label || selectedAddress.fullName}
+                        </div>
+                        <div>
+                          {selectedAddress.street}
+                          {selectedAddress.barangay
+                            ? `, ${selectedAddress.barangay}`
+                            : ""}
+                        </div>
+                        <div>
+                          {selectedAddress.city}, {selectedAddress.province}
+                          {selectedAddress.postalCode
+                            ? ` ${selectedAddress.postalCode}`
+                            : ""}
+                        </div>
+                        {selectedAddress.phone && (
+                          <div className="mt-1">
+                            Phone: {selectedAddress.phone}
+                          </div>
+                        )}
+                      </div>
+                    )}
                     <Input
                       placeholder="Delivery instructions (optional)"
                       value={deliveryInstructions}
