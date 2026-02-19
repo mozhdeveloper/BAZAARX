@@ -202,33 +202,6 @@ export default function CheckoutPage() {
     barangays(code).then((res) => setBarangayList(res));
   };
 
-  useEffect(() => {
-    if (
-      registryDeliveryContext?.showAddress &&
-      registryDeliveryContext.addressId
-    ) {
-      const regAddr = addresses.find(
-        (a) => a.id === registryDeliveryContext.addressId,
-      );
-      if (regAddr) {
-        setSelectedAddress(regAddr);
-        setConfirmedAddress(regAddr);
-        setTempSelected(regAddr);
-        return;
-      }
-    }
-
-    if (addresses.length > 0) {
-      const defaultAddr = addresses.find((a) => a.isDefault) || addresses[0];
-      if (!selectedAddress) {
-        setSelectedAddress(defaultAddr);
-      }
-      if (!confirmedAddress) {
-        setConfirmedAddress(defaultAddr);
-      }
-    }
-  }, [addresses, registryDeliveryContext]);
-
   const locationState = location.state as { fromBuyAgain?: boolean } | null;
   const isBuyAgainMode =
     !!locationState?.fromBuyAgain ||
@@ -256,6 +229,33 @@ export default function CheckoutPage() {
       privacy: registry.privacy ?? "link",
     };
   }, [checkoutItems, registries]);
+
+  useEffect(() => {
+    if (
+      registryDeliveryContext?.showAddress &&
+      registryDeliveryContext.addressId
+    ) {
+      const regAddr = addresses.find(
+        (a) => a.id === registryDeliveryContext.addressId,
+      );
+      if (regAddr) {
+        setSelectedAddress(regAddr);
+        setConfirmedAddress(regAddr);
+        setTempSelected(regAddr);
+        return;
+      }
+    }
+
+    if (addresses.length > 0) {
+      const defaultAddr = addresses.find((a) => a.isDefault) || addresses[0];
+      if (!selectedAddress) {
+        setSelectedAddress(defaultAddr);
+      }
+      if (!confirmedAddress) {
+        setConfirmedAddress(defaultAddr);
+      }
+    }
+  }, [addresses, registryDeliveryContext]);
 
   const checkoutTotal = buyAgainItems
     ? buyAgainItems.reduce(
