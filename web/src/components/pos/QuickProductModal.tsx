@@ -567,7 +567,7 @@ export function QuickProductModal({
                     <SelectTrigger className={errors.category ? 'border-red-500' : ''}>
                       <SelectValue placeholder="Select a category" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="z-[200]">
                       {categories.map((cat) => (
                         <SelectItem key={cat.id} value={cat.id}>
                           {cat.name}
