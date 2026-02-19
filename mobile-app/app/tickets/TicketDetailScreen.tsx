@@ -1,18 +1,23 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, ScrollView, TextInput, Pressable, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, Send } from 'lucide-react-native';
+import { ArrowLeft, Send, Store } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { RootStackParamList } from '../../App';
 import { COLORS } from '../../src/constants/theme';
 import { TicketService } from '../../services/TicketService';
+import { useAuthStore } from '../../src/stores/authStore';
+import { supabase } from '../../src/lib/supabase';
 import type { Ticket, TicketMessage } from '../types/ticketTypes';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'TicketDetail'>;
+type Props = {
+  route: { params: { ticketId: string } };
+  navigation: any;
+};
 
 export default function TicketDetailScreen({ route, navigation }: Props) {
   const { ticketId } = route.params;
   const insets = useSafeAreaInsets();
+  const { user } = useAuthStore();
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [loading, setLoading] = useState(true);
   const [messageText, setMessageText] = useState('');
@@ -26,7 +31,12 @@ export default function TicketDetailScreen({ route, navigation }: Props) {
   const loadTicket = async () => {
     setLoading(true);
     try {
-        const data = await TicketService.getTicketDetails(ticketId);
+        let userId = user?.id;
+        if (!userId) {
+          const { data: { session } } = await supabase.auth.getSession();
+          userId = session?.user?.id;
+        }
+        const data = await TicketService.getTicketDetails(ticketId, userId);
         setTicket(data);
     } catch (err) {
         console.error(err);
@@ -38,10 +48,17 @@ export default function TicketDetailScreen({ route, navigation }: Props) {
   const handleSend = async () => {
       if (!messageText.trim()) return;
       
+      let userId = user?.id;
+      if (!userId) {
+        const { data: { session } } = await supabase.auth.getSession();
+        userId = session?.user?.id;
+      }
+      if (!userId) return;
+      
       setSending(true);
       try {
-          const newMsg = await TicketService.sendMessage(ticketId, messageText);
-          if (ticket) {
+          const newMsg = await TicketService.sendMessage(ticketId, userId, messageText);
+          if (ticket && newMsg) {
               setTicket({
                   ...ticket,
                   messages: [...ticket.messages, newMsg]
@@ -60,6 +77,7 @@ export default function TicketDetailScreen({ route, navigation }: Props) {
     switch(status) {
         case 'open': return '#3B82F6';
         case 'in_progress': return '#F59E0B';
+        case 'waiting_response': return '#8B5CF6';
         case 'resolved': return '#10B981';
         case 'closed': return '#6B7280';
         default: return '#6B7280';
@@ -95,10 +113,10 @@ export default function TicketDetailScreen({ route, navigation }: Props) {
                 </Pressable>
                 <View style={styles.headerInfo}>
                     <Text style={styles.headerTitle}>{ticket.subject}</Text>
-                    <Text style={styles.headerSubtitle}>#{ticket.id}</Text>
+                    <Text style={styles.headerSubtitle}>#{ticket.id.substring(0, 8).toUpperCase()}</Text>
                 </View>
                 <View style={[styles.statusBadge, { backgroundColor: getStatusColor(ticket.status) }]}>
-                    <Text style={styles.statusText}>{ticket.status.replace('_', ' ').toUpperCase()}</Text>
+                    <Text style={styles.statusText}>{ticket.status.replace(/_/g, ' ').toUpperCase()}</Text>
                 </View>
             </View>
 
@@ -112,8 +130,14 @@ export default function TicketDetailScreen({ route, navigation }: Props) {
                 <View style={styles.issueCard}>
                     <Text style={styles.label}>Description</Text>
                     <Text style={styles.description}>{ticket.description}</Text>
+                    {ticket.sellerStoreName && (
+                        <View style={styles.storeInfoCard}>
+                            <Store size={16} color={COLORS.primary} />
+                            <Text style={styles.storeNameText}>About: {ticket.sellerStoreName}</Text>
+                        </View>
+                    )}
                     <View style={styles.metaRow}>
-                        <Text style={styles.metaText}>{ticket.category}</Text>
+                        <Text style={styles.metaText}>{ticket.categoryName || 'General'}</Text>
                         <Text style={styles.metaText}>{new Date(ticket.createdAt).toLocaleDateString()}</Text>
                     </View>
                 </View>
@@ -364,5 +388,19 @@ const styles = StyleSheet.create({
   },
   sendButtonDisabled: {
       backgroundColor: '#D1D5DB',
+  },
+  storeInfoCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginTop: 12,
+      padding: 10,
+      backgroundColor: '#FEF3E8',
+      borderRadius: 8,
+  },
+  storeNameText: {
+      marginLeft: 8,
+      fontSize: 14,
+      color: '#374151',
+      fontWeight: '500',
   },
 });

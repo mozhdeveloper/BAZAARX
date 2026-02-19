@@ -39,13 +39,13 @@ export default function MessagesPage() {
     const [searchQuery, setSearchQuery] = useState('');
     const [previewImage, setPreviewImage] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
-    
+
     // Real data state
     const [dbConversations, setDbConversations] = useState<DBConversation[]>([]);
     const [dbMessages, setDbMessages] = useState<DBMessage[]>([]);
     const [loading, setLoading] = useState(true);
     const [sending, setSending] = useState(false);
-    
+
     // Check if using real data
     const useRealData = dbConversations.length > 0;
 
@@ -55,7 +55,7 @@ export default function MessagesPage() {
             setLoading(false);
             return;
         }
-        
+
         try {
             const convs = await chatService.getBuyerConversations(profile.id);
             setDbConversations(convs);
@@ -65,32 +65,32 @@ export default function MessagesPage() {
             setLoading(false);
         }
     }, [profile?.id]);
-    
+
     useEffect(() => {
         loadConversations();
     }, [loadConversations]);
-    
+
     // Load messages when conversation is selected
     useEffect(() => {
         if (!selectedConversation || !useRealData) return;
-        
+
         const loadMessages = async () => {
             const msgs = await chatService.getMessages(selectedConversation);
             setDbMessages(msgs);
-            
+
             // Mark as read
             if (profile?.id) {
                 chatService.markAsRead(selectedConversation, profile.id, 'buyer');
             }
         };
-        
+
         loadMessages();
     }, [selectedConversation, useRealData, profile?.id]);
-    
+
     // Subscribe to new messages
     useEffect(() => {
         if (!selectedConversation || !useRealData) return;
-        
+
         const unsubscribe = chatService.subscribeToMessages(
             selectedConversation,
             (newMsg) => {
@@ -100,13 +100,13 @@ export default function MessagesPage() {
                     if (exists) return prev;
                     return [...prev, newMsg];
                 });
-                
+
                 if (newMsg.sender_type === 'seller' && profile?.id) {
                     chatService.markAsRead(selectedConversation, profile.id, 'buyer');
                 }
             }
         );
-        
+
         return unsubscribe;
     }, [selectedConversation, useRealData, profile?.id]);
 
@@ -117,7 +117,7 @@ export default function MessagesPage() {
     // Handle sellerId from URL only when it changes or on mount
     useEffect(() => {
         if (!initialSellerId) return;
-        
+
         const initConversation = async () => {
             // If user is logged in, try to use real database
             if (profile?.id) {
@@ -128,7 +128,7 @@ export default function MessagesPage() {
                         setSelectedConversation(existingDbConv.id);
                         return;
                     }
-                    
+
                     // Create or get conversation from database
                     const conv = await chatService.getOrCreateConversation(profile.id, initialSellerId);
                     if (conv) {
@@ -141,7 +141,7 @@ export default function MessagesPage() {
                     console.error('[MessagesPage] Error creating conversation:', error);
                 }
             }
-            
+
             // Fallback to local store for demo/guest mode
             const existingConv = conversations.find(c => c.sellerId === initialSellerId);
             if (existingConv) {
@@ -174,7 +174,7 @@ export default function MessagesPage() {
                 setSelectedConversation(newConv.id);
             }
         };
-        
+
         initConversation();
     }, [initialSellerId, profile?.id, dbConversations, conversations, demoSellers, viewedSellers, addConversation, loadConversations]);
 
@@ -258,7 +258,7 @@ export default function MessagesPage() {
         ? dbConversations.filter(conv =>
             (conv.seller_store_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
             conv.last_message.toLowerCase().includes(searchQuery.toLowerCase())
-          )
+        )
         : conversations
             .filter(conv =>
                 conv.sellerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -297,19 +297,19 @@ export default function MessagesPage() {
     };
 
     return (
-        <div className="flex flex-col h-screen w-screen bg-gray-50 overflow-hidden">
+        <div className="flex flex-col h-screen w-screen bg-[var(--brand-wash)] overflow-hidden">
             <div className="flex flex-1 overflow-hidden w-full h-full gap-0">
                 {/* Conversations List Sidebar */}
-                <div className="w-full md:w-80 lg:w-96 flex flex-col bg-white border-r border-gray-100 overflow-hidden hidden md:flex">
-                    <div className="p-4 border-b border-gray-50">
-                        <h2 className="text-xl font-bold text-gray-900 mb-4">Messages</h2>
+                <div className="w-full md:w-80 lg:w-96 flex flex-col bg-[var(--bg-secondary)] border-r border-[var(--brand-wash-gold)]/30 overflow-hidden hidden md:flex">
+                    <div className="p-4 border-b border-[var(--brand-wash-gold)]/20">
+                        <h2 className="text-xl font-bold text-[var(--text-headline)] mb-4">Messages</h2>
                         <div className="relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] h-4 w-4" />
                             <Input
                                 placeholder="Search conversations..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="pl-9 bg-gray-50 border-none focus-visible:ring-1 focus-visible:ring-orange-500 rounded-xl py-5"
+                                className="pl-9 bg-[var(--brand-wash)] border-none focus-visible:ring-1 focus-visible:ring-[var(--brand-primary)] rounded-xl py-5"
                             />
                         </div>
                     </div>
@@ -317,28 +317,28 @@ export default function MessagesPage() {
                     <div className="flex-1 overflow-y-auto">
                         {loading ? (
                             <div className="flex items-center justify-center py-12">
-                                <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+                                <Loader2 className="h-8 w-8 animate-spin text-[var(--brand-primary)]" />
                             </div>
                         ) : filteredConversations.length === 0 ? (
                             <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
-                                <MessageSquare className="h-12 w-12 text-gray-300 mb-3" />
-                                <h3 className="text-gray-500 font-medium">No messages yet</h3>
-                                <p className="text-gray-400 text-sm mt-1">Start a conversation with a seller</p>
+                                <MessageSquare className="h-12 w-12 text-[var(--text-muted)] mb-3" />
+                                <h3 className="text-[var(--text-muted)] font-medium">No messages yet</h3>
+                                <p className="text-[var(--text-muted)] text-sm mt-1">Start a conversation with a seller</p>
                             </div>
                         ) : useRealData ? (
                             (filteredConversations as DBConversation[]).map((conv) => (
                                 <div
                                     key={conv.id}
                                     onClick={() => setSelectedConversation(conv.id)}
-                                    className={`p-4 cursor-pointer hover:bg-gray-50 transition-all border-l-4 ${selectedConversation === conv.id
-                                        ? 'bg-orange-50 border-l-orange-500'
+                                    className={`p-4 cursor-pointer hover:bg-[var(--brand-wash)] transition-all border-l-4 ${selectedConversation === conv.id
+                                        ? 'bg-[var(--brand-wash)] border-l-[var(--brand-primary)]'
                                         : 'border-l-transparent'
                                         }`}
                                 >
                                     <div className="flex gap-3">
                                         <div className="relative">
                                             <Avatar className="h-12 w-12 border-2 border-white shadow-sm">
-                                                <AvatarFallback className="bg-orange-100 text-orange-600 font-bold">
+                                                <AvatarFallback className="bg-[var(--brand-wash)] text-[var(--brand-primary)] font-bold">
                                                     {(conv.seller_store_name || 'S').charAt(0)}
                                                 </AvatarFallback>
                                             </Avatar>
@@ -346,17 +346,17 @@ export default function MessagesPage() {
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <div className="flex justify-between items-baseline mb-0.5">
-                                                <h4 className="font-bold text-gray-900 truncate">{conv.seller_store_name || 'Store'}</h4>
-                                                <span className="text-[10px] font-semibold text-gray-400 uppercase">
+                                                <h4 className="font-bold text-[var(--text-headline)] truncate">{conv.seller_store_name || 'Store'}</h4>
+                                                <span className="text-[10px] font-semibold text-[var(--text-muted)] uppercase">
                                                     {new Date(conv.last_message_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                 </span>
                                             </div>
-                                            <p className={`text-sm truncate ${conv.buyer_unread_count > 0 ? 'text-gray-900 font-semibold' : 'text-gray-500'}`}>
+                                            <p className={`text-sm truncate ${conv.buyer_unread_count > 0 ? 'text-[var(--text-headline)] font-semibold' : 'text-[var(--text-muted)]'}`}>
                                                 {conv.last_message || 'Start a conversation'}
                                             </p>
                                         </div>
                                         {conv.buyer_unread_count > 0 && (
-                                            <Badge className="bg-orange-500 hover:bg-orange-600 h-5 min-w-[20px] rounded-full flex items-center justify-center p-0.5 text-[10px]">
+                                            <Badge className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] h-5 min-w-[20px] rounded-full flex items-center justify-center p-0.5 text-[10px]">
                                                 {conv.buyer_unread_count}
                                             </Badge>
                                         )}
@@ -368,8 +368,8 @@ export default function MessagesPage() {
                                 <div
                                     key={conv.id}
                                     onClick={() => setSelectedConversation(conv.id)}
-                                    className={`p-4 cursor-pointer hover:bg-gray-50 transition-all border-l-4 ${selectedConversation === conv.id
-                                        ? 'bg-orange-50 border-l-orange-500'
+                                    className={`p-4 cursor-pointer hover:bg-[var(--brand-wash)] transition-all border-l-4 ${selectedConversation === conv.id
+                                        ? 'bg-[var(--brand-wash)] border-l-[var(--brand-primary)]'
                                         : 'border-l-transparent'
                                         }`}
                                 >
@@ -377,7 +377,7 @@ export default function MessagesPage() {
                                         <div className="relative">
                                             <Avatar className="h-12 w-12 border-2 border-white shadow-sm">
                                                 <AvatarImage src={conv.sellerImage} />
-                                                <AvatarFallback className="bg-orange-100 text-orange-600 font-bold">
+                                                <AvatarFallback className="bg-[var(--brand-wash)] text-[var(--brand-primary)] font-bold">
                                                     {conv.sellerName.charAt(0)}
                                                 </AvatarFallback>
                                             </Avatar>
@@ -397,7 +397,7 @@ export default function MessagesPage() {
                                             </p>
                                         </div>
                                         {conv.unreadCount > 0 && (
-                                            <Badge className="bg-orange-500 hover:bg-orange-600 h-5 min-w-[20px] rounded-full flex items-center justify-center p-0.5 text-[10px]">
+                                            <Badge className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] h-5 min-w-[20px] rounded-full flex items-center justify-center p-0.5 text-[10px]">
                                                 {conv.unreadCount}
                                             </Badge>
                                         )}
@@ -409,11 +409,11 @@ export default function MessagesPage() {
                 </div>
 
                 {/* Chat Area */}
-                <div className="flex-1 flex flex-col bg-white overflow-hidden relative">
+                <div className="flex-1 flex flex-col bg-[var(--bg-secondary)] overflow-hidden relative">
                     {activeConversation ? (
                         <>
                             {/* Custom Chat Header */}
-                            <div className="bg-[#ff6a00] p-4 flex items-center gap-4 text-white shadow-md relative z-10">
+                            <div className="bg-[var(--brand-primary)] p-4 flex items-center gap-4 text-white shadow-md relative z-10">
                                 <Button
                                     variant="ghost"
                                     size="icon"
@@ -428,18 +428,18 @@ export default function MessagesPage() {
                                     <Avatar className="h-10 w-10 border-2 border-white/20">
                                         <AvatarImage src={useRealData ? undefined : (activeConversation as Conversation).sellerImage} />
                                         <AvatarFallback className="bg-white/20 text-white font-bold">
-                                            {(useRealData 
+                                            {(useRealData
                                                 ? ((activeConversation as DBConversation).seller_store_name || 'S')
                                                 : (activeConversation as Conversation).sellerName
                                             ).charAt(0)}
                                         </AvatarFallback>
                                     </Avatar>
-                                    <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-400 border-2 border-[#ff6a00] rounded-full" />
+                                    <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-400 border-2 border-[var(--brand-primary)] rounded-full" />
                                 </div>
 
                                 <div className="flex-1">
                                     <h3 className="font-bold leading-tight">
-                                        {useRealData 
+                                        {useRealData
                                             ? (activeConversation as DBConversation).seller_store_name || 'Store'
                                             : (activeConversation as Conversation).sellerName
                                         }
@@ -463,7 +463,7 @@ export default function MessagesPage() {
                                         <DropdownMenuContent align="end" className="w-48 rounded-xl shadow-xl border-gray-100 p-1">
                                             <DropdownMenuItem
                                                 onClick={handleVisitStore}
-                                                className="flex items-center gap-2 p-2.5 rounded-lg cursor-pointer hover:bg-orange-50 hover:text-orange-600 transition-colors"
+                                                className="flex items-center gap-2 p-2.5 rounded-lg cursor-pointer hover:bg-[var(--brand-wash)] hover:text-[var(--brand-primary)] transition-colors"
                                             >
                                                 <ExternalLink className="h-4 w-4" />
                                                 <span className="font-medium text-sm">Visit Store</span>
@@ -496,8 +496,8 @@ export default function MessagesPage() {
                                                     <div className={`
                                                         px-4 py-3 rounded-2xl shadow-sm
                                                         ${isBuyer
-                                                            ? 'bg-orange-500 text-white rounded-tr-sm'
-                                                            : 'bg-white text-gray-800 rounded-tl-sm border border-gray-100'
+                                                            ? 'bg-[var(--brand-primary)] text-white rounded-tr-sm'
+                                                            : 'bg-[var(--bg-secondary)] text-[var(--text-primary)] rounded-tl-sm border border-[var(--brand-wash-gold)]/20'
                                                         }
                                                     `}>
                                                         <p className="text-sm leading-relaxed">{msg.content}</p>
@@ -516,55 +516,55 @@ export default function MessagesPage() {
                                             <motion.div
                                                 initial={{ opacity: 0, y: 10 }}
                                                 animate={{ opacity: 1, y: 0 }}
-                                            key={msg.id}
-                                            className={`flex ${isBuyer ? 'justify-end' : 'justify-start'}`}
-                                        >
-                                            <div className={`max-w-[80%] flex flex-col ${isBuyer ? 'items-end' : 'items-start'}`}>
-                                                <div className={`
+                                                key={msg.id}
+                                                className={`flex ${isBuyer ? 'justify-end' : 'justify-start'}`}
+                                            >
+                                                <div className={`max-w-[80%] flex flex-col ${isBuyer ? 'items-end' : 'items-start'}`}>
+                                                    <div className={`
                           px-4 py-3 rounded-2xl shadow-sm
                           ${isBuyer
-                                                        ? 'bg-[#ff6a00] text-white rounded-tr-none'
-                                                        : 'bg-white text-gray-800 border border-gray-100 rounded-tl-none'
-                                                    }
+                                                            ? 'bg-[var(--brand-primary)] text-white rounded-tr-none'
+                                                            : 'bg-[var(--bg-secondary)] text-[var(--text-primary)] border border-[var(--brand-wash-gold)]/20 rounded-tl-none'
+                                                        }
                         `}>
-                                                    {msg.images && msg.images.length > 0 && (
-                                                        <div className={`grid gap-1 mb-2 ${msg.images.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
-                                                            {msg.images.map((img, idx) => (
-                                                                <div
-                                                                    key={idx}
-                                                                    className={`${msg.images && msg.images.length > 1 ? 'w-24 h-24' : 'w-40 h-40'} overflow-hidden rounded-lg cursor-pointer hover:opacity-90 transition-opacity`}
-                                                                    onClick={() => setPreviewImage(img)}
-                                                                >
-                                                                    <img
-                                                                        src={img}
-                                                                        alt="Sent"
-                                                                        className="w-full h-full object-cover"
-                                                                    />
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    )}
-                                                    {msg.text && <p className="text-[15px] leading-relaxed">{msg.text}</p>}
+                                                        {msg.images && msg.images.length > 0 && (
+                                                            <div className={`grid gap-1 mb-2 ${msg.images.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                                                                {msg.images.map((img, idx) => (
+                                                                    <div
+                                                                        key={idx}
+                                                                        className={`${msg.images && msg.images.length > 1 ? 'w-24 h-24' : 'w-40 h-40'} overflow-hidden rounded-lg cursor-pointer hover:opacity-90 transition-opacity`}
+                                                                        onClick={() => setPreviewImage(img)}
+                                                                    >
+                                                                        <img
+                                                                            src={img}
+                                                                            alt="Sent"
+                                                                            className="w-full h-full object-cover"
+                                                                        />
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                        {msg.text && <p className="text-[15px] leading-relaxed">{msg.text}</p>}
+                                                    </div>
+                                                    <span className="text-[10px] font-bold text-gray-400 uppercase mt-1.5 px-1">
+                                                        {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                    </span>
                                                 </div>
-                                                <span className="text-[10px] font-bold text-gray-400 uppercase mt-1.5 px-1">
-                                                    {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                </span>
-                                            </div>
-                                        </motion.div>
-                                    );
+                                            </motion.div>
+                                        );
                                     })
                                 )}
                             </div>
 
                             {/* Input Area Section */}
-                            <div className="p-4 bg-white border-t border-gray-100 space-y-4">
+                            <div className="p-4 bg-[var(--bg-secondary)] border-t border-[var(--brand-wash-gold)]/20 space-y-4">
                                 {/* Quick Replies / Chips */}
                                 <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide no-scrollbar">
                                     {quickReplies.map((reply) => (
                                         <button
                                             key={reply}
                                             onClick={() => handleSendMessage(undefined, reply)}
-                                            className="whitespace-nowrap px-4 py-2 rounded-full border border-gray-200 text-sm font-medium text-gray-600 hover:border-orange-200 hover:text-orange-500 hover:bg-orange-50 transition-all shadow-sm"
+                                            className="whitespace-nowrap px-4 py-2 rounded-full border border-[var(--brand-wash-gold)]/20 text-sm font-medium text-[var(--text-primary)] hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] hover:bg-[var(--brand-wash)] transition-all shadow-sm"
                                         >
                                             {reply}
                                         </button>
@@ -574,7 +574,7 @@ export default function MessagesPage() {
                                 {/* Message Input */}
                                 <form
                                     onSubmit={handleSendMessage}
-                                    className="flex items-center gap-2 p-1 bg-gray-50 rounded-2xl border border-gray-100 focus-within:border-orange-300 transition-all"
+                                    className="flex items-center gap-2 p-1 bg-[var(--brand-wash)] rounded-2xl border border-[var(--brand-wash-gold)]/20 focus-within:border-[var(--brand-primary)] transition-all"
                                 >
                                     <input
                                         type="file"
@@ -588,7 +588,7 @@ export default function MessagesPage() {
                                         type="button"
                                         variant="ghost"
                                         size="icon"
-                                        className="text-gray-400 hover:text-[#ff6a00] rounded-full hover:bg-base"
+                                        className="text-[var(--text-muted)] hover:text-[var(--brand-primary)] rounded-full hover:bg-transparent"
                                         onClick={() => fileInputRef.current?.click()}
                                         disabled={sending}
                                     >
@@ -599,14 +599,14 @@ export default function MessagesPage() {
                                         value={newMessage}
                                         onChange={(e) => setNewMessage(e.target.value)}
                                         placeholder="Type a message..."
-                                        className="flex-1 bg-transparent border-none focus-visible:ring-0 text-gray-700 shadow-none h-10"
+                                        className="flex-1 bg-transparent border-none focus-visible:ring-0 text-[var(--text-primary)] shadow-none h-10"
                                         disabled={sending}
                                     />
 
                                     <div className="flex items-center gap-1 pr-1">
                                         <Button
                                             type="submit"
-                                            className="bg-[#ff6a00] hover:bg-[#e65e00] text-white rounded-xl h-10 w-10 p-0 shadow-lg shadow-orange-500/20"
+                                            className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white rounded-xl h-10 w-10 p-0 shadow-lg shadow-[var(--brand-primary)]/20"
                                             disabled={!newMessage.trim() || sending}
                                         >
                                             {sending ? (
@@ -621,18 +621,18 @@ export default function MessagesPage() {
                         </>
                     ) : (
                         <div className="flex-1 flex flex-col items-center justify-center text-center p-12 space-y-4">
-                            <div className="w-20 h-20 bg-orange-50 rounded-full flex items-center justify-center text-orange-500 mb-2">
+                            <div className="w-20 h-20 bg-[var(--brand-wash)] rounded-full flex items-center justify-center text-[var(--brand-primary)] mb-2">
                                 <Store className="h-10 w-10" />
                             </div>
                             <div>
-                                <h3 className="text-xl font-bold text-gray-900">Your Conversations</h3>
-                                <p className="text-gray-500 max-w-xs mx-auto">
+                                <h3 className="text-xl font-bold text-[var(--text-headline)]">Your Conversations</h3>
+                                <p className="text-[var(--text-muted)] max-w-xs mx-auto">
                                     Select a seller from the list or visit a store to start chatting!
                                 </p>
                             </div>
                             <Button
                                 variant="outline"
-                                className="border-orange-200 text-orange-600 hover:bg-orange-50 rounded-xl px-6"
+                                className="border-[var(--brand-primary)] text-[var(--brand-primary)] hover:bg-[var(--brand-wash)] rounded-xl px-6"
                                 onClick={() => navigate('/stores')}
                             >
                                 Browse Stores

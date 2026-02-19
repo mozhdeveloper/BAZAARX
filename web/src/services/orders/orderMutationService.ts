@@ -33,6 +33,7 @@ interface SubmitOrderReviewInput {
   rating: number;
   comment: string;
   images?: string[];
+  imageFiles?: File[];
 }
 
 interface CreatePOSOrderInput {
@@ -50,6 +51,7 @@ interface CreatePOSOrderInput {
   total: number;
   note?: string;
   buyerEmail?: string;
+  paymentMethod?: 'cash' | 'card' | 'ewallet' | 'bank_transfer';
 }
 
 class OrderMutationService {
@@ -109,8 +111,16 @@ class OrderMutationService {
     rating,
     comment,
     images,
+    imageFiles,
   }: SubmitOrderReviewInput): Promise<boolean> {
-    return orderService.submitOrderReview(orderId, buyerId, rating, comment, images);
+    return orderService.submitOrderReview(
+      orderId,
+      buyerId,
+      rating,
+      comment,
+      images,
+      imageFiles,
+    );
   }
 
   async createPOSOrder({
@@ -120,6 +130,7 @@ class OrderMutationService {
     total,
     note,
     buyerEmail,
+    paymentMethod,
   }: CreatePOSOrderInput): Promise<{
     orderId: string;
     orderNumber: string;
@@ -132,6 +143,7 @@ class OrderMutationService {
       total,
       note,
       buyerEmail,
+      paymentMethod,
     );
   }
 }

@@ -16,12 +16,18 @@ import { Star, X, ChevronRight, ArrowLeft, CheckCircle2 } from 'lucide-react-nat
 import type { Order } from '../types';
 import { reviewService } from '../services/reviewService';
 import { COLORS } from '../constants/theme';
+import { useAuthStore } from '../stores/authStore';
 
 interface ReviewModalProps {
   visible: boolean;
   order: Order | null;
   onClose: () => void;
-  onSubmit: (productId: string, rating: number, review: string) => Promise<void>;
+  onSubmit: (
+    productId: string,
+    orderItemId: string,
+    rating: number,
+    review: string,
+  ) => Promise<void>;
 }
 
 interface ProductReviewStatus {
@@ -33,6 +39,7 @@ interface ProductReviewStatus {
 }
 
 export default function ReviewModal({ visible, order, onClose, onSubmit }: ReviewModalProps) {
+  const { user } = useAuthStore();
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [rating, setRating] = useState(5);
   const [review, setReview] = useState('');
@@ -58,9 +65,22 @@ export default function ReviewModal({ visible, order, onClose, onSubmit }: Revie
     const statuses: ProductReviewStatus = {};
     
     try {
-      // In a real app, you might want to batch this or have it in the order details
+      // Use the real order UUID (orderId) not order_number (id)
+      const realOrderId = (order as any).orderId || order.id;
+      
       for (const item of order.items) {
-        const hasReview = await reviewService.hasReviewForProduct(order.id, item.id);
+        // Use productId for review check (item.id is order_item id)
+        const productId = (item as any).productId || item.id;
+        let hasReview = false;
+
+        if (item.id) {
+          hasReview = await reviewService.hasReviewForOrderItem(item.id, user?.id);
+        }
+
+        if (!hasReview) {
+          hasReview = await reviewService.hasReviewForProduct(realOrderId, productId, user?.id);
+        }
+
         statuses[item.id] = { reviewed: hasReview };
       }
       setReviewStatus(statuses);
@@ -85,13 +105,19 @@ export default function ReviewModal({ visible, order, onClose, onSubmit }: Revie
   };
 
   const handleSubmit = async () => {
-    if (!selectedItemId) return;
+    if (!selectedItemId || !order) return;
     
     setSubmitting(true);
     try {
-      await onSubmit(selectedItemId, rating, review);
+      // Find the item to get its productId
+      const item = order.items.find(i => i.id === selectedItemId);
+      if (!item) throw new Error('Product not found');
       
-      // Update local status
+      // Pass the actual productId to onSubmit, not the order_item id
+      const productId = (item as any).productId || item.id;
+      await onSubmit(productId, item.id, rating, review);
+      
+      // Update local status (track by item.id for UI)
       setReviewStatus(prev => ({
         ...prev,
         [selectedItemId]: { reviewed: true, rating, comment: review }

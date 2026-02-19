@@ -82,7 +82,7 @@ export default function SignupScreen({ navigation }: Props) {
                             onPress={() => navigation.goBack()}
                             hitSlop={8}
                         >
-                            <ArrowLeft size={24} color="#111827" />
+                            <ArrowLeft size={24} color="#7C2D12" />
                         </Pressable>
                         <Text style={styles.title}>Create Account</Text>
                         <Text style={styles.subtitle}>Join BazaarX today</Text>
@@ -177,7 +177,7 @@ export default function SignupScreen({ navigation }: Props) {
                         </View>
 
                         <Pressable style={styles.signupButton} onPress={handleSignup} disabled={loading}>
-                            <LinearGradient colors={['#FF6A00', '#FF8C42']} style={styles.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+                            <LinearGradient colors={['#FB8C00', '#FFA000']} style={styles.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
                                 {loading ? <ActivityIndicator color="#FFF" /> : (
                                     <>
                                         <Text style={styles.buttonText}>Sign Up</Text>
@@ -194,13 +194,13 @@ export default function SignupScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#FFF' },
+    container: { flex: 1, backgroundColor: '#FFFBF0' }, // Warm Ivory
     // ... styles remain same
     scrollContent: { padding: 24, flexGrow: 1 },
     header: { marginBottom: 32, marginTop: 20 },
     backButton: { position: 'absolute', left: 0, top: 0, zIndex: 10 },
-    title: { fontSize: 28, fontWeight: '800', color: '#111827', marginBottom: 8, textAlign: 'center', marginTop: 40 },
-    subtitle: { fontSize: 14, color: '#6B7280', textAlign: 'center' },
+    title: { fontSize: 28, fontWeight: '800', color: '#7C2D12', marginBottom: 8, textAlign: 'center', marginTop: 40 }, // Warm Brown
+    subtitle: { fontSize: 14, color: '#78350F', textAlign: 'center' }, // Soft Warm Brown
     form: { marginBottom: 24 },
     row: { flexDirection: 'row', marginBottom: 0 },
     inputContainer: { marginBottom: 16 },

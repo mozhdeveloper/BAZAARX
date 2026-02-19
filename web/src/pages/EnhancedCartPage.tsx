@@ -31,7 +31,7 @@ export default function EnhancedCartPage() {
     groupedCart,
     updateCartQuantity,
     removeFromCart,
-    validateVoucher,
+    validateVoucherDetailed,
     applyVoucher,
     getCartTotal,
     getCartItemCount,
@@ -117,14 +117,23 @@ export default function EnhancedCartPage() {
     setVoucherError("");
 
     try {
-      const voucher = await validateVoucher(voucherCode, sellerId);
+      const { voucher, errorCode } = await validateVoucherDetailed(voucherCode, sellerId);
 
       if (voucher) {
         applyVoucher(voucher, sellerId);
         setVoucherCode("");
         setVoucherError("");
       } else {
-        setVoucherError("Invalid voucher code or minimum order not met");
+        const errorMessages: Record<string, string> = {
+          NOT_FOUND: "Voucher code not found.",
+          INACTIVE: "This voucher is currently inactive.",
+          NOT_STARTED: "This voucher is not active yet.",
+          EXPIRED: "This voucher has expired.",
+          MIN_ORDER_NOT_MET: "Minimum order amount not met.",
+          SELLER_MISMATCH: "This voucher is only valid for specific seller items.",
+          ALREADY_USED: "You have already used this voucher. It can only be used once per customer.",
+        };
+        setVoucherError(errorMessages[errorCode || ""] || "Invalid voucher code or minimum order not met");
       }
     } catch (error) {
       setVoucherError("Failed to validate voucher");
@@ -135,7 +144,7 @@ export default function EnhancedCartPage() {
 
   if (totalItems === 0) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-[var(--brand-wash)]">
         <Header />
         <div className="max-w-4xl mx-auto px-4 py-16">
           <motion.div
@@ -149,9 +158,9 @@ export default function EnhancedCartPage() {
                 alt="Empty cart"
                 className="w-full h-full object-cover rounded-2xl"
               />
-              <div className="absolute inset-0 bg-orange-500/10 rounded-2xl" />
+              <div className="absolute inset-0 bg-[var(--brand-primary)]/10 rounded-2xl" />
             </div>
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">
+            <h2 className="text-3xl font-bold text-[var(--text-headline)] mb-4">
               Your cart is empty
             </h2>
             <p className="text-gray-600 mb-8 text-lg">
@@ -160,7 +169,7 @@ export default function EnhancedCartPage() {
             <Button
               onClick={() => navigate("/shop")}
               size="lg"
-              className="bg-orange-500 hover:bg-orange-600 text-white px-8 py-3 text-lg"
+              className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white px-8 py-3 text-lg"
             >
               <ShoppingBag className="mr-2 h-5 w-5" />
               Start Shopping
@@ -172,14 +181,14 @@ export default function EnhancedCartPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[var(--brand-wash)]">
       <Header />
       <div className="max-w-7xl mx-auto px-4 py-4">
         <div className="mb-2 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <button
               onClick={() => navigate(-1)}
-              className="flex items-center gap-2 text-gray-600 hover:text-[#ff6a00] transition-colors mb-4 group"
+              className="flex items-center gap-2 text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-colors mb-4 group"
             >
               <div className="p-1.5">
                 <ChevronLeft className="w-4 h-4 mt-2" />
@@ -187,7 +196,7 @@ export default function EnhancedCartPage() {
               <span className="font-medium text-sm mt-2">Continue Shopping</span>
             </button>
             <div className="flex flex-wrap items-baseline gap-3">
-              <h1 className="text-3xl font-bold text-gray-900 mb-1">
+              <h1 className="text-3xl font-bold text-[var(--text-headline)] mb-1">
                 Shopping Cart
               </h1>
             </div>
@@ -200,12 +209,12 @@ export default function EnhancedCartPage() {
           {/* Cart Items - Grouped by Seller */}
           <div className="lg:col-span-2 space-y-6">
             {/* Sticky Select All Bar */}
-            <div className="sticky top-4 z-10 bg-gray-50/95 backdrop-blur-sm py-2 flex items-center justify-end gap-2 -mb-4">
+            <div className="sticky top-4 z-10 bg-[var(--brand-wash)]/95 backdrop-blur-sm py-2 flex items-center justify-end gap-2 -mb-4">
               <Checkbox
                 checked={allSelected || (someSelected ? "indeterminate" : false)}
                 onCheckedChange={(checked) => selectAllItems(checked === true)}
               />
-              <span className="text-xs font-small text-gray-600">Select All Items ({totalItems})</span>
+              <span className="text-xs font-small text-[var(--text-muted)]">Select All Items ({totalItems})</span>
             </div>
 
             <AnimatePresence>
@@ -223,10 +232,10 @@ export default function EnhancedCartPage() {
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -20 }}
                       transition={{ delay: sellerIndex * 0.1 }}
-                      className="bg-white border border-gray-200 rounded-xl p-3 sm:p-4 hover:shadow-lg transition-shadow"
+                      className="bg-white rounded-xl p-3 sm:p-4 hover:shadow-lg transition-shadow shadow-sm"
                     >
                       {/* Seller Header */}
-                      <div className="border-b border-gray-100 pb-2 mb-0 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="border-b border-[var(--brand-wash-gold)]/20 pb-2 mb-0 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                         <div className="flex items-center justify-between gap-4 w-full">
                           <div className="flex items-center gap-3">
                             <Checkbox
@@ -244,13 +253,13 @@ export default function EnhancedCartPage() {
                                   className="w-8 h-8 rounded-full object-cover group-hover/seller:opacity-80 transition-opacity"
                                 />
                               ) : (
-                                <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center group-hover/seller:opacity-80 transition-opacity">
-                                  <Store className="w-4 h-4 text-orange-500" />
+                                <div className="w-8 h-8 rounded-full bg-[var(--brand-wash)] flex items-center justify-center group-hover/seller:opacity-80 transition-opacity">
+                                  <Store className="w-4 h-4 text-[var(--brand-primary)]" />
                                 </div>
                               )}
                               <div>
                                 <div className="flex items-center gap-2">
-                                  <span className="font-bold text-gray-900 group-hover/seller:text-[#ff6a00] transition-colors">
+                                  <span className="font-bold text-[var(--text-headline)] group-hover/seller:text-[var(--brand-primary)] transition-colors">
                                     {group.seller.name}
                                   </span>
                                   {group.seller.isVerified && (
@@ -258,7 +267,7 @@ export default function EnhancedCartPage() {
                                       Verified
                                     </Badge>
                                   )}
-                                  <span className="text-gray-400 group-hover/seller:text-[#ff6a00] transition-colors">
+                                  <span className="text-[var(--text-muted)] group-hover/seller:text-[var(--brand-primary)] transition-colors">
                                     <ChevronRight className="h-4 w-4" />
                                   </span>
                                 </div>
@@ -278,7 +287,7 @@ export default function EnhancedCartPage() {
                             transition={{
                               delay: sellerIndex * 0.1 + itemIndex * 0.05,
                             }}
-                            className="flex items-center justify-between gap-3 w-full border-b border-gray-50 pb-4 pt-4 last:border-0 last:pb-0"
+                            className="flex items-center justify-between gap-3 w-full pb-4 pt-4 last:border-0 last:pb-0"
                           >
                             <div className="flex items-center gap-3 flex-1 min-w-0">
                               <Checkbox
@@ -291,7 +300,7 @@ export default function EnhancedCartPage() {
                                 <img
                                   src={item.image}
                                   alt=""
-                                  className="w-16 h-16 object-cover rounded-md border border-gray-100 cursor-pointer hover:opacity-80 transition-opacity"
+                                  className="w-16 h-16 object-cover rounded-md border border-[var(--brand-wash-gold)]/30 cursor-pointer hover:opacity-80 transition-opacity"
                                   onClick={() => navigate(`/product/${item.id}`)}
                                 />
                               ) : (
@@ -299,14 +308,14 @@ export default function EnhancedCartPage() {
                                   className="w-16 h-16 rounded-md border border-gray-100 bg-gray-50 flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity"
                                   onClick={() => navigate(`/product/${item.id}`)}
                                 >
-                                  <ShoppingBag className="w-6 h-6 text-gray-300" />
+                                  <ShoppingBag className="w-6 h-6 text-[var(--text-muted)]" />
                                 </div>
                               )}
 
                               {/* Product Details */}
                               <div className="flex-1 min-w-0">
                                 <h4
-                                  className="font-medium text-gray-900 text-sm mb-1 truncate cursor-pointer hover:text-[#ff6a00] transition-colors"
+                                  className="font-medium text-[var(--text-headline)] text-sm mb-1 truncate cursor-pointer hover:text-[var(--brand-primary)] transition-colors"
                                   onClick={() => navigate(`/product/${item.id}`)}
                                 >
                                   {item.name}
@@ -324,7 +333,7 @@ export default function EnhancedCartPage() {
                                         <Badge
                                           key={label}
                                           variant="secondary"
-                                          className="text-[10px] h-4 px-1 bg-gray-100 text-gray-700 border border-gray-200 hover:bg-yellow-200 hover:text-gray-900 transition-colors"
+                                          className="text-[10px] h-4 px-1 bg-[var(--brand-wash)] text-[var(--text-primary)] border border-[var(--brand-wash-gold)]/30 hover:bg-[var(--brand-wash-gold)] hover:text-[var(--brand-primary)] transition-colors"
                                         >
                                           {label}
                                         </Badge>
@@ -335,7 +344,7 @@ export default function EnhancedCartPage() {
 
                                 {/* Quantity Controls */}
                                 <div className="flex items-center gap-4 mt-2">
-                                  <span className="text-sm font-bold text-[#FF5722]">
+                                  <span className="text-sm font-bold text-[var(--brand-primary)]">
                                     ₱{(item.price * item.quantity).toLocaleString()}
                                   </span>
                                   {item.originalPrice && (
@@ -396,7 +405,7 @@ export default function EnhancedCartPage() {
                         <span className="text-sm text-gray-500 mr-2">
                           Seller Total:
                         </span>
-                        <span className="text-lg font-bold text-[#FF5722]">
+                        <span className="text-lg font-bold text-[var(--brand-primary)]">
                           ₱
                           {(
                             group.subtotal + group.shippingFee
@@ -415,17 +424,17 @@ export default function EnhancedCartPage() {
             animate={{ opacity: 1, x: 0 }}
             className="lg:col-span-1"
           >
-            <div className="bg-white rounded-xl border border-gray-200 p-6 sticky top-24">
-              <h3 className="text-xl font-semibold text-gray-900 mb-6">
+            <div className="bg-white rounded-xl shadow-md p-6 sticky top-24">
+              <h3 className="text-xl font-semibold text-[var(--text-headline)] mb-6">
                 Order Summary
               </h3>
 
               {/* Voucher Section */}
               <div className="mb-6">
-                <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                <div className="bg-[var(--brand-wash)] border border-[var(--brand-wash-gold)] rounded-lg p-4">
                   <div className="flex items-center gap-2 mb-3">
-                    <Tag className="h-4 w-4 text-orange-600" />
-                    <span className="font-medium text-orange-900">
+                    <Tag className="h-4 w-4 text-[var(--brand-primary)]" />
+                    <span className="font-medium text-[var(--text-headline)]">
                       Apply Voucher
                     </span>
                   </div>
@@ -441,7 +450,7 @@ export default function EnhancedCartPage() {
                     <Button
                       onClick={() => handleApplyVoucher()}
                       disabled={isApplyingVoucher || !voucherCode.trim()}
-                      className="bg-orange-500 hover:bg-orange-600"
+                      className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)]"
                     >
                       Apply
                     </Button>
@@ -481,7 +490,7 @@ export default function EnhancedCartPage() {
                 </div>
                 <div className="border-t pt-3 flex justify-between font-semibold text-lg">
                   <span>Total</span>
-                  <span className="text-orange-600">
+                  <span className="text-[var(--brand-primary)]">
                     ₱{totalAmount.toLocaleString()}
                   </span>
                 </div>
@@ -491,7 +500,7 @@ export default function EnhancedCartPage() {
                 onClick={() => navigate("/checkout")}
                 size="lg"
                 disabled={selectedCount === 0}
-                className="w-full bg-orange-500 hover:bg-orange-600 text-white disabled:bg-gray-300 disabled:cursor-not-allowed"
+                className="w-full bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white disabled:bg-[var(--text-muted)] disabled:cursor-not-allowed"
               >
                 Proceed to Checkout ({selectedCount})
               </Button>

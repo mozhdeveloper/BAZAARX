@@ -86,10 +86,13 @@ export interface SellerProduct {
 
 interface SellerOrder {
   id: string;
+  orderId?: string;
   seller_id?: string; // UUID of the seller for database updates
   buyer_id?: string; // UUID of the buyer for notifications
   buyerName: string;
   buyerEmail: string;
+  customerName?: string; // Added for compatibility
+  customerEmail?: string;
   items: {
     productId: string;
     productName: string;
@@ -104,6 +107,7 @@ interface SellerOrder {
   status: 'pending' | 'to-ship' | 'completed' | 'cancelled' | 'confirmed' | 'shipped' | 'delivered';
   paymentStatus: 'pending' | 'paid' | 'refunded';
   orderDate: string;
+  createdAt?: string;
   shippingAddress: {
     fullName: string;
     street: string;
@@ -236,7 +240,7 @@ interface OrderStore {
   sellerId: string | null;
   loading: boolean;
   error: string | null;
-  fetchOrders: (sellerId: string) => Promise<void>;
+  fetchOrders: (sellerId: string, startDate?: Date | null, endDate?: Date | null) => Promise<void>;
   addOrder: (order: Omit<SellerOrder, 'id'>) => string;
   updateOrderStatus: (id: string, status: SellerOrder['status']) => Promise<void>;
   updatePaymentStatus: (id: string, status: SellerOrder['paymentStatus']) => void;
@@ -246,7 +250,7 @@ interface OrderStore {
   deleteOrder: (id: string) => void;
   addOrderRating: (id: string, rating: number, comment?: string, images?: string[]) => void;
   // POS-Lite functionality
-  addOfflineOrder: (cartItems: { productId: string; productName: string; quantity: number; price: number; image: string; selectedColor?: string; selectedSize?: string }[], total: number, note?: string) => string;
+  addOfflineOrder: (cartItems: { productId: string; productName: string; quantity: number; price: number; image: string; selectedColor?: string; selectedSize?: string }[], total: number, note?: string) => Promise<string>;
 }
 
 // Validation helpers for database readiness
@@ -397,7 +401,7 @@ const mapDbProductToSellerProduct = (p: any): SellerProduct => {
     sellerId: p.seller_id || '',
     createdAt: p.created_at || '',
     updatedAt: p.updated_at || '',
-    sales: 0,
+    sales: p.sales || p.sold || p.sold_count || 0, // Preserve sold count from transformProduct
     rating: 0,
     reviews: 0,
     approval_status: (p.approval_status as SellerProduct['approval_status']) || 'pending',
@@ -417,10 +421,15 @@ const mapDbProductToSellerProduct = (p: any): SellerProduct => {
  * - Optional: description, brand, sku, specifications, weight, etc.
  * - Images and variants go to separate tables
  */
-const buildProductInsert = (product: Omit<SellerProduct, 'id' | 'createdAt' | 'updatedAt' | 'sales' | 'rating' | 'reviews'>, sellerId: string): any => ({
+const buildProductInsert = (
+  product: Omit<SellerProduct, 'id' | 'createdAt' | 'updatedAt' | 'sales' | 'rating' | 'reviews'>,
+  sellerId: string,
+  categoryId: string,
+): any => ({
   name: product.name,
   description: product.description,
   price: product.price,
+  category_id: categoryId,
   brand: null,
   sku: null,
   seller_id: sellerId,
@@ -433,6 +442,64 @@ const buildProductInsert = (product: Omit<SellerProduct, 'id' | 'createdAt' | 'u
   variant_label_1: (product as any).variant_label_1 || null,
   variant_label_2: (product as any).variant_label_2 || null,
 });
+
+const resolveCategoryIdByName = async (categoryName: string): Promise<string | null> => {
+  if (!isSupabaseConfigured()) {
+    return null;
+  }
+
+  const normalizedName = categoryName.trim();
+  if (!normalizedName) {
+    return null;
+  }
+
+  const slug = normalizedName
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+
+  try {
+    const { data: byName, error: byNameError } = await supabase
+      .from('categories')
+      .select('id')
+      .eq('name', normalizedName)
+      .maybeSingle();
+
+    if (byNameError) throw byNameError;
+    if (byName?.id) return byName.id;
+
+    const { data: bySlug, error: bySlugError } = await supabase
+      .from('categories')
+      .select('id')
+      .eq('slug', slug)
+      .maybeSingle();
+
+    if (bySlugError) throw bySlugError;
+    if (bySlug?.id) return bySlug.id;
+
+    const { data: created, error: createError } = await supabase
+      .from('categories')
+      .insert({ name: normalizedName, slug })
+      .select('id')
+      .single();
+
+    if (createError) {
+      const { data: existingBySlug } = await supabase
+        .from('categories')
+        .select('id')
+        .eq('slug', slug)
+        .maybeSingle();
+
+      if (existingBySlug?.id) return existingBySlug.id;
+      throw createError;
+    }
+
+    return created?.id || null;
+  } catch (error) {
+    console.error('Failed to resolve category ID:', error);
+    return null;
+  }
+};
 
 /**
  * Map seller product updates to database updates
@@ -527,14 +594,15 @@ const mapOrderToSellerOrder = (order: any): SellerOrder => {
   // Use calculated total if DB total is 0 or missing
   const total = calculatedTotal > 0 ? calculatedTotal : dbTotal;
 
-  // Map database status to Orders UI status (pending, to-ship, completed, cancelled)
+  // Map database status to Orders UI status (pending, confirmed, shipped, delivered, cancelled)
   // Database uses: pending_payment, processing, ready_to_ship, shipped, delivered, etc.
-  // UI expects: pending, to-ship, completed, cancelled
+  // UI expects: pending, confirmed, shipped, delivered, cancelled (aligned with web)
   const mapStatus = (dbStatus: string, paymentStatus?: string, shipmentStatus?: string): SellerOrder['status'] => {
     // First check shipment_status if available (new schema)
     if (shipmentStatus) {
-      if (shipmentStatus === 'delivered' || shipmentStatus === 'received') return 'completed';
-      if (['ready_to_ship', 'processing', 'shipped', 'out_for_delivery'].includes(shipmentStatus)) return 'to-ship';
+      if (shipmentStatus === 'delivered' || shipmentStatus === 'received') return 'delivered';
+      if (shipmentStatus === 'shipped' || shipmentStatus === 'out_for_delivery') return 'shipped';
+      if (shipmentStatus === 'ready_to_ship' || shipmentStatus === 'processing') return 'confirmed';
       if (shipmentStatus === 'returned' || shipmentStatus === 'cancelled') return 'cancelled';
       if (shipmentStatus === 'waiting_for_seller') return 'pending';
     }
@@ -543,13 +611,13 @@ const mapOrderToSellerOrder = (order: any): SellerOrder => {
     const statusMap: Record<string, SellerOrder['status']> = {
       'pending_payment': 'pending',
       'pending': 'pending',
-      'confirmed': 'to-ship',
-      'processing': 'to-ship',
-      'ready_to_ship': 'to-ship',
-      'shipped': 'to-ship',
-      'out_for_delivery': 'to-ship',
-      'delivered': 'completed',
-      'completed': 'completed',
+      'confirmed': 'confirmed',
+      'processing': 'confirmed',
+      'ready_to_ship': 'confirmed',
+      'shipped': 'shipped',
+      'out_for_delivery': 'shipped',
+      'delivered': 'delivered',
+      'completed': 'delivered',
       'cancelled': 'cancelled',
       'refunded': 'cancelled'
     };
@@ -1013,7 +1081,12 @@ export const useProductStore = create<ProductStore>()(
 
           // Use Supabase if configured
           if (isSupabaseConfigured()) {
-            const insertData = buildProductInsert(product, resolvedSellerId);
+            const categoryId = await resolveCategoryIdByName(product.category);
+            if (!categoryId) {
+              throw new Error('Failed to resolve category. Please try again.');
+            }
+
+            const insertData = buildProductInsert(product, resolvedSellerId, categoryId);
             const created = await productService.createProduct(insertData);
             if (!created) {
               throw new Error('Failed to create product in database');
@@ -1084,6 +1157,14 @@ export const useProductStore = create<ProductStore>()(
             };
           }
 
+          // Keep UI stock in sync immediately after creation.
+          // products table does not store aggregated stock, so the first mapped
+          // product row can show 0 until the next full fetch.
+          newProduct = {
+            ...newProduct,
+            stock: Number(product.stock ?? newProduct.stock ?? 0),
+          };
+
           set((state) => ({ products: [...state.products, newProduct] }));
 
           // Create ledger entry for initial stock
@@ -1146,18 +1227,34 @@ export const useProductStore = create<ProductStore>()(
           let addedProducts: SellerProduct[] = [];
 
           if (isSupabaseConfigured()) {
-            const productsToInsert = bulkProducts.map(p => buildProductInsert({
-              name: p.name,
-              description: p.description,
-              price: p.price,
-              originalPrice: p.originalPrice,
-              stock: p.stock,
-              category: p.category,
-              images: [p.imageUrl],
-              isActive: true,
-              sellerId: resolvedSellerId,
-              vendorSubmittedCategory: p.category
-            } as any, resolvedSellerId));
+            const uniqueCategories = [...new Set(bulkProducts.map(p => p.category))];
+            const categoryMap: Record<string, string> = {};
+
+            for (const categoryName of uniqueCategories) {
+              const categoryId = await resolveCategoryIdByName(categoryName);
+              if (categoryId) categoryMap[categoryName] = categoryId;
+            }
+
+            const productsToInsert = bulkProducts
+              .filter((p) => categoryMap[p.category])
+              .map((p) =>
+                buildProductInsert({
+                  name: p.name,
+                  description: p.description,
+                  price: p.price,
+                  originalPrice: p.originalPrice,
+                  stock: p.stock,
+                  category: p.category,
+                  images: [p.imageUrl],
+                  isActive: true,
+                  sellerId: resolvedSellerId,
+                  vendorSubmittedCategory: p.category
+                } as any, resolvedSellerId, categoryMap[p.category]),
+              );
+
+            if (productsToInsert.length === 0) {
+              throw new Error('No valid products to upload: categories could not be resolved.');
+            }
 
             const dbProducts = await productService.createProducts(productsToInsert);
             if (!dbProducts) throw new Error('Failed to create products in database');
@@ -1246,6 +1343,18 @@ export const useProductStore = create<ProductStore>()(
           // Use Supabase if configured
           if (isSupabaseConfigured()) {
             const updateData = mapSellerUpdatesToDb(updates);
+
+            const categoryName = updates.category;
+            if (typeof categoryName === 'string' && categoryName.trim().length > 0) {
+              const categoryId = await resolveCategoryIdByName(categoryName);
+              if (!categoryId) {
+                throw new Error('Failed to resolve category. Please try again.');
+              }
+              updateData.category_id = categoryId;
+            } else if ((updates as any).category_id !== undefined) {
+              updateData.category_id = (updates as any).category_id;
+            }
+
             const updated = await productService.updateProduct(id, updateData);
             if (!updated) {
               throw new Error('Failed to update product in database');
@@ -1290,15 +1399,40 @@ export const useProductStore = create<ProductStore>()(
       },
 
       toggleProductStatus: async (id) => {
-        try {
-          const product = get().products.find(p => p.id === id);
-          if (!product) {
-            throw new Error('Product not found');
-          }
+        const previousProduct = get().products.find((p) => p.id === id);
+        if (!previousProduct) {
+          throw new Error('Product not found');
+        }
 
-          const newStatus = !product.isActive;
-          await get().updateProduct(id, { isActive: newStatus });
+        const newStatus = !previousProduct.isActive;
+
+        set((state) => ({
+          products: state.products.map((product) =>
+            product.id === id
+              ? {
+                ...product,
+                isActive: newStatus,
+                updatedAt: new Date().toISOString(),
+              }
+              : product,
+          ),
+        }));
+
+        try {
+          if (isSupabaseConfigured()) {
+            if (newStatus) {
+              await productService.enableProduct(id);
+            } else {
+              await productService.disableProduct(id);
+            }
+          }
         } catch (error) {
+          set((state) => ({
+            products: state.products.map((product) =>
+              product.id === id ? previousProduct : product,
+            ),
+          }));
+
           console.error('Error toggling product status:', error);
           throw error;
         }
@@ -1339,10 +1473,14 @@ export const useProductStore = create<ProductStore>()(
       // POS-Lite: Deduct stock with full audit trail
       deductStock: async (productId, quantity, reason, referenceId, notes) => {
         try {
+          console.log(`[deductStock] Starting - Product: ${productId}, Quantity: ${quantity}, Reason: ${reason}`);
+          
           const product = get().products.find(p => p.id === productId);
           if (!product) {
             throw new Error(`Product ${productId} not found`);
           }
+
+          console.log(`[deductStock] Current stock: ${product.stock}`);
 
           // RULE: No negative stock allowed
           if (product.stock < quantity) {
@@ -1354,6 +1492,7 @@ export const useProductStore = create<ProductStore>()(
 
           // Use Supabase if configured
           if (isSupabaseConfigured()) {
+            console.log(`[deductStock] Updating database...`);
             await productService.deductStock(
               productId,
               quantity,
@@ -1361,8 +1500,14 @@ export const useProductStore = create<ProductStore>()(
               referenceId,
               authStoreForStock.seller?.id
             );
+            console.log(`[deductStock] Database updated. Refetching products...`);
             // Refresh from DB to get updated stock
             await get().fetchProducts({ sellerId: authStoreForStock.seller?.id });
+            console.log(`[deductStock] Products refetched. New product count: ${get().products.length}`);
+            
+            // Verify the stock was updated
+            const updatedProduct = get().products.find((p) => p.id === productId);
+            console.log(`[deductStock] Verified stock after refetch: ${updatedProduct?.stock}`);
           } else {
             // Fallback: Update product stock locally
             set((state) => ({
@@ -1702,8 +1847,8 @@ export const useProductStore = create<ProductStore>()(
   )
 );
 
-// Order Store
-export const useOrderStore = create<OrderStore>()(
+// Legacy internal order store (kept private for backward compatibility)
+const useLegacyOrderStore = create<OrderStore>()(
   persist(
     (set, get) => ({
       orders: dummyOrders,
@@ -1711,32 +1856,33 @@ export const useOrderStore = create<OrderStore>()(
       loading: false,
       error: null,
 
-      fetchOrders: async (sellerId: string) => {
-        if (!sellerId) {
-          console.error('Seller ID is required to fetch orders');
-          return;
-        }
+      fetchOrders: async (sellerId: string, startDate?: Date | null, endDate?: Date | null) => {
+          if (!sellerId) {
+            console.error('Seller ID is required to fetch orders');
+            return;
+          }
 
-        set({ loading: true, error: null, sellerId });
+          set({ loading: true, error: null, sellerId });
 
-        try {
-          const dbOrders = await orderService.getSellerOrders(sellerId);
-          const sellerOrders = dbOrders.map(mapOrderToSellerOrder);
+          try {
+            // Pass the new date parameters to the service
+            const dbOrders = await orderService.getSellerOrders(sellerId, startDate, endDate);
+            const sellerOrders = dbOrders.map(mapOrderToSellerOrder);
 
-          set({
-            orders: sellerOrders,
-            loading: false,
-            error: null
-          });
+            set({
+              orders: sellerOrders,
+              loading: false,
+              error: null
+            });
 
-          console.log(`✅ Fetched ${sellerOrders.length} orders for seller ${sellerId}`);
-        } catch (error) {
-          console.error('Failed to fetch orders:', error);
-          set({
-            loading: false,
-            error: error instanceof Error ? error.message : 'Failed to fetch orders'
-          });
-        }
+            console.log(`✅ Fetched ${sellerOrders.length} orders for seller ${sellerId}`);
+          } catch (error) {
+            console.error('Failed to fetch orders:', error);
+            set({
+              loading: false,
+              error: error instanceof Error ? error.message : 'Failed to fetch orders'
+            });
+          }
       },
 
       addOrder: (orderData) => {
@@ -1792,16 +1938,16 @@ export const useOrderStore = create<OrderStore>()(
         }));
 
         try {
-          // Validate status transition (UI status: pending, to-ship, completed, cancelled)
+          // Validate status transition (UI status: pending, confirmed, shipped, delivered, cancelled)
           const validTransitions: Record<string, string[]> = {
-            'pending': ['to-ship', 'cancelled'],
-            'to-ship': ['completed', 'cancelled'],
-            'completed': [],
+            'pending': ['confirmed', 'cancelled'],
+            'confirmed': ['shipped', 'cancelled'],
+            'shipped': ['delivered', 'cancelled'],
+            'delivered': [],
             'cancelled': [],
             // Legacy status support
-            'confirmed': ['to-ship', 'shipped', 'cancelled'],
-            'shipped': ['delivered', 'completed', 'cancelled'],
-            'delivered': []
+            'to-ship': ['shipped', 'cancelled'],
+            'completed': []
           };
 
           const allowedTransitions = validTransitions[previousStatus] || [];
@@ -1812,13 +1958,13 @@ export const useOrderStore = create<OrderStore>()(
           // Map UI status to database shipment_status
           const statusToDbMap: Record<string, string> = {
             'pending': 'waiting_for_seller',
-            'to-ship': 'ready_to_ship',
-            'completed': 'delivered',
-            'cancelled': 'cancelled',
-            // Legacy mappings
             'confirmed': 'processing',
             'shipped': 'shipped',
-            'delivered': 'delivered'
+            'delivered': 'delivered',
+            'cancelled': 'cancelled',
+            // Legacy mappings
+            'to-ship': 'ready_to_ship',
+            'completed': 'delivered'
           };
 
           const dbStatus = statusToDbMap[status] || status;
@@ -1990,7 +2136,7 @@ export const useOrderStore = create<OrderStore>()(
       },
 
       // POS-Lite: Add offline order and deduct stock
-      addOfflineOrder: (cartItems, total, note) => {
+      addOfflineOrder: async (cartItems, total, note) => {
         try {
           // Validate cart items
           if (!cartItems || cartItems.length === 0) {
@@ -2013,10 +2159,30 @@ export const useOrderStore = create<OrderStore>()(
             }
           }
 
-          // Generate order ID
-          const orderId = `POS-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+          // Get seller info for database order
+          const authStore = useAuthStore.getState();
+          const sellerId = authStore.seller?.id || '';
+          const sellerName = authStore.seller?.store_name || authStore.seller?.owner_name || 'Unknown Store';
 
-          // Create offline order
+          console.log(`[createOfflineOrder] Creating POS order in database for seller: ${sellerId}`);
+
+          // Create order in database using orderService
+          const result = await orderService.createPOSOrder(
+            sellerId,
+            sellerName,
+            cartItems,
+            total,
+            note,
+          );
+
+          if (!result) {
+            throw new Error('Failed to create POS order in database');
+          }
+
+          const { orderId, orderNumber } = result;
+          console.log(`[createOfflineOrder] Order created in database: ${orderNumber} (${orderId})`);
+
+          // Create local order for UI (backwards compatibility)
           const newOrder: SellerOrder = {
             id: orderId,
             buyerName: 'Walk-in Customer',
@@ -2036,26 +2202,22 @@ export const useOrderStore = create<OrderStore>()(
             },
             type: 'OFFLINE', // Mark as offline order
             posNote: note || 'POS Sale',
-            trackingNumber: `OFFLINE-${Date.now().toString().slice(-8)}`
+            trackingNumber: orderNumber
           };
 
-          // Add order to store
+          // Add order to local store
           set((state) => ({
             orders: [newOrder, ...state.orders]
           }));
 
-          // Deduct stock for each item with full audit trail
-          for (const item of cartItems) {
-            productStore.deductStock(
-              item.productId,
-              item.quantity,
-              'OFFLINE_SALE',
-              orderId,
-              `POS sale: ${item.productName} x${item.quantity}`
-            );
-          }
+          // Refresh products to show updated stock and sold counts
+          console.log(`[createOfflineOrder] Refreshing products to update stock and sold counts...`);
+          await productStore.fetchProducts({ sellerId });
+          console.log(`[createOfflineOrder] Products refreshed. New product count: ${productStore.products.length}`);
 
-          console.log(`✅ Offline order created: ${orderId}. Stock updated with ledger entries.`);
+          console.log(
+            `✅ Offline order created: ${orderNumber}. Stock deducted and sold count updated in database.`,
+          );
           return orderId;
         } catch (error) {
           console.error('Failed to create offline order:', error);
@@ -2085,7 +2247,7 @@ export const useStatsStore = create<StatsStore>()((set) => ({
     categorySales: []
   },
   refreshStats: () => {
-    const orderStore = useOrderStore.getState();
+    const orderStore = useLegacyOrderStore.getState();
     const productStore = useProductStore.getState();
     const authStore = useAuthStore.getState();
 
@@ -2253,7 +2415,7 @@ export const useSellerStore = () => {
   const auth = useAuthStore();
   const products = useProductStore();
   const stats = useStatsStore();
-  const orders = useOrderStoreExternal();
+  const orderStore = useOrderStoreExternal();
 
   return {
     // Auth store
@@ -2300,12 +2462,14 @@ export const useSellerStore = () => {
     revenueData: stats.stats.revenueData || [],
     categorySales: stats.stats.categorySales || [],
 
-    // Order store (with fallback to empty array)
-    orders: orders.sellerOrders || [],
-    ordersLoading: orders.sellerOrdersLoading,
-    fetchOrders: orders.fetchSellerOrders,
-    updateOrderStatus: orders.updateSellerOrderStatus,
-    markOrderAsShipped: orders.markOrderAsShipped,
-    addOfflineOrder: orders.addOfflineOrder,
+    // Seller order store (aligned with web seller orders flow)
+    orders: orderStore.sellerOrders || [],
+    ordersLoading: orderStore.sellerOrdersLoading,
+    fetchOrders: (sellerId: string, startDate?: Date | null, endDate?: Date | null) =>
+      orderStore.fetchSellerOrders(sellerId, startDate, endDate),
+    updateOrderStatus: orderStore.updateSellerOrderStatus,
+    addOfflineOrder: orderStore.addOfflineOrder,
+    markOrderAsShipped: orderStore.markOrderAsShipped,
+    markOrderAsDelivered: orderStore.markOrderAsDelivered,
   };
 };

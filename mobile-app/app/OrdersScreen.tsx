@@ -27,7 +27,8 @@ import { useAuthStore } from '../src/stores/authStore';
 import { GuestLoginModal } from '../src/components/GuestLoginModal';
 import { OrderCard } from '../src/components/OrderCard';
 import ReviewModal from '../src/components/ReviewModal';
-import { reviewService } from '../src/services/reviewService';
+import { orderService } from '../src/services/orderService';
+import { BuyerBottomNav } from '../src/components/BuyerBottomNav';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
@@ -41,10 +42,73 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Orders'>;
 
 const { width } = Dimensions.get('window');
 
+type OrdersTab = 'all' | 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'returned' | 'cancelled' | 'reviewed';
+
+const normalizeInitialTab = (tab?: string): OrdersTab => {
+  const normalized = (tab || 'pending').toLowerCase();
+
+  if (normalized === 'topay') return 'pending';
+  if (normalized === 'toship') return 'confirmed';
+  if (normalized === 'toreceive') return 'shipped';
+  if (normalized === 'toreview') return 'delivered';
+  if (normalized === 'completed') return 'reviewed';
+  if (normalized === 'returns') return 'returned';
+
+  if (
+    normalized === 'all' ||
+    normalized === 'pending' ||
+    normalized === 'confirmed' ||
+    normalized === 'shipped' ||
+    normalized === 'delivered' ||
+    normalized === 'returned' ||
+    normalized === 'cancelled' ||
+    normalized === 'reviewed'
+  ) {
+    return normalized;
+  }
+
+  return 'pending';
+};
+
+const mapBuyerUiStatusFromNormalized = (
+  paymentStatus?: string | null,
+  shipmentStatus?: string | null,
+  hasCancellationRecord?: boolean,
+  isReviewed?: boolean,
+): 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'returned' | 'cancelled' | 'reviewed' => {
+  if (isReviewed) return 'reviewed';
+
+  if (shipmentStatus === 'delivered' || shipmentStatus === 'received') {
+    return 'delivered';
+  }
+
+  if (shipmentStatus === 'shipped' || shipmentStatus === 'out_for_delivery') {
+    return 'shipped';
+  }
+
+  if (shipmentStatus === 'processing' || shipmentStatus === 'ready_to_ship') {
+    return 'confirmed';
+  }
+
+  if (shipmentStatus === 'failed_to_deliver') {
+    return 'cancelled';
+  }
+
+  if (shipmentStatus === 'returned') {
+    return hasCancellationRecord ? 'cancelled' : 'returned';
+  }
+
+  if (paymentStatus === 'refunded' || paymentStatus === 'partially_refunded') {
+    return hasCancellationRecord ? 'cancelled' : 'returned';
+  }
+
+  return 'pending';
+};
+
 export default function OrdersScreen({ navigation, route }: Props) {
   const { user, isGuest } = useAuthStore();
-  const initialTab = route.params?.initialTab || 'toPay';
-  const [activeTab, setActiveTab] = useState<'toPay' | 'toShip' | 'toReceive' | 'completed' | 'returns' | 'cancelled'>(initialTab as any);
+  const initialTab = normalizeInitialTab(route.params?.initialTab);
+  const [activeTab, setActiveTab] = useState<OrdersTab>(initialTab);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [showFilterModal, setShowFilterModal] = useState(false);
@@ -107,6 +171,12 @@ export default function OrdersScreen({ navigation, route }: Props) {
                 sort_order
               )
             )
+          ),
+          reviews (
+            id
+          ),
+          cancellations:order_cancellations (
+            id
           )
         `)
         .eq('buyer_id', user.id)
@@ -119,24 +189,29 @@ export default function OrdersScreen({ navigation, route }: Props) {
       }
 
       const mapped: Order[] = (data || []).map((order: any) => {
-        // Use shipment_status for order status (orders table uses shipment_status, not status)
-        const rawStatus = (order.shipment_status || 'waiting_for_seller').toLowerCase();
-        const statusMap: Record<string, Order['status']> = {
-          waiting_for_seller: 'pending',
+        const hasReviews = Array.isArray(order.reviews) && order.reviews.length > 0;
+        const hasCancellationRecord =
+          (Array.isArray(order.cancellations) && order.cancellations.length > 0) ||
+          Boolean(order.cancellation_reason || order.cancelled_at);
+        const buyerUiStatus = mapBuyerUiStatusFromNormalized(
+          order.payment_status,
+          order.shipment_status,
+          hasCancellationRecord,
+          hasReviews || Boolean(order.is_reviewed),
+        );
+
+        const statusByBuyerUiStatus: Record<string, Order['status']> = {
           pending: 'pending',
-          pending_payment: 'pending',
-          processing: 'processing',
-          ready_to_ship: 'processing',
+          confirmed: 'processing',
           shipped: 'shipped',
-          out_for_delivery: 'shipped',
           delivered: 'delivered',
-          received: 'delivered',
-          cancelled: 'cancelled',
+          reviewed: 'delivered',
           returned: 'delivered',
-          failed_to_deliver: 'shipped',
+          cancelled: 'cancelled',
         };
 
-        const mappedStatus = statusMap[rawStatus] || 'pending';
+        const mappedStatus = statusByBuyerUiStatus[buyerUiStatus] || 'pending';
+        const isReviewed = buyerUiStatus === 'reviewed';
 
         // Get seller from first order item's product (orders don't have direct seller_id)
         const firstItem = order.items?.[0];
@@ -180,7 +255,8 @@ export default function OrdersScreen({ navigation, route }: Props) {
           } : it.selected_variant || null;
 
           return {
-            id: p.id || it.product_id,
+            id: it.id || `${order.id}_${it.product_id}`, // order_item id for unique identification
+            productId: p.id || it.product_id, // actual product id for reviews
             name: productName,
             price: priceNum,
             originalPrice: typeof p.original_price === 'number' ? p.original_price : undefined,
@@ -263,6 +339,8 @@ export default function OrdersScreen({ navigation, route }: Props) {
                     ? 'PayMongo'
                     : (order.payment_method as any)?.type || 'Cash on Delivery'),
           createdAt: order.created_at,
+          buyerUiStatus,
+          isReviewed,
         } as Order;
       });
       setDbOrders(mapped);
@@ -286,28 +364,32 @@ export default function OrdersScreen({ navigation, route }: Props) {
   }, [user?.id]);
 
   const filteredOrders = useMemo(() => {
-    if (activeTab === 'returns') return [];
-
     let baseOrders: Order[] = [];
 
     switch (activeTab) {
-      case 'toPay':
-        baseOrders = dbOrders.filter(o => o.status === 'pending');
+      case 'all':
+        baseOrders = dbOrders;
         break;
-      case 'toShip':
-        baseOrders = dbOrders.filter(o => o.status === 'processing');
+      case 'pending':
+        baseOrders = dbOrders.filter(o => o.buyerUiStatus === 'pending');
         break;
-      case 'toReceive':
-        baseOrders = dbOrders.filter(o => o.status === 'shipped');
+      case 'confirmed':
+        baseOrders = dbOrders.filter(o => o.buyerUiStatus === 'confirmed');
         break;
-      case 'completed':
-        baseOrders = dbOrders.filter(o =>
-          o.status === 'delivered' &&
-          !returnRequests.some(req => req.orderId === o.id)
-        );
+      case 'shipped':
+        baseOrders = dbOrders.filter(o => o.buyerUiStatus === 'shipped');
+        break;
+      case 'delivered':
+        baseOrders = dbOrders.filter(o => o.buyerUiStatus === 'delivered');
+        break;
+      case 'reviewed':
+        baseOrders = dbOrders.filter(o => o.buyerUiStatus === 'reviewed');
+        break;
+      case 'returned':
+        baseOrders = dbOrders.filter(o => o.buyerUiStatus === 'returned');
         break;
       case 'cancelled':
-        baseOrders = dbOrders.filter(o => o.status === 'cancelled');
+        baseOrders = dbOrders.filter(o => o.buyerUiStatus === 'cancelled');
         break;
       default:
         baseOrders = [];
@@ -326,7 +408,14 @@ export default function OrdersScreen({ navigation, route }: Props) {
     return [...baseOrders].sort((a, b) => {
       const dateA = new Date(a.createdAt).getTime();
       const dateB = new Date(b.createdAt).getTime();
-      return sortOrder === 'latest' ? dateB - dateA : dateA - dateB;
+      // Primary sort by date, secondary sort by transaction ID for deterministic order
+      if (dateA !== dateB) {
+        return sortOrder === 'latest' ? dateB - dateA : dateA - dateB;
+      }
+      // If same date, sort by transaction ID descending (higher number = more recent)
+      return sortOrder === 'latest' 
+        ? b.transactionId.localeCompare(a.transactionId) 
+        : a.transactionId.localeCompare(b.transactionId);
     });
   }, [activeTab, dbOrders, selectedStatus, searchQuery, sortOrder]);
 
@@ -349,17 +438,20 @@ export default function OrdersScreen({ navigation, route }: Props) {
           text: 'Confirm',
           onPress: async () => {
             try {
+              // Use shipment_status column (orders table doesn't have 'status' column)
+              // Use orderId (real UUID) not id (which may be order_number)
+              const realOrderId = (order as any).orderId || order.id;
               const { error } = await supabase
                 .from('orders')
-                .update({ status: 'delivered' })
-                .eq('id', order.id);
+                .update({ shipment_status: 'received' })
+                .eq('id', realOrderId);
 
               if (error) throw error;
 
-              updateOrderStatus(order.id, 'delivered');
+              updateOrderStatus(realOrderId, 'delivered');
 
               setDbOrders(prev => prev.map(o =>
-                o.id === order.id ? { ...o, status: 'delivered' } : o
+                ((o as any).orderId || o.id) === realOrderId ? { ...o, status: 'delivered' } : o
               ));
 
               Alert.alert('Success', 'Order marked as received!');
@@ -381,33 +473,34 @@ export default function OrdersScreen({ navigation, route }: Props) {
   /* Removed unused local state for inline modal: rating, setRating, reviewText, setReviewText */
   /* Instead of setReviewText, we use the logic inside ReviewModal */
 
-  const handleSubmitReview = async (productId: string, rating: number, review: string) => {
+  const handleSubmitReview = async (
+    productId: string,
+    orderItemId: string,
+    rating: number,
+    review: string,
+  ) => {
     if (!selectedOrder || !user?.id) return;
 
     try {
-      const item = selectedOrder.items.find(i => i.id === productId);
+      // Get the real order UUID (orderId), not order_number
+      const realOrderId = (selectedOrder as any).orderId || selectedOrder.id;
+      
+      // Find item by productId (now correctly passed from ReviewModal)
+      const item = selectedOrder.items.find(i => 
+        i.id === orderItemId || (i as any).productId === productId || i.id === productId
+      );
       if (!item) throw new Error('Product not found');
 
-      const sellerId = item.sellerId || (item as any).seller_id;
-      if (!sellerId) throw new Error('Seller information missing');
-
-      // Create review
-      await reviewService.createReview({
-        product_id: productId,
-        buyer_id: user.id,
-        seller_id: sellerId,
-        order_id: selectedOrder.id,
-        rating,
-        comment: review || null,
-        images: null,
+      const success = await orderService.submitOrderReview(realOrderId, user.id, rating, review, [], {
+        productId,
+        orderItemId,
       });
 
-      // Mark item as reviewed
-      await reviewService.markItemAsReviewed(selectedOrder.id, productId);
+      if (!success) {
+        throw new Error('This item has already been reviewed');
+      }
 
-      // Check if all items reviewed
-      await reviewService.checkAndUpdateOrderReviewed(selectedOrder.id);
-
+      await loadOrders();
       Alert.alert('Success', 'Your review has been submitted.');
     } catch (error: any) {
       console.error('[OrdersScreen] Error submitting review:', error);
@@ -471,15 +564,42 @@ export default function OrdersScreen({ navigation, route }: Props) {
     );
   };
 
+  const renderOrderCard = (order: Order) => (
+    <OrderCard
+      key={order.id}
+      order={order}
+      onPress={() => navigation.navigate('OrderDetail', { order })}
+      onCancel={() => handleCancelOrder(order)}
+      onReceive={() => handleOrderReceived(order)}
+      onReview={order.buyerUiStatus === 'delivered' ? () => handleReview(order) : undefined}
+      onShopPress={(shopId) => {
+        const targetOrder = filteredOrders.find(o => o.items.some(i => i.sellerId === shopId)) || order;
+        const sellerInfo = dbOrders.find(o => o.id === targetOrder.id)?.sellerInfo || {};
+
+        const storeObj = {
+          id: shopId,
+          name: sellerInfo.store_name || sellerInfo.business_name || 'Shop',
+          rating: sellerInfo.rating || 4.8,
+          verified: !!sellerInfo.is_verified,
+          image: 'https://via.placeholder.com/150',
+          followers: 100,
+          description: sellerInfo.business_address || ''
+        };
+
+        navigation.navigate('StoreDetail', { store: storeObj });
+      }}
+    />
+  );
+
   const renderActionButtons = (order: Order) => {
-    if (activeTab === 'toReceive' && order.status === 'shipped') {
+    if (activeTab === 'shipped' && order.status === 'shipped') {
       return (
         <Pressable style={styles.primaryButton} onPress={() => handleOrderReceived(order)}>
           <Text style={styles.primaryButtonText}>Order Received</Text>
         </Pressable>
       );
     }
-    if (activeTab === 'completed' && order.status === 'delivered') {
+    if (activeTab === 'reviewed' && order.status === 'delivered') {
       return (
         <View style={styles.buttonRow}>
           <Pressable style={[styles.outlineButton, { flex: 1 }]} onPress={() => navigation.navigate('OrderDetail', { order })}>
@@ -574,58 +694,61 @@ export default function OrdersScreen({ navigation, route }: Props) {
 
   if (isGuest) {
     return (
+    <View style={styles.container}>
       <LinearGradient
-        colors={['#FFE5CC', '#FFE5CC']}
+        colors={['#FFF6E5', '#FFE0A3', '#FFD89A']} // Pastel Gold Header
         start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-        style={styles.container}
+        end={{ x: 0, y: 1 }}
+        style={[styles.headerContainer, { paddingTop: 60 }]}
       >
-        <View style={[styles.headerContainer, { paddingTop: 60 }]}>
-          <View style={styles.headerTop}>
-            <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-              <ArrowLeft size={24} color="#1F2937" strokeWidth={2.5} />
-            </Pressable>
-            <Text style={styles.headerTitle}>My Orders</Text>
-            <View style={{ width: 40 }} />
-          </View>
+        <View style={styles.headerTop}>
+          <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
+            <ArrowLeft size={24} color="#7C2D12" strokeWidth={2.5} />
+          </Pressable>
+          <Text style={styles.headerTitle}>My Orders</Text>
+          <View style={{ width: 40 }} />
         </View>
-        <GuestLoginModal
-          visible={true}
-          onClose={() => navigation.navigate('MainTabs', { screen: 'Home' })} // Explicit navigation
-          message="Sign up to track your orders."
-          hideCloseButton={true}
-          cancelText="Go back to Home"
-        />
       </LinearGradient>
+      <GuestLoginModal
+        visible={true}
+        onClose={() => navigation.navigate('MainTabs', { screen: 'Home' })} // Explicit navigation
+        message="Sign up to track your orders."
+        hideCloseButton={true}
+        cancelText="Go back to Home"
+      />
+    </View>
     );
   }
 
   return (
-    <LinearGradient
-      colors={['#FFE5CC', '#FFE5CC']}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 0 }}
+    <View
       style={styles.container}
     >
       <StatusBar barStyle="dark-content" />
 
       {/* Header with Title only */}
-      <View style={[styles.headerContainer, { paddingTop: insets.top + 10, paddingBottom: 15 }]}>
+      {/* Header with Title only */}
+      <LinearGradient
+        colors={['#FFF6E5', '#FFE0A3', '#FFD89A']} // Pastel Gold Header
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+        style={[styles.headerContainer, { paddingTop: insets.top + 10, paddingBottom: 15 }]}
+      >
         <View style={styles.headerTop}>
           <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-            <ArrowLeft size={24} color="#1F2937" strokeWidth={2.5} />
+            <ArrowLeft size={24} color="#7C2D12" strokeWidth={2.5} />
           </Pressable>
           <Text style={styles.headerTitle}>My Orders</Text>
           <View style={styles.headerActions}>
             <Pressable style={styles.headerIconButton} onPress={() => setShowFilterModal(true)}>
-              <Filter size={22} color="#1F2937" strokeWidth={2.5} />
+              <Filter size={22} color="#7C2D12" strokeWidth={2.5} />
             </Pressable>
             <Pressable style={styles.headerIconButton} onPress={() => setShowSearchModal(true)}>
-              <Search size={22} color="#1F2937" strokeWidth={2.5} />
+              <Search size={22} color="#7C2D12" strokeWidth={2.5} />
             </Pressable>
           </View>
         </View>
-      </View>
+      </LinearGradient>
 
       {/* White Tab Bar - Sticky look */}
       <View style={styles.tabsWrapper}>
@@ -634,13 +757,15 @@ export default function OrdersScreen({ navigation, route }: Props) {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.tabsContentContainer}
         >
-          {(['toPay', 'toShip', 'toReceive', 'completed', 'returns', 'cancelled'] as const).map((tab) => {
+          {(['all', 'pending', 'confirmed', 'shipped', 'delivered', 'reviewed', 'returned', 'cancelled'] as const).map((tab) => {
             const labelMap: Record<string, string> = {
-              toPay: 'To Pay',
-              toShip: 'To Ship',
-              toReceive: 'To Receive',
-              completed: 'Completed',
-              returns: 'Return/Refund',
+              all: 'All Orders',
+              pending: 'Pending',
+              confirmed: 'Processing',
+              shipped: 'Shipped',
+              delivered: 'Delivered',
+              reviewed: 'Reviewed',
+              returned: 'Return/Refund',
               cancelled: 'Cancelled'
             };
             return (
@@ -666,54 +791,14 @@ export default function OrdersScreen({ navigation, route }: Props) {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
       >
-        {activeTab === 'returns' ? (
-          // RETURNS VIEW
-          returnRequests.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Package size={64} color="#D1D5DB" />
-              <Text style={styles.emptyTitle}>No Return Requests</Text>
-              <Text style={styles.emptyText}>Any return or refund requests will appear here</Text>
-            </View>
-          ) : (
-            returnRequests.map(renderReturnItem)
-          )
+        {filteredOrders.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Package size={64} color="#D1D5DB" />
+            <Text style={styles.emptyTitle}>No Orders Found</Text>
+            <Text style={styles.emptyText}>Items you purchase will appear here</Text>
+          </View>
         ) : (
-          // ORDERS VIEW
-          filteredOrders.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Package size={64} color="#D1D5DB" />
-              <Text style={styles.emptyTitle}>No Orders Found</Text>
-              <Text style={styles.emptyText}>Items you purchase will appear here</Text>
-            </View>
-          ) : (
-            filteredOrders.map((order) => (
-              <OrderCard
-                key={order.id}
-                order={order}
-                onPress={() => navigation.navigate('OrderDetail', { order })}
-                onCancel={() => handleCancelOrder(order)}
-                onReceive={() => handleOrderReceived(order)}
-                onReview={() => handleReview(order)}
-                onShopPress={(shopId) => {
-                  // Find the order to get the seller info
-                  const targetOrder = filteredOrders.find(o => o.items.some(i => i.sellerId === shopId)) || order;
-                  const sellerInfo = dbOrders.find(o => o.id === targetOrder.id)?.sellerInfo || {};
-
-                  const storeObj = {
-                    id: shopId,
-                    name: sellerInfo.store_name || sellerInfo.business_name || 'Shop',
-                    rating: sellerInfo.rating || 4.8,
-                    verified: !!sellerInfo.is_verified,
-                    image: 'https://via.placeholder.com/150', // Fallback as we might not have store logo in order query
-                    followers: 100, // Placeholder
-                    description: sellerInfo.business_address || ''
-                  };
-
-                  navigation.navigate('StoreDetail', { store: storeObj });
-                }}
-              />
-            ))
-          )
+          filteredOrders.map(renderOrderCard)
         )}
       </ScrollView>
 
@@ -770,14 +855,17 @@ export default function OrdersScreen({ navigation, route }: Props) {
         onClose={() => setShowRatingModal(false)}
         onSubmit={handleSubmitReview}
       />
-    </LinearGradient>
+
+      {/* Bottom Navigation */}
+      <BuyerBottomNav />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFFBF0', // Warm Ivory
   },
   headerContainer: {
     paddingHorizontal: 20,

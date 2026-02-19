@@ -9,6 +9,7 @@ import {
     Phone,
     Truck,
     CheckCircle,
+    Star,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -133,7 +134,7 @@ export function OrderDetailsModal({
 
     const handleOverrideStatus = async () => {
         if (!window.confirm(`Force change order status to ${overrideStatus}?`)) return;
-        
+
         setIsOverriding(true);
         try {
             await updateOrderStatus(order.id, overrideStatus);
@@ -169,7 +170,7 @@ export function OrderDetailsModal({
                 );
             case "confirmed":
                 return (
-                    <div className="inline-flex items-center bg-orange-50 text-orange-700 gap-1 rounded-full px-3 py-1 text-xs font-medium border border-orange-100">
+                    <div className="inline-flex items-center bg-[var(--brand-wash)] text-[var(--brand-primary)] gap-1 rounded-full px-3 py-1 text-xs font-medium border border-[var(--brand-primary)]/20">
                         <Package className="w-3" /> Confirmed
                     </div>
                 );
@@ -181,6 +182,24 @@ export function OrderDetailsModal({
                 );
         }
     };
+
+    const latestReview =
+        order.reviews?.[0] ||
+        (typeof order.rating === "number"
+            ? {
+                id: `legacy-${order.id}`,
+                productId: null,
+                rating: order.rating,
+                comment: order.reviewComment || "",
+                images: Array.isArray(order.reviewImages)
+                    ? order.reviewImages
+                    : [],
+                submittedAt:
+                    order.reviewDate ||
+                    order.deliveredAt ||
+                    order.orderDate,
+            }
+            : null);
 
     return (
         <AnimatePresence>
@@ -299,8 +318,7 @@ export function OrderDetailsModal({
                                                                 : ""}
                                                         </p>
                                                         <p className="text-sm text-gray-500">
-                                                            ₱
-                                                            {item.price.toLocaleString()}
+                                                            ₱{item.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                         </p>
                                                     </div>
                                                 </div>
@@ -309,28 +327,46 @@ export function OrderDetailsModal({
                                             <div className="pt-4 border-t border-gray-100 space-y-2">
                                                 <div className="flex justify-between text-sm">
                                                     <span className="text-gray-500">
-                                                        Subtotal
+                                                        {order.type === 'OFFLINE' ? 'VATable Sales' : 'Subtotal'}
                                                     </span>
                                                     <span className="font-medium text-gray-900">
-                                                        ₱
-                                                        {order.total.toLocaleString()}
+                                                        ₱{order.type === 'OFFLINE'
+                                                            ? (order.total / 1.12).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                                                            : order.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                                                        }
                                                     </span>
                                                 </div>
                                                 <div className="flex justify-between text-sm">
                                                     <span className="text-gray-500">
-                                                        Tax (0%)
+                                                        {order.type === 'OFFLINE' ? 'VAT (12%)' : 'Tax (0%)'}
                                                     </span>
                                                     <span className="font-medium text-gray-900">
-                                                        ₱0.00
+                                                        ₱{order.type === 'OFFLINE'
+                                                            ? (order.total - order.total / 1.12).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                                                            : '0.00'
+                                                        }
                                                     </span>
                                                 </div>
+                                                {/* Payment Method */}
+                                                {order.paymentMethod && (
+                                                    <div className="flex justify-between text-sm">
+                                                        <span className="text-gray-500">Payment Method</span>
+                                                        <span className="font-medium text-gray-900">
+                                                            {order.paymentMethod === 'cash' && 'Cash'}
+                                                            {order.paymentMethod === 'card' && 'Card'}
+                                                            {order.paymentMethod === 'ewallet' && 'E-Wallet'}
+                                                            {order.paymentMethod === 'bank_transfer' && 'Bank Transfer'}
+                                                            {order.paymentMethod === 'cod' && 'COD'}
+                                                            {order.paymentMethod === 'online' && 'Online Payment'}
+                                                        </span>
+                                                    </div>
+                                                )}
                                                 <div className="flex justify-between text-base pt-2 font-semibold border-t border-gray-50 mt-2">
                                                     <span className="text-gray-900">
                                                         Total amount
                                                     </span>
                                                     <span className="text-gray-900">
-                                                        ₱
-                                                        {order.total.toLocaleString()}
+                                                        ₱{order.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                     </span>
                                                 </div>
                                             </div>
@@ -356,6 +392,68 @@ export function OrderDetailsModal({
                                         </p>
                                     </div>
                                 </div>
+
+                                {latestReview && (
+                                    <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-4">
+                                        <div className="flex items-center justify-between gap-3 mb-3">
+                                            <span className="font-semibold text-gray-900 text-sm block">
+                                                Buyer Review
+                                            </span>
+                                            <span className="text-xs text-gray-500">
+                                                {new Date(
+                                                    latestReview.submittedAt,
+                                                ).toLocaleDateString("en-US", {
+                                                    month: "short",
+                                                    day: "numeric",
+                                                    year: "numeric",
+                                                })}
+                                            </span>
+                                        </div>
+
+                                        <div className="flex items-center gap-1 mb-3">
+                                            {[1, 2, 3, 4, 5].map((star) => (
+                                                <Star
+                                                    key={star}
+                                                    className={`w-4 h-4 ${star <=
+                                                            latestReview.rating
+                                                            ? "fill-yellow-400 text-yellow-400"
+                                                            : "text-gray-300"
+                                                        }`}
+                                                />
+                                            ))}
+                                            <span className="text-xs font-medium text-gray-600 ml-1">
+                                                {latestReview.rating.toFixed(1)}
+                                                /5
+                                            </span>
+                                        </div>
+
+                                        {latestReview.comment ? (
+                                            <p className="text-sm text-gray-700 leading-relaxed bg-gray-50 border border-gray-100 rounded-lg px-3 py-2">
+                                                "{latestReview.comment}"
+                                            </p>
+                                        ) : (
+                                            <p className="text-sm text-gray-500">
+                                                Buyer left a rating without a
+                                                comment.
+                                            </p>
+                                        )}
+
+                                        {latestReview.images.length > 0 && (
+                                            <div className="flex gap-2 mt-3">
+                                                {latestReview.images.map(
+                                                    (image, index) => (
+                                                        <img
+                                                            key={`${latestReview.id}-${index}`}
+                                                            src={image}
+                                                            alt={`Review ${index + 1}`}
+                                                            className="w-16 h-16 rounded-lg object-cover border border-gray-200"
+                                                        />
+                                                    ),
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
 
                                 {/* Delivery Information */}
                                 <AccordionItem
@@ -456,14 +554,14 @@ export function OrderDetailsModal({
                                                     </div>
                                                 ) : order.status === "confirmed" ? (
                                                     <div className="flex items-start gap-4">
-                                                        <div className="p-2 bg-orange-50 border border-orange-100 rounded-lg text-orange-600 mt-0.5 shadow-sm">
+                                                        <div className="p-2 bg-[var(--brand-wash)] border border-[var(--brand-primary)]/20 rounded-lg text-[var(--brand-primary)] mt-0.5 shadow-sm">
                                                             <Package className="w-4 h-4" />
                                                         </div>
                                                         <div className="flex-1">
-                                                            <span className="block text-sm font-semibold text-orange-700">
+                                                            <span className="block text-sm font-semibold text-[var(--brand-primary)]">
                                                                 Preparing for Shipment
                                                             </span>
-                                                            <p className="text-sm text-gray-600 leading-relaxed mt-0.5">
+                                                            <p className="text-sm text-[var(--text-muted)] leading-relaxed mt-0.5">
                                                                 Please pack the items and prepare the shipping label.
                                                             </p>
                                                         </div>
@@ -561,7 +659,7 @@ export function OrderDetailsModal({
                                     <>
                                         <Button
                                             size="lg"
-                                            className="bg-orange-500 hover:bg-orange-600 text-white flex-1 font-semibold shadow-md hover:shadow-lg transition-all"
+                                            className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white flex-1 font-semibold shadow-md hover:shadow-lg transition-all"
                                             onClick={() =>
                                                 void handleStatusUpdate(
                                                     "confirmed",
@@ -588,7 +686,7 @@ export function OrderDetailsModal({
                                     <>
                                         <Button
                                             size="lg"
-                                            className="bg-orange-500 hover:bg-orange-600 text-white flex-1 font-semibold shadow-md hover:shadow-lg transition-all"
+                                            className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white flex-1 font-semibold shadow-md hover:shadow-lg transition-all"
                                             onClick={() =>
                                                 setTrackingModal((prev) => ({
                                                     ...prev,
@@ -680,7 +778,7 @@ export function OrderDetailsModal({
                                 </Button>
                                 <Button
                                     size="lg"
-                                    className="flex-1 bg-orange-500 hover:bg-orange-600 text-white font-semibold"
+                                    className="flex-1 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white font-semibold"
                                     onClick={handleMarkAsShipped}
                                     disabled={
                                         trackingModal.isLoading ||

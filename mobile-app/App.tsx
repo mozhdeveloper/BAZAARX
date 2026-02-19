@@ -50,10 +50,13 @@ import ReturnDetailScreen from './app/ReturnDetailScreen';
 import ReturnOrdersScreen from './app/ReturnOrdersScreen';
 import HistoryScreen from './app/HistoryScreen';
 import AddProductScreen from '@/components/seller/AddProductScreen';
+import SellerOrderDetailScreen from './app/seller/OrderDetailScreen';
+
 // Ticketing Module
 import CreateTicketScreen from './app/tickets/CreateTicketScreen';
 import TicketDetailScreen from './app/tickets/TicketDetailScreen';
 import MessagesScreen from './app/MessagesScreen';
+import ChatScreen from './src/components/ChatScreen';
 
 // Onboarding Screens
 import TermsScreen from './app/onboarding/TermsScreen';
@@ -98,8 +101,9 @@ export type RootStackParamList = {
   };
   PaymentGateway: { paymentMethod: string; order: Order; isQuickCheckout?: boolean };
   OrderConfirmation: { order: Order };
-  Orders: { initialTab?: 'toPay' | 'toShip' | 'toReceive' | 'completed' | 'returns' | 'cancelled' };
+  Orders: { initialTab?: 'all' | 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'reviewed' | 'returned' | 'cancelled' };
   OrderDetail: { order: Order };
+  SellerOrderDetail: { orderId: string };
   DeliveryTracking: { order: Order };
   FlashSale: undefined;
   FollowingShops: undefined;
@@ -123,6 +127,11 @@ export type RootStackParamList = {
   TicketDetail: { ticketId: string };
   Messages: undefined;
   AddProduct: undefined;
+  Chat: {
+    conversation: any; // Using any to avoid circular dependency or import issues, but ideally Conversation type
+    currentUserId: string;
+    userType: 'buyer' | 'seller';
+  };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -135,8 +144,8 @@ function MainTabs() {
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: '#FF6A00',
-        tabBarInactiveTintColor: '#9CA3AF',
+        tabBarActiveTintColor: '#F4A300', // Golden Orange
+        tabBarInactiveTintColor: '#92400E', // Warm Brown
         tabBarStyle: {
           position: 'absolute',
           bottom: 0,
@@ -146,9 +155,9 @@ function MainTabs() {
           paddingBottom: 10 + insets.bottom,
           paddingTop: 10,
           borderTopWidth: 1,
-          borderTopColor: '#E5E7EB',
-          backgroundColor: '#FFFFFF',
-          shadowColor: '#000',
+          borderTopColor: '#FFE0A3', // Pastel Gold
+          backgroundColor: '#FFF9E5', // Pale Warm Cream
+          shadowColor: '#F4A300', // Golden Shadow
           shadowOffset: { width: 0, height: -2 },
           shadowOpacity: 0.1,
           shadowRadius: 8,
@@ -308,6 +317,13 @@ export default function App() {
             <Stack.Screen name="OrderConfirmation" component={OrderConfirmationScreen} />
             <Stack.Screen name="Orders" component={OrdersScreen} options={{ headerShown: false }} />
             <Stack.Screen name="OrderDetail" component={OrderDetailScreen} />
+            <Stack.Screen
+              name="SellerOrderDetail"
+              component={SellerOrderDetailScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
             <Stack.Screen name="DeliveryTracking" component={DeliveryTrackingScreen} />
             <Stack.Screen name="FlashSale" component={FlashSaleScreen} options={{ headerShown: false }} />
             <Stack.Screen name="FollowingShops" component={FollowingShopsScreen} />
@@ -331,6 +347,7 @@ export default function App() {
             <Stack.Screen name="Messages" component={MessagesScreen} />
             <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
             <Stack.Screen name="AddProduct" component={AddProductScreen} />
+            <Stack.Screen name="Chat" component={ChatScreen} />
           </Stack.Navigator>
         </NavigationContainer>
       </SafeAreaProvider>

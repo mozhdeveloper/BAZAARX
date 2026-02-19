@@ -10,18 +10,18 @@ interface MobileAppShowcaseProps {
 
 export function MobileAppShowcase({ mode = "buyer" }: MobileAppShowcaseProps) {
   return (
-    <div className="bg-white">
+    <div>
       <MobileAppScroll
         titleComponent={
           <div className="text-center space-y-4 sm:space-y-6 px-4">
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-gray-900 leading-tight">
               {mode === "buyer" ? (
                 <>
-                  <span className="text-[#FF6A00]">Experience <span className="font-fondamento">Bazaar</span></span> On Your Phone
+                  <span className="text-[var(--brand-primary)]">Experience <span className="font-fondamento">Bazaar</span></span> On Your Phone
                 </>
               ) : (
                 <>
-                  <span className="text-black">Start Your Business With </span><span className="font-fondamento text-[#FF6A00]">BazaarX</span>
+                  <span className="text-black">Start Your Business With </span><span className="font-fondamento text-[var(--brand-primary)]">BazaarX</span>
                 </>
               )}
             </h2>

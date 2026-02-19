@@ -21,10 +21,11 @@ import type { RootStackParamList } from '../App';
 import { useOrderStore } from '../src/stores/orderStore';
 import { supabase } from '../src/lib/supabase';
 import { useReturnStore } from '../src/stores/returnStore';
-import { reviewService } from '../src/services/reviewService';
+import { orderService } from '../src/services/orderService';
 import { useAuthStore } from '../src/stores/authStore';
 import { safeImageUri } from '../src/utils/imageUtils';
 import ReviewModal from '../src/components/ReviewModal';
+import { BuyerBottomNav } from '../src/components/BuyerBottomNav';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'OrderDetail'>;
 
@@ -85,16 +86,18 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
           text: 'Yes, Received',
           onPress: async () => {
             try {
-              // 1. Update Supabase
+              // 1. Update Supabase - use shipment_status column
+              // Use orderId (real UUID) not id (which may be order_number)
+              const realOrderId = (order as any).orderId || order.id;
               const { error } = await supabase
                 .from('orders')
-                .update({ status: 'delivered' })
-                .eq('id', order.id);
+                .update({ shipment_status: 'received' })
+                .eq('id', realOrderId);
 
               if (error) throw error;
 
               // 2. Update Local Store
-              updateOrderStatus(order.id, 'delivered');
+              updateOrderStatus(realOrderId, 'delivered');
 
               // 3. Update local order param (if needed for UI immediate reflection)
               // But we are showing review modal immediately
@@ -109,7 +112,12 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
     );
   };
 
-  const handleSubmitReview = async (productId: string, rating: number, review: string) => {
+  const handleSubmitReview = async (
+    productId: string,
+    orderItemId: string,
+    rating: number,
+    review: string,
+  ) => {
     const { user } = useAuthStore.getState();
     if (!user?.id) {
       Alert.alert('Error', 'You must be logged in to submit a review');
@@ -117,31 +125,23 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
     }
 
     try {
-      const item = order.items.find(i => i.id === productId);
+      // Get the real order UUID (orderId), not order_number
+      const realOrderId = (order as any).orderId || order.id;
+      
+      // Find item by productId (now correctly passed from ReviewModal)
+      const item = order.items.find(i => 
+        i.id === orderItemId || (i as any).productId === productId || i.id === productId
+      );
       if (!item) throw new Error('Product not found');
 
-      const sellerId = item.sellerId || (item as any).seller_id;
-
-      if (!sellerId) {
-        throw new Error('Seller information missing');
-      }
-
-      // Create review
-      await reviewService.createReview({
-        product_id: productId,
-        buyer_id: user.id,
-        seller_id: sellerId,
-        order_id: order.id,
-        rating,
-        comment: review || null,
-        images: null,
+      const success = await orderService.submitOrderReview(realOrderId, user.id, rating, review, [], {
+        productId,
+        orderItemId,
       });
 
-      // Mark order item as reviewed
-      await reviewService.markItemAsReviewed(order.id, productId);
-
-      // Check if all items reviewed and update order
-      await reviewService.checkAndUpdateOrderReviewed(order.id);
+      if (!success) {
+        throw new Error('This item has already been reviewed');
+      }
 
       Alert.alert('Success', 'Your review has been submitted.');
     } catch (error: any) {
@@ -544,6 +544,9 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
           </KeyboardAvoidingView>
         </SafeAreaView>
       </Modal>
+
+      {/* Bottom Navigation */}
+      <BuyerBottomNav />
     </LinearGradient>
   );
 }

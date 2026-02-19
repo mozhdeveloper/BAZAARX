@@ -20,8 +20,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Search, Bell, Camera, Bot, X, Package, Timer, MapPin, ChevronDown, ArrowLeft, Clock,
   MessageSquare, MessageCircle, CheckCircle2, ShoppingBag, Truck, XCircle,
-  Shirt, Smartphone, Sparkles, Sofa, Dumbbell, Gamepad2, Apple, Watch, Car, BookOpen,
+  Shirt, Smartphone, Sparkles, Sofa, Dumbbell, Gamepad2, Apple, Watch, Car, BookOpen, Armchair, SprayCan,
 } from 'lucide-react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { LucideIcon } from 'lucide-react-native';
 import { ProductCard } from '../src/components/ProductCard';
 import CameraSearchModal from '../src/components/CameraSearchModal';
@@ -51,25 +52,34 @@ type Props = CompositeScreenProps<
 
 const { width } = Dimensions.get('window');
 
-const categories: { id: string; name: string; Icon: LucideIcon }[] = [
-  { id: 'fashion', name: 'Fashion', Icon: Shirt },
-  { id: 'electronics', name: 'Electronics', Icon: Smartphone },
-  { id: 'beauty', name: 'Health &\nBeauty', Icon: Sparkles },
-  { id: 'home-garden', name: 'Home &\nLiving', Icon: Sofa },
-  { id: 'sports', name: 'Sports', Icon: Dumbbell },
-  { id: 'toys', name: 'Toys &\nGames', Icon: Gamepad2 },
-  { id: 'groceries', name: 'Groceries', Icon: Apple },
-  { id: 'watches', name: 'Watches', Icon: Watch },
-  { id: 'automotive', name: 'Automotive', Icon: Car },
-  { id: 'books', name: 'Books', Icon: BookOpen },
+const categories: { id: string; name: string; icon: keyof typeof MaterialCommunityIcons.glyphMap }[] = [
+  { id: 'fashion', name: 'Fashion', icon: 'tshirt-crew' },
+  { id: 'electronics', name: 'Electronics', icon: 'cellphone' },
+  { id: 'beauty', name: 'Health &\nBeauty', icon: 'bottle-tonic-plus' },
+  { id: 'home-garden', name: 'Home &\nLiving', icon: 'sofa' },
+  { id: 'sports', name: 'Sports', icon: 'dumbbell' },
+  { id: 'toys', name: 'Toys &\nGames', icon: 'duck' },
+  { id: 'groceries', name: 'Groceries', icon: 'food-apple' },
+  { id: 'watches', name: 'Watches', icon: 'watch' },
+  { id: 'automotive', name: 'Automotive', icon: 'car' },
+  { id: 'books', name: 'Books', icon: 'book-open-variant' },
 ];
 
 const CATEGORY_ITEM_WIDTH = (width - 40 - 40) / 5; // 5 columns, 20px padding each side, 10px gaps
 
-const CategoryItem = ({ label, Icon }: { label: string; Icon: LucideIcon }) => (
+const CategoryItem = ({ label, iconName }: { label: string; iconName: keyof typeof MaterialCommunityIcons.glyphMap }) => (
   <View style={styles.categoryItm}>
-    <View style={styles.categoryIconBox}>
-      <Icon size={24} color={COLORS.primary} />
+    <View style={[styles.categoryIconBox, { 
+      backgroundColor: '#FFF8E1', // Amber 50 - Warm Base
+      shadowColor: '#F59E0B',     // Amber 500 - Gold Glow
+      shadowOffset: { width: 0, height: 8 }, // Increased for pop-out
+      shadowOpacity: 0.4,         // Stronger intensity
+      shadowRadius: 12,           // Wider glow
+      elevation: 10,              // Higher elevation
+      borderWidth: 1,
+      borderColor: '#FDE68A'      // Amber 200 - Gold Border
+    }]}>
+      <MaterialCommunityIcons name={iconName} size={28} color="#F59E0B" />
     </View>
     <Text style={styles.categoryLabel}>{label}</Text>
   </View>
@@ -77,7 +87,7 @@ const CategoryItem = ({ label, Icon }: { label: string; Icon: LucideIcon }) => (
 
 export default function HomeScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
-  const BRAND_COLOR = COLORS.primary;
+  const BRAND_COLOR = '#FF8A00';
   const { user, isGuest } = useAuthStore();
 
   const [activeTab, setActiveTab] = useState<'Home' | 'Category'>('Home');
@@ -109,27 +119,33 @@ export default function HomeScreen({ navigation }: Props) {
   const promoSlides = [
     {
       id: '1',
-      title: '24% off shipping today on all purchases',
-      brand: 'Official BazaarX Store',
-      tag: 'SPECIAL OFFER',
-      image: 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=400',
-      color: BRAND_COLOR
+      title: 'Super Deals',
+      subtitle: 'Big savings on\ntop products!',
+      buttonText: 'Shop Now',
+      image: 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=400', // Yellow Bag placeholder
+      gradient: ['#FFF8E7', '#FFE4C4'], // Pale Cream to Bisque
+      screen: 'Shop',
+      params: { category: 'electronics' }
     },
     {
       id: '2',
-      title: 'New Summer Collection Available Now',
-      brand: 'Fashion Hub',
-      tag: 'NEW ARRIVAL',
+      title: 'New Arrivals',
+      subtitle: 'Summer Collection\nAvailable Now',
+      buttonText: 'View All',
       image: 'https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=400',
-      color: '#059669' // Green
+      gradient: ['#FFF8E1', '#FFECB3'], // Pale Amber
+      screen: 'Shop',
+      params: { category: 'fashion' }
     },
     {
       id: '3',
-      title: 'Get 50% Off on Selected Electronics',
-      brand: 'TechZone',
-      tag: 'FLASH DEAL',
+      title: 'Flash Sale',
+      subtitle: '50% Off Selected\nElectronics',
+      buttonText: 'Shop Now',
       image: 'https://images.unsplash.com/photo-1550009158-9ebf69173e03?w=400',
-      color: '#DC2626' // Red
+      gradient: ['#FFF3E0', '#FFE0B2'], // Pale Orange
+      screen: 'FlashSale',
+      params: undefined
     }
   ];
 
@@ -169,6 +185,26 @@ export default function HomeScreen({ navigation }: Props) {
             || row.primary_image
             || '';
 
+          const rawVariants = Array.isArray(row.variants) ? row.variants : [];
+          const variants = rawVariants.map((v: any) => ({
+            id: v.id,
+            product_id: row.id,
+            sku: v.sku,
+            variant_name: v.variant_name || `${v.option_1_value || v.color || ''} ${v.option_2_value || v.size || ''}`.trim() || 'Variant',
+            size: v.size,
+            color: v.color,
+            option_1_value: v.option_1_value,
+            option_2_value: v.option_2_value,
+            price: v.price ?? row.price,
+            stock: v.stock ?? 0,
+            thumbnail_url: v.thumbnail_url,
+          }));
+
+          const colors = Array.from(new Set(variants.map((v: any) => v.color).filter(Boolean))) as string[];
+          const sizes = Array.from(new Set(variants.map((v: any) => v.size).filter(Boolean))) as string[];
+          const option1Values = Array.from(new Set(variants.map((v: any) => v.option_1_value || v.color).filter(Boolean))) as string[];
+          const option2Values = Array.from(new Set(variants.map((v: any) => v.option_2_value || v.size).filter(Boolean))) as string[];
+
           return {
             id: row.id,
             name: row.name,
@@ -180,6 +216,7 @@ export default function HomeScreen({ navigation }: Props) {
             reviewCount: row.reviewCount || 0,
             sold: row.sold || 0,
             seller: row.seller?.store_name || 'Verified Seller',
+            seller_id: row.seller_id || row.seller?.id,
             sellerId: row.seller_id || row.seller?.id,
             sellerRating: 4.9,
             sellerVerified: !!row.seller?.verified_at,
@@ -189,6 +226,13 @@ export default function HomeScreen({ navigation }: Props) {
             description: row.description || '',
             category: row.category?.name || row.category || '',
             stock: row.stock || 0,
+            variants,
+            colors,
+            sizes,
+            variant_label_1: row.variant_label_1,
+            variant_label_2: row.variant_label_2,
+            option1Values,
+            option2Values,
           } as Product;
         });
         const uniqueMapped = Array.from(new Map(mapped.map(item => [item.id, item])).values());
@@ -285,9 +329,9 @@ export default function HomeScreen({ navigation }: Props) {
 
   return (
     <LinearGradient
-      colors={['#FFE5CC', '#FFE5CC']}
+      colors={['#FFF6E5', '#FFE0A3', '#FFD89A']} // Pastel Gold Theme
       start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 0 }}
+      end={{ x: 0, y: 1 }}
       style={styles.container}
     >
       <StatusBar barStyle="dark-content" />
@@ -299,9 +343,9 @@ export default function HomeScreen({ navigation }: Props) {
             <Pressable onPress={() => setShowLocationModal(true)}>
               <Text style={styles.locationLabel}>Location</Text>
               <View style={styles.locationSelector}>
-                <MapPin size={16} color={COLORS.primary} fill={COLORS.primary} />
-                <Text numberOfLines={1} style={[styles.locationText, { maxWidth: 200, color: '#1F2937', fontWeight: 'bold', fontSize: 16 }]}>{deliveryAddress}</Text>
-                <ChevronDown size={16} color="#1F2937" />
+                <MapPin size={16} color="#FF8A00" fill="#FF8A00" />
+                <Text numberOfLines={1} style={[styles.locationText, { maxWidth: 200, color: '#431407', fontWeight: 'bold', fontSize: 16 }]}>{deliveryAddress}</Text>
+                <ChevronDown size={16} color="#431407" />
               </View>
             </Pressable>
 
@@ -317,7 +361,7 @@ export default function HomeScreen({ navigation }: Props) {
               }}
               style={styles.headerIconButton}
             >
-              <Bell size={24} color="#1F2937" />
+              <Bell size={24} color="#FF8A00" />
               {!isGuest && unreadCount > 0 && (
                 <View style={styles.notifBadge}>
                   <Text style={styles.notifBadgeText}>
@@ -331,17 +375,17 @@ export default function HomeScreen({ navigation }: Props) {
 
         {/* 2. PERSISTENT SEARCH BAR */}
         <View style={styles.searchBarWrapper}>
-          <View style={[styles.searchBarInner, { backgroundColor: '#FFFFFF' }]}>
-            <Search size={18} color="#9CA3AF" />
+          <View style={[styles.searchBarInner, { backgroundColor: '#FFFFFF', borderRadius: 24, shadowColor: '#FF8A00', shadowOpacity: 0.1, shadowRadius: 15, elevation: 4 }]}>
+            <Search size={18} color="#FF8A00" />
             <TextInput
-              style={[styles.searchInput, { color: '#1F2937' }]}
+              style={[styles.searchInput, { color: '#431407' }]}
               placeholder="Search products..."
               placeholderTextColor="#9CA3AF"
               value={searchQuery}
               onChangeText={setSearchQuery}
               onFocus={() => setIsSearchFocused(true)}
             />
-            <Pressable onPress={() => setShowCameraSearch(true)}><Camera size={18} color="#9CA3AF" /></Pressable>
+            <Pressable onPress={() => setShowCameraSearch(true)}><Camera size={18} color="#FF8A00" /></Pressable>
           </View>
           {isSearchFocused && (
             <Pressable onPress={() => { setIsSearchFocused(false); setSearchQuery(''); }} style={{ paddingLeft: 10 }}>
@@ -444,18 +488,27 @@ export default function HomeScreen({ navigation }: Props) {
                   <Pressable
                     key={slide.id}
                     style={[styles.promoBox, { width: width - 40 }]}
-                    onPress={() => navigation.navigate('FlashSale' as any)}
+                    onPress={() => {
+                      if (slide.screen) {
+                        navigation.navigate(slide.screen as any, slide.params);
+                      }
+                    }}
                   >
-                    <View style={[styles.promoBorder, { backgroundColor: slide.color }]} />
+                    <LinearGradient
+                      colors={slide.gradient as [string, string]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={StyleSheet.absoluteFill}
+                    />
                     <View style={styles.promoTextPart}>
-                      <View style={[styles.promoBadge, { backgroundColor: slide.color }]}>
-                        <Text style={styles.promoBadgeText}>{slide.tag}</Text>
+                      <Text style={[styles.promoHeadline, { color: '#D97706', fontSize: 24 }]}>{slide.title}</Text>
+                      <Text style={[styles.promoBrandName, { color: '#92400E', fontSize: 14, fontWeight: '500', marginTop: 4 }]}>{slide.subtitle}</Text>
+                      <View style={styles.shopNowButton}>
+                        <Text style={styles.shopNowText}>{slide.buttonText}</Text>
                       </View>
-                      <Text style={styles.promoHeadline}>{slide.title}</Text>
-                      <Text style={styles.promoBrandName}>{slide.brand}</Text>
                     </View>
                     <View style={styles.promoImgPart}>
-                      <Image source={{ uri: slide.image }} style={styles.promoImg} />
+                      <Image source={{ uri: slide.image }} style={styles.promoImg} resizeMode="contain" />
                     </View>
                   </Pressable>
                 ))}
@@ -466,29 +519,59 @@ export default function HomeScreen({ navigation }: Props) {
                     key={i}
                     style={[
                       styles.paginationDot,
-                      { backgroundColor: i === activeSlide ? BRAND_COLOR : '#E5E7EB', width: i === activeSlide ? 20 : 8 }
+                      { 
+                        backgroundColor: i === activeSlide ? '#FB8C00' : '#FFE0B2', // Warm Orange vs Pale
+                        width: i === activeSlide ? 20 : 8 
+                      }
                     ]}
                   />
                 ))}
               </View>
             </View>
 
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Category</Text>
-              <TouchableOpacity><Text style={styles.seeAll}>See All</Text></TouchableOpacity>
-            </View>
+
             <View style={styles.categoryGrid}>
               {categories.map((item) => (
                 <Pressable key={item.id} style={styles.categoryGridItem} onPress={() => navigation.navigate('Shop', { category: item.id })}>
-                  <CategoryItem label={item.name} Icon={item.Icon} />
+                  <CategoryItem label={item.name} iconName={item.icon} />
                 </Pressable>
               ))}
             </View>
 
+            {/* FLASH SALE SECTION (No Container) */}
+            <LinearGradient
+              colors={['#FFF6E5', '#FFE0A3', '#FFE0A3', '#FFF6E5']} // Light -> Wide Gold Band -> Light
+              locations={[0, 0.3, 0.7, 1]} // Spread out the middle gold
+              start={{ x: 0, y: 0 }}
+              end={{ x: 0, y: 1 }}
+              style={styles.flashSaleContainer}
+            >
+              <View style={styles.flashSaleHeader}>
+                <View style={styles.flashSaleTitleRow}>
+                  <Text style={styles.flashSaleTitle}>Flash Sale</Text>
+                  <View style={styles.timerBadge}>
+                    <Timer size={14} color="#FFF" />
+                    <Text style={styles.timerText}>02:15:40</Text>
+                  </View>
+                </View>
+              </View>
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false} 
+                contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 15, gap: 12 }}
+              >
+                {popularProducts.slice(0, 5).map((product) => (
+                  <View key={product.id} style={{ width: 150 }}>
+                    <ProductCard product={product} onPress={() => handleProductPress(product)} variant="flash" />
+                  </View>
+                ))}
+              </ScrollView>
+            </LinearGradient>
+
             <View style={styles.gridContainer}>
               <View style={styles.gridHeader}>
-                <Text style={styles.gridTitleText}>Popular Items</Text>
-                <Pressable onPress={() => navigation.navigate('Shop', {})}><Text style={styles.gridSeeAll}>View All</Text></Pressable>
+                <Text style={[styles.gridTitleText, { color: '#D97706' }]}>Popular Items</Text>
+                <Pressable onPress={() => navigation.navigate('Shop', {})}><Text style={[styles.gridSeeAll, { color: '#EA580C' }]}>View All</Text></Pressable>
               </View>
               <View style={styles.gridBody}>
                 {popularProducts.map((product) => (
@@ -518,7 +601,7 @@ export default function HomeScreen({ navigation }: Props) {
           </>
         ) : (
           <View style={styles.categoryExpandedContent}>
-            <Text style={styles.categorySectionTitle}>Shop by Category</Text>
+            <Text style={[styles.categorySectionTitle, { color: '#431407' }]}>Shop by Category</Text>
             <View style={styles.categoryGrid}>
               {categories.map((item) => (
                 <Pressable
@@ -526,7 +609,7 @@ export default function HomeScreen({ navigation }: Props) {
                   style={styles.categoryGridItem}
                   onPress={() => navigation.navigate('Shop', { category: item.id })}
                 >
-                  <CategoryItem label={item.name} Icon={item.Icon} />
+                  <CategoryItem label={item.name} iconName={item.icon} />
                 </Pressable>
               ))}
             </View>
@@ -580,42 +663,66 @@ const styles = StyleSheet.create({
     borderColor: '#FFE5CC'
   },
   notifBadgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '900' },
-  searchBarWrapper: { flexDirection: 'row', alignItems: 'center', marginBottom: 2 },
-  searchBarInner: { flex: 1, flexDirection: 'row', alignItems: 'center', borderRadius: 12, paddingHorizontal: 15, height: 48, gap: 10 },
+  searchBarWrapper: { flexDirection: 'row', alignItems: 'center', marginBottom: 10, paddingHorizontal: 0 },
+  searchBarInner: { flex: 1, flexDirection: 'row', alignItems: 'center', borderRadius: 24, paddingHorizontal: 15, height: 48, gap: 10 },
   searchInput: { flex: 1, fontSize: 14 },
   searchBackBtn: { padding: 4 },
   contentScroll: { flex: 1 },
+  // FLASH SALE STYLES
+  flashSaleContainer: {
+    marginHorizontal: 0, // Edge-to-edge scroll
+    marginTop: 15,
+    marginBottom: 5,
+    paddingVertical: 20, // Add padding for the gradient backdrop
+    // Removed container styling (bg, shadow, border)
+  },
+  flashSaleHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 15, marginBottom: 15 },
+  flashSaleTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  flashSaleTitle: { fontSize: 18, fontWeight: '800', color: '#D97706' },
+  timerBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#EF4444', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
+  timerText: { color: '#FFF', fontSize: 12, fontWeight: '700' },
+  
   carouselContainer: { marginVertical: 10 },
   promoBox: {
-    height: 160,
-    backgroundColor: '#FFF',
-    borderRadius: 10,
-    padding: 20,
+    height: 180,
+    borderRadius: 24,
+    padding: 24,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
+    elevation: 15, // High elevation for pop
+    shadowColor: '#FFB703', // Gold Glow
+    shadowOffset: { width: 0, height: 16 }, // Deep Dropdown Shadow
+    shadowOpacity: 0.5, // Intense shadow
+    shadowRadius: 20,
+    borderWidth: 1,
+    borderColor: '#FDE68A', // Light Gold Border
     marginHorizontal: 20,
     overflow: 'hidden',
     position: 'relative'
   },
-  promoBorder: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    bottom: 0,
-    width: 6,
+  shopNowButton: {
+    backgroundColor: '#FB8C00', // Warm Orange
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginTop: 12,
+    alignSelf: 'flex-start',
+    shadowColor: '#FB8C00',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4
   },
-  promoTextPart: { flex: 0.65 },
-  promoBadge: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4, marginBottom: 8 },
-  promoBadgeText: { color: '#FFF', fontSize: 10, fontWeight: '900' },
-  promoHeadline: { fontSize: 18, fontWeight: '800', color: '#1F2937', lineHeight: 24 },
-  promoBrandName: { fontSize: 12, fontWeight: '700', color: '#666', marginTop: 4 },
-  promoImgPart: { width: 80, height: 100, borderRadius: 6, overflow: 'hidden' },
+  shopNowText: {
+    color: '#FFF',
+    fontSize: 12,
+    fontWeight: '700'
+  },
+  promoTextPart: { flex: 0.55, paddingRight: 10 },
+  promoHeadline: { fontSize: 26, fontWeight: '800', color: '#EA580C', lineHeight: 30 },
+  promoBrandName: { fontSize: 15, fontWeight: '600', color: '#9A3412', marginTop: 8, lineHeight: 20 },
+  promoImgPart: { flex: 0.45, height: 140, alignItems: 'center', justifyContent: 'center' },
   promoImg: { width: '100%', height: '100%' },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 15, paddingTop: 5 },
   sectionTitle: { fontSize: 19, fontWeight: 'bold', color: '#1F2937' },
@@ -623,8 +730,8 @@ const styles = StyleSheet.create({
   categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 20, marginBottom: 10, gap: 10 },
   categoryGridItem: { width: CATEGORY_ITEM_WIDTH, alignItems: 'center' },
   categoryItm: { alignItems: 'center', gap: 6 },
-  categoryIconBox: { width: CATEGORY_ITEM_WIDTH - 4, height: CATEGORY_ITEM_WIDTH - 4, borderRadius: 16, backgroundColor: '#FFF', justifyContent: 'center', alignItems: 'center', elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 3 },
-  categoryLabel: { fontSize: 11, color: '#4B5563', fontWeight: '600', textAlign: 'center', lineHeight: 14 },
+  categoryIconBox: { width: CATEGORY_ITEM_WIDTH - 4, height: CATEGORY_ITEM_WIDTH - 4, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
+  categoryLabel: { fontSize: 11, color: '#78350F', fontWeight: '600', textAlign: 'center', lineHeight: 14, marginTop: 6 },
   itemBoxContainerVertical: { width: (width - 48) / 2, marginBottom: 12 },
   section: { paddingHorizontal: 20, marginVertical: 5 },
   productRequestButton: { backgroundColor: '#FFFFFF', borderRadius: 20, padding: 16, elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8 },
@@ -635,8 +742,8 @@ const styles = StyleSheet.create({
   productRequestTitle: { fontSize: 16, fontWeight: '800', color: '#1F2937' },
   productRequestSubtitle: { fontSize: 12, color: '#6B7280', marginTop: 2 },
   gridContainer: { paddingHorizontal: 20, marginBottom: 20 },
-  gridHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  gridTitleText: { fontSize: 18, fontWeight: '900', color: '#1F2937' },
+  gridHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, paddingTop: 20 },
+  gridTitleText: { fontSize: 18, fontWeight: '900', color: '#D97706' },
   gridSeeAll: { fontSize: 14, fontWeight: '700', color: COLORS.primary },
   gridBody: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
   searchDiscovery: { padding: 20 },

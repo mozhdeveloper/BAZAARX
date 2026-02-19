@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet, Modal, StatusBar } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, CreditCard, Plus, Trash2, Check, Building2 } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 import { COLORS } from '../src/constants/theme';
+import { BuyerBottomNav } from '../src/components/BuyerBottomNav';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'PaymentMethods'>;
 
@@ -92,17 +94,22 @@ export default function PaymentMethodsScreen({ navigation }: Props) {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
+      <StatusBar barStyle="dark-content" />
       {/* Header */}
-      <View style={[styles.headerContainer, { paddingTop: insets.top + 10, backgroundColor: COLORS.primary }]}>
+      <LinearGradient
+        colors={['#FFF6E5', '#FFE0A3', '#FFD89A']} // Pastel Gold Header
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+        style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}
+      >
         <View style={styles.headerTop}>
             <Pressable onPress={() => navigation.goBack()} style={styles.headerIconButton}>
-            <ArrowLeft size={24} color="#FFF" strokeWidth={2.5} />
+            <ArrowLeft size={24} color="#7C2D12" strokeWidth={2.5} />
             </Pressable>
             <Text style={styles.headerTitle}>Payment Methods</Text>
             <View style={{ width: 40 }} />
         </View>
-      </View>
+      </LinearGradient>
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         {/* Add Payment Method Button */}
@@ -257,6 +264,9 @@ export default function PaymentMethodsScreen({ navigation }: Props) {
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* Bottom Navigation */}
+      <BuyerBottomNav />
     </View>
   );
 }
@@ -264,7 +274,7 @@ export default function PaymentMethodsScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFFBF0', // Warm Ivory
   },
   headerContainer: {
     paddingHorizontal: 20,
@@ -280,7 +290,7 @@ const styles = StyleSheet.create({
   },
   headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headerIconButton: { padding: 4 },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFF' },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: '#7C2D12' },
   scrollView: {
     flex: 1,
   },
@@ -292,12 +302,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#FF6A00',
+    backgroundColor: '#FB8C00', // Warm Orange
     marginHorizontal: 20,
     marginBottom: 20,
     paddingVertical: 14,
     borderRadius: 12,
-    shadowColor: '#FF6A00',
+    shadowColor: '#FB8C00',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -341,6 +351,8 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 2,
     position: 'relative',
+    borderWidth: 1,
+    borderColor: '#FFF6E5', // Very Light Gold
   },
   defaultBadge: {
     position: 'absolute',
@@ -349,15 +361,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#10B981',
+    backgroundColor: '#FFF6E5', // Light Gold
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FFE0A3',
   },
   defaultText: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: '#EA580C', // Golden Amber
   },
   cardHeader: {
     flexDirection: 'row',

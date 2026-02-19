@@ -45,6 +45,24 @@ export interface BuyerOrderItemSnapshot {
   } | null;
 }
 
+export interface OrderReviewSnapshot {
+  id: string;
+  productId: string | null;
+  rating: number;
+  comment: string;
+  images: string[];
+  submittedAt: Date;
+}
+
+export interface SellerOrderReviewSnapshot {
+  id: string;
+  productId: string | null;
+  rating: number;
+  comment: string;
+  images: string[];
+  submittedAt: string;
+}
+
 export interface BuyerOrderSnapshot {
   id: string;
   dbId: string;
@@ -70,12 +88,8 @@ export interface BuyerOrderSnapshot {
   storeName?: string;
   sellerId?: string | null;
   order_type?: "ONLINE" | "OFFLINE";
-  review?: {
-    rating: number;
-    comment: string;
-    images: string[];
-    submittedAt: Date;
-  };
+  review?: OrderReviewSnapshot;
+  reviews?: OrderReviewSnapshot[];
 }
 
 export interface SellerOrderItemSnapshot {
@@ -99,6 +113,7 @@ export interface SellerOrderSnapshot {
   total: number;
   status: "pending" | "confirmed" | "shipped" | "delivered" | "cancelled";
   paymentStatus: "pending" | "paid" | "refunded";
+  paymentMethod?: "cash" | "card" | "ewallet" | "bank_transfer" | "cod" | "online";
   orderDate: string;
   shippingAddress: NormalizedShippingAddress;
   trackingNumber?: string;
@@ -110,6 +125,7 @@ export interface SellerOrderSnapshot {
   reviewComment?: string;
   reviewImages?: string[];
   reviewDate?: string;
+  reviews?: SellerOrderReviewSnapshot[];
   type?: "ONLINE" | "OFFLINE";
   posNote?: string;
   notes?: string;

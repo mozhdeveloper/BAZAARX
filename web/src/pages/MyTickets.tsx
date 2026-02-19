@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -9,7 +9,9 @@ import {
     AlertCircle,
     Search,
     Filter,
-    ArrowLeft
+    ArrowLeft,
+    Loader2,
+    RefreshCw
 } from 'lucide-react';
 import Header from '../components/Header';
 import { BazaarFooter } from '../components/ui/bazaar-footer';
@@ -24,14 +26,18 @@ export default function MyTickets() {
     const [activeTab, setActiveTab] = useState<'All' | TicketStatus>('All');
     const [searchQuery, setSearchQuery] = useState('');
 
-    // Get tickets from store and filter by current buyer
-    const { getTicketsByBuyer, tickets } = useSupportStore();
+    // Get tickets from store
+    const { tickets, loading, fetchUserTickets } = useSupportStore();
     const { profile } = useBuyerStore();
 
-    // Get buyer's tickets or show all if no profile
-    const buyerTickets = profile?.email ? getTicketsByBuyer(profile.email) : tickets;
+    // Fetch user's tickets on mount
+    useEffect(() => {
+        if (profile?.id) {
+            fetchUserTickets(profile.id);
+        }
+    }, [profile?.id, fetchUserTickets]);
 
-    const filteredTickets = buyerTickets.filter(ticket => {
+    const filteredTickets = tickets.filter(ticket => {
         const matchesTab = activeTab === 'All' || ticket.status === activeTab;
         const matchesSearch = ticket.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
             ticket.id.toLowerCase().includes(searchQuery.toLowerCase());
@@ -60,7 +66,7 @@ export default function MyTickets() {
     const tabs: ('All' | TicketStatus)[] = ['All', 'Open', 'In Review', 'Resolved', 'Closed'];
 
     return (
-        <div className="min-h-screen bg-gray-50 font-[family-name:var(--font-sans)]">
+        <div className="min-h-screen bg-[var(--brand-wash)] font-[family-name:var(--font-sans)]">
             <Header />
 
             <div className="max-w-7xl mx-auto px-4 py-8 flex flex-col items-center">
@@ -180,6 +186,15 @@ export default function MyTickets() {
                                             </div>
                                         </motion.div>
                                     ))
+                                ) : loading ? (
+                                    <motion.div
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        className="bg-gray-50/50 rounded-2xl p-12 flex flex-col items-center text-center border border-gray-100 border-dashed"
+                                    >
+                                        <Loader2 size={32} className="text-[var(--brand-primary)] animate-spin mb-4" />
+                                        <p className="text-xs text-gray-400">Loading your tickets...</p>
+                                    </motion.div>
                                 ) : (
                                     <motion.div
                                         initial={{ opacity: 0 }}

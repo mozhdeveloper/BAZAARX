@@ -9,6 +9,7 @@ import { useWishlistStore, WishlistItem } from '../src/stores/wishlistStore';
 import { useAuthStore } from '../src/stores/authStore';
 import { GuestLoginModal } from '../src/components/GuestLoginModal';
 import { COLORS } from '../src/constants/theme';
+import { BuyerBottomNav } from '../src/components/BuyerBottomNav';
 
 const { width } = Dimensions.get('window');
 
@@ -267,15 +268,20 @@ export default function WishlistScreen() {
 
     return (
         <LinearGradient
-            colors={['#FFE5CC', '#FFE5CC']}
+            colors={['#FFF6E5', '#FFE0A3', '#FFD89A']}
             start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
+            end={{ x: 0, y: 1 }}
             style={styles.container}
         >
             <StatusBar barStyle="dark-content" />
 
             {/* Header */}
-            <View style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}>
+            <LinearGradient
+                colors={['#FFF6E5', '#FFE0A3', '#FFD89A']} // Pastel Gold Header
+                start={{ x: 0, y: 0 }}
+                end={{ x: 0, y: 1 }}
+                style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}
+            >
                 <View style={styles.headerTop}>
                     <Pressable
                         onPress={() => {
@@ -287,7 +293,7 @@ export default function WishlistScreen() {
                         }}
                         style={styles.headerIconButton}
                     >
-                        <ArrowLeft size={24} color="#1F2937" strokeWidth={2.5} />
+                        <ArrowLeft size={24} color="#7C2D12" strokeWidth={2.5} />
                     </Pressable>
 
                     <View style={styles.titleContainer}>
@@ -314,19 +320,19 @@ export default function WishlistScreen() {
 
                                 navigation.navigate('SharedWishlist', { wishlistData: previewData });
                             }} style={styles.headerIconButton}>
-                                <Eye size={24} color="#1F2937" />
+                                <Eye size={24} color="#7C2D12" />
                             </Pressable>
                         )}
 
                         {selectedCategoryId && (
                             <Pressable onPress={handleShare} style={styles.headerIconButton}>
-                                <Share2 size={24} color="#1F2937" />
+                                <Share2 size={24} color="#7C2D12" />
                             </Pressable>
                         )}
 
                         {!selectedCategoryId && (
                             <Pressable onPress={() => setShowCreateModal(true)} style={[styles.createHeaderBtn]}>
-                                <Plus size={20} color={COLORS.primary} strokeWidth={3} />
+                                <Plus size={20} color="#FB8C00" strokeWidth={3} />
                             </Pressable>
                         )}
 
@@ -335,12 +341,12 @@ export default function WishlistScreen() {
                                 const cat = categories.find(c => c.id === selectedCategoryId);
                                 setEditingCategory(cat);
                             }} style={styles.headerIconButton}>
-                                <MoreVertical size={24} color="#1F2937" />
+                                <MoreVertical size={24} color="#7C2D12" />
                             </Pressable>
                         )}
                     </View>
                 </View>
-            </View>
+            </LinearGradient>
 
             <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
@@ -486,12 +492,15 @@ export default function WishlistScreen() {
                     setSelectedCategoryId(null); // Go back home
                 }}
             />
+
+            {/* Bottom Navigation */}
+            <BuyerBottomNav />
         </LinearGradient>
     );
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#F9FAFB' },
+    container: { flex: 1 },
     headerContainer: {
         paddingHorizontal: 20,
         borderBottomLeftRadius: 30,
@@ -505,8 +514,8 @@ const styles = StyleSheet.create({
     headerIconButton: { padding: 4, zIndex: 10 },
     createHeaderBtn: { backgroundColor: '#FFF', padding: 6, borderRadius: 20 },
     titleContainer: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
-    headerTitle: { fontSize: 20, fontWeight: '800', color: '#1F2937' },
-    scrollContent: { padding: 16, paddingBottom: 40, minHeight: '100%' },
+    headerTitle: { fontSize: 20, fontWeight: '800', color: '#7C2D12' },
+    scrollContent: { padding: 20, paddingBottom: 40, minHeight: '100%' },
 
     // Categories List (Card Style)
     categoriesList: { gap: 20, paddingBottom: 20 },
@@ -555,8 +564,8 @@ const styles = StyleSheet.create({
     },
     cardTitle: {
         fontSize: 18,
-        fontWeight: '800',
-        color: '#111827',
+        fontWeight: '900',
+        color: '#D97706',
         marginBottom: 4,
     },
     cardRatingRow: {
@@ -573,7 +582,7 @@ const styles = StyleSheet.create({
     itemCountDetail: { fontSize: 12, color: '#6B7280' },
 
     visitShopBtn: {
-        backgroundColor: COLORS.primary,
+        backgroundColor: '#FB8C00', // Warm Orange
         paddingHorizontal: 16,
         paddingVertical: 10,
         borderRadius: 20,
@@ -586,7 +595,7 @@ const styles = StyleSheet.create({
 
     // Items Grid
     itemsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-    listItem: { width: (width - 48) / 2, marginBottom: 24 },
+    listItem: { width: (width - 48) / 2, marginBottom: 12 },
     itemCardContainer: { position: 'relative' },
     itemControls: {
         position: 'absolute', top: 8, right: 8,
@@ -627,7 +636,7 @@ const styles = StyleSheet.create({
     emptyIconContainer: { width: 100, height: 100, borderRadius: 50, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center', marginBottom: 24 },
     emptyTitle: { fontSize: 20, fontWeight: '800', color: '#111827', marginBottom: 8 },
     emptyText: { fontSize: 15, color: '#6B7280', textAlign: 'center', marginBottom: 32 },
-    shopNowButton: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FF5722', paddingHorizontal: 24, paddingVertical: 14, borderRadius: 30, elevation: 4 },
+    shopNowButton: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FB8C00', paddingHorizontal: 24, paddingVertical: 14, borderRadius: 30, elevation: 4 },
     shopNowText: { fontSize: 16, fontWeight: '700', color: '#FFF' },
 
     // Modals
@@ -638,7 +647,7 @@ const styles = StyleSheet.create({
     modalInput: { borderBottomWidth: 1, borderColor: '#E5E7EB', paddingVertical: 8, marginBottom: 20, fontSize: 16 },
     modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12, marginTop: 10 },
     modalBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8 },
-    primaryBtn: { backgroundColor: COLORS.primary },
+    primaryBtn: { backgroundColor: '#FB8C00' },
     cancelText: { color: '#6B7280', fontWeight: '600' },
     primaryBtnText: { color: '#FFF', fontWeight: '700' },
 
@@ -699,7 +708,7 @@ const styles = StyleSheet.create({
         marginBottom: 32,
     },
     createBtn: {
-        backgroundColor: COLORS.primary,
+        backgroundColor: '#FB8C00', // Warm Orange
         paddingVertical: 16,
         borderRadius: 30,
         alignItems: 'center',
@@ -718,7 +727,7 @@ const styles = StyleSheet.create({
     // Item Edit Specific
     priorityRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
     priorityOption: { flex: 1, padding: 8, borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, alignItems: 'center' },
-    selectedPriority: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+    selectedPriority: { backgroundColor: '#FB8C00', borderColor: '#FB8C00' },
     priorityOptionText: { fontSize: 12, color: '#374151' },
     qtyContainer: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 24 },
     qtyBtn: { width: 32, height: 32, borderRadius: 16, borderWidth: 1, borderColor: '#E5E7EB', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F3F4F6' },

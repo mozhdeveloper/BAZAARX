@@ -35,6 +35,7 @@ import {
 } from 'lucide-react-native';
 import { COLORS } from '../constants/theme';
 import { aiChatService, ProductContext, StoreContext } from '../services/aiChatService';
+import { useAuthStore } from '../stores/authStore';
 
 interface ChatMessage {
   id: string;
@@ -54,12 +55,15 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export function AIChatBubble({ product, store, onTalkToSeller }: AIChatBubbleProps) {
   const insets = useSafeAreaInsets();
+  const { user } = useAuthStore();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [isAiTyping, setIsAiTyping] = useState(false);
   const [quickReplies, setQuickReplies] = useState<string[]>([]);
   const [showTalkToSeller, setShowTalkToSeller] = useState(false);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   
   const scrollViewRef = useRef<ScrollView>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -95,20 +99,72 @@ export function AIChatBubble({ product, store, onTalkToSeller }: AIChatBubblePro
     }).start();
   }, [isOpen]);
 
-  // Initialize quick replies and welcome message
+  // Initialize quick replies and welcome message, or load history
   useEffect(() => {
-    if (isOpen && messages.length === 0 && (product || store)) {
-      const context = { product, store };
-      const welcomeMessage: ChatMessage = {
-        id: 'welcome',
-        sender: 'ai',
-        message: aiChatService.getWelcomeMessage(context),
-        timestamp: new Date(),
-      };
-      setMessages([welcomeMessage]);
-      setQuickReplies(aiChatService.getQuickReplies(context));
-    }
-  }, [isOpen, product, store]);
+    const initializeChat = async () => {
+      if (!isOpen || !user?.id || !product?.id) return;
+      
+      setIsLoadingHistory(true);
+      
+      try {
+        // Get or create conversation for this product
+        const conv = await aiChatService.getOrCreateProductConversation(
+          user.id,
+          product.id,
+          product.name
+        );
+        
+        if (conv) {
+          setConversationId(conv.id);
+          
+          // Load message history
+          const history = await aiChatService.getMessages(conv.id);
+          
+          if (history && history.length > 0) {
+            // Convert saved messages to ChatMessage format
+            const loadedMessages: ChatMessage[] = history.map(msg => ({
+              id: msg.id,
+              sender: msg.sender,
+              message: msg.message,
+              timestamp: new Date(msg.created_at),
+            }));
+            setMessages(loadedMessages);
+          } else {
+            // No history, show welcome message
+            const context = { product, store };
+            const welcomeMessage: ChatMessage = {
+              id: 'welcome',
+              sender: 'ai',
+              message: aiChatService.getWelcomeMessage(context),
+              timestamp: new Date(),
+            };
+            setMessages([welcomeMessage]);
+            
+            // Save welcome message to database
+            await aiChatService.sendMessage(conv.id, 'ai', welcomeMessage.message);
+          }
+          
+          setQuickReplies(aiChatService.getQuickReplies({ product, store }));
+        }
+      } catch (error) {
+        console.error('[AIChatBubble] Error loading conversation:', error);
+        // Fallback to local-only chat
+        const context = { product, store };
+        const welcomeMessage: ChatMessage = {
+          id: 'welcome',
+          sender: 'ai',
+          message: aiChatService.getWelcomeMessage(context),
+          timestamp: new Date(),
+        };
+        setMessages([welcomeMessage]);
+        setQuickReplies(aiChatService.getQuickReplies(context));
+      } finally {
+        setIsLoadingHistory(false);
+      }
+    };
+    
+    initializeChat();
+  }, [isOpen, user?.id, product?.id, product?.name, store]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -140,6 +196,16 @@ export function AIChatBubble({ product, store, onTalkToSeller }: AIChatBubblePro
     setInputText('');
     setIsAiTyping(true);
 
+    // Save user message to database if we have a conversation
+    if (conversationId) {
+      await aiChatService.sendMessage(conversationId, 'user', messageText, {
+        product_id: product?.id,
+        product_name: product?.name,
+        seller_id: store?.id,
+        seller_name: store?.store_name,
+      });
+    }
+
     // Add typing indicator
     const typingMessage: ChatMessage = {
       id: 'typing',
@@ -151,36 +217,53 @@ export function AIChatBubble({ product, store, onTalkToSeller }: AIChatBubblePro
     setMessages(prev => [...prev, typingMessage]);
 
     try {
-      const { response, suggestTalkToSeller } = await aiChatService.sendMessage(
+      const { response, suggestTalkToSeller } = await aiChatService.sendAIMessage(
         messageText,
         { product, store }
       );
 
       // Remove typing indicator and add AI response
+      const aiMessage: ChatMessage = {
+        id: `ai-${Date.now()}`,
+        sender: 'ai',
+        message: response,
+        timestamp: new Date(),
+      };
+      
       setMessages(prev => {
         const filtered = prev.filter(m => m.id !== 'typing');
-        return [...filtered, {
-          id: `ai-${Date.now()}`,
-          sender: 'ai',
-          message: response,
-          timestamp: new Date(),
-        }];
+        return [...filtered, aiMessage];
       });
+
+      // Save AI response to database if we have a conversation
+      if (conversationId) {
+        await aiChatService.sendMessage(conversationId, 'ai', response, {
+          product_id: product?.id,
+          product_name: product?.name,
+        });
+      }
 
       if (suggestTalkToSeller) {
         setShowTalkToSeller(true);
       }
     } catch (error) {
       console.error('Error:', error);
+      const errorMessage = "Sorry, I'm having trouble. Please try again or talk to the seller.";
       setMessages(prev => {
         const filtered = prev.filter(m => m.id !== 'typing');
         return [...filtered, {
           id: `ai-error-${Date.now()}`,
           sender: 'ai',
-          message: "Sorry, I'm having trouble. Please try again or talk to the seller.",
+          message: errorMessage,
           timestamp: new Date(),
         }];
       });
+      
+      // Save error message too
+      if (conversationId) {
+        await aiChatService.sendMessage(conversationId, 'ai', errorMessage);
+      }
+      
       setShowTalkToSeller(true);
     } finally {
       setIsAiTyping(false);
@@ -197,10 +280,29 @@ export function AIChatBubble({ product, store, onTalkToSeller }: AIChatBubblePro
     onTalkToSeller?.();
   };
 
-  const handleNewChat = () => {
+  const handleNewChat = async () => {
     aiChatService.resetConversation();
     setMessages([]);
     setShowTalkToSeller(false);
+    setConversationId(null);
+    
+    // Create new conversation
+    if (user?.id && product?.id) {
+      try {
+        const conv = await aiChatService.getOrCreateProductConversation(
+          user.id,
+          product.id,
+          product.name
+        );
+        
+        if (conv) {
+          setConversationId(conv.id);
+        }
+      } catch (error) {
+        console.error('[AIChatBubble] Error creating new conversation:', error);
+      }
+    }
+    
     const context = { product, store };
     const welcomeMessage: ChatMessage = {
       id: 'welcome',
@@ -210,6 +312,11 @@ export function AIChatBubble({ product, store, onTalkToSeller }: AIChatBubblePro
     };
     setMessages([welcomeMessage]);
     setQuickReplies(aiChatService.getQuickReplies(context));
+    
+    // Save welcome message
+    if (conversationId) {
+      await aiChatService.sendMessage(conversationId, 'ai', welcomeMessage.message);
+    }
   };
 
   return (

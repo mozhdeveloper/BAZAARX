@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import {
@@ -9,6 +9,13 @@ import {
   BadgeCheck,
   ShoppingCart,
   Menu,
+  Zap,
+  Flame,
+  Clock,
+  Plus,
+  ChevronLeft,
+  ChevronRight,
+  SlidersHorizontal,
 } from "lucide-react";
 import Header from "../components/Header";
 import { BazaarFooter } from "../components/ui/bazaar-footer";
@@ -90,8 +97,24 @@ export default function ShopPage() {
 
   const [searchQuery, setSearchQuery] = useState(searchParams.get("q") || "");
   const [selectedCategory, setSelectedCategory] = useState("All Categories");
+  const isFirstRender = useRef(true);
   const [selectedSkinTypes, setSelectedSkinTypes] = useState<string[]>([]);
   const [selectedSort, setSelectedSort] = useState("relevance");
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  const scroll = (direction: 'left' | 'right') => {
+    if (scrollContainerRef.current) {
+      const { scrollLeft, clientWidth } = scrollContainerRef.current;
+      const scrollTo = direction === 'left'
+        ? scrollLeft - clientWidth * 0.8
+        : scrollLeft + clientWidth * 0.8;
+
+      scrollContainerRef.current.scrollTo({
+        left: scrollTo,
+        behavior: 'smooth'
+      });
+    }
+  };
   const [priceRange, setPriceRange] = useState<number[]>([0, 100000]);
   const [showFilters, setShowFilters] = useState(false);
   const [showCartModal, setShowCartModal] = useState(false);
@@ -136,9 +159,10 @@ export default function ShopPage() {
   }, []);
 
   useEffect(() => {
-    // Fetch initial products
+    // Fetch initial products - only approved and active products
     const filters = {
       isActive: true,
+      approvalStatus: 'approved',
     };
     fetchProducts(filters);
 
@@ -181,6 +205,49 @@ export default function ShopPage() {
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
+
+  // Scroll to results when category changes
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      // Only allow scroll if there is an explicit category in URL
+      const params = new URLSearchParams(window.location.search);
+      if (!params.get('category')) return;
+    }
+
+    if (selectedCategory) {
+      setTimeout(() => {
+        const resultsElement = document.getElementById("results-section");
+        if (resultsElement) {
+          const elementPosition = resultsElement.getBoundingClientRect().top;
+          const offsetPosition = elementPosition + window.pageYOffset - 100; // 100px offset from top
+
+          window.scrollTo({
+            top: offsetPosition,
+            behavior: "smooth"
+          });
+        }
+      }, 100);
+    }
+  }, [selectedCategory]);
+
+  // Scroll to results when price range changes (with debounce)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const resultsElement = document.getElementById("results-section");
+      if (resultsElement) {
+        const elementPosition = resultsElement.getBoundingClientRect().top;
+        const offsetPosition = elementPosition + window.pageYOffset - 100; // 100px offset from top
+
+        window.scrollTo({
+          top: offsetPosition,
+          behavior: "smooth"
+        });
+      }
+    }, 600); // Debounce to avoid scrolling while dragging slider
+
+    return () => clearTimeout(timer);
+  }, [priceRange]);
 
   const allProducts = useMemo<ShopProduct[]>(() => {
     const dbProducts = sellerProducts
@@ -324,7 +391,7 @@ export default function ShopPage() {
         name: "Eco-Friendly Bamboo Toothbrush Set",
         price: 150,
         originalPrice: 350,
-        image: "https://images.unsplash.com/photo-1607613009820-a29f7bb81c04?auto=format&fit=crop&q=80&w=400",
+        image: "https://images.unsplash.com/photo-1607613009820-a29f17bb81c04?auto=format&fit=crop&q=80&w=400",
         rating: 4.8,
         sold: 3400,
         category: "Personal Care",
@@ -343,7 +410,14 @@ export default function ShopPage() {
   }, [allProducts]);
 
   const filteredProducts = useMemo<ShopProduct[]>(() => {
+    const isFlashSaleFilter = searchParams.get("flash-sale") === "true";
+
     const filtered = allProducts.filter((product) => {
+      if (isFlashSaleFilter) {
+        // Only show products with significant discounts if flash-sale filter is on
+        return (product.originalPrice || 0) > product.price;
+      }
+
       const matchesSearch =
         product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         product.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -361,6 +435,15 @@ export default function ShopPage() {
     });
 
     // Apply sorting
+    if (isFlashSaleFilter) {
+      filtered.sort((a, b) => {
+        const discA = a.originalPrice ? (a.originalPrice - a.price) / a.originalPrice : 0;
+        const discB = b.originalPrice ? (b.originalPrice - b.price) / b.originalPrice : 0;
+        return discB - discA;
+      });
+      return filtered;
+    }
+
     switch (selectedSort) {
       case "price-low":
         filtered.sort((a, b) => a.price - b.price);
@@ -390,7 +473,7 @@ export default function ShopPage() {
 
   return (
     <>
-      <div className="min-h-screen bg-muted/30">
+      <div className="min-h-screen bg-[var(--brand-wash)]">
         <Header />
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-0 pb-4 flex flex-col gap-2">
@@ -408,45 +491,45 @@ export default function ShopPage() {
           <div className="flex items-center justify-center gap-10 pt-1 pb-1">
             <Link
               to="/shop"
-              className="text-sm text-primary font-medium"
+              className="text-sm font-bold text-[var(--brand-primary)] border-b-2 border-[var(--brand-primary)] pb-0.5"
             >
               Shop
             </Link>
             <Link
               to="/collections"
-              className="text-sm text-muted-foreground hover:text-primary transition-all duration-300"
+              className="text-sm text-gray-500 hover:text-[var(--brand-primary)] transition-all duration-300"
             >
               Collections
             </Link>
             <Link
               to="/stores"
-              className="text-sm text-muted-foreground hover:text-primary transition-all duration-300"
+              className="text-sm text-gray-500 hover:text-[var(--brand-primary)] transition-all duration-300"
             >
               Stores
             </Link>
             <Link
               to="/registry"
-              className="text-sm text-muted-foreground hover:text-primary transition-all duration-300"
+              className="text-sm text-gray-500 hover:text-[var(--brand-primary)] transition-all duration-300"
             >
               Registry & Gifting
             </Link>
           </div>
 
           {/* Shop Header */}
-          <div className="py-24 bg-gradient-to-br from-primary/5 via-primary/10 to-primary/5 backdrop-blur-md border border-primary/10 rounded-3xl">
+          <div className="py-24 bg-main-gradient backdrop-blur-md rounded-3xl">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               className="text-center px-4"
             >
-              <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-2 tracking-tight">
+              <h1 className="text-4xl md:text-6xl font-black text-[var(--text-headline)] mb-2 tracking-tight font-primary">
                 Shop All {''}
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-destructive">
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-[var(--brand-primary)] to-[var(--text-accent)]">
                   Products
                 </span>
               </h1>
 
-              <p className="text-medium text-gray-700 max-w-2xl mx-auto">
+              <p className="text-medium text-[var(--text-primary)] max-w-2xl mx-auto font-medium">
                 Discover amazing products from trusted sellers.
               </p>
             </motion.div>
@@ -454,139 +537,176 @@ export default function ShopPage() {
 
           <div className="pt-2 pb-0">
             {/* Flash Sale Section */}
-            <div className="mb-2 bg-white rounded-xl py-4 px-8 shadow-[0_4px_20px_rgba(0,0,0,0.08)] hover:shadow-[0_8px_30px_rgba(255,106,0,0.15)] transition-all">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <h2 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-primary to-destructive uppercase tracking-wide">
-                    FLASH SALE
-                  </h2>
+            {/* Flash Sale Section */}
+            <div className="mb-8 relative overflow-hidden rounded-3xl">
+              {/* Gold Band Background */}
+              <div className="absolute inset-x-0 h-full bg-gold-band opacity-60 pointer-events-none" />
+
+              <div className="relative z-10 py-8 px-6 sm:px-10">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-8">
+                  <div className="flex items-center gap-4 md:gap-8">
+                    <h2 className="text-3xl font-black text-[var(--text-headline)] uppercase tracking-tight font-primary">
+                      FLASH SALE
+                    </h2>
+
+                    {/* Ends in + Timer - Moved beside title */}
+                    <div className="bg-destructive text-white rounded-2xl px-4 py-2 flex items-center gap-3 shadow-lg shadow-destructive/30 border border-white/20">
+                      <Clock className="w-4 h-4 animate-pulse" />
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="text-xl font-black font-mono tracking-widest tabular-nums font-primary">
+                          {String(timeLeft.hours).padStart(2, "0")}:
+                          {String(timeLeft.minutes).padStart(2, "0")}:
+                          {String(timeLeft.seconds).padStart(2, "0")}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <Button
+                    onClick={() => navigate('/shop?flash-sale=true')}
+                    variant="ghost"
+                    className="hidden sm:flex text-[var(--brand-primary)] font-black hover:bg-[var(--brand-wash-gold)]/30 group gap-2"
+                  >
+                    VIEW ALL
+                    <motion.span
+                      animate={{ x: [0, 5, 0] }}
+                      transition={{ duration: 1.5, repeat: Infinity }}
+                    >
+                      →
+                    </motion.span>
+                  </Button>
                 </div>
 
-                {/* Ends in + Timer */}
-                <div className="bg-gradient-to-r from-primary to-destructive text-white rounded-lg px-3 py-1.5 flex items-center gap-2 shadow-sm border border-primary/20">
-                  <span className="text-xs font-semibold uppercase tracking-wide opacity-90">
-                    Ends in
-                  </span>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-lg font-bold font-mono tracking-widest">
-                      {String(timeLeft.hours).padStart(2, "0")}:
-                      {String(timeLeft.minutes).padStart(2, "0")}:
-                      {String(timeLeft.seconds).padStart(2, "0")}
-                    </span>
+                <div className="relative group">
+                  {/* Navigation Arrows */}
+                  <button
+                    onClick={() => scroll('left')}
+                    className="absolute -left-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 bg-white shadow-lg rounded-full flex items-center justify-center text-[var(--brand-primary)] opacity-0 group-hover:opacity-100 transition-all hover:bg-[var(--brand-primary)] hover:text-white border border-[var(--brand-wash-gold)]"
+                    aria-label="Scroll left"
+                  >
+                    <ChevronLeft className="w-6 h-6" />
+                  </button>
+                  <button
+                    onClick={() => scroll('right')}
+                    className="absolute -right-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 bg-white shadow-lg rounded-full flex items-center justify-center text-[var(--brand-primary)] opacity-0 group-hover:opacity-100 transition-all hover:bg-[var(--brand-primary)] hover:text-white border border-[var(--brand-wash-gold)]"
+                    aria-label="Scroll right"
+                  >
+                    <ChevronRight className="w-6 h-6" />
+                  </button>
+
+                  <div
+                    ref={scrollContainerRef}
+                    className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide snap-x snap-mandatory scroll-smooth"
+                  >
+                    {flashSales.map((product: any, index: number) => {
+                      const soldPercent = Math.min(Math.floor((product.sold / 5000) * 100) + 20, 95); // Simulated progress
+                      return (
+                        <motion.div
+                          key={product.id}
+                          initial={{ opacity: 0, scale: 0.9 }}
+                          whileInView={{ opacity: 1, scale: 1 }}
+                          viewport={{ once: true }}
+                          transition={{ delay: index * 0.05 }}
+                          className="flex-shrink-0 w-[200px] sm:w-[240px] snap-start"
+                        >
+                          <div
+                            className="bg-[var(--bg-secondary)] rounded-2xl overflow-hidden cursor-pointer shadow-[0_8px_30px_rgb(245,158,11,0.12)] hover:shadow-[0_20px_40px_rgb(245,158,11,0.2)] transition-all duration-500 overflow-hidden group border-none"
+                            onClick={() => navigate(`/product/${product.id}`)}
+                          >
+                            <div className="relative aspect-[4/3] overflow-hidden">
+                              <img
+                                src={product.image}
+                                alt={product.name}
+                                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                              />
+                              <div className="absolute top-0 right-0 bg-destructive text-white text-[10px] font-black px-2 py-1 rounded-bl-xl shadow-md z-10 flex items-center gap-1">
+                                <Zap className="w-3 h-3 fill-white" />
+                                {product.discount}% OFF
+                              </div>
+                              <div className="absolute bottom-0 inset-x-0 h-1/3 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </div>
+
+                            <div className="p-4">
+                              <h3 className="font-bold text-sm line-clamp-1 mb-2 text-[var(--text-headline)] group-hover:text-[var(--brand-primary)] transition-colors">
+                                {product.name}
+                              </h3>
+
+                              <div className="flex items-center justify-between mb-3">
+                                <div className="flex flex-col">
+                                  <div className="text-xl font-black text-destructive leading-tight">
+                                    ₱{product.price.toLocaleString()}
+                                  </div>
+                                  {product.originalPrice && (
+                                    <span className="text-[11px] text-[var(--text-muted)] line-through">
+                                      ₱{product.originalPrice.toLocaleString()}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-1 bg-[var(--brand-wash)] px-2 py-1 rounded-lg">
+                                  <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                                  <span className="text-[10px] font-bold text-[var(--text-primary)]">{product.rating}</span>
+                                </div>
+                              </div>
+
+                              {/* Progress Bar - New from Mobile */}
+                              <div className="space-y-1.5">
+                                <div className="flex items-center justify-between text-[10px] font-black uppercase">
+                                  <div className="flex items-center gap-1 text-destructive">
+                                    <Flame className="w-3 h-3 fill-destructive" />
+                                    <span>{product.sold.toLocaleString()} SOLD</span>
+                                  </div>
+                                  <span className="text-[var(--text-muted)]">{soldPercent}%</span>
+                                </div>
+                                <div className="h-2 w-full bg-destructive/10 rounded-full overflow-hidden">
+                                  <motion.div
+                                    initial={{ width: 0 }}
+                                    whileInView={{ width: `${soldPercent}%` }}
+                                    viewport={{ once: true }}
+                                    transition={{ duration: 1, ease: "easeOut" }}
+                                    className="h-full bg-gradient-to-r from-destructive to-orange-500 rounded-full"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </motion.div>
+                      );
+                    })}
                   </div>
                 </div>
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
-                {flashSales.map((product: any, index: number) => (
-                  <motion.div
-                    key={product.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    className="bg-white rounded-lg overflow-hidden cursor-pointer hover:shadow-lg transition-all border border-gray-100 hover:border-primary pb-2"
-                    onClick={() => navigate(`/product/${product.id}`)}
-                    role="link"
-                    tabIndex={0}
-                    aria-label={`View flash sale deal for ${product.name}, ${product.discount}% off`}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        navigate(`/product/${product.id}`);
-                      }
-                    }}
-                  >
-                    <div className="relative aspect-[4/3] mb-2">
-                      <img
-                        src={product.image}
-                        alt={product.name}
-                        className="w-full h-full object-cover" />
-                      <div className="absolute top-0 right-0 bg-primary text-white text-[9px] font-bold px-1.5 py-0.5 rounded-bl-md z-10">
-                        -{product.discount}%
-                      </div>
-                    </div>
-
-                    <div className="px-3 pb-2">
-                      <h3 className="font-semibold text-sm line-clamp-1 mb-1 text-gray-800">
-                        {product.name}
-                      </h3>
-
-                      {/* Rating */}
-                      <div className="flex items-center gap-1 mb-1.5">
-                        <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-                        <span className="text-xs text-gray-500">{product.rating}</span>
-                      </div>
-
-                      <div className="flex flex-col gap-0.5">
-                        <div className="text-base font-bold text-primary leading-none">
-                          ₱{product.price.toLocaleString()}
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          {product.originalPrice && (
-                            <span className="text-[10px] text-gray-400 line-through">
-                              ₱{product.originalPrice.toLocaleString()}
-                            </span>
-                          )}
-                          <span className="text-[10px] text-gray-500">
-                            {(product.sold || 0).toLocaleString()} sold
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
               </div>
             </div>
           </div>
 
           {/* Main Content */}
           <div className="w-full">
-            {/* Toolbar */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{
-                opacity: isToolbarSticky ? 1 : 0,
-                y: isToolbarSticky ? 0 : -20,
-                pointerEvents: isToolbarSticky ? "auto" : "none"
-              }}
-              className="sticky top-[72px] z-30 mb-6 bg-gray-50/80 backdrop-blur-md py-3 -mx-2 px-2 rounded-xl transition-all duration-300"
-            >
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                  <button
-                    onClick={() => setShowFilters(!showFilters)}
-                    className="lg:hidden flex items-center gap-2 px-4 py-2 bg-gray-100/80 hover:bg-gray-200/80 rounded-xl text-xs font-semibold text-gray-700 transition-colors"
-                    aria-expanded={showFilters}
-                    aria-controls="mobile-filters-menu"
-                    aria-label={showFilters ? "Close categories menu" : "Open categories menu"}
-                  >
-                    <Menu className="w-4 h-4" />
-                    Categories
-                  </button>
 
-                  <p className="text-gray-800 text-sm font-medium">
-                    <span className="text-primary font-bold">{filteredProducts.length}</span> Products Found
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-6">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-500 hidden sm:inline">Sort By:</span>
-                    <Select value={selectedSort} onValueChange={setSelectedSort}>
-                      <SelectTrigger className="w-[120px] md:w-[140px] h-9 border-none bg-transparent hover:bg-gray-100 rounded-xl transition-all text-sm font-medium text-gray-800 focus:ring-0">
-                        <SelectValue placeholder="Sort by" />
-                      </SelectTrigger>
-                      <SelectContent className="rounded-xl border-gray-100">
-                        {sortOptions.map((option) => (
-                          <SelectItem key={option.value} value={option.value} className="text-xs">
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+            <AnimatePresence>
+              {searchParams.get("flash-sale") === "true" && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, height: "auto", scale: 1 }}
+                  exit={{ opacity: 0, height: 0, scale: 0.95 }}
+                  className="flex items-center gap-4 py-4 bg-[var(--brand-wash)] px-6 rounded-2xl mb-6 shadow-sm border border-[var(--brand-wash-gold)] overflow-hidden"
+                >
+                  <div className="bg-destructive/10 p-2 rounded-xl">
+                    <Zap className="w-5 h-5 text-destructive fill-destructive" />
                   </div>
-                </div>
-              </div>
-            </motion.div>
+                  <div className="flex-1">
+                    <h3 className="font-black text-[var(--text-headline)]">Viewing All Flash Sales</h3>
+                    <p className="text-[10px] text-[var(--text-muted)] font-bold uppercase tracking-widest">Exclusive limited time offers</p>
+                  </div>
+                  <Button
+                    onClick={() => navigate('/shop')}
+                    variant="outline"
+                    size="sm"
+                    className="border-[var(--brand-primary)] text-[var(--brand-primary)] hover:bg-[var(--brand-primary)] hover:text-white font-black rounded-xl"
+                  >
+                    CLEAR FILTER
+                  </Button>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Mobile Filters Menu */}
             <AnimatePresence>
@@ -619,8 +739,8 @@ export default function ShopPage() {
                             setShowFilters(false);
                           }}
                           className={`px-3 py-1.5 rounded-lg text-sm transition-all duration-200 ${selectedCategory === category
-                            ? "bg-primary text-primary-foreground font-medium shadow-sm"
-                            : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                            ? "bg-[var(--brand-primary)] text-white font-medium shadow-sm"
+                            : "bg-[var(--brand-wash)] text-[var(--text-primary)] hover:bg-[var(--brand-wash-gold)]"
                             }`}
                           aria-pressed={selectedCategory === category}
                         >
@@ -644,7 +764,7 @@ export default function ShopPage() {
                     <div className="space-y-4">
                       <button
                         onClick={() => setSelectedCategory("All Categories")}
-                        className={`w-full flex justify-between items-center group transition-colors ${selectedCategory === "All Categories" ? "text-primary" : "text-gray-600 hover:text-gray-900"}`}
+                        className={`w-full flex justify-between items-center group transition-colors ${selectedCategory === "All Categories" ? "text-[var(--brand-primary)]" : "text-[var(--text-primary)] hover:text-[var(--text-headline)]"}`}
                         aria-pressed={selectedCategory === "All Categories"}
                       >
                         <span className={`text-sm ${selectedCategory === "All Categories" ? "font-bold" : "font-medium"}`}>All Product</span>
@@ -654,11 +774,11 @@ export default function ShopPage() {
                         <button
                           key={cat.id}
                           onClick={() => setSelectedCategory(cat.name)}
-                          className={`w-full flex justify-between items-center group transition-colors ${selectedCategory === cat.name ? "text-primary" : "text-muted-foreground hover:text-gray-900"}`}
+                          className={`w-full flex justify-between items-center group transition-colors ${selectedCategory === cat.name ? "text-[var(--brand-primary)]" : "text-[var(--text-primary)] hover:text-[var(--text-headline)]"}`}
                           aria-pressed={selectedCategory === cat.name}
                         >
                           <span className="text-sm font-medium">{cat.name}</span>
-                          <span className="text-xs font-normal text-gray-400 group-hover:text-gray-600">
+                          <span className="text-xs font-normal text-[var(--text-muted)] group-hover:text-[var(--text-primary)]">
                             {allProducts.filter(p => p.category === cat.name).length || Math.floor(Math.random() * 50) + 10}
                           </span>
                         </button>
@@ -666,36 +786,74 @@ export default function ShopPage() {
                     </div>
                   </div>
 
-                  <div className="border-t border-gray-100 pt-8">
-                    <h2 className="text-lg font-bold text-gray-900 mb-6 font-primary">Filter By</h2>
+                  <div className="border-t border-gray-100 pt-3">
+                    <h2 className="text-lg font-bold text-gray-900 mb-4 font-primary">Filter By</h2>
 
-                    <div className="space-y-10">
+                    <div className="space-y-6">
                       {/* Price Section */}
-                      <div className="space-y-4">
-                        <h3 className="font-bold text-gray-900 text-sm">Price</h3>
-                        <div className="pt-2">
-                          <Slider
-                            defaultValue={[0, 100000]}
-                            max={100000}
-                            step={100}
-                            value={priceRange}
-                            onValueChange={setPriceRange}
-                            className="text-primary"
-                          />
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-4">
+                          <h3 className="font-bold text-gray-900 text-sm whitespace-nowrap">Price</h3>
+                          <div className="flex-1">
+                            <Slider
+                              defaultValue={[0, 100000]}
+                              max={100000}
+                              step={100}
+                              value={priceRange}
+                              onValueChange={setPriceRange}
+                              className="text-[var(--brand-primary)]"
+                            />
+                          </div>
                         </div>
-                        <p className="text-xs text-gray-500 mt-4">
-                          Range: <span className="font-medium text-gray-700">₱{priceRange[0].toLocaleString()} - ₱{priceRange[1].toLocaleString()}</span>
-                        </p>
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1">
+                            <label className="text-[10px] text-[var(--text-muted)] font-medium mb-1 block">Min</label>
+                            <div className="relative">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-[var(--text-muted)]">₱</span>
+                              <input
+                                type="text"
+                                value={priceRange[0].toLocaleString()}
+                                onChange={(e) => {
+                                  const value = e.target.value.replace(/,/g, '');
+                                  const numValue = parseInt(value) || 0;
+                                  if (numValue <= priceRange[1]) {
+                                    setPriceRange([Math.min(numValue, 100000), priceRange[1]]);
+                                  }
+                                }}
+                                className="w-full pl-6 pr-2 py-1.5 text-xs font-bold text-[var(--text-primary)] border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)]/20 focus:border-[var(--brand-primary)]"
+                              />
+                            </div>
+                          </div>
+                          <span className="text-[var(--text-muted)] mt-5">-</span>
+                          <div className="flex-1">
+                            <label className="text-[10px] text-[var(--text-muted)] font-medium mb-1 block">Max</label>
+                            <div className="relative">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-[var(--text-muted)]">₱</span>
+                              <input
+                                type="text"
+                                value={priceRange[1].toLocaleString()}
+                                onChange={(e) => {
+                                  const value = e.target.value.replace(/,/g, '');
+                                  const numValue = parseInt(value) || 0;
+                                  if (numValue >= priceRange[0]) {
+                                    setPriceRange([priceRange[0], Math.min(numValue, 100000)]);
+                                  }
+                                }}
+                                className="w-full pl-6 pr-2 py-1.5 text-xs font-bold text-[var(--text-primary)] border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)]/20 focus:border-[var(--brand-primary)]"
+                              />
+                            </div>
+                          </div>
+                        </div>
                       </div>
 
                       {/* Size Section */}
-                      <div className="space-y-4">
+                      <div className="space-y-3">
                         <h3 className="font-bold text-gray-900 text-sm">Size</h3>
                         <div className="flex flex-wrap gap-2">
                           {sizeOptions.map((size) => (
                             <button
                               key={size}
-                              className="w-10 h-10 rounded-full border border-gray-200 flex items-center justify-center text-xs font-medium text-gray-600 hover:border-primary hover:text-primary transition-all active:scale-95"
+                              className="w-10 h-10 rounded-full border border-[var(--border)] flex items-center justify-center text-xs font-bold text-[var(--text-primary)] hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] hover:bg-[var(--brand-wash)] transition-all active:scale-95"
                             >
                               {size}
                             </button>
@@ -704,13 +862,13 @@ export default function ShopPage() {
                       </div>
 
                       {/* Color Section */}
-                      <div className="space-y-4">
+                      <div className="space-y-3">
                         <h3 className="font-bold text-gray-900 text-sm">Color</h3>
                         <div className="flex flex-wrap gap-3">
                           {colorOptions.map((color) => (
                             <button
                               key={color.name}
-                              className={`w-6 h-6 rounded-full border border-gray-100 shadow-sm hover:scale-110 transition-transform ${color.name === "Orange" ? "ring-2 ring-offset-2 ring-primary" : ""}`}
+                              className={`w-6 h-6 rounded-full border border-[var(--border)] shadow-sm hover:scale-110 transition-transform ${color.name === "Orange" ? "ring-2 ring-offset-2 ring-[var(--brand-primary)]" : ""}`}
                               style={{ backgroundColor: color.hex }}
                               title={color.name}
                               aria-label={`Filter by color: ${color.name}`}
@@ -720,17 +878,17 @@ export default function ShopPage() {
                       </div>
 
                       {/* Brands Section */}
-                      <div className="space-y-4">
+                      <div className="space-y-3">
                         <h3 className="font-bold text-gray-900 text-sm">Brands</h3>
                         <div className="space-y-3">
                           {brandOptions.map((brand) => (
                             <div key={brand.name} className="flex justify-between items-center group cursor-pointer hover:text-gray-900">
                               <div className="flex items-center gap-2">
-                                <span className={`text-sm transition-colors ${brand.name === "The North Face" ? "text-primary font-bold" : "text-muted-foreground font-medium"}`}>
+                                <span className={`text-sm transition-colors ${brand.name === "The North Face" ? "text-[var(--brand-primary)] font-bold" : "text-[var(--text-primary)] font-medium"}`}>
                                   {brand.name}
                                 </span>
                               </div>
-                              <span className={`text-[11px] transition-colors ${brand.name === "The North Face" ? "text-primary" : "text-muted-foreground"}`}>
+                              <span className={`text-[11px] transition-colors ${brand.name === "The North Face" ? "text-[var(--brand-primary)] font-bold" : "text-[var(--text-muted)]"}`}>
                                 {brand.count}
                               </span>
                             </div>
@@ -739,13 +897,13 @@ export default function ShopPage() {
                       </div>
 
                       {/* Popular Tags */}
-                      <div className="space-y-4">
+                      <div className="space-y-3">
                         <h3 className="font-bold text-gray-900 text-sm">Popular tags</h3>
                         <div className="flex flex-wrap gap-x-3 gap-y-2">
                           {popularTags.map((tag) => (
                             <button
                               key={tag}
-                              className="text-xs text-muted-foreground hover:text-primary transition-colors"
+                              className="text-xs text-[var(--text-muted)] font-medium hover:text-[var(--brand-primary)] transition-colors"
                             >
                               {tag},
                             </button>
@@ -759,6 +917,38 @@ export default function ShopPage() {
 
               {/* Products Area */}
               <div className="flex-1 min-w-0">
+                {/* Results Header / Toolbar - Matches Image 2 */}
+                <div id="results-section" className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-4">
+                  <div className="flex items-center gap-4">
+                    <button
+                      onClick={() => setShowFilters(!showFilters)}
+                      className="lg:hidden flex items-center gap-2 px-3 py-2 bg-[var(--brand-wash)] rounded-xl text-xs font-bold text-[var(--brand-primary)]"
+                    >
+                      <SlidersHorizontal className="w-4 h-4" />
+                      Filters
+                    </button>
+                    <p className="text-[var(--text-muted)] text-sm">
+                      Showing <span className="text-[var(--brand-primary)] font-bold">{filteredProducts.length}</span> results
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+
+                    <Select value={selectedSort} onValueChange={setSelectedSort}>
+                      <SelectTrigger className="w-[160px] h-9 bg-white border-0 rounded-xl text-sm font-medium text-[var(--text-headline)] focus:outline-none focus:ring-1 focus:ring-orange-100 shadow-md hover:shadow-lg transition-all">
+                        <SelectValue placeholder="Sort by" />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-xl border-orange-100 shadow-xl bg-white">
+                        {sortOptions.map((option) => (
+                          <SelectItem key={option.value} value={option.value} className="text-xs">
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                  </div>
+                </div>
                 {/* Mobile Filters Menu handled separately above */}
 
                 {/* Products Grid */}
@@ -774,7 +964,7 @@ export default function ShopPage() {
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: index * 0.05 }}
-                      className="bg-white rounded-xl shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden group cursor-pointer"
+                      className="bg-[var(--bg-secondary)] rounded-2xl shadow-[0_8px_30px_rgb(245,158,11,0.12)] hover:shadow-[0_20px_40px_rgb(245,158,11,0.2)] transition-all duration-500 overflow-hidden group cursor-pointer border-none"
                       onClick={() => navigate(`/product/${product.id}`)}
                       role="link"
                       tabIndex={0}
@@ -802,14 +992,14 @@ export default function ShopPage() {
                           </Badge>
                         )}
                         {product.isFreeShipping && (
-                          <div className="absolute top-3 right-3 bg-green-500 text-white p-1.5 rounded-lg">
+                          <div className="absolute top-3 right-3 bg-[var(--color-success)] text-white p-1.5 rounded-lg shadow-sm">
                             <Truck className="w-3 h-3" />
                           </div>
                         )}
                       </div>
 
-                      <div className="p-3 flex-1 flex flex-col">
-                        <h3 className="font-semibold text-gray-900 group-hover:text-primary transition-colors duration-200 line-clamp-2 h-10 text-sm">
+                      <div className="p-2 flex-1 flex flex-col">
+                        <h3 className="font-semibold text-[var(--text-primary)] group-hover:text-[var(--brand-primary)] transition-colors duration-200 line-clamp-2 h-10 text-xs">
                           {product.name}
                         </h3>
 
@@ -823,7 +1013,7 @@ export default function ShopPage() {
                           {product.isVerified && (
                             <Badge
                               variant="outline"
-                              className="text-[10px] py-0 px-1.5 gap-1 border-green-200 bg-green-50 text-green-700"
+                              className="text-[10px] py-0 px-1.5 gap-1 border-[var(--brand-wash-gold)] bg-[var(--brand-wash)] text-[var(--color-success)] font-bold shadow-sm"
                             >
                               <BadgeCheck className="w-2.5 h-2.5" />
                               Verified
@@ -833,7 +1023,7 @@ export default function ShopPage() {
 
                         <div className="mt-1.5">
                           <div className="flex items-center gap-2">
-                            <span className="text-base font-bold text-primary">
+                            <span className="text-base font-bold text-[var(--brand-primary)]">
                               ₱{product.price.toLocaleString()}
                             </span>
                             {product.originalPrice && (
@@ -852,6 +1042,27 @@ export default function ShopPage() {
                         <div className="mt-1">
                           <p className="text-[10px] text-gray-500">{product.seller}</p>
                         </div>
+
+                        {/* Progress Bar for Flash Sale filter */}
+                        {searchParams.get("flash-sale") === "true" && (
+                          <div className="mt-3 space-y-1.5">
+                            <div className="flex items-center justify-between text-[9px] font-black uppercase">
+                              <div className="flex items-center gap-1 text-destructive">
+                                <Flame className="w-2.5 h-2.5 fill-destructive" />
+                                <span>{(product.sold || 0).toLocaleString()} SOLD</span>
+                              </div>
+                              <span className="text-[var(--text-muted)]">
+                                {Math.min(Math.floor(((product.sold || 0) / 5000) * 100) + 20, 95)}%
+                              </span>
+                            </div>
+                            <div className="h-1.5 w-full bg-destructive/10 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-gradient-to-r from-destructive to-orange-500 rounded-full"
+                                style={{ width: `${Math.min(Math.floor(((product.sold || 0) / 5000) * 100) + 20, 95)}%` }}
+                              />
+                            </div>
+                          </div>
+                        )}
 
                         {/* Action Buttons */}
                         <div className="mt-auto pt-3 flex gap-1.5">
@@ -888,7 +1099,7 @@ export default function ShopPage() {
                             }}
                             variant="outline"
                             size="icon"
-                            className="flex-shrink-0 border-primary text-primary hover:bg-primary hover:text-white rounded-lg transition-all active:scale-95 h-8 w-8 p-0"
+                            className="flex-shrink-0 border-[var(--brand-primary)] text-[var(--brand-primary)] hover:bg-[var(--brand-primary)] hover:text-white rounded-lg transition-all active:scale-95 h-8 w-8 p-0"
                             title="Add to Cart"
                             aria-label={`Add ${product.name} to cart`}
                           >
@@ -931,7 +1142,7 @@ export default function ShopPage() {
                                 setShowBuyNowModal(true);
                               }
                             }}
-                            className="flex-1 bg-primary hover:bg-primary/90 text-white rounded-lg transition-all active:scale-95 h-8 text-xs"
+                            className="flex-1 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white rounded-lg transition-all active:scale-95 h-8 text-xs font-bold"
                             aria-label={`Buy ${product.name} now`}
                           >
                             Buy Now
@@ -952,7 +1163,7 @@ export default function ShopPage() {
                   >
                     <Button
                       variant="outline"
-                      className="px-8 py-3 border-primary text-primary hover:bg-primary hover:text-white rounded-xl"
+                      className="px-8 py-3 border-[var(--brand-primary)] text-[var(--brand-primary)] hover:bg-[var(--brand-primary)] hover:text-white rounded-xl font-bold shadow-sm"
                     >
                       Load More Products
                     </Button>

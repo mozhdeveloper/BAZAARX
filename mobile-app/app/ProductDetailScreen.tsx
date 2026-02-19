@@ -17,6 +17,8 @@ import {
   FlatList,
   ActivityIndicator,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ArrowLeft,
@@ -40,6 +42,7 @@ import {
   Gift,
   Edit3,
   MapPin, // Added for seller location
+  User, // Added missing import
 } from 'lucide-react-native';
 import { ProductCard } from '../src/components/ProductCard';
 import CameraSearchModal from '../src/components/CameraSearchModal';
@@ -53,7 +56,8 @@ import { trendingProducts } from '../src/data/products';
 import { COLORS } from '../src/constants/theme';
 import { useAuthStore } from '../src/stores/authStore';
 import { GuestLoginModal } from '../src/components/GuestLoginModal';
-import { reviewService, Review } from '../src/services/reviewService';
+import { reviewService, type ReviewFeedItem } from '../src/services/reviewService';
+import { productService } from '../src/services/productService';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../App';
 
@@ -110,11 +114,30 @@ const formatReviewDate = (dateString: string): string => {
 
 export default function ProductDetailScreen({ route, navigation }: Props) {
   const insets = useSafeAreaInsets();
-  const { product } = route.params;
+  const { product: initialProduct } = route.params;
+  const [product, setProduct] = useState(initialProduct);
   const { user, isGuest } = useAuthStore();
 
   // State
   const [activeTab, setActiveTab] = useState<'details' | 'support' | 'ratings'>('details');
+
+  // Fetch full product details if variants are missing
+  useEffect(() => {
+    const fetchFullProduct = async () => {
+      // Re-fetch only if we don't have variants or structured variants but id exists
+      if (product.id && (!product.variants || product.variants.length === 0)) {
+        try {
+          const fullProduct = await productService.getProductById(product.id);
+          if (fullProduct) {
+            setProduct(fullProduct as any);
+          }
+        } catch (error) {
+          console.error('[ProductDetail] Error fetching full product:', error);
+        }
+      }
+    };
+    fetchFullProduct();
+  }, [product.id]);
 
   // Structured variants from product_variants table
   const productVariants = product.variants || [];
@@ -225,16 +248,36 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     };
   }, [hasStructuredVariants, productVariants, selectedOption1, selectedOption2, product.price, product.stock]);
 
+  // Extract seller name robustly (fixes lint errors with mixed object/string types)
+  const displayStoreName = useMemo(() => {
+    const s = product.seller as any;
+    if (typeof s === 'object' && s !== null && s.store_name) {
+      return s.store_name;
+    }
+    return typeof s === 'string' ? s : 'Store';
+  }, [product.seller]);
+
   // Reviews State
-  const [reviews, setReviews] = useState<(Review & { buyer?: { full_name: string | null; avatar_url: string | null } })[]>([]);
+  const [reviews, setReviews] = useState<ReviewFeedItem[]>([]);
   const [reviewsTotal, setReviewsTotal] = useState(0);
   const [isLoadingReviews, setIsLoadingReviews] = useState(false);
+  const [isLoadingMoreReviews, setIsLoadingMoreReviews] = useState(false);
+  const [reviewPage, setReviewPage] = useState(1);
   const [averageRating, setAverageRating] = useState(0);
+
+  const effectiveAverageRating = averageRating > 0 ? averageRating : Number(product.rating || 0);
+  const effectiveReviewTotal = reviewsTotal > 0
+    ? reviewsTotal
+    : Number((product as any).reviewCount || (product as any).totalReviews || 0);
+  const soldCount = Number((product as any).sales_count ?? (product as any).sold ?? 0);
 
   // Wishlist State
   const [showWishlistDropdown, setShowWishlistDropdown] = useState(false);
   const [newListName, setNewListName] = useState('');
   const [isCreatingList, setIsCreatingList] = useState(false);
+
+  // Menu State
+  const [showMenu, setShowMenu] = useState(false);
 
   // Use product images if available, otherwise mock an array with the main image
   const productImages = product.images || [product.image, product.image, product.image, product.image, product.image];
@@ -251,31 +294,55 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
   const relatedProducts = trendingProducts.filter((p) => p.id !== product.id).slice(0, 4);
 
-  // Fetch reviews from database
-  useEffect(() => {
-    const fetchReviews = async () => {
-      if (!product.id) return;
+  const fetchReviews = async (page = 1, append = false) => {
+    if (!product.id) return;
 
+    if (append) {
+      setIsLoadingMoreReviews(true);
+    } else {
       setIsLoadingReviews(true);
-      try {
-        const { reviews: fetchedReviews, total } = await reviewService.getProductReviews(product.id);
-        setReviews(fetchedReviews);
-        setReviewsTotal(total);
+    }
 
-        // Calculate average rating
-        if (fetchedReviews.length > 0) {
-          const avg = fetchedReviews.reduce((sum, r) => sum + r.rating, 0) / fetchedReviews.length;
-          setAverageRating(Math.round(avg * 10) / 10);
-        }
-      } catch (error) {
-        console.error('[ProductDetail] Error fetching reviews:', error);
-      } finally {
+    try {
+      const { reviews: fetchedReviews, total, stats } = await reviewService.getProductReviews(product.id, page, 5);
+      const mergedReviews = append
+        ? Array.from(new Map([...reviews, ...fetchedReviews].map((review) => [review.id, review])).values())
+        : fetchedReviews;
+
+      setReviews(mergedReviews);
+      setReviewsTotal(total);
+      setAverageRating(stats.averageRating);
+      setReviewPage(page);
+    } catch (error) {
+      console.error('[ProductDetail] Error fetching reviews:', error);
+      if (!append) {
+        setReviews([]);
+        setReviewsTotal(0);
+        setAverageRating(0);
+      }
+    } finally {
+      if (append) {
+        setIsLoadingMoreReviews(false);
+      } else {
         setIsLoadingReviews(false);
       }
-    };
+    }
+  };
 
-    fetchReviews();
+  // Fetch reviews from database
+  useEffect(() => {
+    setReviewPage(1);
+    setReviews([]);
+    fetchReviews(1, false);
   }, [product.id]);
+
+  const handleLoadMoreReviews = () => {
+    if (isLoadingMoreReviews || reviews.length >= reviewsTotal) {
+      return;
+    }
+
+    void fetchReviews(reviewPage + 1, true);
+  };
 
   // Build selected variant object with dynamic labels
   const buildSelectedVariant = (option1?: string | null, option2?: string | null) => {
@@ -476,6 +543,33 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
     await Share.share({ message: `Check out ${product.name} on BazaarX! ₱${product.price}` });
   };
 
+  const handleMenuAction = (action: string) => {
+    setShowMenu(false);
+    switch (action) {
+      case 'share':
+        handleShare();
+        break;
+      case 'wishlist':
+        handleWishlistAction();
+        break;
+      case 'report':
+        Alert.alert(
+          'Report Product',
+          'Why are you reporting this product?',
+          [
+            { text: 'Inappropriate content', onPress: () => Alert.alert('Thank you', 'Your report has been submitted.') },
+            { text: 'Counterfeit/Fake', onPress: () => Alert.alert('Thank you', 'Your report has been submitted.') },
+            { text: 'Misleading information', onPress: () => Alert.alert('Thank you', 'Your report has been submitted.') },
+            { text: 'Cancel', style: 'cancel' },
+          ]
+        );
+        break;
+      case 'store':
+        handleVisitStore();
+        break;
+    }
+  };
+
   const handleChat = () => {
     const { isGuest } = useAuthStore.getState();
     if (isGuest) {
@@ -487,14 +581,18 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
   }
 
   const handleVisitStore = () => {
+    const sellerId = product.seller_id || product.sellerId;
+    if (!sellerId) {
+      Alert.alert('Store Unavailable', 'Store information is not available for this product.');
+      return;
+    }
     navigation.push('StoreDetail', {
       store: {
-        id: product.seller_id || 'store_1',
-        name: product.seller || 'TechHub Manila Official',
-        image: 'https://images.unsplash.com/photo-1472851294608-41551b33fcc3?w=150', // Mock Store Image
-        rating: product.sellerRating || 4.9,
-        followers: 1250,
-        description: 'Official distributor of premium tech gadgets.'
+        id: sellerId,
+        name: product.seller || 'Store',
+        image: product.seller_avatar || product.sellerAvatar || null,
+        rating: product.sellerRating || 0,
+        verified: product.sellerVerified || false,
       }
     });
   };
@@ -538,42 +636,93 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={BRAND_COLOR} />
+      <StatusBar barStyle="dark-content" backgroundColor="#FFF6E5" translucent={false} />
 
-      {/* --- HEADER (Matches Screenshot) --- */}
-      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-        <Pressable onPress={() => navigation.goBack()} style={styles.iconButton}>
-          <ArrowLeft size={24} color="#FFF" />
-        </Pressable>
-
-        <Pressable style={styles.headerSearchBar} onPress={() => setIsSearchFocused(true)}>
-          <Search size={18} color="#9CA3AF" />
-          <Text style={styles.headerSearchText}>Search product...</Text>
-          <View style={styles.cameraIcon}>
-            <Camera size={16} color={BRAND_COLOR} />
+      {/* --- HEADER SECTION (Branding Only) --- */}
+      <LinearGradient
+        colors={['#FFF6E5', '#FFE0A3', '#FFD89A']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+        style={{
+          paddingTop: insets.top + 10,
+          paddingBottom: 40,
+          zIndex: 10,
+        }}
+      >
+        <View style={{
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          paddingHorizontal: 20,
+        }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Image
+              source={require('../assets/BazaarX.png')}
+              style={{ width: 38, height: 38, marginRight: 6 }}
+              resizeMode="contain"
+            />
+            <Text style={{ fontSize: 24, fontWeight: '900', color: '#FB8C00' }}>BazaarX</Text>
           </View>
-        </Pressable>
 
-        <View style={styles.headerRight}>
-          <Pressable onPress={() => navigation.navigate('MainTabs', { screen: 'Cart' })} style={styles.iconButton}>
-            <ShoppingCart size={24} color="#FFF" />
+          <Pressable onPress={() => navigation.navigate('MainTabs', { screen: 'Cart' })} style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: 'rgba(255,255,255,0.6)', alignItems: 'center', justifyContent: 'center' }}>
+            <ShoppingCart size={20} color="#78350F" />
             {cartItemCount > 0 && (
-              <View style={styles.badge}>
+              <View style={[styles.badge, { right: -2, top: -2 }]}>
                 <Text style={styles.badgeText}>{cartItemCount}</Text>
               </View>
             )}
           </Pressable>
-          <Pressable style={styles.iconButton} onPress={() => { /* Menu Action */ }}>
-            <View style={{ gap: 3 }}>
-              <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: '#FFF' }} />
-              <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: '#FFF' }} />
-              <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: '#FFF' }} />
-            </View>
-          </Pressable>
         </View>
-      </View>
+      </LinearGradient>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        style={{
+          flex: 1,
+          backgroundColor: '#FFF8F0', // Cream background
+          marginTop: -30, // Overlap the header
+          borderTopLeftRadius: 36,
+          borderTopRightRadius: 36,
+          zIndex: 11,
+          elevation: 5,
+          // Removed overflow: 'hidden' to allow card shadows
+        }}
+        contentContainerStyle={{ paddingBottom: 140, paddingTop: 25 }}
+      >
+        {/* Back Button & Title Area strictly inside Rounded Container */}
+        <View style={{ paddingHorizontal: 20, marginBottom: 15 }}>
+          <Pressable onPress={() => navigation.goBack()} style={{ marginBottom: 15 }}>
+            <ArrowLeft size={24} color="#78350F" strokeWidth={2.5} />
+          </Pressable>
+
+          <Text style={[styles.productName, { color: '#431407' }]}>{product.name}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <View style={{ flexDirection: 'row', gap: 2, marginRight: 8 }}>
+              {[1, 2, 3, 4, 5].map((s) => {
+                const isFilled = s <= Math.round(effectiveAverageRating);
+                return (
+                  <Star
+                    key={s}
+                    size={15}
+                    color={isFilled ? '#FB8C00' : '#D1D5DB'}
+                    fill={isFilled ? '#FB8C00' : 'transparent'}
+                  />
+                );
+              })}
+            </View>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: '#B45309' }}>
+              {effectiveAverageRating > 0 ? effectiveAverageRating.toFixed(1) : 'No rating'}
+            </Text>
+            <Text style={{ fontSize: 13, color: 'rgba(120, 53, 15, 0.4)', marginHorizontal: 8 }}>|</Text>
+            <Text style={{ fontSize: 13, color: '#6B7280' }}>
+              {effectiveReviewTotal.toLocaleString()} Reviews
+            </Text>
+            <Text style={{ fontSize: 13, color: 'rgba(120, 53, 15, 0.4)', marginHorizontal: 8 }}>|</Text>
+            <Text style={{ fontSize: 13, color: '#6B7280' }}>
+              {soldCount.toLocaleString()} Sold
+            </Text>
+          </View>
+        </View>
 
         {/* --- IMAGE CAROUSEL --- */}
         <View style={styles.imageContainer}>
@@ -583,7 +732,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
             showsHorizontalScrollIndicator={false}
             onScroll={(e) => {
               const contentOffsetX = e.nativeEvent.contentOffset.x;
-              const index = Math.round(contentOffsetX / (width || 1));
+              const index = Math.round(contentOffsetX / (width - 32 || 1));
               setCurrentImageIndex(index);
             }}
             scrollEventThrottle={16}
@@ -592,122 +741,23 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
               <Image key={index} source={{ uri: img }} style={styles.productImage} />
             ))}
           </ScrollView>
-
-          {/* Page Indicator (Top Left) */}
           <View style={styles.pageIndicator}>
             <Text style={styles.pageText}>{currentImageIndex + 1}/{productImages.length}</Text>
           </View>
-
-          {/* Share Icon */}
-          <Pressable
-            style={styles.shareFab}
-            onPress={handleShare}
-          >
-            <Share2 size={20} color={BRAND_COLOR} />
-          </Pressable>
-
-          {/* Wishlist / Bookmark FAB */}
-          <Pressable
-            style={styles.heartFab}
-            onPress={() => handleWishlistAction()}
-          >
-            {isFavorite ? (
-              <Heart size={20} color="#EF4444" fill="#EF4444" />
-            ) : (
-              <Heart size={20} color={BRAND_COLOR} strokeWidth={2.5} />
-            )}
-          </Pressable>
-
-          {/* Inline Wishlist Dropdown */}
-          {showWishlistDropdown && !isFavorite && (
-            <View style={styles.wishlistDropdown}>
-              <Text style={styles.dropdownHeader}>Save to List</Text>
-
-              {categories.map((cat) => (
-                <Pressable
-                  key={cat.id}
-                  style={styles.dropdownItem}
-                  onPress={() => handleWishlistAction(cat.id)}
-                >
-                  <FolderHeart size={16} color="#4B5563" />
-                  <Text style={styles.dropdownItemText}>{cat.name}</Text>
-                </Pressable>
-              ))}
-
-              <View style={styles.dropdownDivider} />
-
-              {isCreatingList ? (
-                <View style={styles.createListRow}>
-                  <TextInput
-                    style={styles.createListInput}
-                    placeholder="List Name"
-                    value={newListName}
-                    onChangeText={setNewListName}
-                    autoFocus
-                  />
-                  <Pressable onPress={handleCreateList}>
-                    <PlusCircle size={20} color={BRAND_COLOR} />
-                  </Pressable>
-                </View>
-              ) : (
-                <Pressable
-                  style={styles.dropdownItem}
-                  onPress={() => setIsCreatingList(true)}
-                >
-                  <PlusCircle size={16} color={BRAND_COLOR} />
-                  <Text style={[styles.dropdownItemText, { color: BRAND_COLOR, fontWeight: '700' }]}>Create New List</Text>
-                </Pressable>
-              )}
-            </View>
-          )}
         </View>
 
-        {/* --- PRODUCT INFO CARD --- */}
-        <View style={styles.infoCard}>
-          {/* Tags */}
-          <View style={styles.tagRow}>
-            <View style={[styles.tag, { backgroundColor: '#EDE9FE' }]}>
-              <Star size={12} color="#7C3AED" fill="#7C3AED" />
-              <Text style={[styles.tagText, { color: '#7C3AED' }]}>Bestseller</Text>
+        <View style={{ padding: 16 }}>
+          {/* Price & Heart */}
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
+            <View style={styles.priceRow}>
+              <Text style={styles.currentPrice}>₱{(product.price ?? 0).toLocaleString()}</Text>
             </View>
-            <View style={[styles.tag, { backgroundColor: '#FEE2E2' }]}>
-              <Text style={[styles.tagText, { color: '#EF4444' }]}>15% OFF</Text>
-            </View>
+            <Pressable onPress={() => handleWishlistAction()} style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#FFF7ED', alignItems: 'center', justifyContent: 'center', elevation: 2, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 4 }}>
+              <Gift size={24} color="#FB8C00" strokeWidth={1.5} fill={isFavorite ? "#FB8C00" : "transparent"} />
+            </Pressable>
           </View>
 
-          <Text style={styles.productName}>{product.name}</Text>
-          <Text style={styles.subInfo}>
-            {reviewsTotal > 0 ? `${reviewsTotal} reviews` : 'No reviews yet'} • {(product.sold || product.sales_count || 0).toLocaleString()} sold • Free Shipping Available
-          </Text>
-
-          {/* Price */}
-          <View style={styles.priceRow}>
-            <Text style={styles.currentPrice}>₱{(product.price ?? 0).toLocaleString()}</Text>
-            <Text style={styles.originalPrice}>₱{originalPrice.toLocaleString()}</Text>
-          </View>
-
-          {/* Stock & Ratings */}
-          <View style={styles.metaRow}>
-            <Text style={[
-              styles.stockText,
-              { color: (selectedVariantInfo.stock || 0) <= 5 ? '#F97316' : (selectedVariantInfo.stock || 0) === 0 ? '#EF4444' : '#10B981' }
-            ]}>
-              {(selectedVariantInfo.stock || 0) === 0
-                ? 'Out of Stock'
-                : (selectedVariantInfo.stock || 0) <= 5
-                  ? `Only ${selectedVariantInfo.stock} left!`
-                  : `In-Stock (${selectedVariantInfo.stock || 0})`}
-            </Text>
-          </View>
-          <View style={styles.ratingRow}>
-            {Array.from({ length: 5 }).map((_, i) => (
-              <Star key={i} size={14} color={i < Math.round(averageRating) ? '#F59E0B' : '#E5E7EB'} fill={i < Math.round(averageRating) ? '#F59E0B' : '#E5E7EB'} />
-            ))}
-            <Text style={styles.ratingValue}>{averageRating > 0 ? averageRating.toFixed(1) : '0.0'} ({reviewsTotal})</Text>
-            <Text style={styles.questionsLink}>14 Questions</Text>
-          </View>
-
-          {/* --- OPTION 1 SELECTION (Dynamic - e.g., Color, Material) --- */}
+          {/* --- VARIANT SELECTION (Restored/Restyled & Repositioned) --- */}
           {hasOption1 && (
             <View style={styles.variantSection}>
               <Text style={styles.variantLabel}>{variantLabel1}: <Text style={styles.variantSelected}>{selectedOption1}</Text></Text>
@@ -717,13 +767,13 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
                     key={`${value}-${index}`}
                     style={[
                       styles.colorOption,
-                      { backgroundColor: variantLabel1.toLowerCase() === 'color' ? getColorHex(value) : '#F3F4F6' },
+                      { backgroundColor: variantLabel1.toLowerCase() === 'color' ? getColorHex(value) : '#F9FAFB' },
                       selectedOption1 === value && styles.colorOptionSelected,
                     ]}
                     onPress={() => setSelectedOption1(value)}
                   >
                     {variantLabel1.toLowerCase() !== 'color' && (
-                      <Text style={[styles.optionText, selectedOption1 === value && { color: '#FFF' }]}>{value}</Text>
+                      <Text style={[styles.optionText, selectedOption1 === value && { color: BRAND_COLOR }]}>{value}</Text>
                     )}
                   </Pressable>
                 ))}
@@ -731,7 +781,6 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
             </View>
           )}
 
-          {/* --- OPTION 2 SELECTION (Dynamic - e.g., Size, Style) --- */}
           {hasOption2 && (
             <View style={styles.variantSection}>
               <Text style={styles.variantLabel}>{variantLabel2}: <Text style={styles.variantSelected}>{selectedOption2}</Text></Text>
@@ -754,146 +803,128 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
               </View>
             </View>
           )}
-        </View>
-        {/* --- QUANTITY SELECTION --- */}
-        <View style={styles.sectionMerged}>
+
           <View style={styles.quantityRow}>
-            {/* Import QuantityStepper at the top first, assuming it's imported as: import { QuantityStepper } from '../src/components/QuantityStepper'; */}
-            {/* Since I cannot see imports in this chunk, I will assume it's available or should be imported. */}
-            {/* Implementing manually if component import is tricky, but preferably use the component */}
-
-            <QuantityStepper
-              value={quantity}
-              onIncrement={() => {
-                if (quantity < (selectedVariantInfo.stock || 0)) {
-                  setQuantity(quantity + 1);
-                } else {
-                  Alert.alert('Limit Reached', `Only ${selectedVariantInfo.stock} items available.`);
-                }
-              }}
-              onDecrement={() => setQuantity(Math.max(1, quantity - 1))}
-              onChange={(val) => setQuantity(val)}
-              max={selectedVariantInfo.stock || 99}
-              min={1}
-            />
-          </View>
-        </View>
-
-        {/* --- SELLER INFO --- */}
-        <Pressable onPress={handleVisitStore} style={styles.sellerSectionMerged}>
-          <View style={styles.sellerHeader}>
-            <View style={styles.sellerAvatarContainer}>
-              <Image
-                source={{ uri: product.seller_avatar || product.sellerAvatar || 'https://images.unsplash.com/photo-1472851294608-41551b33fcc3?w=150' }}
-                style={styles.sellerAvatar}
-              />
-            </View>
-            <View style={styles.sellerInfo}>
-              <View style={styles.sellerNameRow}>
-                <Text style={styles.sellerName}>{product.seller || 'TechHub Manila'}</Text>
-                <BadgeCheck size={14} color={BRAND_COLOR} fill="#FFF" />
-              </View>
-              <View style={styles.sellerMetaRow}>
-                <MapPin size={12} color="#6B7280" style={{ marginRight: 4 }} />
-                <Text style={styles.sellerMetaText}>{product.location || 'Metro Manila'}</Text>
-                <View style={styles.sellerMetaDivider} />
-                <Star size={12} fill="#F59E0B" color="#F59E0B" style={{ marginRight: 4 }} />
-                <Text style={styles.sellerMetaText}>4.9 (1.2k)</Text>
-              </View>
-            </View>
-            <ChevronRight size={20} color="#9CA3AF" />
-          </View>
-        </Pressable>
-
-        {/* --- TABS --- */}
-        <View style={styles.tabContainer}>
-          <View style={styles.tabHeader}>
-            {(['details', 'support', 'ratings'] as const).map((tab) => (
+            <Text style={{ fontSize: 17, fontWeight: '800', color: '#1F2937' }}>Quantity</Text>
+            <View style={styles.qtyPill}>
               <Pressable
-                key={tab}
-                onPress={() => setActiveTab(tab)}
-                style={[styles.tabBtn, activeTab === tab && styles.activeTabBtn]}
+                onPress={() => setQuantity(Math.max(1, quantity - 1))}
+                style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' }}
               >
-                <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>
-                  {tab === 'ratings' ? `Ratings (${reviewsTotal})` : tab.charAt(0).toUpperCase() + tab.slice(1)}
-                </Text>
+                <Minus size={22} color="#FB8C00" />
               </Pressable>
-            ))}
+              <Text style={styles.qtyValue}>{quantity}</Text>
+              <Pressable
+                onPress={() => {
+                  if (quantity < (selectedVariantInfo.stock || 0)) {
+                    setQuantity(quantity + 1);
+                  } else {
+                    Alert.alert('Limit Reached', `Only ${selectedVariantInfo.stock} items available.`);
+                  }
+                }}
+                style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' }}
+              >
+                <Plus size={22} color="#FB8C00" />
+              </Pressable>
+            </View>
           </View>
+          <Text style={{ fontSize: 13, color: '#9CA3AF', marginTop: 5, textAlign: 'right', marginBottom: 15 }}>{selectedVariantInfo.stock} In Stock</Text>
 
-          <View style={styles.tabContent}>
-            {activeTab === 'ratings' && (
-              <View>
-                {isLoadingReviews ? (
-                  <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="small" color={BRAND_COLOR} />
-                    <Text style={styles.loadingText}>Loading reviews...</Text>
-                  </View>
-                ) : reviews.length > 0 ? (
-                  <>
-                    <Text style={styles.reviewSummary}>
-                      {averageRating || product.rating || 4.8} out of 5 stars based on {reviewsTotal} {reviewsTotal === 1 ? 'review' : 'reviews'}.
-                    </Text>
-                    {reviews.map((review) => (
-                      <View key={review.id} style={styles.reviewCard}>
-                        <Image
-                          source={{ uri: review.buyer?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150' }}
-                          style={styles.reviewerAvatar}
-                        />
-                        <View style={styles.reviewContent}>
-                          <Text style={styles.reviewerName}>{review.buyer?.full_name || 'Anonymous Buyer'}</Text>
-                          <View style={styles.reviewRatingRow}>
-                            {Array.from({ length: 5 }).map((_, i) => (
-                              <Star key={i} size={12} color={i < review.rating ? '#FBBF24' : '#E5E7EB'} fill={i < review.rating ? '#FBBF24' : '#E5E7EB'} />
-                            ))}
-                            <Text style={styles.reviewDate}>{formatReviewDate(review.created_at)}</Text>
-                          </View>
-                          <Text style={styles.reviewText}>{review.comment || 'No comment provided.'}</Text>
-                          {review.images && review.images.length > 0 && (
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.reviewImagesContainer}>
-                              {review.images.map((img, idx) => (
-                                <Image key={idx} source={{ uri: img }} style={styles.reviewImage} />
-                              ))}
-                            </ScrollView>
-                          )}
-                        </View>
-                      </View>
-                    ))}
-                  </>
-                ) : (
-                  <View style={styles.noReviewsContainer}>
-                    <Star size={40} color="#E5E7EB" />
-                    <Text style={styles.noReviewsText}>No reviews yet</Text>
-                    <Text style={styles.noReviewsSubtext}>Be the first to review this product!</Text>
-                  </View>
-                )}
-              </View>
-            )}
-            {activeTab === 'details' && (
-              <Text style={styles.textContent}>
-                {product.description || 'High-fidelity sound with detailed staging. Ergonomic design for long-listening comfort.'}
-                {'\n\n'}
-                Features:
-                {'\n'}• Active Noise Cancellation
-                {'\n'}• 24-Hour Battery Life
-                {'\n'}• Water Resistant (IPX4)
-              </Text>
-            )}
-            {activeTab === 'support' && (
-              <Text style={styles.textContent}>
-                We offer a 7-day return policy for defective items. Please contact our support team for assistance.
-              </Text>
-            )}
+          <Text style={{ fontSize: 15, color: '#4B5563', lineHeight: 24, marginBottom: 15 }}>
+            {product.description || "High-quality wireless earbuds with touch controls and a charging case. Great sound and long battery life."}
+          </Text>
+
+          <View style={{ backgroundColor: '#FFF7ED', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, alignSelf: 'flex-start', marginBottom: 20 }}>
+            <Text style={{ fontSize: 14, fontWeight: '700', color: '#FB8C00' }}>Free Shipping</Text>
           </View>
         </View>
 
+        {/* --- RATINGS SECTION --- */}
+        <View style={{ paddingHorizontal: 16, marginTop: 24 }}>
+          <Text style={styles.sectionTitle}>Ratings & Reviews</Text>
+          {isLoadingReviews ? (
+            <ActivityIndicator size="small" color="#FB8C00" style={{ marginVertical: 20 }} />
+          ) : reviews.length > 0 ? (
+            <>
+              <Text style={{ fontSize: 14, color: '#6B7280', marginBottom: 15 }}>
+                {effectiveAverageRating.toFixed(1)} out of 5 stars ({reviewsTotal.toLocaleString()} Reviews)
+              </Text>
+              {reviews.map((review) => (
+                <View key={review.id} style={styles.reviewCard}>
+                  <Image
+                    source={{ uri: review.buyerAvatar || 'https://ui-avatars.com/api/?name=Buyer&background=FF6A00&color=fff' }}
+                    style={styles.reviewerAvatar}
+                  />
+                  <View style={styles.reviewContent}>
+                    <Text style={styles.reviewerName}>{review.buyerName || 'Anonymous Buyer'}</Text>
+                    <View style={styles.reviewRatingRow}>
+                      {Array.from({ length: 5 }).map((_, i) => (
+                        <Star key={i} size={10} color={i < review.rating ? '#FBBF24' : '#E5E7EB'} fill={i < review.rating ? '#FBBF24' : '#E5E7EB'} />
+                      ))}
+                    </View>
+                    <Text style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>
+                      {formatReviewDate(review.createdAt)}
+                    </Text>
+                    <Text style={styles.reviewText}>{review.comment || 'No written feedback.'}</Text>
+                    {review.variantLabel ? (
+                      <Text style={{ fontSize: 11, color: '#6B7280', marginTop: 4 }}>
+                        Variant: {review.variantLabel}
+                      </Text>
+                    ) : null}
+                    {review.images.length > 0 ? (
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        style={styles.reviewImagesContainer}
+                      >
+                        {review.images.map((imageUrl, index) => (
+                          <Image
+                            key={`${review.id}-${index}`}
+                            source={{ uri: imageUrl }}
+                            style={styles.reviewImage}
+                          />
+                        ))}
+                      </ScrollView>
+                    ) : null}
+                    {review.sellerReply ? (
+                      <View style={{ marginTop: 8, paddingLeft: 10, borderLeftWidth: 2, borderLeftColor: '#FB8C00' }}>
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#C2410C' }}>Seller response</Text>
+                        <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>{review.sellerReply.message}</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                </View>
+              ))}
+              {reviews.length < reviewsTotal ? (
+                <Pressable
+                  onPress={handleLoadMoreReviews}
+                  style={{ marginTop: 8, paddingVertical: 10, alignItems: 'center' }}
+                  disabled={isLoadingMoreReviews}
+                >
+                  {isLoadingMoreReviews ? (
+                    <ActivityIndicator size="small" color="#FB8C00" />
+                  ) : (
+                    <Text style={{ color: '#EA580C', fontWeight: '700' }}>Load More Reviews</Text>
+                  )}
+                </Pressable>
+              ) : null}
+            </>
+          ) : (
+            <Text style={{ color: '#9CA3AF', marginVertical: 10 }}>No reviews yet</Text>
+          )}
+        </View>
 
-        {/* --- RECOMMENDATIONS --- */}
+        {/* --- RECOMMENDATIONS (Matches Home Grid) --- */}
         <View style={styles.recommendations}>
-          <Text style={styles.sectionTitle}>You Might Also Like</Text>
-          <View style={styles.grid}>
+          <View style={styles.recommendationHeader}>
+            <Text style={styles.sectionTitle}>You Might Also Like</Text>
+            <Pressable onPress={() => navigation.navigate('MainTabs', { screen: 'Shop', params: {} })}>
+              <Text style={styles.gridSeeAll}>View All</Text>
+            </Pressable>
+          </View>
+          <View style={styles.gridBody}>
             {relatedProducts.map((p) => (
-              <View key={p.id} style={styles.gridItem}>
+              <View key={p.id} style={styles.itemBoxContainerVertical}>
                 <ProductCard product={p} onPress={() => navigation.push('ProductDetail', { product: p })} />
               </View>
             ))}
@@ -902,10 +933,14 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 
       </ScrollView>
 
-      {/* --- BOTTOM ACTIONS (Matches Screenshot) --- */}
+      {/* --- BOTTOM ACTIONS (SOLID ORANGE) --- */}
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
+        <Pressable style={styles.chatSellerBtn} onPress={() => setShowChat(true)}>
+          <MessageCircle size={22} color="#FFF" />
+        </Pressable>
+
         <Pressable style={styles.addToCartBtn} onPress={handleAddToCart}>
-          <ShoppingCart size={20} color={BRAND_COLOR} style={{ marginRight: 8 }} />
+          <ShoppingCart size={20} color="#FFF" style={{ marginRight: 8 }} />
           <Text style={styles.addToCartText}>Add to Cart</Text>
         </Pressable>
 
@@ -1054,17 +1089,151 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
       <StoreChatModal
         visible={showChat}
         onClose={() => setShowChat(false)}
-        storeName={product.seller || 'Store'}
-        sellerId={product.seller_id}
+        storeName={displayStoreName}
+        sellerId={product.seller_id || product.sellerId}
       />
 
       {showGuestModal && (
         <GuestLoginModal
-          visible={true}
+          visible={showGuestModal}
+          message={guestModalMessage}
           onClose={() => setShowGuestModal(false)}
-          message={guestModalMessage || "Please log in to perform this action."}
         />
       )}
+
+      {/* Wishlist Dropdown Modal */}
+      <Modal
+        visible={showWishlistDropdown}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowWishlistDropdown(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setShowWishlistDropdown(false)}>
+          <View style={{ flex: 1 }}>
+            <TouchableWithoutFeedback>
+              <View style={{
+                position: 'absolute',
+                top: 280,
+                right: 16,
+                backgroundColor: '#FFF',
+                borderRadius: 12,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.15,
+                shadowRadius: 12,
+                elevation: 8,
+                minWidth: 220,
+                maxWidth: 280,
+              }}>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: '#1F2937', marginBottom: 8, paddingHorizontal: 16, paddingTop: 12 }}>Save to Wishlist</Text>
+                <ScrollView style={{ maxHeight: 180 }}>
+                  {categories.map((cat) => (
+                    <Pressable
+                      key={cat.id}
+                      style={styles.menuItem}
+                      onPress={() => handleWishlistAction(cat.id)}
+                    >
+                      <FolderHeart size={18} color="#FB8C00" />
+                      <Text style={styles.menuItemText}>{cat.name}</Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+                <View style={styles.menuDivider} />
+                {isCreatingList ? (
+                  <View style={{ paddingHorizontal: 12, paddingVertical: 8 }}>
+                    <TextInput
+                      style={{
+                        borderWidth: 1,
+                        borderColor: '#E5E7EB',
+                        borderRadius: 6,
+                        paddingHorizontal: 10,
+                        paddingVertical: 6,
+                        fontSize: 13,
+                        marginBottom: 6,
+                      }}
+                      placeholder="List name"
+                      value={newListName}
+                      onChangeText={setNewListName}
+                      autoFocus
+                    />
+                    <View style={{ flexDirection: 'row', gap: 6 }}>
+                      <Pressable
+                        onPress={() => {
+                          setIsCreatingList(false);
+                          setNewListName('');
+                        }}
+                        style={{
+                          flex: 1,
+                          paddingVertical: 6,
+                          borderRadius: 6,
+                          backgroundColor: '#F3F4F6',
+                          alignItems: 'center',
+                        }}
+                      >
+                        <Text style={{ color: '#6B7280', fontWeight: '600', fontSize: 13 }}>Cancel</Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={handleCreateList}
+                        style={{
+                          flex: 1,
+                          paddingVertical: 6,
+                          borderRadius: 6,
+                          backgroundColor: '#FB8C00',
+                          alignItems: 'center',
+                        }}
+                      >
+                        <Text style={{ color: '#FFF', fontWeight: '600', fontSize: 13 }}>Create</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                ) : (
+                  <Pressable
+                    style={styles.menuItem}
+                    onPress={() => setIsCreatingList(true)}
+                  >
+                    <PlusCircle size={18} color="#FB8C00" />
+                    <Text style={[styles.menuItemText, { color: '#FB8C00' }]}>Create New List</Text>
+                  </Pressable>
+                )}
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      {/* Product Menu Modal */}
+      <Modal
+        visible={showMenu}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowMenu(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setShowMenu(false)}>
+          <View style={styles.menuOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={styles.menuContainer}>
+                <Pressable style={styles.menuItem} onPress={() => handleMenuAction('share')}>
+                  <Share2 size={20} color="#374151" />
+                  <Text style={styles.menuItemText}>Share Product</Text>
+                </Pressable>
+                <Pressable style={styles.menuItem} onPress={() => handleMenuAction('wishlist')}>
+                  <Heart size={20} color="#374151" />
+                  <Text style={styles.menuItemText}>{isFavorite ? 'Remove from Wishlist' : 'Add to Wishlist'}</Text>
+                </Pressable>
+                <Pressable style={styles.menuItem} onPress={() => handleMenuAction('store')}>
+                  <MapPin size={20} color="#374151" />
+                  <Text style={styles.menuItemText}>Visit Store</Text>
+                </Pressable>
+                <View style={styles.menuDivider} />
+                <Pressable style={styles.menuItem} onPress={() => handleMenuAction('report')}>
+                  <X size={20} color="#EF4444" />
+                  <Text style={[styles.menuItemText, { color: '#EF4444' }]}>Report Product</Text>
+                </Pressable>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
 
       {/* Added to Cart Success Modal */}
       <AddedToCartModal
@@ -1108,7 +1277,7 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
         }}
         store={{
           id: product.seller_id || product.sellerId || '',
-          store_name: product.seller || 'Store',
+          store_name: displayStoreName,
           rating: product.sellerRating,
         }}
         onTalkToSeller={() => setShowChat(true)}
@@ -1119,18 +1288,17 @@ export default function ProductDetailScreen({ route, navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F9FAFB' },
+  container: { flex: 1, backgroundColor: '#FFD89A' },
 
   // Header
   header: {
-    backgroundColor: BRAND_COLOR,
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
+    // backgroundColor: BRAND_COLOR, // Replaced by gradient
+    paddingBottom: 12,
+    paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    zIndex: 10,
   },
   headerSearchBar: {
     flex: 1,
@@ -1159,26 +1327,28 @@ const styles = StyleSheet.create({
   },
   badge: {
     position: 'absolute', top: -4, right: -4,
-    backgroundColor: '#FFF',
+    backgroundColor: '#FF8A00',
     borderRadius: 10, width: 16, height: 16,
     justifyContent: 'center', alignItems: 'center',
   },
-  badgeText: { color: BRAND_COLOR, fontSize: 10, fontWeight: 'bold' },
+  badgeText: { color: '#FFF', fontSize: 10, fontWeight: 'bold' },
 
   // Image Area
   imageContainer: {
-    width: width,
-    height: width, // Square aspect ratio
-    position: 'relative',
-    backgroundColor: '#FFF',
-    zIndex: 1,
+    width: width - 32,
+    height: width - 32,
+    marginHorizontal: 16,
+    borderRadius: 30, // Increased radius
+    overflow: 'hidden',
+    backgroundColor: '#F9FAFB',
+    marginTop: 10
   },
-  productImage: { width: width, height: width, resizeMode: 'cover' },
+  productImage: { width: width - 32, height: width - 32, resizeMode: 'cover' },
   pageIndicator: {
     position: 'absolute', top: 16, left: 16,
-    backgroundColor: '#FFF',
+    backgroundColor: 'rgba(255,255,255,0.8)',
     paddingHorizontal: 10, paddingVertical: 4,
-    borderRadius: 12, elevation: 2,
+    borderRadius: 12,
   },
   pageText: { color: '#1F2937', fontSize: 12, fontWeight: '700' },
 
@@ -1205,23 +1375,19 @@ const styles = StyleSheet.create({
 
   // Info Card
   infoCard: {
-    backgroundColor: '#FFF',
-    padding: 20,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    marginTop: -24,
+    padding: 16,
     zIndex: 2,
     marginBottom: -12,
   },
   tagRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
   tag: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, gap: 4 },
   tagText: { fontSize: 11, fontWeight: '700' },
-  productName: { fontSize: 18, fontWeight: '800', color: '#111827', marginBottom: 4, lineHeight: 26 },
+  productName: { fontSize: 24, fontWeight: '800', color: '#431407', marginBottom: 8, lineHeight: 32 },
   subInfo: { fontSize: 12, color: '#6B7280', marginBottom: 16 },
 
   priceRow: { flexDirection: 'row', alignItems: 'baseline', gap: 8, marginBottom: 8 },
-  currentPrice: { fontSize: 28, fontWeight: '900', color: '#111827' },
-  originalPrice: { fontSize: 16, color: '#9CA3AF', textDecorationLine: 'line-through' },
+  currentPrice: { fontSize: 32, fontWeight: '900', color: '#FB8C00' },
+  originalPrice: { fontSize: 16, color: '#9CA3AF', textDecorationLine: 'line-through', marginLeft: 8 },
 
   metaRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
   stockText: { fontSize: 13, color: '#10B981', fontWeight: '700' },
@@ -1230,15 +1396,30 @@ const styles = StyleSheet.create({
   questionsLink: { fontSize: 13, color: '#8B5CF6', fontWeight: '600', marginLeft: 'auto' },
 
   // Selectors
-  section: { backgroundColor: '#FFF', padding: 16, marginBottom: 8 },
-  sectionMerged: { backgroundColor: '#FFF', paddingHorizontal: 16, marginBottom: 8, paddingTop: 0 }, // Added paddingTop: 0
-  quantityRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 24, paddingVertical: 12 },
-  qtyBtn: { width: 44, height: 44, borderRadius: 22, borderWidth: 1.5, borderColor: BRAND_COLOR, justifyContent: 'center', alignItems: 'center' },
-  qtyValue: { fontSize: 20, fontWeight: '700', color: '#111827' },
+  section: { backgroundColor: 'transparent', padding: 16, marginBottom: 8 },
+  sectionMerged: { backgroundColor: 'transparent', paddingHorizontal: 16, marginBottom: 8, paddingTop: 0 }, // Added paddingTop: 0
+  quantityRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    marginTop: 10
+  },
+  qtyPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFBF0',
+    borderRadius: 30, // More rounded
+    borderWidth: 1,
+    borderColor: '#FFE0B2',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  qtyValue: { fontSize: 18, fontWeight: '700', color: '#431407', paddingHorizontal: 20 },
 
   // Seller Info
-  sellerSection: { backgroundColor: '#FFF', padding: 12, marginBottom: 8, marginHorizontal: 16, borderRadius: 16, elevation: 2, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4 },
-  sellerSectionMerged: { backgroundColor: '#FFF', paddingHorizontal: 16, paddingVertical: 12, marginBottom: 8 },
+  sellerSection: { backgroundColor: '#FFFFFF', padding: 12, marginBottom: 8, marginHorizontal: 16, borderRadius: 16, elevation: 1, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4 },
+  sellerSectionMerged: { backgroundColor: 'transparent', paddingHorizontal: 16, paddingVertical: 12, marginBottom: 8 },
   sellerHeader: { flexDirection: 'row', alignItems: 'center' },
   sellerAvatarContainer: {
     width: 48, height: 48, borderRadius: 24, overflow: 'hidden', marginRight: 12,
@@ -1262,7 +1443,7 @@ const styles = StyleSheet.create({
   benefitsRow: { flexDirection: 'row', gap: 12, marginTop: 12 }, // Moved benefits out of header if needed, but removed from JSX for now
 
   // Tabs
-  tabContainer: { backgroundColor: '#FFF', paddingHorizontal: 16, paddingTop: 16, marginBottom: 8 },
+  tabContainer: { backgroundColor: 'transparent', paddingHorizontal: 16, paddingTop: 16, marginBottom: 8 },
   tabHeader: { flexDirection: 'row', gap: 24, marginBottom: 16 },
   tabBtn: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20 },
   activeTabBtn: { backgroundColor: BRAND_COLOR },
@@ -1281,29 +1462,36 @@ const styles = StyleSheet.create({
   reviewDate: { fontSize: 12, color: '#9CA3AF' },
   reviewText: { fontSize: 14, color: '#4B5563', lineHeight: 20 },
 
-  // Recommendations
-  recommendations: { padding: 16 },
-  sectionTitle: { fontSize: 18, fontWeight: '800', color: '#111827', marginBottom: 12 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  gridItem: { width: (width - 44) / 2 },
+  recommendations: { paddingHorizontal: 20, paddingTop: 24, marginBottom: 20 },
+  recommendationHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  sectionTitle: { fontSize: 18, fontWeight: '900', color: '#D97706' }, // Matched Home page orange
+  gridSeeAll: { fontSize: 14, fontWeight: '700', color: COLORS.primary },
+  gridBody: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+  itemBoxContainerVertical: { width: (width - 48) / 2, marginBottom: 12 },
 
   // Bottom Bar
   bottomBar: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
-    backgroundColor: '#FFF', flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 16, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F3F4F6',
-    gap: 12, elevation: 8,
+    backgroundColor: '#FFF8F0', flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 16, paddingTop: 15, paddingBottom: 15,
+    gap: 12, elevation: 20, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 15,
+    zIndex: 100, // Highest priority to stay on top
   },
+  chatSellerBtn: {
+    height: 52, paddingHorizontal: 18, justifyContent: 'center', alignItems: 'center',
+    borderRadius: 26, backgroundColor: '#FB8C00', // Solid Orange Pill
+  },
+  chatSellerText: { color: '#FFF', fontWeight: '700', fontSize: 14 },
   addToCartBtn: {
-    flex: 1, height: 48, flexDirection: 'row', justifyContent: 'center', alignItems: 'center',
-    borderRadius: 24, borderWidth: 2, borderColor: BRAND_COLOR, backgroundColor: '#FFF',
+    flex: 1, height: 52, flexDirection: 'row', justifyContent: 'center', alignItems: 'center',
+    borderRadius: 26, backgroundColor: '#FB8C00', // Solid Orange Pill
   },
-  addToCartText: { color: BRAND_COLOR, fontWeight: '700', fontSize: 16 },
+  addToCartText: { color: '#FFF', fontWeight: '800', fontSize: 15 },
   buyNowBtn: {
-    flex: 1, height: 48, justifyContent: 'center', alignItems: 'center',
-    borderRadius: 24, backgroundColor: BRAND_COLOR,
+    flex: 1, height: 52, justifyContent: 'center', alignItems: 'center',
+    borderRadius: 26, backgroundColor: '#EA580C', // Slightly darker orange for contrast
   },
-  buyNowText: { color: '#FFF', fontWeight: '700', fontSize: 16 },
+  buyNowText: { color: '#FFF', fontWeight: '700', fontSize: 15 },
 
   // Wishlist Dropdown
   wishlistDropdown: {
@@ -1599,5 +1787,41 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginRight: 8,
   },
+  // Menu Modal Styles
+  menuOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-start',
+    alignItems: 'flex-end',
+    paddingTop: 100,
+    paddingRight: 16,
+  },
+  menuContainer: {
+    backgroundColor: '#FFF',
+    borderRadius: 12,
+    paddingVertical: 8,
+    minWidth: 200,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 12,
+  },
+  menuItemText: {
+    fontSize: 15,
+    color: '#374151',
+    fontWeight: '500',
+  },
+  menuDivider: {
+    height: 1,
+    backgroundColor: '#E5E7EB',
+    marginVertical: 4,
+  },
 });
-

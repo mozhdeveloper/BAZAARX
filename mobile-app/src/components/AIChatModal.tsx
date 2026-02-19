@@ -278,7 +278,7 @@ export default function AIChatModal({ visible, onClose }: AIChatModalProps) {
         {/* Universal Header - Edge to Edge Orange */}
         <View style={[styles.header, { paddingTop: 16 }]}>
           <Pressable onPress={onClose} style={styles.backButton}>
-            <ArrowLeft size={24} color='#1F2937' strokeWidth={2.5} />
+            <ArrowLeft size={24} color={COLORS.primary} strokeWidth={2.5} />
           </Pressable>
           <Text style={styles.headerTitle}>AI Assistant</Text>
           <Pressable onPress={handleClearChat} style={styles.menuButton}>

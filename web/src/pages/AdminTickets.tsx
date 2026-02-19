@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Ticket,
@@ -12,7 +12,9 @@ import {
     ArrowLeft,
     Send,
     RefreshCw,
-    Shield
+    Shield,
+    Loader2,
+    Store
 } from 'lucide-react';
 import AdminSidebar from '../components/AdminSidebar';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -32,7 +34,30 @@ export default function AdminTickets() {
     const [replyText, setReplyText] = useState('');
 
     // Get tickets from store
-    const { tickets, updateTicketStatus } = useSupportStore();
+    const { tickets, loading, error, updateTicketStatus, fetchAllTickets, addTicketReply } = useSupportStore();
+
+    // Fetch tickets on mount
+    useEffect(() => {
+        fetchAllTickets();
+    }, [fetchAllTickets]);
+
+    // Handle refresh
+    const handleRefresh = () => {
+        fetchAllTickets();
+    };
+
+    // Handle reply submission
+    const handleSendReply = async () => {
+        if (!replyText.trim() || !selectedTicket) return;
+        
+        await addTicketReply(selectedTicket.dbId || selectedTicket.id, {
+            senderId: 'admin',
+            senderName: 'Admin',
+            senderType: 'admin',
+            message: replyText
+        });
+        setReplyText('');
+    };
 
     const filteredTickets = tickets.filter(ticket => {
         const matchesTab = activeTab === 'all' || ticket.status.toLowerCase().replace(' ', '') === activeTab;
@@ -75,11 +100,16 @@ export default function AdminTickets() {
                             <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() => { }}
+                                onClick={handleRefresh}
+                                disabled={loading}
                                 className="flex items-center gap-2"
                             >
-                                <RefreshCw className="w-4 h-4" />
-                                Refresh
+                                {loading ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                    <RefreshCw className="w-4 h-4" />
+                                )}
+                                {loading ? 'Loading...' : 'Refresh'}
                             </Button>
                             <Badge className="bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] border-[var(--brand-primary)]/20">
                                 {stats.open} Open Tickets
@@ -151,7 +181,18 @@ export default function AdminTickets() {
                                                                     </Badge>
                                                                 </div>
                                                                 <h3 className="text-sm font-semibold text-gray-900 truncate">{ticket.subject}</h3>
-                                                                <p className="text-xs text-gray-500">{ticket.buyerName} • {ticket.category}</p>
+                                                                <div className="flex items-center gap-1 text-xs text-gray-500">
+                                                                    <span>{ticket.buyerName}</span>
+                                                                    <span>•</span>
+                                                                    <span>{ticket.category}</span>
+                                                                    {ticket.sellerStoreName && (
+                                                                        <>
+                                                                            <span>•</span>
+                                                                            <Store size={12} className="text-[var(--brand-primary)]" />
+                                                                            <span className="text-[var(--brand-primary)] font-medium">{ticket.sellerStoreName}</span>
+                                                                        </>
+                                                                    )}
+                                                                </div>
                                                             </div>
                                                             <div className="text-right flex flex-col items-end">
                                                                 <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1">
@@ -208,6 +249,16 @@ export default function AdminTickets() {
                                                         <p className="text-xs text-gray-500">{selectedTicket.email}</p>
                                                     </div>
 
+                                                    {selectedTicket.sellerStoreName && (
+                                                        <div>
+                                                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">About Store</label>
+                                                            <div className="flex items-center gap-2 bg-orange-50 p-3 rounded-lg border border-orange-200">
+                                                                <Store size={16} className="text-[var(--brand-primary)]" />
+                                                                <p className="text-sm font-semibold text-gray-900">{selectedTicket.sellerStoreName}</p>
+                                                            </div>
+                                                        </div>
+                                                    )}
+
                                                     <div>
                                                         <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Subject</label>
                                                         <p className="text-sm font-semibold text-gray-900">{selectedTicket.subject}</p>
@@ -237,6 +288,7 @@ export default function AdminTickets() {
                                                             size="icon"
                                                             className="absolute right-3 bottom-3 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white shadow-sm h-8 w-8 disabled:opacity-50 disabled:cursor-not-allowed"
                                                             disabled={!replyText || selectedTicket.status === 'Resolved'}
+                                                            onClick={handleSendReply}
                                                         >
                                                             <Send size={16} />
                                                         </Button>

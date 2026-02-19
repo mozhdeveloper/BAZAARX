@@ -53,28 +53,47 @@ interface ProductQAStore {
 }
 
 // Convert database entry to store format
-const convertDBToStore = (entry: QAProductWithDetails): QAProduct => ({
-  id: entry.id,
-  productId: entry.product_id,
-  name: entry.product?.name || 'Unknown Product',
-  description: entry.product?.description,
-  vendor: entry.vendor,
-  sellerId: entry.product?.seller_id,
-  price: entry.product?.price || 0,
-  originalPrice: entry.product?.original_price,
-  category: entry.product?.category || 'Uncategorized',
-  status: entry.status as ProductQAStatus,
-  logistics: entry.logistics,
-  image: entry.product?.images?.[0] || 'https://placehold.co/100?text=Product',
-  images: entry.product?.images,
-  rejectionReason: entry.rejection_reason || undefined,
-  rejectionStage: entry.rejection_stage || undefined,
-  submittedAt: entry.submitted_at,
-  approvedAt: entry.approved_at || undefined,
-  verifiedAt: entry.verified_at || undefined,
-  rejectedAt: entry.rejected_at || undefined,
-  revisionRequestedAt: entry.revision_requested_at || undefined,
-});
+const convertDBToStore = (entry: QAProductWithDetails): QAProduct => {
+  // Handle image extraction safely
+  let imageUrl = 'https://placehold.co/100?text=Product';
+  let images: string[] = [];
+
+  if (entry.product?.images && Array.isArray(entry.product.images) && entry.product.images.length > 0) {
+    // Check if it's an array of strings or objects
+    const firstImg = entry.product.images[0];
+    if (typeof firstImg === 'string') {
+      imageUrl = firstImg;
+      images = entry.product.images as string[];
+    } else if (typeof firstImg === 'object' && firstImg !== null && 'image_url' in firstImg) {
+      // It's from product_images table join
+      imageUrl = (firstImg as any).image_url;
+      images = entry.product.images.map((img: any) => img.image_url).filter(Boolean);
+    }
+  }
+
+  return {
+    id: entry.id,
+    productId: entry.product_id,
+    name: entry.product?.name || 'Unknown Product',
+    description: entry.product?.description,
+    vendor: entry.vendor,
+    sellerId: entry.product?.seller_id,
+    price: entry.product?.price || 0,
+    originalPrice: entry.product?.original_price,
+    category: typeof entry.product?.category === 'object' ? (entry.product.category as any)?.name : (entry.product?.category || 'Uncategorized'),
+    status: entry.status as ProductQAStatus,
+    logistics: entry.logistics,
+    image: imageUrl,
+    images: images,
+    rejectionReason: entry.rejection_reason || undefined,
+    rejectionStage: entry.rejection_stage || undefined,
+    submittedAt: entry.submitted_at,
+    approvedAt: entry.approved_at || undefined,
+    verifiedAt: entry.verified_at || undefined,
+    rejectedAt: entry.rejected_at || undefined,
+    revisionRequestedAt: entry.revision_requested_at || undefined,
+  };
+};
 
 export const useProductQAStore = create<ProductQAStore>()(
   persist(
@@ -94,7 +113,16 @@ export const useProductQAStore = create<ProductQAStore>()(
             entries = await qaService.getAllQAEntries();
           }
 
-          const products = entries.map(convertDBToStore);
+          
+          // Deduplicate products based on ID
+          const productsMap = new Map();
+          entries.forEach(entry => {
+            if (!productsMap.has(entry.product_id)) {
+              productsMap.set(entry.product_id, convertDBToStore(entry));
+            }
+          });
+          
+          const products = Array.from(productsMap.values());
           set({ products, isLoading: false });
         } catch (error) {
           console.error('Error loading QA products:', error);

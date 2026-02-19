@@ -116,46 +116,67 @@ export default function StoreProfileScreen() {
         return;
       }
 
-      const { data, error } = await supabase
+      // Fetch seller data
+      const { data: sellerData, error: sellerError } = await supabase
         .from('sellers')
-        .select('*, profiles(full_name, email, phone)')
+        .select('*')
         .eq('id', user.id)
         .single();
 
-      if (error) throw error;
+      if (sellerError) {
+        console.error('Error fetching seller:', sellerError);
+        throw sellerError;
+      }
 
-      if (data) {
-        const profile = Array.isArray(data.profiles) ? data.profiles[0] : data.profiles;
-        const sellerData = {
-          ...data,
-          owner_name: profile?.full_name || data.owner_name,
-          email: profile?.email || data.email,
-          phone: profile?.phone || data.phone,
+      // Fetch profile data separately to avoid join issues
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('first_name, last_name, email, phone')
+        .eq('id', user.id)
+        .single();
+        
+      if (profileError) {
+        console.warn('Error fetching profile:', profileError);
+        // Don't throw, just use what we have from seller
+      }
+
+      if (sellerData) {
+        // Construct full name if available
+        const profileName = profileData 
+          ? `${profileData.first_name || ''} ${profileData.last_name || ''}`.trim()
+          : null;
+
+        const mergedData = {
+          ...sellerData,
+          owner_name: profileName || profileData?.first_name || sellerData.owner_name,
+          email: profileData?.email || sellerData.email,
+          phone: profileData?.phone || sellerData.phone,
         };
-        setSeller(sellerData);
+        
+        setSeller(mergedData);
         setFormData({
-          storeName: data.store_name || '',
-          storeDescription: data.store_description || '',
-          phone: sellerData.phone || '',
-          ownerName: sellerData.owner_name || '',
-          email: sellerData.email || '',
+          storeName: sellerData.store_name || '',
+          storeDescription: sellerData.store_description || '',
+          phone: mergedData.phone || '',
+          ownerName: mergedData.owner_name || '',
+          email: mergedData.email || '',
         });
         setBusinessForm({
-          businessName: data.business_name || '',
-          businessType: data.business_type || '',
-          businessRegistrationNumber: data.business_registration_number || '',
-          taxIdNumber: data.tax_id_number || '',
-          businessAddress: data.business_address || '',
-          city: data.city || '',
-          province: data.province || '',
-          postalCode: data.postal_code || '',
+          businessName: sellerData.business_name || '',
+          businessType: sellerData.business_type || '',
+          businessRegistrationNumber: sellerData.business_registration_number || '',
+          taxIdNumber: sellerData.tax_id_number || '',
+          businessAddress: sellerData.business_address || '',
+          city: sellerData.city || '',
+          province: sellerData.province || '',
+          postalCode: sellerData.postal_code || '',
         });
         setBankingForm({
-          bankName: data.bank_name || '',
-          accountName: data.account_name || '',
-          accountNumber: data.account_number || '',
+          bankName: sellerData.bank_name || '',
+          accountName: sellerData.account_name || '',
+          accountNumber: sellerData.account_number || '',
         });
-        setStoreLogoUri(data.avatar_url || null);
+        setStoreLogoUri(sellerData.avatar_url || null);
       }
     } catch (error: any) {
       console.error('Error fetching seller data:', error);
@@ -198,13 +219,13 @@ export default function StoreProfileScreen() {
               const newData = payload.new as any;
               setSeller((prev: any) => ({
                 ...prev,
-                owner_name: newData.full_name || '',
+                owner_name: newData.full_name || `${newData.first_name || ''} ${newData.last_name || ''}`.trim(),
                 email: newData.email || '',
                 phone: newData.phone || '',
               }));
               setFormData((prev) => ({
                 ...prev,
-                ownerName: newData.full_name || '',
+                ownerName: newData.full_name || `${newData.first_name || ''} ${newData.last_name || ''}`.trim(),
                 email: newData.email || '',
                 phone: newData.phone || '',
               }));

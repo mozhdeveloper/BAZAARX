@@ -13,6 +13,7 @@ import {
   CreditCard,
   RotateCcw,
   Bell,
+  HelpCircle,
 } from "lucide-react";
 
 export const sellerLinks = [
@@ -73,6 +74,13 @@ export const sellerLinks = [
     ),
   },
   {
+    label: "POS Settings",
+    href: "/seller/pos-settings",
+    icon: (
+      <Settings className="h-5 w-5 flex-shrink-0" />
+    ),
+  },
+  {
     label: "Discounts",
     href: "/seller/discounts",
     icon: (
@@ -98,6 +106,13 @@ export const sellerLinks = [
     href: "/seller/reviews",
     icon: (
       <Star className="h-5 w-5 flex-shrink-0" />
+    ),
+  },
+  {
+    label: "Help Center",
+    href: "/seller/help-center",
+    icon: (
+      <HelpCircle className="h-5 w-5 flex-shrink-0" />
     ),
   },
   {

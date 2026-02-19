@@ -13,6 +13,7 @@ import { authService } from '../services/authService';
 import { productService } from '../services/productService';
 import { cartService } from '../services/cartService';
 import { orderService } from '../services/orderService';
+import { orderReadService } from '../services/orders/orderReadService';
 import { qaService } from '../services/qaService';
 import { chatService } from '../services/chatService';
 
@@ -210,7 +211,7 @@ export async function testCompleteSellerFlow(sellerId: string): Promise<FlowTest
     // Step 4: Get seller's orders
     step(4, 'Getting seller orders...');
     try {
-      const orders = await orderService.getSellerOrders(sellerId);
+      const orders = await orderReadService.getSellerOrders({ sellerId });
       success(`Found ${orders.length} orders`);
       steps.push({ name: 'Get seller orders', success: true });
     } catch (e) {

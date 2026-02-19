@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { ArrowUpRight, Menu, Search, Bot, ShoppingBag, Store } from "lucide-react";
-import { Link } from "react-router-dom";
+import { ArrowUpRight, Menu, Search, Bot, ShoppingBag, Store, Camera } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
 import {
   motion,
   useScroll,
@@ -17,8 +17,8 @@ import {
 import { Button } from "./button";
 import { Separator } from "./separator";
 import { Hero } from "./hero";
-import AIChatModal from "../AIChatModal";
 import { BuyerAuthModal } from "../BuyerAuthModal";
+import ProductRequestModal from "../ProductRequestModal";
 
 const navigation = [
   { name: "Home", href: "/" },
@@ -33,9 +33,11 @@ interface BazaarHeroProps {
 }
 
 export function BazaarHero({ mode = "buyer", scrollTargetId = "bazaar-marketplace-intro" }: BazaarHeroProps) {
-  const [isAIChatOpen, setIsAIChatOpen] = useState(false);
   const [isBuyerAuthOpen, setIsBuyerAuthOpen] = useState(false);
+  const [isProductRequestOpen, setIsProductRequestOpen] = useState(false);
   const [isHeaderVisible, setIsHeaderVisible] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const navigate = useNavigate();
   const { scrollY } = useScroll();
 
   useMotionValueEvent(scrollY, "change", (latest) => {
@@ -52,7 +54,7 @@ export function BazaarHero({ mode = "buyer", scrollTargetId = "bazaar-marketplac
 
   return (
     <div className="w-full relative container px-2 mx-auto max-w-7xl min-h-[100vh] pb-8">
-      <div className="mt-0 bg-white rounded-2xl relative overflow-hidden">
+      <div className="mt-0 bg-transparent rounded-2xl relative overflow-hidden">
         <AnimatePresence>
           {isHeaderVisible && (
             <motion.header
@@ -78,7 +80,7 @@ export function BazaarHero({ mode = "buyer", scrollTargetId = "bazaar-marketplac
                         alt="BazaarX Logo"
                         className="h-12 w-auto object-contain"
                       />
-                      <span className="text-2xl font-bold text-[#ff6a00] tracking-tight">
+                      <span className="text-2xl font-bold text-[var(--brand-primary)] tracking-tight">
                         BazaarX
                       </span>
                     </Link>
@@ -107,7 +109,7 @@ export function BazaarHero({ mode = "buyer", scrollTargetId = "bazaar-marketplac
                               alt="BazaarX Logo"
                               className="h-10 w-auto object-contain"
                             />
-                            <span className="text-xl font-bold text-[#ff6a00] tracking-tight">
+                            <span className="text-xl font-bold text-[var(--brand-primary)] tracking-tight">
                               BazaarX
                             </span>
                           </a>
@@ -115,13 +117,13 @@ export function BazaarHero({ mode = "buyer", scrollTargetId = "bazaar-marketplac
                         <div className="flex gap-2 mt-4">
                           <Link
                             to="/"
-                            className={`flex-1 text-center py-2 rounded-lg text-sm font-medium border ${mode === 'buyer' ? 'border-[#ff6a00] text-[#ff6a00] bg-orange-50' : 'border-gray-200 text-gray-600'}`}
+                            className={`flex-1 text-center py-2 rounded-lg text-sm font-medium border ${mode === 'buyer' ? 'border-[var(--brand-primary)] text-[var(--brand-primary)] bg-[var(--brand-accent-light)]' : 'border-gray-200 text-gray-600'}`}
                           >
                             Buyer
                           </Link>
                           <Link
                             to="/sell"
-                            className={`flex-1 text-center py-2 rounded-lg text-sm font-medium border ${mode === 'seller' ? 'border-[#ff6a00] text-[#ff6a00] bg-orange-50' : 'border-gray-200 text-gray-600'}`}
+                            className={`flex-1 text-center py-2 rounded-lg text-sm font-medium border ${mode === 'seller' ? 'border-[var(--brand-primary)] text-[var(--brand-primary)] bg-[var(--brand-accent-light)]' : 'border-gray-200 text-gray-600'}`}
                           >
                             Seller
                           </Link>
@@ -149,18 +151,10 @@ export function BazaarHero({ mode = "buyer", scrollTargetId = "bazaar-marketplac
                             Search Products
                           </Button>
                         </Link>
-                        <Button
-                          variant="outline"
-                          onClick={() => setIsAIChatOpen(true)}
-                          className="w-full justify-start gap-2 h-12 hover:bg-accent transition-colors"
-                        >
-                          <Bot className="w-4 h-4" />
-                          AI Assistant
-                        </Button>
                       </div>
                       <Separator className="mx-6" />
                       <div className="p-6">
-                        <Link to="/sell">
+                        <Link to={mode === 'buyer' ? '/sell' : '/seller/auth'}>
                           <Button className="w-full h-12 bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-dark)] hover:from-[var(--brand-primary)]/90 hover:to-[var(--brand-primary-dark)]/90 transition-all duration-300 shadow-lg hover:shadow-xl">
                             Start Selling
                             <ArrowUpRight className="w-4 h-4 ml-2" />
@@ -176,12 +170,12 @@ export function BazaarHero({ mode = "buyer", scrollTargetId = "bazaar-marketplac
                     <Link to="/sell">
                       <Button
                         variant="secondary"
-                        className="cursor-pointer bg-white p-0 rounded-full shadow-lg hover:shadow-xl hover:bg-orange-600 transition-all duration-300 group h-10"
+                        className="cursor-pointer bg-white p-0 rounded-full shadow-lg hover:shadow-xl hover:bg-[var(--brand-primary-dark)] transition-all duration-300 group h-10"
                       >
                         <span className="pl-5 py-1.5 text-sm text-[var(--text-primary)] hover:text-white">
                           Start Selling
                         </span>
-                        <div className="rounded-full flex items-center justify-center m-auto bg-[var(--brand-primary)] w-8 h-8 ml-3 group-hover:scale-110 transition-transform duration-300">
+                        <div className="rounded-full flex items-center justify-center m-auto bg-[var(--brand-primary)] w-8 h-8 ml-3 group-hover:bg-[var(--brand-primary-dark)] group-hover:scale-110 transition-all duration-300">
                           <ArrowUpRight className="w-4 h-4 text-white" />
                         </div>
                       </Button>
@@ -203,53 +197,90 @@ export function BazaarHero({ mode = "buyer", scrollTargetId = "bazaar-marketplac
             </div>
           }
           subtitle={mode === "buyer" ? "From global factories directly to your doorstep" : "Inspired by ancient bazaars. Reimagined as the modern crossroads for global trade."}
-          subtitleClassName="font-fondamento text-xl sm:text-2xl md:text-3xl !mt-0 sm:!mt-[-0.5rem] text-center px-4 w-full whitespace-nowrap overflow-hidden text-ellipsis"
-          actionsClassName="!mt-16 sm:!mt-24 w-full justify-center"
-          actions={mode === "buyer" ? [
-            {
-              label: "Start Shopping",
-              href: "/shop",
-              variant: "default",
-              className: "bg-[#FF6A00] hover:bg-base text-white rounded-2xl px-8 py-4 text-lg font-normal shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 group flex items-center gap-3",
-              icon: (
-                <ShoppingBag className="w-5 h-5 text-white transition-colors" />
-              )
-            },
-            {
-              label: "Explore Stores",
-              href: "/stores",
-              variant: "outline",
-              className: "bg-white hover:text-gray-900 hover:bg-base text-gray-900 border border-gray-200 rounded-2xl px-8 py-4 text-lg font-normal shadow-sm hover:shadow-md hover:scale-105 transition-all duration-300 group flex items-center gap-3",
-              icon: (
-                <Store className="w-5 h-5 text-gray-900" />
-              )
-            },
-          ] : [
-            {
-              label: "Start Selling",
-              href: "/seller/auth",
-              variant: "default",
-              className: "bg-[#FF6A00] hover:bg-base text-white rounded-2xl px-8 py-4 text-lg font-normal shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 group flex items-center gap-3",
-              icon: (
-                <ArrowUpRight className="w-5 h-5 text-white transition-colors" />
-              )
-            }
-          ]}
-          titleClassName="bg-gradient-to-r from-[var(--brand-primary)] via-[var(--brand-primary)]/90 to-[var(--brand-primary-dark)] bg-clip-text text-transparent"
-        />
-      </div>
+          subtitleClassName="font-fondamento text-xl sm:text-2xl md:text-3xl !mt-0 sm:!mt-[-0.5rem] text-center px-4 w-full whitespace-nowrap overflow-hidden text-ellipsis text-[var(--text-headline)]"
+          titleClassName="bg-gradient-to-r from-[var(--brand-primary)] via-[var(--brand-wash-gold)] to-[var(--brand-primary-dark)] bg-clip-text text-transparent"
+        >
+          <div className="w-full max-w-4xl mt-12 sm:mt-24 px-4">
+            {mode === "buyer" ? (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5, duration: 0.8 }}
+                className="bg-[var(--brand-wash)] p-2 sm:p-3 rounded-[32px] sm:rounded-full shadow-md flex flex-col sm:flex-row items-center gap-3 sm:gap-4 border border-white/40 backdrop-blur-md"
+              >
+                {/* Search Unit */}
+                <div className="flex-1 w-full bg-white rounded-full flex items-center px-4 py-1 relative shadow-inner group">
+                  <Search className="h-6 w-6 text-gray-400 group-focus-within:text-[var(--brand-primary)] transition-colors mr-2" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search products, brands, factories..."
+                    className="flex-1 h-11 sm:h-14 bg-transparent border-none focus:ring-0 outline-none sm:text-lg text-gray-900 placeholder:text-gray-300 text-xs font-small"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && searchQuery.trim()) {
+                        navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+                      }
+                    }}
+                  />
+                </div>
 
-      {/* AI Chat Modal */}
-      <AIChatModal
-        isOpen={isAIChatOpen}
-        onClose={() => setIsAIChatOpen(false)}
-      />
+                {/* Action Buttons (Outside search bar, inside container) */}
+                <div className="flex items-center gap-1 sm:gap-2 px-2 sm:px-0">
+                  <div className="relative group/btn">
+                    <span className="absolute top-10 left-1/2 -translate-x-1/2 opacity-0 group-hover/btn:opacity-100 group-hover/btn:top-12 transition-all duration-300 text-[10px] sm:text-[11px] font-black uppercase tracking-[0.2em] text-[var(--brand-primary-dark)] whitespace-nowrap pointer-events-none z-50">
+                      Start Shopping
+                    </span>
+                    <Link
+                      to="/shop"
+                      className="p-2 sm:p-3 rounded-full transition-all text-[var(--brand-primary-dark)] hover:text-[var(--brand-primary)] block"
+                    >
+                      <ShoppingBag className="w-6 h-6 sm:w-7 sm:h-7" />
+                    </Link>
+                  </div>
+
+                  <div className="relative group/btn">
+                    <span className="absolute top-10 left-1/2 -translate-x-1/2 opacity-0 group-hover/btn:opacity-100 group-hover/btn:top-12 transition-all duration-300 text-[10px] sm:text-[11px] font-black uppercase tracking-[0.2em] text-[var(--brand-primary-dark)] whitespace-nowrap pointer-events-none z-50">
+                      Explore Stores
+                    </span>
+                    <Link
+                      to="/stores"
+                      className="p-2 sm:p-3 rounded-full transition-all text-[var(--brand-primary-dark)] hover:text-[var(--brand-primary)] block"
+                    >
+                      <Store className="w-6 h-6 sm:w-7 sm:h-7" />
+                    </Link>
+                  </div>
+                </div>
+              </motion.div>
+            ) : (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5, duration: 0.8 }}
+                className="flex justify-center"
+              >
+                <Link to="/seller/auth">
+                  <Button className="h-14 px-10 rounded-full bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-dark)] hover:from-[var(--brand-primary)]/90 hover:to-[var(--brand-primary-dark)]/90 transition-all duration-300 shadow-lg hover:shadow-xl text-lg font-bold group">
+                    Start Selling Now
+                    <ArrowUpRight className="w-5 h-5 ml-2 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
+                  </Button>
+                </Link>
+              </motion.div>
+            )}
+          </div>
+        </Hero>
+      </div>
 
       {/* Buyer Auth Modal */}
       <BuyerAuthModal
         isOpen={isBuyerAuthOpen}
         onClose={() => setIsBuyerAuthOpen(false)}
         initialMode="login"
+      />
+
+      <ProductRequestModal
+        isOpen={isProductRequestOpen}
+        onClose={() => setIsProductRequestOpen(false)}
       />
     </div>
   );

@@ -3,62 +3,13 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Order, CartItem, ShippingAddress } from '../types';
 import { orderService } from '../services/orderService';
+import { orderReadService } from '../services/orders/orderReadService';
+import { orderMutationService } from '../services/orders/orderMutationService';
 import { authService } from '../services/authService';
+import type { POSOrderCreateResult, SellerOrderSnapshot } from '../types/orders';
+import { mapSellerUiToNormalizedStatus } from '../utils/orders/status';
 
-// Seller Order Types
-export interface SellerOrder {
-  id: string;
-  orderId: string;
-  customerName: string;
-  customerEmail: string;
-  customerPhone?: string;
-  shippingAddress: {
-    fullName?: string;
-    street?: string;
-    barangay?: string;
-    city?: string;
-    province?: string;
-    region?: string;
-    postalCode?: string;
-    phone?: string;
-  };
-  items: {
-    productId: string;
-    productName: string;
-    image: string;
-    quantity: number;
-    price: number;
-    selectedColor?: string;
-    selectedSize?: string;
-  }[];
-  total: number;
-  status: 'pending' | 'to-ship' | 'shipped' | 'completed' | 'cancelled';
-  paymentStatus: 'pending' | 'paid' | 'refunded';
-  trackingNumber?: string;
-  createdAt: string;
-  type?: 'OFFLINE' | 'ONLINE';
-  posNote?: string;
-}
-
-const parseShippingAddressFromNotes = (notes?: string | null) => {
-  if (!notes || !notes.includes('SHIPPING_ADDRESS:')) return null;
-
-  try {
-    const jsonPart = notes.split('SHIPPING_ADDRESS:')[1]?.split('|')[0];
-    if (!jsonPart) return null;
-    return JSON.parse(jsonPart) as {
-      fullName?: string;
-      street?: string;
-      barangay?: string;
-      city?: string;
-      province?: string;
-      postalCode?: string;
-      phone?: string;
-    };
-  } catch {
-    return null;
-  }
-};
+export type SellerOrder = SellerOrderSnapshot;
 
 interface OrderStore {
   // Buyer Orders
@@ -79,14 +30,16 @@ interface OrderStore {
   // Seller Orders
   sellerOrders: SellerOrder[];
   sellerOrdersLoading: boolean;
-  fetchSellerOrders: (sellerId?: string) => Promise<void>;
+  fetchSellerOrders: (sellerId?: string, startDate?: Date | null, endDate?: Date | null) => Promise<void>;
   updateSellerOrderStatus: (orderId: string, status: SellerOrder['status']) => Promise<void>;
   addOfflineOrder: (
     cartItems: { productId: string; productName: string; quantity: number; price: number; image: string; selectedColor?: string; selectedSize?: string }[],
     total: number,
-    note?: string
-  ) => Promise<string>;
+    note?: string,
+    paymentMethod?: 'cash' | 'card' | 'ewallet' | 'bank_transfer',
+  ) => Promise<POSOrderCreateResult>;
   markOrderAsShipped: (orderId: string, trackingNumber: string) => Promise<void>;
+  markOrderAsDelivered: (orderId: string) => Promise<void>;
 }
 
 // Dummy orders for testing - showcasing all status types with mixed payment statuses
@@ -465,9 +418,9 @@ export const useOrderStore = create<OrderStore>()(
         // SYNC TO SELLER: Also add to seller's order store (local state)
         const sellerOrder: SellerOrder = {
           id: newOrder.id,
-          orderId: newOrder.transactionId,
-          customerName: shippingAddress.name,
-          customerEmail: shippingAddress.email,
+          orderNumber: newOrder.transactionId,
+          buyerName: shippingAddress.name,
+          buyerEmail: shippingAddress.email,
           items: validatedItems.map(item => ({
             productId: item.id,
             productName: item.name || 'Unknown Product',
@@ -476,18 +429,23 @@ export const useOrderStore = create<OrderStore>()(
             price: item.price ?? 0,
           })),
           total: newOrder.total,
-          status: isPaidOrder ? 'to-ship' : 'pending',
+          status: isPaidOrder ? 'confirmed' : 'pending',
           paymentStatus: isPaidOrder ? 'paid' : 'pending',
-          createdAt: newOrder.createdAt,
+          orderDate: newOrder.createdAt,
           type: 'ONLINE',
           shippingAddress: {
             fullName: shippingAddress.name,
             street: shippingAddress.address,
             city: shippingAddress.city,
+            province: shippingAddress.region,
             region: shippingAddress.region,
             postalCode: shippingAddress.postalCode,
             phone: shippingAddress.phone,
           },
+          orderId: newOrder.transactionId,
+          customerName: shippingAddress.name,
+          customerEmail: shippingAddress.email,
+          createdAt: newOrder.createdAt,
         };
 
         // Add to seller's orders in local state
@@ -541,7 +499,7 @@ export const useOrderStore = create<OrderStore>()(
       sellerOrders: [],
       sellerOrdersLoading: false,
 
-      fetchSellerOrders: async (sellerId?: string) => {
+      fetchSellerOrders: async (sellerId?: string, startDate?: Date | null, endDate?: Date | null) => {
         let actualSellerId = sellerId;
         const isValidUUID =
           sellerId &&
@@ -565,133 +523,12 @@ export const useOrderStore = create<OrderStore>()(
 
         set({ sellerOrdersLoading: true });
         try {
-          const rawOrders = await orderService.getSellerOrders(actualSellerId);
-
-          // Map raw database orders to SellerOrder interface
-          // DEFENSIVE: DB fields (product_name, buyer_name) may be objects like {name: "..."}
-          // from JSONB columns or foreign key joins. Always extract string safely.
-          const safeString = (val: any, fallback = ''): string => {
-            if (val === null || val === undefined) return fallback;
-            if (typeof val === 'string') return val;
-            if (typeof val === 'object' && val.name) return String(val.name);
-            if (typeof val === 'object' && val.full_name) return String(val.full_name);
-            if (typeof val === 'object' && val.store_name) return String(val.store_name);
-            return String(val);
-          };
-
-          const mappedOrders: SellerOrder[] = (rawOrders || []).map((order: any) => {
-            // Map order items from database format to SellerOrder.items format
-            const orderItems = Array.isArray(order.order_items) ? order.order_items : [];
-            const items = orderItems.map((item: any) => ({
-              productId: String(item.product_id || item.productId || ''),
-              productName: safeString(item.product_name, safeString(item.productName, 'Unknown Product')),
-              image: (Array.isArray(item.product_images) ? item.product_images[0] : null) || item.primary_image_url || item.image || 'https://via.placeholder.com/100',
-              quantity: item.quantity || 1,
-              price: parseFloat(item.price?.toString() || '0'),
-              selectedColor: item.personalized_options?.color || item.selected_color || item.selectedColor,
-              selectedSize: item.personalized_options?.size || item.selected_size || item.selectedSize,
-            }));
-
-            // Calculate total from items (more reliable than DB total_amount which may be 0)
-            const calculatedTotal = items.reduce((sum: number, item: { price: number; quantity: number }) =>
-              sum + (item.price * item.quantity), 0);
-            const dbTotal = parseFloat(order.total_amount?.toString() || '0');
-            const total = calculatedTotal > 0 ? calculatedTotal : dbTotal;
-
-            // Get customer info based on order type
-            // ONLINE orders: buyer_profile from profiles table  
-            // OFFLINE orders: recipient info or Walk-in Customer
-            const notesData = parseShippingAddressFromNotes(order.notes);
-
-            let customerName = 'Walk-in Customer';
-            let customerEmail = '';
-            let customerPhone = '';
-
-            if (order.order_type === 'ONLINE') {
-              const buyerProfile = order.buyer_profile;
-              if (buyerProfile?.first_name || buyerProfile?.last_name) {
-                customerName = `${buyerProfile.first_name || ''} ${buyerProfile.last_name || ''}`.trim();
-              } else if (buyerProfile?.email) {
-                customerName = buyerProfile.email.split('@')[0];
-              }
-              customerEmail = buyerProfile?.email || '';
-              customerPhone = buyerProfile?.phone || '';
-            } else {
-              // OFFLINE (POS) orders - check recipient
-              const recipient = order.recipient;
-              if (recipient?.first_name || recipient?.last_name) {
-                customerName = `${recipient.first_name || ''} ${recipient.last_name || ''}`.trim();
-              } else if (notesData?.fullName) {
-                customerName = notesData.fullName;
-              }
-
-              customerEmail = recipient?.email || '';
-              customerPhone = recipient?.phone || notesData?.phone || '';
-            }
-
-            // Map status from database format
-            const statusMap: Record<string, SellerOrder['status']> = {
-              'pending_payment': 'pending',
-              'pending': 'pending',
-              'waiting_for_seller': 'pending',
-              'confirmed': 'to-ship',
-              'processing': 'to-ship',
-              'ready_to_ship': 'to-ship',
-              'shipped': 'shipped',
-              'out_for_delivery': 'shipped',
-              'delivered': 'completed',
-              'received': 'completed',
-              'completed': 'completed',
-              'cancelled': 'cancelled',
-              'returned': 'cancelled',
-            };
-
-            // Map payment status
-            const paymentStatusMap: Record<string, SellerOrder['paymentStatus']> = {
-              'pending': 'pending',
-              'paid': 'paid',
-              'refunded': 'refunded',
-              'failed': 'pending',
-            };
-
-            // Enhanced Shipping Address Mapping
-            const shippingAddressObj = {
-              fullName: customerName,
-              street: order.address?.address_line_1 || notesData?.street || '',
-              barangay: order.address?.barangay || notesData?.barangay || '',
-              city: order.address?.city || notesData?.city || '',
-              province: order.address?.province || notesData?.province || '',
-              postalCode: order.address?.postal_code || notesData?.postalCode || '',
-              phone: customerPhone,
-            };
-
-            // If it's a simple string address in DB, try to put it in one field or use it as is
-            if (!order.address && typeof order.shipping_address === 'string' && order.shipping_address) {
-              shippingAddressObj.street = order.shipping_address;
-            } else if (!order.address && typeof order.shipping_address === 'object' && order.shipping_address) {
-              // Merge object if it exists
-              Object.assign(shippingAddressObj, order.shipping_address);
-            }
-
-            return {
-              id: order.id,
-              orderId: String(order.order_number || order.id || ''),
-              customerName,
-              customerEmail,
-              customerPhone,
-              shippingAddress: shippingAddressObj,
-              items,
-              total,
-              status: statusMap[order.shipment_status || order.status || 'pending'] || 'pending',
-              paymentStatus: paymentStatusMap[order.payment_status || 'pending'] || 'pending',
-              trackingNumber: order.tracking_number,
-              createdAt: order.created_at || new Date().toISOString(),
-              type: order.order_type === 'OFFLINE' ? 'OFFLINE' : 'ONLINE',
-              posNote: (order.notes || order.pos_note || '').replace(/SHIPPING_ADDRESS:.*$/, '').trim(),
-            };
+          const snapshots = await orderReadService.getSellerOrders({
+            sellerId: actualSellerId,
+            startDate,
+            endDate,
           });
-
-          set({ sellerOrders: mappedOrders, sellerOrdersLoading: false });
+          set({ sellerOrders: snapshots, sellerOrdersLoading: false });
         } catch (error) {
           console.error('[OrderStore] Error fetching seller orders:', error);
           set({ sellerOrdersLoading: false });
@@ -699,50 +536,49 @@ export const useOrderStore = create<OrderStore>()(
       },
 
       updateSellerOrderStatus: async (orderId, status) => {
-        // Map UI status to database status
-        const dbStatusMap: Record<string, string> = {
-          pending: 'pending',
-          'to-ship': 'processing',
-          shipped: 'shipped',
-          completed: 'delivered',
-        };
-        const dbStatus = dbStatusMap[status] || status;
+        const target = get().sellerOrders.find((o) => o.id === orderId || o.orderNumber === orderId || o.orderId === orderId);
+        if (!target) {
+          throw new Error('Order not found');
+        }
 
-        // Optimistically update local state
+        const previous = { ...target };
+        const actualOrderId = target.id;
+
         set((state) => ({
-          sellerOrders: state.sellerOrders.map((o) =>
-            o.orderId === orderId || o.id === orderId ? { ...o, status } : o
+          sellerOrders: state.sellerOrders.map((order) =>
+            order.id === actualOrderId ? { ...order, status } : order,
           ),
         }));
 
-        // Find the actual order ID (database UUID)
-        const order = get().sellerOrders.find(o => o.orderId === orderId || o.id === orderId);
-        const actualOrderId = order?.id || orderId;
-
-        // Update in database
         try {
-          await orderService.updateOrderStatus(actualOrderId, dbStatus);
-          console.log(`[OrderStore] Order status updated in DB: ${orderId} -> ${dbStatus}`);
-        } catch (error) {
-          console.error('[OrderStore] Failed to update order status in DB:', error);
-          // Revert on failure by refetching
-          await get().fetchSellerOrders();
-        }
+          const session = await authService.getSession();
+          const actorId = session?.user?.id;
+          const nextStatus = mapSellerUiToNormalizedStatus(status);
 
-        // SYNC TO BUYER: Also update the buyer's order store
-        const buyerOrder = get().orders.find((o) => o.transactionId === orderId);
-        if (buyerOrder) {
+          await orderMutationService.updateOrderStatus({
+            orderId: actualOrderId,
+            nextStatus,
+            note: `Seller updated order to ${status}`,
+            actorId,
+            actorRole: 'seller',
+          });
+
           const buyerStatus =
-            status === 'pending' ? 'pending' :
-              status === 'to-ship' ? 'processing' :
-                status === 'completed' ? 'delivered' :
-                  'cancelled';
+            status === 'pending'
+              ? 'pending'
+              : status === 'confirmed'
+                ? 'processing'
+                : status === 'shipped'
+                  ? 'shipped'
+                  : status === 'delivered'
+                    ? 'delivered'
+                    : 'cancelled';
 
           set((state) => ({
-            orders: state.orders.map((o) =>
-              o.id === buyerOrder.id
+            orders: state.orders.map((order) =>
+              order.transactionId === target.orderNumber || order.orderId === actualOrderId
                 ? {
-                  ...o,
+                  ...order,
                   status: buyerStatus as Order['status'],
                   deliveryDate:
                     buyerStatus === 'delivered'
@@ -751,16 +587,23 @@ export const useOrderStore = create<OrderStore>()(
                         day: '2-digit',
                         year: 'numeric',
                       })
-                      : o.deliveryDate,
+                      : order.deliveryDate,
                 }
-                : o
+                : order,
             ),
           }));
-          console.log(`[OrderStore] Order status synced to buyer: ${orderId} -> ${buyerStatus}`);
+        } catch (error) {
+          console.error('[OrderStore] Failed to update order status:', error);
+          set((state) => ({
+            sellerOrders: state.sellerOrders.map((order) =>
+              order.id === actualOrderId ? previous : order,
+            ),
+          }));
+          throw error;
         }
       },
 
-      addOfflineOrder: async (cartItems, total, note) => {
+      addOfflineOrder: async (cartItems, total, note, paymentMethod) => {
         // Get seller ID from session
         const session = await authService.getSession();
         const sellerId = session?.user?.id;
@@ -779,57 +622,54 @@ export const useOrderStore = create<OrderStore>()(
         }
 
         try {
-          // Create POS order via orderService (saves to Supabase)
-          const result = await orderService.createPOSOrder(
+          const sellerProfile = await authService.getSellerProfile(sellerId);
+          const result = await orderMutationService.createPOSOrder({
             sellerId,
-            'Store', // sellerName placeholder
-            cartItems,
+            sellerName: sellerProfile?.store_name || 'Store',
+            items: cartItems,
             total,
-            note
-          );
+            note,
+            paymentMethod,
+          });
 
           if (!result) {
             throw new Error('Failed to create POS order');
           }
 
-          // Add to local state
-          const newOrder: SellerOrder = {
-            id: result.orderId,
-            orderId: result.orderNumber,
-            customerName: 'Walk-in Customer',
-            customerEmail: 'pos@offline.sale',
-            items: cartItems,
-            total,
-            status: 'completed',
-            paymentStatus: 'paid', // Offline orders are paid immediately
-            createdAt: new Date().toISOString(),
-            type: 'OFFLINE',
-            posNote: note || 'In-Store Purchase',
-            shippingAddress: {
-              fullName: 'Walk-in Customer',
-              street: 'In-Store',
-              city: '',
-              province: '',
-              postalCode: '',
-            },
-          };
-
-          set((state) => ({
-            sellerOrders: [newOrder, ...state.sellerOrders],
-          }));
+          await get().fetchSellerOrders(sellerId);
 
           console.log(`[OrderStore] Offline order created: ${result.orderNumber}`);
-          return result.orderId;
+          return result;
         } catch (error) {
           console.error('[OrderStore] Failed to create offline order:', error);
           throw error;
         }
       },
       markOrderAsShipped: async (orderId, trackingNumber) => {
-        // Optimistically update local state
+        const target = get().sellerOrders.find((o) => o.id === orderId || o.orderNumber === orderId || o.orderId === orderId);
+        if (!target) {
+          throw new Error('Order not found');
+        }
+
+        const previous = { ...target };
+        const actualOrderId = target.id;
+        const nextTracking = trackingNumber.trim().toUpperCase();
+
+        if (!nextTracking) {
+          throw new Error('Tracking number is required');
+        }
+
         set((state) => ({
-          sellerOrders: state.sellerOrders.map((o) =>
-            o.orderId === orderId || o.id === orderId ? { ...o, status: 'shipped', trackingNumber } : o
+          sellerOrders: state.sellerOrders.map((order) =>
+            order.id === actualOrderId
+              ? {
+                ...order,
+                status: 'shipped',
+                trackingNumber: nextTracking,
+                shipmentStatusRaw: 'shipped',
+                shippedAt: new Date().toISOString(),
+              }
+              : order,
           ),
         }));
 
@@ -841,31 +681,91 @@ export const useOrderStore = create<OrderStore>()(
           throw new Error('Not authenticated');
         }
 
-        // Find the actual order ID (database UUID)
-        const order = get().sellerOrders.find(o => o.orderId === orderId || o.id === orderId);
-        const actualOrderId = order?.id || orderId;
-
         try {
-          await orderService.markOrderAsShipped(actualOrderId, trackingNumber, sellerId);
+          await orderMutationService.markOrderShipped({
+            orderId: actualOrderId,
+            trackingNumber: nextTracking,
+            sellerId,
+          });
           console.log(`[OrderStore] Order marked as shipped: ${orderId} with tracking ${trackingNumber}`);
         } catch (error) {
           console.error('[OrderStore] Failed to mark as shipped:', error);
-          // Revert on failure
-          await get().fetchSellerOrders();
+          set((state) => ({
+            sellerOrders: state.sellerOrders.map((order) =>
+              order.id === actualOrderId ? previous : order,
+            ),
+          }));
           throw error;
         }
 
-        // Sync to buyer side if possible
-        const buyerOrder = get().orders.find((o) => o.transactionId === orderId);
-        if (buyerOrder) {
+        set((state) => ({
+          orders: state.orders.map((order) =>
+            order.transactionId === target.orderNumber || order.orderId === actualOrderId
+              ? { ...order, status: 'shipped', trackingNumber: nextTracking }
+              : order,
+          ),
+        }));
+      },
+
+      markOrderAsDelivered: async (orderId) => {
+        const target = get().sellerOrders.find((o) => o.id === orderId || o.orderNumber === orderId || o.orderId === orderId);
+        if (!target) {
+          throw new Error('Order not found');
+        }
+
+        const previous = { ...target };
+        const actualOrderId = target.id;
+
+        set((state) => ({
+          sellerOrders: state.sellerOrders.map((order) =>
+            order.id === actualOrderId
+              ? {
+                ...order,
+                status: 'delivered',
+                shipmentStatusRaw: 'delivered',
+                deliveredAt: new Date().toISOString(),
+              }
+              : order,
+          ),
+        }));
+
+        const session = await authService.getSession();
+        const sellerId = session?.user?.id;
+
+        if (!sellerId) {
+          throw new Error('Not authenticated');
+        }
+
+        try {
+          await orderMutationService.markOrderDelivered({
+            orderId: actualOrderId,
+            sellerId,
+          });
+        } catch (error) {
+          console.error('[OrderStore] Failed to mark as delivered:', error);
           set((state) => ({
-            orders: state.orders.map((o) =>
-              o.id === buyerOrder.id
-                ? { ...o, status: 'shipped', trackingNumber }
-                : o
+            sellerOrders: state.sellerOrders.map((order) =>
+              order.id === actualOrderId ? previous : order,
             ),
           }));
+          throw error;
         }
+
+        set((state) => ({
+          orders: state.orders.map((order) =>
+            order.transactionId === target.orderNumber || order.orderId === actualOrderId
+              ? {
+                ...order,
+                status: 'delivered',
+                deliveryDate: new Date().toLocaleDateString('en-US', {
+                  month: '2-digit',
+                  day: '2-digit',
+                  year: 'numeric',
+                }),
+              }
+              : order,
+          ),
+        }));
       },
     }),
     {

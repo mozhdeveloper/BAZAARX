@@ -15,10 +15,15 @@ import {
 
 interface GetBuyerOrdersInput {
   buyerId: string;
+  startDate?: Date | null; 
+  endDate?: Date | null; 
 }
 
+// 1. Updated interface to include optional date filters
 interface GetSellerOrdersInput {
   sellerId: string;
+  startDate?: Date | null;
+  endDate?: Date | null;
 }
 
 interface GetOrderTrackingInput {
@@ -31,14 +36,19 @@ interface GetOrderDetailInput {
   buyerId?: string;
 }
 
-class OrderReadService {
-  async getBuyerOrders({ buyerId }: GetBuyerOrdersInput): Promise<BuyerOrderSnapshot[]> {
-    const rows = await orderService.getBuyerOrders(buyerId);
+export class OrderReadService {
+  async getBuyerOrders({ buyerId, startDate, endDate }: GetBuyerOrdersInput): Promise<BuyerOrderSnapshot[]> {
+    const rows = await orderService.getBuyerOrders(buyerId, startDate, endDate); // Pass parameters
     return rows.map((row: any) => mapOrderRowToBuyerSnapshot(row));
   }
 
-  async getSellerOrders({ sellerId }: GetSellerOrdersInput): Promise<SellerOrderSnapshot[]> {
-    const rows = await orderService.getSellerOrders(sellerId);
+  // 2. Updated method to pass date filters to orderService
+  async getSellerOrders({ 
+    sellerId, 
+    startDate, 
+    endDate 
+  }: GetSellerOrdersInput): Promise<SellerOrderSnapshot[]> {
+    const rows = await orderService.getSellerOrders(sellerId, startDate, endDate);
     return rows.map((row: any) => mapOrderRowToSellerSnapshot(row));
   }
 
@@ -69,6 +79,7 @@ class OrderReadService {
     const isUuid =
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(orderIdOrNumber);
 
+    // 3. FIXED: Removed .maybeSingle() from the initial assignment to allow further chaining
     let query = supabase
       .from("orders")
       .select(`
@@ -109,16 +120,35 @@ class OrderReadService {
           cancelled_at,
           cancelled_by,
           created_at
+        ),
+        reviews (
+          id,
+          product_id,
+          buyer_id,
+          order_id,
+          order_item_id,
+          variant_snapshot,
+          rating,
+          comment,
+          is_hidden,
+          created_at,
+          updated_at,
+          review_images (
+            id,
+            image_url,
+            sort_order,
+            uploaded_at
+          )
         )
       `)
-      .eq(isUuid ? "id" : "order_number", orderIdOrNumber)
-      .maybeSingle();
+      .eq(isUuid ? "id" : "order_number", orderIdOrNumber);
 
     if (buyerId) {
       query = query.eq("buyer_id", buyerId);
     }
 
-    const { data: orderData, error } = await query;
+    // 4. FIXED: Call .maybeSingle() here after all filters are applied
+    const { data: orderData, error } = await query.maybeSingle();
 
     if (error) {
       throw error;

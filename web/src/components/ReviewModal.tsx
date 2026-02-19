@@ -5,10 +5,12 @@ import { Button } from "./ui/button";
 import { useBuyerStore } from "../stores/buyerStore";
 import { orderMutationService } from "../services/orders/orderMutationService";
 import { supabase } from "../lib/supabase";
+import { validateImageFile } from "../utils/storage";
 
 interface ReviewModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onSubmitted?: () => void;
   orderId: string;
   displayOrderId?: string;
   sellerId?: string;
@@ -23,6 +25,7 @@ interface ReviewModalProps {
 export function ReviewModal({
   isOpen,
   onClose,
+  onSubmitted,
   orderId,
   displayOrderId,
   sellerId,
@@ -33,9 +36,34 @@ export function ReviewModal({
   const [hoveredRating, setHoveredRating] = useState(0);
   const [reviewText, setReviewText] = useState("");
   const [images, setImages] = useState<string[]>([]);
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const { addReview } = useBuyerStore();
+
+  const revokeBlobUrls = (urls: string[]) => {
+    urls.forEach((url) => {
+      if (url.startsWith("blob:")) {
+        URL.revokeObjectURL(url);
+      }
+    });
+  };
+
+  const resetForm = () => {
+    revokeBlobUrls(images);
+    setRating(0);
+    setHoveredRating(0);
+    setReviewText("");
+    setImages([]);
+    setImageFiles([]);
+    setSubmitted(false);
+  };
+
+  const handleClose = () => {
+    if (isSubmitting) return;
+    resetForm();
+    onClose();
+  };
 
   const handleSubmit = async () => {
     if (rating === 0) {
@@ -58,13 +86,18 @@ export function ReviewModal({
         return;
       }
 
+      const persistableImages = images.filter((image) =>
+        /^https?:\/\//i.test(image),
+      );
+
       // Submit review to Supabase using our service
       const success = await orderMutationService.submitOrderReview({
         orderId,
         buyerId,
         rating,
         comment: reviewText || "Great product!",
-        images,
+        images: persistableImages,
+        imageFiles,
       });
 
       if (!success) {
@@ -83,7 +116,7 @@ export function ReviewModal({
           buyerAvatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${buyerId}`,
           rating,
           comment: reviewText || "Great product!",
-          images: images,
+          images: persistableImages,
           verified: true,
         });
       });
@@ -91,6 +124,8 @@ export function ReviewModal({
       console.log(
         `✅ Review submitted successfully for order ${orderId}: ${rating} stars`,
       );
+
+      onSubmitted?.();
 
       setSubmitted(true);
       setIsSubmitting(false);
@@ -107,22 +142,59 @@ export function ReviewModal({
     }
   };
 
-  const resetForm = () => {
-    setRating(0);
-    setHoveredRating(0);
-    setReviewText("");
-    setImages([]);
-    setSubmitted(false);
-  };
-
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (files) {
-      const newImages = Array.from(files).map((file) =>
-        URL.createObjectURL(file),
-      );
-      setImages((prev) => [...prev, ...newImages].slice(0, 5)); // Max 5 images
+    if (!files) {
+      return;
     }
+
+    const remainingSlots = Math.max(0, 5 - imageFiles.length);
+
+    if (remainingSlots <= 0) {
+      e.target.value = "";
+      return;
+    }
+
+    const selected = Array.from(files).slice(0, remainingSlots);
+    const acceptedFiles: File[] = [];
+    const validationErrors: string[] = [];
+
+    selected.forEach((file) => {
+      const validation = validateImageFile(file);
+      if (!validation.valid) {
+        validationErrors.push(
+          `${file.name}: ${validation.error || "Invalid image file"}`,
+        );
+        return;
+      }
+
+      acceptedFiles.push(file);
+    });
+
+    if (validationErrors.length > 0) {
+      alert(validationErrors.join("\n"));
+    }
+
+    if (acceptedFiles.length > 0) {
+      const previewUrls = acceptedFiles.map((file) => URL.createObjectURL(file));
+      setImageFiles((prev) => [...prev, ...acceptedFiles].slice(0, 5));
+      setImages((prev) => [...prev, ...previewUrls].slice(0, 5));
+    }
+
+    e.target.value = "";
+  };
+
+  const handleRemoveImage = (index: number) => {
+    setImages((prev) => {
+      const imageUrl = prev[index];
+      if (imageUrl?.startsWith("blob:")) {
+        URL.revokeObjectURL(imageUrl);
+      }
+
+      return prev.filter((_, i) => i !== index);
+    });
+
+    setImageFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
   return (
@@ -134,7 +206,7 @@ export function ReviewModal({
           exit={{ opacity: 0 }}
           className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 p-4"
           onClick={() => {
-            if (!submitted) onClose();
+            if (!submitted) handleClose();
           }}
         >
           <motion.div
@@ -147,9 +219,9 @@ export function ReviewModal({
             {!submitted ? (
               <>
                 {/* Header */}
-                <div className="relative p-6 bg-gradient-to-r from-orange-500 to-red-500 text-white">
+                <div className="relative p-6 bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-dark)] text-white">
                   <button
-                    onClick={onClose}
+                    onClick={handleClose}
                     className="absolute top-4 right-4 p-2 hover:bg-white/20 rounded-full transition-colors"
                     disabled={isSubmitting}
                   >
@@ -172,8 +244,8 @@ export function ReviewModal({
                 {/* Content */}
                 <div className="p-6 space-y-6">
                   {/* Seller Info */}
-                  <div className="flex items-center gap-3 p-4 bg-orange-50 rounded-lg">
-                    <div className="w-12 h-12 bg-orange-500 rounded-full flex items-center justify-center text-white font-bold text-lg">
+                  <div className="flex items-center gap-3 p-4 bg-[var(--brand-wash)] rounded-lg">
+                    <div className="w-12 h-12 bg-[var(--brand-primary)] rounded-full flex items-center justify-center text-white font-bold text-lg">
                       {sellerName.charAt(0)}
                     </div>
                     <div>
@@ -189,7 +261,7 @@ export function ReviewModal({
                   {/* Items Purchased */}
                   <div className="space-y-3">
                     <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                      <Package className="w-5 h-5 text-orange-500" />
+                      <Package className="w-5 h-5 text-[var(--brand-primary)]" />
                       Items in this order
                     </h3>
                     <div className="space-y-2 max-h-32 overflow-y-auto">
@@ -235,7 +307,7 @@ export function ReviewModal({
                           >
                             <Star
                               className={`w-10 h-10 ${star <= (hoveredRating || rating)
-                                ? "fill-orange-500 text-orange-500"
+                                ? "fill-[var(--brand-primary)] text-[var(--brand-primary)]"
                                 : "text-gray-300"
                                 } transition-colors`}
                             />
@@ -243,7 +315,7 @@ export function ReviewModal({
                         ))}
                       </div>
                       {rating > 0 && (
-                        <span className="text-2xl font-bold text-orange-500">
+                        <span className="text-2xl font-bold text-[var(--brand-primary)]">
                           {rating}.0
                         </span>
                       )}
@@ -251,7 +323,7 @@ export function ReviewModal({
                     <div className="flex gap-2 text-sm text-gray-600">
                       <span
                         className={
-                          rating === 1 ? "text-orange-500 font-medium" : ""
+                          rating === 1 ? "text-[var(--brand-primary)] font-medium" : ""
                         }
                       >
                         Poor
@@ -259,7 +331,7 @@ export function ReviewModal({
                       <span>•</span>
                       <span
                         className={
-                          rating === 2 ? "text-orange-500 font-medium" : ""
+                          rating === 2 ? "text-[var(--brand-primary)] font-medium" : ""
                         }
                       >
                         Fair
@@ -267,7 +339,7 @@ export function ReviewModal({
                       <span>•</span>
                       <span
                         className={
-                          rating === 3 ? "text-orange-500 font-medium" : ""
+                          rating === 3 ? "text-[var(--brand-primary)] font-medium" : ""
                         }
                       >
                         Good
@@ -275,7 +347,7 @@ export function ReviewModal({
                       <span>•</span>
                       <span
                         className={
-                          rating === 4 ? "text-orange-500 font-medium" : ""
+                          rating === 4 ? "text-[var(--brand-primary)] font-medium" : ""
                         }
                       >
                         Very Good
@@ -283,7 +355,7 @@ export function ReviewModal({
                       <span>•</span>
                       <span
                         className={
-                          rating === 5 ? "text-orange-500 font-medium" : ""
+                          rating === 5 ? "text-[var(--brand-primary)] font-medium" : ""
                         }
                       >
                         Excellent
@@ -300,7 +372,7 @@ export function ReviewModal({
                       value={reviewText}
                       onChange={(e) => setReviewText(e.target.value)}
                       placeholder="Tell us about the product quality, seller service, and delivery experience..."
-                      className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent resize-none h-32"
+                      className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)] focus:border-transparent resize-none h-32"
                       disabled={isSubmitting}
                     />
                     <p className="text-xs text-gray-500">
@@ -311,7 +383,7 @@ export function ReviewModal({
                   {/* Image Upload */}
                   <div className="space-y-3">
                     <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                      <Camera className="w-5 h-5 text-orange-500" />
+                      <Camera className="w-5 h-5 text-[var(--brand-primary)]" />
                       Add Photos (optional)
                     </h3>
                     <div className="flex items-center gap-3 flex-wrap">
@@ -323,9 +395,7 @@ export function ReviewModal({
                             className="w-20 h-20 object-cover rounded-lg border-2 border-gray-200"
                           />
                           <button
-                            onClick={() =>
-                              setImages(images.filter((_, i) => i !== index))
-                            }
+                            onClick={() => handleRemoveImage(index)}
                             className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                             disabled={isSubmitting}
                           >
@@ -334,7 +404,7 @@ export function ReviewModal({
                         </div>
                       ))}
                       {images.length < 5 && (
-                        <label className="w-20 h-20 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center cursor-pointer hover:border-orange-500 hover:bg-orange-50 transition-colors">
+                        <label className="w-20 h-20 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center cursor-pointer hover:border-[var(--brand-primary)] hover:bg-[var(--brand-wash)] transition-colors">
                           <input
                             type="file"
                             accept="image/*"
@@ -348,7 +418,8 @@ export function ReviewModal({
                       )}
                     </div>
                     <p className="text-xs text-gray-500">
-                      You can add up to 5 photos
+                      You can add up to 5 photos. Images are uploaded securely
+                      to review storage when you submit.
                     </p>
                   </div>
 
@@ -357,7 +428,7 @@ export function ReviewModal({
                     <Button
                       onClick={handleSubmit}
                       disabled={rating === 0 || isSubmitting}
-                      className="w-full bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white py-6 text-lg font-semibold"
+                      className="w-full bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-dark)] hover:from-[var(--brand-primary-dark)] hover:to-[var(--brand-primary)] text-white py-6 text-lg font-semibold"
                     >
                       {isSubmitting ? (
                         <div className="flex items-center gap-2">
