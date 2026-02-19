@@ -11,6 +11,7 @@
 
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import type { Order, OrderItem, PaymentStatus, ShipmentStatus, Database } from '@/types/database.types';
+import type { OrderTrackingSnapshot } from '@/types/orders';
 import { reviewService } from './reviewService';
 import { orderNotificationService } from './orderNotificationService';
 import { notificationService } from './notificationService';
@@ -144,7 +145,8 @@ export class OrderService {
     }[],
     total: number,
     note?: string,
-    buyerEmail?: string
+    buyerEmail?: string,
+    paymentMethod?: 'cash' | 'card' | 'ewallet' | 'bank_transfer'
   ): Promise<{ orderId: string; orderNumber: string; buyerLinked?: boolean } | null> {
     // Generate order number
     const orderNumber = `POS-${Date.now().toString().slice(-8)}`;
@@ -271,6 +273,28 @@ export class OrderService {
       }
 
       console.log(`[OrderService] Order items inserted successfully`);
+
+      const paymentMethodValue = paymentMethod || 'cash';
+      const paymentMethodLabel = {
+        cash: 'Cash',
+        card: 'Card',
+        ewallet: 'E-Wallet',
+        bank_transfer: 'Bank Transfer',
+      }[paymentMethodValue] || 'Cash';
+
+      const { error: paymentError } = await supabase
+        .from('order_payments')
+        .insert({
+          order_id: orderId,
+          payment_method: { type: paymentMethodValue, label: paymentMethodLabel },
+          amount: total,
+          status: 'completed',
+          payment_date: new Date().toISOString(),
+        });
+
+      if (paymentError) {
+        console.warn('[OrderService] Failed to insert order_payments record:', paymentError);
+      }
 
       // Verify the order was created correctly
       const { data: verifyOrder } = await supabase
@@ -485,57 +509,52 @@ export class OrderService {
    * We first find all product IDs for this seller, then get order_items
    * referencing those products, then fetch the full orders.
    */
-  async getSellerOrders(sellerId: string): Promise<Order[]> {
+  async getSellerOrders(
+    sellerId: string,
+    startDate?: Date | null,
+    endDate?: Date | null,
+  ): Promise<Order[]> {
     if (!isSupabaseConfigured()) {
-      return this.mockOrders.filter(o => o.seller_id === sellerId);
+      return this.mockOrders.filter((order) => {
+        const matchesSeller = order.seller_id === sellerId;
+        if (!matchesSeller) return false;
+
+        if (!startDate && !endDate) return true;
+        const created = new Date(order.created_at);
+        const matchesStart = !startDate || created >= startDate;
+        const matchesEnd = !endDate || created <= endDate;
+        return matchesStart && matchesEnd;
+      });
     }
 
     try {
-      // Step 1: Get all product IDs belonging to this seller
-      const { data: sellerProducts, error: prodError } = await supabase
+      const { data: sellerProducts, error: productError } = await supabase
         .from('products')
         .select('id')
         .eq('seller_id', sellerId);
 
-      if (prodError) {
-        console.error('Error fetching seller products for orders:', prodError);
-        throw prodError;
-      }
+      if (productError) throw productError;
 
-      if (!sellerProducts || sellerProducts.length === 0) {
-        return [];
-      }
+      const productIds = (sellerProducts || []).map((product) => product.id);
+      if (productIds.length === 0) return [];
 
-      const productIds = sellerProducts.map((p: any) => p.id);
-
-      // Step 2: Get distinct order IDs from order_items that reference seller's products
-      const { data: orderItems, error: itemsError } = await supabase
+      const { data: orderItemRows, error: itemsError } = await supabase
         .from('order_items')
         .select('order_id')
         .in('product_id', productIds);
 
-      if (itemsError) {
-        console.error('Error fetching order items:', itemsError);
-        throw itemsError;
-      }
+      if (itemsError) throw itemsError;
 
-      if (!orderItems || orderItems.length === 0) {
-        return [];
-      }
+      const orderIds = [...new Set((orderItemRows || []).map((row) => row.order_id))];
+      if (orderIds.length === 0) return [];
 
-      const uniqueOrderIds = [...new Set(orderItems.map((item: any) => item.order_id))];
-
-      // Step 3: Fetch the full orders with related data
-      // Note: buyers.id references profiles.id (same UUID), so we fetch buyer first
-      // then get the profile separately since nested FK joins can be unreliable
-      const { data: ordersData, error } = await supabase
+      let orderQuery = supabase
         .from('orders')
         .select(`
           *,
-          order_items(*),
-          buyer:buyers!buyer_id(
-            id,
-            avatar_url
+          order_items(
+            *,
+            variant:product_variants(id, variant_name, size, color, price, thumbnail_url)
           ),
           recipient:order_recipients!recipient_id(
             id,
@@ -547,51 +566,97 @@ export class OrderService {
           address:shipping_addresses!address_id(
             id,
             address_line_1,
+            address_line_2,
             barangay,
             city,
             province,
             region,
-            postal_code
+            postal_code,
+            landmark,
+            delivery_instructions
+          ),
+          shipments:order_shipments(
+            id,
+            status,
+            tracking_number,
+            shipped_at,
+            delivered_at,
+            created_at
+          ),
+          payments:order_payments(
+            payment_method,
+            payment_date,
+            status,
+            created_at
           )
         `)
-        .in('id', uniqueOrderIds)
-        .order('created_at', { ascending: false });
+        .in('id', orderIds);
 
-      if (error) throw error;
-      
-      // Step 4: Fetch buyer profiles for all ONLINE orders
-      // Since buyers.id = profiles.id, we use buyer_id to get profile info
-      const buyerIds = ordersData
-        ?.filter((o: any) => o.order_type === 'ONLINE' && o.buyer_id)
-        .map((o: any) => o.buyer_id) || [];
-      
+      if (startDate) {
+        orderQuery = orderQuery.gte('created_at', startDate.toISOString());
+      }
+
+      if (endDate) {
+        orderQuery = orderQuery.lte('created_at', endDate.toISOString());
+      }
+
+      const { data: ordersData, error: ordersError } = await orderQuery.order('created_at', {
+        ascending: false,
+      });
+
+      if (ordersError) throw ordersError;
+
+      const buyerIds = (ordersData || [])
+        .filter((order: any) => order.order_type === 'ONLINE' && order.buyer_id)
+        .map((order: any) => order.buyer_id);
+
       const uniqueBuyerIds = [...new Set(buyerIds)];
-      
       let profilesMap: Record<string, any> = {};
-      
+
       if (uniqueBuyerIds.length > 0) {
         const { data: profiles, error: profilesError } = await supabase
           .from('profiles')
           .select('id, email, first_name, last_name, phone')
           .in('id', uniqueBuyerIds);
-        
+
         if (!profilesError && profiles) {
-          profilesMap = profiles.reduce((acc: Record<string, any>, p: any) => {
-            acc[p.id] = p;
+          profilesMap = profiles.reduce((acc: Record<string, any>, profile: any) => {
+            acc[profile.id] = profile;
             return acc;
           }, {});
         }
       }
-      
-      // Attach profile data to orders
-      const data = ordersData?.map((order: any) => ({
-        ...order,
-        buyer_profile: order.buyer_id ? profilesMap[order.buyer_id] || null : null
-      })) || [];
-      
-      console.log(`[OrderService] Fetched ${data?.length || 0} seller orders`);
-      
-      return data || [];
+
+      const data = (ordersData || []).map((order: any) => {
+        const sellerItems = (order.order_items || []).filter((item: any) =>
+          productIds.includes(item.product_id),
+        );
+
+        const latestShipment = [...(order.shipments || [])].sort((a: any, b: any) => {
+          const aDate = new Date(a.delivered_at || a.shipped_at || a.created_at || 0).getTime();
+          const bDate = new Date(b.delivered_at || b.shipped_at || b.created_at || 0).getTime();
+          return bDate - aDate;
+        })[0];
+
+        const latestPayment = [...(order.payments || [])].sort((a: any, b: any) => {
+          const aDate = new Date(a.payment_date || a.created_at || 0).getTime();
+          const bDate = new Date(b.payment_date || b.created_at || 0).getTime();
+          return bDate - aDate;
+        })[0];
+
+        return {
+          ...order,
+          order_items: sellerItems,
+          seller_id: sellerId,
+          buyer_profile: order.buyer_id ? profilesMap[order.buyer_id] || null : null,
+          tracking_number: latestShipment?.tracking_number || order.tracking_number || null,
+          shipped_at: latestShipment?.shipped_at || order.shipped_at || null,
+          delivered_at: latestShipment?.delivered_at || order.delivered_at || null,
+          payment_method: latestPayment?.payment_method || null,
+        };
+      });
+
+      return data;
     } catch (error) {
       console.error('Error fetching seller orders:', error);
       throw new Error('Failed to fetch orders');
@@ -641,6 +706,126 @@ export class OrderService {
     } catch (error) {
       console.error('Error fetching order:', error);
       throw new Error('Failed to fetch order details');
+    }
+  }
+
+  /**
+   * Get buyer-facing order tracking snapshot from normalized tables
+   */
+  async getOrderTrackingSnapshot(
+    orderIdOrNumber: string,
+    buyerId?: string,
+  ): Promise<OrderTrackingSnapshot | null> {
+    if (!isSupabaseConfigured()) {
+      const mockOrder = this.mockOrders.find(
+        (order) => order.id === orderIdOrNumber || order.order_number === orderIdOrNumber,
+      );
+
+      if (!mockOrder) return null;
+      if (buyerId && mockOrder.buyer_id !== buyerId) return null;
+
+      const normalized = LEGACY_STATUS_MAP[mockOrder.status || 'pending_payment'] ||
+        LEGACY_STATUS_MAP.pending_payment;
+
+      return {
+        order_id: mockOrder.id,
+        order_number: mockOrder.order_number || mockOrder.id,
+        buyer_id: mockOrder.buyer_id || null,
+        payment_status: (mockOrder.payment_status as PaymentStatus) || normalized.payment_status,
+        shipment_status: (mockOrder.shipment_status as ShipmentStatus) || normalized.shipment_status,
+        created_at: mockOrder.created_at || new Date().toISOString(),
+        tracking_number: mockOrder.tracking_number || null,
+        shipped_at: null,
+        delivered_at: null,
+        recipient: null,
+        address: null,
+        shipment: null,
+      };
+    }
+
+    try {
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        orderIdOrNumber,
+      );
+
+      let query = supabase
+        .from('orders')
+        .select(`
+          id,
+          order_number,
+          buyer_id,
+          payment_status,
+          shipment_status,
+          created_at,
+          recipient:order_recipients!recipient_id (
+            first_name,
+            last_name,
+            phone,
+            email
+          ),
+          address:shipping_addresses!address_id (
+            address_line_1,
+            address_line_2,
+            barangay,
+            city,
+            province,
+            region,
+            postal_code,
+            landmark,
+            delivery_instructions
+          ),
+          shipments:order_shipments (
+            id,
+            status,
+            tracking_number,
+            shipped_at,
+            delivered_at,
+            created_at
+          )
+        `)
+        .eq(isUuid ? 'id' : 'order_number', orderIdOrNumber);
+
+      if (buyerId) {
+        query = query.eq('buyer_id', buyerId);
+      }
+
+      const { data, error } = await query.maybeSingle();
+
+      if (error) throw error;
+      if (!data) return null;
+
+      const latestShipment = [...(((data as any).shipments as any[]) || [])].sort((a, b) => {
+        const aDate = new Date(a.delivered_at || a.shipped_at || a.created_at || 0).getTime();
+        const bDate = new Date(b.delivered_at || b.shipped_at || b.created_at || 0).getTime();
+        return bDate - aDate;
+      })[0];
+
+      return {
+        order_id: data.id,
+        order_number: data.order_number,
+        buyer_id: data.buyer_id || null,
+        payment_status: data.payment_status,
+        shipment_status: data.shipment_status,
+        created_at: data.created_at,
+        tracking_number: latestShipment?.tracking_number || null,
+        shipped_at: latestShipment?.shipped_at || null,
+        delivered_at: latestShipment?.delivered_at || null,
+        recipient: (data as any).recipient || null,
+        address: (data as any).address || null,
+        shipment: latestShipment
+          ? {
+            id: latestShipment.id,
+            status: latestShipment.status,
+            tracking_number: latestShipment.tracking_number,
+            shipped_at: latestShipment.shipped_at,
+            delivered_at: latestShipment.delivered_at,
+            created_at: latestShipment.created_at,
+          }
+          : null,
+      };
+    } catch (error) {
+      console.error('Error fetching order tracking snapshot:', error);
+      throw new Error('Failed to fetch order tracking details');
     }
   }
 
@@ -1092,7 +1277,7 @@ export class OrderService {
   /**
    * Cancel an order
    */
-  async cancelOrder(orderId: string, reason?: string): Promise<boolean> {
+  async cancelOrder(orderId: string, reason?: string, cancelledBy?: string): Promise<boolean> {
     if (!isSupabaseConfigured()) {
       const order = this.mockOrders.find(o => o.id === orderId);
       if (order) {
@@ -1104,16 +1289,61 @@ export class OrderService {
     }
 
     try {
-      const { error } = await supabase
+      const nowIso = new Date().toISOString();
+      const normalizedReason = reason?.trim() || null;
+
+      const { data: existingOrder, error: fetchError } = await supabase
+        .from('orders')
+        .select('id, payment_status')
+        .eq('id', orderId)
+        .single();
+
+      if (fetchError || !existingOrder) {
+        throw new Error('Order not found');
+      }
+
+      const nextPaymentStatus: PaymentStatus =
+        existingOrder.payment_status === 'paid' ||
+          existingOrder.payment_status === 'partially_refunded'
+          ? 'refunded'
+          : 'pending_payment';
+
+      const { error: updateError } = await supabase
         .from('orders')
         .update({
-          status: 'cancelled',
-          cancelled_at: new Date().toISOString(),
-          notes: reason,
+          payment_status: nextPaymentStatus,
+          shipment_status: 'returned',
+          notes: normalizedReason,
+          updated_at: nowIso,
         })
         .eq('id', orderId);
 
-      if (error) throw error;
+      if (updateError) throw updateError;
+
+      const { error: cancellationError } = await supabase
+        .from('order_cancellations')
+        .insert({
+          order_id: orderId,
+          reason: normalizedReason,
+          cancelled_at: nowIso,
+          cancelled_by: cancelledBy || null,
+        });
+
+      if (cancellationError) throw cancellationError;
+
+      await supabase.from('order_status_history').insert({
+        order_id: orderId,
+        status: 'cancelled',
+        note: normalizedReason || 'Order cancelled',
+        changed_by: cancelledBy || null,
+        changed_by_role: cancelledBy ? 'seller' : null,
+        metadata: {
+          cancelled_at: nowIso,
+          payment_status: nextPaymentStatus,
+          shipment_status: 'returned',
+        },
+      });
+
       return true;
     } catch (error) {
       console.error('Error cancelling order:', error);

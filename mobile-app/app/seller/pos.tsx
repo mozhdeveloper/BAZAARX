@@ -44,7 +44,6 @@ import {
 } from 'lucide-react-native';
 import { useSellerStore } from '../../src/stores/sellerStore';
 import { useOrderStore } from '../../src/stores/orderStore';
-import { orderService } from '../../src/services/orderService';
 import SellerDrawer from '../../src/components/SellerDrawer';
 import { safeImageUri } from '../../src/utils/imageUtils';
 import { BarcodeScanner } from '../../src/components/seller/BarcodeScanner';
@@ -362,29 +361,7 @@ export default function POSScreen() {
       const total = cartTotal;
       const receiptNote = note;
 
-      // Save to Supabase using orderService
-      const result = await orderService.createPOSOrder(
-        seller.id,
-        seller.store_name || 'Store',
-        cart.map(item => ({
-          productId: item.productId,
-          productName: item.productName,
-          quantity: item.quantity,
-          price: item.price,
-          image: item.image,
-          selectedColor: item.selectedColor,
-          selectedSize: item.selectedSize
-        })),
-        total,
-        receiptNote
-      );
-
-      if (!result) {
-        throw new Error('Failed to create order');
-      }
-
-      // Also update local store for immediate UI update
-      await addOfflineOrder(cart, total, receiptNote);
+      const result = await addOfflineOrder(cart, total, receiptNote, paymentMethod);
 
       // Set receipt data with payment method
       setReceiptData({
@@ -405,9 +382,9 @@ export default function POSScreen() {
       setShowSuccess(true);
       setShowCartModal(false);
 
-      // Refresh orders to show new POS order
+      // Refresh products/stock once after successful POS sale
       if (seller.id) {
-        fetchSellerOrders(seller.id);
+        await fetchProducts({ sellerId: seller.id });
       }
 
       // Clear cart after 2 seconds

@@ -24,7 +24,7 @@ export default function SellerOrderDetailScreen() {
     const route = useRoute<any>();
     const { orderId } = route.params;
 
-    const { orders = [], updateOrderStatus, markOrderAsShipped, seller, fetchOrders } = useSellerStore();
+    const { orders = [], updateOrderStatus, markOrderAsShipped, markOrderAsDelivered, seller, fetchOrders } = useSellerStore();
     const [order, setOrder] = useState<any>(null);
     const [loading, setLoading] = useState(true);
 
@@ -54,7 +54,11 @@ export default function SellerOrderDetailScreen() {
         }
 
         try {
-            await updateOrderStatus(orderId, newStatus);
+            if (newStatus === 'completed') {
+                await markOrderAsDelivered(orderId);
+            } else {
+                await updateOrderStatus(orderId, newStatus);
+            }
             if (seller?.id) await fetchOrders(seller.id);
             Alert.alert("Success", `Order updated to ${newStatus.replace('-', ' ')}`);
         } catch (error) {
@@ -174,6 +178,12 @@ export default function SellerOrderDetailScreen() {
                                         'In-store Pickup'}
                             </Text>
                         </View>
+                        {order.trackingNumber ? (
+                            <View style={[styles.infoLine, { marginTop: 10 }]}>
+                                <Text style={styles.trackingLabel}>Tracking:</Text>
+                                <Text style={styles.infoText}>{order.trackingNumber}</Text>
+                            </View>
+                        ) : null}
                     </View>
                 </View>
             </ScrollView>
@@ -258,6 +268,7 @@ const styles = StyleSheet.create({
     custName: { fontSize: 14, fontWeight: '700', color: '#1F2937' },
     custEmail: { fontSize: 13, color: '#6B7280' },
     infoLine: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    trackingLabel: { fontSize: 13, fontWeight: '700', color: '#4B5563' },
     infoText: { fontSize: 13, color: '#4B5563', flex: 1 },
     // Sticky Footer Styles
     stickyFooter: {

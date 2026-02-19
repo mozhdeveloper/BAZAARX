@@ -7,7 +7,6 @@ import {
   Pressable,
   Image,
   TextInput,
-  ActivityIndicator,
   RefreshControl,
   Modal,
   Alert,
@@ -18,6 +17,7 @@ import { Bell, X, Search, Menu, Download, ChevronRight, ChevronDown, Check } fro
 import { useSellerStore } from '../../../src/stores/sellerStore';
 import { safeImageUri } from '../../../src/utils/imageUtils';
 import SellerDrawer from '../../../src/components/SellerDrawer';
+import TrackingModal from '../../../src/components/seller/TrackingModal';
 
 // Distinguish between UI filters and actual DB states
 type DBStatus = 'pending' | 'to-ship' | 'shipped' | 'completed' | 'cancelled';
@@ -25,7 +25,15 @@ type OrderStatus = 'all' | DBStatus;
 type ChannelFilter = 'all' | 'online' | 'pos';
 
 export default function SellerOrdersScreen() {
-  const { orders = [], seller, fetchOrders, ordersLoading, updateOrderStatus } = useSellerStore();
+  const {
+    orders = [],
+    seller,
+    fetchOrders,
+    ordersLoading,
+    updateOrderStatus,
+    markOrderAsShipped,
+    markOrderAsDelivered,
+  } = useSellerStore();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
 
@@ -37,6 +45,10 @@ export default function SellerOrdersScreen() {
 
   const [showChannelMenu, setShowChannelMenu] = useState(false);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
+  const [trackingModalVisible, setTrackingModalVisible] = useState(false);
+  const [trackingNumber, setTrackingNumber] = useState('');
+  const [trackingOrderId, setTrackingOrderId] = useState<string | null>(null);
+  const [isUpdating, setIsUpdating] = useState(false);
 
   useEffect(() => {
     if (seller?.id) fetchOrders(seller.id);
@@ -58,37 +70,84 @@ export default function SellerOrdersScreen() {
   });
 
   const getStatusConfig = (status: string) => {
-    const configs: Record<string, { color: string; action: string | null; next: DBStatus | null }> = {
-      pending: { color: '#FBBF24', action: 'Confirm', next: 'to-ship' },
-      'to-ship': { color: '#FF5722', action: 'Ship Now', next: 'shipped' },
-      shipped: { color: '#3B82F6', action: 'Delivered', next: 'completed' },
-      completed: { color: '#10B981', action: null, next: null },
-      cancelled: { color: '#DC2626', action: null, next: null },
+    const configs: Record<string, { color: string; action: string | null }> = {
+      pending: { color: '#FBBF24', action: 'Confirm' },
+      'to-ship': { color: '#FF5722', action: 'Ship Now' },
+      shipped: { color: '#3B82F6', action: 'Deliver' },
+      completed: { color: '#10B981', action: null },
+      cancelled: { color: '#DC2626', action: null },
     };
-    return configs[status] || { color: '#6B7280', action: null, next: null };
+    return configs[status] || { color: '#6B7280', action: null };
   };
 
-  const handleQuickAction = (orderId: string, nextStatus: DBStatus | null) => {
-    if (!nextStatus) return;
-
-    Alert.alert(
-      "Confirm Action",
-      `Are you sure you want to mark this order as ${nextStatus.replace('-', ' ')}?`,
-      [
-        { text: "Cancel", style: "cancel" },
+  const handleQuickAction = (orderId: string, currentStatus: DBStatus) => {
+    if (currentStatus === 'pending') {
+      Alert.alert('Confirm Order', 'Mark this order as confirmed and ready to ship?', [
+        { text: 'Cancel', style: 'cancel' },
         {
-          text: "Confirm",
+          text: 'Confirm',
           onPress: async () => {
+            setIsUpdating(true);
             try {
-              await updateOrderStatus(orderId, nextStatus);
-              if (seller?.id) fetchOrders(seller.id);
-            } catch (error) {
-              Alert.alert("Error", "Failed to update order status.");
+              await updateOrderStatus(orderId, 'to-ship');
+              if (seller?.id) await fetchOrders(seller.id);
+            } catch {
+              Alert.alert('Error', 'Failed to confirm order.');
+            } finally {
+              setIsUpdating(false);
             }
-          }
-        }
-      ]
-    );
+          },
+        },
+      ]);
+      return;
+    }
+
+    if (currentStatus === 'to-ship') {
+      setTrackingOrderId(orderId);
+      setTrackingNumber('');
+      setTrackingModalVisible(true);
+      return;
+    }
+
+    if (currentStatus === 'shipped') {
+      Alert.alert('Mark as Delivered', 'Confirm this order has been delivered?', [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Confirm',
+          onPress: async () => {
+            setIsUpdating(true);
+            try {
+              await markOrderAsDelivered(orderId);
+              if (seller?.id) await fetchOrders(seller.id);
+            } catch {
+              Alert.alert('Error', 'Failed to mark order as delivered.');
+            } finally {
+              setIsUpdating(false);
+            }
+          },
+        },
+      ]);
+    }
+  };
+
+  const handleTrackingSubmit = async () => {
+    const nextTracking = trackingNumber.trim();
+    if (!trackingOrderId || !nextTracking) {
+      Alert.alert('Error', 'Please enter a tracking number.');
+      return;
+    }
+
+    setIsUpdating(true);
+    try {
+      await markOrderAsShipped(trackingOrderId, nextTracking);
+      setTrackingModalVisible(false);
+      setTrackingOrderId(null);
+      if (seller?.id) await fetchOrders(seller.id);
+    } catch {
+      Alert.alert('Error', 'Failed to mark order as shipped.');
+    } finally {
+      setIsUpdating(false);
+    }
   };
 
   const SelectionModal = ({ visible, onClose, options, current, onSelect, title }: any) => (
@@ -199,13 +258,13 @@ export default function SellerOrdersScreen() {
                       <Text style={styles.totalLabel}>Total Amount</Text>
                     </View>
                   </View>
-                  <View style={styles.cardFooter}>
-                    <View style={styles.detailsBtn}><Text style={styles.detailsBtnText}>View Details</Text><ChevronRight size={14} color="#9CA3AF" /></View>
-                    {config.action && (
-                      <Pressable style={styles.actionBtn} onPress={() => handleQuickAction(order.id, config.next)}>
-                        <Text style={styles.actionBtnText}>{config.action}</Text>
-                      </Pressable>
-                    )}
+                    <View style={styles.cardFooter}>
+                      <View style={styles.detailsBtn}><Text style={styles.detailsBtnText}>View Details</Text><ChevronRight size={14} color="#9CA3AF" /></View>
+                      {config.action && (
+                        <Pressable style={styles.actionBtn} onPress={() => handleQuickAction(order.id, order.status)}>
+                          <Text style={styles.actionBtnText}>{config.action}</Text>
+                        </Pressable>
+                      )}
                   </View>
                 </View>
               </Pressable>
@@ -216,6 +275,14 @@ export default function SellerOrdersScreen() {
 
       <SelectionModal visible={showChannelMenu} onClose={() => setShowChannelMenu(false)} title="Select Channel" options={['all', 'online', 'pos']} current={channelFilter} onSelect={(val: ChannelFilter) => { setChannelFilter(val); setShowChannelMenu(false); }} />
       <SelectionModal visible={showStatusMenu} onClose={() => setShowStatusMenu(false)} title="Select Status" options={['all', 'pending', 'to-ship', 'shipped', 'completed', 'cancelled']} current={selectedStatus} onSelect={(val: OrderStatus) => { setSelectedStatus(val); setShowStatusMenu(false); }} />
+      <TrackingModal
+        visible={trackingModalVisible}
+        onClose={() => setTrackingModalVisible(false)}
+        trackingNumber={trackingNumber}
+        setTrackingNumber={setTrackingNumber}
+        onSubmit={handleTrackingSubmit}
+        isUpdating={isUpdating}
+      />
     </View>
   );
 }

@@ -1842,8 +1842,8 @@ export const useProductStore = create<ProductStore>()(
   )
 );
 
-// Order Store
-export const useOrderStore = create<OrderStore>()(
+// Legacy internal order store (kept private for backward compatibility)
+const useLegacyOrderStore = create<OrderStore>()(
   persist(
     (set, get) => ({
       orders: dummyOrders,
@@ -2241,7 +2241,7 @@ export const useStatsStore = create<StatsStore>()((set) => ({
     categorySales: []
   },
   refreshStats: () => {
-    const orderStore = useOrderStore.getState();
+    const orderStore = useLegacyOrderStore.getState();
     const productStore = useProductStore.getState();
     const authStore = useAuthStore.getState();
 
@@ -2462,6 +2462,7 @@ export const useSellerStore = () => {
     fetchOrders: orders.fetchSellerOrders,
     updateOrderStatus: orders.updateSellerOrderStatus,
     markOrderAsShipped: orders.markOrderAsShipped,
+    markOrderAsDelivered: orders.markOrderAsDelivered,
     addOfflineOrder: orders.addOfflineOrder,
   };
 };
