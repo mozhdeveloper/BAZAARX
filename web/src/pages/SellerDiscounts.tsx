@@ -399,12 +399,9 @@ export default function SellerDiscounts() {
             <div className="flex justify-between items-center mb-8">
               <div>
                 <h1 className="text-3xl font-black text-[var(--text-headline)] font-heading tracking-tight flex items-center gap-3">
-                  <div className="p-2 bg-orange-100 rounded-xl">
-                    <Zap className="h-8 w-8 text-[var(--brand-primary)]" />
-                  </div>
                   Discount Campaigns
                 </h1>
-                <p className="text-[var(--text-secondary)] mt-1 font-medium ml-14">
+                <p className="text-[var(--text-muted)] mt-1">
                   Create and manage your discount campaigns
                 </p>
               </div>
@@ -416,7 +413,7 @@ export default function SellerDiscounts() {
 
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-              <div className="bg-white p-6 rounded-[32px] shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-orange-100/50">
+              <div className="bg-white p-6 rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-orange-100/50">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-[var(--text-secondary)]">Active Campaigns</p>
@@ -428,7 +425,7 @@ export default function SellerDiscounts() {
                 </div>
               </div>
 
-              <div className="bg-white p-6 rounded-[32px] shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-orange-100/50">
+              <div className="bg-white p-6 rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-orange-100/50">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-[var(--text-secondary)]">Scheduled</p>
@@ -440,7 +437,7 @@ export default function SellerDiscounts() {
                 </div>
               </div>
 
-              <div className="bg-white p-6 rounded-[32px] shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-orange-100/50">
+              <div className="bg-white p-6 rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-orange-100/50">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-[var(--text-secondary)]">Total Usage</p>
@@ -452,7 +449,7 @@ export default function SellerDiscounts() {
                 </div>
               </div>
 
-              <div className="bg-white p-6 rounded-[32px] shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-orange-100/50">
+              <div className="bg-white p-6 rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-orange-100/50">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-[var(--text-secondary)]">Avg Discount</p>
@@ -466,7 +463,7 @@ export default function SellerDiscounts() {
             </div>
 
             {/* Filters */}
-            <div className="bg-white p-4 rounded-[24px] shadow-sm border border-orange-100 mb-8">
+            <div className="mb-8">
               <div className="flex flex-col md:flex-row gap-4">
                 <div className="flex-1 relative group">
                   <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5 group-focus-within:text-[var(--brand-primary)] transition-colors" />
@@ -514,7 +511,7 @@ export default function SellerDiscounts() {
                 {filteredCampaigns.map((campaign) => (
                   <div
                     key={campaign.id}
-                    className="bg-white p-8 rounded-[32px] shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-orange-100 hover:shadow-lg transition-all duration-300 hover:-translate-y-1"
+                    className="bg-white p-8 rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-orange-100 hover:shadow-lg transition-all duration-300 hover:-translate-y-1"
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
