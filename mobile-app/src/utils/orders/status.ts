@@ -43,7 +43,7 @@ export const mapNormalizedToSellerUiStatus = (
   shipmentStatus?: ShipmentStatus | null,
 ): SellerUiStatus => {
   if (shipmentStatus === 'delivered' || shipmentStatus === 'received') {
-    return 'completed';
+    return 'delivered';
   }
 
   if (shipmentStatus === 'shipped' || shipmentStatus === 'out_for_delivery') {
@@ -51,7 +51,7 @@ export const mapNormalizedToSellerUiStatus = (
   }
 
   if (shipmentStatus === 'processing' || shipmentStatus === 'ready_to_ship') {
-    return 'to-ship';
+    return 'confirmed';
   }
 
   if (shipmentStatus === 'returned' || shipmentStatus === 'failed_to_deliver') {
@@ -78,9 +78,9 @@ export const mapNormalizedToSellerPaymentStatus = (
 export const mapSellerUiToNormalizedStatus = (status: SellerUiStatus): string => {
   const statusMap: Record<SellerUiStatus, string> = {
     pending: 'waiting_for_seller',
-    'to-ship': 'processing',
+    confirmed: 'processing',
     shipped: 'shipped',
-    completed: 'delivered',
+    delivered: 'delivered',
     cancelled: 'cancelled',
   };
 

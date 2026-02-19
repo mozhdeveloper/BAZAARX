@@ -27,7 +27,7 @@ import { orderExportService } from '../../../src/services/orderExportService';
 import TrackingModal from '../../../src/components/seller/TrackingModal';
 
 // Types
-type DBStatus = 'pending' | 'to-ship' | 'shipped' | 'completed' | 'cancelled';
+type DBStatus = 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
 type OrderStatus = 'all' | DBStatus;
 type ChannelFilter = 'all' | 'online' | 'pos';
 type DateFilterLabel = 'All Time' | 'Today' | 'Last 7 Days' | 'Last 30 Days' | 'This Month' | 'Custom Range';
@@ -93,12 +93,13 @@ export default function SellerOrdersScreen() {
       const matchesStatus = filters.status === 'all' || order.status === filters.status;
       const matchesChannel = filters.channel === 'all'
         ? true
-        : filters.channel === 'pos' ? order.type === 'OFFLINE' : (order.type === 'ONLINE' || !order.type);
+        : filters.channel === 'pos' ? order.type === 'OFFLINE' : order.type === 'ONLINE';
 
       const q = searchQuery.toLowerCase().trim();
       const matchesSearch = !q || [
-        order.orderId || order.id,
-        order.buyerName
+        order.orderNumber || order.id,
+        order.buyerName,
+        order.buyerEmail
       ].some(f => String(f || '').toLowerCase().includes(q));
 
       return matchesStatus && matchesChannel && matchesSearch;
@@ -112,16 +113,6 @@ export default function SellerOrdersScreen() {
       return;
     }
 
-    // Determine the label for the filename using actual dates if custom
-    let exportDateLabel = filters.dateLabel;
-
-    if (filters.dateLabel === 'Custom Range' && filters.startDate && filters.endDate) {
-      // Format: YYYY-MM-DD_to_YYYY-MM-DD
-      const startStr = filters.startDate.toISOString().split('T')[0];
-      const endStr = filters.endDate.toISOString().split('T')[0];
-      exportDateLabel = `${startStr}_to_${endStr}` as any;
-    }
-
     Alert.alert(
       "Export Orders",
       `Export ${filteredOrders.length} orders?`,
@@ -131,8 +122,8 @@ export default function SellerOrdersScreen() {
           text: "Summary CSV",
           onPress: () => orderExportService.exportToCSV(
             filteredOrders,
-            seller?.store_name || 'My Store',
-            exportDateLabel,
+            seller?.store_name || 'Bazaar',
+            filters.dateLabel,
             'summary'
           )
         },
@@ -140,8 +131,8 @@ export default function SellerOrdersScreen() {
           text: "Detailed CSV",
           onPress: () => orderExportService.exportToCSV(
             filteredOrders,
-            seller?.store_name || 'My Store',
-            exportDateLabel,
+            seller?.store_name || 'Bazaar',
+            filters.dateLabel,
             'detailed'
           )
         }
@@ -202,14 +193,14 @@ export default function SellerOrdersScreen() {
   };
 
   const getStatusConfig = (status: string) => {
-    const configs: Record<string, { color: string; action: string | null }> = {
-      pending: { color: '#FBBF24', action: 'Confirm' },
-      'to-ship': { color: '#FF5722', action: 'Ship Now' },
-      shipped: { color: '#3B82F6', action: 'Deliver' },
-      completed: { color: '#10B981', action: null },
-      cancelled: { color: '#DC2626', action: null },
+    const configs: Record<string, { color: string; label: string; action: string | null }> = {
+      pending: { color: '#FBBF24', label: 'PENDING', action: 'Confirm' },
+      confirmed: { color: '#3B82F6', label: 'CONFIRMED', action: 'Ship Now' },
+      shipped: { color: '#8B5CF6', label: 'SHIPPED', action: 'Deliver' },
+      delivered: { color: '#10B981', label: 'DELIVERED', action: null },
+      cancelled: { color: '#DC2626', label: 'CANCELLED', action: null },
     };
-    return configs[status] || { color: '#6B7280', action: null };
+    return configs[status] || { color: '#6B7280', label: status.toUpperCase(), action: null };
   };
 
   const handleQuickAction = (orderId: string, currentStatus: DBStatus) => {
@@ -221,7 +212,7 @@ export default function SellerOrdersScreen() {
           onPress: async () => {
             setIsUpdating(true);
             try {
-              await updateOrderStatus(orderId, 'to-ship');
+              await updateOrderStatus(orderId, 'confirmed');
               if (seller?.id) await fetchOrders(seller.id);
             } catch {
               Alert.alert('Error', 'Failed to confirm order.');
@@ -234,7 +225,7 @@ export default function SellerOrdersScreen() {
       return;
     }
 
-    if (currentStatus === 'to-ship') {
+    if (currentStatus === 'confirmed') {
       setTrackingOrderId(orderId);
       setTrackingNumber('');
       setTrackingModalVisible(true);
@@ -389,13 +380,13 @@ export default function SellerOrdersScreen() {
                   <View style={styles.cardContent}>
                     <View style={styles.cardHeader}>
                       <View style={{ flex: 1 }}>
-                        <Text style={styles.orderId} numberOfLines={1}>#{String(order.orderId || order.id).slice(0, 10).toUpperCase()}</Text>
+                        <Text style={styles.orderId} numberOfLines={1}>#{String(order.orderNumber || order.id).slice(0, 10).toUpperCase()}</Text>
                         <View style={styles.infoRow}>
                           <Text style={styles.customerName} numberOfLines={1}>{order.buyerName || 'Walk-in'}</Text>
                           <Text style={styles.orderDate}> • {new Date(order.orderDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</Text>
                         </View>
                       </View>
-                      <Text style={[styles.statusWord, { color: config.color }]}>{order.status.toUpperCase()}</Text>
+                      <Text style={[styles.statusWord, { color: config.color }]}>{config.label}</Text>
                     </View>
                     <View style={styles.cardBody}>
                       <View style={styles.thumbnailStack}>
@@ -415,7 +406,7 @@ export default function SellerOrdersScreen() {
                     <View style={styles.cardFooter}>
                       <View style={styles.detailsBtn}><Text style={styles.detailsBtnText}>View Details</Text><ChevronRight size={14} color="#9CA3AF" /></View>
                       {config.action && (
-                        <Pressable style={styles.actionBtn} onPress={() => handleQuickAction(order.id, order.status)}>
+                        <Pressable style={styles.actionBtn} onPress={() => handleQuickAction(order.id, order.status as DBStatus)}>
                           <Text style={styles.actionBtnText}>{config.action}</Text>
                         </Pressable>
                       )}
@@ -506,14 +497,14 @@ export default function SellerOrdersScreen() {
                   <Text style={styles.sectionTitle}>ORDER STATUS</Text>
                 </View>
                 <View style={styles.chipGrid}>
-                  {['all', 'pending', 'to-ship', 'shipped', 'completed', 'cancelled'].map((s) => (
+                  {['all', 'pending', 'confirmed', 'shipped', 'delivered', 'cancelled'].map((s) => (
                     <Pressable
                       key={s}
                       style={[styles.chip, filters.status === s && styles.chipActive]}
                       onPress={() => setFilters(prev => ({ ...prev, status: s as OrderStatus }))}
                     >
                       <Text style={[styles.chipText, filters.status === s && styles.chipTextActive]}>
-                        {s.toUpperCase().replace('-', ' ')}
+                        {s.toUpperCase()}
                       </Text>
                     </Pressable>
                   ))}

@@ -30,7 +30,7 @@ interface OrderStore {
   // Seller Orders
   sellerOrders: SellerOrder[];
   sellerOrdersLoading: boolean;
-  fetchSellerOrders: (sellerId?: string) => Promise<void>;
+  fetchSellerOrders: (sellerId?: string, startDate?: Date | null, endDate?: Date | null) => Promise<void>;
   updateSellerOrderStatus: (orderId: string, status: SellerOrder['status']) => Promise<void>;
   addOfflineOrder: (
     cartItems: { productId: string; productName: string; quantity: number; price: number; image: string; selectedColor?: string; selectedSize?: string }[],
@@ -418,9 +418,9 @@ export const useOrderStore = create<OrderStore>()(
         // SYNC TO SELLER: Also add to seller's order store (local state)
         const sellerOrder: SellerOrder = {
           id: newOrder.id,
-          orderId: newOrder.transactionId,
-          customerName: shippingAddress.name,
-          customerEmail: shippingAddress.email,
+          orderNumber: newOrder.transactionId,
+          buyerName: shippingAddress.name,
+          buyerEmail: shippingAddress.email,
           items: validatedItems.map(item => ({
             productId: item.id,
             productName: item.name || 'Unknown Product',
@@ -429,9 +429,9 @@ export const useOrderStore = create<OrderStore>()(
             price: item.price ?? 0,
           })),
           total: newOrder.total,
-          status: isPaidOrder ? 'to-ship' : 'pending',
+          status: isPaidOrder ? 'confirmed' : 'pending',
           paymentStatus: isPaidOrder ? 'paid' : 'pending',
-          createdAt: newOrder.createdAt,
+          orderDate: newOrder.createdAt,
           type: 'ONLINE',
           shippingAddress: {
             fullName: shippingAddress.name,
@@ -442,6 +442,10 @@ export const useOrderStore = create<OrderStore>()(
             postalCode: shippingAddress.postalCode,
             phone: shippingAddress.phone,
           },
+          orderId: newOrder.transactionId,
+          customerName: shippingAddress.name,
+          customerEmail: shippingAddress.email,
+          createdAt: newOrder.createdAt,
         };
 
         // Add to seller's orders in local state
@@ -495,7 +499,7 @@ export const useOrderStore = create<OrderStore>()(
       sellerOrders: [],
       sellerOrdersLoading: false,
 
-      fetchSellerOrders: async (sellerId?: string) => {
+      fetchSellerOrders: async (sellerId?: string, startDate?: Date | null, endDate?: Date | null) => {
         let actualSellerId = sellerId;
         const isValidUUID =
           sellerId &&
@@ -519,7 +523,11 @@ export const useOrderStore = create<OrderStore>()(
 
         set({ sellerOrdersLoading: true });
         try {
-          const snapshots = await orderReadService.getSellerOrders({ sellerId: actualSellerId });
+          const snapshots = await orderReadService.getSellerOrders({
+            sellerId: actualSellerId,
+            startDate,
+            endDate,
+          });
           set({ sellerOrders: snapshots, sellerOrdersLoading: false });
         } catch (error) {
           console.error('[OrderStore] Error fetching seller orders:', error);
@@ -528,7 +536,7 @@ export const useOrderStore = create<OrderStore>()(
       },
 
       updateSellerOrderStatus: async (orderId, status) => {
-        const target = get().sellerOrders.find((o) => o.orderId === orderId || o.id === orderId);
+        const target = get().sellerOrders.find((o) => o.id === orderId || o.orderNumber === orderId || o.orderId === orderId);
         if (!target) {
           throw new Error('Order not found');
         }
@@ -558,17 +566,17 @@ export const useOrderStore = create<OrderStore>()(
           const buyerStatus =
             status === 'pending'
               ? 'pending'
-              : status === 'to-ship'
+              : status === 'confirmed'
                 ? 'processing'
                 : status === 'shipped'
                   ? 'shipped'
-                  : status === 'completed'
+                  : status === 'delivered'
                     ? 'delivered'
                     : 'cancelled';
 
           set((state) => ({
             orders: state.orders.map((order) =>
-              order.transactionId === target.orderId || order.orderId === actualOrderId
+              order.transactionId === target.orderNumber || order.orderId === actualOrderId
                 ? {
                   ...order,
                   status: buyerStatus as Order['status'],
@@ -638,7 +646,7 @@ export const useOrderStore = create<OrderStore>()(
         }
       },
       markOrderAsShipped: async (orderId, trackingNumber) => {
-        const target = get().sellerOrders.find((o) => o.orderId === orderId || o.id === orderId);
+        const target = get().sellerOrders.find((o) => o.id === orderId || o.orderNumber === orderId || o.orderId === orderId);
         if (!target) {
           throw new Error('Order not found');
         }
@@ -692,7 +700,7 @@ export const useOrderStore = create<OrderStore>()(
 
         set((state) => ({
           orders: state.orders.map((order) =>
-            order.transactionId === target.orderId || order.orderId === actualOrderId
+            order.transactionId === target.orderNumber || order.orderId === actualOrderId
               ? { ...order, status: 'shipped', trackingNumber: nextTracking }
               : order,
           ),
@@ -700,7 +708,7 @@ export const useOrderStore = create<OrderStore>()(
       },
 
       markOrderAsDelivered: async (orderId) => {
-        const target = get().sellerOrders.find((o) => o.orderId === orderId || o.id === orderId);
+        const target = get().sellerOrders.find((o) => o.id === orderId || o.orderNumber === orderId || o.orderId === orderId);
         if (!target) {
           throw new Error('Order not found');
         }
@@ -713,7 +721,7 @@ export const useOrderStore = create<OrderStore>()(
             order.id === actualOrderId
               ? {
                 ...order,
-                status: 'completed',
+                status: 'delivered',
                 shipmentStatusRaw: 'delivered',
                 deliveredAt: new Date().toISOString(),
               }
@@ -745,7 +753,7 @@ export const useOrderStore = create<OrderStore>()(
 
         set((state) => ({
           orders: state.orders.map((order) =>
-            order.transactionId === target.orderId || order.orderId === actualOrderId
+            order.transactionId === target.orderNumber || order.orderId === actualOrderId
               ? {
                 ...order,
                 status: 'delivered',

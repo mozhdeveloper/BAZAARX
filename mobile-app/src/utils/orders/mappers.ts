@@ -6,121 +6,133 @@ import {
 } from '@/utils/orders/status';
 import { getLatestShipment } from '@/utils/orders/shipment';
 
-const asNumber = (value: unknown): number => {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : 0;
+const isHttpUrl = (value: unknown): value is string =>
+  typeof value === 'string' && /^https?:\/\//i.test(value.trim());
+
+const mapReviewImages = (review: any): string[] => {
+  if (!Array.isArray(review?.review_images)) {
+    return [];
+  }
+
+  return review.review_images
+    .slice()
+    .sort((a: any, b: any) => Number(a?.sort_order || 0) - Number(b?.sort_order || 0))
+    .map((image: any) => (typeof image === 'string' ? image : image?.image_url))
+    .filter(isHttpUrl);
 };
 
-const safeString = (value: unknown, fallback = ''): string => {
-  if (typeof value === 'string') {
-    const trimmed = value.trim();
-    return trimmed.length > 0 ? trimmed : fallback;
-  }
+const mapSellerOrderReviews = (order: any) => {
+  const joinedReviews = Array.isArray(order?.reviews) ? order.reviews : [];
 
-  if (value && typeof value === 'object') {
-    const maybeName = (value as any).name || (value as any).full_name || (value as any).store_name;
-    if (typeof maybeName === 'string' && maybeName.trim().length > 0) {
-      return maybeName.trim();
-    }
-  }
-
-  return fallback;
+  return joinedReviews
+    .filter((review: any) => Boolean(review) && review.is_hidden !== true)
+    .map((review: any) => ({
+      id: review.id,
+      productId: review.product_id || null,
+      rating: Number(review.rating || 0),
+      comment: review.comment || '',
+      images: mapReviewImages(review),
+      submittedAt: new Date(
+        review.created_at || review.updated_at || order.updated_at || order.created_at || Date.now(),
+      ).toISOString(),
+    }))
+    .sort((a: any, b: any) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
 };
 
 export const mapOrderRowToSellerSnapshot = (order: any): SellerOrderSnapshot => {
-  const orderItems = Array.isArray(order?.order_items) ? order.order_items : [];
-  const latestShipment = getLatestShipment(order?.shipments || []);
-  const notesAddress = parseLegacyShippingAddressFromNotes(order?.notes);
-
-  const recipient = order?.recipient || {};
-  const shippingAddressJoin = order?.shipping_address || order?.address || {};
-  const buyerProfile = order?.buyer_profile || null;
+  const orderItems = Array.isArray(order.order_items) ? order.order_items : [];
+  const latestShipment = getLatestShipment(order.shipments || []);
+  const notesAddress = parseLegacyShippingAddressFromNotes(order.notes);
+  const shippingAddr = order.shipping_address || order.address || {};
+  const recipient = order.recipient || {};
 
   const items = orderItems.map((item: any) => ({
-    productId: String(item?.product_id || ''),
-    productName: safeString(item?.product_name, 'Unknown Product'),
-    image:
-      item?.variant?.thumbnail_url ||
-      item?.primary_image_url ||
-      'https://placehold.co/100?text=Product',
-    quantity: Math.max(1, asNumber(item?.quantity || 1)),
-    price: asNumber(item?.variant?.price || item?.price || 0),
-    selectedColor: item?.personalized_options?.color || item?.personalized_options?.variantLabel2,
-    selectedSize: item?.personalized_options?.size || item?.personalized_options?.variantLabel1,
+    productId: item.product_id || '',
+    productName: item.product_name || 'Unknown Product',
+    quantity: Math.max(1, Number(item.quantity || 1)),
+    price: parseFloat((item.variant?.price || item.price || 0).toString()),
+    image: item.variant?.thumbnail_url || item.primary_image_url || 'https://placehold.co/100?text=Product',
+    selectedVariantLabel1: item.personalized_options?.variantLabel1 || item.variant?.size || undefined,
+    selectedVariantLabel2: item.personalized_options?.variantLabel2 || item.variant?.color || undefined,
+    selectedColor: item.personalized_options?.variantLabel2 || item.variant?.color || undefined,
+    selectedSize: item.personalized_options?.variantLabel1 || item.variant?.size || undefined,
   }));
-
-  const computedTotal = orderItems.reduce((sum: number, item: any) => {
-    const itemPrice = asNumber(item?.price) - asNumber(item?.price_discount);
-    const shippingPrice = asNumber(item?.shipping_price) - asNumber(item?.shipping_discount);
-    return sum + itemPrice * Math.max(1, asNumber(item?.quantity || 1)) + shippingPrice;
-  }, 0);
-  const parsedTotal = asNumber(order?.total_amount);
 
   const recipientName =
     buildPersonName(recipient?.first_name, recipient?.last_name) ||
-    buildPersonName(buyerProfile?.first_name, buyerProfile?.last_name) ||
+    order.buyer_name ||
     notesAddress?.fullName ||
     'Customer';
 
-  const customerEmail =
-    safeString(recipient?.email) || safeString(buyerProfile?.email) || safeString(order?.buyer_email);
-  const customerPhone = safeString(recipient?.phone) || safeString(buyerProfile?.phone) || notesAddress?.phone || '';
+  const computedTotal = orderItems.reduce((sum: number, item: any) => {
+    const itemPrice = (item.price || 0) - (item.price_discount || 0);
+    const shippingPrice = (item.shipping_price || 0) - (item.shipping_discount || 0);
+    return sum + itemPrice * (item.quantity || 0) + shippingPrice;
+  }, 0);
+
+  const parsedTotal = parseFloat(order.total_amount?.toString() || '0');
+  const reviews = mapSellerOrderReviews(order);
+  const latestReview = reviews[0];
+  const legacyReviewImages = Array.isArray(order.review_images)
+    ? order.review_images.filter(isHttpUrl)
+    : [];
+  const resolvedReviewImages =
+    latestReview?.images && latestReview.images.length > 0
+      ? latestReview.images
+      : legacyReviewImages;
 
   return {
-    id: String(order?.id || ''),
-    orderId: String(order?.order_number || order?.id || ''),
-    orderNumber: safeString(order?.order_number),
-    customerName: recipientName,
-    customerEmail,
-    customerPhone,
+    id: order.id,
+    seller_id: order.seller_id,
+    buyer_id: order.buyer_id,
+    orderNumber: order.order_number,
+    buyerName: recipientName,
+    buyerEmail: recipient?.email || order.buyer_email || 'unknown@example.com',
+    items,
+    total: Number.isFinite(parsedTotal) && parsedTotal > 0 ? parsedTotal : computedTotal,
+    status: mapNormalizedToSellerUiStatus(order.payment_status, order.shipment_status),
+    paymentStatus: mapNormalizedToSellerPaymentStatus(order.payment_status),
+    paymentMethod: (order.payment_method?.type ||
+      (order.order_type === 'OFFLINE' ? 'cash' : 'online')) as
+      | 'cash'
+      | 'card'
+      | 'ewallet'
+      | 'bank_transfer'
+      | 'cod'
+      | 'online',
+    orderDate: order.created_at,
     shippingAddress: {
       fullName: recipientName,
-      street:
-        safeString(order?.shipping_street) ||
-        safeString(shippingAddressJoin?.address_line_1) ||
-        notesAddress?.street ||
-        '',
-      barangay:
-        safeString(order?.shipping_barangay) ||
-        safeString(shippingAddressJoin?.barangay) ||
-        notesAddress?.barangay ||
-        '',
-      city:
-        safeString(order?.shipping_city) ||
-        safeString(shippingAddressJoin?.city) ||
-        notesAddress?.city ||
-        '',
-      province:
-        safeString(order?.shipping_province) ||
-        safeString(shippingAddressJoin?.province) ||
-        notesAddress?.province ||
-        '',
-      region:
-        safeString(order?.shipping_region) ||
-        safeString(shippingAddressJoin?.region) ||
-        notesAddress?.region ||
-        '',
-      postalCode:
-        safeString(order?.shipping_postal_code) ||
-        safeString(shippingAddressJoin?.postal_code) ||
-        notesAddress?.postalCode ||
-        '',
-      phone: customerPhone,
+      street: order.shipping_street || notesAddress?.street || shippingAddr.address_line_1 || '',
+      city: order.shipping_city || notesAddress?.city || shippingAddr.city || '',
+      province: order.shipping_province || notesAddress?.province || shippingAddr.province || '',
+      postalCode: order.shipping_postal_code || notesAddress?.postalCode || shippingAddr.postal_code || '',
+      phone: order.buyer_phone || notesAddress?.phone || recipient?.phone || '',
     },
-    items,
-    total: parsedTotal > 0 ? parsedTotal : computedTotal,
-    status: mapNormalizedToSellerUiStatus(order?.payment_status, order?.shipment_status),
-    paymentStatus: mapNormalizedToSellerPaymentStatus(order?.payment_status),
-    trackingNumber: latestShipment?.tracking_number || safeString(order?.tracking_number) || undefined,
-    createdAt: order?.created_at || new Date().toISOString(),
-    type: order?.order_type === 'OFFLINE' ? 'OFFLINE' : 'ONLINE',
-    posNote: safeString(order?.pos_note) || undefined,
-    shipmentStatusRaw: order?.shipment_status || undefined,
-    paymentStatusRaw: order?.payment_status || undefined,
-    shippedAt: latestShipment?.shipped_at || order?.shipped_at || undefined,
-    deliveredAt: latestShipment?.delivered_at || order?.delivered_at || undefined,
-    buyerId: order?.buyer_id || null,
-    sellerId: order?.seller_id || null,
+    trackingNumber: latestShipment?.tracking_number || order.tracking_number || undefined,
+    shipmentStatusRaw: order.shipment_status || undefined,
+    paymentStatusRaw: order.payment_status || undefined,
+    shippedAt: latestShipment?.shipped_at || order.shipped_at || undefined,
+    deliveredAt: latestShipment?.delivered_at || order.delivered_at || undefined,
+    rating:
+      latestReview?.rating ||
+      (typeof order.rating === 'number' ? order.rating : undefined),
+    reviewComment: latestReview?.comment || order.review_comment || undefined,
+    reviewImages: resolvedReviewImages.length > 0 ? resolvedReviewImages : undefined,
+    reviewDate: latestReview?.submittedAt || order.review_date || undefined,
+    reviews: reviews.length > 0 ? reviews : undefined,
+    type: order.order_type === 'OFFLINE' ? 'OFFLINE' : 'ONLINE',
+    posNote: order.pos_note || undefined,
+    notes: order.notes || undefined,
+
+    // Compatibility aliases.
+    orderId: order.order_number || order.id,
+    customerName: recipientName,
+    customerEmail: recipient?.email || order.buyer_email || 'unknown@example.com',
+    customerPhone: order.buyer_phone || notesAddress?.phone || recipient?.phone || '',
+    createdAt: order.created_at,
+    buyerId: order.buyer_id || null,
+    sellerId: order.seller_id || null,
   };
 };
 

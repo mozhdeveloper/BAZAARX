@@ -594,14 +594,15 @@ const mapOrderToSellerOrder = (order: any): SellerOrder => {
   // Use calculated total if DB total is 0 or missing
   const total = calculatedTotal > 0 ? calculatedTotal : dbTotal;
 
-  // Map database status to Orders UI status (pending, to-ship, completed, cancelled)
+  // Map database status to Orders UI status (pending, confirmed, shipped, delivered, cancelled)
   // Database uses: pending_payment, processing, ready_to_ship, shipped, delivered, etc.
-  // UI expects: pending, to-ship, completed, cancelled
+  // UI expects: pending, confirmed, shipped, delivered, cancelled (aligned with web)
   const mapStatus = (dbStatus: string, paymentStatus?: string, shipmentStatus?: string): SellerOrder['status'] => {
     // First check shipment_status if available (new schema)
     if (shipmentStatus) {
-      if (shipmentStatus === 'delivered' || shipmentStatus === 'received') return 'completed';
-      if (['ready_to_ship', 'processing', 'shipped', 'out_for_delivery'].includes(shipmentStatus)) return 'to-ship';
+      if (shipmentStatus === 'delivered' || shipmentStatus === 'received') return 'delivered';
+      if (shipmentStatus === 'shipped' || shipmentStatus === 'out_for_delivery') return 'shipped';
+      if (shipmentStatus === 'ready_to_ship' || shipmentStatus === 'processing') return 'confirmed';
       if (shipmentStatus === 'returned' || shipmentStatus === 'cancelled') return 'cancelled';
       if (shipmentStatus === 'waiting_for_seller') return 'pending';
     }
@@ -610,13 +611,13 @@ const mapOrderToSellerOrder = (order: any): SellerOrder => {
     const statusMap: Record<string, SellerOrder['status']> = {
       'pending_payment': 'pending',
       'pending': 'pending',
-      'confirmed': 'to-ship',
-      'processing': 'to-ship',
-      'ready_to_ship': 'to-ship',
-      'shipped': 'to-ship',
-      'out_for_delivery': 'to-ship',
-      'delivered': 'completed',
-      'completed': 'completed',
+      'confirmed': 'confirmed',
+      'processing': 'confirmed',
+      'ready_to_ship': 'confirmed',
+      'shipped': 'shipped',
+      'out_for_delivery': 'shipped',
+      'delivered': 'delivered',
+      'completed': 'delivered',
       'cancelled': 'cancelled',
       'refunded': 'cancelled'
     };
@@ -1937,16 +1938,16 @@ const useLegacyOrderStore = create<OrderStore>()(
         }));
 
         try {
-          // Validate status transition (UI status: pending, to-ship, completed, cancelled)
+          // Validate status transition (UI status: pending, confirmed, shipped, delivered, cancelled)
           const validTransitions: Record<string, string[]> = {
-            'pending': ['to-ship', 'cancelled'],
-            'to-ship': ['completed', 'cancelled'],
-            'completed': [],
+            'pending': ['confirmed', 'cancelled'],
+            'confirmed': ['shipped', 'cancelled'],
+            'shipped': ['delivered', 'cancelled'],
+            'delivered': [],
             'cancelled': [],
             // Legacy status support
-            'confirmed': ['to-ship', 'shipped', 'cancelled'],
-            'shipped': ['delivered', 'completed', 'cancelled'],
-            'delivered': []
+            'to-ship': ['shipped', 'cancelled'],
+            'completed': []
           };
 
           const allowedTransitions = validTransitions[previousStatus] || [];
@@ -1957,13 +1958,13 @@ const useLegacyOrderStore = create<OrderStore>()(
           // Map UI status to database shipment_status
           const statusToDbMap: Record<string, string> = {
             'pending': 'waiting_for_seller',
-            'to-ship': 'ready_to_ship',
-            'completed': 'delivered',
-            'cancelled': 'cancelled',
-            // Legacy mappings
             'confirmed': 'processing',
             'shipped': 'shipped',
-            'delivered': 'delivered'
+            'delivered': 'delivered',
+            'cancelled': 'cancelled',
+            // Legacy mappings
+            'to-ship': 'ready_to_ship',
+            'completed': 'delivered'
           };
 
           const dbStatus = statusToDbMap[status] || status;
@@ -2461,17 +2462,13 @@ export const useSellerStore = () => {
     revenueData: stats.stats.revenueData || [],
     categorySales: stats.stats.categorySales || [],
 
-    // Order store (with fallback to empty array)
-    orders: orderStore.orders || [],
-    ordersLoading: orderStore.loading,
-    // Direct mapping to the store function which has the correct (id, start, end) signature
-    fetchOrders: orderStore.fetchOrders, 
-    updateOrderStatus: orderStore.updateOrderStatus,
+    // Seller order store (aligned with web seller orders flow)
+    orders: orderStore.sellerOrders || [],
+    ordersLoading: orderStore.sellerOrdersLoading,
+    fetchOrders: (sellerId: string, startDate?: Date | null, endDate?: Date | null) =>
+      orderStore.fetchSellerOrders(sellerId, startDate, endDate),
+    updateOrderStatus: orderStore.updateSellerOrderStatus,
     addOfflineOrder: orderStore.addOfflineOrder,
-    // Add missing methods if they exist in your orderStore interface
-    addTrackingNumber: orderStore.addTrackingNumber,
-    deleteOrder: orderStore.deleteOrder,
-    addOrderRating: orderStore.addOrderRating,
     markOrderAsShipped: orderStore.markOrderAsShipped,
     markOrderAsDelivered: orderStore.markOrderAsDelivered,
   };

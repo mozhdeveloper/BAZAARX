@@ -74,9 +74,9 @@ export default function SellerDashboardScreen() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'completed':
+      case 'delivered':
         return '#10B981';
-      case 'to-ship':
+      case 'confirmed':
         return '#FF5722';
       case 'pending':
         return '#FBBF24';
@@ -87,9 +87,9 @@ export default function SellerDashboardScreen() {
 
   const getStatusBgColor = (status: string) => {
     switch (status) {
-      case 'completed':
+      case 'delivered':
         return '#D1FAE5';
-      case 'to-ship':
+      case 'confirmed':
         return '#FFF5F0';
       case 'pending':
         return '#FEF3C7';
@@ -340,10 +340,10 @@ export default function SellerDashboardScreen() {
                     {/* The container for ID/Name must have flex: 1 and flexShrink: 1 */}
                     <View style={styles.orderTextContainer}>
                       <Text style={styles.orderId} numberOfLines={1} ellipsizeMode="tail">
-                        {String(order.orderId || order.id || '')}
+                        {String(order.orderNumber || order.id || '')}
                       </Text>
                       <Text style={styles.customerName} numberOfLines={1} ellipsizeMode="tail">
-                        {String(order.customerName || '')}
+                        {String(order.buyerName || '')}
                       </Text>
                     </View>
 

@@ -11,9 +11,9 @@ export type BuyerUiStatus =
 
 export type SellerUiStatus =
   | 'pending'
-  | 'to-ship'
+  | 'confirmed'
   | 'shipped'
-  | 'completed'
+  | 'delivered'
   | 'cancelled';
 
 export type SellerPaymentUiStatus = 'pending' | 'paid' | 'refunded';
@@ -35,30 +35,53 @@ export interface SellerOrderItemSnapshot {
   image: string;
   quantity: number;
   price: number;
+  selectedVariantLabel1?: string;
+  selectedVariantLabel2?: string;
   selectedColor?: string;
   selectedSize?: string;
 }
 
 export interface SellerOrderSnapshot {
   id: string;
-  orderId: string;
+  seller_id?: string;
+  buyer_id?: string;
   orderNumber?: string;
-  customerName: string;
-  customerEmail: string;
-  customerPhone?: string;
+  buyerName: string;
+  buyerEmail: string;
   shippingAddress: NormalizedShippingAddress;
   items: SellerOrderItemSnapshot[];
   total: number;
   status: SellerUiStatus;
   paymentStatus: SellerPaymentUiStatus;
+  paymentMethod?: 'cash' | 'card' | 'ewallet' | 'bank_transfer' | 'cod' | 'online';
   trackingNumber?: string;
-  createdAt: string;
+  orderDate: string;
   type?: 'ONLINE' | 'OFFLINE';
   posNote?: string;
   shipmentStatusRaw?: ShipmentStatus;
   paymentStatusRaw?: PaymentStatus;
   shippedAt?: string;
   deliveredAt?: string;
+  rating?: number;
+  reviewComment?: string;
+  reviewImages?: string[];
+  reviewDate?: string;
+  reviews?: {
+    id: string;
+    productId: string | null;
+    rating: number;
+    comment: string;
+    images: string[];
+    submittedAt: string;
+  }[];
+  notes?: string;
+
+  // Compatibility aliases for existing mobile screens.
+  orderId?: string;
+  customerName?: string;
+  customerEmail?: string;
+  customerPhone?: string;
+  createdAt?: string;
   buyerId?: string | null;
   sellerId?: string | null;
 }
