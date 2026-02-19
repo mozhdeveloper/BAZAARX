@@ -2,7 +2,6 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { cartService } from '@/services/cartService';
 import { getCurrentUser, supabase } from '@/lib/supabase';
-import { ReactNode } from 'react';
 
 export interface Message {
   id: string;
@@ -14,11 +13,21 @@ export interface Message {
 }
 
 // Registry Product Extension
+export type RegistryPrivacy = 'public' | 'link' | 'private';
+
+export interface RegistryDeliveryPreference {
+  addressId?: string;
+  showAddress: boolean;
+  instructions?: string;
+}
+
 export interface RegistryProduct extends Product {
   requestedQty: number;
   receivedQty: number;
   note?: string;
   isMostWanted?: boolean;
+  selectedVariant?: ProductVariant; // snapshot of the chosen variant
+  delivery?: RegistryDeliveryPreference; // item-level override if ever needed
 }
 
 export interface RegistryItem {
@@ -28,7 +37,29 @@ export interface RegistryItem {
   imageUrl: string;
   category?: string;
   products?: RegistryProduct[];
+  privacy?: RegistryPrivacy;
+  delivery?: RegistryDeliveryPreference;
 }
+
+const ensureRegistryProductDefaults = (product: Product | RegistryProduct): RegistryProduct => {
+  const incoming = product as RegistryProduct;
+  return {
+    ...(product as Product),
+    requestedQty: incoming.requestedQty ?? 1,
+    receivedQty: incoming.receivedQty ?? 0,
+    note: incoming.note,
+    isMostWanted: incoming.isMostWanted ?? false,
+    selectedVariant: incoming.selectedVariant,
+    delivery: incoming.delivery,
+  };
+};
+
+const ensureRegistryDefaults = (registry: RegistryItem): RegistryItem => {
+  const privacy = registry.privacy ?? 'link';
+  const delivery = registry.delivery ?? { showAddress: false };
+  const products = (registry.products || []).map(ensureRegistryProductDefaults);
+  return { ...registry, privacy, delivery, products };
+};
 
 export interface Conversation {
   id: string;
@@ -84,6 +115,7 @@ export interface ProductVariant {
   price: number;
   stock: number;
   image?: string;
+  attributes?: Record<string, string>; // optional snapshot of variant options (color/size)
 }
 
 export interface CartItem extends Product {
@@ -320,6 +352,7 @@ interface BuyerStore {
   // Registry & Gifting
   registries: RegistryItem[];
   createRegistry: (registry: RegistryItem) => void;
+  updateRegistryMeta: (registryId: string, updates: Partial<RegistryItem>) => void;
   addToRegistry: (registryId: string, product: Product) => void;
   updateRegistryItem: (registryId: string, productId: string, updates: Partial<RegistryProduct>) => void;
   removeRegistryItem: (registryId: string, productId: string) => void;
@@ -1509,21 +1542,24 @@ export const useBuyerStore = create<BuyerStore>()(persist(
     registries: [],
     createRegistry: (registry) => {
       set((state) => ({
-        registries: [...state.registries, registry]
+        registries: [...state.registries.map(ensureRegistryDefaults), ensureRegistryDefaults(registry)]
+      }));
+    },
+    updateRegistryMeta: (registryId, updates) => {
+      set((state) => ({
+        registries: state.registries.map((r) =>
+          r.id === registryId ? ensureRegistryDefaults({ ...r, ...updates }) : r
+        )
       }));
     },
     addToRegistry: (registryId, product) => {
+      const productWithDefaults = ensureRegistryProductDefaults(product);
       set((state) => ({
         registries: state.registries.map(r =>
           r.id === registryId
             ? {
               ...r,
-              products: [...(r.products || []), {
-                ...product,
-                requestedQty: 1,
-                receivedQty: 0,
-                isMostWanted: false
-              }]
+              products: [...(r.products || []).map(ensureRegistryProductDefaults), productWithDefaults]
             }
             : r
         )
@@ -1535,9 +1571,10 @@ export const useBuyerStore = create<BuyerStore>()(persist(
           r.id === registryId
             ? {
               ...r,
-              products: (r.products || []).map(p =>
-                p.id === productId ? { ...p, ...updates } : p
-              )
+              products: (r.products || []).map(p => {
+                const updated = p.id === productId ? { ...p, ...updates } : p;
+                return ensureRegistryProductDefaults(updated);
+              })
             }
             : r
         )

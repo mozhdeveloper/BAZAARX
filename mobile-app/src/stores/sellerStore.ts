@@ -86,10 +86,13 @@ export interface SellerProduct {
 
 interface SellerOrder {
   id: string;
+  orderId?: string;
   seller_id?: string; // UUID of the seller for database updates
   buyer_id?: string; // UUID of the buyer for notifications
   buyerName: string;
   buyerEmail: string;
+  customerName?: string; // Added for compatibility
+  customerEmail?: string;
   items: {
     productId: string;
     productName: string;
@@ -104,6 +107,7 @@ interface SellerOrder {
   status: 'pending' | 'to-ship' | 'completed' | 'cancelled' | 'confirmed' | 'shipped' | 'delivered';
   paymentStatus: 'pending' | 'paid' | 'refunded';
   orderDate: string;
+  createdAt?: string;
   shippingAddress: {
     fullName: string;
     street: string;
@@ -236,7 +240,7 @@ interface OrderStore {
   sellerId: string | null;
   loading: boolean;
   error: string | null;
-  fetchOrders: (sellerId: string) => Promise<void>;
+  fetchOrders: (sellerId: string, startDate?: Date | null, endDate?: Date | null) => Promise<void>;
   addOrder: (order: Omit<SellerOrder, 'id'>) => string;
   updateOrderStatus: (id: string, status: SellerOrder['status']) => Promise<void>;
   updatePaymentStatus: (id: string, status: SellerOrder['paymentStatus']) => void;
@@ -1851,32 +1855,33 @@ const useLegacyOrderStore = create<OrderStore>()(
       loading: false,
       error: null,
 
-      fetchOrders: async (sellerId: string) => {
-        if (!sellerId) {
-          console.error('Seller ID is required to fetch orders');
-          return;
-        }
+      fetchOrders: async (sellerId: string, startDate?: Date | null, endDate?: Date | null) => {
+          if (!sellerId) {
+            console.error('Seller ID is required to fetch orders');
+            return;
+          }
 
-        set({ loading: true, error: null, sellerId });
+          set({ loading: true, error: null, sellerId });
 
-        try {
-          const dbOrders = await orderService.getSellerOrders(sellerId);
-          const sellerOrders = dbOrders.map(mapOrderToSellerOrder);
+          try {
+            // Pass the new date parameters to the service
+            const dbOrders = await orderService.getSellerOrders(sellerId, startDate, endDate);
+            const sellerOrders = dbOrders.map(mapOrderToSellerOrder);
 
-          set({
-            orders: sellerOrders,
-            loading: false,
-            error: null
-          });
+            set({
+              orders: sellerOrders,
+              loading: false,
+              error: null
+            });
 
-          console.log(`✅ Fetched ${sellerOrders.length} orders for seller ${sellerId}`);
-        } catch (error) {
-          console.error('Failed to fetch orders:', error);
-          set({
-            loading: false,
-            error: error instanceof Error ? error.message : 'Failed to fetch orders'
-          });
-        }
+            console.log(`✅ Fetched ${sellerOrders.length} orders for seller ${sellerId}`);
+          } catch (error) {
+            console.error('Failed to fetch orders:', error);
+            set({
+              loading: false,
+              error: error instanceof Error ? error.message : 'Failed to fetch orders'
+            });
+          }
       },
 
       addOrder: (orderData) => {
@@ -2409,7 +2414,7 @@ export const useSellerStore = () => {
   const auth = useAuthStore();
   const products = useProductStore();
   const stats = useStatsStore();
-  const orders = useOrderStoreExternal();
+  const orderStore = useOrderStoreExternal();
 
   return {
     // Auth store
@@ -2457,12 +2462,17 @@ export const useSellerStore = () => {
     categorySales: stats.stats.categorySales || [],
 
     // Order store (with fallback to empty array)
-    orders: orders.sellerOrders || [],
-    ordersLoading: orders.sellerOrdersLoading,
-    fetchOrders: orders.fetchSellerOrders,
-    updateOrderStatus: orders.updateSellerOrderStatus,
-    markOrderAsShipped: orders.markOrderAsShipped,
-    markOrderAsDelivered: orders.markOrderAsDelivered,
-    addOfflineOrder: orders.addOfflineOrder,
+    orders: orderStore.orders || [],
+    ordersLoading: orderStore.loading,
+    // Direct mapping to the store function which has the correct (id, start, end) signature
+    fetchOrders: orderStore.fetchOrders, 
+    updateOrderStatus: orderStore.updateOrderStatus,
+    addOfflineOrder: orderStore.addOfflineOrder,
+    // Add missing methods if they exist in your orderStore interface
+    addTrackingNumber: orderStore.addTrackingNumber,
+    deleteOrder: orderStore.deleteOrder,
+    addOrderRating: orderStore.addOrderRating,
+    markOrderAsShipped: orderStore.markOrderAsShipped,
+    markOrderAsDelivered: orderStore.markOrderAsDelivered,
   };
 };
