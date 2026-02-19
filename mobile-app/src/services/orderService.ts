@@ -485,117 +485,129 @@ export class OrderService {
    * We first find all product IDs for this seller, then get order_items
    * referencing those products, then fetch the full orders.
    */
-  async getSellerOrders(sellerId: string): Promise<Order[]> {
-    if (!isSupabaseConfigured()) {
-      return this.mockOrders.filter(o => o.seller_id === sellerId);
-    }
-
-    try {
-      // Step 1: Get all product IDs belonging to this seller
-      const { data: sellerProducts, error: prodError } = await supabase
-        .from('products')
-        .select('id')
-        .eq('seller_id', sellerId);
-
-      if (prodError) {
-        console.error('Error fetching seller products for orders:', prodError);
-        throw prodError;
+  async getSellerOrders(sellerId: string, startDate?: Date | null, endDate?: Date | null): Promise<Order[]> {
+      if (!isSupabaseConfigured()) {
+        // Note: You might want to filter mock data by date here too if needed, 
+        // but usually mock data is just for testing.
+        return this.mockOrders.filter(o => o.seller_id === sellerId);
       }
 
-      if (!sellerProducts || sellerProducts.length === 0) {
-        return [];
-      }
+      try {
+        // Step 1: Get all product IDs belonging to this seller
+        const { data: sellerProducts, error: prodError } = await supabase
+          .from('products')
+          .select('id')
+          .eq('seller_id', sellerId);
 
-      const productIds = sellerProducts.map((p: any) => p.id);
-
-      // Step 2: Get distinct order IDs from order_items that reference seller's products
-      const { data: orderItems, error: itemsError } = await supabase
-        .from('order_items')
-        .select('order_id')
-        .in('product_id', productIds);
-
-      if (itemsError) {
-        console.error('Error fetching order items:', itemsError);
-        throw itemsError;
-      }
-
-      if (!orderItems || orderItems.length === 0) {
-        return [];
-      }
-
-      const uniqueOrderIds = [...new Set(orderItems.map((item: any) => item.order_id))];
-
-      // Step 3: Fetch the full orders with related data
-      // Note: buyers.id references profiles.id (same UUID), so we fetch buyer first
-      // then get the profile separately since nested FK joins can be unreliable
-      const { data: ordersData, error } = await supabase
-        .from('orders')
-        .select(`
-          *,
-          order_items(*),
-          buyer:buyers!buyer_id(
-            id,
-            avatar_url
-          ),
-          recipient:order_recipients!recipient_id(
-            id,
-            first_name,
-            last_name,
-            phone,
-            email
-          ),
-          address:shipping_addresses!address_id(
-            id,
-            address_line_1,
-            barangay,
-            city,
-            province,
-            region,
-            postal_code
-          )
-        `)
-        .in('id', uniqueOrderIds)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      
-      // Step 4: Fetch buyer profiles for all ONLINE orders
-      // Since buyers.id = profiles.id, we use buyer_id to get profile info
-      const buyerIds = ordersData
-        ?.filter((o: any) => o.order_type === 'ONLINE' && o.buyer_id)
-        .map((o: any) => o.buyer_id) || [];
-      
-      const uniqueBuyerIds = [...new Set(buyerIds)];
-      
-      let profilesMap: Record<string, any> = {};
-      
-      if (uniqueBuyerIds.length > 0) {
-        const { data: profiles, error: profilesError } = await supabase
-          .from('profiles')
-          .select('id, email, first_name, last_name, phone')
-          .in('id', uniqueBuyerIds);
-        
-        if (!profilesError && profiles) {
-          profilesMap = profiles.reduce((acc: Record<string, any>, p: any) => {
-            acc[p.id] = p;
-            return acc;
-          }, {});
+        if (prodError) {
+          console.error('Error fetching seller products for orders:', prodError);
+          throw prodError;
         }
+
+        if (!sellerProducts || sellerProducts.length === 0) {
+          return [];
+        }
+
+        const productIds = sellerProducts.map((p: any) => p.id);
+
+        // Step 2: Get distinct order IDs from order_items that reference seller's products
+        const { data: orderItems, error: itemsError } = await supabase
+          .from('order_items')
+          .select('order_id')
+          .in('product_id', productIds);
+
+        if (itemsError) {
+          console.error('Error fetching order items:', itemsError);
+          throw itemsError;
+        }
+
+        if (!orderItems || orderItems.length === 0) {
+          return [];
+        }
+
+        const uniqueOrderIds = [...new Set(orderItems.map((item: any) => item.order_id))];
+
+        // Step 3: Fetch the full orders with related data
+        // We start building the query here
+        let query = supabase
+          .from('orders')
+          .select(`
+            *,
+            order_items(*),
+            buyer:buyers!buyer_id(
+              id,
+              avatar_url
+            ),
+            recipient:order_recipients!recipient_id(
+              id,
+              first_name,
+              last_name,
+              phone,
+              email
+            ),
+            address:shipping_addresses!address_id(
+              id,
+              address_line_1,
+              barangay,
+              city,
+              province,
+              region,
+              postal_code
+            )
+          `)
+          .in('id', uniqueOrderIds)
+          .order('created_at', { ascending: false });
+
+        // --- NEW DATE FILTERING LOGIC ---
+        if (startDate) {
+          query = query.gte('created_at', startDate.toISOString());
+        }
+        if (endDate) {
+          query = query.lte('created_at', endDate.toISOString());
+        }
+        // -------------------------------
+
+        const { data: ordersData, error } = await query;
+
+        if (error) throw error;
+        
+        // Step 4: Fetch buyer profiles for all ONLINE orders
+        // Since buyers.id = profiles.id, we use buyer_id to get profile info
+        const buyerIds = ordersData
+          ?.filter((o: any) => o.order_type === 'ONLINE' && o.buyer_id)
+          .map((o: any) => o.buyer_id) || [];
+        
+        const uniqueBuyerIds = [...new Set(buyerIds)];
+        
+        let profilesMap: Record<string, any> = {};
+        
+        if (uniqueBuyerIds.length > 0) {
+          const { data: profiles, error: profilesError } = await supabase
+            .from('profiles')
+            .select('id, email, first_name, last_name, phone')
+            .in('id', uniqueBuyerIds);
+          
+          if (!profilesError && profiles) {
+            profilesMap = profiles.reduce((acc: Record<string, any>, p: any) => {
+              acc[p.id] = p;
+              return acc;
+            }, {});
+          }
+        }
+        
+        // Attach profile data to orders
+        const data = ordersData?.map((order: any) => ({
+          ...order,
+          buyer_profile: order.buyer_id ? profilesMap[order.buyer_id] || null : null
+        })) || [];
+        
+        console.log(`[OrderService] Fetched ${data?.length || 0} seller orders`);
+        
+        return data || [];
+      } catch (error) {
+        console.error('Error fetching seller orders:', error);
+        throw new Error('Failed to fetch orders');
       }
-      
-      // Attach profile data to orders
-      const data = ordersData?.map((order: any) => ({
-        ...order,
-        buyer_profile: order.buyer_id ? profilesMap[order.buyer_id] || null : null
-      })) || [];
-      
-      console.log(`[OrderService] Fetched ${data?.length || 0} seller orders`);
-      
-      return data || [];
-    } catch (error) {
-      console.error('Error fetching seller orders:', error);
-      throw new Error('Failed to fetch orders');
-    }
   }
 
   /**
